@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useRef, useState, useCallback, useEffect, ReactNode } from 'react';
-import type { PendingIdentityResult, RotateKeyProof } from '@oxy.so/core';
+import type { PendingIdentityResult } from '@oxy.so/core/crypto';
+import type { RotateKeyProof } from '@oxy.so/core';
 
 interface RotateKeyFlowValue {
   /**

@@ -7,7 +7,7 @@
  * every load, save and clear passes through, so the press can read it at once.
  * The cold boot loads the store on mount, long before anyone presses sign-in.
  */
-import type { AuthStateStore } from '@oxy.so/core';
+import type { AuthStateStore } from '@oxy.so/core/session';
 
 export interface HeldDeviceCredential {
   deviceId: string;

@@ -362,7 +362,7 @@ export default function AgencySettingsScreen() {
   const accountsQuery = useQuery({
     queryKey: ['agency-settings', 'accounts', user?.id ?? null],
     enabled: Boolean(user?.id),
-    queryFn: () => oxyServices.listAccounts(),
+    queryFn: () => oxyServices.accounts.list(),
     staleTime: 60_000,
   });
   const accounts = useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);

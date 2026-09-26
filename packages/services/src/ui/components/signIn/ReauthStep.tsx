@@ -78,7 +78,7 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
 
   const sendCode = () =>
     run(async () => {
-      const started = await oxyServices.requestReauthEmailCode(action);
+      const started = await oxyServices.auth.requestReauthCode(action);
       setEmailCode('');
       setVerificationId(started.verificationId);
     });

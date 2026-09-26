@@ -6,6 +6,10 @@ Passkeys are removed from Oxy (ADR 0030): an account signs in with an email
 code or link, an optional password and an optional authenticator, or with
 Commons.
 
+Reputation without human control: rules are code, and no person — Oxy staff
+included — can award, reverse, void, recalculate or re-price anyone's
+reputation, or read more of it than its subject allows.
+
 ### Removed
 
 - `webauthn.ts` and every export from it: `webauthnRegisterOptionsRequestSchema`,
@@ -26,6 +30,24 @@ Commons.
   response is `{ ticket, expiresAt }`.
 - `AuthMethodEntry` is the identity key only: `type` is `'identity'`, and
   `credentialId`/`name` are gone.
+- **Breaking:** disputes — `REPUTATION_DISPUTE_STATUSES`,
+  `reputationDisputeStatusSchema`, `ReputationDisputeStatus`,
+  `ReputationDispute`/`reputationDisputeSchema`,
+  `CreateReputationDisputeInput`/`createReputationDisputeSchema`,
+  `ResolveReputationDisputeInput`/`resolveReputationDisputeSchema`.
+- **Breaking:** the staff write bodies — `UpsertReputationRuleInput`,
+  `UpsertReputationRuleRequest`, `upsertReputationRuleSchema`,
+  `ReverseReputationTransactionInput`, `reverseReputationTransactionSchema`,
+  `ReverseReputationTransactionResult`, `reverseReputationTransactionResultSchema`.
+- **Breaking:** the `disputed` and `voided` transaction statuses
+  (`REPUTATION_TRANSACTION_STATUSES` is `active`, `reversed`).
+- **Breaking:** `ReputationRule.id` and `ReputationRule.isEnabled`: a rule is
+  keyed by `actionType` and lives in Oxy's code.
+
+### Added
+
+- `ReputationRulesResponse`/`reputationRulesResponseSchema` —
+  `GET /reputation/rules` is `{ version, rules }`.
 
 ## 2.4.0
 

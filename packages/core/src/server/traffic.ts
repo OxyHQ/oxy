@@ -2,8 +2,8 @@ import { observeNodeHttp, withoutNodeHttpObservation } from './trafficNodeHttp';
 import { observeTrafficSocket, observeTrafficWebSocket, type TrafficWebSocket, type TrafficSocket } from '@oxy.so/telemetry/socket';
 import { randomUUID } from 'node:crypto';
 import type { RequestHandler } from 'express';
-import { OxyServices } from '../OxyServices';
-// Static, unlike the lazy import in `mixins/OxyServices.auth.ts`: that module is
+import { OxyServer } from './OxyServer';
+// Static, like `OxyServer`'s own import: this module is
 // reachable from the root barrel, which ships to React Native, so pulling
 // `node:crypto` in eagerly there would cost every mobile bundle. This file is
 // server-only and the server barrel already exports `./workloadIdentity`, so
@@ -65,11 +65,11 @@ export function createEcosystemTraffic(options: EcosystemTrafficOptions): {
       'Ecosystem activity needs one of: an OXY_ACTIVITY_API_KEY and OXY_ACTIVITY_API_SECRET pair, an OXY_SERVICE_API_KEY and OXY_SERVICE_API_SECRET pair, or a workload identity this process can attest (ADR 0026).',
     );
   }
-  const oxy = new OxyServices({ baseURL });
-  // Left unconfigured when there is no pair on purpose: `getServiceToken()`
+  const oxy = new OxyServer({ baseURL });
+  // Left unconfigured when there is no pair on purpose: `serviceToken()`
   // attests instead of being handed half a credential to fail on.
   if (apiKey && apiSecret) oxy.configureServiceAuth(apiKey, apiSecret);
-  const credential = options.credential ?? (() => oxy.getServiceToken());
+  const credential = options.credential ?? (() => oxy.serviceToken());
   const fetcher = globalThis.fetch.bind(globalThis);
   const instanceId = randomUUID();
   const location = options.location ?? infrastructureLocation(region);
@@ -141,6 +141,6 @@ export function createEcosystemTraffic(options: EcosystemTrafficOptions): {
       cleanups.add(cleanup);
       return cleanup;
     },
-    async stop() { if (stopped) return; stopped = true; cleanups.forEach(cleanup => cleanup()); cleanups.clear(); clearInterval(timer); clearInterval(heartbeatTimer); await flush(); await heartbeat(true); },
+    async stop() { if (stopped) return; stopped = true; for (const cleanup of cleanups) cleanup(); cleanups.clear(); clearInterval(timer); clearInterval(heartbeatTimer); await flush(); await heartbeat(true); },
   };
 }

@@ -51,19 +51,19 @@ if (isAuthenticated) {
 const { oxyServices } = useOxy();
 
 // Current user
-const user = await oxyServices.getCurrentUser();
+const user = await oxyServices.users.me();
 
 // User by ID
-const user = await oxyServices.getUserById('user123');
+const user = await oxyServices.users.get('user123');
 
 // Profile by username
-const profile = await oxyServices.getProfileByUsername('johndoe');
+const profile = await oxyServices.users.byUsername('johndoe');
 ```
 
 ### Search Profiles
 
 ```typescript
-const { data, pagination } = await oxyServices.searchProfiles('john', {
+const { data, pagination } = await oxyServices.users.search('john', {
   limit: 10,
   offset: 0,
 });
@@ -78,7 +78,7 @@ console.log('Has more?', pagination.hasMore);
 ### Update Profile
 
 ```typescript
-await oxyServices.updateProfile({
+await oxyServices.users.updateMe({
   name: 'John Doe',
   bio: 'Software developer',
   avatar: 'file_id_here'
@@ -89,20 +89,20 @@ await oxyServices.updateProfile({
 
 ```typescript
 // Follow
-await oxyServices.followUser('user123');
+await oxyServices.follows.follow('user123');
 
 // Unfollow
-await oxyServices.unfollowUser('user123');
+await oxyServices.follows.unfollow('user123');
 
 // Check status
-const { isFollowing } = await oxyServices.getFollowStatus('user123');
+const { isFollowing } = await oxyServices.follows.status('user123');
 ```
 
 ### Upload File
 
 ```typescript
 const file = new File([blob], 'image.jpg', { type: 'image/jpeg' });
-const uploaded = await oxyServices.uploadRawFile(file, 'public');
+const uploaded = await oxyServices.assets.upload(file, { visibility: 'public' });
 const fileId = uploaded.file.id;
 ```
 
@@ -110,37 +110,37 @@ const fileId = uploaded.file.id;
 
 ```typescript
 // Download/stream URL (with auth token, ORB-safe headers, and variants)
-const url = oxyServices.getFileDownloadUrl('file123', 'thumb');
+const url = oxyServices.assets.publicUrl('file123', 'thumb');
 ```
 
 ### Notifications
 
 ```typescript
 // Get notifications
-const { notifications } = await oxyServices.getNotifications();
+const { notifications } = await oxyServices.notifications.list();
 
 // Unread count
-const count = await oxyServices.getUnreadCount();
+const count = await oxyServices.notifications.unreadCount();
 
 // Mark as read
-await oxyServices.markNotificationAsRead('notification123');
-await oxyServices.markAllNotificationsAsRead();
+await oxyServices.notifications.markRead('notification123');
+await oxyServices.notifications.markAllRead();
 ```
 
 ### Privacy
 
 ```typescript
 // Block user
-await oxyServices.blockUser('user123');
-const blocked = await oxyServices.getBlockedUsers();
+await oxyServices.privacy.block('user123');
+const blocked = await oxyServices.privacy.blocked();
 
 // Restrict user
-await oxyServices.restrictUser('user123');
-const restricted = await oxyServices.getRestrictedUsers();
+await oxyServices.privacy.restrict('user123');
+const restricted = await oxyServices.privacy.restricted();
 
 // Check status
-const isBlocked = await oxyServices.isUserBlocked('user123');
-const isRestricted = await oxyServices.isUserRestricted('user123');
+const isBlocked = await oxyServices.privacy.isBlocked('user123');
+const isRestricted = await oxyServices.privacy.isRestricted('user123');
 ```
 
 ### Error Handling
@@ -149,7 +149,7 @@ const isRestricted = await oxyServices.isUserRestricted('user123');
 import { OxyAuthenticationError } from '@oxy.so/services';
 
 try {
-  await oxyServices.getCurrentUser();
+  await oxyServices.users.me();
 } catch (error) {
   if (error instanceof OxyAuthenticationError) {
     // Handle auth error
@@ -162,20 +162,15 @@ try {
 ## Node.js / Express
 
 ```typescript
-import { oxyClient } from '@oxy.so/core';
 import express from 'express';
+import { OxyServer } from '@oxy.so/core/server';
 
 const app = express();
+const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
 
-// Auth endpoint
-app.post('/api/auth/signin', async (req, res) => {
-  const { username, password } = req.body;
-  const session = await oxyClient.signIn(username, password);
-  res.json(session);
-});
-
-// Protected route
-app.use('/api/protected', oxyClient.auth());
+// Sign-in happens in the client (OxyProvider / OxyAccountDialog); the backend
+// only verifies the Oxy bearer the client sends.
+app.use('/api/protected', oxy.middleware.auth());
 
 app.get('/api/protected/user', (req: any, res) => {
   res.json({ user: req.user });

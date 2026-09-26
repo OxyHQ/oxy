@@ -104,18 +104,18 @@ describe('HttpService in-session refresh handler', () => {
     };
 
     const oxy = new OxyServices({ baseURL: 'https://api.mention.earth' });
-    oxy.setTokens(createJwt({ userId: 'u', exp: farFutureExp() }));
+    oxy.session.setAccessToken(createJwt({ userId: 'u', exp: farFutureExp() }));
 
     const tokenEvents: Array<string | null> = [];
-    oxy.onTokensChanged((token) => tokenEvents.push(token));
+    oxy.session.onChange((token) => tokenEvents.push(token));
 
-    oxy.getClient().setAuthRefreshHandler(async () => null);
+    oxy.http.setAuthRefreshHandler(async () => null);
 
-    await expect(oxy.getClient().post('/feed', {}, { retry: false })).rejects.toBeDefined();
+    await expect(oxy.http.post('/feed', {}, { retry: false })).rejects.toBeDefined();
 
     // The dead session reconciles: token cleared + a null change emitted (which
     // OxyContext's `handleTokenChange(null)` turns into a local sign-out).
-    expect(oxy.getAccessToken()).toBeNull();
+    expect(oxy.session.accessToken).toBeNull();
     expect(tokenEvents).toContain(null);
   });
 
@@ -274,10 +274,10 @@ describe('HttpService.endSession — a sign-out outranks a refresh', () => {
 
   it('is what OxyServices.clearTokens does; a plain HttpService.clearTokens (a mirror) is not', () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-    const before = oxy.httpService.getSessionEpoch();
-    oxy.clearTokens();
-    expect(oxy.httpService.getSessionEpoch()).toBe(before + 1);
-    expect(oxy.httpService.hasSessionEnded()).toBe(true);
+    const before = oxy.http.getSessionEpoch();
+    oxy.session.clear();
+    expect(oxy.http.getSessionEpoch()).toBe(before + 1);
+    expect(oxy.http.hasSessionEnded()).toBe(true);
 
     const mirror = new HttpService({ baseURL: 'https://api.mention.earth', enableRetry: false });
     mirror.clearTokens();
@@ -290,24 +290,24 @@ describe('OxyServices.getAccessTokenExpiry', () => {
   it('returns the JWT exp (seconds) of the current access token', () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
     const exp = Math.floor(Date.now() / 1000) + 1234;
-    oxy.setTokens(createJwt({ userId: 'u', exp }));
-    expect(oxy.getAccessTokenExpiry()).toBe(exp);
+    oxy.session.setAccessToken(createJwt({ userId: 'u', exp }));
+    expect(oxy.session.accessTokenExpiry).toBe(exp);
   });
 
   it('returns null when there is no access token', () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-    expect(oxy.getAccessTokenExpiry()).toBeNull();
+    expect(oxy.session.accessTokenExpiry).toBeNull();
   });
 
   it('returns null for an opaque / non-JWT token', () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-    oxy.setTokens('opaque-not-a-jwt');
-    expect(oxy.getAccessTokenExpiry()).toBeNull();
+    oxy.session.setAccessToken('opaque-not-a-jwt');
+    expect(oxy.session.accessTokenExpiry).toBeNull();
   });
 
   it('returns null for a JWT with no numeric exp claim', () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-    oxy.setTokens(createJwt({ userId: 'u' }));
-    expect(oxy.getAccessTokenExpiry()).toBeNull();
+    oxy.session.setAccessToken(createJwt({ userId: 'u' }));
+    expect(oxy.session.accessTokenExpiry).toBeNull();
   });
 });

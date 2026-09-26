@@ -13,8 +13,8 @@ jest.mock('@/lib/biometricAuth', () => ({
 
 // The silent core resolves the public key from KeyManager when none is passed.
 const getPublicKeyMock = jest.fn(async () => 'resolved-pubkey');
-jest.mock('@oxy.so/core', () => {
-  const actual = jest.requireActual('@oxy.so/core');
+jest.mock('@oxy.so/core/crypto', () => {
+  const actual = jest.requireActual('@oxy.so/core/crypto');
   return {
     ...actual,
     KeyManager: { ...actual.KeyManager, getPublicKey: () => getPublicKeyMock() },

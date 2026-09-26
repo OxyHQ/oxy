@@ -44,11 +44,6 @@ export const deleteAccountSchema = z.object({
 });
 export type DeleteAccountBody = z.infer<typeof deleteAccountSchema>;
 
-// GET /users/me/data
-export const dataExportQuerySchema = z.object({
-  format: z.enum(['json', 'csv']).optional(),
-});
-
 // GET /users/me/export — signed self-sovereign data export ("credible exit").
 // `ndjson` streams each section as newline-delimited JSON for large accounts.
 export const identityExportQuerySchema = z.object({

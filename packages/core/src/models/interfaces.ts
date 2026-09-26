@@ -22,27 +22,6 @@ export interface OxyConfig {
    * bounce (which uses the RP origin, not this registered client id).
    */
   clientId?: string;
-  /**
-   * How a BACKEND identifies itself on requests that carry no user session.
-   *
-   * - `'never'` (default): such requests go out anonymous. Right for browsers
-   *   and apps, which have no service identity to offer.
-   * - `'when-anonymous'`: they carry this process's service token instead —
-   *   from `configureServiceAuth()`'s key pair, or, with none, from workload
-   *   attestation (ADR 0026). A user session, when there is one, still wins,
-   *   and a process that can produce no service token (a local checkout) keeps
-   *   sending the request anonymous.
-   *
-   * Why a server wants it: oxy-api charges anonymous traffic to the SOURCE
-   * ADDRESS (`rl:general`, and a +500 ms `slowDown` per request past 100 in 15
-   * minutes), and a fleet leaves through one NAT address, so every anonymous
-   * read a backend makes shares — and past the threshold pays for — one budget.
-   * A first-party service token is exempt from both and charged to its own
-   * application's budget instead. Measured from Mention's task (2026-09-25):
-   * `GET /users/:id` 543–575 ms anonymous past the threshold, `POST
-   * /users/by-ids` 19–24 ms with the service token.
-   */
-  serviceIdentity?: 'never' | 'when-anonymous';
   // Performance & caching options
   /**
    * Enable the per-instance GET response cache. Defaults to `true` (5-minute
@@ -851,7 +830,7 @@ export interface SecurityActivity {
   userId: string;
   eventType: SecurityEventType;
   eventDescription: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   userAgent?: string;
   deviceId?: string;
   timestamp: string;

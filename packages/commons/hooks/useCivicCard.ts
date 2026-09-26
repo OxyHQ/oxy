@@ -1,7 +1,7 @@
 /**
  * React Query wrapper around a user's signed public Oxy ID card.
  *
- * `oxyServices.getPublicCard(userId)` fetches the card AND verifies the Oxy
+ * `oxyServices.civic.publicCard(userId)` fetches the card AND verifies the Oxy
  * custodial attestation client-side, returning `{ card, attestation, verified }`
  * — a bad/absent signature yields `verified: false` (untrusted) rather than
  * throwing, so the card view can always render a trust indicator.
@@ -46,7 +46,7 @@ export function useCivicCard(userId: string | null): UseQueryResult<CivicCardRes
       if (!userId) {
         throw new Error('No user id to resolve a card for');
       }
-      return oxyServices.getPublicCard(userId);
+      return oxyServices.civic.publicCard(userId);
     },
     enabled: Boolean(oxyServices) && Boolean(userId),
     staleTime: CARD_STALE_TIME_MS,

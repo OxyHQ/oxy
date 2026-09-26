@@ -2,8 +2,8 @@ import { createHmac } from 'node:crypto';
 import { isIPv4, isIPv6 } from 'node:net';
 import type { Request, RequestHandler } from 'express';
 import rateLimit, { type Store } from 'express-rate-limit';
-import type { OxyServices } from '../OxyServices';
-import { createOptionalOxyAuth } from './auth';
+import type { AuthMiddlewareOptions } from './middleware';
+import { createOptionalOxyAuth, type OxyAuthHost } from './auth';
 
 /**
  * Server-only rate limiting for Oxy backends.
@@ -19,7 +19,7 @@ import { createOptionalOxyAuth } from './auth';
  *      ALB) many users share one egress IP, so a single bucket was split across
  *      all of them → frequent, spurious HTTP 429s.
  *
- * `@oxy.so/core` already owns the session: `oxy.auth()` resolves `req.user` /
+ * `@oxy.so/core` already owns the session: `server.middleware.auth()` resolves `req.user` /
  * `req.userId`. Per-user rate limiting is the same concern (session identity),
  * so it belongs here — once — instead of being re-implemented per app.
  *
@@ -78,11 +78,11 @@ export interface OxyRateLimitOptions {
   /** Response message body sent with a 429. */
   message?: string;
   /**
-   * Options forwarded to the internal `oxy.auth({ optional: true })` resolver
+   * Options forwarded to the internal `server.middleware.auth({ optional: true })` resolver
    * (e.g. `{ serviceTokenJwksUrl }` to verify service tokens against a
    * non-default JWKS). `optional` is forced true.
    */
-  auth?: Parameters<OxyServices['auth']>[0];
+  auth?: AuthMiddlewareOptions;
 }
 
 /**
@@ -208,7 +208,7 @@ function hashAnonymousIp(ip: string): string {
  *
  * Only identities that came from a server-validated session or a verified
  * service token/delegation may pick a bucket. `req.sessionId` is the marker
- * for the former: `oxy.auth()` sets it only after `validateSession()` came
+ * for the former: `server.middleware.auth()` sets it only after `session.validate()` came
  * back valid, so requiring it here means an identity written by some OTHER
  * middleware — which this package cannot vouch for — shares the anonymous
  * per-IP bucket rather than getting the authenticated quota.
@@ -249,7 +249,7 @@ function resolveKey(req: OxyAuthedRequest): string {
  * Build the composed Oxy rate-limit middleware. See module docs for rationale.
  */
 export function createOxyRateLimit(
-  oxy: OxyServices,
+  oxy: OxyAuthHost,
   options: OxyRateLimitOptions = {},
 ): RequestHandler {
   const {
@@ -265,7 +265,7 @@ export function createOxyRateLimit(
   // Idempotent optional-auth resolver. Reuses the SAME session resolution as
   // every protected route, so the limiter keys by the real user identity.
   //
-  // `createOptionalOxyAuth` — NOT the raw `oxy.auth({ optional: true })` —
+  // `createOptionalOxyAuth` — NOT the raw `server.middleware.auth({ optional: true })` —
   // because only the former skips resolution when a preceding middleware has
   // already resolved a user. The raw middleware writes `req.userId = null` on
   // every request it cannot authenticate, and because it mutates the shared

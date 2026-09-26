@@ -60,6 +60,6 @@ describe('SessionClient over a real HttpService (unwrap contract)', () => {
     expect(client.getState()).toEqual(WIRE_STATE);
 
     // Active token planted host-side (would be absent on a discarded sync).
-    expect(oxy.getAccessToken()).toBe('planted-access-token');
+    expect(oxy.session.accessToken).toBe('planted-access-token');
   });
 });

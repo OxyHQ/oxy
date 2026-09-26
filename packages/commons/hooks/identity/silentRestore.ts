@@ -1,4 +1,4 @@
-import { KeyManager, type IdentityStatus } from '@oxy.so/core';
+import { KeyManager, type IdentityStatus } from '@oxy.so/core/crypto';
 
 /**
  * The identity verdict routing starts from, after a silent restore when one is

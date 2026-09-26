@@ -58,12 +58,12 @@ describe('systemNotificationIdFromPush', () => {
 
 describe('openSystemNotification', () => {
   it('marks the notification read and opens the url Oxy stored for it', async () => {
-    const reader = { markNotificationAsRead: jest.fn(async () => stored()) };
+    const reader = { notifications: { markRead: jest.fn(async () => stored()) } };
     const openUrl = jest.fn(async () => undefined);
 
     await expect(openSystemNotification(reader, 'n-1', openUrl)).resolves.toBe('opened');
 
-    expect(reader.markNotificationAsRead).toHaveBeenCalledWith('n-1');
+    expect(reader.notifications.markRead).toHaveBeenCalledWith('n-1');
     expect(openUrl).toHaveBeenCalledWith('https://move.oxy.so/jobs/job-42');
   });
 
@@ -76,7 +76,7 @@ describe('openSystemNotification', () => {
     const openUrl = jest.fn(async () => undefined);
 
     await expect(
-      openSystemNotification({ markNotificationAsRead: async () => notification }, 'n-1', openUrl),
+      openSystemNotification({ notifications: { markRead: async () => notification } }, 'n-1', openUrl),
     ).resolves.toBe('no-link');
     expect(openUrl).not.toHaveBeenCalled();
   });

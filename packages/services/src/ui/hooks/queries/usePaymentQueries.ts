@@ -29,7 +29,7 @@ import type {
 /**
  * Get the current user's subscription.
  *
- * Wraps `oxyServices.getCurrentUserSubscription()`
+ * Wraps `oxyServices.billing.subscription()`
  * (`GET /subscription/:userId`, billing-first). Returns the persisted
  * subscription or the API's `{ plan: 'basic' }` fallback when the user has
  * never subscribed.
@@ -43,7 +43,7 @@ export const useUserSubscription = (options?: { enabled?: boolean }) => {
       return authenticatedApiCall<Subscription>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.getCurrentUserSubscription(),
+        () => oxyServices.billing.subscription(),
       );
     },
     enabled: (options?.enabled !== false) && isAuthenticated && !!user?.id,
@@ -56,7 +56,7 @@ export const useUserSubscription = (options?: { enabled?: boolean }) => {
 /**
  * Get the current user's payment / billing history.
  *
- * Wraps `oxyServices.getUserPayments()` (`GET /payments/user`), which
+ * Wraps `oxyServices.billing.payments()` (`GET /payments/user`), which
  * returns the user's `deposit` and `purchase` transactions newest-first.
  */
 export const useUserPayments = (options?: { enabled?: boolean }) => {
@@ -68,7 +68,7 @@ export const useUserPayments = (options?: { enabled?: boolean }) => {
       return authenticatedApiCall<Payment[]>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.getUserPayments(),
+        () => oxyServices.billing.payments(),
       );
     },
     enabled: (options?.enabled !== false) && isAuthenticated && !!user?.id,
@@ -81,7 +81,7 @@ export const useUserPayments = (options?: { enabled?: boolean }) => {
 /**
  * Get the current user's FairCoin wallet balance.
  *
- * Wraps `oxyServices.getCurrentUserWallet()` (`GET /wallet/:userId`).
+ * Wraps `oxyServices.billing.wallet()` (`GET /wallet/:userId`).
  * Balance changes frequently, so the fresh window is intentionally short.
  */
 export const useUserWallet = (options?: { enabled?: boolean }) => {
@@ -93,7 +93,7 @@ export const useUserWallet = (options?: { enabled?: boolean }) => {
       return authenticatedApiCall<Wallet>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.getCurrentUserWallet(),
+        () => oxyServices.billing.wallet(),
       );
     },
     enabled: (options?.enabled !== false) && isAuthenticated && !!user?.id,
@@ -105,7 +105,7 @@ export const useUserWallet = (options?: { enabled?: boolean }) => {
 /**
  * Get the current user's wallet transaction history (paginated).
  *
- * Wraps `oxyServices.getCurrentUserWalletTransactions(options)`
+ * Wraps `oxyServices.billing.walletTransactions(options)`
  * (`GET /wallet/transactions/:userId`). The API responds with a
  * `{ data, pagination }` envelope, preserved here as
  * `WalletTransactionsResponse`.
@@ -127,7 +127,7 @@ export const useUserWalletTransactions = (
       return authenticatedApiCall<WalletTransactionsResponse>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.getCurrentUserWalletTransactions({ limit, offset }),
+        () => oxyServices.billing.walletTransactions({ limit, offset }),
       );
     },
     enabled: (options?.enabled !== false) && isAuthenticated && !!user?.id,

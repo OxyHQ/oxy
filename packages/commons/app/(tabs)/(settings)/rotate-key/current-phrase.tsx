@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { RecoveryPhraseService } from '@oxy.so/core';
+import { RecoveryPhraseService } from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
 import {

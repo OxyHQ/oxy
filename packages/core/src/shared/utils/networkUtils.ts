@@ -98,7 +98,7 @@ export const calculateBackoffInterval = (state: CircuitBreakerState): number => 
   if (consecutiveFailures === 0) return baseInterval;
 
   const backoffMultiplier = Math.min(
-    Math.pow(2, consecutiveFailures - 1),
+    2 ** (consecutiveFailures - 1),
     maxInterval / baseInterval
   );
 
@@ -238,7 +238,7 @@ export const withRetry = async <T>(
         throw error;
       }
 
-      const delayMs = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+      const delayMs = Math.min(baseDelay * 2 ** attempt, maxDelay);
       onRetry?.(error, attempt + 1);
       await delay(delayMs);
     }

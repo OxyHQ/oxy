@@ -60,7 +60,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 
   const accountQuery = useQuery({
     queryKey: ['accounts', 'detail', id],
-    queryFn: () => oxyServices.getAccount(id),
+    queryFn: () => oxyServices.accounts.get(id),
     enabled: canUsePrivateApi && id.length > 0,
   });
 
@@ -84,7 +84,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 
   const membersQuery = useQuery({
     queryKey: ['accounts', 'members', id],
-    queryFn: () => oxyServices.listAccountMembers(id),
+    queryFn: () => oxyServices.accounts.members.list(id),
     enabled: canUsePrivateApi && id.length > 0 && canRead,
   });
   const members = useMemo<AccountMember[]>(() => membersQuery.data ?? [], [membersQuery.data]);
@@ -94,7 +94,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   );
   const memberProfilesQuery = useQuery({
     queryKey: ['users', 'by-ids', memberUserIds],
-    queryFn: () => oxyServices.getUsersByIds(memberUserIds),
+    queryFn: () => oxyServices.users.getMany(memberUserIds),
     enabled: canUsePrivateApi && memberUserIds.length > 0,
   });
   const memberLabelByUserId = useMemo(() => {
@@ -142,7 +142,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   const inviteMutation = useMutation({
     mutationKey: ['accounts', 'members', 'invite', id],
     mutationFn: (input: { usernameOrEmail: string; role: AssignableRole }) =>
-      oxyServices.inviteAccountMember(id, input),
+      oxyServices.accounts.members.invite(id, input),
     onSuccess: () => {
       setInviteIdentifier('');
       setInviteRole('editor');
@@ -164,7 +164,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   const updateMutation = useMutation({
     mutationKey: ['accounts', 'members', 'update', id],
     mutationFn: (input: { memberId: string; role: AssignableRole }) =>
-      oxyServices.updateAccountMember(id, input.memberId, { role: input.role }),
+      oxyServices.accounts.members.update(id, input.memberId, { role: input.role }),
     onSuccess: () => {
       invalidateMembers();
       toast.success(t('accounts.members.toasts.roleUpdated') || 'Role updated');
@@ -176,7 +176,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 
   const removeMutation = useMutation({
     mutationKey: ['accounts', 'members', 'remove', id],
-    mutationFn: (memberId: string) => oxyServices.removeAccountMember(id, memberId),
+    mutationFn: (memberId: string) => oxyServices.accounts.members.remove(id, memberId),
     onSuccess: () => {
       invalidateMembers();
       toast.success(t('accounts.members.toasts.removed') || 'Member removed');
@@ -188,7 +188,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 
   const transferMutation = useMutation({
     mutationKey: ['accounts', 'members', 'transfer', id],
-    mutationFn: (userId: string) => oxyServices.transferAccountOwnership(id, { userId }),
+    mutationFn: (userId: string) => oxyServices.accounts.transferOwnership(id, { userId }),
     onSuccess: () => {
       invalidateMembers();
       toast.success(t('accounts.members.toasts.transferred') || 'Ownership transferred');

@@ -19,16 +19,18 @@ Status of the whole picture: [README.md](./README.md).
 machine lane that authenticates against live routes today.
 
 ```typescript
-import { OxyServices } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 
-const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-oxy.configureServiceAuth('oxy_dk_…', 'the-secret-shown-once');
+const oxy = new OxyServer({
+  baseURL: 'https://api.oxy.so',
+  serviceAuth: { apiKey: 'oxy_dk_…', apiSecret: 'the-secret-shown-once' },
+});
 
 // Cached and refreshed for you; 1-hour lifetime.
-const token = await oxy.getServiceToken();
+const token = await oxy.serviceToken();
 
 // Or, acting on behalf of an end user (attribution only — never the payer):
-await oxy.makeServiceRequest('POST', '/notifications', body, userId);
+await oxy.serviceRequest('POST', '/notifications', body, { actAs: userId });
 ```
 
 Requirements, all enforced server-side:
@@ -102,7 +104,7 @@ oxy_sk_<16 hex id>_<64 hex secret>
 ### Creating one — the token is shown exactly once
 
 ```typescript
-const { credential, token } = await oxy.createAppCredential(applicationId, {
+const { credential, token } = await oxy.apps.credentials.create(applicationId, {
   name: 'ci-runner',
   type: 'machine',
   environment: 'production',       // development | staging | production
@@ -134,10 +136,10 @@ Notes that bite:
 
 ```typescript
 // Instant cutover: the old token stops working the moment this returns.
-await oxy.rotateAppCredential(applicationId, credentialId);
+await oxy.apps.credentials.rotate(applicationId, credentialId);
 
 // Zero-downtime: the old token keeps working for one hour.
-await oxy.rotateAppCredential(applicationId, credentialId, { graceSeconds: 3600 });
+await oxy.apps.credentials.rotate(applicationId, credentialId, { graceSeconds: 3600 });
 ```
 
 An OAuth/service credential is *always* retired with the platform's fixed
@@ -154,7 +156,7 @@ no deadline to report.
 ### Revocation
 
 ```typescript
-await oxy.revokeAppCredential(applicationId, credentialId);
+await oxy.apps.credentials.revoke(applicationId, credentialId);
 ```
 
 Immediate, with no window. The row itself is never deleted: it is the audit link

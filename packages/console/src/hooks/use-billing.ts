@@ -80,7 +80,7 @@ export function useCredits() {
 
   return useQuery({
     queryKey: ['credits'],
-    queryFn: () => oxyServices.makeRequest<Credits>('GET', '/credits/'),
+    queryFn: () => oxyServices.request<Credits>('GET', '/credits/'),
     staleTime: 1000 * 60, // 1 minute
     retry: 2,
     enabled: isReady && isAuthenticated,
@@ -97,7 +97,7 @@ export function useCreditPackages() {
   return useQuery({
     queryKey: ['credit-packages'],
     queryFn: async (): Promise<Array<CreditPackage>> => {
-      const result = await oxyServices.makeRequest<{ packages: Array<CreditPackage> }>(
+      const result = await oxyServices.request<{ packages: Array<CreditPackage> }>(
         'GET',
         '/billing/packages'
       );
@@ -119,7 +119,7 @@ export function useSubscriptionPlans() {
   return useQuery({
     queryKey: ['subscription-plans'],
     queryFn: async (): Promise<Array<SubscriptionPlan>> => {
-      const result = await oxyServices.makeRequest<{ plans: Array<SubscriptionPlan> }>(
+      const result = await oxyServices.request<{ plans: Array<SubscriptionPlan> }>(
         'GET',
         '/billing/plans'
       );
@@ -141,7 +141,7 @@ export function useSubscription() {
   return useQuery({
     queryKey: ['subscription'],
     queryFn: async (): Promise<Subscription | null> => {
-      const result = await oxyServices.makeRequest<{ subscription: Subscription | null }>(
+      const result = await oxyServices.request<{ subscription: Subscription | null }>(
         'GET',
         '/billing/subscription'
       );
@@ -163,7 +163,7 @@ export function useTransactions(limit: number = 20, offset: number = 0) {
   return useQuery({
     queryKey: ['transactions', limit, offset],
     queryFn: () =>
-      oxyServices.makeRequest<{ transactions: Array<Transaction>; total: number }>(
+      oxyServices.request<{ transactions: Array<Transaction>; total: number }>(
         'GET',
         '/billing/transactions',
         { limit, offset }
@@ -191,7 +191,7 @@ export function useCreateCheckout() {
       successUrl: string;
       cancelUrl: string;
     }): Promise<CheckoutSession> =>
-      oxyServices.makeRequest<CheckoutSession>('POST', '/billing/checkout/credits', {
+      oxyServices.request<CheckoutSession>('POST', '/billing/checkout/credits', {
         packageId,
         successUrl,
         cancelUrl,
@@ -212,7 +212,7 @@ export function useCreateSubscriptionCheckout() {
       successUrl: string;
       cancelUrl: string;
     }): Promise<CheckoutSession> =>
-      oxyServices.makeRequest<CheckoutSession>('POST', '/billing/checkout/subscription', {
+      oxyServices.request<CheckoutSession>('POST', '/billing/checkout/subscription', {
         planId,
         successUrl,
         cancelUrl,
@@ -225,7 +225,7 @@ export function useCancelSubscription() {
 
   return useMutation({
     mutationFn: (): Promise<CancelSubscriptionResult> =>
-      oxyServices.makeRequest<CancelSubscriptionResult>('POST', '/billing/subscription/cancel'),
+      oxyServices.request<CancelSubscriptionResult>('POST', '/billing/subscription/cancel'),
   });
 }
 
@@ -234,7 +234,7 @@ export function useCreatePortalSession() {
 
   return useMutation({
     mutationFn: async (returnUrl: string): Promise<string> => {
-      const result = await oxyServices.makeRequest<{ url: string }>('POST', '/billing/portal', {
+      const result = await oxyServices.request<{ url: string }>('POST', '/billing/portal', {
         returnUrl,
       });
       return result.url;

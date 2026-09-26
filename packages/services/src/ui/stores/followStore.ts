@@ -156,7 +156,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       });
 
       void services
-        .getFollowStatuses(ids)
+        .follows.statuses(ids)
         .then((statuses) => {
           if (generation !== batchGeneration) return;
           set((state) => {
@@ -208,8 +208,8 @@ export const useFollowStore = create<FollowState>((set, get) => ({
 
     try {
       const response: FollowMutationResult = isCurrentlyFollowing
-        ? await oxyServices.unfollowUser(userId)
-        : await oxyServices.followUser(userId);
+        ? await oxyServices.follows.unfollow(userId)
+        : await oxyServices.follows.follow(userId);
 
       // Reconcile: confirm the optimistic value is authoritative, clear loading.
       set((state) => ({
@@ -224,7 +224,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       // - following: current user's following count (the user doing the following)
       if (response.counts) {
         const { counts } = response;
-        const currentUserId = oxyServices.getCurrentUserId();
+        const currentUserId = oxyServices.session.userId;
 
         set((state) => {
           const followerCounts = { ...state.followerCounts, [userId]: counts.followers };
@@ -278,7 +278,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
     });
 
     try {
-      const result = await oxyServices.followUsers(userIds);
+      const result = await oxyServices.follows.followMany(userIds);
       set((state) => {
         const followingUsers = { ...state.followingUsers };
         const loadingUsers = { ...state.loadingUsers };
@@ -348,7 +348,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
     });
 
     try {
-      const result = await oxyServices.unfollowUsers(userIds);
+      const result = await oxyServices.follows.unfollowMany(userIds);
       set((state) => {
         const followingUsers = { ...state.followingUsers };
         const loadingUsers = { ...state.loadingUsers };
@@ -419,7 +419,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       loadingCounts: { ...state.loadingCounts, [userId]: true },
     }));
     try {
-      const user = await oxyServices.getUserById(userId);
+      const user = await oxyServices.users.get(userId);
       if (user?._count) {
         set((state) => ({
           followerCounts: {

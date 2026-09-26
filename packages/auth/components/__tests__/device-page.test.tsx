@@ -41,7 +41,14 @@ let isAuthenticated = true
 
 // STABLE across renders, as in the real SDK: a fresh object per `useOxy()` call
 // would re-run the page's `useEffect([code, oxyServices])` on every render.
-const stableOxyServices = { getCommonsApprovalInfo, denyCommonsSignIn, getAccessToken }
+const stableOxyServices = {
+    auth: { commons: { approvalInfo: getCommonsApprovalInfo, deny: denyCommonsSignIn } },
+    session: {
+        get accessToken() {
+            return getAccessToken()
+        },
+    },
+}
 const stableUser = { id: "u1", username: "nate", name: { displayName: "Nate" } }
 
 mock.module("@oxy.so/services", () =>

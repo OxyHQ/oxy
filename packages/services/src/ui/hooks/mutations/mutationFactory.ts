@@ -51,7 +51,7 @@ export interface ProfileMutationConfig<TData, TVariables> {
  * ```ts
  * const updateProfile = createProfileMutation({
  *   mutationKey: mutationKeys.account.updateProfile,
- *   mutationFn: (updates) => oxyServices.updateProfile(updates),
+ *   mutationFn: (updates) => oxyServices.users.updateMe(updates),
  *   optimisticUpdate: (user, updates) => updates,
  *   errorMessage: 'Failed to update profile',
  * });

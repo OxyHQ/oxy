@@ -12,15 +12,11 @@ export type RouteName =
     | 'SearchSettings'
     | 'FileManagement'
     | 'HelpSupport'
-    | 'FAQ'
-    | 'Feedback'
     | 'LegalDocuments'
     | 'AppInfo'
-    | 'PremiumSubscription'
     | 'WelcomeNewUser'
     | 'UserLinks'
     | 'HistoryView'
-    | 'SavesCollections'
     | 'EditProfile'      // Profile-editing hub: one row per editable field
     | 'EditProfileField' // Dedicated screen for editing a single profile field
     | 'LearnMoreUsernames' // Informational screen about usernames
@@ -39,6 +35,7 @@ export type RouteName =
     | 'AvatarCrop' // Square-crop editor, reached by navigating within the ChangeAvatar surface
     | 'Notifications' // Per-channel notification preferences
     | 'ConnectedApps' // OAuth-authorized third-party apps the user can revoke
+    | 'Domains' // Web domains the identity has proven it controls
     | 'Preferences' // General user preferences (theme, reduce-motion, etc.)
     | 'DeleteAccount' // Delete an account without a key, with a code by email
     | 'LinkCommons' // Link Commons: the account becomes self-custodied
@@ -83,15 +80,11 @@ const screenComponents: Record<RouteName, ComponentType<never>> = {
     SearchSettings: lazy(() => import('../screens/SearchSettingsScreen')),
     FileManagement: lazy(() => import('../screens/FileManagementScreen')),
     HelpSupport: lazy(() => import('../screens/HelpSupportScreen')),
-    FAQ: lazy(() => import('../screens/FAQScreen')),
-    Feedback: lazy(() => import('../screens/FeedbackScreen')),
     LegalDocuments: lazy(() => import('../screens/LegalDocumentsScreen')),
     AppInfo: lazy(() => import('../screens/AppInfoScreen')),
-    PremiumSubscription: lazy(() => import('../screens/PremiumSubscriptionScreen')),
     WelcomeNewUser: lazy(() => import('../screens/WelcomeNewUserScreen')),
     UserLinks: lazy(() => import('../screens/UserLinksScreen')),
     HistoryView: lazy(() => import('../screens/HistoryViewScreen')),
-    SavesCollections: lazy(() => import('../screens/SavesCollectionsScreen')),
     EditProfile: lazy(() => import('../screens/EditProfileScreen')),
     EditProfileField: lazy(() => import('../screens/EditProfileFieldScreen')),
     // Informational screens
@@ -112,6 +105,7 @@ const screenComponents: Record<RouteName, ComponentType<never>> = {
     ChangeAvatar: lazy(() => import('../screens/ChangeAvatarScreen')),
     AvatarCrop: lazy(() => import('../screens/AvatarCropScreen')),
     Notifications: lazy(() => import('../screens/NotificationsScreen')),
+    Domains: lazy(() => import('../screens/DomainsScreen')),
     ConnectedApps: lazy(() => import('../screens/ConnectedAppsScreen')),
     Preferences: lazy(() => import('../screens/PreferencesScreen')),
     // The account's own sign-in security, in its settings.

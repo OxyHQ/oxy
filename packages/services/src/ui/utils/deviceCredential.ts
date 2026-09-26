@@ -1,4 +1,4 @@
-import type { AuthStateStore } from '@oxy.so/core';
+import type { AuthStateStore } from '@oxy.so/core/session';
 
 /**
  * True when the persisted store holds a device credential FOR A SESSION — the

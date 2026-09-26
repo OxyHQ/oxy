@@ -4,7 +4,7 @@ import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyManager, readIdentityMarker, type IdentityMarker, type IdentityRecoveryResult } from '@oxy.so/core';
+import { KeyManager, readIdentityMarker, type IdentityMarker, type IdentityRecoveryResult } from '@oxy.so/core/crypto';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';

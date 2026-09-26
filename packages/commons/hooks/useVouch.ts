@@ -87,7 +87,7 @@ export function useVouch(
 
       setState('vouching');
       try {
-        const res = await oxyServices.vouchForPerson({
+        const res = await oxyServices.civic.vouch({
           subjectDid,
           stakeAmount,
           biometricOk: true,
@@ -107,7 +107,7 @@ export function useVouch(
     if (!oxyServices || !subjectUserId) return;
     setState('withdrawing');
     try {
-      await oxyServices.withdrawVouch(subjectUserId);
+      await oxyServices.civic.withdrawVouch(subjectUserId);
       setState('withdrawn');
       void invalidatePersonhood();
     } catch (error: unknown) {

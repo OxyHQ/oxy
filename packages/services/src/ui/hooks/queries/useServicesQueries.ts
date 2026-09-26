@@ -50,7 +50,7 @@ export const useSession = (sessionId: string | null, options?: { enabled?: boole
         throw new Error('Session ID is required');
       }
       
-      const validation = await oxyServices.validateSession(sessionId, { useHeaderValidation: true });
+      const validation = await oxyServices.session.validate(sessionId, { useHeaderValidation: true });
       if (!validation?.valid || !validation.user) {
         throw new Error('Session not found or invalid');
       }
@@ -84,7 +84,7 @@ export const useDeviceSessions = (options?: { enabled?: boolean }) => {
         throw new Error('No active session');
       }
       
-      return await oxyServices.getDeviceSessions(activeSessionId);
+      return await oxyServices.devices.sessions(activeSessionId);
     },
     enabled: (options?.enabled !== false) && !!activeSessionId,
     staleTime: 2 * 60 * 1000,
@@ -104,7 +104,7 @@ export const useUserDevices = (options?: { enabled?: boolean }) => {
       return authenticatedApiCall(
         oxyServices,
         activeSessionId,
-        () => oxyServices.getUserDevices()
+        () => oxyServices.devices.list()
       );
     },
     enabled: (options?.enabled !== false) && isAuthenticated && !!activeSessionId,
@@ -122,7 +122,7 @@ export const useSecurityInfo = (options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: [...queryKeys.devices.all, 'security'],
     queryFn: async () => {
-      return await oxyServices.getSecurityInfo();
+      return await oxyServices.devices.securityInfo();
     },
     enabled: (options?.enabled !== false) && isAuthenticated,
     staleTime: 5 * 60 * 1000,
@@ -132,7 +132,7 @@ export const useSecurityInfo = (options?: { enabled?: boolean }) => {
 
 /**
  * Get account storage usage (server-aggregated usage across assets, mail,
- * recordings, etc.). Wraps `oxyServices.getAccountStorageUsage()` in a
+ * recordings, etc.). Wraps `oxyServices.assets.usage()` in a
  * TanStack query so consumers get caching, background refetch, and a
  * consistent `isLoading` / `refetch` surface instead of hand-rolled
  * `useEffect` fetches.
@@ -146,7 +146,7 @@ export const useAccountStorageUsage = (options?: { enabled?: boolean }) => {
       return authenticatedApiCall(
         oxyServices,
         activeSessionId,
-        () => oxyServices.getAccountStorageUsage()
+        () => oxyServices.assets.usage()
       );
     },
     enabled: (options?.enabled !== false) && isAuthenticated && !!activeSessionId,

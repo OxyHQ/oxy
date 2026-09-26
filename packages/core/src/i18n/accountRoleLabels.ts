@@ -1,5 +1,5 @@
-import type { AccountRole } from '../mixins/OxyServices.accounts';
-import enUS from './locales/en-US.json';
+import type { AccountRole } from '../api/accounts';
+import enUS from './locales/en-US';
 import { translate } from './index';
 
 /**

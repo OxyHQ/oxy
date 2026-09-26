@@ -9,11 +9,11 @@
 
 ## SDK Cache Sweep on Profile Writes (core)
 
-`oxyServices.updateProfile()` calls `clearCacheByPrefix()` for:
+`oxyServices.users.updateMe()` invalidates, in one `http.invalidateCache` pass:
 - `GET:/session/user/`
 - `GET:/users/me`
-- `GET:/profiles/username/`
-- The specific user id
+- `GET:/profiles/username/`, `GET:/profiles/resolve`
+- The specific user id (`GET:/users/<id>`) and the cached account lists
 
 Without this sweep the HTTP cache returns stale data and the username onboarding step loops.
 
@@ -36,12 +36,12 @@ Without this sweep the HTTP cache returns stale data and the username onboarding
 
 ## PrivacySettings Type (core)
 
-`PrivacySettings` interface lives in `packages/core/src/models/interfaces.ts`. `updateProfile`, `getPrivacySettings`, and `updatePrivacySettings` on `OxyServices` are typed against it — no `Record<string, any>` or `Promise<any>` on the SDK surface.
+`PrivacySettings` interface lives in `packages/core/src/models/interfaces.ts`. `oxy.users.updateMe`, `oxy.privacy.settings` and `oxy.privacy.updateSettings` are typed against it — no `Record<string, any>` or `Promise<any>` on the SDK surface.
 
 ## HttpService (services)
 
 - On React Native (Expo 56), FormData uploads route through `XMLHttpRequest` — do NOT use fetch for multipart uploads on RN (Expo 56's fetch rejects RN file descriptors).
-- **Web `{uri}` upload descriptors:** the browser's `FormData` can't read bytes from a `{uri}` object (only RN's can). On web, `assetUpload` materializes `{uri}` → `Blob` via `fetch` before appending (core ≥3.10.1); the API rejects 0-byte uploads with `400 Empty file`. Never persist/append an empty file.
+- **Web `{uri}` upload descriptors:** the browser's `FormData` can't read bytes from a `{uri}` object (only RN's can). On web, `oxy.assets.upload` materializes `{uri}` → `Blob` via `fetch` before appending (core ≥3.10.1); the API rejects 0-byte uploads with `400 Empty file`. Never persist/append an empty file.
 
 ## Offline Mutation Queue (services)
 

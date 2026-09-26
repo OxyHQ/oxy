@@ -1,4 +1,4 @@
-import { parseIdPayload } from '@oxy.so/core';
+import { parseIdPayload } from '@oxy.so/core/civic';
 import { parseIdentityLinkQrPayload } from '@oxy.so/contracts';
 
 /**

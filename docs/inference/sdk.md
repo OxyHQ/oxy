@@ -23,14 +23,14 @@ whether it rotates.
 
 Creating, rotating and revoking an `oxy_sk_…` credential is
 [credentials.md](./credentials.md). It is created in Console or through
-`oxy.createAppCredential(...)`, and the token is shown exactly once.
+`oxy.apps.credentials.create(...)`, and the token is shown exactly once.
 
 ---
 
-## `@oxy.so/core` — `OxyInferenceClient`
+## `@oxy.so/core/inference` — `OxyInferenceClient`
 
 ```typescript
-import { OxyInferenceClient } from '@oxy.so/core';
+import { OxyInferenceClient } from '@oxy.so/core/inference';
 
 // The OpenAI-style lane: one string, no session anywhere in the picture.
 const inference = new OxyInferenceClient({
@@ -40,16 +40,22 @@ const inference = new OxyInferenceClient({
 
 ```typescript
 // The Oxy auth lane, inside an app that already holds a session.
-const inference = oxyServices.inference();
+import { createInferenceClient } from '@oxy.so/core/inference';
+
+const inference = createInferenceClient(oxyServices);
 ```
 
 ```typescript
 // The Oxy auth lane, in a platform-trusted service.
-import { OxyInferenceClient } from '@oxy.so/core';
+import { OxyInferenceClient } from '@oxy.so/core/inference';
+import { OxyServer } from '@oxy.so/core/server';
 
-oxyServices.configureServiceAuth('oxy_dk_…', 'the-secret-shown-once');
+const oxy = new OxyServer({
+  baseURL: 'https://api.oxy.so',
+  serviceAuth: { apiKey: 'oxy_dk_…', apiSecret: 'the-secret-shown-once' },
+});
 const inference = new OxyInferenceClient({
-  credential: () => oxyServices.getServiceToken(),   // cached and refreshed for you
+  credential: () => oxy.serviceToken(),   // cached and refreshed for you
 });
 ```
 
@@ -124,7 +130,7 @@ of current production contents. See [catalogue.md](./catalogue.md).
 Every refusal is an `OxyInferenceError`:
 
 ```typescript
-import { OxyInferenceError } from '@oxy.so/core';
+import { OxyInferenceError } from '@oxy.so/core/inference';
 
 try {
   await inference.respond({ model: 'acme/some-model', input: 'hello' });

@@ -1,0 +1,386 @@
+const dict = {
+  "signin": {
+    "title": "Anmelden",
+    "subtitle": "Verwende dein Oxy-Konto",
+    "addAccountTitle": "Weiteres Konto hinzufügen",
+    "addAccountSubtitle": "Mit einem anderen Konto anmelden",
+    "actions": {
+      "continue": "Fortfahren",
+      "back": "Zurück"
+    },
+    "createAccountLink": "Neu bei Oxy? Konto erstellen",
+    "status": {
+      "signingIn": "Anmeldung läuft…"
+    },
+    "subtitleToApp": "um mit {{app}} fortzufahren",
+    "orContinueWith": "oder weiter mit",
+    "qr": {
+      "caption": "Mit Commons scannen, um dich anzumelden",
+      "renew": "Neuen Code anzeigen"
+    },
+    "errors": {
+      "rateLimited": "Zu viele Versuche. Versuche es in {{seconds}} s erneut.",
+      "invalidCredentials": "Benutzername, E-Mail oder Passwort stimmen nicht.",
+      "codeInvalid": "Dieser Code stimmt nicht oder ist abgelaufen.",
+      "requestExpired": "Diese Anmeldung ist abgelaufen. Sende eine neue E-Mail.",
+      "secondFactorInvalid": "Dieser Code stimmt nicht. Versuch es mit dem aktuellen.",
+      "originNotAllowed": "Die Anmeldung ist hier nicht verfügbar.",
+      "generic": "Etwas ist schiefgelaufen. Bitte versuch es noch einmal.",
+      "notConfigured": "Anmeldung nicht verfügbar",
+      "notConfiguredDescription": "{{app}} ist noch nicht für die Anmeldung eingerichtet. Wende dich an die Entwickler der App.",
+      "failed": "Anmeldung konnte nicht gestartet werden",
+      "failedDescription": "Etwas ist schiefgelaufen. Bitte versuch es noch einmal."
+    },
+    "chooser": {
+      "subtitleToApp": "um mit {{app}} fortzufahren",
+      "title": "Konto auswählen",
+      "subtitle": "Fahre mit einem deiner Konten fort oder verwende ein anderes.",
+      "useAnother": "Anderes Konto verwenden",
+      "continueAs": "Weiter als {{name}}"
+    },
+    "terms": {
+      "before": "Wenn du fortfährst, akzeptierst du unsere",
+      "termsLink": "Nutzungsbedingungen",
+      "and": "und",
+      "privacyLink": "Datenschutzerklärung"
+    },
+    "noAccount": "Noch kein Konto?",
+    "createAccount": "Konto erstellen",
+    "identifier": {
+      "label": "E-Mail oder Benutzername",
+      "placeholder": "du@beispiel.de",
+      "required": "Gib deine E-Mail-Adresse oder deinen Benutzernamen ein."
+    },
+    "checkEmail": {
+      "title": "Sieh in deine E-Mails",
+      "description": "Wenn es ein Konto zu {{identifier}} gibt, haben wir ihm einen Code und einen Anmeldelink geschickt.",
+      "codeLabel": "Code",
+      "codeHint": "Gib den Code aus der E-Mail ein oder öffne ihren Link in diesem Browser.",
+      "resend": "Neue E-Mail senden",
+      "resendIn": "Neue E-Mail senden in {{seconds}} s",
+      "resent": "Wir haben eine neue E-Mail geschickt.",
+      "retryLater": "Wir haben schon mehrere E-Mails geschickt. Warte ein paar Minuten und versuch es noch einmal.",
+      "usePassword": "Stattdessen dein Passwort verwenden",
+      "differentAccount": "Anderes Konto verwenden"
+    },
+    "password": {
+      "title": "Gib dein Passwort ein",
+      "label": "Passwort",
+      "required": "Gib dein Passwort ein.",
+      "forgot": "Vergessen? Code per E-Mail anfordern"
+    },
+    "secondFactor": {
+      "title": "Bestätigung in zwei Schritten",
+      "description": "Gib den Code aus deiner Authenticator-App ein.",
+      "backupDescription": "Gib einen deiner Backup-Codes ein. Jeder funktioniert nur einmal.",
+      "label": "Authenticator-Code",
+      "backupLabel": "Backup-Code",
+      "useBackup": "Backup-Code verwenden",
+      "useAuthenticator": "Authenticator-App verwenden"
+    },
+    "link": {
+      "approvedTitle": "Du bist angemeldet",
+      "approvedDescription": "Geh zurück zur App, in der du die Anmeldung angefordert hast: Sie macht von selbst weiter. Du kannst diesen Tab schließen.",
+      "otherDeviceTitle": "Öffne den Link im selben Browser",
+      "otherDeviceDescription": "Dieser Link funktioniert nur in dem Browser, in dem du die Anmeldung angefordert hast. Öffne ihn dort oder gib den Code aus der E-Mail in der App ein.",
+      "invalidTitle": "Dieser Link kann nicht verwendet werden",
+      "invalidDescription": "Er ist abgelaufen oder wurde schon verwendet. Fordere in der App eine neue E-Mail an oder gib den Code aus der neuesten ein."
+    }
+  },
+  "signup": {
+    "title": "Erstelle dein Konto",
+    "subtitle": "Wähle deinen Benutzernamen. Danach bestätigen wir deine E-Mail.",
+    "createInCommons": "Stattdessen in Commons erstellen",
+    "backToSignInLink": "Du hast schon ein Konto? Anmelden",
+    "username": {
+      "label": "Benutzername",
+      "placeholder": "deinname",
+      "required": "Wähle einen Benutzernamen.",
+      "taken": "Dieser Benutzername ist vergeben."
+    },
+    "email": {
+      "title": "Wie lautet deine E-Mail-Adresse?",
+      "subtitle": "Damit meldest du dich an: Wir schicken dir jedes Mal einen Code. Niemand sonst sieht sie.",
+      "label": "E-Mail",
+      "placeholder": "du@beispiel.de",
+      "invalid": "Gib eine gültige E-Mail-Adresse ein."
+    },
+    "commonsSubtitle": "Oder erstelle deine Identität in Commons und behalte deinen eigenen Schlüssel.",
+    "laterNote": "Ein Passwort oder eine Authenticator-App kannst du später in den Sicherheitseinstellungen deines Kontos hinzufügen."
+  },
+  "accountSwitcher": {
+    "loading": "Konten werden geladen...",
+    "qrHeadline": "Melden Sie sich mit Ihrer Oxy-Identität an",
+    "signInWithOxy": "Mit Oxy anmelden",
+    "signUpWithOxy": "Mit Oxy registrieren",
+    "getCommons": "Commons herunterladen",
+    "commonsNotInstalled": "Kein Commons? Holen Sie sich die App, um sich mit Ihrer Oxy-ID anzumelden.",
+    "showQrAnyway": "Ich habe Commons auf einem anderen Gerät",
+    "switchWhileSignedInAs": "Konto wechseln, angemeldet als {{name}}",
+    "manageOnDevice": "Konten auf diesem Gerät verwalten",
+    "continueWithOxy": "Mit Oxy fortfahren",
+    "havingTrouble": "Gibt es ein Problem?",
+    "progress": {
+      "preparing": "Anfrage wird vorbereitet",
+      "awaitingApproval": "Warten auf Freigabe",
+      "scanWithCommons": "Scannen Sie mit Commons auf Ihrem Telefon",
+      "continueInCommons": "In Commons fortfahren",
+      "checkCommons": "Prüfen Sie Commons auf Ihrem Telefon",
+      "openedInCommons": "In Commons geöffnet",
+      "confirming": "Identität wird bestätigt",
+      "confirmed": "Identität bestätigt"
+    },
+    "signInFailures": {
+      "denied": "Die Anmeldung wurde in Commons abgelehnt.",
+      "expired": "Die Anmeldeanfrage ist abgelaufen. Bitte versuchen Sie es erneut.",
+      "network": "Oxy ist nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+      "notConfigured": "Diese App ist noch nicht für die Anmeldung eingerichtet.",
+      "unsupportedFlow": "Diese Anmeldung kann hier nicht abgeschlossen werden.",
+      "claimFailed": "Die Anmeldung wurde genehmigt, konnte aber nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
+      "generic": "Die Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut."
+    },
+    "linkOpenFailed": "Der Link konnte nicht geöffnet werden. Bitte versuchen Sie es erneut."
+  },
+  "common": {
+    "actions": {
+      "back": "Zurück",
+      "continue": "Fortfahren",
+      "next": "Weiter",
+      "getStarted": "Loslegen",
+      "createAccount": "Konto erstellen",
+      "signIn": "Anmelden",
+      "verify": "Überprüfen",
+      "resetPassword": "Passwort zurücksetzen",
+      "signedOut": "Abgemeldet",
+      "close": "Schließen",
+      "tryAgain": "Erneut versuchen"
+    },
+    "links": {
+      "recoverAccount": "Ihr Konto wiederherstellen",
+      "signUp": "Registrieren"
+    },
+    "labels": {
+      "username": "Benutzername",
+      "email": "E-Mail",
+      "password": "Passwort",
+      "confirmPassword": "Passwort bestätigen"
+    },
+    "revoke": "Revoke",
+    "errors": {
+      "signOutAllFailed": "Beim Abmelden von allen Konten ist ein Problem aufgetreten. Bitte versuchen Sie es erneut."
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "subtitle": "Manage push, email, and security alerts",
+    "updateError": "Failed to update notification preferences",
+    "sections": {
+      "channels": "Channels",
+      "alerts": "Alerts",
+      "marketing": "Marketing"
+    },
+    "items": {
+      "push": {
+        "title": "Push notifications",
+        "subtitle": "Real-time alerts on your devices"
+      },
+      "emailDigest": {
+        "title": "Email digest",
+        "subtitle": "Periodic summary of your account activity"
+      },
+      "securityAlerts": {
+        "title": "Security alerts",
+        "subtitle": "Sign-ins, recovery codes, and key changes"
+      },
+      "marketingEmails": {
+        "title": "Marketing emails",
+        "subtitle": "Product news and occasional offers"
+      }
+    }
+  },
+  "preferences": {
+    "title": "Preferences",
+    "subtitle": "Theme, motion, and regional settings",
+    "sections": {
+      "appearance": "Appearance",
+      "language": "Language",
+      "region": "Region"
+    },
+    "theme": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System default"
+    },
+    "items": {
+      "theme": {
+        "title": "Theme"
+      },
+      "reduceMotion": {
+        "title": "Reduce motion",
+        "subtitle": "Minimise animations across Oxy apps",
+        "systemOn": "Following system: reduce motion is on"
+      },
+      "language": {
+        "title": "Language"
+      },
+      "timezone": {
+        "title": "Timezone",
+        "unknown": "Unable to detect timezone"
+      },
+      "about": {
+        "title": "About preferences",
+        "subtitle": "Preferences sync across every Oxy app you sign into"
+      }
+    }
+  },
+  "connectedApps": {
+    "title": "Connected apps",
+    "subtitle": "Manage third-party app access",
+    "empty": {
+      "title": "No connected apps",
+      "subtitle": "Apps you authorize to sign in with your Oxy account will appear here"
+    },
+    "item": {
+      "granted": "Gewährt {{relative}}",
+      "lastUsed": "Last used {{relative}}"
+    },
+    "confirm": {
+      "title": "Revoke access",
+      "message": "Revoke {{name}}'s access to your Oxy account?"
+    },
+    "toasts": {
+      "revoked": "Revoked access for {{name}}",
+      "revokeFailed": "Failed to revoke access"
+    }
+  },
+  "accountMenu": {
+    "label": "Kontomenü",
+    "manage": "Ihr Oxy-Konto verwalten",
+    "viewProfile": "Profil ansehen",
+    "addAnother": "Weiteres Konto hinzufügen",
+    "signOutAll": "Von allen Konten abmelden",
+    "open": "Kontomenü",
+    "openHint": "Öffnet das Kontomenü",
+    "openWithUser": "Kontomenü für {{name}}",
+    "switching": "Konto wird gewechselt…",
+    "signOutAccount": "{{name}} abmelden",
+    "greeting": "Hallo, {{name}}!",
+    "switchAccount": "Konto wechseln",
+    "storage": {
+      "title": "Oxy-Speicher",
+      "usage": "{{used}} von {{total}} belegt",
+      "used": "Belegt",
+      "free": "Frei",
+      "unavailable": "Nutzungsdetails nicht verfügbar",
+      "upgrade": "Plan upgraden",
+      "manage": "Speicher verwalten"
+    },
+    "data": "Deine Daten bei Oxy",
+    "settings": "Oxy-Einstellungen",
+    "help": "Hilfe & Feedback",
+    "signOut": "Abmelden",
+    "privacy": "Datenschutzerklärung",
+    "terms": "Nutzungsbedingungen"
+  },
+  "emailCode": {
+    "title": "Sieh in deine E-Mails",
+    "sentTo": "Wir haben einen 6-stelligen Code an {{email}} geschickt.",
+    "label": "Code",
+    "resend": "Neuen Code senden",
+    "resent": "Wir haben einen neuen Code geschickt.",
+    "changeEmail": "Andere E-Mail verwenden",
+    "errors": {
+      "codeInvalid": "Dieser Code stimmt nicht oder ist abgelaufen.",
+      "tooManyAttempts": "Zu viele falsche Codes. Fordere einen neuen an.",
+      "expired": "Das hat zu lange gedauert. Fang noch einmal an.",
+      "unavailable": "Oxy kann gerade keine E-Mails senden. Versuch es später noch einmal.",
+      "rateLimited": "Zu viele Codes. Versuch es später noch einmal."
+    }
+  },
+  "deleteAccount": {
+    "keyless": {
+      "subtitle": "@{{username}} und alles darin werden endgültig gelöscht. Gib deinen Benutzernamen ein und bestätige mit einem Code, den wir dir per E-Mail schicken.",
+      "action": "Konto löschen",
+      "done": "Dein Konto ist gelöscht.",
+      "doneDescription": "Du wurdest abgemeldet.",
+      "keyed": "Dieses Konto nutzt Commons: Lösche es in Oxy Commons unter Einstellungen > Konto löschen, mit seinem Schlüssel."
+    },
+    "handoff": {
+      "elsewhereMessage": "Zum Löschen deines Kontos brauchst du deinen Identitätsschlüssel, und der ist nicht auf diesem Gerät. Öffne Oxy Commons auf dem Gerät, auf dem er liegt, und geh zu Einstellungen > Konto löschen."
+    }
+  },
+  "linkCommons": {
+    "title": "Commons verknüpfen",
+    "subtitle": "Behalte deinen eigenen Schlüssel: Verknüpfe Commons, und dieses Konto gehört nur dir. Seine E-Mail-Adresse wird gelöscht, und deine Wiederherstellungsphrase in Commons bringt dich zurück.",
+    "scan": "Öffne Commons auf deinem Handy, wähle „Ich habe ein Oxy-Konto im Web“ und scanne diesen Code.",
+    "waiting": "Warte auf Commons…",
+    "compareTitle": "Prüfe den Code",
+    "compare": "Commons zeigt denselben Code. Wenn nicht, brich ab.",
+    "confirm": "Ja, Commons verknüpfen",
+    "cancel": "Abbrechen",
+    "doneTitle": "Commons ist verknüpft",
+    "done": "Dieses Konto ist jetzt selbstverwahrt. Seine E-Mail-Adresse wurde gelöscht: Deine Wiederherstellungsphrase in Commons bringt dich zurück.",
+    "already": "Dieses Konto nutzt bereits Commons.",
+    "expired": "Dieser Code ist abgelaufen.",
+    "renew": "Neuen Code anzeigen",
+    "failed": "Commons konnte nicht verknüpft werden. Versuch es noch einmal.",
+    "confirmTitle": "Verknüpfung bestätigen",
+    "confirmDescription": "Bestätige zum Abschluss mit einem Code, den wir dir per E-Mail schicken, dass du es bist.",
+    "row": "Behalte deinen eigenen Schlüssel mit Commons"
+  },
+  "reauth": {
+    "title": "Bestätige, dass du es bist",
+    "emailDescription": "Wir schicken einen Code an deine E-Mail-Adresse, um diese Änderung zu bestätigen.",
+    "sendCode": "Code senden",
+    "codeSent": "Wir haben einen 6-stelligen Code an deine E-Mail-Adresse geschickt.",
+    "codeLabel": "Code aus der E-Mail",
+    "passwordLabel": "Aktuelles Passwort",
+    "usePassword": "Stattdessen dein Passwort verwenden",
+    "useEmail": "Stattdessen Code per E-Mail erhalten",
+    "totpLabel": "Authenticator-Code oder Backup-Code",
+    "errors": {
+      "invalid": "Das hat nicht geklappt. Prüfe deine Eingabe und versuch es noch einmal.",
+      "totpRequired": "Gib auch den Code aus deiner Authenticator-App ein."
+    }
+  },
+  "signInSecurity": {
+    "password": {
+      "title": "Passwort",
+      "setTitle": "Passwort festlegen",
+      "changeTitle": "Passwort ändern",
+      "description": "Melde dich mit deinem Passwort statt mit einem Code per E-Mail an. Verwende mindestens {{min}} Zeichen.",
+      "newLabel": "Neues Passwort",
+      "repeatLabel": "Passwort wiederholen",
+      "tooShort": "Verwende mindestens {{min}} Zeichen.",
+      "mismatch": "Die Passwörter stimmen nicht überein.",
+      "signOutOthers": "Überall sonst abmelden",
+      "save": "Passwort speichern",
+      "saved": "Dein Passwort ist gespeichert.",
+      "row": "Optional: Mit Passwort anmelden"
+    },
+    "totp": {
+      "title": "Authenticator-App",
+      "description": "Nach deinem E-Mail-Code oder Passwort fragt Oxy zusätzlich nach einem Code aus einer App wie Google Authenticator oder 1Password.",
+      "setUp": "Einrichten",
+      "scan": "Scanne diesen QR-Code mit deiner Authenticator-App oder gib den Einrichtungsschlüssel ein.",
+      "secretLabel": "Einrichtungsschlüssel",
+      "codeLabel": "Code aus der App",
+      "enable": "Aktivieren",
+      "enabled": "Die Authenticator-App ist aktiviert.",
+      "disable": "Authenticator-App deaktivieren",
+      "disabled": "Die Authenticator-App ist deaktiviert.",
+      "on": "An",
+      "off": "Aus",
+      "backupTitle": "Speichere deine Backup-Codes",
+      "backupDescription": "Wenn du dein Handy verlierst, meldet dich jeder Code einmal an. Bewahre sie sicher auf: Sie werden nicht noch einmal angezeigt.",
+      "copy": "Codes kopieren",
+      "copied": "Backup-Codes kopiert.",
+      "savedThem": "Ich habe sie gespeichert",
+      "regenerate": "Neue Backup-Codes erhalten",
+      "regenerateDescription": "Deine alten Backup-Codes funktionieren dann nicht mehr.",
+      "remaining": "Noch {{count}} Backup-Codes übrig",
+      "row": "Ein zweiter Schritt bei der Anmeldung"
+    }
+  }
+};
+export default dict;

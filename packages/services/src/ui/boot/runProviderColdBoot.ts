@@ -1,12 +1,6 @@
-import {
-  logger as loggerUtil,
-  runSessionColdBoot,
-  type AuthStateStore,
-  type IdentityBinding,
-  type OxyServices,
-  type SessionMode,
-} from '@oxy.so/core';
-import type { SessionClient } from '@oxy.so/core';
+import { logger as loggerUtil, type OxyServices } from '@oxy.so/core';
+import { runSessionColdBoot, type AuthStateStore, type IdentityBinding, type SessionMode } from '@oxy.so/core/session';
+import type { SessionClient } from '@oxy.so/core/session';
 import { loadPersistedDeviceCredential } from '../utils/deviceCredential';
 import { createPlatformSharedDeviceCredentialStore } from '../session/sharedDeviceCredentialStore';
 import { tryCompleteOAuthReturn } from '../utils/oauthReturn';

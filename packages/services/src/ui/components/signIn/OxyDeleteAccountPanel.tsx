@@ -65,9 +65,11 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({ on
       validate={() => (confirmText.trim() === username ? null : t('deleteAccount.confirmLabel', { username }))}
       onSubmit={async (proof) => {
         if (!proof.emailCode) throw new Error(t('reauth.errors.invalid'));
-        await oxyServices.deleteAccountWithEmailCode(confirmText.trim(), {
-          emailCode: proof.emailCode,
-          ...(proof.totpCode ? { totpCode: proof.totpCode } : {}),
+        await oxyServices.users.deleteMe(confirmText.trim(), {
+          reauth: {
+            emailCode: proof.emailCode,
+            ...(proof.totpCode ? { totpCode: proof.totpCode } : {}),
+          },
         });
         await logout().catch(() => undefined);
         setDeleted(true);

@@ -1,0 +1,137 @@
+---
+title: API
+description: The OxyServices client — its namespaces, conventions, errors, and the server client.
+order: 2
+---
+
+# API
+
+`OxyServices` is a small client plus one namespace per area of the Oxy API.
+
+```ts
+import { OxyServices } from '@oxy.so/core';
+
+const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+
+const me = await oxy.users.me();
+const people = await oxy.users.getMany(ids);
+const { file } = await oxy.assets.upload(blob, { visibility: 'public' });
+await oxy.follows.follow(userId);
+```
+
+A namespace is created the first time you touch it and kept for the client's life, so constructing a client costs nothing for the areas you never use.
+
+## The client
+
+| Member | What it is |
+|---|---|
+| `oxy.request(method, path, data?, options?)` | One authenticated call — for the routes no namespace covers. GET sends `data` as the query, every other method as the body. |
+| `oxy.baseURL`, `oxy.cloudURL` | The API and CDN origins. |
+| `oxy.http` | The transport (`HttpService`): auth refresh, cache, dedupe, queue, retry. |
+| `oxy.cache.clear()` / `.delete(key)` / `.deletePrefix(prefix)` / `.stats()` | The GET response cache. |
+| `oxy.createLinkedClient({ baseURL })` | An HTTP client for your app's own backend that shares this session. |
+| `oxy.health()` | `GET /health`. |
+| `oxy.dispose()` | Release the client (its cache leaves the global sweep, the session ends). |
+
+## Namespaces
+
+| Namespace | Covers |
+|---|---|
+| `oxy.session` | This client's token and user id (`accessToken`, `userId`, `isAuthenticated`, `onChange`, `waitForAuth`), and its server session (`validate`, `list`, `logout`, `logoutAll`). |
+| `oxy.auth` | Signing in and up: `email.*`, `password.*`, `totp.*`, `oauth.*`, `commons.*` ("Sign in with Oxy"), key challenge sign-in, `signUp`, `completeSecondFactor`. |
+| `oxy.users` | People: `get`, `getMany`, `me`, `byUsername`, `search`, `resolveHandle`, `similar`, `recommendations`, `updateMe`, `deleteMe`. |
+| `oxy.follows` | The follow graph — people (`follow`, `unfollow`, `statuses`, `followers`, `following`, `mutuals`, `viewerGraph`) and any other target kind (`followTarget`, `ensureTarget`, `claimNamespace`, `registerKind`, `list`). |
+| `oxy.privacy` | Privacy settings, blocks and restrictions. |
+| `oxy.notifications` | The in-app inbox and push tokens. |
+| `oxy.assets` | Files: `upload`, `link`, `url` (signed), `publicUrl` (CDN, sync), `urls` (batch), `text`, `blob`, `delete`, `setVisibility`, `uploadAvatar`. |
+| `oxy.identity` | DID, auth methods, key rotation, `links.*` (Commons ↔ account), `domains.*` (verified domains), `backup.*` (encrypted key backup), `export()` (signed data export). |
+| `oxy.accounts` | The account graph and `members.*`. |
+| `oxy.apps` | Applications an account owns (`credentials.*`, `usage`), the public app identity, and `connected.*` — what this user granted. |
+| `oxy.linkedAccounts` | Mastodon / Bluesky accounts linked by OAuth. |
+| `oxy.agency` | Delegated capabilities for agents: `grants.*`, `policies.*`, `authorizations.*`. |
+| `oxy.store` | The app store: storefront, `reviews.*`, and a publisher's `listing.*`. |
+| `oxy.billing` | Subscription, wallet and payments. |
+| `oxy.reputation` | Oxy Trust, read-only: `balance`, `transactions`, `leaderboard`, `rules`, `influence`. Apps award it from the server; nobody edits it by hand. |
+| `oxy.civic` | Oxy ID: public cards, attestations, `validation.*`, vouching, personhood, `credentials.*`. |
+| `oxy.nodes` | The user's personal data node. |
+| `oxy.devices` | This user's devices and their sessions, security activity, and device sign-in (`mintToken`, `registerBrowser`, join codes). |
+| `oxy.topics`, `oxy.appData`, `oxy.contacts` | Topics, per-app key/value data on the account, privacy-preserving contact discovery. |
+
+## Conventions
+
+- **Verbs.** `get` one, `list` many, `create`, `update`, `delete`, `search`. A getter-shaped read of fixed state is a property (`oxy.session.userId`, `oxy.identity.did`).
+- **"Mine".** A read that takes a user id reads the signed-in user when it is omitted: `oxy.reputation.balance()`, `oxy.civic.personhood()`, `oxy.billing.wallet()`. Writes to the signed-in user end in `Me`: `oxy.users.updateMe`, `oxy.users.deleteMe`.
+- **Options objects.** Anything past the one or two identifying arguments is an options object: `assets.upload(file, { visibility, onProgress })`, `reputation.transactions(userId, { limit, offset })`.
+- **Types.** Every namespace class and its input/output types are exported from `@oxy.so/core`; wire contracts come from `@oxy.so/contracts`. There is no `any` on the surface.
+
+## Errors
+
+Every call rejects with `OxyApiError`:
+
+```ts
+import { OxyApiError } from '@oxy.so/core';
+
+try {
+  await oxy.users.get(id);
+} catch (error) {
+  if (error instanceof OxyApiError && error.status === 404) { /* … */ }
+}
+```
+
+`status` is the HTTP status (0 when no response arrived), `code` the API's machine code (or `TIMEOUT` / `NETWORK_ERROR` / `CANCELLED`), `details` its structured detail, `cancelled` / `timeout` say which of the two a status-0 error was. A first factor on an account with an authenticator resolves to a second-factor step (`{ secondFactorRequired, challengeId }`), finished with `oxy.auth.completeSecondFactor`; a pinned device mint can throw `AccountNotOnDeviceError`.
+
+## The transport
+
+`oxy.http` handles, for every call:
+
+- **Auth.** The bearer is refreshed a minute before expiry and once more on a 401; a burst of 401s shares one refresh and never stalls the queue.
+- **Cache.** GETs are cached per identity (a user never reads another user's cached response), bounded (LRU), and invalidated by the namespace that writes.
+- **Dedupe.** Concurrent identical GETs share one call; each caller still owns its cancellation. Writes are never merged.
+- **Retry.** Idempotent methods (GET, PUT, DELETE) retry transient failures with backoff; a POST is never re-sent.
+- **Queue.** At most 10 requests in flight; a retry's backoff and a deduplicated caller hold no slot.
+
+In a React app `OxyProvider` turns the response cache off: React Query owns caching there.
+
+## Entry points
+
+| Entry | Contents |
+|---|---|
+| `@oxy.so/core` | The client, namespaces, errors, models, light utilities. |
+| `@oxy.so/core/session` | `SessionClient`, the account dialog controller, auth-state stores, token refresh, cold boot. |
+| `@oxy.so/core/crypto` | `KeyManager`, `SignatureService`, `RecoveryPhraseService`, the AEAD/KDF/ECDH primitives. |
+| `@oxy.so/core/civic` | Oxy ID QR payloads: parse, build, verify. |
+| `@oxy.so/core/inference` | `OxyInferenceClient` and `createInferenceClient(oxy)`. |
+| `@oxy.so/core/server` | `OxyServer` and the Express / Socket.IO helpers. |
+| `@oxy.so/core/logger` | The logger. |
+
+## Servers: `OxyServer`
+
+A backend uses `OxyServer`: the same client plus a service identity.
+
+```ts
+import { OxyServer } from '@oxy.so/core/server';
+
+const oxy = new OxyServer({
+  baseURL: 'https://api.oxy.so',
+  serviceAuth: { apiKey: process.env.OXY_API_KEY!, apiSecret: process.env.OXY_API_SECRET! },
+});
+
+app.use('/api', oxy.middleware.auth());          // user or service bearer
+io.use(oxy.middleware.socket());
+app.use('/internal', oxy.middleware.service(), oxy.middleware.requireScope('users:read'));
+
+const authors = await oxy.users.getMany(ids);    // uses the service token
+await oxy.serviceRequest('POST', '/some/route', body, { actAs: userId });
+```
+
+On ECS with workload identity no key pair is needed. With `serviceIdentity: 'when-anonymous'`, every request that carries no user session is sent with the service token (oxy-api charges anonymous traffic to the source address, which a fleet shares). `OxyServer` adds `serviceToken()`, `serviceRequest()`, `verifyActingAs()`, `accountEvents.*`, `middleware.*`, and the service-only namespace methods: `assets.metadataByIds` / `metadataBySha256` / `linkedDownloadUrls`, `notifications.create`, `linkedAccounts.forUser`, `agency.mintRequesterAssertion` / `introspectRequesterAssertion`, `reputation.award`. See [service tokens](./service-tokens.mdx).
+
+## Migrating from 2.x
+
+`scripts/codemods/core-3/codemod.ts` rewrites 2.x flat calls and root imports:
+
+```sh
+bun <oxy-repo>/scripts/codemods/core-3/codemod.ts ./src
+```
+
+It leaves a `// TODO(core-3)` marker where arguments changed or a method was removed; the full map is in `scripts/codemods/core-3/map.ts` and the core CHANGELOG.

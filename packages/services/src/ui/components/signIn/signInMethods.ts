@@ -9,7 +9,7 @@
  *    Commons to continue with.
  */
 
-import type { CommonsAvailability } from '@oxy.so/core';
+import type { CommonsAvailability } from '@oxy.so/core/session';
 
 /**
  * `qr`          — the web: the embedded QR from `md`, "Continue with Oxy" below.

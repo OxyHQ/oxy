@@ -50,7 +50,6 @@ import { userFollows } from '../../db/schema/userFollows';
 import { users } from '../../db/schema/users';
 import { buildUserDid } from '../did.service';
 import { signRecordEnvelope, verifyAndStoreRecord } from '../signedRecord.service';
-import { reputationService } from '../reputation.service';
 import {
   denyValidation,
   getValidationRequest,
@@ -285,7 +284,6 @@ async function seedActiveVouch(subjectUserId: string): Promise<string> {
 
 beforeAll(async () => {
   await connectPostgres();
-  await reputationService.seedDefaultRules();
 });
 
 afterAll(async () => {

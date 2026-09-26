@@ -292,7 +292,7 @@ both redirect URIs explicitly; no wildcard or inferred callback is accepted.
 
 ## Step 5 — The OxySignInButton (SDK UI)
 
-`OxySignInButton` (from `@oxy.so/services`) is the branded "Sign in with Oxy" button. On press it resolves your Application's public identity via `GET /auth/oauth/client/:clientId` (SDK: `oxyServices.getPublicApplication(clientId)`) and routes by type:
+`OxySignInButton` (from `@oxy.so/services`) is the branded "Sign in with Oxy" button. On press it resolves your Application's public identity via `GET /auth/oauth/client/:clientId` (SDK: `oxyServices.apps.getPublic(clientId)`) and routes by type:
 
 | Resolved `type` / flags | Action on press |
 |-------------------------|-----------------|
@@ -359,11 +359,10 @@ Use `@oxy.so/core/server` — do not hand-roll bearer parsing or token-decoding 
 
 ```typescript
 import express from 'express';
-import { OxyServices } from '@oxy.so/core';
-import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
+import { OxyServer, createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
 
 const app = express();
-const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
 
 // Rejects requests without a valid Oxy access token (Authorization: Bearer …)
 app.use('/api', createOxyAuthMiddleware(oxy));
@@ -381,7 +380,7 @@ Every consent your app receives appears in the user's Oxy account under **Connec
 - `GET /auth/grants` (Bearer) — lists the user's authorized third-party apps: `{ data: [{ applicationId, name, logoUrl?, scopes, firstGrantedAt, lastUsedAt }] }`
 - `DELETE /auth/grants/:applicationId` (Bearer) — revokes the grant (idempotent). The next authorize for your app prompts for consent again.
 
-SDK equivalents on `@oxy.so/core` (`packages/core/src/mixins/OxyServices.connectedApps.ts`): `listConnectedApps()`, `revokeAppGrant(applicationId)`, plus `getPublicApplication(clientId)` for the public identity lookup.
+SDK equivalents on `@oxy.so/core` (`packages/core/src/api/apps.ts`): `oxy.apps.connected.list()`, `oxy.apps.connected.revoke(applicationId)`, plus `oxy.apps.getPublic(clientId)` for the public identity lookup.
 
 Design your app so a revoked grant simply means the user is signed out of it until they authorize again.
 

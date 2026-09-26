@@ -19,7 +19,7 @@ export const useUserProfile = (sessionId: string | null, options?: { enabled?: b
       if (!sessionId) {
         throw new Error('Session ID is required');
       }
-      return await oxyServices.getUserBySession(sessionId);
+      return await oxyServices.users.bySession(sessionId);
     },
     enabled: (options?.enabled !== false) && !!sessionId,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -37,7 +37,7 @@ export const useUserProfiles = (sessionIds: string[], options?: { enabled?: bool
     queries: sessionIds.map((sessionId) => ({
       queryKey: queryKeys.users.profile(sessionId),
       queryFn: async () => {
-        const results = await oxyServices.getUsersBySessions([sessionId]);
+        const results = await oxyServices.users.bySessions([sessionId]);
         return results[0]?.user || null;
       },
       enabled: (options?.enabled !== false) && !!sessionId,
@@ -76,7 +76,7 @@ export const useCurrentUser = (options?: { enabled?: boolean }) => {
   const query = useQuery({
     queryKey: queryKeys.accounts.current(activeSessionId),
     queryFn: async () => {
-      return await oxyServices.getCurrentUser();
+      return await oxyServices.users.me();
     },
     enabled: (options?.enabled !== false) && isAuthenticated && !!activeSessionId,
     staleTime: 1 * 60 * 1000, // 1 minute for current user
@@ -175,7 +175,7 @@ export const useUserById = (userId: string | null, options?: { enabled?: boolean
       if (!userId) {
         throw new Error('User ID is required');
       }
-      return await oxyServices.getUserById(userId);
+      return await oxyServices.users.get(userId);
     },
     enabled: (options?.enabled !== false) && !!userId,
     staleTime: 5 * 60 * 1000,
@@ -209,7 +209,7 @@ export const useUserByUsername = (username: string | null, options?: { enabled?:
       // Match queryKeys.users.byUsername normalization so the cache key and
       // the API request agree (case-insensitive local handles).
       const normalizedUsername = username.trim().toLowerCase();
-      return await oxyServices.getProfileByUsername(normalizedUsername);
+      return await oxyServices.users.byUsername(normalizedUsername);
     },
     enabled: (options?.enabled !== false) && !!username,
     staleTime: 5 * 60 * 1000,
@@ -245,7 +245,7 @@ export const useUsersBySessions = (sessionIds: string[], options?: { enabled?: b
       if (sessionIds.length === 0) {
         return [];
       }
-      return await oxyServices.getUsersBySessions(sessionIds);
+      return await oxyServices.users.bySessions(sessionIds);
     },
     enabled: (options?.enabled !== false) && sessionIds.length > 0,
     staleTime: 5 * 60 * 1000,
@@ -267,7 +267,7 @@ export const useConnectedApps = (options?: { enabled?: boolean }) => {
       return authenticatedApiCall<ConnectedApp[]>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.listConnectedApps()
+        () => oxyServices.apps.connected.list()
       );
     },
     enabled: (options?.enabled !== false) && isAuthenticated,
@@ -296,7 +296,7 @@ export const usePrivacySettings = (userId?: string, options?: { enabled?: boolea
       return authenticatedApiCall(
         oxyServices,
         activeSessionId,
-        () => oxyServices.getPrivacySettings(targetUserId)
+        () => oxyServices.privacy.settings(targetUserId)
       );
     },
     enabled: (options?.enabled !== false) && !!targetUserId,

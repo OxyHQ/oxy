@@ -53,7 +53,7 @@ export function Header(_props: HeaderProps) {
     );
     const avatarUrl = useMemo(() => {
         if (user?.avatar && oxyServices) {
-            return oxyServices.getFileDownloadUrl(user.avatar, 'thumb');
+            return oxyServices.assets.publicUrl(user.avatar, 'thumb');
         }
         return undefined;
     }, [user?.avatar, oxyServices]);

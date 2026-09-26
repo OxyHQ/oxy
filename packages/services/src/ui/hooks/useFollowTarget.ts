@@ -87,7 +87,7 @@ export function useFollowTarget(
     // user cannot act on.
     if (!targetId || !canUsePrivateApi) return;
     try {
-      const next = await oxyServices.getFollowTargetStatus(targetId);
+      const next = await oxyServices.follows.targetStatus(targetId);
       useFollowTargetStore.getState().setStatus(targetId, next);
       useFollowTargetStore.getState().setError(targetId, undefined);
     } catch (e) {
@@ -160,7 +160,7 @@ export function useFollowTarget(
         // The server returns the whole resulting status, so store it rather
         // than reconstructing one: `effectiveState`'s derivation lives there,
         // and a client recomputing it is a second implementation of one rule.
-        async () => (await oxyServices.followTarget(targetId, opts)).status,
+        async () => (await oxyServices.follows.followTarget(targetId, opts)).status,
         'Could not follow'
       );
     },
@@ -173,7 +173,7 @@ export function useFollowTarget(
     return mutate(
       { ...UNKNOWN_FOLLOW_STATUS },
       async () => {
-        await oxyServices.unfollowTarget(relationshipId);
+        await oxyServices.follows.unfollowTarget(relationshipId);
         return { ...UNKNOWN_FOLLOW_STATUS };
       },
       'Could not unfollow'
@@ -187,7 +187,7 @@ export function useFollowTarget(
     return mutate(
       optimistic,
       async () => {
-        await oxyServices.setFollowApplicationMode(relationshipId, 'disabled');
+        await oxyServices.follows.setApplicationMode(relationshipId, 'disabled');
         return optimistic;
       },
       'Could not change this app’s setting for this follow'
@@ -201,7 +201,7 @@ export function useFollowTarget(
     return mutate(
       optimistic,
       async () => {
-        await oxyServices.restoreFollowInheritance(relationshipId);
+        await oxyServices.follows.restoreInheritance(relationshipId);
         return optimistic;
       },
       'Could not change this app’s setting for this follow'

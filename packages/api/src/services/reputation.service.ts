@@ -3,8 +3,12 @@
  * (#217 ledger + #219 derived trust tiers / capped influence).
  *
  * Invariants:
- *  - Transactions are NEVER deleted. Corrections are expressed as reversals
- *    (compensating entry) or voids (status flip, no compensating entry).
+ *  - Transactions are NEVER deleted. A correction is a reversal (a
+ *    compensating entry), made only by policy-driven code — the moderation
+ *    bridge — never by a person.
+ *  - Points come from the rules in code (`reputationRules.ts`) or, for a
+ *    moderation consequence, from the versioned conduct policy. No endpoint
+ *    edits either.
  *  - A user's balance is always re-derivable by aggregating their `active`
  *    transactions; `reputation_balances` is a recomputable cache of that.
  *  - Awards are idempotent on (application_id, source_action_id).
@@ -14,10 +18,10 @@
  *
  * The Mongo version wrapped every multi-write in a `withTransaction` that
  * string-matched "no replica set" on the failure and then RE-RAN the same work
- * SESSION-LESS. That made `award`, `reverseTransaction`, `voidTransaction` and
- * dispute creation non-atomic on any deployment without a replica set: an
- * interruption could leave a ledger row with no balance recompute behind it, or
- * a `reversed` original with no compensating entry — a permanent, silent
+ * SESSION-LESS. That made `award` and `reverseTransaction` non-atomic on any
+ * deployment without a replica set: an interruption could leave a ledger row
+ * with no balance recompute behind it, or a `reversed` original with no
+ * compensating entry — a permanent, silent
  * mis-statement of someone's standing. Postgres has real transactions in every
  * deployment, so the fallback has nothing to fall back to and is gone; every
  * write below either commits whole or does not happen.
@@ -35,7 +39,7 @@
  */
 
 import type { ExtractTablesWithRelations } from 'drizzle-orm';
-import { and, asc, count, desc, eq, gt, inArray, ne } from 'drizzle-orm';
+import { and, count, desc, eq, gt, ne } from 'drizzle-orm';
 import type { PostgresJsTransaction } from 'drizzle-orm/postgres-js';
 import type {
   ReputationCategory,
@@ -63,38 +67,14 @@ import {
   type ReputationReportingSnapshot,
   type ReputationReviewingSnapshot,
 } from '../db/schema/reputationBalances';
-import { reputationDisputes } from '../db/schema/reputationDisputes';
-import { reputationRules } from '../db/schema/reputationRules';
 import { reputationTransactions } from '../db/schema/reputationTransactions';
 import { reviewerReputationProfiles } from '../db/schema/reviewerReputationProfiles';
 import { users } from '../db/schema/users';
 import {
   REPORT_CONFIRMED_ACTION,
   REPORT_REJECTED_ACTION,
-  ENDORSEMENT_RECEIVED_ACTION,
-  ENDORSEMENT_RECEIVED_POINTS,
-  REAL_LIFE_ATTESTED_ACTION,
-  REAL_LIFE_ATTESTED_POINTS,
-  PEER_VALIDATED_ACTION,
-  PEER_VALIDATED_POINTS,
-  VALIDATION_CORRECT_ACTION,
-  VALIDATION_CORRECT_POINTS,
-  VALIDATION_INCORRECT_ACTION,
-  VALIDATION_INCORRECT_POINTS,
-  PERSONHOOD_VOUCHED_ACTION,
-  PERSONHOOD_VOUCHED_POINTS,
-  VOUCH_SLASHED_ACTION,
-  VOUCH_SLASHED_POINTS,
-  LEASE_SIGNED_ACTION,
-  LEASE_SIGNED_POINTS,
-  LEASE_COMPLETED_ACTION,
-  LEASE_COMPLETED_POINTS,
-  CLEAN_MOVEOUT_ACTION,
-  CLEAN_MOVEOUT_POINTS,
-  LEASE_DEFAULT_ACTION,
-  LEASE_DEFAULT_POINTS,
-
 } from '../utils/reputation.constants';
+import { findReputationRule, REPUTATION_RULES, type ReputationRuleDefinition } from './reputationRules';
 import {
   CONDUCT_ACTION_TYPES,
   NEUTRAL_REVIEWER_RELIABILITY,
@@ -133,9 +113,7 @@ export type ReputationDbHandle = Database | ReputationTransactionHandle;
 /** A row of the reputation ledger. */
 export type ReputationTransactionRow = typeof reputationTransactions.$inferSelect;
 /** A row of the dispute table. */
-export type ReputationDisputeRow = typeof reputationDisputes.$inferSelect;
 /** A row of the configurable rule table. */
-export type ReputationRuleRow = typeof reputationRules.$inferSelect;
 
 /**
  * The recomputed standing of one account.
@@ -267,16 +245,6 @@ export interface ReviewInput {
   reason?: string;
 }
 
-/** Input for upserting a reputation rule. */
-export interface UpsertRuleInput {
-  actionType: string;
-  points: number;
-  category: ReputationCategory;
-  description: string;
-  cooldownInMinutes?: number;
-  isEnabled?: boolean;
-}
-
 /** The idempotency guard's index name, so a duplicate is answered SPECIFICALLY. */
 const SOURCE_ACTION_UNIQUE = 'reputation_transactions_source_action_key';
 
@@ -370,18 +338,9 @@ class ReputationService {
       // legitimate incident of the same severity.
       cooldownInMinutes = 0;
     } else {
-      const [rule] = await getDb()
-        .select({
-          points: reputationRules.points,
-          category: reputationRules.category,
-          description: reputationRules.description,
-          cooldownInMinutes: reputationRules.cooldownInMinutes,
-        })
-        .from(reputationRules)
-        .where(and(eq(reputationRules.actionType, actionType), eq(reputationRules.isEnabled, true)))
-        .limit(1);
+      const rule = findReputationRule(actionType);
       if (!rule) {
-        throw new BadRequestError('Unknown or disabled reputation action');
+        throw new BadRequestError('Unknown reputation action');
       }
       points = rule.points;
       category = rule.category;
@@ -557,10 +516,6 @@ class ReputationService {
       }
     }
 
-    if (original.status === 'voided') {
-      throw new ConflictError('A voided transaction cannot be reversed');
-    }
-
     const result = await getDb().transaction(async (tx) => {
       const reviewedAt = new Date();
       const [flipped] = await tx
@@ -617,56 +572,14 @@ class ReputationService {
   }
 
   /**
-   * Void a transaction: mark it `voided` so it is excluded from the balance,
-   * with NO compensating entry. Never deletes. Recomputes the balance.
-   */
-  async voidTransaction(
-    transactionId: string,
-    review: ReviewInput
-  ): Promise<ReputationTransactionRow> {
-    const [txn] = await getDb()
-      .select()
-      .from(reputationTransactions)
-      .where(eq(reputationTransactions.id, transactionId))
-      .limit(1);
-    if (!txn) {
-      throw new NotFoundError('Transaction not found');
-    }
-    if (txn.status === 'voided') {
-      return txn;
-    }
-    if (txn.status === 'reversed') {
-      throw new ConflictError('A reversed transaction cannot be voided');
-    }
-
-    return getDb().transaction(async (tx) => {
-      const [voided] = await tx
-        .update(reputationTransactions)
-        .set({
-          status: 'voided',
-          reviewedByUserId: review.reviewedByUserId,
-          reviewedAt: new Date(),
-          ...(review.reason ? { reason: review.reason } : {}),
-        })
-        .where(eq(reputationTransactions.id, txn.id))
-        .returning();
-
-      await this.recalculateBalance(txn.userId, tx);
-      return voided;
-    });
-  }
-
-  /**
    * Recompute and persist a user's balance snapshot. This is the function #219
    * hinges on.
    *
    * Counting model:
    *  - MONETARY aggregation (total/positive/negative/breakdown) sums every
-   *    transaction EXCEPT `voided` ones. A reversal is expressed as a pair —
-   *    the `reversed` original (its points retained for audit) and a `active`
-   *    compensating entry with negated points — so the pair nets to ZERO. A
-   *    `voided` transaction contributes nothing. A `disputed` transaction still
-   *    counts until its dispute resolves.
+   *    transaction. A reversal is expressed as a pair — the `reversed` original
+   *    (its points retained for audit) and a `active` compensating entry with
+   *    negated points — so the pair nets to ZERO.
    *  - RELIABILITY counts (accurate/rejected reports, penalties) are derived
    *    from `active` transactions ONLY, so a cancelled (reversed) report no
    *    longer inflates a user's reliability.
@@ -685,15 +598,11 @@ class ReputationService {
         category: reputationTransactions.category,
         status: reputationTransactions.status,
         sourceActionType: reputationTransactions.sourceActionType,
+        reversedTransactionId: reputationTransactions.reversedTransactionId,
         createdAt: reputationTransactions.createdAt,
       })
       .from(reputationTransactions)
-      .where(
-        and(
-          eq(reputationTransactions.userId, userId),
-          ne(reputationTransactions.status, 'voided')
-        )
-      );
+      .where(eq(reputationTransactions.userId, userId));
 
     let total = 0;
     let positive = 0;
@@ -727,7 +636,7 @@ class ReputationService {
     for (const txn of transactions) {
       const isConduct = CONDUCT_ACTION_TYPES.has(txn.actionType);
 
-      // Monetary aggregation over the not-voided set.
+      // Monetary aggregation over every transaction.
       total += txn.points;
       if (txn.points > 0) {
         positive += txn.points;
@@ -766,14 +675,17 @@ class ReputationService {
           break;
       }
 
-      // Reliability is derived from ACTIVE transactions only — cancelled
-      // (reversed) or disputed reports do not count toward report accuracy.
+      // Reliability is derived from ACTIVE, ORIGINAL transactions only — a
+      // cancelled (reversed) report does not count toward report accuracy, and
+      // neither does its compensating entry, which is `active` and carries the
+      // original's `sourceActionType` (counting it put the reversed report
+      // straight back).
       //
       // Only CONFIRMED REPORT ABUSE feeds the abuse signal. It used to be every
       // negative transaction at double weight, which meant a penalty for
       // unrelated conduct drove a report-abuse verdict — and that verdict forces
       // the `restricted` tier. Conduct now lands on the conduct axis instead.
-      if (txn.status === 'active') {
+      if (txn.status === 'active' && !txn.reversedTransactionId) {
         if (REPORT_ABUSE_ACTION_TYPES.has(txn.actionType)) {
           reportAbuseCount += 1;
         }
@@ -1171,113 +1083,6 @@ class ReputationService {
     return { context, weight, influence };
   }
 
-  /**
-   * Open a dispute against a transaction and mark the transaction `disputed`.
-   * The disputing user must own the transaction (be its subject).
-   */
-  async createDispute(
-    transactionId: string,
-    userId: string,
-    reason: string,
-    evidence?: string[]
-  ): Promise<ReputationDisputeRow> {
-    const [txn] = await getDb()
-      .select({
-        id: reputationTransactions.id,
-        userId: reputationTransactions.userId,
-        status: reputationTransactions.status,
-      })
-      .from(reputationTransactions)
-      .where(eq(reputationTransactions.id, transactionId))
-      .limit(1);
-    if (!txn) {
-      throw new NotFoundError('Transaction not found');
-    }
-    if (txn.userId !== userId) {
-      throw new BadRequestError('You can only dispute your own transactions');
-    }
-    if (txn.status === 'reversed' || txn.status === 'voided') {
-      throw new ConflictError('This transaction can no longer be disputed');
-    }
-
-    return getDb().transaction(async (tx) => {
-      const [dispute] = await tx
-        .insert(reputationDisputes)
-        .values({
-          transactionId: txn.id,
-          userId,
-          reason,
-          evidence,
-          status: 'open',
-        })
-        .returning();
-
-      await tx
-        .update(reputationTransactions)
-        .set({ status: 'disputed' })
-        .where(eq(reputationTransactions.id, txn.id));
-
-      return dispute;
-    });
-  }
-
-  /**
-   * Resolve a dispute. Accepting reverses the disputed transaction; rejecting
-   * restores it to `active`. Sets resolution metadata on the dispute.
-   */
-  async resolveDispute(
-    disputeId: string,
-    params: { status: 'accepted' | 'rejected'; resolvedByUserId: string }
-  ): Promise<ReputationDisputeRow> {
-    const [dispute] = await getDb()
-      .select()
-      .from(reputationDisputes)
-      .where(eq(reputationDisputes.id, disputeId))
-      .limit(1);
-    if (!dispute) {
-      throw new NotFoundError('Dispute not found');
-    }
-    if (dispute.status === 'accepted' || dispute.status === 'rejected') {
-      throw new ConflictError('Dispute is already resolved');
-    }
-
-    if (params.status === 'accepted') {
-      await this.reverseTransaction(dispute.transactionId, {
-        reviewedByUserId: params.resolvedByUserId,
-        reason: `Dispute ${dispute.id} accepted`,
-      });
-    } else {
-      // Only a still-`disputed` transaction returns to `active`: the predicate is
-      // part of the UPDATE rather than a read-then-write, so a concurrent
-      // reversal cannot be undone by a rejection that read a stale status.
-      await getDb()
-        .update(reputationTransactions)
-        .set({
-          status: 'active',
-          reviewedByUserId: params.resolvedByUserId,
-          reviewedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(reputationTransactions.id, dispute.transactionId),
-            eq(reputationTransactions.status, 'disputed')
-          )
-        );
-    }
-
-    const [resolved] = await getDb()
-      .update(reputationDisputes)
-      .set({
-        status: params.status,
-        resolvedByUserId: params.resolvedByUserId,
-        resolvedAt: new Date(),
-      })
-      .where(eq(reputationDisputes.id, dispute.id))
-      .returning();
-
-    return resolved;
-  }
-
   /** Leaderboard ordered by lifetime total descending. */
   async getLeaderboard(
     limit: number,
@@ -1352,188 +1157,9 @@ class ReputationService {
     return { items, total: totals?.total ?? 0 };
   }
 
-  /** Disputes raised by a single user. */
-  async listDisputesForUser(
-    userId: string,
-    limit: number,
-    offset: number
-  ): Promise<{ items: ReputationDisputeRow[]; total: number }> {
-    const items = await getDb()
-      .select()
-      .from(reputationDisputes)
-      .where(eq(reputationDisputes.userId, userId))
-      .orderBy(desc(reputationDisputes.createdAt))
-      .offset(offset)
-      .limit(limit);
-    const [totals] = await getDb()
-      .select({ total: count() })
-      .from(reputationDisputes)
-      .where(eq(reputationDisputes.userId, userId));
-    return { items, total: totals?.total ?? 0 };
-  }
-
-  /** Open disputes across all users (staff queue). */
-  async listOpenDisputes(
-    limit: number,
-    offset: number
-  ): Promise<{ items: ReputationDisputeRow[]; total: number }> {
-    const open = inArray(reputationDisputes.status, ['open', 'needs_review']);
-    const items = await getDb()
-      .select()
-      .from(reputationDisputes)
-      .where(open)
-      .orderBy(asc(reputationDisputes.createdAt))
-      .offset(offset)
-      .limit(limit);
-    const [totals] = await getDb()
-      .select({ total: count() })
-      .from(reputationDisputes)
-      .where(open);
-    return { items, total: totals?.total ?? 0 };
-  }
-
-  /** Enabled rules (for client display). */
-  async listEnabledRules(): Promise<ReputationRuleRow[]> {
-    return getDb()
-      .select()
-      .from(reputationRules)
-      .where(eq(reputationRules.isEnabled, true))
-      .orderBy(asc(reputationRules.category), asc(reputationRules.actionType));
-  }
-
-  /**
-   * Idempotently seed the platform-default reputation rules that the code awards
-   * directly (not migrated from legacy karma). Currently the cross-app
-   * `endorsement_received` rule. Safe to call repeatedly — it upserts by
-   * `actionType` and performs no write when the rule is already up to date.
-   */
-  async seedDefaultRules(): Promise<void> {
-    await this.upsertRule({
-      actionType: ENDORSEMENT_RECEIVED_ACTION,
-      points: ENDORSEMENT_RECEIVED_POINTS,
-      category: 'social',
-      description: 'Endorsed by another user in a connected app',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-
-    // Civic / Commons rules (Fase 1) — crypto-owned reputation.
-    await this.upsertRule({
-      actionType: REAL_LIFE_ATTESTED_ACTION,
-      points: REAL_LIFE_ATTESTED_POINTS,
-      category: 'physical',
-      description: 'A real-world interaction a counterparty cryptographically attested',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-    await this.upsertRule({
-      actionType: PEER_VALIDATED_ACTION,
-      points: PEER_VALIDATED_POINTS,
-      category: 'trust',
-      description: 'Validated by a randomly-selected jury of peers',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-    await this.upsertRule({
-      actionType: VALIDATION_CORRECT_ACTION,
-      points: VALIDATION_CORRECT_POINTS,
-      category: 'trust',
-      description: 'Voted with the resolving majority on a peer validation',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-    await this.upsertRule({
-      actionType: VALIDATION_INCORRECT_ACTION,
-      points: VALIDATION_INCORRECT_POINTS,
-      category: 'penalty',
-      description: 'Endorsed a verdict later reverted as fraud',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-    await this.upsertRule({
-      actionType: PERSONHOOD_VOUCHED_ACTION,
-      points: PERSONHOOD_VOUCHED_POINTS,
-      category: 'trust',
-      description: 'Vouched for as a real person by a staking voucher',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-    await this.upsertRule({
-      actionType: VOUCH_SLASHED_ACTION,
-      points: VOUCH_SLASHED_POINTS,
-      category: 'penalty',
-      description: 'Vouched for a person found to be fake (staking slash)',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-
-    // Homiio RE lifecycle — awarded by the Homiio service credential (`reputation:write`).
-    await this.upsertRule({
-      actionType: LEASE_SIGNED_ACTION,
-      points: LEASE_SIGNED_POINTS,
-      category: 'trust',
-      description: 'Lease fully signed by landlord and tenant (Homiio)',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-    await this.upsertRule({
-      actionType: LEASE_COMPLETED_ACTION,
-      points: LEASE_COMPLETED_POINTS,
-      category: 'trust',
-      description: 'Lease completed without early termination (Homiio)',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-    await this.upsertRule({
-      actionType: CLEAN_MOVEOUT_ACTION,
-      points: CLEAN_MOVEOUT_POINTS,
-      category: 'trust',
-      description: 'Clean move-out with no damage or outstanding obligations (Homiio)',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-    await this.upsertRule({
-      actionType: LEASE_DEFAULT_ACTION,
-      points: LEASE_DEFAULT_POINTS,
-      category: 'penalty',
-      description: 'Lease ended in default — unpaid rent, abandonment, or breach (Homiio)',
-      cooldownInMinutes: 0,
-      isEnabled: true,
-    });
-  }
-
-  /** Create or update a rule keyed by `actionType`. */
-  async upsertRule(input: UpsertRuleInput): Promise<ReputationRuleRow> {
-    // `trim` was Mongoose APPLICATION behaviour on this column; re-applied here,
-    // at the one write path, so the stored key matches what `award` looks up.
-    const actionType = String(input.actionType).trim();
-
-    // And a conduct rule must not exist at all. Its points would be a second,
-    // mutable authority for a figure the versioned conduct policy owns, and
-    // creating one is the single step that would make a conduct action awardable
-    // outside the bridge.
-    if (CONDUCT_ACTION_TYPES.has(actionType)) {
-      throw new BadRequestError(
-        'Conduct action types are governed by the versioned Oxy conduct policy, not by a reputation rule'
-      );
-    }
-
-    const values = {
-      points: input.points,
-      category: input.category,
-      description: input.description,
-      cooldownInMinutes: input.cooldownInMinutes ?? 0,
-      isEnabled: input.isEnabled ?? true,
-    };
-    const [rule] = await getDb()
-      .insert(reputationRules)
-      .values({ actionType, ...values })
-      .onConflictDoUpdate({
-        target: reputationRules.actionType,
-        set: { ...values, updatedAt: new Date() },
-      })
-      .returning();
-    return rule;
+  /** The rules in code (for client display). */
+  listRules(): readonly ReputationRuleDefinition[] {
+    return REPUTATION_RULES;
   }
 }
 

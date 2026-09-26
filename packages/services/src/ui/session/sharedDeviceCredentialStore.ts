@@ -39,12 +39,7 @@
  */
 import { Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo-modules-core';
-import {
-  normalizeSharedDeviceSessionRead,
-  type SharedDeviceCredential,
-  type SharedDeviceCredentialRead,
-  type SharedDeviceCredentialStore,
-} from '@oxy.so/core';
+import { normalizeSharedDeviceSessionRead, type SharedDeviceCredential, type SharedDeviceCredentialRead, type SharedDeviceCredentialStore } from '@oxy.so/core/session';
 
 /**
  * The iOS Keychain Access Group every official Oxy app declares in its

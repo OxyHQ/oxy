@@ -28,19 +28,15 @@ const renderHook: typeof rtlRenderHook = ((render, options) => {
 }) as typeof rtlRenderHook;
 
 const oxyServicesStub = {
-  getFollowStatus: jest.fn(async () => ({ isFollowing: false })),
-  getUserById: jest.fn(async () => ({ _count: { followers: 1, following: 2 } })),
-  followUser: jest.fn(async () => ({})),
-  unfollowUser: jest.fn(async () => ({})),
-  followUsers: jest.fn(async (ids: string[]) => ({
+  follows: { status: jest.fn(async () => ({ isFollowing: false })), follow: jest.fn(async () => ({})), unfollow: jest.fn(async () => ({})), followMany: jest.fn(async (ids: string[]) => ({
     followedCount: ids.length,
     results: ids.map((id) => ({ userId: id, success: true, alreadyFollowing: false })),
-  })),
-  unfollowUsers: jest.fn(async (ids: string[]) => ({
+  })), unfollowMany: jest.fn(async (ids: string[]) => ({
     unfollowedCount: ids.length,
     results: ids.map((id) => ({ userId: id, success: true, wasFollowing: true })),
-  })),
-  getCurrentUserId: jest.fn(() => 'me'),
+  })) },
+  users: { get: jest.fn(async () => ({ _count: { followers: 1, following: 2 } })) },
+  session: { get userId() { return (jest.fn(() => 'me'))(); } },
 };
 
 let ctx = {
@@ -167,7 +163,7 @@ describe('useFollow multi-user mode — no infinite render loop', () => {
     });
     rerender({ ids: ['u1', 'u2'] });
 
-    expect(oxyServicesStub.unfollowUsers).toHaveBeenCalledWith(['u1', 'u2']);
+    expect(oxyServicesStub.follows.unfollowMany).toHaveBeenCalledWith(['u1', 'u2']);
     expect('allFollowing' in result.current && result.current.allFollowing).toBe(false);
   });
 });

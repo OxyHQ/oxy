@@ -2,7 +2,7 @@
  * The reputation screen renders `breakdown`, `influence` and `reliability`, and
  * the API serves those ONLY to the balance's own subject. So the one thing
  * these tests pin is that the hook reads the SIGNED-IN user's balance and never
- * asks for one by id — `getReputationBalance(someId)` would still compile at the
+ * asks for one by id — `reputation.balance(someId)` would still compile at the
  * call site (it returns the public-view union) and would come back stripped for
  * anybody but yourself.
  */
@@ -50,32 +50,31 @@ describe('useCivicReputation', () => {
   });
 
   it('reads the signed-in user own balance, never one by id', async () => {
-    const getMyReputationBalance = jest.fn(async () => BALANCE);
-    const getReputationBalance = jest.fn(async () => BALANCE);
+    const balance = jest.fn(async () => BALANCE);
     __setOxyState({
       isAuthenticated: true,
       user: { id: 'me' },
-      oxyServices: { getMyReputationBalance, getReputationBalance },
+      oxyServices: { getReputationBalance: balance },
     });
 
     const { result } = renderHook(() => useCivicReputation('me'), { wrapper: makeWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(getMyReputationBalance).toHaveBeenCalledTimes(1);
-    expect(getMyReputationBalance).toHaveBeenCalledWith();
+    // No id: the signed-in user's own (full) balance.
+    expect(balance).toHaveBeenCalledTimes(1);
+    expect(balance).toHaveBeenCalledWith();
     // The subject-only fields the screen depends on survive the round trip.
     expect(result.current.data?.reliability.reportAccuracyScore).toBe(1);
-    expect(getReputationBalance).not.toHaveBeenCalled();
   });
 
   it('is disabled (never fetches) when there is no user id', () => {
-    const getMyReputationBalance = jest.fn(async () => BALANCE);
-    __setOxyState({ oxyServices: { getMyReputationBalance } });
+    const balance = jest.fn(async () => BALANCE);
+    __setOxyState({ oxyServices: { getReputationBalance: balance } });
 
     const { result } = renderHook(() => useCivicReputation(null), { wrapper: makeWrapper() });
 
     expect(result.current.fetchStatus).toBe('idle');
-    expect(getMyReputationBalance).not.toHaveBeenCalled();
+    expect(balance).not.toHaveBeenCalled();
   });
 
   it('derives the four sources from the balance breakdown', () => {

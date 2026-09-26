@@ -10,14 +10,14 @@
  *     is visible exactly where delegation is meant to be visible
  *     (`req.userId`, `getOxyDelegatedUserId`) and nowhere else.
  *
- * Everything runs through the REAL `oxy.auth()` middleware with a real
+ * Everything runs through the REAL `oxy.middleware.auth()` middleware with a real
  * Ed25519 signature verified against a (fetch-mocked) published JWKS, so the assertions are about the shipped lane rather than a
  * hand-built request object. The one exception is deliberate and marked: the
  * tampering cases plant fields on an already-authenticated request to prove the
  * billing resolver does not read them.
  */
 
-import { OxyServices } from '../../OxyServices';
+import { OxyServer } from '../OxyServer';
 import {
   getOxyBillingPrincipal,
   getOxyDelegatedUserId,
@@ -106,16 +106,16 @@ const makeRes = (): MockRes => ({
   },
 });
 
-/** Run `oxy.auth()` over a request and report what the middleware decided. */
+/** Run `oxy.middleware.auth()` over a request and report what the middleware decided. */
 async function authenticate(
-  oxy: OxyServices,
+  oxy: OxyServer,
   headers: Record<string, string>,
   options: Parameters<OxyServices['auth']>[0] = {},
 ): Promise<{ req: MockReq; res: MockRes; nextCalled: boolean }> {
   const req = makeReq(headers);
   const res = makeRes();
   const next = jest.fn();
-  const middleware = oxy.auth(options);
+  const middleware = oxy.middleware.auth(options);
   await middleware(req as unknown as never, res as unknown as never, next as unknown as never);
   return { req, res, nextCalled: next.mock.calls.length > 0 };
 }
@@ -123,12 +123,12 @@ async function authenticate(
 /** `MockReq` is the structural subset the resolvers read; Express's own shape is irrelevant here. */
 const asRequest = (req: MockReq): Request => req as unknown as Request;
 
-let oxy: OxyServices;
+let oxy: OxyServer;
 /** What the JWKS endpoint answers right now; a test may swap it for an outage. */
 let publishedJwks: () => ServiceTokenSigningKey[] | { status: number };
 
 beforeEach(() => {
-  oxy = new OxyServices({ baseURL: 'http://test.invalid' });
+  oxy = new OxyServer({ baseURL: 'http://test.invalid' });
   publishedJwks = () => [SIGNING_KEY];
   mockJwksFetch(() => publishedJwks());
 });
@@ -177,7 +177,7 @@ describe('a verified service token resolves the whole attribution tuple locally'
 describe('a delegated X-Oxy-User-Id is attribution, never the payer', () => {
   it('leaves the billing account untouched while the delegated user stays visible', async () => {
     jest
-      .spyOn(oxy, 'verifyServiceActingAs')
+      .spyOn(oxy, 'verifyActingAs')
       .mockResolvedValue({ authorized: true, scopes: ['user:read'] });
 
     const { req, nextCalled } = await authenticate(oxy, {
@@ -209,7 +209,7 @@ describe('a delegated X-Oxy-User-Id is attribution, never the payer', () => {
 
   it('resolves the SAME billing account with and without delegation', async () => {
     jest
-      .spyOn(oxy, 'verifyServiceActingAs')
+      .spyOn(oxy, 'verifyActingAs')
       .mockResolvedValue({ authorized: true, scopes: ['user:read'] });
 
     const withDelegation = await authenticate(oxy, {
@@ -250,7 +250,7 @@ describe('a delegated X-Oxy-User-Id is attribution, never the payer', () => {
 
   it('does not put the delegated user anywhere on the service principal', async () => {
     jest
-      .spyOn(oxy, 'verifyServiceActingAs')
+      .spyOn(oxy, 'verifyActingAs')
       .mockResolvedValue({ authorized: true, scopes: ['user:read'] });
 
     const { req } = await authenticate(oxy, {

@@ -74,40 +74,9 @@ function LoginScreen() {
 
 ### Sign Up Flow
 
-```typescript
-import { useOxy } from '@oxy.so/services';
-import { useState } from 'react';
-
-function SignUpScreen() {
-  const { oxyServices } = useOxy();
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSignUp = async () => {
-    setLoading(true);
-    try {
-      const response = await oxyServices.signUp(username, email, password);
-      // User is automatically logged in after signup
-      console.log('Account created:', response.user);
-    } catch (error: any) {
-      Alert.alert('Sign Up Failed', error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <View>
-      <TextInput value={username} onChangeText={setUsername} placeholder="Username" />
-      <TextInput value={email} onChangeText={setEmail} placeholder="Email" keyboardType="email-address" />
-      <TextInput value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
-      <Button title="Sign Up" onPress={handleSignUp} disabled={loading} />
-    </View>
-  );
-}
-```
+Apps never build their own sign-up form: `OxyAccountDialog` (opened with
+`useOxy().openAccountDialog()`) owns sign-in and sign-up, including the email
+code, password and authenticator steps.
 
 ## User Management Examples
 
@@ -129,9 +98,9 @@ function UserProfile({ userId }: { userId: string }) {
     const fetchData = async () => {
       try {
         const [userData, followersData, followingData] = await Promise.all([
-          oxyServices.getUserById(userId),
-          oxyServices.getUserFollowers(userId),
-          oxyServices.getUserFollowing(userId)
+          oxyServices.users.get(userId),
+          oxyServices.follows.followers(userId),
+          oxyServices.follows.following(userId)
         ]);
         
         setUser(userData);
@@ -159,7 +128,7 @@ function UserProfile({ userId }: { userId: string }) {
     <View>
       {user.avatar && (
         <Image
-          source={{ uri: oxyServices.getFileDownloadUrl(user.avatar, 'thumb') }}
+          source={{ uri: oxyServices.assets.publicUrl(user.avatar, 'thumb') }}
           style={{ width: 100, height: 100, borderRadius: 50 }}
         />
       )}
@@ -190,7 +159,7 @@ function EditProfileScreen() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await oxyServices.updateProfile({ name, bio });
+      await oxyServices.users.updateMe({ name, bio });
       Alert.alert('Success', 'Profile updated');
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -250,7 +219,7 @@ function ImageUpload() {
       const blob = await response.blob();
       const file = new File([blob], 'image.jpg', { type: 'image/jpeg' });
       
-      const uploaded = await oxyServices.uploadRawFile(file, 'public');
+      const uploaded = await oxyServices.assets.upload(file, { visibility: 'public' });
       setUploadedFileId(uploaded.file.id);
       Alert.alert('Success', 'Image uploaded!');
     } catch (error: any) {
@@ -267,7 +236,7 @@ function ImageUpload() {
       )}
       {uploadedFileId && (
         <Image
-          source={{ uri: oxyServices.getFileDownloadUrl(uploadedFileId, 'thumb') }}
+          source={{ uri: oxyServices.assets.publicUrl(uploadedFileId, 'thumb') }}
           style={{ width: 200, height: 200 }}
         />
       )}
@@ -302,7 +271,7 @@ function MultipleFileUpload() {
     setUploading(true);
     try {
       const uploadPromises = files.map(file =>
-        oxyServices.uploadRawFile(file, 'public')
+        oxyServices.assets.upload(file, { visibility: 'public' })
       );
       const results = await Promise.all(uploadPromises);
       setUploadedFiles(results);
@@ -322,7 +291,7 @@ function MultipleFileUpload() {
       </button>
       {uploadedFiles.map((file, index) => (
         <div key={index}>
-          <img src={oxyServices.getFileDownloadUrl(file.file.id, 'thumb')} alt="Uploaded" />
+          <img src={oxyServices.assets.publicUrl(file.file.id, 'thumb')} alt="Uploaded" />
         </div>
       ))}
     </div>
@@ -346,7 +315,7 @@ function FollowButton({ userId }: { userId: string }) {
   useEffect(() => {
     const checkFollowStatus = async () => {
       try {
-        const status = await oxyServices.getFollowStatus(userId);
+        const status = await oxyServices.follows.status(userId);
         setIsFollowing(status.isFollowing);
       } catch (error) {
         console.error('Failed to check follow status:', error);
@@ -359,10 +328,10 @@ function FollowButton({ userId }: { userId: string }) {
     setLoading(true);
     try {
       if (isFollowing) {
-        await oxyServices.unfollowUser(userId);
+        await oxyServices.follows.unfollow(userId);
         setIsFollowing(false);
       } else {
-        await oxyServices.followUser(userId);
+        await oxyServices.follows.follow(userId);
         setIsFollowing(true);
       }
     } catch (error: any) {
@@ -398,7 +367,7 @@ function FollowersList({ userId }: { userId: string }) {
 
   const loadFollowers = async () => {
     try {
-      const result = await oxyServices.getUserFollowers(userId, {
+      const result = await oxyServices.follows.followers(userId, {
         limit: 20,
         offset
       });
@@ -420,7 +389,7 @@ function FollowersList({ userId }: { userId: string }) {
     <View style={{ flexDirection: 'row', padding: 10, alignItems: 'center' }}>
       {item.avatar && (
         <Image
-          source={{ uri: oxyServices.getFileDownloadUrl(item.avatar, 'thumb') }}
+          source={{ uri: oxyServices.assets.publicUrl(item.avatar, 'thumb') }}
           style={{ width: 50, height: 50, borderRadius: 25, marginRight: 10 }}
         />
       )}
@@ -502,60 +471,6 @@ function HomeScreen({ navigation }) {
 }
 ```
 
-### E-Commerce App
-
-```typescript
-// ProductScreen.tsx
-import { useOxy } from '@oxy.so/services';
-import { useState } from 'react';
-
-function ProductScreen({ productId }: { productId: string }) {
-  const { oxyServices, isAuthenticated } = useOxy();
-  const [product, setProduct] = useState(null);
-  const [purchasing, setPurchasing] = useState(false);
-
-  const handlePurchase = async () => {
-    if (!isAuthenticated) {
-      Alert.alert('Sign In Required', 'Please sign in to purchase');
-      return;
-    }
-
-    setPurchasing(true);
-    try {
-      const payment = await oxyServices.createPayment({
-        amount: product.price,
-        currency: 'USD',
-        description: product.name,
-        productId: product.id
-      });
-      // Handle payment success
-      Alert.alert('Success', 'Purchase completed!');
-    } catch (error: any) {
-      Alert.alert('Purchase Failed', error.message);
-    } finally {
-      setPurchasing(false);
-    }
-  };
-
-  return (
-    <View>
-      {product && (
-        <>
-          <Image source={{ uri: oxyServices.getFileDownloadUrl(product.image) }} />
-          <Text>{product.name}</Text>
-          <Text>${product.price}</Text>
-          <Button
-            title={purchasing ? "Processing..." : "Buy Now"}
-            onPress={handlePurchase}
-            disabled={purchasing}
-          />
-        </>
-      )}
-    </View>
-  );
-}
-```
-
 ### Content Management App
 
 ```typescript
@@ -570,8 +485,8 @@ function ContentEditor() {
 
   const handleImageUpload = async (file: File) => {
     try {
-      const uploaded = await oxyServices.uploadRawFile(file, 'public');
-      const imageUrl = oxyServices.getFileDownloadUrl(uploaded.file.id);
+      const uploaded = await oxyServices.assets.upload(file, { visibility: 'public' });
+      const imageUrl = oxyServices.assets.publicUrl(uploaded.file.id);
       setUploadedImages(prev => [...prev, imageUrl]);
       // Insert image into content
       setContent(prev => prev + `\n![Image](${imageUrl})\n`);

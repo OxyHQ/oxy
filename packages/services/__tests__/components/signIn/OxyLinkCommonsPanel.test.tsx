@@ -5,7 +5,7 @@
  */
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { deriveIdentityLinkCode } from '@oxy.so/core';
+import { deriveIdentityLinkCode } from '@oxy.so/core/crypto';
 
 const LINK = {
   linkId: 'ab'.repeat(16),
@@ -16,18 +16,24 @@ const LINK = {
 const KEY = `04${'1f'.repeat(64)}`;
 
 const oxyServices = {
-  createIdentityLink: jest.fn(async () => LINK),
-  getIdentityLink: jest.fn(async (_linkId: string) => ({
-    status: 'pending' as string,
-    userId: 'user-1',
-    username: 'ada',
-    publicKey: null as string | null,
-    audience: 'oxy-api/identity',
-    expiresAt: LINK.expiresAt,
-  })),
-  requestReauthEmailCode: jest.fn(async (_action: string) => ({ verificationId: 'r-1', expiresAt: 1_900_000_000_000 })),
-  completeIdentityLinkWithEmailCode: jest.fn(async (_linkId: string, _reauth: unknown) => ({ success: true as const })),
-  cancelIdentityLink: jest.fn(async (_linkId: string) => undefined),
+  identity: {
+    links: {
+      create: jest.fn(async () => LINK),
+      get: jest.fn(async (_linkId: string) => ({
+        status: 'pending' as string,
+        userId: 'user-1',
+        username: 'ada',
+        publicKey: null as string | null,
+        audience: 'oxy-api/identity',
+        expiresAt: LINK.expiresAt,
+      })),
+      complete: jest.fn(async (_linkId: string, _reauth: unknown) => ({ success: true as const })),
+      cancel: jest.fn(async (_linkId: string) => undefined),
+    },
+  },
+  auth: {
+    requestReauthCode: jest.fn(async (_action: string) => ({ verificationId: 'r-1', expiresAt: 1_900_000_000_000 })),
+  },
 };
 let user: { id: string; username: string; publicKey?: string } = { id: 'user-1', username: 'ada' };
 
@@ -71,7 +77,7 @@ beforeEach(() => {
 afterEach(() => jest.useRealTimers());
 
 const signCommons = async () => {
-  oxyServices.getIdentityLink.mockResolvedValueOnce({
+  oxyServices.identity.links.get.mockResolvedValueOnce({
     status: 'signed',
     userId: 'user-1',
     username: 'ada',
@@ -91,7 +97,7 @@ describe('linking Commons from the account settings', () => {
 
     expect((await screen.findByTestId('qrcode')).textContent).toBe(LINK.qrPayload);
 
-    oxyServices.getIdentityLink.mockResolvedValueOnce({
+    oxyServices.identity.links.get.mockResolvedValueOnce({
       status: 'signed',
       userId: 'user-1',
       username: 'ada',
@@ -109,11 +115,11 @@ describe('linking Commons from the account settings', () => {
     fireEvent.click(screen.getByTestId('link-commons-confirm'));
     fireEvent.click(await screen.findByTestId('reauth-send-code'));
     fireEvent.change(await screen.findByTestId('reauth-code'), { target: { value: '123456' } });
-    expect(oxyServices.requestReauthEmailCode).toHaveBeenCalledWith('link_commons');
+    expect(oxyServices.auth.requestReauthCode).toHaveBeenCalledWith('link_commons');
     fireEvent.click(screen.getByTestId('reauth-submit'));
 
     await waitFor(() => expect(onLinked).toHaveBeenCalledTimes(1));
-    expect(oxyServices.completeIdentityLinkWithEmailCode).toHaveBeenCalledWith(LINK.linkId, {
+    expect(oxyServices.identity.links.complete).toHaveBeenCalledWith(LINK.linkId, {
       emailCode: { verificationId: 'r-1', code: '123456' },
     });
     expect(screen.getByText('Commons is linked')).toBeTruthy();
@@ -131,7 +137,7 @@ describe('linking Commons from the account settings', () => {
     fireEvent.click(screen.getByTestId('reauth-submit'));
 
     await waitFor(() =>
-      expect(oxyServices.completeIdentityLinkWithEmailCode).toHaveBeenCalledWith(LINK.linkId, {
+      expect(oxyServices.identity.links.complete).toHaveBeenCalledWith(LINK.linkId, {
         emailCode: { verificationId: 'r-1', code: '123456' },
         totpCode: '654321',
       }),
@@ -144,15 +150,15 @@ describe('linking Commons from the account settings', () => {
     await signCommons();
     fireEvent.click(await screen.findByTestId('link-commons-confirm'));
     fireEvent.click(await screen.findByTestId('reauth-cancel'));
-    expect(oxyServices.cancelIdentityLink).toHaveBeenCalledWith(LINK.linkId);
-    expect(oxyServices.completeIdentityLinkWithEmailCode).not.toHaveBeenCalled();
+    expect(oxyServices.identity.links.cancel).toHaveBeenCalledWith(LINK.linkId);
+    expect(oxyServices.identity.links.complete).not.toHaveBeenCalled();
   });
 
   it('withdraws the request when the person cancels at the QR', async () => {
     render(<OxyLinkCommonsPanel />);
     await screen.findByTestId('qrcode');
     fireEvent.click(screen.getByTestId('link-commons-cancel'));
-    expect(oxyServices.cancelIdentityLink).toHaveBeenCalledWith(LINK.linkId);
+    expect(oxyServices.identity.links.cancel).toHaveBeenCalledWith(LINK.linkId);
     expect(screen.getByTestId('link-commons-renew')).toBeTruthy();
   });
 
@@ -160,6 +166,6 @@ describe('linking Commons from the account settings', () => {
     user = { id: 'user-1', username: 'ada', publicKey: KEY };
     render(<OxyLinkCommonsPanel />);
     expect(screen.getByText('This account already uses Commons.')).toBeTruthy();
-    expect(oxyServices.createIdentityLink).not.toHaveBeenCalled();
+    expect(oxyServices.identity.links.create).not.toHaveBeenCalled();
   });
 });

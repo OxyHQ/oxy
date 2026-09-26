@@ -120,7 +120,7 @@ describe('SessionClient socket', () => {
     await c.start();
     expect(fakeSocket.connected).toBe(true); // authenticated connect on start
     fakeSocket.connected = false; // simulate a transient socket drop
-    listeners.forEach((l) => l('fresh-token'));
+    for (const l of listeners) l('fresh-token');
     expect(fakeSocket.connected).toBe(true);
     c.stop();
   });

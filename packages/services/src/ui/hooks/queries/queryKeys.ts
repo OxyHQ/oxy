@@ -75,6 +75,8 @@ export const queryKeys = {
   privacy: {
     all: ['privacy'] as const,
     settings: (userId?: string) => [...queryKeys.privacy.all, 'settings', userId || 'current'] as const,
+    /** The active account's blocked + restricted lists. */
+    lists: (userId?: string) => [...queryKeys.privacy.all, 'lists', userId || 'current'] as const,
   },
 
   // Security activity queries
@@ -123,6 +125,22 @@ export const queryKeys = {
   follow: {
     all: ['follow'] as const,
     counts: (userId: string) => [...queryKeys.follow.all, 'counts', userId] as const,
+  },
+
+  // Oxy Trust reputation (the active account's standing)
+  reputation: {
+    all: ['reputation'] as const,
+    balance: (userId?: string) => [...queryKeys.reputation.all, 'balance', userId || 'current'] as const,
+    transactions: (userId: string | undefined, limit: number, offset = 0) =>
+      [...queryKeys.reputation.all, 'transactions', userId || 'current', limit, offset] as const,
+    rules: () => [...queryKeys.reputation.all, 'rules'] as const,
+    leaderboard: () => [...queryKeys.reputation.all, 'leaderboard'] as const,
+  },
+
+  // Verified domains on the signed-in identity
+  domains: {
+    all: ['domains'] as const,
+    list: (userId?: string) => [...queryKeys.domains.all, 'list', userId || 'current'] as const,
   },
 
   // Payment / wallet / subscription queries

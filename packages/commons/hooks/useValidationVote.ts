@@ -69,7 +69,7 @@ export function useValidationVote(
 
       setState('voting');
       try {
-        await oxyServices.submitValidationVote(requestId, payloadHash, verdict);
+        await oxyServices.civic.validation.vote(requestId, payloadHash, verdict);
         setState('done');
         void invalidateInbox();
       } catch (error: unknown) {
@@ -84,7 +84,7 @@ export function useValidationVote(
     if (!oxyServices || !requestId) return;
     setState('denying');
     try {
-      await oxyServices.denyValidation(requestId);
+      await oxyServices.civic.validation.deny(requestId);
       setState('done');
       void invalidateInbox();
     } catch (error: unknown) {

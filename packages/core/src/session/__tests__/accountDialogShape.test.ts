@@ -45,10 +45,14 @@ const host: SessionClientHost = {
 };
 
 const oxyServices = {
-  getAccessToken: jest.fn(() => null),
-  getBaseURL: jest.fn(() => 'http://test.invalid'),
-  onTokensChanged: jest.fn(() => () => undefined),
-  getFileDownloadUrl: jest.fn((id: string) => `https://cdn/${id}`),
+  baseURL: jest.fn(() => 'http://test.invalid'),
+  session: {
+    accessToken: jest.fn(() => null),
+    onChange: jest.fn(() => () => undefined),
+  },
+  assets: {
+    publicUrl: jest.fn((id: string) => `https://cdn/${id}`),
+  },
 } as unknown as OxyServices;
 
 /**

@@ -1,9 +1,5 @@
-import {
-  SessionClient,
-  createSessionClientHost,
-  type OxyServices,
-  type SessionStateOrigin,
-} from '@oxy.so/core';
+import { SessionClient, createSessionClientHost, type SessionStateOrigin } from '@oxy.so/core/session';
+import type { OxyServices } from '@oxy.so/core';
 import { createTokenTransport } from './tokenTransport';
 
 /**

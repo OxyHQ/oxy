@@ -53,8 +53,8 @@ active data node, an `OxyPersonalDataNode` entry (`#oxy-node`, derived from the
 | `GET /u/:userId/did.json` (`did.ts`) | none | `public, max-age=300` | user DID document; CORS `*` |
 | `GET /.well-known/did.json` | none | `public, max-age=300` | the Oxy org DID |
 
-SDK (`OxyServices.identity.ts`): `resolveDid(userId)`, `getMyDid()` (derives the
-caller's DID locally), `getMyDidDocument()`.
+SDK (`oxy.identity`, `packages/core/src/api/identity.ts`): `resolveDid(userId)`,
+and the `did` getter (derives the caller's DID locally).
 
 > **Infra note:** `did:web:api.oxy.so:u:<id>` works today. Routing
 > `oxy.so/u/*/did.json` through the apex proxy (so the anchor can be `oxy.so`) is
@@ -169,14 +169,13 @@ verifies **identically** on Oxy and on a personal data node — no re-implementa
 
 ### Publishing records (SDK)
 
-`OxyServices.identity.ts`:
-- `signRecord(type, record)` — sign on-device **without** publishing (native-only).
-- `publishRecord(type, record)` → `POST /identity/records` (signs + publishes).
-- `getRecord(userId, type)` → `GET /identity/records/:userId/:type` (latest).
-- `verifyRecord(userId, type)` → `GET /identity/records/:userId/:type/verify`
-  (server re-verifies signature + key authorization).
-- `POST /identity/records` is the registration path for nodes too — a node is
-  just a `type:'node'` signed record (see [nodes](../nodes/README.md)).
+The SDK has no generic record publisher. The namespaces that write signed
+records sign them on-device (`signOwnChainRecord` in
+`packages/core/src/api/identity.ts`, native-only) and publish them through
+`POST /identity/records`: `oxy.nodes.register` (a node is just a `type:'node'`
+signed record — see [nodes](../nodes/README.md)) and `oxy.civic`'s attestations,
+vouches and credentials. The read routes (`GET /identity/records/:userId/:type`,
+`…/verify`) are plain HTTP.
 
 ### Public log
 
@@ -197,7 +196,7 @@ capped at `MAX_LOG_LIMIT = 500`.
 
 ## 3. Auth methods and linking
 
-`GET /auth/methods` (`listAuthMethods()`) returns
+`GET /auth/methods` (`oxy.identity.authMethods()`) returns
 `{ did, methods: AuthMethodEntry[] }` where each entry is
 `{ type: 'identity', linkedAt, verificationMethodId? }` — the account's Commons
 root, the only auth method (email, password and authenticator are sign-in
@@ -206,18 +205,18 @@ to a DID VM fragment.
 
 - `POST /auth/link` — a root proof for an account whose root is this key
   (ADR 0024 D8). A keyless account's first link goes through `/identity/link`
-  (`createIdentityLink` … `completeIdentityLinkWithEmailCode`), confirmed by a
+  (`oxy.identity.links.create` … `oxy.identity.links.complete`), confirmed by a
   fresh email code (ADR 0030 D6).
-- A root is never unlinked; it is replaced only by `rotateKey()`.
+- A root is never unlinked; it is replaced only by `oxy.identity.rotateKey()`.
 
-Every identity mutation invalidates the identity caches (`_invalidateIdentityCaches`:
+Every identity mutation invalidates the identity caches (`IdentityApi`'s private `invalidate`:
 `GET:/users/me*`, `GET:/auth/methods`, `GET:/identity/domains`, the DID doc).
 
 ---
 
 ## 4. Signed data export ("credible exit")
 
-`GET /users/me/export` (`exportMyData()`, auth + `rl:identity:export:` 5/hr) emits
+`GET /users/me/export` (`oxy.identity.export()`, auth + `rl:identity:export:` 5/hr) emits
 a signed, open-format bundle (`exportBundleSchema`):
 
 ```ts
@@ -254,8 +253,8 @@ A user can prove control of a domain to add it to `alsoKnownAs` (a verification
 Verification reads DNS via `dns.promises.resolveTxt` OR fetches the well-known
 file via `safeFetch` (SSRF-safe — never a raw `fetch`), then pushes to
 `verifiedDomains[]` (`{ domain, verifiedAt, method: 'dns-txt'|'well-known' }`) and
-invalidates the user cache. SDK: `requestDomainVerification`, `verifyDomain`,
-`listDomains`, `removeDomain`.
+invalidates the user cache. SDK: `oxy.identity.domains.requestVerification`, `.verify`,
+`.list`, `.remove`.
 
 ---
 
@@ -269,8 +268,8 @@ cross-domain restore are covered in [auth/README.md](../auth/README.md).)
 ### Mechanism A — same-device shared-keychain SSO (native only)
 
 Commons writes a shared identity to the platform keychain at creation. Any sibling
-native app calls `OxyServices.signInWithSharedIdentity()`: request a challenge for
-the shared public key → sign it with the shared key → `verifyChallenge` plants
+native app calls `oxy.auth.signInWithSharedIdentity()`: request a challenge for
+the shared public key → sign it with the shared key → `auth.verifyChallenge` plants
 tokens. This runs as the `shared-key-signin` cold-boot step on native; returns
 `null` on web. Each native app must declare the iOS `keychain-access-groups`
 (incl. `group.so.oxy.shared`, same Team ID) + Android shared-store config.
@@ -298,10 +297,10 @@ sequenceDiagram
   origin-bound) — the secret `sessionToken` stays with the RP and is never
   rendered.
 - Commons renders the *server-resolved* `Application` identity from
-  `getCommonsApprovalInfo`, never trusting the raw QR string.
-- SDK methods (`OxyServices.auth.ts`): RP side `startCommonsSignIn`,
-  `pollCommonsSignIn`, `claimSessionByToken`; Commons side
-  `getCommonsApprovalInfo`, `approveCommonsSignIn`, `denyCommonsSignIn`.
+  `oxy.auth.commons.approvalInfo`, never trusting the raw QR string.
+- SDK methods (`oxy.auth.commons`, `packages/core/src/api/auth.ts`): RP side
+  `commons.start`, `commons.poll`, `oxy.auth.claimSession`; Commons side
+  `commons.approvalInfo`, `commons.approve`, `commons.deny`.
 - New rate-limit prefixes: `rl:auth:session-approve-info:`,
   `rl:auth:session-authorize-signed:`.
 

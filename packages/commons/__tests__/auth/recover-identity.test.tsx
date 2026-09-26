@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { KeyManager } from '@oxy.so/core';
+import { KeyManager } from '@oxy.so/core/crypto';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 import * as identityStore from '@/hooks/identity/identityStore';
 import { __getMockRouter } from '@/__mocks__/expo-router';

@@ -2,15 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy, useAuthStore, handleAuthError } from '@oxy.so/services';
-import {
-  KeyManager,
-  RecoveryPhraseService,
-  SignatureService,
-  IdentityAlreadyExistsError,
-  IdentityPersistError,
-  IdentityUnavailableError,
-  readIdentityMarker,
-} from '@oxy.so/core';
+import { KeyManager, RecoveryPhraseService, SignatureService, IdentityAlreadyExistsError, IdentityPersistError, IdentityUnavailableError, readIdentityMarker } from '@oxy.so/core/crypto';
 import type { User } from '@oxy.so/core';
 import { useBiometricSignIn } from './useBiometricSignIn';
 import { useIdentityStore, persistIdentitySyncState, persistOnboardingComplete, persistOnboardingFlow } from './identity/identityStore';
@@ -186,7 +178,7 @@ export const useIdentity = (): UseIdentityResult => {
           const { signature, timestamp } = await SignatureService.createRegistrationSignature();
 
           try {
-            await oxyServices.register(publicKey, signature, timestamp);
+            await oxyServices.auth.registerKey(publicKey, signature, timestamp);
           } catch (registerError: unknown) {
             // 409 means already registered — that's fine, just sign in.
             if (!isAlreadyRegisteredError(registerError)) {
@@ -322,12 +314,12 @@ export const useIdentity = (): UseIdentityResult => {
         }
 
         try {
-          const { registered } = await oxyServices.checkPublicKeyRegistered(publicKey);
+          const { registered } = await oxyServices.auth.isKeyRegistered(publicKey);
 
           if (!registered) {
             try {
               const { signature, timestamp } = await SignatureService.createRegistrationSignature();
-              await oxyServices.register(publicKey, signature, timestamp);
+              await oxyServices.auth.registerKey(publicKey, signature, timestamp);
             } catch (registerError: unknown) {
               if (!isAlreadyRegisteredError(registerError)) {
                 throw registerError;
@@ -444,12 +436,12 @@ export const useIdentity = (): UseIdentityResult => {
         }
 
         try {
-          const { registered } = await oxyServices.checkPublicKeyRegistered(publicKey);
+          const { registered } = await oxyServices.auth.isKeyRegistered(publicKey);
 
           if (!registered) {
             try {
               const { signature, timestamp } = await SignatureService.createRegistrationSignature();
-              await oxyServices.register(publicKey, signature, timestamp);
+              await oxyServices.auth.registerKey(publicKey, signature, timestamp);
             } catch (registerError: unknown) {
               if (!isAlreadyRegisteredError(registerError)) {
                 throw registerError;

@@ -38,7 +38,6 @@ import devicesRouter from './routes/devices';
 import securityRoutes from './routes/security';
 import subscriptionRoutes from './routes/subscription.routes';
 import authLinkingRoutes from './routes/authLinking';
-import reputationService from './services/reputation.service';
 import moderationReputationService from './services/moderationReputation.service';
 import {
   BASELINE_CONDUCT_FAMILIES,
@@ -1103,10 +1102,6 @@ export async function bootstrap(
   // snapshot. Startup fails closed if that authoritative read is unavailable.
   await reconcileOfficialRedirectUris();
   await refreshOriginRegistry({ required: true });
-
-  // Seed platform-default reputation rules (idempotent) — currently the
-  // cross-app `endorsement_received` rule awarded by /app-signals/ingest.
-  await reputationService.seedDefaultRules();
 
   // Seed the baseline Oxy Conduct Policy (idempotent, and NOT an upsert of
   // the values — a published policy version is immutable, so an existing

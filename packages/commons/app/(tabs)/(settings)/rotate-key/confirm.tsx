@@ -22,7 +22,7 @@ type ConfirmState = 'form' | 'rotating' | 'success' | 'localPersistFailed';
 
 /**
  * Final rotation step. Biometric-gates the identity-key signature, then calls
- * `oxyServices.rotateKey` with the pre-derived new identity so the phrase shown
+ * `oxyServices.identity.rotateKey` with the pre-derived new identity so the phrase shown
  * on the previous step is exactly the one committed.
  *
  * `localPersistFailed` is NOT a failure: the server rotated and the user already
@@ -66,7 +66,7 @@ export default function RotateKeyConfirmScreen() {
 
     setState('rotating');
     try {
-      const result = await oxyServices.rotateKey({
+      const result = await oxyServices.identity.rotateKey({
         proof,
         phrase: proof === 'phrase' ? currentPhraseRef.current ?? undefined : undefined,
         signOutEverywhere,

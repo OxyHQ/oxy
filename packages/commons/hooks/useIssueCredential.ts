@@ -82,7 +82,7 @@ export function useIssueCredential(
 
       setState('issuing');
       try {
-        const res = await oxyServices.issueCredential({
+        const res = await oxyServices.civic.credentials.issue({
           holderDid,
           types: params.types,
           claims: params.claims,

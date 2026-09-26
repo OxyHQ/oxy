@@ -19,7 +19,7 @@ let device: typeof DEVICE | null = DEVICE
 const readDeviceProof = mock(async () => device)
 const approveEmailSignInLink = mock(async (_token: string, _device?: unknown): Promise<unknown> => ({ approved: true }))
 let isAuthResolved = true
-const stableOxyServices = { readDeviceProof, approveEmailSignInLink }
+const stableOxyServices = { session: { readDeviceProof }, auth: { email: { approveLink: approveEmailSignInLink } } }
 
 mock.module("@oxy.so/services", () =>
     createServicesMock({

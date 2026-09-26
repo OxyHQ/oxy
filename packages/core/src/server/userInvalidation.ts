@@ -6,8 +6,8 @@
  * Every Oxy backend caches Oxy identity, and none of them find out when it
  * changes. The `OxyServices` GET response cache holds `GET /users/:id` and
  * `GET /profiles/username/:name` for five minutes; it is swept when THIS process
- * writes the profile (the `evictOxyIdentityCache` calls in the user and accounts
- * mixins) and never when somebody else does — which is the normal case, since
+ * writes the profile (the `evictOxyIdentityCache` calls in the `users` and
+ * `accounts` namespaces) and never when somebody else does — which is the normal case, since
  * profiles are edited in Oxy's own apps. So an avatar or display-name change is
  * invisible to every consuming backend for up to five minutes, per process.
  *
@@ -34,11 +34,11 @@
  *     // node-redis
  *     await subscriber.subscribe(
  *       OXY_USER_INVALIDATION_CHANNEL,
- *       createOxyUserInvalidationHandler({ oxy: oxyClient }),
+ *       createOxyUserInvalidationHandler({ oxy: server }),
  *     );
  *
  *     // ioredis
- *     const handle = createOxyUserInvalidationHandler({ oxy: oxyClient });
+ *     const handle = createOxyUserInvalidationHandler({ oxy: server });
  *     await subscriber.subscribe(OXY_USER_INVALIDATION_CHANNEL);
  *     subscriber.on('message', (_channel, raw) => handle(raw));
  *
@@ -130,11 +130,11 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
 /** Options for {@link createOxyUserInvalidationHandler}. */
 export interface OxyUserInvalidationHandlerOptions {
   /**
-   * The backend's `OxyServices` instance. When supplied, its GET response cache
-   * is swept for the invalidated user — this is the whole reason a backend that
-   * has no cache of its own still benefits from subscribing.
+   * The backend's `OxyServer` (or any `OxyServices`). When supplied, its GET
+   * response cache is swept for the invalidated user — this is the whole reason
+   * a backend that has no cache of its own still benefits from subscribing.
    */
-  oxy?: OxyIdentityCacheEvictor;
+  oxy?: { readonly http: OxyIdentityCacheEvictor };
   /**
    * App-specific eviction (e.g. a Redis identity cache the app maintains itself).
    * May be async; a rejection is routed to `onError` and never escapes.
@@ -179,7 +179,7 @@ export function createOxyUserInvalidationHandler(
 
     if (oxy) {
       try {
-        evictOxyIdentityCache(oxy, event.userId);
+        evictOxyIdentityCache(oxy.http, event.userId);
       } catch (error) {
         // A cache sweep must never cost us the app-specific eviction below.
         onError?.(error, raw);

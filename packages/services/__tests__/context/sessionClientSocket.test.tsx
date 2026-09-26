@@ -33,7 +33,8 @@
 import React from 'react';
 import { render, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AUTH_STATE_STORAGE_KEY, type SessionLoginResponse, type User } from '@oxy.so/core';
+import { AUTH_STATE_STORAGE_KEY } from '@oxy.so/core/session';
+import { type SessionLoginResponse, type User } from '@oxy.so/core';
 import type { DeviceSessionState } from '@oxy.so/contracts';
 
 jest.mock('../../src/ui/session', () => {
@@ -167,24 +168,16 @@ function buildStub(baseURL: string) {
     getUsersByIds,
     stub: {
       config: { authWebUrl: 'https://auth.oxy.so' },
-      httpService: {
+      http: {
         setTokens: (token: string) => { currentToken = token; },
         setAuthRefreshHandler: jest.fn(),
         refreshAccessToken: jest.fn(async () => null),
       },
-      getBaseURL: () => baseURL,
+      baseURL: baseURL,
       getSessionBaseUrl: () => baseURL,
-      getAccessToken: () => currentToken,
-      getAccessTokenExpiry: () => null,
-      onTokensChanged: () => () => undefined,
-      setDeviceCredentialProvider: () => () => undefined,
-      setTokens: (token: string) => { currentToken = token; },
-      clearTokens: () => { currentToken = null; },
-      clearCache: jest.fn(),
-      // The device-first cold boot recovers the session by minting from the
-      // persisted zero-cookie device credential (`deviceId` + `deviceSecret`)
-      // seeded into localStorage before render (the `device-secret-mint` step).
-      mintFromDeviceSecret: jest.fn(async () => ({
+      session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => { currentToken = token; }, clear: () => { currentToken = null; } },
+cache: { clear: jest.fn() },
+devices: { mintToken: jest.fn(async () => ({
         accessToken: 'a1.access.token',
         expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
         nextDeviceSecret: 'a1.next.secret',
@@ -195,12 +188,10 @@ function buildStub(baseURL: string) {
           revision: 1,
           updatedAt: Date.now(),
         },
-      })),
-      signInWithSharedIdentity: jest.fn(async () => null),
-      getCurrentUser: jest.fn(async (): Promise<User> => ({ id: ACCOUNT_A1, username: 'user-a1' } as User)),
-      getUserBySession: jest.fn(async (): Promise<User> => ({ id: ACCOUNT_A1, username: 'user-a1' } as User)),
-      listAccounts: jest.fn(async () => []),
-      getUsersByIds,
+      })) },
+      auth: { signInWithSharedIdentity: jest.fn(async () => null) },
+      users: { me: jest.fn(async (): Promise<User> => ({ id: ACCOUNT_A1, username: 'user-a1' } as User)), bySession: jest.fn(async (): Promise<User> => ({ id: ACCOUNT_A1, username: 'user-a1' } as User)), getMany: getUsersByIds },
+      accounts: { list: jest.fn(async () => []) },
     },
   };
 }

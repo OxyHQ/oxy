@@ -12,16 +12,18 @@ import type { FileMetadata } from '@oxy.so/core';
  * the exact contract it depends on.
  */
 export interface AssetUrlBatchResolver {
-  getFileDownloadUrls(
-    requests: Array<{ fileId: string; variant?: string }>,
-    options?: { expiresIn?: number; context?: string },
-  ): Promise<Record<string, string>>;
+  assets: {
+    urls(
+      requests: Array<{ fileId: string; variant?: string }>,
+      options?: { expiresIn?: number; context?: string },
+    ): Promise<Record<string, string>>;
+  };
 }
 
 /**
  * Private-safe grid/thumbnail URL resolution.
  *
- * The synchronous `oxyServices.getFileDownloadUrl(id, variant)` always yields
+ * The synchronous `oxyServices.assets.publicUrl(id, variant)` always yields
  * the public CDN origin (`cloud.oxy.so/<id>`), which 404s for PRIVATE assets —
  * and uploads default to private. Thumbnails and previews therefore have to be
  * resolved through the authenticated batch endpoint, which returns a working
@@ -148,7 +150,7 @@ export function useResolvedFileUrls(
       const merged: Record<string, string> = {};
       for (let i = 0; i < requests.length; i += BATCH_CAP) {
         const chunk = requests.slice(i, i + BATCH_CAP);
-        const urls = await oxyServices.getFileDownloadUrls(chunk, {
+        const urls = await oxyServices.assets.urls(chunk, {
           expiresIn: ASSET_URL_TTL_SECONDS,
         });
         Object.assign(merged, urls);

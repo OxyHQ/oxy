@@ -22,4 +22,4 @@ export {
   activeSessionIdOf,
   activeUserOf,
   deviceStateToClientSessions,
-} from '@oxy.so/core';
+} from '@oxy.so/core/session';

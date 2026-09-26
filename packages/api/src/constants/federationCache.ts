@@ -4,7 +4,7 @@
  * These pin down a single, reserved namespace for assets created via the
  * service-token cache endpoints (`POST /assets/service/cache`,
  * `DELETE /assets/service/cache/:id`). Backend services (e.g. the Mention
- * backend, which holds an Oxy service token via `configureServiceAuth`) use
+ * backend, which holds an Oxy service token via `OxyServer`) use
  * those endpoints to cache federated/remote media to Oxy S3.
  *
  * Scoping rationale: a leaked or abused service token must NEVER be able to

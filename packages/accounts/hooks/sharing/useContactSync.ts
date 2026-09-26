@@ -119,7 +119,7 @@ export function useContactSync(): UseContactSyncResult {
         return;
       }
 
-      const { matches } = await oxyServices.discoverContacts(
+      const { matches } = await oxyServices.contacts.discover(
         batch.hashedEmails,
         batch.hashedPhones,
       );
@@ -143,7 +143,7 @@ export function useContactSync(): UseContactSyncResult {
       const profiles = await Promise.all(
         uniqueUserIds.map(async (id) => {
           try {
-            const user = await oxyServices.getUserById(id);
+            const user = await oxyServices.users.get(id);
             const entry: ContactMatch = { user };
             const localName = userIdToLocalName.get(id);
             if (localName) entry.localDisplayName = localName;

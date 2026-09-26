@@ -105,7 +105,8 @@ parties that address the person by handle — Mention's ActivityPub actor is
 ### Verifying (`@oxy.so/core` ≥ 1.13.0)
 
 ```ts
-const event = await oxy.verifyAccountEvent(token);
+// `oxy` is an OxyServer (@oxy.so/core/server) with its service credential.
+const event = await oxy.accountEvents.verify(token);
 // { eventId, type: 'account.deleted', userId, username, occurredAt, retained, applicationId, issuedAt }
 ```
 
@@ -163,7 +164,7 @@ Authorization: Bearer <service token>
 - Events younger than 30 seconds are held back. Event ids are time-ordered, but a
   transaction that began earlier can commit later; the hold-back keeps a cursor
   from skipping it.
-- `@oxy.so/core`: `oxy.listAccountEvents({ after, limit })`. Verify each entry's
+- `@oxy.so/core/server`: `oxy.accountEvents.list({ after, limit })`. Verify each entry's
   `token` before acting on it.
 
 ## Retention

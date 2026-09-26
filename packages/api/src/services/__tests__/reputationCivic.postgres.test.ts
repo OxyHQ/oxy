@@ -38,7 +38,6 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { personhoodVouches } from '../../db/schema/personhoodVouches';
 import { repoHeads } from '../../db/schema/repoHeads';
 import { reputationBalances } from '../../db/schema/reputationBalances';
-import { reputationRules } from '../../db/schema/reputationRules';
 import { reputationTransactions } from '../../db/schema/reputationTransactions';
 import { signedRecords } from '../../db/schema/signedRecords';
 import { users } from '../../db/schema/users';
@@ -47,6 +46,22 @@ import { buildUserDid } from '../did.service';
 import { oxyRecordStore } from '../oxyRecordStore';
 import { signRecordEnvelope, verifyAndStoreRecord } from '../signedRecord.service';
 import { reputationService } from '../reputation.service';
+import type { ReputationRuleDefinition } from '../reputationRules';
+/**
+ * Production rules live in code (`reputationRules.ts`) and nothing edits them.
+ * This suite needs rules with chosen points, so it adds TEST-ONLY rules through
+ * a mock of that module; production has no such seam.
+ */
+const mockTestRules = new Map<string, ReputationRuleDefinition>();
+jest.mock('../reputationRules', () => {
+  const actual = jest.requireActual('../reputationRules');
+  return {
+    ...actual,
+    findReputationRule: (actionType: string) =>
+      mockTestRules.get(actionType) ?? actual.findReputationRule(actionType),
+  };
+});
+
 
 beforeAll(async () => {
   await connectPostgres();
@@ -337,14 +352,13 @@ describe("the recordId root cause — a stored projection's address always names
 describe('award — the idempotency guarantee and the transaction behind it', () => {
   const ACTION = 'postgres_award_probe';
 
-  async function seedRule(): Promise<void> {
-    await reputationService.upsertRule({
+  function seedRule(): void {
+    mockTestRules.set(ACTION, {
       actionType: ACTION,
       points: 7,
       category: 'social',
       description: 'Probe rule',
       cooldownInMinutes: 0,
-      isEnabled: true,
     });
   }
 
@@ -361,7 +375,7 @@ describe('award — the idempotency guarantee and the transaction behind it', ()
   }
 
   it('awards once per (application, sourceActionId) and returns the SAME row on a retry', async () => {
-    await seedRule();
+    seedRule();
     const userId = await account();
     const applicationId = await reportingApplication(userId);
 
@@ -402,7 +416,7 @@ describe('award — the idempotency guarantee and the transaction behind it', ()
   });
 
   it('the partial unique index is the guarantee, not the pre-check', async () => {
-    await seedRule();
+    seedRule();
     const userId = await account();
     const applicationId = await reportingApplication(userId);
 
@@ -428,7 +442,7 @@ describe('award — the idempotency guarantee and the transaction behind it', ()
   });
 
   it('leaves NO ledger row behind when the balance recompute cannot commit', async () => {
-    await seedRule();
+    seedRule();
     const userId = await account();
 
     // The transactionality the deleted session-less fallback used to break: the
@@ -462,21 +476,16 @@ describe('award — the idempotency guarantee and the transaction behind it', ()
     expect(after).toHaveLength(1);
   });
 
-  it('the rule lookup and the rule write agree on a trimmed action key', async () => {
+  it('trims the action key before looking up the rule', async () => {
     // `trim: true` was Mongoose APPLICATION behaviour with no Postgres
-    // counterpart; dropping it on either side would make an award for
-    // `' probe '` miss a rule stored as `'probe'`.
-    await reputationService.upsertRule({
-      actionType: '  trimmed_probe  ',
+    // counterpart; the award re-applies it, so `' probe '` resolves `'probe'`.
+    mockTestRules.set('trimmed_probe', {
+      actionType: 'trimmed_probe',
       points: 3,
       category: 'social',
       description: 'Probe',
+      cooldownInMinutes: 0,
     });
-    const [rule] = await getDb()
-      .select({ actionType: reputationRules.actionType })
-      .from(reputationRules)
-      .where(eq(reputationRules.actionType, 'trimmed_probe'));
-    expect(rule).toBeDefined();
 
     const userId = await account();
     const txn = await reputationService.award({ userId, actionType: ' trimmed_probe ' });

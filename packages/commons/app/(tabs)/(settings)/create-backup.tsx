@@ -4,7 +4,7 @@ import { AppIcon } from '@/constants/icons';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
-import { KeyManager, RecoveryPhraseService } from '@oxy.so/core';
+import { KeyManager, RecoveryPhraseService } from '@oxy.so/core/crypto';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
@@ -78,7 +78,7 @@ export default function CreateBackupScreen() {
 
       if (!oxyServices) return;
       try {
-        const status = await oxyServices.getBackupStatus();
+        const status = await oxyServices.identity.backup.status();
         if (!cancelled) setBackupStatus(status);
       } catch {
         // A failed status fetch is non-fatal — the user can still create a
@@ -149,7 +149,7 @@ export default function CreateBackupScreen() {
     setError(null);
     setIsSubmitting(true);
     try {
-      const status = await oxyServices.createEncryptedBackup(phrase);
+      const status = await oxyServices.identity.backup.create(phrase);
       setBackupStatus(status);
       setPhraseWords(new Array(RECOVERY_PHRASE_LENGTH).fill(''));
       toast.success(t('backup.createSuccess'));
@@ -174,7 +174,7 @@ export default function CreateBackupScreen() {
             void (async () => {
               setIsDeleting(true);
               try {
-                await oxyServices.deleteBackup();
+                await oxyServices.identity.backup.delete();
                 setBackupStatus({ exists: false });
                 toast.success(t('backup.deleteSuccess'));
               } catch (err: unknown) {

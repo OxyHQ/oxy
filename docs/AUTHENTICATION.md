@@ -158,10 +158,9 @@ App backends verify Oxy bearer tokens with `@oxy.so/core/server`. Never hand-rol
 
 ```ts
 import express from 'express';
-import { OxyServices } from '@oxy.so/core';
-import { createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
+import { OxyServer, createOxyAuthMiddleware, getRequiredOxyUserId } from '@oxy.so/core/server';
 
-const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
 const app = express();
 
 app.use('/api', createOxyAuthMiddleware(oxy)); // 401s unauthenticated requests
@@ -171,7 +170,7 @@ app.get('/api/me', (req, res) => {
 });
 ```
 
-Related: `createOptionalOxyAuth` (attach identity when present), `requireOxyAuth`, `createOxyCors`, `createOxyRateLimit`, `safeFetch`, `verifySecret` from the same subpath; Socket.IO auth via `io.use(oxy.authSocket())`.
+Related: `createOptionalOxyAuth` (attach identity when present), `requireOxyAuth`, `createOxyCors`, `createOxyRateLimit`, `safeFetch`, `verifySecret` from the same subpath; Socket.IO auth via `io.use(oxy.middleware.socket())`.
 
 On the client, calls from an official app to its own backend go through the SDK's linked client — no manual `Authorization` headers or interceptors:
 

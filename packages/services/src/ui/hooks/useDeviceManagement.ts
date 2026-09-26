@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { ApiError } from '@oxy.so/core';
-import { DeviceManager } from '@oxy.so/core';
+import { DeviceManager } from '@oxy.so/core/session';
 import type { OxyServices } from '@oxy.so/core';
 import { handleAuthError } from '../utils/errorHandlers';
 
@@ -49,7 +49,7 @@ export const useDeviceManagement = ({
   > => {
     if (!activeSessionId) throw new Error('No active session');
     try {
-      return await oxyServices.getDeviceSessions(activeSessionId);
+      return await oxyServices.devices.sessions(activeSessionId);
     } catch (error) {
       handleAuthError(error, {
         defaultMessage: 'Failed to get device sessions',
@@ -65,7 +65,7 @@ export const useDeviceManagement = ({
     if (!activeSessionId) throw new Error('No active session');
 
     try {
-      await oxyServices.logoutAllDeviceSessions(activeSessionId);
+      await oxyServices.devices.logoutAll(activeSessionId);
       await clearSessionState();
     } catch (error) {
       handleAuthError(error, {
@@ -83,7 +83,7 @@ export const useDeviceManagement = ({
       if (!activeSessionId) throw new Error('No active session');
 
       try {
-        await oxyServices.updateDeviceName(activeSessionId, deviceName);
+        await oxyServices.devices.rename(activeSessionId, deviceName);
         await DeviceManager.updateDeviceName(deviceName);
       } catch (error) {
         handleAuthError(error, {

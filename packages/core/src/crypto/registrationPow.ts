@@ -1,6 +1,6 @@
 /**
  * Registration proof-of-work — the CLIENT half of the anti-automation nonce
- * `register()` (`mixins/OxyServices.auth.ts`) submits alongside the
+ * `auth.registerKey()` (`api/auth.ts`) submits alongside the
  * registration signature. The message format, difficulty and the full design
  * rationale (why 16 bits, why sequential nonces are fine, what this is and
  * isn't a defense against) live in `@oxy.so/protocol`'s

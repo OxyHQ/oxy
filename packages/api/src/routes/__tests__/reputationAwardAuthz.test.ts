@@ -2,8 +2,8 @@
  * `POST /reputation/award` authorization, against a REAL Postgres.
  *
  * Awarding mutates the GLOBAL reputation ledger, so the gate is narrow: a
- * service token carrying the privileged `reputation:write` scope, or platform
- * staff. A regular user session may never award — there is no self-award.
+ * service token carrying the privileged `reputation:write` scope. No person may
+ * award — not the subject, not another user, not Oxy staff.
  *
  * The second half of the gate is attribution: when a service token awards, the
  * source-app identity comes from the TOKEN, and any `applicationId` /
@@ -12,11 +12,9 @@
  * `reputation_transactions` and the stored row is read back, so a spoofed
  * attribution would be visible in the data rather than only in a call log.
  *
- * The service lane's token is a real Ed25519 service token: `authUserOrService`
- * decides between the lanes through `verifyServiceToken`, so only a token that
- * verifies as a service token reaches the service lane. The
- * two middlewares it dispatches TO are mocked — they attach the principal, which
- * is their production contract.
+ * The route is behind `serviceAuthMiddleware` alone. That middleware is mocked —
+ * it attaches the service principal, which is its production contract — so a
+ * user token (no principal) is refused exactly as the real one refuses it.
  */
 
 import express from 'express';
@@ -83,12 +81,12 @@ import jwt from 'jsonwebtoken';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
-import { reputationRules } from '../../db/schema/reputationRules';
 import { reputationTransactions } from '../../db/schema/reputationTransactions';
 import { users } from '../../db/schema/users';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
 import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
-import { LEASE_SIGNED_ACTION } from '../../utils/reputation.constants';
+import { ENDORSEMENT_RECEIVED_ACTION, LEASE_SIGNED_ACTION } from '../../utils/reputation.constants';
+import { findReputationRule } from '../../services/reputationRules';
 import { errorHandler } from '../../middleware/errorHandler';
 import reputationRouter from '../reputation.routes';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
@@ -214,16 +212,11 @@ async function attestedServiceApplication(): Promise<{ appId: string; credential
   return { appId: app.id, credentialId };
 }
 
-/** A rule the award can resolve. Randomized so parallel suites cannot collide. */
-async function awardableAction(points = 5): Promise<string> {
-  const actionType = `test_action_${randomUUID().replace(/-/g, '')}`;
-  await getDb().insert(reputationRules).values({
-    actionType,
-    points,
-    category: 'content',
-    description: 'Test action',
-  });
-  return actionType;
+/** A rule in code the award resolves — its points are the rule's, never the caller's. */
+const RULE = findReputationRule(ENDORSEMENT_RECEIVED_ACTION)!;
+
+function awardableAction(): string {
+  return RULE.actionType;
 }
 
 async function storedTransactions(userId: string) {
@@ -268,7 +261,7 @@ describe('POST /reputation/award — service-token scope gate', () => {
   it('rejects a service token that lacks reputation:write, and writes nothing', async () => {
     const service = await serviceApplication();
     const subject = await account();
-    const actionType = await awardableAction();
+    const actionType = awardableAction();
     currentServiceApp = { ...service, scopes: [] };
 
     const res = await award(
@@ -284,7 +277,7 @@ describe('POST /reputation/award — service-token scope gate', () => {
   it('allows a service token that carries reputation:write', async () => {
     const service = await serviceApplication();
     const subject = await account();
-    const actionType = await awardableAction(7);
+    const actionType = awardableAction();
     currentServiceApp = { ...service, scopes: ['reputation:write'] };
 
     const res = await award(
@@ -295,9 +288,9 @@ describe('POST /reputation/award — service-token scope gate', () => {
     expect(res.status).toBe(201);
     const transaction = res.body.data?.transaction ?? {};
     expect(transaction.userId).toBe(subject);
-    expect(transaction.points).toBe(7);
+    expect(transaction.points).toBe(RULE.points);
     expect(transaction.actionType).toBe(actionType);
-    expect(transaction.category).toBe('content');
+    expect(transaction.category).toBe(RULE.category);
     expect(transaction.status).toBe('active');
     expect(safeParseContract(reputationTransactionSchema, transaction)).not.toBeNull();
   });
@@ -305,7 +298,7 @@ describe('POST /reputation/award — service-token scope gate', () => {
   it('allows an ATTESTED service token, and stores the handle as the awarding identity', async () => {
     const service = await attestedServiceApplication();
     const subject = await account();
-    const actionType = await awardableAction(7);
+    const actionType = awardableAction();
     currentServiceApp = { ...service, scopes: ['reputation:write'] };
 
     const res = await award(
@@ -314,7 +307,7 @@ describe('POST /reputation/award — service-token scope gate', () => {
     );
 
     expect(res.status).toBe(201);
-    expect(res.body.data?.transaction?.points).toBe(7);
+    expect(res.body.data?.transaction?.points).toBe(RULE.points);
 
     // The stored row names the attested identity, on a column that is a real
     // foreign key — the INSERT this used to fail.
@@ -327,7 +320,7 @@ describe('POST /reputation/award — service-token scope gate', () => {
   it('limits reputation:lease:write to lease actions', async () => {
     const service = await serviceApplication();
     const subject = await account();
-    const unrelatedAction = await awardableAction();
+    const unrelatedAction = awardableAction();
     currentServiceApp = { ...service, scopes: ['reputation:lease:write'] };
 
     const res = await award(
@@ -354,15 +347,6 @@ describe('POST /reputation/award — service-token scope gate', () => {
   it('allows an idempotent lease action with reputation:lease:write', async () => {
     const service = await serviceApplication();
     const subject = await account();
-    await getDb()
-      .insert(reputationRules)
-      .values({
-        actionType: LEASE_SIGNED_ACTION,
-        points: 10,
-        category: 'trust',
-        description: 'Lease signed',
-      })
-      .onConflictDoNothing();
     currentServiceApp = { ...service, scopes: ['reputation:lease:write'] };
 
     const res = await award(
@@ -378,7 +362,7 @@ describe('POST /reputation/award — service-token scope gate', () => {
     const service = await serviceApplication();
     const otherTenant = await serviceApplication();
     const subject = await account();
-    const actionType = await awardableAction();
+    const actionType = awardableAction();
     currentServiceApp = { ...service, scopes: ['reputation:write'] };
 
     const res = await award(
@@ -416,49 +400,44 @@ describe('POST /reputation/award — service-token scope gate', () => {
   });
 });
 
-describe('POST /reputation/award — user lane', () => {
+describe('POST /reputation/award — no person awards', () => {
   it('refuses a regular authenticated user, and writes nothing', async () => {
     const subject = await account();
-    const actionType = await awardableAction();
+    const actionType = awardableAction();
     currentUser = { _id: await account() };
 
     const res = await award({ userId: subject, actionType }, 'user');
 
-    expect(res.status).toBe(403);
-    expect(res.body.message).toMatch(/service token or staff/i);
+    expect(res.status).toBe(401);
     expect(await storedTransactions(subject)).toHaveLength(0);
   });
 
   it('refuses a user awarding THEMSELVES', async () => {
     const self = await account();
-    const actionType = await awardableAction();
+    const actionType = awardableAction();
     currentUser = { _id: self };
 
     const res = await award({ userId: self, actionType }, 'user');
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     expect(await storedTransactions(self)).toHaveLength(0);
   });
 
-  it('allows staff, and records them as the actor', async () => {
+  it('refuses Oxy staff too — nobody moves reputation by hand', async () => {
     const subject = await account();
-    const actionType = await awardableAction(3);
+    const actionType = awardableAction();
     const staff = await account({ isStaff: true });
     currentUser = { _id: staff, isStaff: true };
 
     const res = await award({ userId: subject, actionType }, 'user');
 
-    expect(res.status).toBe(201);
-    const stored = await storedTransactions(subject);
-    expect(stored).toHaveLength(1);
-    expect(stored[0].points).toBe(3);
-    expect(stored[0].createdByUserId).toBe(staff);
-    expect(stored[0].applicationId).toBeNull();
+    expect(res.status).toBe(401);
+    expect(await storedTransactions(subject)).toHaveLength(0);
   });
 
   it('rejects a request with no authorization header at all', async () => {
     const address = server.address() as AddressInfo;
-    const body = JSON.stringify({ userId: await account(), actionType: await awardableAction() });
+    const body = JSON.stringify({ userId: await account(), actionType: awardableAction() });
     const res = await new Promise<JsonResponse>((resolve, reject) => {
       const req = http.request(
         {

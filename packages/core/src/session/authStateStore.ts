@@ -264,8 +264,8 @@ function composeState(durableRaw: string | null, warmRaw: string | null): Persis
     // New split layout: the warm key is authoritative for the token fields.
     // Drop anything the durable blob may have carried, then overlay the warm
     // values (a warm key with no token → the session simply has no warm token).
-    delete state.accessToken;
-    delete state.expiresAt;
+    Reflect.deleteProperty(state, 'accessToken');
+    Reflect.deleteProperty(state, 'expiresAt');
     const warm = parseWarmToken(warmRaw);
     if (warm?.accessToken) {
       state.accessToken = warm.accessToken;

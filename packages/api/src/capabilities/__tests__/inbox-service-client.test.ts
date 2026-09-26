@@ -1,10 +1,6 @@
-const mockConfigureServiceAuth = jest.fn();
-const mockOxyServices = jest.fn().mockImplementation((options) => ({
-  options,
-  configureServiceAuth: mockConfigureServiceAuth,
-}));
+const mockOxyServer = jest.fn().mockImplementation((options) => ({ options }));
 
-jest.mock('@oxy.so/core', () => ({ OxyServices: mockOxyServices }));
+jest.mock('@oxy.so/core/server', () => ({ OxyServer: mockOxyServer }));
 
 async function loadServiceClient(): Promise<typeof import('../inbox-service-client')> {
   let loaded: typeof import('../inbox-service-client') | undefined;
@@ -37,7 +33,7 @@ describe('Inbox service client', () => {
     process.env.INBOX_APPLICATION_KEY = 'late-key';
     process.env.INBOX_APPLICATION_SECRET = 'late-secret';
     expect(inboxServiceClient()).toBeNull();
-    expect(mockOxyServices).not.toHaveBeenCalled();
+    expect(mockOxyServer).not.toHaveBeenCalled();
   });
 
   it('configures one cached client with trimmed credentials and base URL', async () => {
@@ -49,12 +45,11 @@ describe('Inbox service client', () => {
     const first = inboxServiceClient();
     expect(first).not.toBeNull();
     expect(inboxServiceClient()).toBe(first);
-    expect(mockOxyServices).toHaveBeenCalledTimes(1);
-    expect(mockOxyServices).toHaveBeenCalledWith({ baseURL: 'https://api.example.test' });
-    expect(mockConfigureServiceAuth).toHaveBeenCalledWith(
-      'application-key',
-      'application-secret',
-    );
+    expect(mockOxyServer).toHaveBeenCalledTimes(1);
+    expect(mockOxyServer).toHaveBeenCalledWith({
+      baseURL: 'https://api.example.test',
+      serviceAuth: { apiKey: 'application-key', apiSecret: 'application-secret' },
+    });
   });
 
   it('requires configuration explicitly when publishing is mandatory', async () => {
@@ -71,6 +66,9 @@ describe('Inbox service client', () => {
 
     const client = requiredInboxServiceClient();
     expect(client).not.toBeNull();
-    expect(mockOxyServices).toHaveBeenCalledWith({ baseURL: 'https://api.oxy.so' });
+    expect(mockOxyServer).toHaveBeenCalledWith({
+      baseURL: 'https://api.oxy.so',
+      serviceAuth: { apiKey: 'application-key', apiSecret: 'application-secret' },
+    });
   });
 });

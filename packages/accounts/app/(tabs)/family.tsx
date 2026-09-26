@@ -27,7 +27,7 @@ function isAbsoluteUrl(value: string): boolean {
  * Third-party connections (the visible `family` drawer route, labelled
  * `drawer.thirdParty`): lists the third-party apps and services the user has
  * authorized against their Oxy account via the OAuth consent flow
- * (`oxyServices.listConnectedApps()` → `GET /auth/grants`) and lets them revoke
+ * (`oxyServices.apps.connected.list()` → `GET /auth/grants`) and lets them revoke
  * any grant. The data + revoke logic live in the shared {@link useConnectedApps}
  * / {@link useRevokeAppGrant} hooks so the security-screen summary reuses the
  * same cached query.
@@ -63,7 +63,7 @@ export default function ThirdPartyConnectionsScreen() {
       } else if (isAbsoluteUrl(app.logoUrl)) {
         map[app.applicationId] = app.logoUrl;
       } else {
-        map[app.applicationId] = oxyServices.getFileDownloadUrl(app.logoUrl, 'thumb');
+        map[app.applicationId] = oxyServices.assets.publicUrl(app.logoUrl, 'thumb');
       }
     }
     return map;

@@ -12,7 +12,7 @@ export function useIdentityRootStatus(): IdentityRootStatus | undefined {
   const { oxyServices, isAuthenticated } = useOxy();
   const { data } = useQuery({
     queryKey: ['identity', 'root-status'],
-    queryFn: () => oxyServices.getIdentityRootStatus(),
+    queryFn: () => oxyServices.identity.rootStatus(),
     enabled: isAuthenticated,
     staleTime: 60_000,
   });

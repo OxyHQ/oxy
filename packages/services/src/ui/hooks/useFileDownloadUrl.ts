@@ -55,11 +55,7 @@ export const useFileDownloadUrl = (
       setError(null);
 
       try {
-        if (typeof instance.getFileDownloadUrlAsync !== 'function') {
-          throw new Error('getFileDownloadUrlAsync is not available on this OxyServices instance');
-        }
-
-        const resolvedUrl = await instance.getFileDownloadUrlAsync(targetFileId, variant, expiresIn);
+        const resolvedUrl = await instance.assets.url(targetFileId, variant, expiresIn);
 
         if (!cancelled) {
           setUrl(resolvedUrl || null);

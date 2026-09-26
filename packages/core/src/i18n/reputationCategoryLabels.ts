@@ -1,5 +1,5 @@
 import type { ReputationCategory } from '@oxy.so/contracts';
-import enUS from './locales/en-US.json';
+import enUS from './locales/en-US';
 import { translate } from './index';
 
 /**

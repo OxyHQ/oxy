@@ -1,14 +1,15 @@
 import { useCallback } from 'react';
-import type { ApiError, AuthStateStore, IdentityBinding, SessionClient, User } from '@oxy.so/core';
+import type { ApiError, User } from '@oxy.so/core';
+import type { AuthStateStore, IdentityBinding, SessionClient } from '@oxy.so/core/session';
 import type { ClientSession, SessionLoginResponse } from '@oxy.so/core';
 import type { OxyRuntime } from '../../runtime';
 import type { LogoutResult } from '../oxyContextTypes';
-import { DeviceManager } from '@oxy.so/core';
+import { DeviceManager } from '@oxy.so/core/session';
 import { fetchSessionsWithFallback } from '../../utils/sessionHelpers';
 import { handleAuthError, isInvalidSessionError } from '../../utils/errorHandlers';
 import type { StorageInterface } from '../../utils/storageHelpers';
 import type { OxyServices } from '@oxy.so/core';
-import { SignatureService } from '@oxy.so/core';
+import { SignatureService } from '@oxy.so/core/crypto';
 
 export interface UseAuthOperationsOptions {
   oxyServices: OxyServices;
@@ -113,7 +114,7 @@ export const useAuthOperations = ({
       const deviceInfo = await DeviceManager.getDeviceInfo();
       const deviceName = deviceInfo.deviceName || DeviceManager.getDefaultDeviceName();
 
-      const challengeResponse = await oxyServices.requestChallenge(publicKey);
+      const challengeResponse = await oxyServices.auth.requestChallenge(publicKey);
       const challenge = challengeResponse.challenge;
 
       // Note: Biometric authentication check should be handled by the app layer
@@ -129,7 +130,7 @@ export const useAuthOperations = ({
       // `verifyChallenge` plants the first access token internally, mirroring
       // `claimSessionByToken`, so the client is authenticated as soon as this
       // resolves.
-      sessionResponse = await oxyServices.verifyChallenge(
+      sessionResponse = await oxyServices.auth.verifyChallenge(
         publicKey,
         challenge,
         signature,
@@ -191,7 +192,7 @@ export const useAuthOperations = ({
       // has already planted the access token for this session, so the bearer IS
       // the session identity. Avoids a second, session-id-keyed source of truth
       // (`GET /session/user/:sessionId`) that can disagree with the bearer.
-      fullUser = await oxyServices.getCurrentUser();
+      fullUser = await oxyServices.users.me();
 
       // Fetch device sessions
       let allDeviceSessions: ClientSession[] = [];
@@ -217,7 +218,7 @@ export const useAuthOperations = ({
       if (existingSession) {
         // Switch to existing session instead of creating duplicate
         try {
-          await oxyServices.logoutSession(sessionResponse.sessionId, sessionResponse.sessionId);
+          await oxyServices.session.logout(sessionResponse.sessionId, sessionResponse.sessionId);
         } catch (logoutError) {
           // Non-critical - continue to switch session even if logout fails
           if (__DEV__ && logger) {
@@ -384,7 +385,7 @@ export const useAuthOperations = ({
       // device-scoped and therefore cannot implement "sign out everywhere" by
       // itself. The global endpoint deliberately preserves the current
       // session long enough for the device-scoped cleanup below to authenticate.
-      await oxyServices.logoutAllSessions(activeSessionId);
+      await oxyServices.session.logoutAll(activeSessionId);
       await sessionClient.signOut({ all: true });
       // logoutAll is ALWAYS a full sign-out: clear the persisted device
       // credential so the next cold boot finds no session to restore, then tear

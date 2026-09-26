@@ -8,7 +8,7 @@
  * explicit status. Collapsing either failure into "absent" is what would let a
  * locked device look like one that never had a session.
  */
-import type { SharedDeviceCredentialStore } from '@oxy.so/core';
+import type { SharedDeviceCredentialStore } from '@oxy.so/core/session';
 
 const CRED = { deviceId: 'dev-shared', deviceSecret: 'ds-shared' };
 const STORAGE_KEY = 'oxy_shared_device_session_v1';

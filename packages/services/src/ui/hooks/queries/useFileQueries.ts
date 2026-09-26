@@ -21,7 +21,7 @@ import { queryKeys } from './queryKeys';
 /** Files fetched per page. */
 export const FILES_PAGE_SIZE = 40;
 
-/** Raw file record as returned by `oxyServices.listUserFiles` / `assetUpload`. */
+/** Raw file record as returned by `oxyServices.assets.list` / `assetUpload`. */
 export interface RawUserFile {
     id: string;
     originalName?: string;
@@ -68,7 +68,7 @@ export const useUserFilesInfinite = (ownerId?: string) => {
         queryKey: queryKeys.files.list(ownerId),
         queryFn: async ({ pageParam }) => {
             const offset = typeof pageParam === 'number' ? pageParam : 0;
-            const response = await oxyServices.listUserFiles(FILES_PAGE_SIZE, offset);
+            const response = await oxyServices.assets.list({ limit: FILES_PAGE_SIZE, offset });
             const raw = (response.files ?? []) as RawUserFile[];
             const files = raw.map(mapRawFileToMetadata);
             return {

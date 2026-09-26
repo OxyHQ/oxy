@@ -10,7 +10,7 @@
  */
 
 import { render } from '@testing-library/react';
-import type { AccountDialogSnapshot } from '@oxy.so/core';
+import type { AccountDialogSnapshot } from '@oxy.so/core/session';
 import type { SurfaceHeaderContent } from '../../src/ui/hooks/useSurfaceHeader';
 
 const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnapshot => ({

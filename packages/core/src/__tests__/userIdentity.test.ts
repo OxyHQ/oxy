@@ -45,11 +45,11 @@ describe('user identity normalization', () => {
     };
 
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-    oxy.setTokens(createJwt({
+    oxy.session.setAccessToken(createJwt({
       userId: 'user_1',
       exp: Math.floor(Date.now() / 1000) + 3600,
     }));
-    const user = await oxy.getCurrentUser();
+    const user = await oxy.users.me();
 
     expect(user.id).toBe('user_1');
     expect(user.username).toBe('nate');
@@ -66,7 +66,7 @@ describe('user identity normalization', () => {
       });
 
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-    const validation = await oxy.validateSession('session_1', { useHeaderValidation: true });
+    const validation = await oxy.session.validate('session_1', { useHeaderValidation: true });
 
     expect(validation.user.id).toBe('user_1');
     expect(validation.user.username).toBe('nate');

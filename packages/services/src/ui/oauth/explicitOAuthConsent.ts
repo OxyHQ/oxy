@@ -165,7 +165,7 @@ export async function requestOAuthConsent(
 
 	let application: PublicApplication;
 	try {
-		application = await context.oxyServices.getPublicApplication(
+		application = await context.oxyServices.apps.getPublic(
 			context.clientId,
 		);
 	} catch {

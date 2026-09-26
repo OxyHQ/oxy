@@ -2,17 +2,16 @@
  * `reputation_transactions` — the immutable reputation ledger.
  *
  * Ported from `models/ReputationTransaction.ts`. Entries are never deleted. A
- * correction is either a REVERSAL (the original flips to `reversed` and a new
- * `active` row with negated points and `reversed_transaction_id` pointing at it
- * is appended, so the pair nets to zero) or a VOID (the original flips to
- * `voided` and is simply excluded, with no compensating entry). A balance is
- * always re-derivable by aggregating the `active` rows.
+ * correction is a REVERSAL (the original flips to `reversed` and a new `active`
+ * row with negated points and `reversed_transaction_id` pointing at it is
+ * appended, so the pair nets to zero), written only by policy-driven code —
+ * never by a person. A balance is always re-derivable from the ledger.
  *
  * ## Idempotency: a plain UNIQUE, not a partial one
  *
  * Mongo's `{applicationId, sourceActionId}` index carries
  * `partialFilterExpression: { …: { $exists: true } }` on BOTH fields, because
- * Mongo treats a missing field as `null` and every manual/staff award (which has
+ * Mongo treats a missing field as `null` and every in-process award (which has
  * neither) would collide on it. Postgres unique indexes treat NULLs as DISTINCT
  * by default, so `UNIQUE (application_id, source_action_id)` already exempts any
  * row missing either field — the same semantic with none of the machinery.
@@ -20,8 +19,8 @@
  *
  * ## `points` is an `integer`
  *
- * Every figure that reaches it is an integer: the `points` of a
- * `ReputationRule`, a `ModerationPolicy` severity entry, or the negation of one.
+ * Every figure that reaches it is an integer: the `points` of a rule in
+ * `services/reputationRules.ts`, a `ModerationPolicy` severity entry, or the negation of one.
  * A fractional value would be a bug in whichever authority produced it, so a
  * `double precision` column would preserve the bug rather than the data. If one
  * exists in production the backfill fails and names the row, which is the
@@ -31,7 +30,7 @@
  *
  * `user_id` is the SUBJECT — the ledger is about them, so it `CASCADE`s with the
  * account. `created_by_user_id` and `reviewed_by_user_id` are OTHER people
- * (the liker, the reporter, the staff reviewer) and are `SET NULL`: NULL there
+ * (the liker, the reporter, the reviewing principal) and are `SET NULL`: NULL there
  * already means "no attributed actor", and a CASCADE would delete a stranger's
  * ledger row because a moderator exercised erasure.
  */
@@ -48,15 +47,35 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import {
+  REPUTATION_CATEGORIES as CONTRACT_REPUTATION_CATEGORIES,
   REPUTATION_TARGET_ENTITY_TYPES as CONTRACT_TARGET_ENTITY_TYPES,
   REPUTATION_TRANSACTION_STATUSES as CONTRACT_TRANSACTION_STATUSES,
 } from '@oxy.so/contracts';
-import type { ReputationTargetEntityType, ReputationTransactionStatus } from '@oxy.so/contracts';
+import type {
+  ReputationCategory,
+  ReputationTargetEntityType,
+  ReputationTransactionStatus,
+} from '@oxy.so/contracts';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
-import { REPUTATION_CATEGORIES } from './reputationRules';
 import { users } from './users';
+
+/**
+ * Category buckets a transaction may be filed under, from the contract so the
+ * CHECK cannot drift from the Zod schema the routes validate with. `satisfies`
+ * proves every value is a contract category; `ReputationCategoryGap` proves the
+ * reverse, so widening the contract fails this file's typecheck.
+ */
+export const REPUTATION_CATEGORIES = [
+  ...CONTRACT_REPUTATION_CATEGORIES,
+] as const satisfies readonly ReputationCategory[];
+
+/** `never` while `REPUTATION_CATEGORIES` covers the contract union. */
+export type ReputationCategoryGap = Exclude<
+  ReputationCategory,
+  (typeof REPUTATION_CATEGORIES)[number]
+>;
 
 /** Lifecycle status — only `active` counts toward a balance. */
 export const REPUTATION_TRANSACTION_STATUSES = [
@@ -125,7 +144,7 @@ export const reputationTransactions = pgTable(
     metadata: jsonb(),
     /** The actor who caused the change. `SET NULL` — see the header. */
     createdByUserId: text().references(() => users.id, { onDelete: 'set null' }),
-    /** Staff who reversed/voided/resolved it. `SET NULL` — see the header. */
+    /** The principal whose policy-driven action reversed it. `SET NULL` — see the header. */
     reviewedByUserId: text().references(() => users.id, { onDelete: 'set null' }),
     reviewedAt: timestamptz(),
 
@@ -145,8 +164,6 @@ export const reputationTransactions = pgTable(
       .where(sql`${t.applicationId} is not null`),
     // The idempotency guard. See the header on why it is not partial.
     uniqueIndex('reputation_transactions_source_action_key').on(t.applicationId, t.sourceActionId),
-    // The staff dispute/review queue reads by status alone.
-    index('reputation_transactions_status_idx').on(t.status),
 
     check(
       'reputation_transactions_category_check',

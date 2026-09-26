@@ -1,8 +1,8 @@
 import { type ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { IdentityStatus } from '@oxy.so/core';
-import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core';
+import type { IdentityStatus } from '@oxy.so/core/crypto';
+import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
 import { IdentityMayExistError } from '@/hooks/identity/identityErrors';
 import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 
@@ -24,8 +24,8 @@ const restoreFromPhraseMock = jest.fn();
 const isValidPrivateKeyMock = jest.fn();
 const deleteRecoveryMnemonicMock = jest.fn();
 
-jest.mock('@oxy.so/core', () => {
-  const actual = jest.requireActual('@oxy.so/core');
+jest.mock('@oxy.so/core/crypto', () => {
+  const actual = jest.requireActual('@oxy.so/core/crypto');
   return {
     ...actual,
     KeyManager: {

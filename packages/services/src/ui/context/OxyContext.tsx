@@ -9,25 +9,13 @@ import {
   useState,
 } from 'react';
 import { Linking, Platform } from 'react-native';
-import { OxyServices, oxyClient } from '@oxy.so/core';
+import { OxyServices } from '@oxy.so/core';
 import type { LoginSessionResult } from '@oxy.so/contracts';
-import type {
-  User,
-  SessionLoginResponse,
-  AuthStateStore,
-  PersistedAuthState,
-  AccountDialogController,
-  AccountDialogView,
-} from '@oxy.so/core';
-import {
-  KeyManager,
-  refreshDeviceSecretArm,
-  establishIdentitySession,
-  installAuthRefreshHandler,
-  startTokenRefreshScheduler,
-  createAccountDialogController,
-  logger as loggerUtil,
-} from '@oxy.so/core';
+import type { User, SessionLoginResponse } from '@oxy.so/core';
+import type { AuthStateStore, PersistedAuthState, AccountDialogController, AccountDialogView } from '@oxy.so/core/session';
+import { KeyManager } from '@oxy.so/core/crypto';
+import { refreshDeviceSecretArm, establishIdentitySession, installAuthRefreshHandler, startTokenRefreshScheduler, createAccountDialogController } from '@oxy.so/core/session';
+import { logger as loggerUtil } from '@oxy.so/core';
 import {
   registerAccountDialogControls,
   notifyAccountDialogVisibility,
@@ -157,7 +145,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     } else if (baseURL) {
       // `authWebUrl` now only points the OAuth "Sign in with Oxy" third-party
       // link builder at the central auth host; there is no cold-boot redirect.
-      oxyServicesRef.current = new OxyServices({ baseURL, authWebUrl, authRedirectUri });
+      //
+      // `enableCache: false`: React Query owns caching and dedup here. A second
+      // response cache under it served stale data after an invalidate-refetch.
+      oxyServicesRef.current = new OxyServices({ baseURL, authWebUrl, authRedirectUri, enableCache: false });
     } else {
       throw new Error('Either oxyServices or baseURL must be provided to OxyProvider');
     }
@@ -281,25 +272,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   useEffect(() => bindAuthStoreToRuntime(runtime), [runtime]);
 
   useEffect(() => runtime.start(), [runtime]);
-
-  // Keep the shared `oxyClient` singleton's token store in lockstep with the
-  // session owned by THIS provider's instance (many apps build API clients
-  // against the exported singleton while passing only `baseURL` here). Skipped
-  // when the app passed the singleton itself as `oxyServices`.
-  useEffect(() => {
-    if (oxyServices === oxyClient) {
-      return;
-    }
-    const applyToSingleton = (accessToken: string | null) => {
-      if (accessToken) {
-        oxyClient.setTokens(accessToken);
-      } else {
-        oxyClient.clearTokens();
-      }
-    };
-    applyToSingleton(oxyServices.getAccessToken());
-    return oxyServices.onTokensChanged(applyToSingleton);
-  }, [oxyServices]);
 
   const storageKeys = useMemo(() => getStorageKeys(storageKeyPrefix), [storageKeyPrefix]);
 
@@ -522,7 +494,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     // Explicit FULL wipe: also drop the persisted device credential so a reload
     // finds nothing to restore.
     await authStore.clear();
-    oxyServices.clearCache();
+    oxyServices.cache.clear();
   }, [queryClient, storage, clearSessionState, authStore, logger, oxyServices]);
 
   const { getDeviceSessions, logoutAllDeviceSessions, updateDeviceName } = useDeviceManagement({
@@ -562,7 +534,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       }
     };
     const recovery = createTokenLossRecovery({
-      remint: () => oxyServices.httpService.refreshAccessToken('preflight'),
+      remint: () => oxyServices.http.refreshAccessToken('preflight'),
       hasDeviceCredential: () => hasPersistedSessionCredential(authStore),
       hasKeyedRecovery: async () => {
         if (Platform.OS === 'web') {
@@ -577,7 +549,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         }
       },
       isSignedIn: () => runtime.getSnapshot().account !== null,
-      hasToken: () => Boolean(oxyServices.getAccessToken()),
+      hasToken: () => Boolean(oxyServices.session.accessToken),
       signOutLocally,
     });
     const handleTokenChange = (accessToken: string | null) => {
@@ -598,8 +570,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         runtime.setTokenReady(true);
       }
     };
-    handleTokenChange(oxyServices.getAccessToken());
-    const unsubscribe = oxyServices.onTokensChanged(handleTokenChange);
+    handleTokenChange(oxyServices.session.accessToken);
+    const unsubscribe = oxyServices.session.onChange(handleTokenChange);
     return () => {
       unsubscribe();
       recovery.dispose();
@@ -636,7 +608,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   const commitSession = useCallback(
     async (input: CommitInput, options: { activate: boolean }): Promise<void> => {
       if (input.accessToken) {
-        oxyServices.setTokens(input.accessToken);
+        oxyServices.session.setAccessToken(input.accessToken);
       }
       if (input.deviceState) {
         sessionClient.adoptState(input.deviceState);
@@ -706,7 +678,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         addCurrentAccount: () => sessionClient.addCurrentAccount(),
         startSocket: () => sessionClient.start(),
         syncFromClient,
-        getCurrentUser: () => oxyServices.getCurrentUser(),
+        getCurrentUser: () => oxyServices.users.me(),
         loginSuccess: (fullUser) => runtime.setAccount(fullUser),
         onAuthStateChange: onAuthStateChangeRef.current,
         markAuthResolved: markAuthResolvedRef.current,
@@ -868,7 +840,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // Native is untouched: its apps already share a device through the keychain.
   useEffect(() => {
     if (!isWebBrowser()) return undefined;
-    return oxyServices.setDeviceCredentialProvider(() => loadPersistedDeviceCredential(authStore));
+    return oxyServices.session.setDeviceCredentialProvider(() => loadPersistedDeviceCredential(authStore));
   }, [oxyServices, authStore]);
 
   // ── The browser bridge (ADR 0029 D2) ──────────────────────────────────────
@@ -1098,13 +1070,13 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     const onVisibility = (): void => {
       if (document.visibilityState !== 'visible') return;
       const reconcile = async (): Promise<void> => {
-        if (!oxyServices.getAccessToken() && sessionClientHost.getDeviceCredential()) {
+        if (!oxyServices.session.accessToken && sessionClientHost.getDeviceCredential()) {
           // Route through the ONE shared single-flight the scheduler/preflight/401
           // use — never a private mint lane — so a tab-focus reconcile can't
           // double-rotate the device secret against them.
-          await oxyServices.httpService.refreshAccessToken('preflight');
+          await oxyServices.http.refreshAccessToken('preflight');
         }
-        if (!oxyServices.getAccessToken() && !sessionClientHost.getDeviceCredential()) {
+        if (!oxyServices.session.accessToken && !sessionClientHost.getDeviceCredential()) {
           return;
         }
         await sessionClient.bootstrap();
@@ -1138,11 +1110,11 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         return;
       }
       void (async () => {
-        if (oxyServices.getAccessToken() || !sessionClientHost.getDeviceCredential()) {
+        if (oxyServices.session.accessToken || !sessionClientHost.getDeviceCredential()) {
           return;
         }
-        await oxyServices.httpService.refreshAccessToken('preflight');
-        if (!oxyServices.getAccessToken()) {
+        await oxyServices.http.refreshAccessToken('preflight');
+        if (!oxyServices.session.accessToken) {
           return;
         }
         await sessionClient.bootstrap();

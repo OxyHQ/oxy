@@ -48,7 +48,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
 
   const accountQuery = useQuery({
     queryKey: ['accounts', 'detail', id],
-    queryFn: () => oxyServices.getAccount(id),
+    queryFn: () => oxyServices.accounts.get(id),
     enabled: canUsePrivateApi && id.length > 0,
   });
 
@@ -81,7 +81,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
 
   const updateMutation = useMutation({
     mutationKey: ['accounts', 'update', id],
-    mutationFn: (input: UpdateAccountInput) => oxyServices.updateAccount(id, input),
+    mutationFn: (input: UpdateAccountInput) => oxyServices.accounts.update(id, input),
     onSuccess: (updatedNode, input) => {
       const cleared = clearedFieldsFromAccountUpdate(input);
       upsertCachedUser(queryClient, updatedNode.account, user?.id, {
@@ -98,7 +98,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
 
   const archiveMutation = useMutation({
     mutationKey: ['accounts', 'archive', id],
-    mutationFn: () => oxyServices.archiveAccount(id),
+    mutationFn: () => oxyServices.accounts.archive(id),
     onSuccess: async () => {
       // If we archived the account we're currently signed in AS, switch back to
       // the personal account so the app isn't left as an archived identity.

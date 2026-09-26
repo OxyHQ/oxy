@@ -14,8 +14,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Linking } from 'react-native';
 import { toast } from '@oxy.so/bloom';
 import type { DeviceDirectory, LoginSessionResult } from '@oxy.so/contracts';
-import type { AccountDialogSnapshot, SignInFlowState } from '@oxy.so/core';
-import { resolveActiveContext } from '@oxy.so/core';
+import type { AccountDialogSnapshot, SignInFlowState } from '@oxy.so/core/session';
+import { resolveActiveContext } from '@oxy.so/core/session';
 
 const IDLE_SIGN_IN: SignInFlowState = {
   phase: 'idle',
@@ -120,12 +120,20 @@ const apiError = (code: string, status = 401, details?: Record<string, unknown>)
   Object.assign(new Error(code), { code, status, ...(details ? { details } : {}) });
 
 const oxyServices = {
-  getFileDownloadUrl: (id: string) => `https://cdn/${id}`,
-  startEmailSignIn: jest.fn(async (_identifier: string): Promise<Record<string, unknown>> => REQUEST),
-  confirmEmailSignIn: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
-  collectEmailSignIn: jest.fn(async (_request: unknown): Promise<unknown> => PENDING),
-  signInWithPassword: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
-  completeSecondFactor: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
+  assets: {
+    publicUrl: (id: string) => `https://cdn/${id}`,
+  },
+  auth: {
+    email: {
+      start: jest.fn(async (_identifier: string): Promise<Record<string, unknown>> => REQUEST),
+      confirm: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
+      collect: jest.fn(async (_request: unknown): Promise<unknown> => PENDING),
+    },
+    password: {
+      signIn: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
+    },
+    completeSecondFactor: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
+  },
 };
 const handleWebSession = jest.fn(async (_session: unknown) => undefined);
 const openAccountDialog = jest.fn();
@@ -202,11 +210,11 @@ beforeEach(() => {
   listeners = [];
   snapshot = makeSnapshot();
   isWebBrowserMock.mockReturnValue(true);
-  oxyServices.startEmailSignIn.mockImplementation(async () => REQUEST);
-  oxyServices.confirmEmailSignIn.mockImplementation(async () => SESSION);
-  oxyServices.collectEmailSignIn.mockImplementation(async () => PENDING);
-  oxyServices.signInWithPassword.mockImplementation(async () => SESSION);
-  oxyServices.completeSecondFactor.mockImplementation(async () => SESSION);
+  oxyServices.auth.email.start.mockImplementation(async () => REQUEST);
+  oxyServices.auth.email.confirm.mockImplementation(async () => SESSION);
+  oxyServices.auth.email.collect.mockImplementation(async () => PENDING);
+  oxyServices.auth.password.signIn.mockImplementation(async () => SESSION);
+  oxyServices.auth.completeSecondFactor.mockImplementation(async () => SESSION);
   handleWebSession.mockImplementation(async () => undefined);
   controller.chooseContext.mockImplementation(async () => 'signing-in');
 });
@@ -263,7 +271,7 @@ describe('the entry — an email or username, and the Commons way in', () => {
   it('asks for an email or username instead of sending nothing', () => {
     renderPanel();
     press('signin-identifier-continue');
-    expect(oxyServices.startEmailSignIn).not.toHaveBeenCalled();
+    expect(oxyServices.auth.email.start).not.toHaveBeenCalled();
     expect(alertText()).toBe('Enter your email or username.');
   });
 
@@ -287,7 +295,7 @@ describe('"Check your email" — the code or the link', () => {
     renderPanel();
     await reachCheckEmail(' ada ');
 
-    expect(oxyServices.startEmailSignIn).toHaveBeenCalledWith('ada');
+    expect(oxyServices.auth.email.start).toHaveBeenCalledWith('ada');
     expect(screen.getByText('Check your email')).toBeTruthy();
     expect(screen.getByText('If an account matches ada, we sent it a code and a sign-in link.')).toBeTruthy();
     // The QR belongs to the entry only; the photo carousel stays.
@@ -301,7 +309,7 @@ describe('"Check your email" — the code or the link', () => {
     type('signin-code', '123456');
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(oxyServices.confirmEmailSignIn).toHaveBeenCalledWith({
+    expect(oxyServices.auth.email.confirm).toHaveBeenCalledWith({
       requestId: REQUEST.requestId,
       requestSecret: REQUEST.requestSecret,
       code: '123456',
@@ -315,11 +323,11 @@ describe('"Check your email" — the code or the link', () => {
 
     // Being typed with its dash: never mistaken for 6 digits.
     type('signin-code', '23456-');
-    expect(oxyServices.confirmEmailSignIn).not.toHaveBeenCalled();
+    expect(oxyServices.auth.email.confirm).not.toHaveBeenCalled();
     type('signin-code', '23456-abcde');
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(oxyServices.confirmEmailSignIn).toHaveBeenCalledWith(expect.objectContaining({ code: '23456-ABCDE' }));
+    expect(oxyServices.auth.email.confirm).toHaveBeenCalledWith(expect.objectContaining({ code: '23456-ABCDE' }));
   });
 
   it('takes a pasted long code without its dash', async () => {
@@ -327,11 +335,11 @@ describe('"Check your email" — the code or the link', () => {
     await reachCheckEmail();
     type('signin-code', 'k7m2pq9xrt');
 
-    await waitFor(() => expect(oxyServices.confirmEmailSignIn).toHaveBeenCalledWith(expect.objectContaining({ code: 'K7M2PQ9XRT' })));
+    await waitFor(() => expect(oxyServices.auth.email.confirm).toHaveBeenCalledWith(expect.objectContaining({ code: 'K7M2PQ9XRT' })));
   });
 
   it('says a wrong code is wrong, clears it, and stays', async () => {
-    oxyServices.confirmEmailSignIn.mockRejectedValueOnce(apiError('EMAIL_CODE_INVALID'));
+    oxyServices.auth.email.confirm.mockRejectedValueOnce(apiError('EMAIL_CODE_INVALID'));
     renderPanel();
     await reachCheckEmail();
     type('signin-code', '000000');
@@ -351,13 +359,13 @@ describe('"Check your email" — the code or the link', () => {
       await act(async () => {
         jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS);
       });
-      expect(oxyServices.collectEmailSignIn).toHaveBeenCalledWith({
+      expect(oxyServices.auth.email.collect).toHaveBeenCalledWith({
         requestId: REQUEST.requestId,
         requestSecret: REQUEST.requestSecret,
       });
       expect(onSignedIn).not.toHaveBeenCalled();
 
-      oxyServices.collectEmailSignIn.mockResolvedValueOnce(SESSION);
+      oxyServices.auth.email.collect.mockResolvedValueOnce(SESSION);
       await act(async () => {
         jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS);
       });
@@ -374,7 +382,7 @@ describe('"Check your email" — the code or the link', () => {
       let handOver: (value: unknown) => void = () => undefined;
       const view = renderPanel({ host: 'dialog' });
       await reachCheckEmail();
-      oxyServices.collectEmailSignIn.mockImplementationOnce(
+      oxyServices.auth.email.collect.mockImplementationOnce(
         () => new Promise((resolve) => {
           handOver = resolve;
         }),
@@ -391,7 +399,7 @@ describe('"Check your email" — the code or the link', () => {
 
       expect(handleWebSession).toHaveBeenCalledWith(SESSION);
       expect(nextOnSignedIn).toHaveBeenCalledTimes(1);
-      expect(oxyServices.collectEmailSignIn).toHaveBeenCalledTimes(1);
+      expect(oxyServices.auth.email.collect).toHaveBeenCalledTimes(1);
     } finally {
       jest.useRealTimers();
     }
@@ -406,7 +414,7 @@ describe('"Check your email" — the code or the link', () => {
       await act(async () => {
         jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS * 3);
       });
-      expect(oxyServices.collectEmailSignIn).not.toHaveBeenCalled();
+      expect(oxyServices.auth.email.collect).not.toHaveBeenCalled();
     } finally {
       jest.useRealTimers();
     }
@@ -429,17 +437,17 @@ describe('"Check your email" — the code or the link', () => {
         });
       }
       expect((screen.getByTestId('signin-resend') as HTMLButtonElement).disabled).toBe(false);
-      oxyServices.startEmailSignIn.mockResolvedValueOnce({ ...REQUEST, requestId: 'req-2' });
+      oxyServices.auth.email.start.mockResolvedValueOnce({ ...REQUEST, requestId: 'req-2' });
       press('signin-resend');
       await waitFor(() => expect(screen.getByTestId('signin-notice').textContent).toBe('We sent a new email.'));
-      expect(oxyServices.startEmailSignIn).toHaveBeenCalledTimes(2);
+      expect(oxyServices.auth.email.start).toHaveBeenCalledTimes(2);
     } finally {
       jest.useRealTimers();
     }
   });
 
   it('counts down after a 429 and holds the code until it may retry', async () => {
-    oxyServices.confirmEmailSignIn.mockRejectedValueOnce(apiError('SIGNIN_LOCKED', 429, { retryAfterSeconds: 42 }));
+    oxyServices.auth.email.confirm.mockRejectedValueOnce(apiError('SIGNIN_LOCKED', 429, { retryAfterSeconds: 42 }));
     renderPanel();
     await reachCheckEmail();
     type('signin-code', '111111');
@@ -456,7 +464,7 @@ describe('"Check your email" — the code or the link', () => {
   });
 
   it('says so when this device asked for too many emails', async () => {
-    oxyServices.startEmailSignIn.mockResolvedValueOnce({ ...REQUEST, retryLater: true });
+    oxyServices.auth.email.start.mockResolvedValueOnce({ ...REQUEST, retryLater: true });
     renderPanel();
     type('signin-identifier', 'ada');
     press('signin-identifier-continue');
@@ -472,7 +480,7 @@ describe('in the dialog, the step outlives a remount of the screen', () => {
   // person must stay on their step — the e2e found them back at "Sign in" with
   // their emailed code already spent.
   it('keeps "Two-step verification" and its challenge across a remount', async () => {
-    oxyServices.confirmEmailSignIn.mockResolvedValueOnce(CHALLENGE);
+    oxyServices.auth.email.confirm.mockResolvedValueOnce(CHALLENGE);
     const first = renderPanel({ host: 'dialog' });
     await reachCheckEmail('ada');
     type('signin-code', '123456');
@@ -483,7 +491,7 @@ describe('in the dialog, the step outlives a remount of the screen', () => {
     expect(screen.getByText('Two-step verification')).toBeTruthy();
     type('signin-second-factor', '654321');
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(oxyServices.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: '654321' });
+    expect(oxyServices.auth.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: '654321' });
   });
 
   it('keeps "Check your email", its request (the link poll resumes) and the resend cooldown', async () => {
@@ -496,11 +504,11 @@ describe('in the dialog, the step outlives a remount of the screen', () => {
       renderPanel({ host: 'dialog' });
       expect(screen.getByText('If an account matches ada, we sent it a code and a sign-in link.')).toBeTruthy();
       expect((screen.getByTestId('signin-resend') as HTMLButtonElement).disabled).toBe(true);
-      oxyServices.collectEmailSignIn.mockResolvedValueOnce(SESSION);
+      oxyServices.auth.email.collect.mockResolvedValueOnce(SESSION);
       await act(async () => {
         jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS);
       });
-      expect(oxyServices.collectEmailSignIn).toHaveBeenCalledWith({ requestId: REQUEST.requestId, requestSecret: REQUEST.requestSecret });
+      expect(oxyServices.auth.email.collect).toHaveBeenCalledWith({ requestId: REQUEST.requestId, requestSecret: REQUEST.requestSecret });
       expect(onSignedIn).toHaveBeenCalledTimes(1);
     } finally {
       jest.useRealTimers();
@@ -541,12 +549,12 @@ describe('the password, instead of the email', () => {
     press('signin-password-continue');
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(oxyServices.signInWithPassword).toHaveBeenCalledWith({ identifier: 'ada', password: 'correct horse battery' });
+    expect(oxyServices.auth.password.signIn).toHaveBeenCalledWith({ identifier: 'ada', password: 'correct horse battery' });
     expect(handleWebSession).toHaveBeenCalledWith(SESSION);
   });
 
   it('answers a wrong password without saying which half was wrong', async () => {
-    oxyServices.signInWithPassword.mockRejectedValueOnce(apiError('SIGNIN_INVALID_CREDENTIALS'));
+    oxyServices.auth.password.signIn.mockRejectedValueOnce(apiError('SIGNIN_INVALID_CREDENTIALS'));
     renderPanel();
     await reachCheckEmail('ada');
     press('signin-use-password');
@@ -564,14 +572,14 @@ describe('the password, instead of the email', () => {
     press('signin-password-forgot');
 
     await screen.findByTestId('signin-code');
-    expect(oxyServices.startEmailSignIn).toHaveBeenCalledTimes(2);
-    expect(oxyServices.startEmailSignIn).toHaveBeenLastCalledWith('ada');
+    expect(oxyServices.auth.email.start).toHaveBeenCalledTimes(2);
+    expect(oxyServices.auth.email.start).toHaveBeenLastCalledWith('ada');
   });
 });
 
 describe('the authenticator — the second step', () => {
   it('asks for the app\'s code after the email code, and signs in with it', async () => {
-    oxyServices.confirmEmailSignIn.mockResolvedValueOnce(CHALLENGE);
+    oxyServices.auth.email.confirm.mockResolvedValueOnce(CHALLENGE);
     renderPanel();
     await reachCheckEmail();
     type('signin-code', '123456');
@@ -582,12 +590,12 @@ describe('the authenticator — the second step', () => {
 
     type('signin-second-factor', '654321');
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(oxyServices.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: '654321' });
+    expect(oxyServices.auth.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: '654321' });
     expect(handleWebSession).toHaveBeenCalledWith(SESSION);
   });
 
   it('asks after the password too', async () => {
-    oxyServices.signInWithPassword.mockResolvedValueOnce(CHALLENGE);
+    oxyServices.auth.password.signIn.mockResolvedValueOnce(CHALLENGE);
     renderPanel();
     await reachCheckEmail('ada');
     press('signin-use-password');
@@ -601,7 +609,7 @@ describe('the authenticator — the second step', () => {
   it('asks after the link too', async () => {
     jest.useFakeTimers();
     try {
-      oxyServices.collectEmailSignIn.mockResolvedValueOnce(CHALLENGE);
+      oxyServices.auth.email.collect.mockResolvedValueOnce(CHALLENGE);
       renderPanel();
       await reachCheckEmail();
       await act(async () => {
@@ -615,7 +623,7 @@ describe('the authenticator — the second step', () => {
   });
 
   it('takes a backup code instead', async () => {
-    oxyServices.confirmEmailSignIn.mockResolvedValueOnce(CHALLENGE);
+    oxyServices.auth.email.confirm.mockResolvedValueOnce(CHALLENGE);
     renderPanel();
     await reachCheckEmail();
     type('signin-code', '123456');
@@ -627,12 +635,12 @@ describe('the authenticator — the second step', () => {
     press('signin-second-factor-continue');
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(oxyServices.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: 'abcde-fgh23' });
+    expect(oxyServices.auth.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: 'abcde-fgh23' });
   });
 
   it('says a wrong authenticator code is wrong', async () => {
-    oxyServices.confirmEmailSignIn.mockResolvedValueOnce(CHALLENGE);
-    oxyServices.completeSecondFactor.mockRejectedValueOnce(apiError('SECOND_FACTOR_INVALID'));
+    oxyServices.auth.email.confirm.mockResolvedValueOnce(CHALLENGE);
+    oxyServices.auth.completeSecondFactor.mockRejectedValueOnce(apiError('SECOND_FACTOR_INVALID'));
     renderPanel();
     await reachCheckEmail();
     type('signin-code', '123456');

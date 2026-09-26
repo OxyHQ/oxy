@@ -6,15 +6,37 @@
  *
  * @example
  * ```ts
- * import { createOxyRateLimit } from '@oxy.so/core/server';
- * import { oxyClient } from '@oxy.so/core';
+ * import { OxyServer, createOxyAuthMiddleware, createOxyRateLimit } from '@oxy.so/core/server';
  *
- * const oxy = oxyClient({ apiUrl: 'https://api.oxy.so' });
+ * const oxy = new OxyServer({ baseURL: 'https://api.oxy.so', serviceAuth: { apiKey, apiSecret } });
  *
  * app.use(createOxyRateLimit(oxy, { store: redisStore }));
+ * app.use('/api', createOxyAuthMiddleware(oxy));
  * ```
  */
 
+// The backend client: OxyServices plus the service-token lane, middleware,
+// account events and the service-only namespace methods.
+export { OxyServer, ServiceCredentialMismatchError, ANONYMOUS_SERVICE_TOKEN_RETRY_MS } from './OxyServer';
+export type { OxyServerConfig, ServiceTokenResponse } from './OxyServer';
+export {
+  ServerAgencyApi,
+  ServerAssetsApi,
+  ServerLinkedAccountsApi,
+  ServerNotificationsApi,
+  ServerReputationApi,
+} from './namespaces';
+export { OxyAccountEventError, OXY_ACCOUNT_DELETED_EVENT_URI } from './middleware';
+export type {
+  AuthMiddlewareOptions,
+  OxyAccountEvent,
+  OxyAccountEventFeedItem,
+  OxyAccountEventFeedPage,
+  OxyMiddleware,
+  ServiceActingAsVerification,
+  ServiceApp,
+  VerifyAccountEventOptions,
+} from './middleware';
 export {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
@@ -29,6 +51,7 @@ export {
   requireOxyAuth,
   OXY_SERVICE_ENVIRONMENTS,
 } from './auth';
+export type { OxyAuthHost } from './auth';
 export type {
   OxyAuthenticatedRequest,
   OxyAuthRefusal,
@@ -152,7 +175,7 @@ export type {
   OxyUserInvalidationHandlerOptions,
 } from './userInvalidation';
 // The identity-key enumeration itself is platform-neutral (`src/utils/`) so the
-// client mixins and this Node-only subscriber sweep the SAME list — a second
+// client namespaces and this Node-only subscriber sweep the SAME list — a second
 // copy is what let `updateAccount` and `updateProfile` drift apart.
 export { evictOxyIdentityCache, oxyUserByIdCacheKey, OXY_IDENTITY_CACHE_PREFIXES } from '../utils/identityCacheSweep';
 export type { OxyIdentityCacheEvictor } from '../utils/identityCacheSweep';
@@ -162,7 +185,7 @@ export type { OxyIdentityCacheEvictor } from '../utils/identityCacheSweep';
 // Pure host handling (no browser deps), so it is safe on the server subpath and
 // lets `@oxy.so/api` derive `auth.<apex>` without duplicating PSL logic.
 export { registrableApex } from '../utils/registrableApex';
-export { isOfficialWebOrigin } from '../utils/officialOrigins';
+export { isLoopbackOrigin, isOfficialWebOrigin, isAllowedDeviceJoinOrigin } from '../utils/officialOrigins';
 
 export { createEcosystemTraffic } from './traffic';
 export type { EcosystemTrafficOptions } from './traffic';

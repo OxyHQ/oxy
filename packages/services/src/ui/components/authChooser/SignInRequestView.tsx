@@ -21,7 +21,7 @@
 
 import type React from 'react';
 import { useState } from 'react';
-import type { AccountDialogSnapshot } from '@oxy.so/core';
+import type { AccountDialogSnapshot } from '@oxy.so/core/session';
 import OxySignInRequestSurface from '../OxySignInRequestSurface';
 import type { OxySignInSurfaceAction, SignInAlternatives, Translate } from './types';
 

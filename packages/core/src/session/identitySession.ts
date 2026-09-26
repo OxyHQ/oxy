@@ -154,7 +154,7 @@ export async function establishIdentitySession(args: {
     return null;
   }
 
-  const { challenge } = await oxy.requestChallenge(publicKey, requestOptions);
+  const { challenge } = await oxy.auth.requestChallenge(publicKey, requestOptions);
   const signed = await signChallengeOf(binding)(challenge);
   if (signed.publicKey.toLowerCase() !== publicKey.toLowerCase()) {
     // The signer disagrees with the key we resolved a challenge for — the
@@ -164,7 +164,7 @@ export async function establishIdentitySession(args: {
   }
 
   // `signed.challenge` carries the SIGNATURE (mirrors `signChallengeWithSharedKey`).
-  const session = await oxy.verifyChallenge(
+  const session = await oxy.auth.verifyChallenge(
     signed.publicKey,
     challenge,
     signed.challenge,

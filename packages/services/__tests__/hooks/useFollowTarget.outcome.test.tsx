@@ -16,10 +16,7 @@ import { useFollowTarget } from '../../src/ui/hooks/useFollowTarget';
 import { useFollowTargetStore } from '../../src/ui/stores/followTargetStore';
 
 const oxyServices = {
-  getFollowTargetStatus: jest.fn(),
-  followTarget: jest.fn(),
-  unfollowTarget: jest.fn(),
-  setFollowApplicationMode: jest.fn(),
+  follows: { targetStatus: jest.fn(), followTarget: jest.fn(), unfollowTarget: jest.fn(), setApplicationMode: jest.fn() },
 };
 
 jest.mock('../../src/ui/context/OxyContext', () => ({
@@ -35,12 +32,12 @@ const NOT_FOLLOWING = {
 beforeEach(() => {
   jest.clearAllMocks();
   useFollowTargetStore.getState().reset();
-  oxyServices.getFollowTargetStatus.mockResolvedValue(NOT_FOLLOWING);
+  oxyServices.follows.targetStatus.mockResolvedValue(NOT_FOLLOWING);
 });
 
 describe('useFollowTarget reports whether the server accepted', () => {
   it('resolves true when the follow was accepted', async () => {
-    oxyServices.followTarget.mockResolvedValue({
+    oxyServices.follows.followTarget.mockResolvedValue({
       relationshipId: 'rel-1',
       created: true,
       status: { ...NOT_FOLLOWING, globalState: 'active', effectiveState: 'following' },
@@ -59,7 +56,7 @@ describe('useFollowTarget reports whether the server accepted', () => {
   it('resolves FALSE when the server refuses, and does not reject', async () => {
     // A refused write is the ordinary case, not an exception: a missing scope,
     // a revoked grant, a target that has gone. The hook turns it into state.
-    oxyServices.followTarget.mockRejectedValue(new Error('Missing scope: follows:write'));
+    oxyServices.follows.followTarget.mockRejectedValue(new Error('Missing scope: follows:write'));
 
     const { result } = renderHook(() => useFollowTarget('target-1'));
     let outcome: boolean | undefined;
@@ -75,13 +72,13 @@ describe('useFollowTarget reports whether the server accepted', () => {
   });
 
   it('resolves false for an unfollow the server refuses', async () => {
-    oxyServices.getFollowTargetStatus.mockResolvedValue({
+    oxyServices.follows.targetStatus.mockResolvedValue({
       relationshipId: 'rel-1',
       globalState: 'active',
       applicationMode: 'inherit',
       effectiveState: 'following',
     });
-    oxyServices.unfollowTarget.mockRejectedValue(new Error('nope'));
+    oxyServices.follows.unfollowTarget.mockRejectedValue(new Error('nope'));
 
     const { result } = renderHook(() => useFollowTarget('target-1'));
     // Let the initial status read settle so a relationship id exists to act on.
@@ -109,11 +106,11 @@ describe('useFollowTarget reports whether the server accepted', () => {
     });
 
     expect(outcome).toBe(false);
-    expect(oxyServices.unfollowTarget).not.toHaveBeenCalled();
+    expect(oxyServices.follows.unfollowTarget).not.toHaveBeenCalled();
   });
 
   it('leaves the button interactive when the status read fails', async () => {
-    oxyServices.getFollowTargetStatus.mockRejectedValue(new Error('network down'));
+    oxyServices.follows.targetStatus.mockRejectedValue(new Error('network down'));
 
     const { result } = renderHook(() => useFollowTarget('target-1'));
     await act(async () => {
@@ -125,7 +122,7 @@ describe('useFollowTarget reports whether the server accepted', () => {
   });
 
   it('refetches when initialStatus is incomplete (following without relationshipId)', async () => {
-    oxyServices.getFollowTargetStatus.mockResolvedValue({
+    oxyServices.follows.targetStatus.mockResolvedValue({
       relationshipId: 'rel-from-server',
       globalState: 'active',
       applicationMode: 'inherit',
@@ -146,7 +143,7 @@ describe('useFollowTarget reports whether the server accepted', () => {
       await Promise.resolve();
     });
 
-    expect(oxyServices.getFollowTargetStatus).toHaveBeenCalledWith('target-1');
+    expect(oxyServices.follows.targetStatus).toHaveBeenCalledWith('target-1');
     expect(result.current.status.relationshipId).toBe('rel-from-server');
   });
 });

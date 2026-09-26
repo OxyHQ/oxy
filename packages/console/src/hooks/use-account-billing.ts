@@ -52,7 +52,7 @@ export function useAccountBillingState(accountId: string | undefined, enabled: b
   return useQuery({
     queryKey: queryKeys.state(accountId ?? ''),
     queryFn: () =>
-      oxyServices.makeRequest<AccountBillingState | null>(
+      oxyServices.request<AccountBillingState | null>(
         'GET',
         `/billing/accounts/${accountId ?? ''}`,
         undefined,
@@ -77,7 +77,7 @@ export function useProvisionAccountBilling() {
       accountId: string;
       currency?: string;
     }): Promise<AccountBillingState> =>
-      oxyServices.makeRequest<AccountBillingState>(
+      oxyServices.request<AccountBillingState>(
         'POST',
         `/billing/accounts/${accountId}`,
         currency === undefined ? {} : { currency },
@@ -119,7 +119,7 @@ export function useUpdateAutoRecharge() {
       accountId: string;
       autoRecharge: AutoRechargePatch;
     }): Promise<unknown> =>
-      oxyServices.makeRequest(
+      oxyServices.request(
         'PATCH',
         `/billing/accounts/${accountId}`,
         { autoRecharge },
@@ -139,7 +139,7 @@ export function useAccountInvoices(accountId: string | undefined, enabled: boole
   return useQuery({
     queryKey: queryKeys.invoices(accountId ?? ''),
     queryFn: () =>
-      oxyServices.makeRequest<Array<BillingInvoice>>(
+      oxyServices.request<Array<BillingInvoice>>(
         'GET',
         `/billing/accounts/${accountId ?? ''}/invoices`,
         undefined,
@@ -158,7 +158,7 @@ export function useAutoRechargeAttempts(accountId: string | undefined, enabled: 
   return useQuery({
     queryKey: queryKeys.autoRecharge(accountId ?? ''),
     queryFn: () =>
-      oxyServices.makeRequest<Array<AutoRechargeAttempt>>(
+      oxyServices.request<Array<AutoRechargeAttempt>>(
         'GET',
         `/billing/accounts/${accountId ?? ''}/auto-recharge`,
         undefined,
@@ -184,7 +184,7 @@ export function useAccountEntitlements(accountId: string | undefined, enabled: b
   return useQuery({
     queryKey: queryKeys.entitlements(accountId ?? ''),
     queryFn: () =>
-      oxyServices.makeRequest<ProductEntitlement>(
+      oxyServices.request<ProductEntitlement>(
         'GET',
         `/billing/accounts/${accountId ?? ''}/entitlements`,
         undefined,
@@ -219,7 +219,7 @@ export function useAccountTopUpCheckout() {
       successUrl: string;
       cancelUrl: string;
     }): Promise<{ sessionId: string; url: string }> =>
-      oxyServices.makeRequest<{ sessionId: string; url: string }>(
+      oxyServices.request<{ sessionId: string; url: string }>(
         'POST',
         `/billing/accounts/${accountId}/checkout`,
         { amount, successUrl, cancelUrl },
@@ -240,7 +240,7 @@ export function useAccountBillingPortal() {
       accountId: string;
       returnUrl: string;
     }): Promise<string> => {
-      const result = await oxyServices.makeRequest<{ url: string }>(
+      const result = await oxyServices.request<{ url: string }>(
         'POST',
         `/billing/accounts/${accountId}/portal`,
         { returnUrl },

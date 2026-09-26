@@ -1,3 +1,4 @@
+import { loadLocale } from '../../i18n';
 import {
     createQuickAccount,
     getAccountDisplayName,
@@ -94,7 +95,9 @@ describe('getAccountDisplayName', () => {
         ).toBe('nateus');
     });
 
-    it('honours the locale for the fallback strings', () => {
+    it('honours the locale for the fallback strings', async () => {
+        // Non-English dictionaries load on demand.
+        await loadLocale('es-ES');
         expect(getAccountDisplayName({}, 'es-ES')).toBe('Sin nombre');
         expect(getAccountDisplayName({ publicKey: '0x1234567890abcdef' }, 'es-ES')).toBe(
             'Cuenta 0x12345678…',

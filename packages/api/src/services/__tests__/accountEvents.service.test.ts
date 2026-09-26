@@ -6,7 +6,7 @@
  */
 
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
-import { OxyServices } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 import { and, eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { serviceTokenPublicJwks } from '../../config/serviceTokenSigning';
@@ -255,8 +255,8 @@ describe('the signed token', () => {
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
     const token = signAccountEventToken(event, world.firstParty);
-    const verified = await new OxyServices({ baseURL: 'https://api.oxy.test' })
-      .verifyAccountEvent(token, { audience: world.firstParty });
+    const verified = await new OxyServer({ baseURL: 'https://api.oxy.test' })
+      .accountEvents.verify(token, { audience: world.firstParty });
 
     expect(verified).toMatchObject({
       eventId: recorded.eventId,
@@ -267,8 +267,8 @@ describe('the signed token', () => {
       applicationId: world.firstParty,
     });
     // Addressed to one application: another cannot replay it as its own.
-    await expect(new OxyServices({ baseURL: 'https://api.oxy.test' })
-      .verifyAccountEvent(token, { audience: world.granted })).rejects.toThrow('another application');
+    await expect(new OxyServer({ baseURL: 'https://api.oxy.test' })
+      .accountEvents.verify(token, { audience: world.granted })).rejects.toThrow('another application');
   });
 });
 

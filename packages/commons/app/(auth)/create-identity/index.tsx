@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
-import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core';
+import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus';
 import { IdentityMayExistError } from '@/hooks/identity/identityErrors';
@@ -51,7 +51,7 @@ export default function CreateIdentityScreen() {
   // (router/setAuthError references), and we only want exactly one
   // `replace('/username')` per resume. Note: this does NOT survive remounts;
   // protection against a remount-induced bounce relies on the SDK-side
-  // cache invalidation in `updateProfile` keeping `hasUsername` stable.
+  // cache invalidation in `users.updateMe` keeping `hasUsername` stable.
   const hasNavigatedResumeRef = useRef(false);
   // A hard create failure (e.g. key generation/persistence failed) used to set
   // an auth error that nothing rendered, leaving the user stuck on the endless
@@ -124,7 +124,7 @@ export default function CreateIdentityScreen() {
         const offline = await checkIfOffline();
         if (!isMountedRef.current) return;
 
-        const hasSession = () => Boolean(oxyServices?.getAccessToken());
+        const hasSession = () => Boolean(oxyServices?.session.accessToken);
         let sessionReady = isAuthenticated || hasSession();
 
         if (!sessionReady && !offline && syncIdentity) {
@@ -246,7 +246,7 @@ export default function CreateIdentityScreen() {
             const offline = await checkIfOffline();
             if (!isMountedRef.current) return;
 
-            const hasSession = () => Boolean(oxyServices?.getAccessToken());
+            const hasSession = () => Boolean(oxyServices?.session.accessToken);
             let sessionReady = isAuthenticated || hasSession();
 
             if (!sessionReady && !offline && syncIdentity) {

@@ -181,22 +181,30 @@ interface PollResult {
   openedAt: string | null
 }
 
-const oxyServices = {
-  startCommonsSignIn: mock(async () => ({
+const commons = {
+  start: mock(async () => ({
     sessionToken: SESSION_TOKEN,
     authorizeCode: AUTHORIZE_CODE,
     qrPayload: QR_PAYLOAD,
     expiresAt: Date.now() + 5 * 60 * 1000,
     status: "pending",
   })),
-  pollCommonsSignIn: mock(async (): Promise<PollResult> => pollResult),
-  finalizeCommonsOAuth: mock(async () => ({
+  poll: mock(async (): Promise<PollResult> => pollResult),
+  finalizeOAuth: mock(async () => ({
     code: MINTED_CODE,
     redirectUri: REDIRECT_URI,
     expiresIn: 600,
   })),
-  denyCommonsSignIn: mock(async () => ({ success: true })),
-  getAccessToken: () => sessionState.accessToken,
+  deny: mock(async () => ({ success: true })),
+}
+
+const oxyServices = {
+  auth: { commons },
+  session: {
+    get accessToken() {
+      return sessionState.accessToken
+    },
+  },
 }
 
 let pollResult: PollResult = {
@@ -426,10 +434,10 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
     harness.location = { href: "" }
     harness.closed = false
     deliverOAuthResult.mockClear()
-    oxyServices.startCommonsSignIn.mockClear()
-    oxyServices.pollCommonsSignIn.mockClear()
-    oxyServices.finalizeCommonsOAuth.mockClear()
-    oxyServices.denyCommonsSignIn.mockClear()
+    oxyServices.auth.commons.start.mockClear()
+    oxyServices.auth.commons.poll.mockClear()
+    oxyServices.auth.commons.finalizeOAuth.mockClear()
+    oxyServices.auth.commons.deny.mockClear()
   })
 
   afterEach(() => {
@@ -439,8 +447,8 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
   test("creates the request with the OAuth context already bound", async () => {
     const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
 
-    expect(oxyServices.startCommonsSignIn).toHaveBeenCalledTimes(1)
-    expect(oxyServices.startCommonsSignIn).toHaveBeenCalledWith({
+    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(1)
+    expect(oxyServices.auth.commons.start).toHaveBeenCalledWith({
       clientId: CLIENT_ID,
       oauth: {
         redirectUri: REDIRECT_URI,
@@ -512,8 +520,8 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
     await advancePoll()
 
     // Finalized ONCE, authenticated by the secret token the page never exposes.
-    expect(oxyServices.finalizeCommonsOAuth).toHaveBeenCalledTimes(1)
-    expect(oxyServices.finalizeCommonsOAuth).toHaveBeenCalledWith(SESSION_TOKEN)
+    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1)
+    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledWith(SESSION_TOKEN)
 
     expect(deliverOAuthResult).toHaveBeenCalledTimes(1)
     const delivered = deliverOAuthResult.mock.calls[0]?.[0] as DeliverInput
@@ -577,14 +585,14 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
       pushSentAt: null,
       openedAt: null,
     }
-    oxyServices.finalizeCommonsOAuth.mockImplementationOnce(async () => {
+    oxyServices.auth.commons.finalizeOAuth.mockImplementationOnce(async () => {
       throw new Error("finalize refused")
     })
 
     const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
     await advancePoll()
 
-    expect(oxyServices.finalizeCommonsOAuth).toHaveBeenCalledTimes(1)
+    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1)
     expect(deliverOAuthResult).not.toHaveBeenCalled()
     expect(harness.location.href).toBe("")
     // The reason is the page's own banner (the shared surface reports only THAT
@@ -600,18 +608,18 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
       jest.advanceTimersByTime(COMMONS_OAUTH_POLL_INTERVAL_MS * 10)
       await flush()
     })
-    expect(oxyServices.finalizeCommonsOAuth).toHaveBeenCalledTimes(1)
+    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1)
     expect(deliverOAuthResult).not.toHaveBeenCalled()
 
     // "Try again" is a BRAND-NEW request, never a second finalize of the spent
     // one — the credential for that one is gone and the server already spent it.
-    expect(oxyServices.startCommonsSignIn).toHaveBeenCalledTimes(1)
+    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(1)
     await act(async () => {
       click(container.querySelector("[data-testid='signin-retry']"))
       await flush()
     })
-    expect(oxyServices.startCommonsSignIn).toHaveBeenCalledTimes(2)
-    expect(oxyServices.finalizeCommonsOAuth).toHaveBeenCalledTimes(1)
+    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(2)
+    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1)
     expect(deliverOAuthResult).not.toHaveBeenCalled()
 
     unmount()
@@ -625,7 +633,7 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
       pushSentAt: null,
       openedAt: null,
     }
-    oxyServices.finalizeCommonsOAuth.mockImplementationOnce(async () => ({
+    oxyServices.auth.commons.finalizeOAuth.mockImplementationOnce(async () => ({
       code: MINTED_CODE,
       redirectUri: "https://not-the-bound-target.example/callback",
       expiresIn: 600,
@@ -661,8 +669,8 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
     })
 
     // Withdrawn with the PUBLIC handle — never the finalize credential.
-    expect(oxyServices.denyCommonsSignIn).toHaveBeenCalledWith(AUTHORIZE_CODE)
-    expect(oxyServices.finalizeCommonsOAuth).not.toHaveBeenCalled()
+    expect(oxyServices.auth.commons.deny).toHaveBeenCalledWith(AUTHORIZE_CODE)
+    expect(oxyServices.auth.commons.finalizeOAuth).not.toHaveBeenCalled()
     expect(deliverOAuthResult).toHaveBeenCalledTimes(1)
     const url = new URL(harness.location.href)
     expect(url.searchParams.get("error")).toBe("access_denied")
@@ -685,7 +693,7 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
 
     expect(container.querySelector("[data-testid='commons-failure']")).not.toBeNull()
     expect(deliverOAuthResult).not.toHaveBeenCalled()
-    expect(oxyServices.finalizeCommonsOAuth).not.toHaveBeenCalled()
+    expect(oxyServices.auth.commons.finalizeOAuth).not.toHaveBeenCalled()
 
     unmount()
   })
@@ -697,7 +705,7 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
       state: STATE,
     })
 
-    expect(oxyServices.startCommonsSignIn).not.toHaveBeenCalled()
+    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled()
     expect(container.querySelector("[data-testid='login-page']")).not.toBeNull()
 
     unmount()
@@ -708,7 +716,7 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
 
     const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
 
-    expect(oxyServices.startCommonsSignIn).not.toHaveBeenCalled()
+    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled()
     expect(container.querySelector("[data-testid='login-page']")).not.toBeNull()
 
     unmount()
@@ -727,7 +735,7 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
 
     const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
 
-    expect(oxyServices.startCommonsSignIn).toHaveBeenCalledTimes(1)
+    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(1)
     expect(container.querySelector("[data-testid='login-page']")).toBeNull()
 
     unmount()
@@ -770,7 +778,7 @@ describe("AuthorizePage — a visitor who already has a session here", () => {
     harness.opener = null
     harness.location = { href: "" }
     deliverOAuthResult.mockClear()
-    oxyServices.startCommonsSignIn.mockClear()
+    oxyServices.auth.commons.start.mockClear()
   })
 
   afterEach(() => {
@@ -781,7 +789,7 @@ describe("AuthorizePage — a visitor who already has a session here", () => {
     const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
 
     // No Commons request is created, and no redirect to sign in here.
-    expect(oxyServices.startCommonsSignIn).not.toHaveBeenCalled()
+    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled()
     expect(container.querySelector("[data-testid='qr-code']")).toBeNull()
     expect(container.querySelector("[data-testid='login-page']")).toBeNull()
 

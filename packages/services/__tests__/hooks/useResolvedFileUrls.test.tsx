@@ -108,7 +108,7 @@ describe('useResolvedFileUrls', () => {
       pubImg: 'https://cloud.oxy.so/pubImg?variant=thumb',
       vid: 'https://api.oxy.so/assets/vid/stream?variant=poster&mt=tok',
     }));
-    const oxyServices: AssetUrlBatchResolver = { getFileDownloadUrls };
+    const oxyServices: AssetUrlBatchResolver = { assets: { urls: getFileDownloadUrls } };
 
     const files: FileMetadata[] = [
       makeFile({ id: 'privImg', contentType: 'image/png' }),
@@ -146,7 +146,7 @@ describe('useResolvedFileUrls', () => {
 
   it('does not call the resolver when there are no resolvable files', () => {
     const getFileDownloadUrls = jest.fn(async () => ({}));
-    const oxyServices: AssetUrlBatchResolver = { getFileDownloadUrls };
+    const oxyServices: AssetUrlBatchResolver = { assets: { urls: getFileDownloadUrls } };
     const files: FileMetadata[] = [
       makeFile({ id: 'doc', contentType: 'application/pdf' }),
       makeFile({ id: 'temp-1-0-a', contentType: 'image/png', metadata: { uploading: true } }),
@@ -164,7 +164,7 @@ describe('useResolvedFileUrls', () => {
     const getFileDownloadUrls = jest.fn(async () => ({
       okImg: 'https://api.oxy.so/assets/okImg/stream?variant=thumb&mt=tok',
     }));
-    const oxyServices: AssetUrlBatchResolver = { getFileDownloadUrls };
+    const oxyServices: AssetUrlBatchResolver = { assets: { urls: getFileDownloadUrls } };
     const files: FileMetadata[] = [
       makeFile({ id: 'okImg', contentType: 'image/png' }),
       makeFile({ id: 'deniedImg', contentType: 'image/png' }),
@@ -187,7 +187,7 @@ describe('useResolvedFileUrls', () => {
       .mockResolvedValueOnce({
         privImg: 'https://api.oxy.so/assets/privImg/stream?variant=thumb&mt=token-b',
       });
-    const oxyServices: AssetUrlBatchResolver = { getFileDownloadUrls };
+    const oxyServices: AssetUrlBatchResolver = { assets: { urls: getFileDownloadUrls } };
     const files: FileMetadata[] = [makeFile({ id: 'privImg', contentType: 'image/png' })];
 
     const { result, rerender } = renderHook(

@@ -183,7 +183,7 @@ function RootLayoutInner() {
 /**
  * Registers the canonical Oxy `ImageResolver` so every Bloom `Avatar` in the
  * tree (e.g. the sidebar `ProfileButton`) resolves a bare file id to a
- * variant-aware URL via `oxyServices.getFileDownloadUrl`. Without it, avatars
+ * variant-aware URL via `oxyServices.assets.publicUrl`. Without it, avatars
  * fall back to rendering initials. Must live inside `OxyProvider` so `useOxy()`
  * has a client. Defaults the variant to `thumb` for the small avatar surfaces.
  */
@@ -191,7 +191,7 @@ function AppImageResolver({ children }: { children: ReactNode }) {
   const { oxyServices } = useOxy();
   return (
     <ImageResolverProvider
-      value={(id, variant) => oxyServices.getFileDownloadUrl(id, variant ?? 'thumb')}
+      value={(id, variant) => oxyServices.assets.publicUrl(id, variant ?? 'thumb')}
     >
       {children}
     </ImageResolverProvider>

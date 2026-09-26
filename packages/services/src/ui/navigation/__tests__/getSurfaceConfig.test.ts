@@ -36,7 +36,7 @@ describe('getSurfaceConfig presentation', () => {
         // NAV-WITHIN: drilling into these swaps the content inside ONE surface,
         // which reshapes the panel instead of hard-cutting.
         expect(getSurfaceConfig('ManageAccount', {}).morph).toBe(true);
-        expect(getSurfaceConfig('FAQ', {}).morph).toBe(true);
+        expect(getSurfaceConfig('TrustFAQ', {}).morph).toBe(true);
         expect(getSurfaceConfig('FollowersList', {}).morph).toBe(true);
         expect(getSurfaceConfig('FileManagement', imageOnlyPickerProps).morph).toBe(true);
     });

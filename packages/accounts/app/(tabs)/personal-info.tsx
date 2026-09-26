@@ -164,15 +164,6 @@ export default function PersonalInfoScreen() {
       showChevron: true,
     },
     {
-      id: 'subscription',
-      icon: 'credit-card-outline',
-      iconColor: colors.sidebarIconPayments,
-      title: t('personalInfo.actions.subscription'),
-      subtitle: t('personalInfo.actions.subscriptionSubtitle'),
-      onPress: () => showBottomSheet?.('PremiumSubscription'),
-      showChevron: true,
-    },
-    {
       id: 'account-overview',
       icon: 'shield-key',
       iconColor: colors.sidebarIconSecurity,
@@ -181,7 +172,7 @@ export default function PersonalInfoScreen() {
       onPress: () => showBottomSheet?.('ManageAccount'),
       showChevron: true,
     },
-  ], [colors.sidebarIconPersonalInfo, colors.sidebarIconSecurity, colors.sidebarIconPayments, showBottomSheet, t]);
+  ], [colors.sidebarIconPersonalInfo, colors.sidebarIconSecurity, showBottomSheet, t]);
 
   // Show loading state while OxyServices is initializing
   if (oxyLoading) {

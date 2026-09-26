@@ -1,10 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import {
-    buildSwitcherRows,
-    projectDevicePrincipals,
-    type DeviceContext,
-    type SwitcherPrincipalRow,
-} from '@oxy.so/core';
+import { buildSwitcherRows, projectDevicePrincipals, type DeviceContext, type SwitcherPrincipalRow } from '@oxy.so/core/session';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from './useI18n';
 import { useAccountDialogSnapshot } from './accountDialogSnapshot';
@@ -69,7 +64,7 @@ export function useDeviceSwitcher(): UseDeviceSwitcherResult {
             buildSwitcherRows(
                 projectDevicePrincipals(snapshot.directory),
                 snapshot.activeContext?.contextId ?? null,
-                (avatar) => (avatar ? oxyServices.getFileDownloadUrl(avatar, 'thumb') : undefined),
+                (avatar) => (avatar ? oxyServices.assets.publicUrl(avatar, 'thumb') : undefined),
                 locale,
             ),
         [snapshot.directory, snapshot.activeContext, oxyServices, locale],

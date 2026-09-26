@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyManager } from '@oxy.so/core';
+import { KeyManager } from '@oxy.so/core/crypto';
 import {
   probeDeviceBackupAvailability,
   type DeviceBackupAvailability,

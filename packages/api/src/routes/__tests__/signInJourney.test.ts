@@ -65,7 +65,7 @@ jest.mock('../../utils/graphCache', () => ({
   default: { get: jest.fn(), set: jest.fn(), invalidate: jest.fn() },
 }));
 
-import { signIdentityProof } from '@oxy.so/core';
+import { signIdentityProof } from '@oxy.so/core/crypto';
 import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';

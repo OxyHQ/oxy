@@ -266,7 +266,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         const fileVisibility = (file.metadata as Record<string, unknown> | undefined)?.visibility || 'private';
         if (fileVisibility !== defaultVisibility) {
             try {
-                await oxyServices.assetUpdateVisibility(file.id, defaultVisibility);
+                await oxyServices.assets.setVisibility(file.id, defaultVisibility);
             } catch (error) {
                 // Continue anyway - selection shouldn't fail if visibility update fails
             }
@@ -275,13 +275,10 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         // Link file to entity if linkContext is provided
         if (linkContext) {
             try {
-                await oxyServices.assetLink(
+                await oxyServices.assets.link(
                     file.id,
-                    linkContext.app,
-                    linkContext.entityType,
-                    linkContext.entityId,
-                    defaultVisibility,
-                    linkContext.webhookUrl
+                    { app: linkContext.app, entityType: linkContext.entityType, entityId: linkContext.entityId },
+                    { visibility: defaultVisibility, webhookUrl: linkContext.webhookUrl },
                 );
             } catch (error) {
                 // Continue anyway - selection shouldn't fail if linking fails
@@ -340,7 +337,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
             const fileVisibility = (file.metadata as Record<string, unknown> | undefined)?.visibility || 'private';
             if (fileVisibility !== defaultVisibility) {
                 try {
-                    await oxyServices.assetUpdateVisibility(file.id, defaultVisibility);
+                    await oxyServices.assets.setVisibility(file.id, defaultVisibility);
                 } catch (error) {
                     // Visibility update failed, continue with selection
                 }
@@ -349,13 +346,10 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
             // Link file to entity if linkContext provided
             if (linkContext) {
                 try {
-                    await oxyServices.assetLink(
+                    await oxyServices.assets.link(
                         file.id,
-                        linkContext.app,
-                        linkContext.entityType,
-                        linkContext.entityId,
-                        defaultVisibility,
-                        linkContext.webhookUrl
+                        { app: linkContext.app, entityType: linkContext.entityType, entityId: linkContext.entityId },
+                        { visibility: defaultVisibility, webhookUrl: linkContext.webhookUrl },
                     );
                 } catch (error) {
                     // File linking failed, continue with selection
@@ -438,7 +432,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
 
         try {
             setDeletingId(fileId);
-            await oxyServices.deleteFile(fileId);
+            await oxyServices.assets.delete(fileId);
 
             toast.success(t('fileManagement.toasts.deleteSuccess'));
 
@@ -476,7 +470,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         try {
             const deletePromises = Array.from(selectedIds).map(async (fileId) => {
                 try {
-                    await oxyServices.deleteFile(fileId);
+                    await oxyServices.assets.delete(fileId);
                     removeFileFromCache(queryClient, targetUserId, fileId);
                     return { success: true, fileId };
                 } catch (error: unknown) {
@@ -508,7 +502,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         try {
             const updatePromises = Array.from(selectedIds).map(async (fileId) => {
                 try {
-                    await oxyServices.assetUpdateVisibility(fileId, visibility);
+                    await oxyServices.assets.setVisibility(fileId, visibility);
                     return { success: true, fileId };
                 } catch (error: unknown) {
                     return { success: false, fileId, error };
@@ -557,7 +551,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
             // Resolve an authenticated, private-safe URL. The synchronous
             // `getFileDownloadUrl` yields the public CDN origin, which 404s for
             // private assets (the default visibility).
-            const downloadUrl = await oxyServices.getFileDownloadUrlAsync(fileId);
+            const downloadUrl = await oxyServices.assets.url(fileId);
 
             // For web platforms, use link download
             if (typeof window !== 'undefined' && window.document) {
@@ -573,7 +567,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                     toast.success(t('fileManagement.toasts.downloadStarted'));
                 } catch (linkError) {
                     // Fallback to authenticated download
-                    const blob = await oxyServices.getFileContentAsBlob(fileId);
+                    const blob = await oxyServices.assets.blob(fileId);
                     const url = URL.createObjectURL(blob);
 
                     const link = document.createElement('a');
@@ -626,11 +620,11 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                         // For images, PDFs, videos, and audio, we render the URL
                         // directly. Resolve the authenticated, private-safe URL —
                         // the synchronous public-CDN URL 404s for private assets.
-                        const downloadUrl = await oxyServices.getFileDownloadUrlAsync(file.id);
+                        const downloadUrl = await oxyServices.assets.url(file.id);
                         setFileContent(downloadUrl);
                     } else {
                         // For text files, get the content using authenticated request
-                        const content = await oxyServices.getFileContentAsText(file.id);
+                        const content = await oxyServices.assets.text(file.id);
                         setFileContent(content);
                     }
                 } catch (error: unknown) {

@@ -35,6 +35,7 @@ export interface AuthChallenge {
   timestamp: number;
 }
 
+// biome-ignore lint/complexity/noStaticOnlyClass: a public, static-only API surface (`X.method()`) that consumers and tests call and spy on by name.
 export class SignatureService {
   /**
    * Generate a random challenge string (for offline use)

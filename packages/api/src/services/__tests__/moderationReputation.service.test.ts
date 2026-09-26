@@ -94,13 +94,29 @@ import { moderationPolicies } from '../../db/schema/moderationPolicies';
 import { moderationPolicySeverityRules } from '../../db/schema/moderationPolicySeverityRules';
 import { moderationPolicyStandingThresholds } from '../../db/schema/moderationPolicyStandingThresholds';
 import { reputationBalances } from '../../db/schema/reputationBalances';
-import { reputationRules } from '../../db/schema/reputationRules';
 import { reputationTransactions } from '../../db/schema/reputationTransactions';
 import { users } from '../../db/schema/users';
 import moderationReputationService, {
   buildIdempotencyKey,
 } from '../moderationReputation.service';
 import reputationService from '../reputation.service';
+import { REPUTATION_RULES, type ReputationRuleDefinition } from '../reputationRules';
+
+/**
+ * Production rules live in code (`reputationRules.ts`) and nothing edits them.
+ * This suite needs rules with chosen points (and one smuggled conduct rule), so
+ * it adds TEST-ONLY rules through a mock of that module.
+ */
+const mockTestRules = new Map<string, ReputationRuleDefinition>();
+jest.mock('../reputationRules', () => {
+  const actual = jest.requireActual('../reputationRules');
+  return {
+    ...actual,
+    findReputationRule: (actionType: string) =>
+      mockTestRules.get(actionType) ?? actual.findReputationRule(actionType),
+  };
+});
+
 import {
   BASELINE_CONDUCT_FAMILIES,
   BASELINE_MULTI_FINDING_CAP,
@@ -111,6 +127,7 @@ import {
   BASELINE_STANDING_THRESHOLDS,
   CONTEXTUAL_WEIGHT_MIN,
   MODERATION_VIOLATION_ACTIONS,
+  CONDUCT_ACTION_TYPES,
   REPORT_ABUSE_CONFIRMED_ACTION,
 } from '../../utils/moderation.constants';
 
@@ -1643,27 +1660,21 @@ describe('conduct action types are bridge-only', () => {
    * "No binding proof, no Oxy Trust effect" is one-way, so the question worth
    * asking is not whether the bridge is guarded — it is whether a conduct
    * penalty can be reached WITHOUT the bridge at all. The ordinary award path
-   * needs a `reputation_rules` row and none exists for a conduct action; but
-   * that is an ABSENCE, not a guard. Both cases below create the rule an
-   * operator would have had to create, so the absence cannot stand in for the
-   * check.
+   * needs a rule in code and none prices a conduct action; but that is an
+   * ABSENCE, not a guard. The first case smuggles in the rule a code change
+   * would have had to add, so the absence cannot stand in for the check.
    */
 
   it('refuses an award of a conduct action type without a policy-derived override', async () => {
     const userId = await makeUser();
     const applicationId = await makeApplication();
-    // Inserted directly, because `upsertRule` refuses to create it (below).
-    await getDb()
-      .insert(reputationRules)
-      .values({
-        actionType: MODERATION_VIOLATION_ACTIONS.high,
-        points: -20,
-        category: 'penalty',
-        description: 'smuggled conduct rule',
-        cooldownInMinutes: 0,
-        isEnabled: true,
-      })
-      .onConflictDoNothing();
+    mockTestRules.set(MODERATION_VIOLATION_ACTIONS.high, {
+      actionType: MODERATION_VIOLATION_ACTIONS.high,
+      points: -20,
+      category: 'penalty',
+      description: 'smuggled conduct rule',
+      cooldownInMinutes: 0,
+    });
 
     await expect(
       reputationService.award({
@@ -1676,15 +1687,12 @@ describe('conduct action types are bridge-only', () => {
     expect(await ledgerRows(userId)).toEqual([]);
   });
 
-  it('refuses to create a conduct rule in the first place', async () => {
-    await expect(
-      reputationService.upsertRule({
-        actionType: REPORT_ABUSE_CONFIRMED_ACTION,
-        points: -50,
-        category: 'penalty',
-        description: 'smuggled',
-      })
-    ).rejects.toThrow(/versioned Oxy conduct policy/);
+  it('prices no conduct action among the rules in code', () => {
+    // A conduct rule would be a second, mutable authority for a figure the
+    // versioned conduct policy owns.
+    expect(REPUTATION_RULES.filter((rule) => CONDUCT_ACTION_TYPES.has(rule.actionType))).toEqual(
+      []
+    );
   });
 
   it('still lets the bridge through, because it supplies the policy override', async () => {
@@ -1700,12 +1708,10 @@ describe('conduct action types are bridge-only', () => {
     const ledger = await ledgerRows(world.subjectId);
     expect(ledger).toHaveLength(1);
     expect(ledger[0].actionType).toBe(MODERATION_VIOLATION_ACTIONS.medium);
-    // No `reputation_rules` row for that action was needed.
-    const rules = await getDb()
-      .select({ id: reputationRules.id })
-      .from(reputationRules)
-      .where(eq(reputationRules.actionType, MODERATION_VIOLATION_ACTIONS.medium));
-    expect(rules).toEqual([]);
+    // No rule for that action was needed.
+    expect(
+      REPUTATION_RULES.some((rule) => rule.actionType === MODERATION_VIOLATION_ACTIONS.medium)
+    ).toBe(false);
   });
 });
 
@@ -1717,13 +1723,12 @@ describe('contribution points never cancel an active strike', () => {
   /** Award legitimate, non-conduct contribution to a subject. */
   async function seedContribution(userId: string, points: number): Promise<void> {
     const actionType = `contribution_${uniqueId().slice(0, 12)}`;
-    await reputationService.upsertRule({
+    mockTestRules.set(actionType, {
       actionType,
       points,
       category: 'physical',
       description: 'contribution fixture',
       cooldownInMinutes: 0,
-      isEnabled: true,
     });
     await reputationService.award({ userId, actionType });
   }

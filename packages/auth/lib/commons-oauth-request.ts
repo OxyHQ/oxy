@@ -9,9 +9,9 @@
  *
  * This module is the additional lane that removes that step. It creates ONE
  * `AuthSession` with the OAuth request already bound to it
- * (`startCommonsSignIn({ clientId, oauth })`), waits for the identity to
+ * (`auth.commons.start({ clientId, oauth })`), waits for the identity to
  * approve it in Commons, and finalizes it into a single-use authorization CODE
- * (`finalizeCommonsOAuth`). The IdP never acquires a session of its own on this
+ * (`auth.commons.finalizeOAuth`). The IdP never acquires a session of its own on this
  * path; it stays the shell that emits the code for the third party.
  *
  * SECURITY INVARIANTS — the reason this lives in a small, tested module rather
@@ -264,13 +264,14 @@ const defaultScheduler: CommonsOAuthScheduler = (run, delayMs) => {
  * `oxyServices` satisfies it, and a test double needs nothing else.
  */
 export interface CommonsOAuthClient {
-  startCommonsSignIn(params: {
-    clientId: string;
-    oauth?: CommonsOAuthContext;
-  }): Promise<CommonsSignInHandle>;
-  pollCommonsSignIn(sessionToken: string): Promise<CommonsSignInStatus>;
-  finalizeCommonsOAuth(sessionToken: string): Promise<CommonsOAuthFinalizeResult>;
-  denyCommonsSignIn(authorizeCode: string): Promise<CommonsSignInActionResult>;
+  auth: {
+    commons: {
+      start(params: { clientId: string; oauth?: CommonsOAuthContext }): Promise<CommonsSignInHandle>;
+      poll(sessionToken: string): Promise<CommonsSignInStatus>;
+      finalizeOAuth(sessionToken: string): Promise<CommonsOAuthFinalizeResult>;
+      deny(authorizeCode: string): Promise<CommonsSignInActionResult>;
+    };
+  };
 }
 
 export interface CommonsOAuthRequestOptions {
@@ -414,7 +415,7 @@ export class CommonsOAuthRequest {
       // Best effort: the user's intent is already known, so a failed withdrawal
       // must not hold up (or change) the denial we report. The request expires
       // on its own regardless.
-      void this.client.denyCommonsSignIn(authorizeCode).catch(() => undefined);
+      void this.client.auth.commons.deny(authorizeCode).catch(() => undefined);
     }
     this.emit({ kind: "denied" });
   };
@@ -479,7 +480,7 @@ export class CommonsOAuthRequest {
   private async createRequest(generation: number): Promise<void> {
     let handle: CommonsSignInHandle;
     try {
-      handle = await this.client.startCommonsSignIn({
+      handle = await this.client.auth.commons.start({
         clientId: this.clientId,
         oauth: this.oauth,
       });
@@ -538,7 +539,7 @@ export class CommonsOAuthRequest {
 
     let status: CommonsSignInStatus;
     try {
-      status = await this.client.pollCommonsSignIn(sessionToken);
+      status = await this.client.auth.commons.poll(sessionToken);
     } catch {
       if (!this.isCurrent(generation)) return;
       this.consecutivePollFailures += 1;
@@ -584,7 +585,7 @@ export class CommonsOAuthRequest {
 
     let result: CommonsOAuthFinalizeResult;
     try {
-      result = await this.client.finalizeCommonsOAuth(sessionToken);
+      result = await this.client.auth.commons.finalizeOAuth(sessionToken);
     } catch {
       // Fail closed. The request may or may not have been spent server-side and
       // there is no way to tell from here, so it is never retried: the user

@@ -34,7 +34,7 @@ const EditProfileScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
         [user],
     );
     const avatarUri = useMemo(
-        () => (user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar, 'thumb') : undefined),
+        () => (user?.avatar ? oxyServices.assets.publicUrl(user.avatar, 'thumb') : undefined),
         [user?.avatar, oxyServices],
     );
 

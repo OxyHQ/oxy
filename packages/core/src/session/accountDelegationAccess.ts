@@ -19,7 +19,7 @@ import type {
 	AccountKind,
 	AccountMember,
 	AccountRelationship,
-} from "../mixins/OxyServices.accounts";
+} from "../api/accounts";
 
 export interface AccountDelegationAccess {
 	/** The caller owns the account or has a live membership in it. */

@@ -3,12 +3,8 @@ import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator } from 'rea
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import type { AccountNode, AccountRole, OxyServices } from '@oxy.so/core';
-import {
-  getAccountFallbackHandle,
-  getAccountDisplayName,
-  getNormalizedUserHandle,
-  canSwitchIntoAccount,
-} from '@oxy.so/core';
+import { getAccountFallbackHandle, getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
+import { canSwitchIntoAccount } from '@oxy.so/core/session';
 import { useColors, type AppColors } from '@/hooks/useColors';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { useTranslation } from '@/lib/i18n';
@@ -216,7 +212,7 @@ export function useAccountRowBuilder({
     const isCurrent = currentAccountId === node.accountId;
     const isArchiving = archivingId === node.accountId;
     const avatarUri = node.account?.avatar
-      ? oxyServices.getFileDownloadUrl(node.account.avatar, 'thumb')
+      ? oxyServices.assets.publicUrl(node.account.avatar, 'thumb')
       : undefined;
     // Same two conditions as `AccountRowContent`'s switch button above — the
     // whole row is that button's larger tap target, so the two must agree.

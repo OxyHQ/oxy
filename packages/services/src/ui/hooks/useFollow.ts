@@ -201,7 +201,7 @@ export const useFollow = (userId?: string | string[]) => {
   }, []);
 
   const updateCountsFromFollowAction = useCallback((targetUserId: string, action: 'follow' | 'unfollow', counts: { followers: number; following: number }) => {
-    const currentUserId = oxyServices.getCurrentUserId() || undefined;
+    const currentUserId = oxyServices.session.userId || undefined;
     useFollowStore.getState().updateCountsFromFollowAction(targetUserId, action, counts, currentUserId);
   }, [oxyServices]);
 
@@ -317,7 +317,7 @@ export const useFollowForButton = (userId: string, oxyServices: OxyServices, ini
  * useSeedFollowStatuses — returns a stable callback that bulk-seeds follow
  * statuses into the store (seed-only-if-absent; never clobbers a live value).
  *
- * Wire this at the app root to seed from `oxyServices.getViewerGraph()
+ * Wire this at the app root to seed from `oxyServices.follows.viewerGraph()
  * .followingIds` (map each followed id → `true`) so a page of `FollowButton`s
  * paints the correct label on first render with ZERO follow-status network
  * calls — the batched resolver then skips every seeded id.

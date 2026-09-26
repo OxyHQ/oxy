@@ -1,8 +1,8 @@
 /**
  * React Query wrappers around a holder's verifiable credentials (Fase 4).
  *
- * `oxyServices.listCredentials(holderUserId, opts?)` returns the credentials a
- * holder has collected (issuer-signed attestations they SHOW); `listMyCredentials()`
+ * `oxyServices.civic.credentials.list(holderUserId, opts?)` returns the credentials a
+ * holder has collected (issuer-signed attestations they SHOW); `civic.credentials.list()`
  * is the same read for the authenticated user. Both are wrapped here so the
  * credentials screen gets the same offline-first behaviour as `useCivicCard` /
  * `usePersonhood`: a previously-resolved list is served from the in-memory cache
@@ -51,7 +51,7 @@ export function useCredentials(
       if (!holderUserId) {
         throw new Error('No holder id to resolve credentials for');
       }
-      return oxyServices.listCredentials(holderUserId, opts);
+      return oxyServices.civic.credentials.list(holderUserId, opts);
     },
     enabled: Boolean(oxyServices) && Boolean(holderUserId),
     staleTime: CREDENTIALS_STALE_TIME_MS,
@@ -62,7 +62,7 @@ export function useCredentials(
 /**
  * Query the CURRENT user's verifiable credentials (the "My credentials" screen).
  *
- * Resolves through the dedicated `listMyCredentials()` SDK method (which derives
+ * Resolves through the dedicated `civic.credentials.list()` SDK method (which derives
  * the holder id from the session) and keys the result by the current user id so
  * it shares the cache with `useCredentials(myId)` — and therefore with the
  * invalidation a revoke performs.
@@ -71,7 +71,7 @@ export function useMyCredentials(
   opts: { status?: CredentialStatus } = {},
 ): UseQueryResult<CredentialListResult> {
   const { user, oxyServices } = useOxy();
-  const userId = user?.id ?? oxyServices?.getCurrentUserId() ?? null;
+  const userId = user?.id ?? oxyServices?.session.userId ?? null;
 
   return useQuery<CredentialListResult>({
     queryKey: credentialsQueryKey(userId, opts.status),
@@ -79,7 +79,7 @@ export function useMyCredentials(
       if (!oxyServices) {
         throw new Error('OxyServices not initialized');
       }
-      return oxyServices.listMyCredentials(opts);
+      return oxyServices.civic.credentials.list(undefined, opts);
     },
     enabled: Boolean(oxyServices) && Boolean(userId),
     staleTime: CREDENTIALS_STALE_TIME_MS,

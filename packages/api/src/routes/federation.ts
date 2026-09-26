@@ -409,11 +409,16 @@ router.post(
     }
 
     if (action === 'follow') {
-      const { created, counts } = await userService.followUser(followerUserId, targetUserId);
+      const { created, counts } = await userService.followUser(followerUserId, targetUserId, {
+        cause: 'federation_inbound',
+        source: 'federation_inbound',
+      });
       return sendSuccess(res, { created, counts });
     }
 
-    const { removed, counts } = await userService.unfollowUser(followerUserId, targetUserId);
+    const { removed, counts } = await userService.unfollowUser(followerUserId, targetUserId, {
+      cause: 'federation_inbound',
+    });
     return sendSuccess(res, { removed, counts });
   }),
 );

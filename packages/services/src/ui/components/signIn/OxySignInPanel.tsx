@@ -30,7 +30,7 @@ import { Divider } from '@oxy.so/bloom/divider';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
-import type { SwitcherContextRow } from '@oxy.so/core';
+import type { SwitcherContextRow } from '@oxy.so/core/session';
 import {
   EMAIL_SIGNIN_LONG_CODE_LENGTH,
   SIGN_IN_ERROR_CODES,
@@ -236,7 +236,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     setNotice(null);
     setPending(true);
     oxyServices
-      .startEmailSignIn(name)
+      .auth.email.start(name)
       .then((started) => {
         if (started.retryLater) {
           setError(t('signin.checkEmail.retryLater'));
@@ -271,7 +271,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     setNotice(null);
     setPending(true);
     oxyServices
-      .confirmEmailSignIn({ requestId: request.requestId, requestSecret: request.requestSecret, code: typed.trim() })
+      .auth.email.confirm({ requestId: request.requestId, requestSecret: request.requestSecret, code: typed.trim() })
       .then((result) => finish(result, request.identifier))
       .catch((reason: unknown) => {
         setCode('');
@@ -290,7 +290,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     setError(null);
     setPending(true);
     oxyServices
-      .signInWithPassword({ identifier: name, password })
+      .auth.password.signIn({ identifier: name, password })
       .then((result) => finish(result, name))
       .catch(fail)
       .finally(() => setPending(false));
@@ -307,7 +307,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     setError(null);
     setPending(true);
     oxyServices
-      .completeSecondFactor({ challengeId: challenge.challengeId, code: value })
+      .auth.completeSecondFactor({ challengeId: challenge.challengeId, code: value })
       .then((session) => finish(session, challenge.identifier))
       .catch((reason: unknown) => {
         setSecondFactorCode('');
@@ -338,7 +338,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     const poll = async () => {
       if (stopped) return;
       try {
-        const result = await oxyServices.collectEmailSignIn({ requestId, requestSecret });
+        const result = await oxyServices.auth.email.collect({ requestId, requestSecret });
         if (!('status' in result)) {
           await finishRef.current(result, requestIdentifier);
           return;

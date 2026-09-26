@@ -15,7 +15,8 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useQueryClient } from '@tanstack/react-query';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { productAnalytics } from '@/lib/product-analytics';
-import { KeyManager, logger } from '@oxy.so/core';
+import { KeyManager } from '@oxy.so/core/crypto';
+import { logger } from '@oxy.so/core';
 import { useNavigationTheme } from '@oxy.so/bloom/theme';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
@@ -264,7 +265,7 @@ export default function RootLayout() {
                 inside the provider — there is no module-level singleton above
                 it to call. Every Bloom surface that takes a `source` (Avatar,
                 galleries, cards) now resolves a bare Oxy file id through
-                `getFileDownloadUrl`; nothing in the app builds a media URL of
+                `assets.publicUrl`; nothing in the app builds a media URL of
                 its own. */}
             <BloomImageResolver>
               <LocaleProvider>
@@ -288,7 +289,7 @@ export default function RootLayout() {
 }
 
 /**
- * Registers `oxyServices.getFileDownloadUrl` as Bloom's image resolver.
+ * Registers `oxyServices.assets.publicUrl` as Bloom's image resolver.
  *
  * Lives inside `OxyProvider` because that is where `useOxy()` resolves. The
  * resolver is memoized on the client identity so Bloom's context value is
@@ -301,7 +302,7 @@ function BloomImageResolver({ children }: { children: React.ReactNode }) {
   const resolver = useMemo<ImageResolver | null>(
     () =>
       oxyServices
-        ? (id: string, variant?: string) => oxyServices.getFileDownloadUrl(id, variant ?? 'thumb')
+        ? (id: string, variant?: string) => oxyServices.assets.publicUrl(id, variant ?? 'thumb')
         : null,
     [oxyServices],
   );

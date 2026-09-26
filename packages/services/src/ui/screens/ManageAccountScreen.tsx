@@ -26,7 +26,6 @@ import ProfileSummaryCard from '../components/ProfileSummaryCard';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { presentDeleteAccount } from '../components/modals/DeleteAccountModal';
 import { runAccountDeletionHandoff } from '../utils/accountDeletionHandoff';
-import { presentActionSheet } from '../components/surfaces/ActionSheetSurface';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -129,7 +128,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
     const handle = useMemo(() => getAccountFallbackHandle(user), [user]);
     const avatarUri = useMemo(() => {
         return user?.avatar
-            ? oxyServices.getFileDownloadUrl(user.avatar, 'thumb')
+            ? oxyServices.assets.publicUrl(user.avatar, 'thumb')
             : undefined;
     }, [user?.avatar, oxyServices]);
 
@@ -177,7 +176,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         }
         setRemovingDeviceId(device.sessionId);
         try {
-            await oxyServices.logoutSession(activeSessionId, device.sessionId);
+            await oxyServices.session.logout(activeSessionId, device.sessionId);
             await refetchDeviceSessions();
             toast.success(
                 t('manageAccount.toasts.deviceRemoved', { name: deviceSessionTitle(device, t) }),
@@ -211,7 +210,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         }
         setSigningOutAllDevices(true);
         try {
-            await oxyServices.logoutAllDeviceSessions(activeSessionId);
+            await oxyServices.devices.logoutAll(activeSessionId);
             await refetchDeviceSessions();
             toast.success(
                 t('manageAccount.toasts.allDevicesSignedOut')
@@ -228,8 +227,10 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         }
     }, [activeSessionId, signingOutAllDevices, deviceSessions, oxyServices, refetchDeviceSessions, t]);
 
-    const performDownload = useCallback(
-        async (format: 'json' | 'csv') => {
+    // The signed, open-format export (`GET /users/me/export`): one JSON bundle
+    // carrying Oxy's provenance attestation — the "credible exit" snapshot.
+    const handleDownloadData = useCallback(
+        async () => {
             if (!user) {
                 toast.error(
                     t('accountOverview.items.downloadData.error') || 'Service not available',
@@ -241,12 +242,13 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
                     t('accountOverview.items.downloadData.downloading')
                     || 'Preparing download...',
                 );
-                const blob = await oxyServices.downloadAccountData(format);
+                const bundle = await oxyServices.identity.export();
                 if (Platform.OS === 'web') {
+                    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = url;
-                    link.download = `account-data-${Date.now()}.${format}`;
+                    link.download = `oxy-export-${Date.now()}.json`;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -283,7 +285,8 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
                     || 'Service not available',
                 );
             }
-            await oxyServices.deleteAccount(confirmText);
+            // Native deletion is signed with the identity key held on this device.
+            await oxyServices.users.deleteMe(confirmText, { deviceKey: true });
             toast.success(
                 t('accountOverview.items.deleteAccount.success')
                 || 'Account deleted successfully',
@@ -291,29 +294,6 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         },
         [oxyServices, user, t],
     );
-
-    const handleDownloadData = useCallback(async () => {
-        if (!user) {
-            toast.error(
-                t('accountOverview.items.downloadData.error') || 'Service not available',
-            );
-            return;
-        }
-        const format = await presentActionSheet<'json' | 'csv'>({
-            title: t('accountOverview.items.downloadData.confirmTitle') || 'Download account data',
-            message:
-                t('accountOverview.items.downloadData.confirmMessage')
-                || 'Choose the format for your account data export:',
-            options: [
-                { label: 'JSON', value: 'json' },
-                { label: 'CSV', value: 'csv' },
-            ],
-            cancelLabel: t('common.cancel') || 'Cancel',
-        });
-        if (format) {
-            await performDownload(format);
-        }
-    }, [user, t, performDownload]);
 
     const handleDeleteAccount = useCallback(async () => {
         if (!user) {
@@ -618,23 +598,6 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
                             />
                         </>
                     ) : null}
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon
-                                name="star"
-                                color={bloomTheme.colors.warning}
-                            />
-                        }
-                        title={
-                            t('accountOverview.items.premium.title') || 'Oxy+'
-                        }
-                        description={
-                            user?.isPremium
-                                ? (t('accountOverview.items.premium.manage') || 'Manage your premium plan')
-                                : (t('accountOverview.items.premium.upgrade') || 'Upgrade to premium features')
-                        }
-                        onPress={() => navigate?.('PremiumSubscription')}
-                    />
                     {user?.isPremium || subscription?.status === 'active' ? (
                         <SettingsListItem
                             icon={
@@ -669,19 +632,6 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
                             || 'View and manage your search history'
                         }
                         onPress={() => navigate?.('HistoryView')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="bookmark" color={bloomTheme.colors.info} />
-                        }
-                        title={
-                            t('accountOverview.items.saves.title') || 'Saves & Collections'
-                        }
-                        description={
-                            t('accountOverview.items.saves.subtitle')
-                            || 'View your saved items and collections'
-                        }
-                        onPress={() => navigate?.('SavesCollections')}
                     />
                     <SettingsListItem
                         icon={
@@ -821,6 +771,14 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
                     />
                     <SettingsListItem
                         icon={
+                            <SettingsIcon name="web" color={bloomTheme.colors.success} />
+                        }
+                        title={t('domains.title')}
+                        description={t('domains.subtitle')}
+                        onPress={() => navigate?.('Domains')}
+                    />
+                    <SettingsListItem
+                        icon={
                             <SettingsIcon name="magnify" color={bloomTheme.colors.primary} />
                         }
                         title={
@@ -848,19 +806,6 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
                             || 'Get help and contact support'
                         }
                         onPress={() => navigate?.('HelpSupport')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon
-                                name="message-text"
-                                color={bloomTheme.colors.info}
-                            />
-                        }
-                        title={t('feedback.title') || 'Send feedback'}
-                        description={
-                            t('feedback.subtitle') || 'Tell us what you think'
-                        }
-                        onPress={() => navigate?.('Feedback')}
                     />
                     <SettingsListItem
                         icon={

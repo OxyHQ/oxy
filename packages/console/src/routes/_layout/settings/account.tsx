@@ -123,7 +123,7 @@ function AccountSettingsPage() {
   const userAvatarUrl = ((): string | undefined => {
     if (!user?.avatar) return undefined;
     if (user.avatar.startsWith('http')) return user.avatar;
-    return oxyServices.getFileDownloadUrl(user.avatar, 'thumb');
+    return oxyServices.assets.publicUrl(user.avatar, 'thumb');
   })();
 
   const userInitials = ((): string => {

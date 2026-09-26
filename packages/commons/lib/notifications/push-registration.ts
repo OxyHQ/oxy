@@ -11,7 +11,7 @@
  *   2. The token that IS sent came from `getExpoPushTokenAsync`; `@oxy.so/core`
  *      rejects anything else before a request leaves the client.
  *
- * Registration additionally requires a SESSION — `registerPushToken` is
+ * Registration additionally requires a SESSION — `notifications.registerPushToken` is
  * bearer-authed — which is the caller's precondition (`usePushRegistration`
  * gates on `canUsePrivateApi`).
  *
@@ -64,8 +64,10 @@ export function vaultChannelCopy(t: (key: string) => string): VaultChannelCopy {
 
 /** The `@oxy.so/core` surface this module drives (satisfied by `OxyServices`). */
 export interface PushTokenRegistry {
-  registerPushToken: (input: RegisterPushTokenInput) => Promise<void>;
-  unregisterPushToken: (expoPushToken: string) => Promise<void>;
+  notifications: {
+    registerPushToken: (input: RegisterPushTokenInput) => Promise<void>;
+    unregisterPushToken: (expoPushToken: string) => Promise<void>;
+  };
 }
 
 /** Device facts the orchestration reads. Injected so tests need no native modules. */
@@ -158,7 +160,7 @@ export async function registerInstallationPushToken(
     clientId: options.clientId,
     ...(options.deviceId ? { deviceId: options.deviceId } : {}),
   };
-  await registry.registerPushToken(input);
+  await registry.notifications.registerPushToken(input);
 
   return { status: 'registered', expoPushToken };
 }
@@ -188,7 +190,7 @@ export async function retireInstallationPushToken(
     return { status: 'skipped', reason: 'no-token' };
   }
 
-  await registry.unregisterPushToken(expoPushToken);
+  await registry.notifications.unregisterPushToken(expoPushToken);
   return { status: 'retired', expoPushToken };
 }
 

@@ -5,7 +5,7 @@ import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
-import { KeyManager, IdentityUnavailableError } from '@oxy.so/core';
+import { KeyManager, IdentityUnavailableError } from '@oxy.so/core/crypto';
 import { Button } from '@oxy.so/bloom/button';
 import {
   Screen,

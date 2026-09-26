@@ -1,4 +1,4 @@
-import { SessionClient } from '@oxy.so/core';
+import { SessionClient } from '@oxy.so/core/session';
 
 type Handler = (...args: unknown[]) => void;
 class FakeSocket {
@@ -20,14 +20,12 @@ import { createSessionClient } from '../createSessionClient';
 function fakeOxy() {
   const listeners = new Set<(t: string | null) => void>();
   return {
-    makeRequest: jest.fn().mockResolvedValue(undefined),
-    getBaseURL: jest.fn().mockReturnValue('https://api.oxy.so'),
-    getAccessToken: jest.fn().mockReturnValue('bearer.jwt.token'),
-    setTokens: jest.fn(),
-    onTokensChanged: jest.fn((l: (t: string | null) => void) => {
+    request: jest.fn().mockResolvedValue(undefined),
+    baseURL: 'https://api.oxy.so',
+    session: { accessToken: 'bearer.jwt.token', setAccessToken: jest.fn(), onChange: jest.fn((l: (t: string | null) => void) => {
       listeners.add(l);
       return () => listeners.delete(l);
-    }),
+    }) },
   };
 }
 
@@ -93,7 +91,7 @@ describe('createSessionClient', () => {
     const { client } = createSessionClient(oxy as never, undefined, () => 'pinned-account');
     await client.registerAndActivate('pinned-account');
 
-    const paths = oxy.makeRequest.mock.calls.map((call) => call[1]);
+    const paths = oxy.request.mock.calls.map((call) => call[1]);
     expect(paths).toContain('/session/device/add');
     expect(paths).not.toContain('/session/device/switch');
   });
@@ -104,7 +102,7 @@ describe('createSessionClient', () => {
     const { client } = createSessionClient(oxy as never, undefined, () => null);
     await client.registerAndActivate('u1');
 
-    const paths = oxy.makeRequest.mock.calls.map((call) => call[1]);
+    const paths = oxy.request.mock.calls.map((call) => call[1]);
     expect(paths).toContain('/session/device/add');
     expect(paths).toContain('/session/device/switch');
   });

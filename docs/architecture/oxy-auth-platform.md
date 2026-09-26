@@ -175,7 +175,7 @@ flowchart TB
 | Capa | Qué es | API / código |
 |------|--------|--------------|
 | **DeviceSession** | Qué cuentas están **firmadas en este dispositivo** ahora | `/session/device/*`, `SessionClient` |
-| **Account graph** | Qué cuentas el usuario **puede** usar (propias, hijas, compartidas) | `GET /accounts`, [`account.service.ts`](../../packages/api/src/services/account.service.ts), [`OxyServices.accounts`](../../packages/core/src/mixins/OxyServices.accounts.ts) |
+| **Account graph** | Qué cuentas el usuario **puede** usar (propias, hijas, compartidas) | `GET /accounts`, [`account.service.ts`](../../packages/api/src/services/account.service.ts), [`oxy.accounts`](../../packages/core/src/api/accounts.ts) |
 
 - **`User` = Account principal** con `kind`: `personal` \| `organization` \| `project` \| `bot`
 - **Árbol:** `parentAccountId`, `ancestors`, profundidad máxima
@@ -521,7 +521,7 @@ Branding: logo Oxy + texto **"Sign in with Oxy"** (nunca "Sign in with Commons")
 ### Paso 6 — Gestión post-login (connected apps)
 
 - Usuario ve apps autorizadas en **Accounts → Connected apps**
-- API: `GET /auth/grants`, `DELETE /auth/grants/:applicationId` ([`OxyServices.connectedApps`](../../packages/core/src/mixins/OxyServices.connectedApps.ts))
+- API: `GET /auth/grants`, `DELETE /auth/grants/:applicationId` ([`oxy.apps.connected`](../../packages/core/src/api/apps.ts))
 - Revocar grant → próximo sign-in del third party vuelve a pedir consent
 - (Fase 2b, opcional) revocar grant invalida sesiones OAuth activas de ese RP
 

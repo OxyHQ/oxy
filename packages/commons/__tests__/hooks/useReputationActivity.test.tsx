@@ -29,7 +29,7 @@ describe('useReputationActivity', () => {
     __resetOxyState();
   });
 
-  it('calls getReputationTransactions with the recent-activity limit and surfaces the list', async () => {
+  it('calls reputation.transactions with the recent-activity limit and surfaces the list', async () => {
     const getReputationTransactions = jest.fn(async () => TRANSACTIONS);
     __setOxyState({
       isAuthenticated: true,
@@ -41,7 +41,7 @@ describe('useReputationActivity', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(getReputationTransactions).toHaveBeenCalledTimes(1);
-    expect(getReputationTransactions).toHaveBeenCalledWith('me', RECENT_ACTIVITY_LIMIT);
+    expect(getReputationTransactions).toHaveBeenCalledWith('me', { limit: RECENT_ACTIVITY_LIMIT });
     expect(result.current.data).toEqual(TRANSACTIONS);
   });
 

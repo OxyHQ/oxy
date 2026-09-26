@@ -34,12 +34,10 @@ Bloom 3 from accepting an incompatible SDK through a minor update.
 ## Core runtime boundary
 
 A runtime Node guard around a literal dynamic import does not prevent Metro
-from traversing it. An emitted `.js` suffix also prevents the hoped-for native
-sibling from being selected in this consumer. Core's auth mixin therefore imports
-`#workload-identity`; package import conditions route native and browser bundles
-to an inert client implementation and only Node hosts to the signer that imports
-`node:crypto`. The client can never attest or request a token. No consumer alias
-or Node polyfill is needed.
+from traversing it. The workload-identity signer (which imports `node:crypto`)
+therefore lives only behind `@oxy.so/core/server` (`OxyServer`), an entry native
+and browser bundles never import; the client root cannot attest or request a
+service token. No consumer alias or Node polyfill is needed.
 
 The map lives in `dist/esm/package.json` and `dist/cjs/package.json`
 (`scripts/mark-module-formats.mjs`), because those files are the package scope

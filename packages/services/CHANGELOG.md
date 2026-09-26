@@ -1,5 +1,35 @@
 # Changelog
 
+## [8.0.0] - 2026-09-26
+
+Built on `@oxy.so/core` 3.0 (namespaced client, `OxyServer`, subpath entries).
+
+### Changed
+
+- **Breaking:** requires `@oxy.so/core` ^3.0.0. `useOxy().oxyServices` is the
+  namespaced client — `oxyServices.users.get(id)`, `oxyServices.assets.upload(file)`,
+  … Run core's codemod (`scripts/codemods/core-3/codemod.ts`) over the app.
+- `OxyProvider` builds its client with the SDK response cache off: React Query
+  owns caching and deduplication, and two caches served stale data after an
+  invalidation.
+- Privacy settings, Trust center, Trust rewards, Trust rules and search
+  settings read through React Query instead of fetching on every mount; the
+  Trust center no longer refetches when an unrelated profile field changes.
+- "Download your data" saves the signed export (`identity.export()`).
+- Translations re-render when a lazily loaded language arrives.
+
+### Added
+
+- A Domains screen in Manage account: verify a domain by DNS TXT record or
+  `.well-known` file, list and remove verified domains.
+
+### Removed
+
+- The Saves & collections, FAQ, Feedback and Premium subscription screens, and
+  the profile stats: their API routes never existed, so they could only fail or
+  show mock data.
+- The `oxyClient` singleton mirroring.
+
 ## [7.0.0] - 2026-09-26
 
 Requires `@oxy.so/core` ^2.2.0 and `@oxy.so/contracts` ^3.0.0 (passkeys are

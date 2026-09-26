@@ -22,7 +22,14 @@ import { describe, expect, it } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import * as mockedCore from '@oxy.so/core';
+import * as mockedCoreRoot from '@oxy.so/core';
+import * as mockedCoreSession from '@oxy.so/core/session';
+
+/** Each `@oxy.so/core` entry the app imports values from, and its stub. */
+const MOCKED_ENTRIES: Record<string, Record<string, unknown>> = {
+    '@oxy.so/core': mockedCoreRoot,
+    '@oxy.so/core/session': mockedCoreSession,
+};
 
 /** App source roots. `__tests__` is excluded — test files may stub freely. */
 const APP_SOURCE_ROOTS = ['src', 'components', 'lib', 'hooks'];
@@ -75,11 +82,12 @@ function collectSourceFiles(): string[] {
  * "core import". That produced three phantom names on the first run of this
  * scanner. Excluding braces confines each match to a single import clause.
  */
-const CORE_IMPORT = /import\s+(type\s+)?\{([^{}]*)\}\s*from\s*["']@oxy.so\/core["']/g;
+const CORE_IMPORT = /import\s+(type\s+)?\{([^{}]*)\}\s*from\s*["'](@oxy.so\/core(?:\/[a-z]+)?)["']/g;
 
 /**
- * The VALUE names a file imports from `@oxy.so/core`. Returns the imported name
- * (the left side of `as`), since that is the key the module must expose.
+ * The VALUE names a file imports from any `@oxy.so/core` entry, as
+ * `<entry>#<name>`. The name is the left side of `as`, since that is the key
+ * the module must expose.
  */
 function valueImportsFrom(source: string): string[] {
     const names: string[] = [];
@@ -89,10 +97,17 @@ function valueImportsFrom(source: string): string[] {
             const specifier = raw.trim();
             if (specifier.length === 0) continue;
             if (specifier.startsWith('type ')) continue; // inline type specifier
-            names.push(specifier.split(/\s+as\s+/)[0].trim());
+            names.push(`${match[3]}#${specifier.split(/\s+as\s+/)[0].trim()}`);
         }
     }
     return names;
+}
+
+/** Whether the stub for `<entry>#<name>` provides it. */
+function isStubbed(key: string): boolean {
+    const [entry, name] = key.split('#');
+    const stub = MOCKED_ENTRIES[entry];
+    return Boolean(stub) && name in stub;
 }
 
 describe('@oxy.so/core test mock surface', () => {
@@ -114,7 +129,7 @@ describe('@oxy.so/core test mock surface', () => {
 
     it('provides every value the app imports from @oxy.so/core', () => {
         const missing = [...imported.entries()]
-            .filter(([name]) => !(name in mockedCore))
+            .filter(([key]) => !isStubbed(key))
             .map(([name, sites]) => `${name} (imported by ${sites.join(', ')})`);
 
         expect(
@@ -130,7 +145,11 @@ describe('@oxy.so/core test mock surface', () => {
      * the allowlist read as broader coverage than it has.
      */
     it('stubs nothing the app no longer imports', () => {
-        const unused = Object.keys(mockedCore).filter((name) => !imported.has(name));
+        const unused = Object.entries(MOCKED_ENTRIES).flatMap(([entry, stub]) =>
+            Object.keys(stub)
+                .map((name) => `${entry}#${name}`)
+                .filter((key) => !imported.has(key)),
+        );
         expect(unused).toEqual([]);
     });
 });

@@ -12,8 +12,8 @@ import type {
 // ===========================================================================
 // The application's store listing.
 //
-// Unlike the Updates hooks next door, these go through named `@oxy.so/core`
-// methods rather than `makeRequest`: the store HAS a mixin, and reaching past
+// Unlike the Updates hooks next door, these go through `oxyServices.store`
+// rather than `oxyServices.request`: the store HAS a namespace, and reaching past
 // it would put URL strings and response-envelope knowledge in the Console —
 // which is exactly the drift the SDK exists to prevent.
 //
@@ -22,7 +22,7 @@ import type {
 // Reading needs only `app:read`.
 //
 // A listing may legitimately NOT exist: an application that has never been
-// listed has no page, and `getAppListing` answers `null` rather than 404. The
+// listed has no page, and `store.listing.get` answers `null` rather than 404. The
 // UI reads that null as "not listed yet", which is a different screen from an
 // error.
 // ===========================================================================
@@ -52,7 +52,7 @@ export function useStoreListing(appId: string, enabled: boolean = true) {
 
   return useQuery({
     queryKey: queryKeys.listing(appId),
-    queryFn: () => oxyServices.getAppListing(appId),
+    queryFn: () => oxyServices.store.listing.get(appId),
     enabled: isReady && isAuthenticated && !!appId && enabled,
     staleTime: 1000 * 30,
     retry: 1,
@@ -70,7 +70,7 @@ export function useStoreCategories(enabled: boolean = true) {
 
   return useQuery({
     queryKey: queryKeys.categories,
-    queryFn: () => oxyServices.listStoreCategories(),
+    queryFn: () => oxyServices.store.categories(),
     // No `isAuthenticated`: the storefront is readable before anyone signs in,
     // and the form needs the shelves whether or not the session is ready.
     enabled: isReady && enabled,
@@ -85,7 +85,7 @@ export function useStoreScreenshots(appId: string, enabled: boolean = true) {
 
   return useQuery({
     queryKey: queryKeys.screenshots(appId),
-    queryFn: () => oxyServices.listAppListingScreenshots(appId),
+    queryFn: () => oxyServices.store.listing.screenshots.list(appId),
     enabled: isReady && isAuthenticated && !!appId && enabled,
     staleTime: 1000 * 30,
     retry: 1,
@@ -114,7 +114,7 @@ export function useWriteStoreListing(appId: string) {
   const writeCache = useWriteListingCache(appId);
 
   return useMutation({
-    mutationFn: (input: WriteListingInput) => oxyServices.writeAppListing(appId, input),
+    mutationFn: (input: WriteListingInput) => oxyServices.store.listing.write(appId, input),
     onSuccess: writeCache,
   });
 }
@@ -125,7 +125,7 @@ export function useSubmitStoreListing(appId: string) {
   const writeCache = useWriteListingCache(appId);
 
   return useMutation({
-    mutationFn: () => oxyServices.submitAppListing(appId),
+    mutationFn: () => oxyServices.store.listing.submit(appId),
     onSuccess: writeCache,
   });
 }
@@ -136,7 +136,7 @@ export function useUnpublishStoreListing(appId: string) {
   const writeCache = useWriteListingCache(appId);
 
   return useMutation({
-    mutationFn: () => oxyServices.unpublishAppListing(appId),
+    mutationFn: () => oxyServices.store.listing.unpublish(appId),
     onSuccess: writeCache,
   });
 }
@@ -154,7 +154,7 @@ export function useAddScreenshot(appId: string) {
   const invalidate = useInvalidateScreenshots(appId);
 
   return useMutation({
-    mutationFn: (input: AddScreenshotInput) => oxyServices.addAppListingScreenshot(appId, input),
+    mutationFn: (input: AddScreenshotInput) => oxyServices.store.listing.screenshots.add(appId, input),
     onSuccess: invalidate,
   });
 }
@@ -166,7 +166,7 @@ export function useUpdateScreenshot(appId: string) {
 
   return useMutation({
     mutationFn: ({ screenshotId, ...input }: UpdateScreenshotInput & { screenshotId: string }) =>
-      oxyServices.updateAppListingScreenshot(appId, screenshotId, input),
+      oxyServices.store.listing.screenshots.update(appId, screenshotId, input),
     onSuccess: invalidate,
   });
 }
@@ -178,7 +178,7 @@ export function useDeleteScreenshot(appId: string) {
 
   return useMutation({
     mutationFn: (screenshotId: string) =>
-      oxyServices.deleteAppListingScreenshot(appId, screenshotId),
+      oxyServices.store.listing.screenshots.delete(appId, screenshotId),
     onSuccess: invalidate,
   });
 }
@@ -197,7 +197,7 @@ export function useReorderScreenshots(appId: string) {
 
   return useMutation({
     mutationFn: (screenshotIds: Array<string>) =>
-      oxyServices.reorderAppListingScreenshots(appId, screenshotIds),
+      oxyServices.store.listing.screenshots.reorder(appId, screenshotIds),
     onSuccess: invalidate,
   });
 }

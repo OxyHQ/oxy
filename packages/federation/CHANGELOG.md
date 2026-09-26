@@ -4,11 +4,14 @@
 
 ### Changed
 
-- The `@oxy.so/core` dependency range admits core 2 (`^1.0.0 || ^2.0.0`). Core
-  2.0.0 only removes the server-side `jwtSecret` option, which this package
-  never used.
+- The `@oxy.so/core` dependency range admits core 2 and 3
+  (`^1.0.0 || ^2.0.0 || ^3.0.0`). Core 2.0.0 only removes the server-side
+  `jwtSecret` option and 3.0.0 reorganises the client into namespaces; this
+  package only uses `getErrorMessage`, `getErrorStatus` and the `User` type,
+  which neither major changed.
 - `@oxy.so/contracts` admits `^3.0.0`: 3.0 removes only the passkey (WebAuthn)
-  schemas and the email `recovery` purpose, which this package never imported.
+  schemas, the email `recovery` purpose and the reputation dispute and staff
+  write schemas, which this package never imported.
 
 ## 2.1.1
 

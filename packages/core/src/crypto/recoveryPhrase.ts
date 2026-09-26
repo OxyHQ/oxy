@@ -101,6 +101,7 @@ export interface GenerateIdentityOptions {
   overwrite?: boolean;
 }
 
+// biome-ignore lint/complexity/noStaticOnlyClass: a public, static-only API surface (`X.method()`) that consumers and tests call and spy on by name.
 export class RecoveryPhraseService {
   /**
    * Generate a new identity with a recovery phrase.

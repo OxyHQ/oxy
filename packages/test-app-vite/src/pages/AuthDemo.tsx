@@ -32,7 +32,7 @@ export function AuthDemo() {
           ) : isAuthenticated && user ? (
             <div className="flex items-center gap-4">
               <Avatar className="size-12">
-                <AvatarImage src={user.avatar && oxyServices ? oxyServices.getFileDownloadUrl(user.avatar, 'thumb') : undefined} alt={user.username} />
+                <AvatarImage src={user.avatar && oxyServices ? oxyServices.assets.publicUrl(user.avatar, 'thumb') : undefined} alt={user.username} />
                 <AvatarFallback>{(user.username || "U")[0].toUpperCase()}</AvatarFallback>
               </Avatar>
               <div className="flex-1">

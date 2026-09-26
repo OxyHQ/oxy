@@ -41,7 +41,7 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
         setIsLoading(true);
         setError(null);
         oxyServices
-            .getReputationLeaderboard()
+            .reputation.leaderboard()
             .then((data) => setLeaderboard(Array.isArray(data) ? data : []))
             .catch((err: unknown) => {
                 logger.error(
@@ -95,7 +95,7 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
                         {item.rank}
                     </Text>
                     <Avatar
-                        source={item.user.avatar ? oxyServices.getFileDownloadUrl(item.user.avatar, 'thumb') : undefined}
+                        source={item.user.avatar ? oxyServices.assets.publicUrl(item.user.avatar, 'thumb') : undefined}
                         name={displayName}
                         size={AVATAR_SIZE}
                     />

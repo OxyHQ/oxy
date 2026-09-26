@@ -36,7 +36,6 @@ import { reputationTransactions } from '../../db/schema/reputationTransactions';
 import { signedRecords } from '../../db/schema/signedRecords';
 import { users } from '../../db/schema/users';
 import { REPUTATION_ATTESTATION_COLLECTION } from '../civic/attestation.service';
-import { reputationService } from '../reputation.service';
 import { signRecordEnvelope } from '../signedRecord.service';
 import {
   REAL_LIFE_ATTESTED_ACTION,
@@ -147,7 +146,6 @@ beforeAll(async () => {
   });
 
   await connectPostgres();
-  await reputationService.seedDefaultRules();
 });
 
 afterAll(async () => {

@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -12,6 +13,7 @@ import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useI18n } from '../../hooks/useI18n';
 import { useOxy } from '../../context/OxyContext';
+import { queryKeys } from '../../hooks/queries/queryKeys';
 
 /** Stable display order for rule category sections. */
 const CATEGORY_ORDER: ReputationCategory[] = [
@@ -34,18 +36,16 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
     });
     const bloomTheme = useTheme();
 
-    const [rules, setRules] = useState<ReputationRule[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        setIsLoading(true);
-        setError(null);
-        oxyServices.getReputationRules()
-            .then((data) => setRules(Array.isArray(data) ? data : []))
-            .catch((err: unknown) => setError((err instanceof Error ? err.message : null) || 'Failed to load rules'))
-            .finally(() => setIsLoading(false));
-    }, [oxyServices]);
+    const rulesQuery = useQuery({
+        queryKey: queryKeys.reputation.rules(),
+        queryFn: () => oxyServices.reputation.rules(),
+        staleTime: 10 * 60 * 1000,
+    });
+    const rules: ReputationRule[] = Array.isArray(rulesQuery.data) ? rulesQuery.data : [];
+    const isLoading = rulesQuery.isPending;
+    const error = rulesQuery.error
+        ? (rulesQuery.error instanceof Error ? rulesQuery.error.message : null) || 'Failed to load rules'
+        : null;
 
     // Group rules by category, preserving a stable section order. Categories
     // with no rules are dropped; unknown categories fall back to "other".
@@ -88,7 +88,7 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
                             >
                                 {items.map((rule) => (
                                     <SettingsListItem
-                                        key={rule.id}
+                                        key={rule.actionType}
                                         title={rule.description}
                                         showChevron={false}
                                         rightElement={

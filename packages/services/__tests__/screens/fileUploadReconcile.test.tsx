@@ -46,7 +46,7 @@ jest.mock('../../src/ui/screens/fileManagement/shared', () => {
 // `useUserFilesInfinite` reads oxyServices from context; the upload hook does not.
 const listUserFiles = jest.fn();
 jest.mock('../../src/ui/context/OxyContext', () => ({
-  useOxy: () => ({ oxyServices: { listUserFiles }, activeSessionId: 's1' }),
+  useOxy: () => ({ oxyServices: { assets: { list: listUserFiles } }, activeSessionId: 's1' }),
 }));
 
 // Vector icons are stubbed globally via jest.config.js moduleNameMapper.
@@ -162,7 +162,7 @@ describe('useUserFilesInfinite paging', () => {
   });
 
   it('walks the offset cursor across pages via getNextPageParam', async () => {
-    listUserFiles.mockImplementation(async (_limit: number, offset: number) =>
+    listUserFiles.mockImplementation(async ({ offset }: { limit: number; offset: number }) =>
       offset === 0
         ? { files: [raw('a'), raw('b')], total: 3, hasMore: true }
         : { files: [raw('c')], total: 3, hasMore: false },

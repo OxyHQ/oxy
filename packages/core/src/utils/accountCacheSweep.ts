@@ -12,15 +12,12 @@
  * those cached and the account switcher keeps drawing the pre-edit name and
  * picture for the full TTL, against a perfectly healthy server.
  *
- * The mixins compose into one class at runtime but are typed one at a time, so
- * the user mixin cannot call a method the accounts mixin owns. The key list
- * therefore lives here, once, and every writer calls {@link
- * evictOxyAccountForestCache} — exactly like the identity key list in
- * `identityCacheSweep`, which the accounts mixin already calls for the
- * mirror-image case (an account write staling the identity reads). The
- * alternative — a second hand-written copy of these keys in the other mixin —
- * is the drift that shipped the two stale-profile bugs `identityCacheSweep`
- * documents.
+ * The key list lives here, once, and every writer (`users.updateMe`, the
+ * `accounts` namespace) reads it — exactly like the identity key list in
+ * `identityCacheSweep`, which account writes use for the mirror-image case (an
+ * account write staling the identity reads). A second hand-written copy of
+ * these keys in another namespace is the drift that shipped the two
+ * stale-profile bugs `identityCacheSweep` documents.
  *
  * WHY THE LIST NEEDS A PREFIX AND THE DETAIL DOES NOT
  * --------------------------------------------------
@@ -82,12 +79,11 @@ export function oxyAccountDetailCacheKey(accountId: string): string {
  *                    detail row to name, and clears only the lists.
  */
 export function evictOxyAccountForestCache(
-  oxy: OxyAccountCacheEvictor,
+  http: OxyAccountCacheEvictor,
   accountId?: string,
 ): void {
-  oxy.clearCacheEntry(OXY_ACCOUNT_LIST_CACHE_KEY);
-  oxy.clearCacheByPrefix(OXY_ACCOUNT_LIST_CACHE_QUERY_PREFIX);
-  if (accountId) {
-    oxy.clearCacheEntry(oxyAccountDetailCacheKey(accountId));
-  }
+  http.invalidateCache({
+    keys: accountId ? [OXY_ACCOUNT_LIST_CACHE_KEY, oxyAccountDetailCacheKey(accountId)] : [OXY_ACCOUNT_LIST_CACHE_KEY],
+    prefixes: [OXY_ACCOUNT_LIST_CACHE_QUERY_PREFIX],
+  });
 }

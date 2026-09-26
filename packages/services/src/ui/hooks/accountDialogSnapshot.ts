@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import type { AccountDialogController, AccountDialogSnapshot } from '@oxy.so/core';
+import type { AccountDialogController, AccountDialogSnapshot } from '@oxy.so/core/session';
 
 /**
  * The snapshot `useSyncExternalStore` reads before a controller exists.

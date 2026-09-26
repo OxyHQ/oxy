@@ -114,30 +114,30 @@ describe('a busy app across an access token expiry', () => {
     }) as typeof fetch;
 
     const oxy = new OxyServices({ baseURL: 'https://api.mention.earth', enableCache: false, enableRetry: false });
-    oxy.setTokens(server.storedToken());
-    oxy.httpService.setAuthRefreshHandler(async (reason) => {
+    oxy.session.setAccessToken(server.storedToken());
+    oxy.http.setAuthRefreshHandler(async (reason) => {
       const answer = server.mint();
       if (answer.status === 429) {
         // What `refreshDeviceSecretArm` does with a 429.
-        oxy.httpService.noteRefreshRateLimited();
+        oxy.http.noteRefreshRateLimited();
         return null;
       }
-      oxy.setTokens(answer.token);
+      oxy.session.setAccessToken(answer.token);
       return answer.token;
     });
 
     const tokenEvents: Array<string | null> = [];
-    oxy.onTokensChanged((token) => tokenEvents.push(token));
+    oxy.session.onChange((token) => tokenEvents.push(token));
     const scheduler = startTokenRefreshScheduler(oxy);
 
     // Twenty minutes of an app in use: a request every 700ms, straight across
     // the first token's expiry at 14:03:00.
     for (let elapsed = 0; elapsed < 20 * 60_000; elapsed += 700) {
-      await oxy.httpService.get('/feed').catch(() => undefined);
+      await oxy.http.get('/feed').catch(() => undefined);
       await jest.advanceTimersByTimeAsync(700);
     }
     scheduler.dispose();
-    return { tokenEvents, finalToken: oxy.getAccessToken(), server };
+    return { tokenEvents, finalToken: oxy.session.accessToken, server };
   }
 
   it('against the server that hands back an unexpired token: never cleared, never rate limited', async () => {

@@ -41,7 +41,7 @@ export default function AboutIdentityScreen() {
   const { user, oxyServices } = useOxy();
   const { getPublicKey } = useIdentity();
 
-  const userId = user?.id ?? oxyServices?.getCurrentUserId() ?? null;
+  const userId = user?.id ?? oxyServices?.session.userId ?? null;
   const did = useMemo(() => (userId ? buildUserDid(userId) : null), [userId]);
 
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -104,7 +104,7 @@ export default function AboutIdentityScreen() {
       if (!oxyServices || !user) return;
       try {
         setIsSavingExpiration(true);
-        await oxyServices.updateProfile({ accountExpiresAfterInactivityDays: selectedDays });
+        await oxyServices.users.updateMe({ accountExpiresAfterInactivityDays: selectedDays });
         toast.success(t('aboutIdentity.expirationUpdated'));
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : t('aboutIdentity.expirationUpdateFailed');

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import type { Href } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { IdentityStatus } from '@oxy.so/core';
+import type { IdentityStatus } from '@oxy.so/core/crypto';
 import {
   getOnboardingCompleteFromStorage,
   getOnboardingFlowFromStorage,

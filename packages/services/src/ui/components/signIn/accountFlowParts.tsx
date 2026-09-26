@@ -252,7 +252,7 @@ export const EmailCodeStep: React.FC<EmailCodeStepProps> = ({ description, verif
     setError(null);
     setPending(true);
     oxyServices
-      .confirmEmailVerification(verificationId, digits)
+      .auth.email.confirmVerification(verificationId, digits)
       .then(onConfirmed)
       .catch((reason: unknown) => setError(describeSignInError(reason, t)))
       .finally(() => setPending(false));

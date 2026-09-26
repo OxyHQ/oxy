@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useOxy } from '@oxy.so/services';
-import type { AttestQrPayload } from '@oxy.so/core';
+import type { AttestQrPayload } from '@oxy.so/core/civic';
 
 /** Lifecycle of building the real-life-attestation QR the current user (A) shows. */
 export type AttestQrState = 'loading' | 'ready' | 'error';
@@ -20,7 +20,7 @@ export interface UseAttestQr {
 /**
  * Build (and let the user regenerate) the real-life-attestation QR that the
  * person being attested (A) displays. Each build mints a fresh single-use nonce
- * with a 10-minute expiry via `oxyServices.buildAttestQrPayload`. The QR carries
+ * with a 10-minute expiry via `oxyServices.civic.buildAttestQrPayload`. The QR carries
  * no trust data — the scanner (B) re-signs and the server is authoritative.
  *
  * The one-shot build uses a `useEffect` keyed on the SDK client + context +
@@ -40,7 +40,7 @@ export function useAttestQr(context: string): UseAttestQr {
     let cancelled = false;
     setState('loading');
     oxyServices
-      .buildAttestQrPayload({ context })
+      .civic.buildAttestQrPayload({ context })
       .then((result) => {
         if (cancelled) return;
         setData(result);

@@ -88,7 +88,7 @@ export function SidebarHeaderBrand() {
       const avatar = node.account.avatar;
       if (!avatar) return undefined;
       if (avatar.startsWith('http')) return avatar;
-      return oxyServices.getFileDownloadUrl(avatar, 'thumb');
+      return oxyServices.assets.publicUrl(avatar, 'thumb');
     },
     [oxyServices]
   );

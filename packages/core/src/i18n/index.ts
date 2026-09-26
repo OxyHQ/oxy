@@ -1,65 +1,116 @@
-import enUS from './locales/en-US.json';
-import esES from './locales/es-ES.json';
-import caES from './locales/ca-ES.json';
-import frFR from './locales/fr-FR.json';
-import deDE from './locales/de-DE.json';
-import itIT from './locales/it-IT.json';
-import ptPT from './locales/pt-PT.json';
-import jaJP from './locales/ja-JP.json';
-import koKR from './locales/ko-KR.json';
-import zhCN from './locales/zh-CN.json';
-import arSA from './locales/ar-SA.json';
+import enUS from './locales/en-US';
 import { getBaseLanguage } from '../utils/languageUtils';
 
-export type LocaleDict = Record<string, any>;
-
-const DICTS: Record<string, LocaleDict> = {
-  'en': enUS,
-  'en-US': enUS,
-  'es': esES,
-  'es-ES': esES,
-  'ca': caES,
-  'ca-ES': caES,
-  'fr': frFR,
-  'fr-FR': frFR,
-  'de': deDE,
-  'de-DE': deDE,
-  'it': itIT,
-  'it-IT': itIT,
-  'pt': ptPT,
-  'pt-PT': ptPT,
-  'ja': jaJP,
-  'ja-JP': jaJP,
-  'ko': koKR,
-  'ko-KR': koKR,
-  'zh': zhCN,
-  'zh-CN': zhCN,
-  'ar': arSA,
-  'ar-SA': arSA,
-};
+/** A nested dictionary of strings. */
+export interface LocaleDict {
+  [key: string]: string | LocaleDict | LocaleDict[] | string[];
+}
 
 const FALLBACK = 'en-US';
 
 /**
- * Resolve a locale tag to the key of the dictionary that should serve it.
- *
- * Account locales are full BCP-47 tags (e.g. `es-MX`, `pt-BR`, `fr-CA`), but a
- * translation dictionary is shipped per base language. Resolution order:
- *   1. Exact dictionary for the tag (e.g. `es-ES`).
- *   2. Dictionary for the base subtag (e.g. `es-MX` → `es`).
- *   3. The English fallback.
+ * Every dictionary but English loads on demand: an app ships only the languages
+ * its people actually use (~200 KB of the ~285 KB total is non-English). English
+ * is the fallback for every missing key, so it is always present.
  */
-function resolveLang(locale: string | undefined): string {
+const LOADERS: Record<string, () => Promise<{ default: LocaleDict }>> = {
+  'es-ES': () => import('./locales/es-ES'),
+  'ca-ES': () => import('./locales/ca-ES'),
+  'fr-FR': () => import('./locales/fr-FR'),
+  'de-DE': () => import('./locales/de-DE'),
+  'it-IT': () => import('./locales/it-IT'),
+  'pt-PT': () => import('./locales/pt-PT'),
+  'ja-JP': () => import('./locales/ja-JP'),
+  'ko-KR': () => import('./locales/ko-KR'),
+  'zh-CN': () => import('./locales/zh-CN'),
+  'ar-SA': () => import('./locales/ar-SA'),
+};
+
+/** Base subtag → the dictionary that serves it. */
+const ALIASES: Record<string, string> = {
+  en: 'en-US', es: 'es-ES', ca: 'ca-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT',
+  pt: 'pt-PT', ja: 'ja-JP', ko: 'ko-KR', zh: 'zh-CN', ar: 'ar-SA',
+};
+
+const DICTS: Record<string, LocaleDict> = { [FALLBACK]: enUS };
+const pending = new Map<string, Promise<boolean>>();
+const listeners = new Set<() => void>();
+let version = 0;
+
+/** The dictionary key serving `locale`, whether or not it is loaded yet. */
+function dictionaryFor(locale: string | undefined): string {
   if (locale) {
-    if (DICTS[locale]) return locale;
-    const base = getBaseLanguage(locale);
-    if (DICTS[base]) return base;
+    if (locale === FALLBACK || LOADERS[locale]) return locale;
+    const base = ALIASES[getBaseLanguage(locale)];
+    if (base) return base;
   }
   return FALLBACK;
 }
 
-function getNested(obj: any, path: string): any {
-  return path.split('.').reduce((acc, key) => (acc && acc[key] != null ? acc[key] : undefined), obj);
+/**
+ * Load the dictionary serving `locale`. Resolves `true` once it is available
+ * (immediately for English or one already loaded), `false` if it failed to load
+ * — `translate` then keeps serving English.
+ */
+export function loadLocale(locale: string | undefined): Promise<boolean> {
+  const key = dictionaryFor(locale);
+  if (DICTS[key]) return Promise.resolve(true);
+  let load = pending.get(key);
+  if (!load) {
+    load = LOADERS[key]()
+      .then((mod) => {
+        DICTS[key] = mod.default;
+        version++;
+        for (const listener of listeners) listener();
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => pending.delete(key));
+    pending.set(key, load);
+  }
+  return load;
+}
+
+/** Whether the dictionary serving `locale` is loaded (English always is). */
+export function isLocaleLoaded(locale: string | undefined): boolean {
+  return Boolean(DICTS[dictionaryFor(locale)]);
+}
+
+/**
+ * Subscribe to dictionaries finishing loading (for re-rendering once a
+ * language arrives). Returns the unsubscribe. Pair with {@link getLocalesVersion}
+ * in `useSyncExternalStore`.
+ */
+export function subscribeLocales(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** Bumps each time a dictionary loads. */
+export function getLocalesVersion(): number {
+  return version;
+}
+
+/**
+ * Resolve a locale tag to the LOADED dictionary that should serve it.
+ *
+ * Account locales are full BCP-47 tags (e.g. `es-MX`, `pt-BR`), but a
+ * dictionary is shipped per language: the exact tag, else its base subtag,
+ * else English. A dictionary not loaded yet serves English for now and starts
+ * loading — `subscribeLocales` announces its arrival.
+ */
+function resolveLang(locale: string | undefined): string {
+  const key = dictionaryFor(locale);
+  if (DICTS[key]) return key;
+  void loadLocale(key);
+  return FALLBACK;
+}
+
+function getNested(obj: unknown, path: string): unknown {
+  return path.split('.').reduce<unknown>(
+    (acc, key) => (acc && typeof acc === 'object' && (acc as Record<string, unknown>)[key] != null ? (acc as Record<string, unknown>)[key] : undefined),
+    obj,
+  );
 }
 
 export function translate(locale: string | undefined, key: string, vars?: Record<string, string | number>): string {
@@ -73,13 +124,13 @@ export function translate(locale: string | undefined, key: string, vars?: Record
     val = getNested(DICTS[FALLBACK], key);
   }
   if (typeof val !== 'string') return key; // last resort: echo the key when truly absent everywhere
+  let text = val;
   if (vars) {
-    Object.keys(vars).forEach(k => {
-      const token = `{{${k}}}`;
-      val = val.replaceAll(token, String(vars[k]));
-    });
+    for (const k of Object.keys(vars)) {
+      text = text.split(`{{${k}}}`).join(String(vars[k]));
+    }
   }
-  return val;
+  return text;
 }
 
 export function hasKey(locale: string | undefined, key: string): boolean {

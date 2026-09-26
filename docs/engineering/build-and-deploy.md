@@ -213,23 +213,24 @@ Build-vs-source distinction: production/Docker consumes the built `dist/` (the D
 ## Key Entry Points
 
 - `packages/contracts/src/index.ts` — all public contract exports (schemas, helpers, types)
-- `packages/core/src/index.ts` — all public core exports
+- `packages/core/src/index.ts` — public root exports; subpath entries `src/session/index.ts`, `src/crypto/index.ts`, `src/civic/index.ts`, `src/inference/index.ts`, `src/server/index.ts`
+- `packages/core/src/OxyServices.ts` — the client (`request`, `cache`, `createLinkedClient`) + lazy namespace getters; one class per namespace in `packages/core/src/api/*.ts`; the map from 2.x names is `scripts/codemods/core-3/map.ts`
 - `packages/core/src/utils/avatarUtils.ts` — shared avatar visibility logic (platform-agnostic)
 - `packages/core/src/utils/accountUtils.ts` — shared account/device helpers (`buildAccountsArray`, `createQuickAccount`, `getAccountDisplayName`, `getAccountFallbackHandle`, `formatPublicKeyHandle`) for non-DTO local account surfaces only; app/user DTO display names come from API `name.displayName`.
-- `packages/core/src/mixins/OxyServices.contacts.ts` — `contacts.discoverContacts(hashedEmails, hashedPhones)` privacy-first contact discovery
-- `packages/core/src/mixins/OxyServices.workspaces.ts` — `workspaces` mixin (CRUD + members + transfer); `Workspace`/`WorkspaceMember` types
-- `packages/core/src/mixins/OxyServices.applications.ts` — `getApplications(workspaceId?)` + `getPublicApplication(clientId)`; `PublicApplication` type
+- `packages/core/src/api/contacts.ts` — `oxy.contacts.discover(hashedEmails, hashedPhones)` privacy-first contact discovery
+- `packages/core/src/api/accounts.ts` / `apps.ts` — the account graph (`oxy.accounts`, `members.*`) and applications (`oxy.apps`, `credentials.*`, `connected.*`, `getPublic(clientId)`); `PublicApplication` type
+- `packages/core/src/server/OxyServer.ts` — `OxyServer`: service-token lane, `middleware.*`, server-only namespace methods (`server/namespaces.ts`)
 - `packages/core/src/server/index.ts` — public `@oxy.so/core/server` exports
 - `packages/core/src/server/auth.ts` — `createOptionalOxyAuth`, `createOxyAuthMiddleware`, `requireOxyAuth`, `getRequiredOxyUserId`
 - `packages/core/src/server/rateLimit.ts` — `createOxyRateLimit`
 - `packages/core/src/server/safeFetch.ts` — `safeFetch(url, opts)`, `assertSafePublicUrl` (SSRF-safe fetch; DNS-pinned, private-IP denylist, bounded redirects, Bun `{all:true}` lookup-array contract)
 - `packages/core/src/server/cors.ts` — `createOxyCors({ appOrigins, allowCredentials })` (deny-by-default allowlist, auto-allows `*.oxy.so`, NEVER wildcard+credentials)
 - `packages/core/src/server/verifySecret.ts` — `verifySecret(provided, expected)` (constant-time `crypto.timingSafeEqual` + length guard)
-- `packages/core/src/mixins/OxyServices.reputation.ts` — `reputation` mixin (15 methods, fully typed). It declares NO types: the whole family lives in `packages/contracts/src/reputation.ts` (see "Oxy Trust" section)
-- `packages/core/src/crypto/canonicalJson.ts` — `canonicalize(value)` (recursive key-sort/JCS-style canonical JSON) + `signedRecordSigningInput`; used by both client signing and server verify
-- `packages/core/src/mixins/OxyServices.identity.ts` — `identity` mixin: `resolveDid`, `getMyDid`, `listAuthMethods`, `getIdentityRootStatus`, the identity-link methods, `rotateKey`, `signRecord`, `publishRecord`, `getRecord`, `verifyRecord`, `exportMyData`, `requestDomainVerification`, `verifyDomain`, `listDomains`, `removeDomain`
-- `packages/core/src/mixins/OxyServices.civic.ts` — `civic` mixin: `getPublicCard`, `getMyIdPayload`, `parseIdPayload`, `buildAttestQrPayload`, `parseAttestPayload`, `submitRealLifeAttestation`, `getValidatorInbox`, `submitValidationVote`, `denyValidation`, `vouchForPerson`, `withdrawVouch`, `getPersonhood`, `getMyPersonhood`, `issueCredential`, `listCredentials`, `listMyCredentials`, `verifyCredential`, `revokeCredential`
-- `packages/core/src/session/` — `SessionClient`, `createSessionClient`, `createSessionClientHost`, session-state projection, account-dialog controller, auth-state store, token-refresh scheduler
+- `packages/core/src/api/reputation.ts` — `oxy.reputation` (read-only reads; awards via `OxyServer.reputation.award`). It declares NO wire types: the family lives in `packages/contracts/src/reputation.ts` (see "Oxy Trust" section)
+- `packages/protocol/src/envelope/canonicalJson.ts` — `canonicalize(value)` (recursive key-sort/JCS-style canonical JSON); `signedRecordSigningInput` is beside it in `signingInput.ts`; used by both client signing and server verify
+- `packages/core/src/api/identity.ts` — `oxy.identity`: `resolveDid`, `did`, `authMethods`, `rootStatus`, `rotateKey`, `export`, `links.*`, `domains.*`, `backup.*`
+- `packages/core/src/api/civic.ts` — `oxy.civic`: `publicCard`, `idPayload`, `buildAttestQrPayload`, `attest`, `validation.*`, `vouch`, `withdrawVouch`, `personhood`, `credentials.*`; QR parsers in `src/civic/payloads.ts` (`@oxy.so/core/civic`)
+- `packages/core/src/session/` (`@oxy.so/core/session`) — `SessionClient`, `createSessionClient`, `createSessionClientHost`, session-state projection, account-dialog controller, auth-state store, token-refresh scheduler
 - `packages/core/src/session/SessionClient.ts` — `SessionClient.onServerEvent(event, listener)`: generic subscription to named server-pushed Socket.IO events (survives reconnects; unsubscribe fn returned). Consumed via the `useOxyEvent(event, handler)` hook exported from `@oxy.so/services`.
 - `packages/core/src/session/identityPin.ts` / `identitySession.ts` — the `sessionMode: 'identity'` pin store + `resolveIdentityPin`/`establishIdentitySession` (issue #691 Phase 1)
 - `packages/core/src/utils/commonsDelivery.ts` — `selectCommonsDelivery` (issue #691 Phase 4 automatic delivery decision)

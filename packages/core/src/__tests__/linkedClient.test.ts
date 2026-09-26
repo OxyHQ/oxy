@@ -49,13 +49,13 @@ describe('OxyServices.createLinkedClient', () => {
 
     expect(linked.client.getAccessToken()).toBeNull();
 
-    oxy.setTokens('access_1');
+    oxy.session.setAccessToken('access_1');
     expect(linked.client.getAccessToken()).toBe('access_1');
 
-    oxy.setTokens('access_2');
+    oxy.session.setAccessToken('access_2');
     expect(linked.client.getAccessToken()).toBe('access_2');
 
-    oxy.clearTokens();
+    oxy.session.clear();
     expect(linked.client.getAccessToken()).toBeNull();
 
     linked.dispose();
@@ -63,7 +63,7 @@ describe('OxyServices.createLinkedClient', () => {
 
   it('copies the current token when created after sign-in', () => {
     const oxy = createServices();
-    oxy.setTokens('existing_access');
+    oxy.session.setAccessToken('existing_access');
 
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.syra.fm' });
 
@@ -76,12 +76,12 @@ describe('OxyServices.createLinkedClient', () => {
     const oxy = createServices();
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.syra.fm' });
 
-    oxy.getClient().setAuthRefreshHandler(async () => 'refreshed_access');
+    oxy.http.setAuthRefreshHandler(async () => 'refreshed_access');
 
     const refreshed = await linked.client.refreshAccessToken('preflight');
 
     expect(refreshed).toBe('refreshed_access');
-    expect(oxy.getAccessToken()).toBe('refreshed_access');
+    expect(oxy.session.accessToken).toBe('refreshed_access');
     expect(linked.client.getAccessToken()).toBe('refreshed_access');
 
     linked.dispose();
@@ -102,7 +102,7 @@ describe('OxyServices.createLinkedClient', () => {
       userId: 'user_1',
       exp: Math.floor(Date.now() / 1000) + 3600,
     });
-    oxy.setTokens(accessToken);
+    oxy.session.setAccessToken(accessToken);
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl/' });
 
     const response = await linked.client.requestAuthenticatedResponse({
@@ -146,8 +146,8 @@ describe('OxyServices.createLinkedClient', () => {
       userId: 'user_1',
       exp: Math.floor(Date.now() / 1000) + 7200,
     });
-    oxy.setTokens(oldToken);
-    oxy.getClient().setAuthRefreshHandler(async () => refreshedToken);
+    oxy.session.setAccessToken(oldToken);
+    oxy.http.setAuthRefreshHandler(async () => refreshedToken);
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
 
     const response = await linked.client.requestAuthenticatedResponse({
@@ -160,7 +160,7 @@ describe('OxyServices.createLinkedClient', () => {
     expect(calls).toHaveLength(2);
     expect(readHeaders(calls[0]?.init).authorization).toBe(`Bearer ${oldToken}`);
     expect(readHeaders(calls[1]?.init).authorization).toBe(`Bearer ${refreshedToken}`);
-    expect(oxy.getAccessToken()).toBe(refreshedToken);
+    expect(oxy.session.accessToken).toBe(refreshedToken);
     expect(linked.client.getAccessToken()).toBe(refreshedToken);
     expect(response.bodyUsed).toBe(false);
     expect(await response.text()).toBe('data: done\n\n');
@@ -189,13 +189,13 @@ describe('OxyServices.createLinkedClient', () => {
 
   it('keeps the session owner intact when a linked response 401 cannot refresh', async () => {
     const oxy = createServices();
-    oxy.setTokens('stale_access');
+    oxy.session.setAccessToken('stale_access');
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.syra.fm' });
 
     const refreshed = await linked.client.refreshAccessToken('response-401');
 
     expect(refreshed).toBeNull();
-    expect(oxy.getAccessToken()).toBe('stale_access');
+    expect(oxy.session.accessToken).toBe('stale_access');
     expect(linked.client.getAccessToken()).toBe('stale_access');
 
     linked.dispose();
@@ -227,8 +227,8 @@ describe('OxyServices.createLinkedClient', () => {
       userId: 'user_1',
       exp: Math.floor(Date.now() / 1000) + 3600,
     });
-    oxy.setTokens(accessToken);
-    oxy.getClient().setAuthRefreshHandler(async () => null);
+    oxy.session.setAccessToken(accessToken);
+    oxy.http.setAuthRefreshHandler(async () => null);
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.syra.fm' });
 
     await expect(linked.client.put('/api/queue/current', { trackId: 'track_1' }, { retry: false })).rejects.toMatchObject({
@@ -236,7 +236,7 @@ describe('OxyServices.createLinkedClient', () => {
       status: 401,
     });
 
-    expect(oxy.getAccessToken()).toBe(accessToken);
+    expect(oxy.session.accessToken).toBe(accessToken);
     expect(linked.client.getAccessToken()).toBeNull();
 
     await linked.client.put('/api/queue/current', { trackId: 'track_2' });
@@ -260,13 +260,13 @@ describe('OxyServices.createLinkedClient', () => {
 
   it('keeps the session owner intact when linked preflight refresh cannot refresh', async () => {
     const oxy = createServices();
-    oxy.setTokens('existing_access');
+    oxy.session.setAccessToken('existing_access');
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.syra.fm' });
 
     const refreshed = await linked.client.refreshAccessToken('preflight');
 
     expect(refreshed).toBeNull();
-    expect(oxy.getAccessToken()).toBe('existing_access');
+    expect(oxy.session.accessToken).toBe('existing_access');
     expect(linked.client.getAccessToken()).toBe('existing_access');
 
     linked.dispose();
@@ -276,11 +276,11 @@ describe('OxyServices.createLinkedClient', () => {
     const oxy = createServices();
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.syra.fm' });
 
-    oxy.setTokens('before_dispose');
+    oxy.session.setAccessToken('before_dispose');
     expect(linked.client.getAccessToken()).toBe('before_dispose');
 
     linked.dispose();
-    oxy.setTokens('after_dispose');
+    oxy.session.setAccessToken('after_dispose');
 
     expect(linked.client.getAccessToken()).toBeNull();
   });
@@ -317,7 +317,7 @@ describe('OxyServices.createLinkedClient', () => {
         userId: 'user_1',
         exp: Math.floor(Date.now() / 1000) + 3600,
       });
-      oxy.setTokens(accessToken);
+      oxy.session.setAccessToken(accessToken);
       const linked = oxy.createLinkedClient({ baseURL: 'https://api.mention.earth' });
 
       // Two identical GETs with cache:true — both MUST hit the network because
@@ -343,7 +343,7 @@ describe('OxyServices.createLinkedClient', () => {
         userId: 'user_1',
         exp: Math.floor(Date.now() / 1000) + 3600,
       });
-      oxy.setTokens(accessToken);
+      oxy.session.setAccessToken(accessToken);
       const linked = oxy.createLinkedClient({
         baseURL: 'https://api.mention.earth',
         enableCache: true,

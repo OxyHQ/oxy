@@ -1,4 +1,4 @@
-import { OxyServices } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 import { ShipClient } from './client';
 import { requireString, baseUrlFlag, type ShipFlags } from './args';
 
@@ -14,8 +14,7 @@ export function createShipClient(flags: ShipFlags): ShipClient {
   const clientId = requireString(flags, 'client-id', 'OXY_SHIP_CLIENT_ID');
   const secret = requireString(flags, 'secret', 'OXY_SHIP_SECRET');
 
-  const oxy = new OxyServices({ baseURL });
-  oxy.configureServiceAuth(clientId, secret);
+  const oxy = new OxyServer({ baseURL, serviceAuth: { apiKey: clientId, apiSecret: secret } });
 
-  return new ShipClient({ baseURL, getToken: () => oxy.getServiceToken() });
+  return new ShipClient({ baseURL, getToken: () => oxy.serviceToken() });
 }

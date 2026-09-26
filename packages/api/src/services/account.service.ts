@@ -811,19 +811,6 @@ export class AccountService {
   }
 
   /**
-   * Immediate (non-archived) children of an account, annotated with the caller's
-   * relationship + effective membership (so the route can emit `AccountNode`s).
-   */
-  async listChildren(userId: string, accountId: string): Promise<AccountNode[]> {
-    const children = await getDb()
-      .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
-      .from(users)
-      .where(and(eq(users.parentAccountId, accountId), ne(users.accountStatus, 'archived')))
-      .orderBy(asc(users.createdAt));
-    return this.annotateAccounts(userId, children);
-  }
-
-  /**
    * The full (non-archived) subtree rooted at `accountId`, including itself,
    * annotated with the caller's relationship + effective membership.
    */

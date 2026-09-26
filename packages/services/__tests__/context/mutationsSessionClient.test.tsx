@@ -19,7 +19,8 @@
 import React from 'react';
 import { render, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AUTH_STATE_STORAGE_KEY, type SessionLoginResponse, type User } from '@oxy.so/core';
+import { AUTH_STATE_STORAGE_KEY } from '@oxy.so/core/session';
+import { type SessionLoginResponse, type User } from '@oxy.so/core';
 import type { DeviceSessionState } from '@oxy.so/contracts';
 
 jest.mock('../../src/ui/session', () => {
@@ -206,26 +207,16 @@ function buildStub(baseURL: string) {
       config: { authWebUrl: 'https://auth.oxy.so' },
       // `installAuthRefreshHandler` (SDK-owned unified refresh) installs the one
       // core refresh handler on the client's HttpService at mount.
-      httpService: {
+      http: {
         setTokens: (token: string) => { currentToken = token; },
         setAuthRefreshHandler: jest.fn(),
         refreshAccessToken: jest.fn(async () => null),
       },
-      getBaseURL: () => baseURL,
+      baseURL: baseURL,
       getSessionBaseUrl: () => baseURL,
-      getAccessToken: () => currentToken,
-      // Opaque token → no scheduled proactive refresh (the reactive 401 path
-      // stays the only trigger); keeps `startTokenRefreshScheduler` inert here.
-      getAccessTokenExpiry: () => null,
-      onTokensChanged: () => () => undefined,
-      setDeviceCredentialProvider: () => () => undefined,
-      setTokens: (token: string) => { currentToken = token; },
-      clearTokens: () => { currentToken = null; },
-      clearCache: jest.fn(),
-      // The device-first cold boot recovers the session by minting from the
-      // persisted zero-cookie device credential (`deviceId` + `deviceSecret`)
-      // seeded into localStorage before render (the `device-secret-mint` step).
-      mintFromDeviceSecret: jest.fn(async () => ({
+      session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => { currentToken = token; }, clear: () => { currentToken = null; }, logoutAll: logoutAllSessions },
+cache: { clear: jest.fn() },
+devices: { mintToken: jest.fn(async () => ({
         accessToken: 'a1.access.token',
         expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
         nextDeviceSecret: 'a1.next.secret',
@@ -236,18 +227,14 @@ function buildStub(baseURL: string) {
           revision: 1,
           updatedAt: Date.now(),
         },
-      })),
-      signInWithSharedIdentity: jest.fn(async () => null),
-      getCurrentUser: jest.fn(
+      })) },
+      auth: { signInWithSharedIdentity: jest.fn(async () => null) },
+      users: { me: jest.fn(
         async (): Promise<User> => ({ id: currentAccountId, username: `user-${currentAccountId}` } as User),
-      ),
-      getUserBySession: jest.fn(
+      ), bySession: jest.fn(
         async (): Promise<User> => ({ id: currentAccountId, username: `user-${currentAccountId}` } as User),
-      ),
-      listAccounts: jest.fn(async () => []),
-      logoutAllSessions,
-      switchToAccount,
-      getUsersByIds,
+      ), getMany: getUsersByIds },
+      accounts: { list: jest.fn(async () => []), actAs: switchToAccount },
     },
   };
 }
@@ -343,7 +330,7 @@ async function bootWithDeviceState(deviceState: DeviceSessionState) {
   await waitFor(() => expect(captured.sessionsLength).toBe(deviceState.accounts.length));
   await waitFor(() => expect(captured.activeSessionId).toBe(SESSION_A1));
 
-  return { fake, getUsersByIds, stub, switchToAccount, logoutAllSessions };
+  return { fake, getUsersByIds, switchToAccount, logoutAllSessions, stub };
 }
 
 describe('Mutations routed through SessionClient (Task 3)', () => {
@@ -457,7 +444,7 @@ describe('switchToAccount unifies org/managed-account switching through the devi
     // cold-boot handoff (Task 2) before this switch — track the delta rather
     // than an absolute count.
     const addCurrentAccountCallsBefore = fake.addCurrentAccount.mock.calls.length;
-    const listAccountsCallsBefore = stub.listAccounts.mock.calls.length;
+    const listAccountsCallsBefore = stub.accounts.list.mock.calls.length;
 
     await act(async () => {
       await getOxyApi().switchToAccount(ACCOUNT_A2);
@@ -471,14 +458,14 @@ describe('switchToAccount unifies org/managed-account switching through the devi
     expect(fake.addCurrentAccount.mock.calls.length).toBe(addCurrentAccountCallsBefore);
     // Shared post-switch side effects still ran (`refreshAccounts` calls
     // `oxyServices.listAccounts()`).
-    await waitFor(() => expect(stub.listAccounts.mock.calls.length).toBeGreaterThan(listAccountsCallsBefore));
+    await waitFor(() => expect(stub.accounts.list.mock.calls.length).toBeGreaterThan(listAccountsCallsBefore));
   });
 
   it('switchToAccount(ACCOUNT_A3) — NOT yet on the device — keeps the first-time mint path and activates it via registerAndActivate', async () => {
     const { fake, stub, switchToAccount } = await bootWithDeviceState(twoAccountDeviceState());
 
     const addCurrentAccountCallsBefore = fake.addCurrentAccount.mock.calls.length;
-    const listAccountsCallsBefore = stub.listAccounts.mock.calls.length;
+    const listAccountsCallsBefore = stub.accounts.list.mock.calls.length;
 
     await act(async () => {
       await getOxyApi().switchToAccount(ACCOUNT_A3);
@@ -494,6 +481,6 @@ describe('switchToAccount unifies org/managed-account switching through the devi
     // No additional cold-boot-style membership-only registration.
     expect(fake.addCurrentAccount.mock.calls.length).toBe(addCurrentAccountCallsBefore);
     // Shared post-switch side effects still ran, same as the already-on-device branch.
-    await waitFor(() => expect(stub.listAccounts.mock.calls.length).toBeGreaterThan(listAccountsCallsBefore));
+    await waitFor(() => expect(stub.accounts.list.mock.calls.length).toBeGreaterThan(listAccountsCallsBefore));
   });
 });

@@ -31,13 +31,15 @@ Service credentials belong to an `Application` (collection `applications`) via a
 ### Get a Service Token
 
 ```typescript
-import { OxyServices } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 
-const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-oxy.configureServiceAuth('oxy_dk_...', 'secret...');
+const oxy = new OxyServer({
+  baseURL: 'https://api.oxy.so',
+  serviceAuth: { apiKey: 'oxy_dk_...', apiSecret: 'secret...' },
+});
 
 // Auto-cached, auto-refreshed (cached until expiry minus buffer)
-const token = await oxy.getServiceToken();
+const token = await oxy.serviceToken();
 ```
 
 ### Delegated Requests
@@ -45,11 +47,11 @@ const token = await oxy.getServiceToken();
 Act on behalf of a user:
 
 ```typescript
-const result = await oxy.makeServiceRequest(
+const result = await oxy.serviceRequest(
   'POST',
   '/notifications',
   { message: 'New follower' },
-  'user-id-to-act-as'  // Sets X-Oxy-User-Id header
+  { actAs: 'user-id-to-act-as' }  // Sets X-Oxy-User-Id header
 );
 ```
 
@@ -59,7 +61,7 @@ const result = await oxy.makeServiceRequest(
 // Service-only (rejects user JWTs)
 // Defaults to https://api.oxy.so/.well-known/jwks.json.
 // Override serviceTokenJwksUrl only for a private Oxy deployment.
-app.use('/internal', oxy.serviceAuth());
+app.use('/internal', oxy.middleware.service());
 
 app.post('/internal/trigger', (req, res) => {
   req.serviceApp; // { appId, appName, credentialId, ownerAccountId, scopes, environment }
@@ -70,7 +72,7 @@ app.post('/internal/trigger', (req, res) => {
 ### Mixed Auth (user + service)
 
 ```typescript
-app.use('/data', oxy.auth());
+app.use('/data', oxy.middleware.auth());
 
 app.get('/data', (req, res) => {
   if (req.serviceApp) {
@@ -144,7 +146,7 @@ request would change what any account is charged, the code is wrong.**
 
 ## Acting as a user
 
-`X-Oxy-User-Id` is a header, so on its own it proves nothing. `oxy.auth()`
+`X-Oxy-User-Id` is a header, so on its own it proves nothing. `oxy.middleware.auth()`
 therefore treats it as a request to be authorised, not as an identity: on every
 request carrying it, the middleware calls
 
@@ -220,7 +222,7 @@ agreed to.
 | `req.serviceApp.scopes` | credential ∩ application ceiling, at mint | what the PLATFORM allows this app to do |
 | `req.serviceActingAs.scopes` | the explicit grant row | what the USER allows it to do |
 
-`oxy.requireScope(s)` requires `s` in **both** for a delegated request, and in
+`oxy.middleware.requireScope(s)` requires `s` in **both** for a delegated request, and in
 `serviceApp.scopes` alone for a request acting as itself. The intersection is
 the point: only the app scope would let an app do to a user what that user never
 consented to; only the grant would let a user hand an app authority staff never
@@ -247,7 +249,7 @@ the endpoint is not an oracle for which users or applications exist.
 ## Security
 
 - Service tokens are signed with Ed25519 and carry an exact `kid`; external
-  `auth()` / `serviceAuth()` verifiers fetch public keys from
+  `middleware.auth()` / `middleware.service()` verifiers fetch public keys from
   `https://api.oxy.so/.well-known/jwks.json` by default.
 - A verifier pins EdDSA, issuer `oxy-auth`, audience `oxy-api`, expiry/not-before,
   token type and exact non-empty scopes/attribution IDs. Unknown keys and an
@@ -261,7 +263,7 @@ the endpoint is not an oracle for which users or applications exist.
 - Secrets stored as sha256 hashes; timing-safe comparison on exchange
 - Bearer-only, so not exposed to CSRF (the API has no ambient credential)
 - Expiration checked locally (no DB round-trip)
-- Per-scope authorisation via `oxy.requireScope('files:write')` after `serviceAuth()`
+- Per-scope authorisation via `oxy.middleware.requireScope('files:write')` after `middleware.service()`
 
 ## Key Files
 
@@ -275,5 +277,5 @@ the endpoint is not an oracle for which users or applications exist.
 | `packages/api/src/db/schema/applications.ts` | `type` / `isOfficial` / `isInternal` fields |
 | `packages/api/src/db/schema/applicationCredentials.ts` | `publicKey`, `secretHash`, `type: 'service'` |
 | `packages/api/src/utils/credentialUsability.ts` | `isCredentialUsable()` (active or in rotation grace) |
-| `packages/core/src/mixins/OxyServices.utility.ts` | `auth()` + `serviceAuth()` middleware |
-| `packages/core/src/mixins/OxyServices.auth.ts` | `getServiceToken()`, `makeServiceRequest()`, `configureServiceAuth()` |
+| `packages/core/src/server/middleware.ts` | `middleware.auth()` + `middleware.service()` |
+| `packages/core/src/server/OxyServer.ts` | `OxyServer`: `serviceToken()`, `serviceRequest()`, `configureServiceAuth()`, `verifyActingAs()` |

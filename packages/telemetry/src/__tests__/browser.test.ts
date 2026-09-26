@@ -66,3 +66,25 @@ describe('browser telemetry', () => {
   });
 
 });
+
+describe('peekEdgeRegionHeader', () => {
+  it('never waits: {} first, the PoP once discovered, refreshed in the background', async () => {
+    let clock = 0;
+    const pops = ['mad', 'nrt'];
+    const telemetry = createBrowserTelemetry({
+      now: () => clock,
+      location: { hostname: 'app.oxy.so', protocol: 'https:' },
+      edgePeekRefreshMs: 1000,
+      fetchTrace: async () => ({ ok: true, text: async () => `colo=${pops.shift()?.toUpperCase()}\n` }),
+    });
+
+    expect(telemetry.peekEdgeRegionHeader()).toEqual({});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(telemetry.peekEdgeRegionHeader()).toEqual({ 'X-Oxy-Edge-Region': 'mad' });
+
+    clock = 1000;
+    expect(telemetry.peekEdgeRegionHeader()).toEqual({ 'X-Oxy-Edge-Region': 'mad' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(telemetry.peekEdgeRegionHeader()).toEqual({ 'X-Oxy-Edge-Region': 'nrt' });
+  });
+});

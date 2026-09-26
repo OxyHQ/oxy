@@ -32,7 +32,7 @@ const PERSONHOOD_THRESHOLD = 0.6;
 /**
  * "Proof of personhood" — the current user's own personhood status.
  *
- * Reads the recomputable snapshot via `getMyPersonhood()` (offline-first, like
+ * Reads the recomputable snapshot via `civic.personhood()` (offline-first, like
  * the other civic surfaces). Surfaces a clear verified / building state, the
  * score as a flat progress bar with the θ threshold marked, a human breakdown of
  * the three signals (vouches, real-life confirmations, biometric binding) with

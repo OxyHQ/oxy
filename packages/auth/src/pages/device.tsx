@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
-import type { CommonsApprovalInfo, SwitcherContextRow } from "@oxy.so/core";
+import type { CommonsApprovalInfo } from '@oxy.so/core';
+import type { SwitcherContextRow } from '@oxy.so/core/session';
 import { getCommonsApprovalBlockingReason } from "@oxy.so/core";
 import { OxyAccountPicker, OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader, OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxy.so/services";
 
@@ -88,7 +89,7 @@ export function DevicePage() {
   const hasUsableBearer =
     isAuthenticated ||
     activeContext !== null ||
-    !!oxyServices.getAccessToken();
+    !!oxyServices.session.accessToken;
 
   // `approve-info` is public, so an expired or already-used code is reported
   // before anyone is sent through sign-in for nothing.
@@ -96,7 +97,7 @@ export function DevicePage() {
     if (!code) return;
     let cancelled = false;
     void oxyServices
-      .getCommonsApprovalInfo(code)
+      .auth.commons.approvalInfo(code)
       .then((info: CommonsApprovalInfo) => {
         if (cancelled) return;
         const blockingReason = getCommonsApprovalBlockingReason(info);
@@ -137,7 +138,7 @@ export function DevicePage() {
   // after the acknowledgement, at most once at a time.
   const handleAllow = useCallback(async () => {
     if (!code || !acknowledged || completingRef.current) return;
-    const accessToken = oxyServices.getAccessToken();
+    const accessToken = oxyServices.session.accessToken;
     if (!accessToken) {
       setError(t("device.errors.noToken"));
       return;
@@ -178,7 +179,7 @@ export function DevicePage() {
 
   const handleDeny = useCallback(() => {
     if (code) {
-      void oxyServices.denyCommonsSignIn(code).catch(() => undefined);
+      void oxyServices.auth.commons.deny(code).catch(() => undefined);
     }
     setOutcome("denied");
   }, [code, oxyServices]);

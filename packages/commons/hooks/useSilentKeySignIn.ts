@@ -23,7 +23,7 @@
 
 import { useCallback } from 'react';
 import { useOxy } from '@oxy.so/services';
-import { KeyManager } from '@oxy.so/core';
+import { KeyManager } from '@oxy.so/core/crypto';
 import type { User } from '@oxy.so/core';
 
 export interface UseSilentKeySignInResult {

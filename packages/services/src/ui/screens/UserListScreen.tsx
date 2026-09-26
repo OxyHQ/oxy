@@ -90,12 +90,12 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         let hasMore: boolean;
 
         if (mode === 'followers') {
-          const result = await oxyServices.getUserFollowers(userId, { limit: PAGE_SIZE, offset, sort });
+          const result = await oxyServices.follows.followers(userId, { limit: PAGE_SIZE, offset, sort });
           newUsers = result.followers;
           total = result.total;
           hasMore = result.hasMore;
         } else {
-          const result = await oxyServices.getUserFollowing(userId, { limit: PAGE_SIZE, offset, sort });
+          const result = await oxyServices.follows.following(userId, { limit: PAGE_SIZE, offset, sort });
           newUsers = result.following;
           total = result.total;
           hasMore = result.hasMore;
@@ -162,7 +162,7 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         <View className="px-screen-margin flex-row items-center gap-space-12">
           <ContactRow id={itemUserId || displayName} name={displayName}
             subtitle={handle ? (item.username ? `@${handle}` : handle) : undefined}
-            avatar={item.avatar ? oxyServices.getFileDownloadUrl(item.avatar, 'thumb') : undefined}
+            avatar={item.avatar ? oxyServices.assets.publicUrl(item.avatar, 'thumb') : undefined}
             horizontalInset={0} style={{ flex: 1 }}
             onPress={() => handleUserPress(item)}
             identitySlot={<View style={styles.userInfo}>

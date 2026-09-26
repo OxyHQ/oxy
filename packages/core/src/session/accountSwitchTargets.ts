@@ -21,7 +21,7 @@ import type {
   AccountRelationship,
   AccountKind,
   AccountMember,
-} from '../mixins/OxyServices.accounts';
+} from '../api/accounts';
 
 /**
  * Whether the caller can BECOME this account — the one question every account

@@ -16,7 +16,7 @@ import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiUserAddLine } from '@oxy.so/bloom/icons/RiUserAddLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
-import { showsPrincipalHeaders, type SwitcherContextRow, type SwitcherPrincipalRow } from '@oxy.so/core';
+import { showsPrincipalHeaders, type SwitcherContextRow, type SwitcherPrincipalRow } from '@oxy.so/core/session';
 import { useI18n } from '../../hooks/useI18n';
 import { AccountRow } from '../authChooser/primitives';
 import { authChooserStyles } from '../authChooser/styles';

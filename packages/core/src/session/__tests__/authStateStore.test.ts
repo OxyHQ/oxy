@@ -53,7 +53,7 @@ function installLocalStorage(storage: Storage): void {
 afterEach(() => {
   // Remove whatever localStorage the test installed (value or throwing getter).
   if (Object.getOwnPropertyDescriptor(globalThis, 'localStorage')) {
-    delete (globalThis as { localStorage?: Storage }).localStorage;
+    Reflect.deleteProperty(globalThis, 'localStorage');
   }
 });
 

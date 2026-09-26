@@ -262,60 +262,27 @@ function UserProfile() {
 }
 ```
 
-### 2. Direct Import (Non-React Files)
+### 2. Non-React Files
 
-For utility functions, services, or non-React Native files:
+There is one client per app: the one `OxyProvider` owns. Pass it to utilities
+instead of constructing another (a second client would not share the session):
 
 ```typescript
-import { oxyClient } from '@oxy.so/core';
+import type { OxyServices } from '@oxy.so/core';
 
 // utils/api.ts
-export const userUtils = {
-  async fetchUserById(userId: string) {
-    return await oxyClient.getUserById(userId);
-  },
+export const userUtils = (oxy: OxyServices) => ({
+  fetchUserById: (userId: string) => oxy.users.get(userId),
+  fetchProfileByUsername: (username: string) => oxy.users.byUsername(username),
+  updateMyProfile: (updates: Parameters<OxyServices['users']['updateMe']>[0]) => oxy.users.updateMe(updates),
+});
 
-  async fetchProfileByUsername(username: string) {
-    return await oxyClient.getProfileByUsername(username);
-  },
-
-  async updateUserProfile(updates: any) {
-    return await oxyClient.updateProfile(updates);
-  }
-};
-```
-
-### 3. Mixed Usage (Hooks + Direct Client)
-
-You can use both hooks and the direct client in the same Expo app:
-
-```typescript
-// App.tsx - React Native setup
-import { OxyProvider } from '@oxy.so/services';
-
-function App() {
-  return (
-    <OxyProvider baseURL="https://api.oxy.so">
-      <YourApp />
-    </OxyProvider>
-  );
-}
-
-// utils/api.ts - Direct import
-import { oxyClient } from '@oxy.so/core';
-
-export const apiUtils = {
-  async fetchData() {
-    return await oxyClient.getCurrentUser();
-  }
-};
-
-// Component.tsx - React Native hook
+// Component.tsx
 import { useOxy } from '@oxy.so/services';
 
 function Component() {
   const { oxyServices } = useOxy();
-  // Both oxyServices and oxyClient share the same tokens
+  const api = userUtils(oxyServices);
 }
 ```
 
@@ -325,15 +292,12 @@ function Component() {
 
 ```typescript
 import {
-  OxyServices,           // Main service class
-  oxyClient,            // Pre-configured instance
-  OXY_CLOUD_URL,        // Default API URL
-  OxyAuthenticationError,
-  OxyAuthenticationTimeoutError,
-  KeyManager,
-  SignatureService,
-  RecoveryPhraseService
+  OxyServices,           // The client (namespaces: users, assets, follows, …)
+  OxyApiError,           // What every call rejects with
+  OXY_API_URL,
+  OXY_CLOUD_URL,
 } from '@oxy.so/core';
+import { KeyManager, SignatureService, RecoveryPhraseService } from '@oxy.so/core/crypto';
 ```
 
 ### React Native Exports (from @oxy.so/services)
@@ -349,77 +313,67 @@ import {
 } from '@oxy.so/services';
 ```
 
-### OxyServices Methods
+### OxyServices Namespaces
 
 ```typescript
-// Authentication (Public Key Based)
-await oxyClient.register(publicKey, username, signature, timestamp, email?);
-await oxyClient.requestChallenge(publicKey);
-await oxyClient.verifyChallenge(publicKey, challenge, signature, timestamp, deviceName?, deviceFingerprint?);
-await oxyClient.checkPublicKeyRegistered(publicKey);
-await oxyClient.getUserByPublicKey(publicKey);
+const { oxyServices: oxy } = useOxy();
 
-// User Management
-const user = await oxyClient.getCurrentUser();                    // Get current user
-const userById = await oxyClient.getUserById('user123');          // Get user by ID
-const profileByUsername = await oxyClient.getProfileByUsername('john_doe'); // Get profile by username
-await oxyClient.updateProfile({ name: 'John Doe' });             // Update current user
-await oxyClient.updateUser('user123', { name: 'John' });         // Update user by ID (admin)
+// Authentication (public-key based)
+await oxy.auth.registerKey(publicKey, signature, timestamp);
+await oxy.auth.requestChallenge(publicKey);
+await oxy.auth.verifyChallenge(publicKey, challenge, signature, timestamp);
+await oxy.auth.isKeyRegistered(publicKey);
 
-// Session Management
-const userBySession = await oxyClient.getUserBySession('session123'); // Get user by session
-const sessions = await oxyClient.getSessionsBySessionId('session123'); // Get all sessions
-await oxyClient.logoutSession('session123');                     // Logout specific session
-await oxyClient.logoutAllSessions('session123');                 // Logout all sessions
+// Users
+const me = await oxy.users.me();
+const user = await oxy.users.get('user123');
+const profile = await oxy.users.byUsername('john_doe');
+const owner = await oxy.users.byPublicKey(publicKey);
+await oxy.users.updateMe({ name: { first: 'John' } });
 
-// Social Features
-await oxyClient.followUser('user123');                           // Follow user
-await oxyClient.unfollowUser('user123');                         // Unfollow user
-const followStatus = await oxyClient.getFollowStatus('user123'); // Check follow status
-const followers = await oxyClient.getUserFollowers('user123');   // Get user followers
-const following = await oxyClient.getUserFollowing('user123');   // Get user following
+// Sessions
+const sessionUser = await oxy.users.bySession('session123');
+const sessions = await oxy.session.list('session123');
+await oxy.session.logout('session123');
+await oxy.session.logoutAll('session123');
+
+// Follows
+await oxy.follows.follow('user123');
+await oxy.follows.unfollow('user123');
+const { isFollowing } = await oxy.follows.status('user123');
+const { followers } = await oxy.follows.followers('user123');
+const { following } = await oxy.follows.following('user123');
 
 // Notifications
-const { notifications } = await oxyClient.getNotifications();    // Get notifications
-const unreadCount = await oxyClient.getUnreadCount();            // Get unread count
-await oxyClient.markNotificationAsRead('notification123');       // Mark as read
-await oxyClient.markAllNotificationsAsRead();                    // Mark all as read
-await oxyClient.deleteNotification('notification123');           // Delete notification
+const page = await oxy.notifications.list({ page: 1, limit: 20 });
+const unread = await oxy.notifications.unreadCount();
+await oxy.notifications.markRead('notification123');
+await oxy.notifications.markAllRead();
+await oxy.notifications.delete('notification123');
 
-// File Management
-const fileData = await oxyClient.uploadFile(file);                     // Upload file
-const file = await oxyClient.getFile('file123');                       // Get file info
-await oxyClient.deleteFile('file123');                                 // Delete file
-const downloadUrl = oxyClient.getFileDownloadUrl('file123', 'thumb'); // Get download/stream URL
-const userFiles = await oxyClient.listUserFiles('user123');            // List user files
+// Files
+const { file } = await oxy.assets.upload(blob, { visibility: 'public' });
+const { file: record } = await oxy.assets.get('file123');
+await oxy.assets.delete('file123');
+const thumbUrl = oxy.assets.publicUrl('file123', 'thumb');
+const { files } = await oxy.assets.list({ limit: 20 });
 
-// Payments
-const payment = await oxyClient.createPayment(paymentData);      // Create payment
-const paymentInfo = await oxyClient.getPayment('payment123');    // Get payment info
-const userPayments = await oxyClient.getUserPayments();          // Get user payments
+// Billing
+const payments = await oxy.billing.payments();
 
 // Trust
-showBottomSheet('TrustCenter');                                  // Trust center
-showBottomSheet('TrustLeaderboard');                             // Trust leaderboard
+showBottomSheet('TrustCenter');
+showBottomSheet('TrustLeaderboard');
 
-// Location Services
-await oxyClient.updateLocation(40.7128, -74.0060);              // Update location
-const nearby = await oxyClient.getNearbyUsers(1000);             // Get nearby users
-
-// Analytics
-await oxyClient.trackEvent('user_action', { action: 'click' });  // Track event
-const analytics = await oxyClient.getAnalytics('2024-01-01', '2024-01-31'); // Get analytics
-
-// Device Management
-await oxyClient.registerDevice(deviceData);                      // Register device
-const devices = await oxyClient.getUserDevices();                // Get user devices
-await oxyClient.removeDevice('device123');                       // Remove device
-const deviceSessions = await oxyClient.getDeviceSessions('session123'); // Get device sessions
-await oxyClient.logoutAllDeviceSessions('session123');           // Logout device sessions
-await oxyClient.updateDeviceName('session123', 'iPhone 15');     // Update device name
-
-// Utilities
+// Devices
+const devices = await oxy.devices.list();
+await oxy.devices.remove('device123');
+const deviceSessions = await oxy.devices.sessions('session123');
+await oxy.devices.logoutAll('session123');
+await oxy.devices.rename('session123', 'iPhone 15');
 ```
+
+The full namespace map is in `@oxy.so/core`'s docs (`packages/core/docs/api.mdx`).
 
 ### useOxy Hook
 
@@ -653,22 +607,12 @@ To integrate with react-i18next, i18n-js, next-intl, or other i18n libraries, se
 
 See the language utilities and `useOxy()` hook sections above for integration with your i18n system.
 
-### Using OxyServices (Non-React)
+### Outside React
 
-```typescript
-import { OxyServices } from '@oxy.so/core';
-
-const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-
-// Get current language code
-const languageCode = await oxy.getCurrentLanguage();
-
-// Get language name
-const languageName = await oxy.getCurrentLanguageName();
-
-// Get full metadata
-const metadata = await oxy.getCurrentLanguageMetadata();
-```
+The language lives in the provider (`useOxy().currentLanguage`). Outside React,
+use the plain helpers below with a locale you hold; `@oxy.so/core`'s
+`translate(locale, key)` serves its dictionaries, loading non-English ones on
+demand (`loadLocale`).
 
 ### Language Utilities
 
@@ -737,12 +681,12 @@ import 'react-native-url-polyfill/auto';
 ### Error Handling
 
 ```typescript
-import { OxyAuthenticationError } from '@oxy.so/core';
+import { OxyApiError } from '@oxy.so/core';
 
 try {
-  await oxyClient.getCurrentUser();
+  await oxyServices.users.me();
 } catch (error) {
-  if (error instanceof OxyAuthenticationError) {
+  if (error instanceof OxyApiError && error.status === 401) {
     // Handle authentication errors
     console.log('Auth error:', error.message);
   } else {
@@ -815,7 +759,7 @@ function UserDashboard() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      oxyServices.getUserFollowers(user.id).then(setFollowers);
+      oxyServices.follows.followers(user.id).then(({ followers }) => setFollowers(followers));
     }
   }, [isAuthenticated, user]);
 

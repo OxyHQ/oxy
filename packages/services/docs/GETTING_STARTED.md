@@ -138,26 +138,19 @@ export default function App() {
 ```typescript
 // server.ts
 import express from 'express';
-import { oxyClient } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 
 const app = express();
 app.use(express.json());
+const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
 
-// Authentication endpoint
-app.post('/api/auth/signin', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    const session = await oxyClient.signIn(username, password);
-    res.json(session);
-  } catch (error: any) {
-    res.status(401).json({ error: error.message });
-  }
-});
+// Sign-in happens in the client; the backend verifies the bearer it sends.
+app.use('/api', oxy.middleware.auth({ optional: true }));
 
 // Get user profile
 app.get('/api/users/:id', async (req, res) => {
   try {
-    const user = await oxyClient.getUserById(req.params.id);
+    const user = await oxy.users.get(req.params.id);
     res.json(user);
   } catch (error: any) {
     res.status(404).json({ error: error.message });
@@ -182,11 +175,10 @@ Oxy ships with two entry points. Pick the one that matches your environment so t
 
 ### Backend (Node.js, serverless, API routes)
 
-- **Import path:** `import { oxyClient, OxyServices } from '@oxy.so/core';`
-- The `@oxy.so/core` package contains only the TypeScript client—no React or React Native code—so it is safe for Node.js, Express, Next.js API routes, and serverless functions.
-- Use the preconfigured `oxyClient` for convenience, or instantiate your own `new OxyServices({ baseURL })` if you need custom configuration or multiple instances.
-- You can reuse tokens generated on the frontend (`OxyProvider`) by sending them to your backend via headers or cookies—the backend `oxyClient` understands the same token format.
-- The backend bundle also exposes helpers such as `oxyClient.auth()` for Express middleware.
+- **Import path:** `import { OxyServer } from '@oxy.so/core/server';`
+- `@oxy.so/core` contains no React or React Native code, so it is safe for Node.js, Express, Next.js API routes, and serverless functions.
+- A backend constructs ONE `new OxyServer({ baseURL })` (add `serviceAuth: { apiKey, apiSecret }` for service-token calls). It has every client namespace (`oxy.users.get`, …) plus `oxy.middleware.auth()` / `.socket()` / `.service()` for Express and Socket.IO.
+- The frontend (`OxyProvider`) sends its Oxy bearer to your backend; `oxy.middleware.auth()` verifies it — never parse tokens yourself.
 
 > **Tip:** In SSR frameworks (Next.js, Remix, etc.) import UI hooks/components from `@oxy.so/services` in client components and import `@oxy.so/core` anywhere that runs on the server (API routes, middleware, server components).
 
@@ -301,7 +293,7 @@ function UserProfile() {
   useEffect(() => {
     if (isAuthenticated && user) {
       // Fetch user followers
-      oxyServices.getUserFollowers(user.id)
+      oxyServices.follows.followers(user.id)
         .then(result => setFollowers(result.followers))
         .catch(error => console.error('Failed to fetch followers:', error));
     }
@@ -355,12 +347,12 @@ function AvatarUpload() {
         const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
 
         // Upload to Oxy
-        const uploaded = await oxyServices.uploadRawFile(file, 'public');
+        const uploaded = await oxyServices.assets.upload(file, { visibility: 'public' });
         console.log('Uploaded file:', uploaded);
 
         // Update user profile with new avatar
         if (user) {
-          await oxyServices.updateProfile({ avatar: uploaded.file.id });
+          await oxyServices.users.updateMe({ avatar: uploaded.file.id });
         }
       }
     } catch (error) {

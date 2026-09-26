@@ -47,7 +47,7 @@ export function useUsernameValidation(
 
       setIsChecking(true);
       try {
-        const result = await oxyServices.checkUsernameAvailability(username);
+        const result = await oxyServices.auth.checkUsername(username);
         setIsAvailable(result.available);
         if (!result.available) {
           setError(result.message || 'Username is already taken');

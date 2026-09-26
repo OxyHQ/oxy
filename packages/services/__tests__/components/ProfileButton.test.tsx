@@ -6,7 +6,7 @@ const openAccountDialog = jest.fn();
 let auth = { user: { id: 'viewer', username: 'ada', name: { displayName: 'Ada' } } as { id: string; username: string; name: { displayName: string } } | null,
   isAuthenticated: true, isAuthResolved: true, isPrivateApiPending: false, signIn };
 jest.mock('../../src/ui/hooks/useAuth', () => ({ useAuth: () => auth }));
-jest.mock('../../src/ui/context/OxyContext', () => ({ useOxy: () => ({ openAccountDialog, oxyServices: { getFileDownloadUrl: () => '' } }) }));
+jest.mock('../../src/ui/context/OxyContext', () => ({ useOxy: () => ({ openAccountDialog, oxyServices: { assets: { publicUrl: () => '' } } }) }));
 jest.mock('../../src/ui/hooks/useI18n', () => ({ useI18n: () => ({ locale: 'en', t: (key: string) => key }) }));
 jest.mock('../../src/ui/navigation/accountDialogManager', () => ({ registerAccountDialogConsumerHooks: () => () => {} }));
 jest.mock('react-native-css/components', () => jest.requireActual('../../__tests__/__mocks__/react-native'));

@@ -86,7 +86,7 @@ export function useLedgerBalance(accountId: string | undefined, enabled: boolean
   return useQuery({
     queryKey: queryKeys.balance(accountId ?? ''),
     queryFn: () =>
-      oxyServices.makeRequest<LedgerBalanceResponse>(
+      oxyServices.request<LedgerBalanceResponse>(
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/balance`,
         undefined,
@@ -130,7 +130,7 @@ export function useAccountUsageReport(
   return useQuery({
     queryKey: queryKeys.accountUsage(accountId ?? '', options.range, options.groupBy),
     queryFn: () =>
-      oxyServices.makeRequest<UsageReportResponse>(
+      oxyServices.request<UsageReportResponse>(
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/usage`,
         {
@@ -158,7 +158,7 @@ export function useApplicationUsageReport(
   return useQuery({
     queryKey: queryKeys.applicationUsage(applicationId ?? '', options.range, options.groupBy),
     queryFn: () =>
-      oxyServices.makeRequest<UsageReportResponse>(
+      oxyServices.request<UsageReportResponse>(
         'GET',
         `/inference/reporting/applications/${applicationId ?? ''}/usage`,
         {
@@ -208,7 +208,7 @@ export function useAccountSpendReport(
   return useQuery({
     queryKey: queryKeys.accountSpend(accountId ?? '', options.range, options.groupBy),
     queryFn: () =>
-      oxyServices.makeRequest<SpendReportResponse>(
+      oxyServices.request<SpendReportResponse>(
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/spend`,
         {
@@ -236,7 +236,7 @@ export function useApplicationSpendReport(
   return useQuery({
     queryKey: queryKeys.applicationSpend(applicationId ?? '', options.range, options.groupBy),
     queryFn: () =>
-      oxyServices.makeRequest<SpendReportResponse>(
+      oxyServices.request<SpendReportResponse>(
         'GET',
         `/inference/reporting/applications/${applicationId ?? ''}/spend`,
         {
@@ -288,7 +288,7 @@ export function usePendingReservations(
   return useQuery({
     queryKey: queryKeys.reservations(accountId ?? ''),
     queryFn: () =>
-      oxyServices.makeRequest<PendingReservationsResponse>(
+      oxyServices.request<PendingReservationsResponse>(
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/reservations`,
         { limit },
@@ -327,7 +327,7 @@ export function useSettledCharges(
   return useQuery({
     queryKey: queryKeys.charges(accountId ?? '', range),
     queryFn: () =>
-      oxyServices.makeRequest<SettledChargesResponse>(
+      oxyServices.request<SettledChargesResponse>(
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/charges`,
         { from: range.from, to: range.to, limit },
@@ -364,7 +364,7 @@ export function useBudgets(accountId: string | undefined, enabled: boolean = tru
   return useQuery({
     queryKey: queryKeys.budgets(accountId ?? ''),
     queryFn: () =>
-      oxyServices.makeRequest<BudgetsResponse>(
+      oxyServices.request<BudgetsResponse>(
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/spending-limits`,
         undefined,
@@ -401,7 +401,7 @@ export function useBudgetAlerts(
   return useQuery({
     queryKey: queryKeys.budgetAlerts(accountId ?? ''),
     queryFn: () =>
-      oxyServices.makeRequest<BudgetAlertsResponse>(
+      oxyServices.request<BudgetAlertsResponse>(
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/spending-limits/alerts`,
         { limit },
@@ -455,7 +455,7 @@ export function useCreateBudget() {
       input: CreateBudgetInput;
     }): Promise<Budget> =>
       oxyServices
-        .makeRequest<Budget>(
+        .request<Budget>(
           'POST',
           `/inference/reporting/accounts/${accountId}/spending-limits`,
           input,
@@ -496,7 +496,7 @@ export function useUpdateBudget() {
       input: UpdateBudgetInput;
     }): Promise<Budget> =>
       oxyServices
-        .makeRequest<Budget>(
+        .request<Budget>(
           'PATCH',
           `/inference/reporting/spending-limits/${budgetId}`,
           input,

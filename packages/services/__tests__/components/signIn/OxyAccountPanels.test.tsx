@@ -30,21 +30,31 @@ const BACKUP_CODES = Array.from({ length: 10 }, (_, i) => `abcd${i}-efgh${i}`);
 const apiError = (code: string, status = 401) => Object.assign(new Error(code), { code, status });
 
 const oxyServices = {
-  checkUsernameAvailability: jest.fn(async (_username: string) => ({ available: true, message: '' })),
-  startEmailVerification: jest.fn(async (_request: unknown) => ({ verificationId: 'v-1', expiresAt: 1_900_000_000_000 })),
-  confirmEmailVerification: jest.fn(async (_id: string, _code: string) => ({
-    ticket: TICKET,
-    expiresAt: 1_900_000_000_000,
-    username: null as string | null,
-  })),
-  signUp: jest.fn(async (_request: unknown): Promise<LoginSessionResult> => SESSION),
-  requestReauthEmailCode: jest.fn(async (_action: string) => ({ verificationId: 'r-1', expiresAt: 1_900_000_000_000 })),
-  deleteAccountWithEmailCode: jest.fn(async (_confirmText: string, _reauth: unknown) => ({ message: 'deleted' })),
-  setPassword: jest.fn(async (_request: unknown) => ({ success: true as const })),
-  enrollTotp: jest.fn(async () => ({ secret: 'JBSWY3DPEHPK3PXP', otpauthUri: 'otpauth://totp/Oxy:ada?secret=JBSWY3DPEHPK3PXP' })),
-  confirmTotp: jest.fn(async (_code: string, _reauth: unknown) => BACKUP_CODES),
-  regenerateTotpBackupCodes: jest.fn(async (_reauth: unknown) => BACKUP_CODES),
-  disableTotp: jest.fn(async (_reauth: unknown) => ({ success: true as const })),
+  auth: {
+    checkUsername: jest.fn(async (_username: string) => ({ available: true, message: '' })),
+    email: {
+      startVerification: jest.fn(async (_request: unknown) => ({ verificationId: 'v-1', expiresAt: 1_900_000_000_000 })),
+      confirmVerification: jest.fn(async (_id: string, _code: string) => ({
+        ticket: TICKET,
+        expiresAt: 1_900_000_000_000,
+        username: null as string | null,
+      })),
+    },
+    signUp: jest.fn(async (_request: unknown): Promise<LoginSessionResult> => SESSION),
+    requestReauthCode: jest.fn(async (_action: string) => ({ verificationId: 'r-1', expiresAt: 1_900_000_000_000 })),
+    password: {
+      set: jest.fn(async (_request: unknown) => ({ success: true as const })),
+    },
+    totp: {
+      enroll: jest.fn(async () => ({ secret: 'JBSWY3DPEHPK3PXP', otpauthUri: 'otpauth://totp/Oxy:ada?secret=JBSWY3DPEHPK3PXP' })),
+      confirm: jest.fn(async (_code: string, _reauth: unknown) => BACKUP_CODES),
+      regenerateBackupCodes: jest.fn(async (_reauth: unknown) => BACKUP_CODES),
+      disable: jest.fn(async (_reauth: unknown) => ({ success: true as const })),
+    },
+  },
+  users: {
+    deleteMe: jest.fn(async (_confirmText: string, _reauth: unknown) => ({ message: 'deleted' })),
+  },
 };
 const handleWebSession = jest.fn(async (_session: unknown) => undefined);
 const logout = jest.fn(async () => undefined);
@@ -128,25 +138,25 @@ describe('creating an account', () => {
     type('signup-username', 'ada');
     press('signup-username-continue');
     await screen.findByTestId('signup-email');
-    expect(oxyServices.checkUsernameAvailability).toHaveBeenCalledWith('ada');
+    expect(oxyServices.auth.checkUsername).toHaveBeenCalledWith('ada');
     expect(screen.getByText("You can add a password or an authenticator app later, in your account's security settings.")).toBeTruthy();
 
     type('signup-email', ' Ada@Example.com ');
     press('signup-email-continue');
     await screen.findByTestId('email-code');
-    expect(oxyServices.startEmailVerification).toHaveBeenCalledWith({ purpose: 'signup', email: 'ada@example.com' });
+    expect(oxyServices.auth.email.startVerification).toHaveBeenCalledWith({ purpose: 'signup', email: 'ada@example.com' });
     expect(screen.getByText('We sent a 6-digit code to ada@example.com.')).toBeTruthy();
 
     // Six digits submit by themselves.
     type('email-code', '123456');
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(oxyServices.confirmEmailVerification).toHaveBeenCalledWith('v-1', '123456');
-    expect(oxyServices.signUp).toHaveBeenCalledWith({ username: 'ada', email: 'ada@example.com', emailTicket: TICKET });
+    expect(oxyServices.auth.email.confirmVerification).toHaveBeenCalledWith('v-1', '123456');
+    expect(oxyServices.auth.signUp).toHaveBeenCalledWith({ username: 'ada', email: 'ada@example.com', emailTicket: TICKET });
     expect(handleWebSession).toHaveBeenCalledWith(SESSION);
   });
 
   it('stops at a taken username', async () => {
-    oxyServices.checkUsernameAvailability.mockResolvedValueOnce({ available: false, message: '' });
+    oxyServices.auth.checkUsername.mockResolvedValueOnce({ available: false, message: '' });
     render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
 
     type('signup-username', 'ada');
@@ -156,7 +166,7 @@ describe('creating an account', () => {
   });
 
   it('goes back to the username when it was taken meanwhile', async () => {
-    oxyServices.signUp.mockRejectedValueOnce(apiError('USERNAME_TAKEN', 409));
+    oxyServices.auth.signUp.mockRejectedValueOnce(apiError('USERNAME_TAKEN', 409));
     const onSignedIn = jest.fn();
     render(<OxySignUpPanel onSignedIn={onSignedIn} onSignIn={jest.fn()} />);
     type('signup-username', 'ada');
@@ -173,7 +183,7 @@ describe('creating an account', () => {
   });
 
   it('says a wrong code is wrong and stays on it', async () => {
-    oxyServices.confirmEmailVerification.mockRejectedValueOnce(apiError('EMAIL_CODE_INVALID'));
+    oxyServices.auth.email.confirmVerification.mockRejectedValueOnce(apiError('EMAIL_CODE_INVALID'));
     render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
     type('signup-username', 'ada');
     press('signup-username-continue');
@@ -184,7 +194,7 @@ describe('creating an account', () => {
     type('email-code', '000000');
 
     await waitFor(() => expect(alertText()).toBe("That code isn't right, or it has expired."));
-    expect(oxyServices.signUp).not.toHaveBeenCalled();
+    expect(oxyServices.auth.signUp).not.toHaveBeenCalled();
   });
 
   it('refuses an address that is not one', () => {
@@ -195,7 +205,7 @@ describe('creating an account', () => {
       type('signup-email', 'not-an-email');
       press('signup-email-continue');
       expect(alertText()).toBe('Enter a valid email address.');
-      expect(oxyServices.startEmailVerification).not.toHaveBeenCalled();
+      expect(oxyServices.auth.email.startVerification).not.toHaveBeenCalled();
     });
   });
 
@@ -254,18 +264,18 @@ describe('deleting an account without a key', () => {
     // Nothing is sent before the username is typed.
     press('reauth-send-code');
     expect(alertText()).toBe('Type "ada" to confirm');
-    expect(oxyServices.requestReauthEmailCode).not.toHaveBeenCalled();
+    expect(oxyServices.auth.requestReauthCode).not.toHaveBeenCalled();
 
     type('delete-account-confirm', 'ada');
     press('reauth-send-code');
     await screen.findByTestId('reauth-code');
-    expect(oxyServices.requestReauthEmailCode).toHaveBeenCalledWith('delete_account');
+    expect(oxyServices.auth.requestReauthCode).toHaveBeenCalledWith('delete_account');
 
     type('reauth-code', '123456');
     press('reauth-submit');
     await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
-    expect(oxyServices.deleteAccountWithEmailCode).toHaveBeenCalledWith('ada', {
-      emailCode: { verificationId: 'r-1', code: '123456' },
+    expect(oxyServices.users.deleteMe).toHaveBeenCalledWith('ada', {
+      reauth: { emailCode: { verificationId: 'r-1', code: '123456' } },
     });
     expect(logout).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Your account is deleted.')).toBeTruthy();
@@ -281,14 +291,13 @@ describe('deleting an account without a key', () => {
 
     press('reauth-submit');
     expect(alertText()).toBe('Enter the code from your authenticator app too.');
-    expect(oxyServices.deleteAccountWithEmailCode).not.toHaveBeenCalled();
+    expect(oxyServices.users.deleteMe).not.toHaveBeenCalled();
 
     type('reauth-totp', '654321');
     press('reauth-submit');
     await waitFor(() =>
-      expect(oxyServices.deleteAccountWithEmailCode).toHaveBeenCalledWith('ada', {
-        emailCode: { verificationId: 'r-1', code: '123456' },
-        totpCode: '654321',
+      expect(oxyServices.users.deleteMe).toHaveBeenCalledWith('ada', {
+        reauth: { emailCode: { verificationId: 'r-1', code: '123456' }, totpCode: '654321' },
       }),
     );
   });
@@ -301,7 +310,7 @@ describe('deleting an account without a key', () => {
   });
 
   it('keeps the account when the code is wrong', async () => {
-    oxyServices.deleteAccountWithEmailCode.mockRejectedValueOnce(apiError('REAUTH_INVALID'));
+    oxyServices.users.deleteMe.mockRejectedValueOnce(apiError('REAUTH_INVALID'));
     render(<OxyDeleteAccountPanel />);
     type('delete-account-confirm', 'ada');
     press('reauth-send-code');
@@ -332,12 +341,12 @@ describe('the password', () => {
     type('password-repeat', 'a long enough password');
     press('reauth-send-code');
     await screen.findByTestId('reauth-code');
-    expect(oxyServices.requestReauthEmailCode).toHaveBeenCalledWith('change_password');
+    expect(oxyServices.auth.requestReauthCode).toHaveBeenCalledWith('change_password');
     type('reauth-code', '123456');
     press('reauth-submit');
 
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
-    expect(oxyServices.setPassword).toHaveBeenCalledWith({
+    expect(oxyServices.auth.password.set).toHaveBeenCalledWith({
       newPassword: 'a long enough password',
       reauth: { emailCode: { verificationId: 'r-1', code: '123456' } },
       revokeOtherSessions: false,
@@ -356,7 +365,7 @@ describe('the password', () => {
     press('reauth-submit');
 
     await waitFor(() =>
-      expect(oxyServices.setPassword).toHaveBeenCalledWith({
+      expect(oxyServices.auth.password.set).toHaveBeenCalledWith({
         newPassword: 'a brand new password',
         reauth: { password: 'the old password' },
         revokeOtherSessions: true,
@@ -375,7 +384,7 @@ describe('the password', () => {
     type('password-repeat', 'a different long one');
     press('reauth-send-code');
     expect(alertText()).toBe("The passwords don't match.");
-    expect(oxyServices.requestReauthEmailCode).not.toHaveBeenCalled();
+    expect(oxyServices.auth.requestReauthCode).not.toHaveBeenCalled();
   });
 });
 
@@ -391,12 +400,12 @@ describe('the authenticator app', () => {
     type('totp-enroll-code', '123456');
     press('reauth-send-code');
     await screen.findByTestId('reauth-code');
-    expect(oxyServices.requestReauthEmailCode).toHaveBeenCalledWith('totp');
+    expect(oxyServices.auth.requestReauthCode).toHaveBeenCalledWith('totp');
     type('reauth-code', '111111');
     press('reauth-submit');
 
     const codes = await screen.findByTestId('totp-backup-codes');
-    expect(oxyServices.confirmTotp).toHaveBeenCalledWith('123456', { emailCode: { verificationId: 'r-1', code: '111111' } });
+    expect(oxyServices.auth.totp.confirm).toHaveBeenCalledWith('123456', { emailCode: { verificationId: 'r-1', code: '111111' } });
     expect(codes.textContent).toContain(BACKUP_CODES[0]);
     expect(invalidateQueries).toHaveBeenCalled();
 
@@ -423,7 +432,7 @@ describe('the authenticator app', () => {
     type('reauth-totp', '222222');
     press('reauth-submit');
     await screen.findByTestId('totp-backup-codes');
-    expect(oxyServices.regenerateTotpBackupCodes).toHaveBeenCalledWith({ password: 'pw', totpCode: '222222' });
+    expect(oxyServices.auth.totp.regenerateBackupCodes).toHaveBeenCalledWith({ password: 'pw', totpCode: '222222' });
     view.unmount();
 
     const onDone = jest.fn();
@@ -433,6 +442,6 @@ describe('the authenticator app', () => {
     type('reauth-totp', 'abcde-fgh23');
     press('reauth-submit');
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
-    expect(oxyServices.disableTotp).toHaveBeenCalledWith({ password: 'pw', totpCode: 'abcde-fgh23' });
+    expect(oxyServices.auth.totp.disable).toHaveBeenCalledWith({ password: 'pw', totpCode: 'abcde-fgh23' });
   });
 });

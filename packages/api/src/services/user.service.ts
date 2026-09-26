@@ -36,6 +36,8 @@ import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { getEquivalentUserIds, getEquivalentUserGroups, expandEquivalentUserIds, resolveCanonicalUserId, resolveExternalIdentityUsers } from './externalIdentityRegistry.service';
 import securityActivityService from './securityActivityService';
+import { followAccounts, removeAccountRelationships, unfollowAccounts } from './followCommand.service';
+import type { FollowEventCause } from '../db/schema/followEvents';
 import { sanitizeProfileUpdate } from '../utils/sanitize';
 import {
   normalizeLinks,
@@ -558,9 +560,9 @@ const PRIVACY_SETTING_PROPERTIES: Record<PrivacySettingKey, string> = {
 /**
  * The whole account, nested exactly as the Mongo document was.
  *
- * Two endpoints return the raw document rather than a DTO — `GET /users/me/data`
- * (the account-data download) and `PUT /users/resolve` (the federation upsert) —
- * and both are consumed by code that reads the document's OWN key names. The
+ * `PUT /users/resolve` (the federation upsert) returns the raw document rather
+ * than a DTO, and `req.user` is built from it; both are read by code that uses
+ * the document's OWN key names. The
  * schema is flat (`name_first`, `federation_domain`, `privacy_*`, …) and the
  * embedded arrays are child tables, so this is where both are put back.
  *
@@ -1600,16 +1602,18 @@ export class UserService {
   }
 
   /**
-   * Idempotently create a follow edge from `followerId` to `targetId`.
+   * Idempotently follow `targetId` as `followerId`.
    *
-   * `ON CONFLICT DO NOTHING ... RETURNING` is the atomic arbiter of
-   * "created vs already-following": a concurrent duplicate insert returns no
-   * row and is treated as a no-op. This replaces the E11000 catch entirely —
-   * the duplicate is no longer an error to classify, it is an empty result.
+   * Goes through the follow command (`followAccounts`), so the relationship,
+   * its `follow.created` event and the `user_follows` projection are written
+   * together — the account routes, MCP and the federation bridge share the one
+   * graph v2 follows write. "Already following" is judged on the account graph
+   * across equivalent identities, as every read does.
    */
   async followUser(
     followerId: string,
-    targetId: string
+    targetId: string,
+    options: { cause?: FollowEventCause; source?: 'app' | 'federation_inbound' } = {}
   ): Promise<FollowUserResult> {
     if (followerId === targetId) {
       throw new Error('Cannot follow yourself');
@@ -1620,45 +1624,22 @@ export class UserService {
     }
 
     if (await this.isFollowing(followerId, targetId)) return { created: false, counts: await this.readFollowCounts(targetId, followerId) };
-    const inserted = await getDb()
-      .insert(userFollows)
-      .values({ followerId, followedId: targetId })
-      .onConflictDoNothing()
-      .returning({ id: userFollows.id });
-
-    const created = inserted.length === 1;
-
-    if (created) {
-      // The follow edge changed both sides' cached graph: the follower's
-      // `followingIds`, and — because a follow can complete a bidirectional
-      // edge — either side's `mutualIds`. Invalidate BOTH (mutuals are
-      // symmetric) so the next `GET /users/me/graph` recomputes fresh truth.
-      // No-op when the edge already existed (nothing changed) or when Redis is
-      // unconfigured; invalidation errors are swallowed inside graphCache.
-      await Promise.all([
-        graphCache.invalidate(followerId),
-        graphCache.invalidate(targetId),
-      ]);
-      // `'graph'` — only the follow counts moved. Identity is untouched, so this
-      // is not broadcast to other backends; follows are far too frequent to put
-      // on a channel every Oxy service subscribes to.
-      userCache.invalidate(followerId, 'graph');
-      userCache.invalidate(targetId, 'graph');
-    }
+    const { created } = await followAccounts({ followerId, followedIds: [targetId], ...options });
 
     const counts = await this.readFollowCounts(targetId, followerId);
-    return { created, counts };
+    return { created: created.length > 0, counts };
   }
 
   /**
-   * Idempotently remove a follow edge from `followerId` to `targetId`.
-   *
-   * `DELETE ... RETURNING` reports whether a row was actually removed, so
-   * unfollowing an edge that does not exist is a safe no-op.
+   * Idempotently unfollow `targetId` as `followerId` (every equivalent identity
+   * of both), through the follow command (`unfollowAccounts`): the
+   * relationships go with a `follow.removed` event each, and the projection
+   * with them. Unfollowing an edge that does not exist is a safe no-op.
    */
   async unfollowUser(
     followerId: string,
-    targetId: string
+    targetId: string,
+    options: { cause?: FollowEventCause } = {}
   ): Promise<UnfollowUserResult> {
     if (followerId === targetId) {
       throw new Error('Cannot follow yourself');
@@ -1668,33 +1649,10 @@ export class UserService {
       throw new Error('User not found');
     }
 
-    const deleted = await getDb()
-      .delete(userFollows)
-      .where(
-        and(
-          inArray(userFollows.followerId, await getEquivalentUserIds(followerId)),
-          inArray(userFollows.followedId, await getEquivalentUserIds(targetId))
-        )
-      )
-      .returning({ id: userFollows.id });
-
-    const removed = deleted.length > 0;
-
-    if (removed) {
-      // Symmetric to followUser: removing the edge changed the follower's
-      // `followingIds` and can break a bidirectional edge, so invalidate BOTH
-      // sides' cached graph. No-op when no edge was actually removed.
-      await Promise.all([
-        graphCache.invalidate(followerId),
-        graphCache.invalidate(targetId),
-      ]);
-      // Counts only — not broadcast. See `followUser`.
-      userCache.invalidate(followerId, 'graph');
-      userCache.invalidate(targetId, 'graph');
-    }
+    const { removed } = await unfollowAccounts({ followerId, followedIds: [targetId], ...options });
 
     const counts = await this.readFollowCounts(targetId, followerId);
-    return { removed, counts };
+    return { removed: removed.length > 0, counts };
   }
 
   /**
@@ -1772,36 +1730,13 @@ export class UserService {
     const racedDuplicateIds = new Set<string>();
 
     if (toInsertIds.length > 0) {
-      // ONE insert. A row that lost a concurrency race simply does not come
-      // back from RETURNING — no error to classify, no write-error index to map.
-      const inserted = await db
-        .insert(userFollows)
-        .values(toInsertIds.map((followedId) => ({ followerId: currentUserId, followedId })))
-        .onConflictDoNothing()
-        .returning({ followedId: userFollows.followedId });
-
-      newlyFollowedIds = inserted.map((row) => row.followedId);
+      // ONE command for the whole batch (one transaction, set-based writes).
+      // A row that lost a concurrency race simply does not come back as
+      // created — no error to classify. Caches are invalidated inside.
+      newlyFollowedIds = (await followAccounts({ followerId: currentUserId, followedIds: toInsertIds })).created;
       const newlySet = new Set(newlyFollowedIds);
       for (const id of toInsertIds) {
         if (!newlySet.has(id)) racedDuplicateIds.add(id);
-      }
-    }
-
-    if (newlyFollowedIds.length > 0) {
-      // The batch changed the viewer's `followingIds` and can complete
-      // bidirectional edges, so invalidate the viewer plus every newly-followed
-      // target's cached graph (mutuals are symmetric). Only the ids whose edge
-      // actually changed are invalidated.
-      await Promise.all([
-        graphCache.invalidate(currentUserId),
-        ...newlyFollowedIds.map((id) => graphCache.invalidate(id)),
-      ]);
-      // Counts only — not broadcast. See `followUser`. This is the site the
-      // suppression exists for: one bulk call moves up to 200 edges, which
-      // would otherwise be a 200-message burst every subscriber discards.
-      userCache.invalidate(currentUserId, 'graph');
-      for (const id of newlyFollowedIds) {
-        userCache.invalidate(id, 'graph');
       }
     }
 
@@ -1848,31 +1783,10 @@ export class UserService {
       return { results: [], unfollowedCount: 0 };
     }
 
-    const deleted = await getDb()
-      .delete(userFollows)
-      .where(
-        and(
-          inArray(userFollows.followerId, await getEquivalentUserIds(currentUserId)),
-          inArray(userFollows.followedId, await expandEquivalentUserIds(candidateIds))
-        )
-      )
-      .returning({ followedId: userFollows.followedId });
-
-    const actuallyRemovedIds = deleted.map((row) => row.followedId);
-
-    if (actuallyRemovedIds.length > 0) {
-      // Symmetric to bulkFollow: invalidate the viewer plus every target
-      // whose edge was actually removed (mutuals are symmetric).
-      await Promise.all([
-        graphCache.invalidate(currentUserId),
-        ...actuallyRemovedIds.map((id) => graphCache.invalidate(id)),
-      ]);
-      // Counts only — not broadcast. See `bulkFollow`.
-      userCache.invalidate(currentUserId, 'graph');
-      for (const id of actuallyRemovedIds) {
-        userCache.invalidate(id, 'graph');
-      }
-    }
+    // ONE command: the relationships (with their events) and the projection,
+    // in one transaction. `removed` names exactly the edges THIS call deleted.
+    // Caches are invalidated inside.
+    const actuallyRemovedIds = (await unfollowAccounts({ followerId: currentUserId, followedIds: candidateIds })).removed;
 
     const removedSet = new Set(await expandEquivalentUserIds(actuallyRemovedIds));
     const results: BulkUnfollowEntry[] = candidateIds.map((userId) => ({
@@ -1899,6 +1813,10 @@ export class UserService {
     userId: string,
     db: DatabaseOrTransaction = getDb()
   ): Promise<{ followEdgesRemoved: number }> {
+
+    // The relationships behind the projection go too, with their events, so
+    // the v2 graph never keeps a follow the account graph just dropped.
+    await removeAccountRelationships(db, userId);
 
     const removedEdges = await db
       .delete(userFollows)

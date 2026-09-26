@@ -7,7 +7,7 @@
  * referentially transparent given that input.
  */
 
-import { jwtDecode } from 'jwt-decode';
+import { decodeTokenClaims } from './tokenClaims';
 
 /**
  * Minimal JWT payload shape we read for cache scoping. The identity discriminator
@@ -82,12 +82,8 @@ export function computeIdentityTag(accessToken: string | null): string {
   if (!accessToken) {
     return ANON_IDENTITY;
   }
-  try {
-    const decoded = jwtDecode<CacheIdentityJwtPayload>(accessToken);
-    return decoded.userId || decoded.id || `t${fnv1a32(accessToken)}`;
-  } catch {
-    // Undecodable token — still partition it away from anon and from other
-    // tokens via a hash. Never silently fall back to ANON_IDENTITY.
-    return `t${fnv1a32(accessToken)}`;
-  }
+  const decoded = decodeTokenClaims(accessToken);
+  // An undecodable token is still partitioned away from anon and from other
+  // tokens via a hash — never silently ANON_IDENTITY.
+  return (decoded?.userId as string | undefined) || (decoded?.id as string | undefined) || `t${fnv1a32(accessToken)}`;
 }

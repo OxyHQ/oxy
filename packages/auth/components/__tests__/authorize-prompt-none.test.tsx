@@ -192,14 +192,22 @@ let mcpConsentRequired = false
 let renderedConsentProps: OxyConsentScreenProps | null = null
 
 const oxyServices = {
-  getAccessToken: () => sessionState.accessToken,
-  startCommonsSignIn: mock(async () => ({
-    sessionToken: "unused",
-    authorizeCode: "unused",
-    qrPayload: "unused",
-    expiresAt: Date.now() + 60_000,
-    status: "pending",
-  })),
+  session: {
+    get accessToken() {
+      return sessionState.accessToken
+    },
+  },
+  auth: {
+    commons: {
+      start: mock(async () => ({
+        sessionToken: "unused",
+        authorizeCode: "unused",
+        qrPayload: "unused",
+        expiresAt: Date.now() + 60_000,
+        status: "pending",
+      })),
+    },
+  },
 }
 
 /**
@@ -366,7 +374,7 @@ describe("AuthorizePage — resource-bound MCP OAuth", () => {
     fetchMock.mockClear()
     deliverOAuthResult.mockClear()
     postMessage.mockClear()
-    oxyServices.startCommonsSignIn.mockClear()
+    oxyServices.auth.commons.start.mockClear()
     sessionState = SIGNED_IN
     mcpConsentRequired = false
     renderedConsentProps = null
@@ -429,7 +437,7 @@ describe("AuthorizePage — resource-bound MCP OAuth", () => {
       accountId: NATE_CONTEXT.accountId,
     })
     expect(calls.some((call) => call.url.includes("/auth/oauth/"))).toBe(false)
-    expect(oxyServices.startCommonsSignIn).not.toHaveBeenCalled()
+    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled()
     expect(deliverOAuthResult).toHaveBeenCalledTimes(1)
     expect((deliverOAuthResult.mock.calls[0]?.[0] as DeliverInput).result).toEqual({
       kind: "code",
@@ -545,7 +553,7 @@ async function renderAuthorize(params: Record<string, string | undefined>) {
 function expectNothingHappened(container: HTMLElement): void {
   // No work: the refusal is decided before any client lookup or consent probe.
   expect(fetchMock).not.toHaveBeenCalled()
-  expect(oxyServices.startCommonsSignIn).not.toHaveBeenCalled()
+  expect(oxyServices.auth.commons.start).not.toHaveBeenCalled()
   // Nothing delivered: no code, no OAuth error, no navigation, no relay.
   expect(deliverOAuthResult).not.toHaveBeenCalled()
   expect(harness.location.href).toBe("")
@@ -566,7 +574,7 @@ describe("AuthorizePage — a request that asks for prompt=none", () => {
     fetchMock.mockClear()
     deliverOAuthResult.mockClear()
     postMessage.mockClear()
-    oxyServices.startCommonsSignIn.mockClear()
+    oxyServices.auth.commons.start.mockClear()
     sessionState = NO_SESSION
     harness.opener = null
     harness.location = { href: "" }

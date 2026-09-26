@@ -1,16 +1,8 @@
 import type { DeviceDirectory, DeviceSessionState } from '@oxy.so/contracts';
-import type { ClientSession, DeviceContext, User } from '@oxy.so/core';
-import {
-  accountIdsOf,
-  activeSessionIdOf,
-  activeUserOf,
-  deviceStateToClientSessions,
-  mergeSessions as mergeSessionLists,
-  normalizeAndSortSessions,
-  normalizeUserIdentity,
-  resolveActiveContext,
-  sessionsArraysEqual,
-} from '@oxy.so/core';
+import type { ClientSession, User } from '@oxy.so/core';
+import type { DeviceContext } from '@oxy.so/core/session';
+import { accountIdsOf, activeSessionIdOf, activeUserOf, deviceStateToClientSessions, resolveActiveContext } from '@oxy.so/core/session';
+import { mergeSessions as mergeSessionLists, normalizeAndSortSessions, normalizeUserIdentity, sessionsArraysEqual } from '@oxy.so/core';
 import type { IdentitySessionBinding } from '../session/identityBinding';
 import type { OxyRuntimeSnapshot, OxyRuntimeStatus, OxyTokenStatus } from './types';
 
@@ -36,8 +28,8 @@ export interface SubjectTransition {
  * pretends to implement.
  */
 export interface RuntimeClient {
-  getAccessToken(): string | null;
-  getUsersByIds(ids: string[]): Promise<User[]>;
+  session: { readonly accessToken: string | null };
+  users: { getMany(ids: string[]): Promise<User[]> };
 }
 
 export interface RuntimeSessionClient {
@@ -257,7 +249,7 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     error: null,
     storageReady: false,
     tokenReady: true,
-    hasAccessToken: Boolean(oxyServices.getAccessToken()),
+    hasAccessToken: Boolean(oxyServices.session.accessToken),
     authResolved: false,
     switching: false,
   };
@@ -423,7 +415,7 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     const ids = accountIdsOf(state);
     let users: User[] = [];
     try {
-      users = ids.length > 0 ? await oxyServices.getUsersByIds(ids) : [];
+      users = ids.length > 0 ? await oxyServices.users.getMany(ids) : [];
     } catch (fetchError) {
       logger('Failed to resolve account profiles during the device projection', fetchError);
       return;

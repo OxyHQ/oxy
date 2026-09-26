@@ -9,7 +9,7 @@ interface AvatarUserShape {
 /**
  * Resolves the thumbnail download URL for a user's avatar file id.
  *
- * Consolidates the identical `getFileDownloadUrl(user.avatar, 'thumb')` memo
+ * Consolidates the identical `assets.publicUrl(user.avatar, 'thumb')` memo
  * that was copy-pasted into the home, about-identity, authorize, and search
  * screens. Returns `undefined` when the user has no avatar or the services
  * client is not yet available.
@@ -26,7 +26,7 @@ export function useAvatarUrl(
 
   return useMemo(() => {
     if (avatar && oxyServices) {
-      return oxyServices.getFileDownloadUrl(avatar, variant);
+      return oxyServices.assets.publicUrl(avatar, variant);
     }
     return undefined;
   }, [avatar, oxyServices, variant]);

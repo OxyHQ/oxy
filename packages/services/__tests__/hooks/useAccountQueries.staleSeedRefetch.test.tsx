@@ -63,8 +63,7 @@ describe('useUserByUsername stale-seed refetch under refetchOnMount:false', () =
     const getProfileByUsername = jest.fn(async () => FULL_PROFILE);
     mockState = {
       oxyServices: {
-        getUserById: jest.fn(async () => SPARSE_SEED),
-        getProfileByUsername,
+        users: { get: jest.fn(async () => SPARSE_SEED), byUsername: getProfileByUsername },
       },
       // Anonymous viewer — the by-username key's viewer scope is '' here, which
       // is exactly where a pre-session precache seeds.
@@ -107,8 +106,7 @@ describe('useUserByUsername stale-seed refetch under refetchOnMount:false', () =
     const getProfileByUsername = jest.fn(async () => FULL_PROFILE);
     mockState = {
       oxyServices: {
-        getUserById: jest.fn(async () => SPARSE_SEED),
-        getProfileByUsername,
+        users: { get: jest.fn(async () => SPARSE_SEED), byUsername: getProfileByUsername },
       },
       user: null,
     };

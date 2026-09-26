@@ -2,7 +2,7 @@
  * Utility functions for error handling in identity operations
  */
 
-import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core';
+import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
 
 /**
  * Thrown by the create/import preflight when the identity KEYS are absent but an

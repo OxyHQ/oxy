@@ -69,7 +69,7 @@ export default function RootLayout() {
 function AppImageResolver({ children }: { children: ReactNode }) {
   const { oxyServices } = useOxy();
   return (
-    <ImageResolverProvider value={(id, variant) => oxyServices.getFileDownloadUrl(id, variant ?? 'thumb')}>
+    <ImageResolverProvider value={(id, variant) => oxyServices.assets.publicUrl(id, variant ?? 'thumb')}>
       {children}
     </ImageResolverProvider>
   );

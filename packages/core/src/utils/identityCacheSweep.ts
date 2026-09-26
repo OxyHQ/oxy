@@ -47,7 +47,7 @@
  * refetch; under-eviction serves wrong data.
  *
  * Platform-neutral by construction (no imports, no `OxyServices` reference) so
- * the client mixins and the Node-only `@oxy.so/core/server` invalidation
+ * the client namespaces and the Node-only `@oxy.so/core/server` invalidation
  * subscriber can share it without either pulling in the other.
  */
 
@@ -56,8 +56,7 @@
  * structurally so this module stays free of any client import.
  */
 export interface OxyIdentityCacheEvictor {
-  clearCacheEntry(key: string): void;
-  clearCacheByPrefix(prefix: string): number;
+  invalidateCache(spec: { keys?: readonly string[]; prefixes?: readonly string[] }): number;
 }
 
 /**
@@ -69,8 +68,6 @@ export const OXY_IDENTITY_CACHE_PREFIXES: readonly string[] = [
   'GET:/session/user/',
   // `getCurrentUser` (and `GET:/users/me/graph`, harmlessly included).
   'GET:/users/me',
-  // `lookupUsername` — the pre-session login lookup; carries avatar + display name.
-  'GET:/auth/lookup/',
   // `getProfileByUsername` — keyed by handle, including the pre-rename handle.
   'GET:/profiles/username/',
   // `resolveProfile` — keyed by fediverse handle in the query payload.
@@ -94,11 +91,9 @@ export function oxyUserByIdCacheKey(userId: string): string {
  *                 that does not know the id still clears every handle-, session-
  *                 and self-keyed entry, which is the majority of the surface.
  */
-export function evictOxyIdentityCache(oxy: OxyIdentityCacheEvictor, userId?: string): void {
-  for (const prefix of OXY_IDENTITY_CACHE_PREFIXES) {
-    oxy.clearCacheByPrefix(prefix);
-  }
-  if (userId) {
-    oxy.clearCacheEntry(oxyUserByIdCacheKey(userId));
-  }
+export function evictOxyIdentityCache(http: OxyIdentityCacheEvictor, userId?: string): void {
+  http.invalidateCache({
+    prefixes: OXY_IDENTITY_CACHE_PREFIXES,
+    keys: userId ? [oxyUserByIdCacheKey(userId)] : [],
+  });
 }

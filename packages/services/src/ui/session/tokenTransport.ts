@@ -1,4 +1,5 @@
-import { logger, type OxyServices, type TokenTransport } from '@oxy.so/core';
+import { logger, type OxyServices } from '@oxy.so/core';
+import type { TokenTransport } from '@oxy.so/core/session';
 import type { DeviceSessionState } from '@oxy.so/contracts';
 
 /**
@@ -8,7 +9,7 @@ import type { DeviceSessionState } from '@oxy.so/contracts';
  * push arrived WITHOUT an embedded `activeToken` and the planted bearer does not
  * already belong to the state's active account. It mints one through the ONE
  * unified single-flight the scheduler, the request-time preflight, and the 401
- * retry all use — `oxyServices.httpService.refreshAccessToken(...)` — which runs
+ * retry all use — `oxyServices.http.refreshAccessToken(...)` — which runs
  * the installed refresh handler (present the persisted zero-cookie `deviceId` +
  * `deviceSecret` at `POST /session/device/token`, which mints for the device's
  * CURRENT active account). Routing through the SAME entry point means this lane
@@ -45,7 +46,7 @@ export function createTokenTransport(
         // active account. `getCurrentUserId()` decodes the bearer's `userId`/`id`
         // (null when absent/opaque), directly comparable to the account id.
         const activeAccountId = state.activeAccountId;
-        if (activeAccountId !== null && oxyServices.getCurrentUserId() === activeAccountId) {
+        if (activeAccountId !== null && oxyServices.session.userId === activeAccountId) {
           return;
         }
       } catch (error) {
@@ -55,7 +56,7 @@ export function createTokenTransport(
       try {
         // The shared HttpService single-flight coalesces concurrent callers onto
         // one in-flight mint; no local `inFlightMint` guard is needed.
-        const token = await oxyServices.httpService.refreshAccessToken('preflight');
+        const token = await oxyServices.http.refreshAccessToken('preflight');
         if (!token) {
           logger.debug('ensureActiveToken: refresh produced no session', {
             component: 'TokenTransport',

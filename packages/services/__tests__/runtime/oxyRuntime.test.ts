@@ -111,8 +111,8 @@ function buildHarness(options: HarnessOptions = {}): Harness {
   let releaseProfiles = (): void => undefined;
 
   const oxyServices: RuntimeClient = {
-    getAccessToken: () => bearer.current,
-    getUsersByIds: (ids) => {
+    session: { get accessToken() { return (() => bearer.current)(); } },
+    users: { getMany: (ids) => {
       profileFetches.push([...ids]);
       const users = ids.map(buildUser);
       if (!options.deferProfiles) {
@@ -121,7 +121,7 @@ function buildHarness(options: HarnessOptions = {}): Harness {
       return new Promise<User[]>((resolve) => {
         releaseProfiles = () => resolve(users);
       });
-    },
+    } },
   };
 
   const calls = { activate: [] as string[], signOutContext: [] as string[], signOutPrincipal: [] as string[] };

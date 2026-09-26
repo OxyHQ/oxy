@@ -82,33 +82,33 @@ describe('mapSessionsToClient', () => {
 describe('fetchSessionsWithFallback', () => {
   it('returns mapped device sessions on the happy path', async () => {
     const oxy = {
-      getDeviceSessions: jest.fn().mockResolvedValue([{ sessionId: 's1', userId: 'u1' }]),
-      getSessionsBySessionId: jest.fn(),
+      devices: { sessions: jest.fn().mockResolvedValue([{ sessionId: 's1', userId: 'u1' }]) },
+      session: { list: jest.fn() },
     };
     const result = await fetchSessionsWithFallback(oxy, 's1');
-    expect(oxy.getDeviceSessions).toHaveBeenCalledWith('s1');
-    expect(oxy.getSessionsBySessionId).not.toHaveBeenCalled();
+    expect(oxy.devices.sessions).toHaveBeenCalledWith('s1');
+    expect(oxy.session.list).not.toHaveBeenCalled();
     expect(result).toHaveLength(1);
     expect(result[0].sessionId).toBe('s1');
   });
 
   it('falls back to getSessionsBySessionId when device endpoint throws', async () => {
     const oxy = {
-      getDeviceSessions: jest.fn().mockRejectedValue(new Error('404')),
-      getSessionsBySessionId: jest.fn().mockResolvedValue([
+      devices: { sessions: jest.fn().mockRejectedValue(new Error('404')) },
+      session: { list: jest.fn().mockResolvedValue([
         { sessionId: 's1', userId: 'u1' },
         { sessionId: 's2', userId: 'u1' },
-      ]),
+      ]) },
     };
     const result = await fetchSessionsWithFallback(oxy, 's1', { fallbackUserId: 'u1' });
-    expect(oxy.getSessionsBySessionId).toHaveBeenCalledWith('s1');
+    expect(oxy.session.list).toHaveBeenCalledWith('s1');
     expect(result.map((s) => s.sessionId)).toEqual(['s1', 's2']);
   });
 
   it('propagates rejection from the fallback endpoint', async () => {
     const oxy = {
-      getDeviceSessions: jest.fn().mockRejectedValue(new Error('device down')),
-      getSessionsBySessionId: jest.fn().mockRejectedValue(new Error('user down')),
+      devices: { sessions: jest.fn().mockRejectedValue(new Error('device down')) },
+      session: { list: jest.fn().mockRejectedValue(new Error('user down')) },
     };
     await expect(fetchSessionsWithFallback(oxy, 's1')).rejects.toThrow('user down');
   });

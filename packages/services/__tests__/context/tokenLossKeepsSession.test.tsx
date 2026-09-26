@@ -9,13 +9,12 @@
  * back. It now keeps the user, pauses private queries, and re-mints the way the
  * cold boot would; it still signs out when the credential is gone.
  *
- * Harness copied from `oxyClientTokenSync.test.tsx` (real provider, real core,
- * offline session client).
+ * Real provider, real core, offline session client.
  */
 
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { oxyClient, type User } from '@oxy.so/core';
+import type { User } from '@oxy.so/core';
 
 // Neutralize the mount-time network effects so the provider settles
 // deterministically without a backend. Forcing the cold boot onto the native
@@ -63,8 +62,6 @@ jest.mock('../../src/ui/session', () => {
 import { OxyRuntimeProvider, useOxy, type OxyContextState } from '../../src/ui/context/OxyContext';
 import { useAuthStore } from '../../src/ui/stores/authStore';
 
-const SIGNED_OUT_TOKEN_VALUE = oxyClient.getAccessToken();
-
 /**
  * Captures the live context so the test can drive the provider's OWN
  * OxyServices instance the way the real auth flows do.
@@ -92,8 +89,7 @@ const renderProvider = (sink: { current: OxyContextState | null }): RenderResult
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      {/* Only baseURL is passed — the reproduction case. The provider builds
-          its own instance distinct from the exported singleton. */}
+      {/* Only baseURL is passed: the provider builds its own instance. */}
       <OxyRuntimeProvider baseURL="https://api.oxy.so">
         <Capture sink={sink} />
       </OxyRuntimeProvider>
@@ -103,7 +99,6 @@ const renderProvider = (sink: { current: OxyContextState | null }): RenderResult
 
 describe('OxyRuntimeProvider after its access token is cleared', () => {
   afterEach(() => {
-    oxyClient.clearTokens();
     useAuthStore.getState().logout();
     mockHasDeviceCredential = true;
     jest.restoreAllMocks();
@@ -117,23 +112,23 @@ describe('OxyRuntimeProvider after its access token is cleared', () => {
     const user = { id: 'user_transient', username: 'still-me' } as User;
 
     act(() => {
-      providerInstance.setTokens('access-before-transient-loss');
+      providerInstance.session.setAccessToken('access-before-transient-loss');
       useAuthStore.getState().loginSuccess(user);
     });
     await waitFor(() => expect(requireContext(sink).canUsePrivateApi).toBe(true));
 
     // The mint is cooling down (rate limited) for the first attempt, then works.
     const refresh = jest
-      .spyOn(providerInstance.httpService, 'refreshAccessToken')
+      .spyOn(providerInstance.http, 'refreshAccessToken')
       .mockResolvedValueOnce(null)
       .mockImplementation(async () => {
-        providerInstance.setTokens('access-reminted');
+        providerInstance.session.setAccessToken('access-reminted');
         return 'access-reminted';
       });
 
     // What HttpService does on a 401 whose refresh came back empty.
     act(() => {
-      providerInstance.clearTokens();
+      providerInstance.session.clear();
     });
 
     // Still signed in, private API paused rather than failing.
@@ -141,7 +136,7 @@ describe('OxyRuntimeProvider after its access token is cleared', () => {
     await waitFor(() => expect(requireContext(sink).isPrivateApiPending).toBe(true));
     expect(requireContext(sink).canUsePrivateApi).toBe(false);
 
-    await waitFor(() => expect(providerInstance.getAccessToken()).toBe('access-reminted'), { timeout: 5_000 });
+    await waitFor(() => expect(providerInstance.session.accessToken).toBe('access-reminted'), { timeout: 5_000 });
     await waitFor(() => expect(requireContext(sink).canUsePrivateApi).toBe(true));
     expect(requireContext(sink).isAuthenticated).toBe(true);
     expect(requireContext(sink).user?.id).toBe('user_transient');
@@ -156,14 +151,14 @@ describe('OxyRuntimeProvider after its access token is cleared', () => {
     const user = { id: 'user_revoked', username: 'revoked' } as User;
 
     act(() => {
-      providerInstance.setTokens('access-before-revocation');
+      providerInstance.session.setAccessToken('access-before-revocation');
       useAuthStore.getState().loginSuccess(user);
     });
     await waitFor(() => expect(requireContext(sink).isAuthenticated).toBe(true));
 
     mockHasDeviceCredential = false;
     act(() => {
-      providerInstance.clearTokens();
+      providerInstance.session.clear();
     });
 
     await waitFor(() => expect(requireContext(sink).isAuthenticated).toBe(false));

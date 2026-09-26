@@ -237,7 +237,7 @@ export async function runSessionColdBoot(
           return { kind: 'skip' };
         }
       }
-      oxy.setTokens(persisted.accessToken);
+      oxy.session.setAccessToken(persisted.accessToken);
       return {
         kind: 'session',
         session: {
@@ -483,7 +483,7 @@ export async function runSessionColdBoot(
       id: 'shared-key-signin',
       enabled: () => isNative && !isOffline(),
       run: async () => {
-        const session = await oxy.signInWithSharedIdentity({ requestOptions: { retry: false } });
+        const session = await oxy.auth.signInWithSharedIdentity({ requestOptions: { retry: false } });
         if (!session?.accessToken) {
           return { kind: 'skip' };
         }

@@ -68,16 +68,20 @@ function createScheduler() {
 }
 
 interface ClientDouble extends CommonsOAuthClient {
-  startCommonsSignIn: ReturnType<typeof mock>
-  pollCommonsSignIn: ReturnType<typeof mock>
-  finalizeCommonsOAuth: ReturnType<typeof mock>
-  denyCommonsSignIn: ReturnType<typeof mock>
+  auth: {
+    commons: {
+      start: ReturnType<typeof mock>
+      poll: ReturnType<typeof mock>
+      finalizeOAuth: ReturnType<typeof mock>
+      deny: ReturnType<typeof mock>
+    }
+  }
 }
 
 function createClient(): ClientDouble {
   let issued = 0
-  return {
-    startCommonsSignIn: mock(async () => {
+  const commons = {
+    start: mock(async () => {
       issued += 1
       return {
         // A distinct secret per issued request, so a test can prove a retry
@@ -89,19 +93,20 @@ function createClient(): ClientDouble {
         status: "pending",
       }
     }),
-    pollCommonsSignIn: mock(async () => ({
+    poll: mock(async () => ({
       authorized: false,
       status: "pending",
       pushSentAt: null,
       openedAt: null,
     })),
-    finalizeCommonsOAuth: mock(async () => ({
+    finalizeOAuth: mock(async () => ({
       code: "minted-authorization-code",
       redirectUri: REDIRECT_URI,
       expiresIn: 600,
     })),
-    denyCommonsSignIn: mock(async () => ({ success: true })),
-  } as ClientDouble
+    deny: mock(async () => ({ success: true })),
+  }
+  return { auth: { commons } } as ClientDouble
 }
 
 function createLane(client: ClientDouble) {
@@ -207,8 +212,8 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
   test("creates the request with the OAuth context already bound", async () => {
     await startLane(client)
 
-    expect(client.startCommonsSignIn).toHaveBeenCalledTimes(1)
-    expect(client.startCommonsSignIn).toHaveBeenCalledWith({
+    expect(client.auth.commons.start).toHaveBeenCalledTimes(1)
+    expect(client.auth.commons.start).toHaveBeenCalledWith({
       clientId: CLIENT_ID,
       oauth: OAUTH_CONTEXT,
     })
@@ -234,7 +239,7 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
   })
 
   test("reports 'opened in Commons' only from the approver's own signal", async () => {
-    client.pollCommonsSignIn = mock(async () => ({
+    client.auth.commons.poll = mock(async () => ({
       authorized: false,
       status: "pending",
       pushSentAt: null,
@@ -249,7 +254,7 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
   })
 
   test("finalizes exactly once on authorization and emits the code", async () => {
-    client.pollCommonsSignIn = mock(async () => ({
+    client.auth.commons.poll = mock(async () => ({
       authorized: true,
       sessionId: "sess-1",
       status: "authorized",
@@ -261,8 +266,8 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
     await scheduler.tick()
 
     // Finalization is authenticated by the SECRET token — never the public code.
-    expect(client.finalizeCommonsOAuth).toHaveBeenCalledTimes(1)
-    expect(client.finalizeCommonsOAuth).toHaveBeenCalledWith(SESSION_TOKEN)
+    expect(client.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1)
+    expect(client.auth.commons.finalizeOAuth).toHaveBeenCalledWith(SESSION_TOKEN)
     expect(outcomes).toEqual([{ kind: "code", code: "minted-authorization-code" }])
     expect(request.getSnapshot().phase).toBe("confirmed")
     // Nothing is left running that could finalize (or deliver) a second time.
@@ -271,21 +276,21 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
   })
 
   test("a finalize failure fails closed: no retry, no outcome, no partial delivery", async () => {
-    client.pollCommonsSignIn = mock(async () => ({
+    client.auth.commons.poll = mock(async () => ({
       authorized: true,
       sessionId: "sess-1",
       status: "authorized",
       pushSentAt: null,
       openedAt: null,
     }))
-    client.finalizeCommonsOAuth = mock(async () => {
+    client.auth.commons.finalizeOAuth = mock(async () => {
       throw new Error("finalize refused")
     })
     const { request, scheduler, outcomes } = await startLane(client)
 
     await scheduler.tick()
 
-    expect(client.finalizeCommonsOAuth).toHaveBeenCalledTimes(1)
+    expect(client.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1)
     expect(request.getSnapshot().phase).toBe("failed")
     expect(request.getSnapshot().failure).toBe("finalize_failed")
     // The request is spent server-side: nothing is scheduled that would poll or
@@ -295,7 +300,7 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
   })
 
   test("'try again' after a failure starts a BRAND-NEW request, never a second finalize", async () => {
-    client.pollCommonsSignIn = mock(async () => ({
+    client.auth.commons.poll = mock(async () => ({
       authorized: true,
       sessionId: "sess-1",
       status: "authorized",
@@ -303,7 +308,7 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
       openedAt: null,
     }))
     let attempt = 0
-    client.finalizeCommonsOAuth = mock(async (token: string) => {
+    client.auth.commons.finalizeOAuth = mock(async (token: string) => {
       attempt += 1
       if (attempt === 1) throw new Error("finalize refused")
       return { code: `code-for-${token}`, redirectUri: REDIRECT_URI, expiresIn: 600 }
@@ -315,18 +320,18 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
 
     request.start()
     await flush()
-    expect(client.startCommonsSignIn).toHaveBeenCalledTimes(2)
+    expect(client.auth.commons.start).toHaveBeenCalledTimes(2)
 
     await scheduler.tick()
     // The second finalization used the NEW request's secret, so the spent one
     // was never re-presented to the server.
-    expect(client.finalizeCommonsOAuth).toHaveBeenCalledTimes(2)
-    expect(client.finalizeCommonsOAuth).toHaveBeenLastCalledWith(`${SESSION_TOKEN}-2`)
+    expect(client.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(2)
+    expect(client.auth.commons.finalizeOAuth).toHaveBeenLastCalledWith(`${SESSION_TOKEN}-2`)
     expect(outcomes).toEqual([{ kind: "code", code: `code-for-${SESSION_TOKEN}-2` }])
   })
 
   test("a denial ends the lane with access-denied and never finalizes", async () => {
-    client.pollCommonsSignIn = mock(async () => ({
+    client.auth.commons.poll = mock(async () => ({
       authorized: false,
       status: "cancelled",
       pushSentAt: null,
@@ -337,13 +342,13 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
     await scheduler.tick()
 
     expect(outcomes).toEqual([{ kind: "denied" }])
-    expect(client.finalizeCommonsOAuth).not.toHaveBeenCalled()
+    expect(client.auth.commons.finalizeOAuth).not.toHaveBeenCalled()
     expect(request.getSnapshot().phase).toBe("denied")
     expect(scheduler.hasPending).toBe(false)
   })
 
   test("a server-reported expiry ends the lane without delivering anything", async () => {
-    client.pollCommonsSignIn = mock(async () => ({
+    client.auth.commons.poll = mock(async () => ({
       authorized: false,
       status: "expired",
       pushSentAt: null,
@@ -376,7 +381,7 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
 
     await scheduler.tick()
 
-    expect(client.pollCommonsSignIn).not.toHaveBeenCalled()
+    expect(client.auth.commons.poll).not.toHaveBeenCalled()
     expect(request.getSnapshot().failure).toBe("request_expired")
     expect(outcomes).toEqual([])
   })
@@ -388,14 +393,14 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
     request.cancel()
     await flush()
 
-    expect(client.denyCommonsSignIn).toHaveBeenCalledTimes(1)
-    expect(client.denyCommonsSignIn).toHaveBeenCalledWith(AUTHORIZE_CODE)
+    expect(client.auth.commons.deny).toHaveBeenCalledTimes(1)
+    expect(client.auth.commons.deny).toHaveBeenCalledWith(AUTHORIZE_CODE)
     expect(outcomes).toEqual([{ kind: "denied" }])
     expect(scheduler.hasPending).toBe(false)
   })
 
   test("a failed withdrawal still reports the denial", async () => {
-    client.denyCommonsSignIn = mock(async () => {
+    client.auth.commons.deny = mock(async () => {
       throw new Error("network down")
     })
     const { outcomes, request } = await startLane(client)
@@ -415,12 +420,12 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
     // A late restart attempt after teardown is a no-op too.
     request.start()
     await flush()
-    expect(client.startCommonsSignIn).toHaveBeenCalledTimes(1)
+    expect(client.auth.commons.start).toHaveBeenCalledTimes(1)
     expect(outcomes).toEqual([])
   })
 
   test("bounded poll failures end in a visible failure, not a retry storm", async () => {
-    client.pollCommonsSignIn = mock(async () => {
+    client.auth.commons.poll = mock(async () => {
       throw new Error("offline")
     })
     const { request, scheduler, outcomes } = await startLane(client)
@@ -433,13 +438,13 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
 
     expect(request.getSnapshot().phase).toBe("failed")
     expect(request.getSnapshot().failure).toBe("unreachable")
-    expect(client.pollCommonsSignIn).toHaveBeenCalledTimes(4)
+    expect(client.auth.commons.poll).toHaveBeenCalledTimes(4)
     expect(outcomes).toEqual([])
   })
 
   test("a transient poll failure does not end the lane", async () => {
     let calls = 0
-    client.pollCommonsSignIn = mock(async () => {
+    client.auth.commons.poll = mock(async () => {
       calls += 1
       if (calls === 1) throw new Error("blip")
       return {
@@ -459,7 +464,7 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
   })
 
   test("a cancel pressed while the code is being minted still delivers exactly one outcome", async () => {
-    client.pollCommonsSignIn = mock(async () => ({
+    client.auth.commons.poll = mock(async () => ({
       authorized: true,
       sessionId: "sess-1",
       status: "authorized",
@@ -471,7 +476,7 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
       redirectUri: string
       expiresIn: number
     }) => void = () => undefined
-    client.finalizeCommonsOAuth = mock(
+    client.auth.commons.finalizeOAuth = mock(
       () =>
         new Promise((resolve) => {
           releaseFinalize = resolve
@@ -492,14 +497,14 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
   })
 
   test("a mismatched redirect binding fails closed instead of delivering the code", async () => {
-    client.pollCommonsSignIn = mock(async () => ({
+    client.auth.commons.poll = mock(async () => ({
       authorized: true,
       sessionId: "sess-1",
       status: "authorized",
       pushSentAt: null,
       openedAt: null,
     }))
-    client.finalizeCommonsOAuth = mock(async () => ({
+    client.auth.commons.finalizeOAuth = mock(async () => ({
       code: "minted-authorization-code",
       redirectUri: "https://attacker.example/callback",
       expiresIn: 600,
@@ -513,7 +518,7 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
   })
 
   test("a request that cannot be created reports a failure and delivers nothing", async () => {
-    client.startCommonsSignIn = mock(async () => {
+    client.auth.commons.start = mock(async () => {
       throw new Error("Application is not available")
     })
     const { request, scheduler, outcomes } = await startLane(client)
@@ -531,6 +536,6 @@ describe("CommonsOAuthRequest — the no-session lane", () => {
     request.start()
     await flush()
 
-    expect(client.startCommonsSignIn).toHaveBeenCalledTimes(1)
+    expect(client.auth.commons.start).toHaveBeenCalledTimes(1)
   })
 })

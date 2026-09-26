@@ -275,14 +275,12 @@ export {
     REPUTATION_TRANSACTION_STATUSES,
     TRUST_TIERS,
     REPUTATION_TARGET_ENTITY_TYPES,
-    REPUTATION_DISPUTE_STATUSES,
     REPUTATION_INFLUENCE_CONTEXTS,
     // Schemas — closed value sets
     reputationCategorySchema,
     reputationTransactionStatusSchema,
     trustTierSchema,
     reputationTargetEntityTypeSchema,
-    reputationDisputeStatusSchema,
     reputationInfluenceContextSchema,
     // Schemas — responses
     reputationTransactionSchema,
@@ -291,18 +289,13 @@ export {
     reputationReliabilitySchema,
     reputationBalanceSummarySchema,
     reputationBalanceSchema,
-    reputationDisputeSchema,
     reputationRuleSchema,
+    reputationRulesResponseSchema,
     reputationLeaderboardUserSchema,
     reputationLeaderboardEntrySchema,
     reputationInfluenceResultSchema,
-    reverseReputationTransactionResultSchema,
     // Schemas — request bodies
     awardReputationSchema,
-    createReputationDisputeSchema,
-    resolveReputationDisputeSchema,
-    upsertReputationRuleSchema,
-    reverseReputationTransactionSchema,
     // Narrows the two balance views apart at runtime.
     isFullReputationBalance,
 } from './reputation';
@@ -312,7 +305,6 @@ export type {
     ReputationTransactionStatus,
     TrustTier,
     ReputationTargetEntityType,
-    ReputationDisputeStatus,
     ReputationInfluenceContext,
     ReputationTransaction,
     ReputationBalanceBreakdown,
@@ -321,18 +313,12 @@ export type {
     ReputationBalanceSummary,
     ReputationBalance,
     ReputationBalanceView,
-    ReputationDispute,
     ReputationRule,
+    ReputationRulesResponse,
     ReputationLeaderboardUser,
     ReputationLeaderboardEntry,
     ReputationInfluenceResult,
-    ReverseReputationTransactionResult,
     AwardReputationInput,
-    CreateReputationDisputeInput,
-    ResolveReputationDisputeInput,
-    UpsertReputationRuleInput,
-    UpsertReputationRuleRequest,
-    ReverseReputationTransactionInput,
 } from './reputation';
 
 export {

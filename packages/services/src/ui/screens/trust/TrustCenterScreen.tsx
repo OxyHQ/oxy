@@ -1,7 +1,7 @@
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { View, StyleSheet } from 'react-native';
-import type { ReputationTransaction, TrustTier } from '@oxy.so/contracts';
 import Ionicons from '../../icons/Ionicons';
 import { Chip } from '@oxy.so/bloom/chip';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -14,6 +14,7 @@ import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { useOxy } from '../../context/OxyContext';
 import { trustTierLabel } from '@oxy.so/core';
+import { queryKeys } from '../../hooks/queries/queryKeys';
 
 const TrustCenterScreen: React.FC<BaseScreenProps> = ({
     navigate,
@@ -22,36 +23,31 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({
     // when switched, else the personal user).
     const { user, oxyServices, isAuthenticated } = useOxy();
     const { t, locale } = useI18n();
-    const [reputationTotal, setReputationTotal] = useState<number | null>(null);
-    const [trustTier, setTrustTier] = useState<TrustTier | null>(null);
-    const [transactions, setTransactions] = useState<ReputationTransaction[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
     const bloomTheme = useTheme();
     const primaryColor = bloomTheme.colors.primary;
 
-    useEffect(() => {
-        if (!user) return;
-        setIsLoading(true);
-        setError(null);
-        Promise.all([
-            oxyServices.getMyReputationBalance(),
-            oxyServices.getReputationTransactions(user.id, 20, 0),
-        ])
-            .then(([balance, txns]) => {
-                setReputationTotal(balance.total);
-                setTrustTier(balance.trustTier);
-                setTransactions(Array.isArray(txns) ? txns : []);
-            })
-            .catch((err: unknown) => {
-                setError(
-                    (err instanceof Error ? err.message : null) ||
-                        (t('trust.center.loadError') || 'Failed to load reputation data'),
-                );
-            })
-            .finally(() => setIsLoading(false));
-    }, [user, oxyServices, t]);
+    // Keyed on the account id, not the `user` object: a profile write that
+    // replaces `user` must not refetch the ledger.
+    const userId = user?.id;
+    const standing = useQuery({
+        queryKey: queryKeys.reputation.transactions(userId, 20),
+        enabled: Boolean(userId),
+        queryFn: async () => {
+            const [balance, transactions] = await Promise.all([
+                oxyServices.reputation.balance(),
+                oxyServices.reputation.transactions(userId, { limit: 20, offset: 0 }),
+            ]);
+            return { balance, transactions: Array.isArray(transactions) ? transactions : [] };
+        },
+    });
+    const reputationTotal = standing.data?.balance.total ?? null;
+    const trustTier = standing.data?.balance.trustTier ?? null;
+    const transactions = standing.data?.transactions ?? [];
+    const isLoading = standing.isPending && Boolean(userId);
+    const error = standing.error
+        ? (standing.error instanceof Error ? standing.error.message : null) ||
+          (t('trust.center.loadError') || 'Failed to load reputation data')
+        : null;
 
     const resolvedTrustTierLabel = useMemo(
         () => (trustTier ? trustTierLabel(locale, trustTier) : null),

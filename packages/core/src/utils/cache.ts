@@ -56,12 +56,17 @@ export class TTLCache<T> {
   private hits = 0;
   private misses = 0;
 
+  private maxEntries: number;
+
   /**
    * Create a new TTL cache
    * @param defaultTTL Default TTL in milliseconds (default: 5 minutes)
+   * @param maxEntries Bound on live entries; the least recently used is evicted
+   *   past it (default: 1000)
    */
-  constructor(defaultTTL: number = 5 * 60 * 1000) {
+  constructor(defaultTTL: number = 5 * 60 * 1000, maxEntries = 1000) {
     this.defaultTTL = defaultTTL;
+    this.maxEntries = maxEntries;
   }
 
   /**
@@ -83,6 +88,9 @@ export class TTLCache<T> {
       return null;
     }
 
+    // Re-insert so Map order is recency order and eviction drops the LRU.
+    this.cache.delete(key);
+    this.cache.set(key, entry);
     this.hits++;
     return entry.data;
   }
@@ -103,7 +111,12 @@ export class TTLCache<T> {
     // both into the default, making `cacheTTL:0` impossible to honor.
     const effectiveTTL = ttl === undefined ? this.defaultTTL : ttl;
     const expiresAt = now + effectiveTTL;
+    this.cache.delete(key);
     this.cache.set(key, { data, timestamp: now, expiresAt });
+    if (this.cache.size > this.maxEntries) {
+      const oldest = this.cache.keys().next().value;
+      if (oldest !== undefined) this.cache.delete(oldest);
+    }
     if (!cleanupInterval && activeCaches.has(this)) updateCleanupInterval();
   }
 
@@ -114,7 +127,9 @@ export class TTLCache<T> {
    */
   delete(key: string): boolean {
     const deleted = this.cache.delete(key);
-    if (activeCaches.has(this)) updateCleanupInterval();
+    // Only the delete that EMPTIES this cache can let the timer stop; checking
+    // on every delete made bulk invalidation O(deletes x caches).
+    if (deleted && this.cache.size === 0 && activeCaches.has(this)) updateCleanupInterval();
     return deleted;
   }
 
@@ -126,6 +141,22 @@ export class TTLCache<T> {
     this.hits = 0;
     this.misses = 0;
     if (activeCaches.has(this)) updateCleanupInterval();
+  }
+
+  /**
+   * Delete every entry whose key matches, in ONE pass.
+   * @returns Number of entries deleted
+   */
+  deleteWhere(match: (key: string) => boolean): number {
+    let removed = 0;
+    for (const key of this.cache.keys()) {
+      if (match(key)) {
+        this.cache.delete(key);
+        removed++;
+      }
+    }
+    if (removed > 0 && this.cache.size === 0 && activeCaches.has(this)) updateCleanupInterval();
+    return removed;
   }
 
   /**
@@ -228,13 +259,13 @@ export function createCache<T>(ttl: number = 5 * 60 * 1000): TTLCache<T> {
  * This helps prevent memory leaks from expired cache entries
  */
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
-const activeCaches = new Set<TTLCache<any>>();
+const activeCaches = new Set<TTLCache<unknown>>();
 
 /**
  * Register a cache for automatic cleanup
  * @param cache Cache instance to register
  */
-export function registerCacheForCleanup(cache: TTLCache<any>): void {
+export function registerCacheForCleanup(cache: TTLCache<unknown>): void {
   activeCaches.add(cache);
   updateCleanupInterval();
 }
@@ -256,7 +287,7 @@ function updateCleanupInterval(): void {
 }
 
 /** Unregister a cache without changing its entries or TTL behavior. */
-export function unregisterCacheFromCleanup(cache: TTLCache<any>): void {
+export function unregisterCacheFromCleanup(cache: TTLCache<unknown>): void {
   activeCaches.delete(cache);
   updateCleanupInterval();
 }

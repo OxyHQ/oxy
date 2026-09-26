@@ -12,7 +12,8 @@
 import React from 'react';
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AUTH_STATE_STORAGE_KEY, type User } from '@oxy.so/core';
+import { AUTH_STATE_STORAGE_KEY } from '@oxy.so/core/session';
+import { type User } from '@oxy.so/core';
 import { OXY_BRIDGE_CODE_MESSAGE_TYPE, OXY_BRIDGE_WINDOW_NAME } from '../../src/ui/oauth/browserBridge';
 
 const redirectToAuthorize = jest.fn();
@@ -69,12 +70,12 @@ const USER_ID = 'user_cb_1';
  * `deviceId` + `deviceSecret` is persisted, so a signed-out boot (no seed) never
  * reaches it. `getCurrentUser` hydrates the committed session in the restore case.
  */
-function buildStub(overrides: Record<string, unknown> = {}) {
+function buildStub(overrides: { devices?: Record<string, unknown> } = {}) {
   let currentToken: string | null = null;
-  return {
+  const built = {
     stub: {
       config: {},
-      httpService: {
+      http: {
         setTokens: (token: string) => { currentToken = token; },
         setAuthRefreshHandler: jest.fn(),
         refreshAccessToken: jest.fn(async () => null),
@@ -83,18 +84,11 @@ function buildStub(overrides: Record<string, unknown> = {}) {
         runSingleFlightDeviceSecretMint: (mint: () => Promise<unknown>) => mint(),
         getSessionEpoch: () => 0,
       },
-      getBaseURL: () => API_BASE_URL,
+      baseURL: API_BASE_URL,
       getSessionBaseUrl: () => API_BASE_URL,
-      getAccessToken: () => currentToken,
-      getAccessTokenExpiry: () => null,
-      onTokensChanged: () => () => undefined,
-      setDeviceCredentialProvider: () => () => undefined,
-      setTokens: (token: string) => { currentToken = token; },
-      clearTokens: () => { currentToken = null; },
-      clearCache: jest.fn(),
-      // Zero-cookie mint: restores the device's active account from the persisted
-      // device credential. Never invoked when no credential is seeded.
-      mintFromDeviceSecret: jest.fn(async () => ({
+      session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => { currentToken = token; }, clear: () => { currentToken = null; } },
+cache: { clear: jest.fn() },
+devices: { mintToken: jest.fn(async () => ({
         accessToken: 'cb.minted.access',
         expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
         nextDeviceSecret: 'cb.next.secret',
@@ -105,14 +99,14 @@ function buildStub(overrides: Record<string, unknown> = {}) {
           revision: 1,
           updatedAt: Date.now(),
         },
-      })),
-      signInWithSharedIdentity: jest.fn(async () => null),
-      getCurrentUser: jest.fn(async (): Promise<User> => ({ id: USER_ID, username: 'cbuser' } as User)),
-      getUsersByIds: jest.fn(async () => []),
-      listAccounts: jest.fn(async () => []),
-      ...overrides,
+      })) },
+      auth: { signInWithSharedIdentity: jest.fn(async () => null) },
+      users: { me: jest.fn(async (): Promise<User> => ({ id: USER_ID, username: 'cbuser' } as User)), getMany: jest.fn(async () => []) },
+      accounts: { list: jest.fn(async () => []) },
     },
   };
+  built.stub.devices = { ...built.stub.devices, ...overrides.devices } as typeof built.stub.devices;
+  return built;
 }
 
 let capturedContext: OxyContextState | null = null;
@@ -165,7 +159,7 @@ describe('OxyContext — the browser bridge', () => {
 
   it('opens the bridge from the press, joins, and signs in when the browser already is', async () => {
     const joinBrowserDevice = jest.fn(async () => ({ deviceId: 'dev-cb', deviceSecret: 'app.secret' }));
-    const { stub } = buildStub({ joinBrowserDevice });
+    const { stub } = buildStub({ devices: { joinBrowser: joinBrowserDevice } });
     renderProvider(stub);
     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
     expect(capturedContext?.isAuthenticated).toBe(false);
@@ -194,7 +188,7 @@ describe('OxyContext — the browser bridge', () => {
 
     await waitFor(() => expect(capturedContext?.isAuthenticated).toBe(true));
     expect(joinBrowserDevice).toHaveBeenCalledWith(expect.objectContaining({ code: 'join-code', clientId: 'oxy_test_client' }));
-    expect(stub.mintFromDeviceSecret).toHaveBeenCalledWith('dev-cb', 'app.secret');
+    expect(stub.devices.mintToken).toHaveBeenCalledWith('dev-cb', 'app.secret');
     expect(JSON.parse(window.localStorage.getItem(AUTH_STATE_STORAGE_KEY) ?? '{}').deviceId).toBe('dev-cb');
     expect(popup.close).toHaveBeenCalled();
   });
@@ -204,7 +198,7 @@ describe('OxyContext — the browser bridge', () => {
     const mintFromDeviceSecret = jest.fn(async () => {
       throw Object.assign(new Error('no_active_session'), { status: 401 });
     });
-    const { stub } = buildStub({ joinBrowserDevice, mintFromDeviceSecret });
+    const { stub } = buildStub({ devices: { joinBrowser: joinBrowserDevice, mintToken: mintFromDeviceSecret }, });
     renderProvider(stub);
     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
 
@@ -244,7 +238,7 @@ describe('OxyContext — the browser bridge', () => {
     const mintFromDeviceSecret = jest.fn(async () => {
       throw Object.assign(new Error('no_active_session'), { status: 401 });
     });
-    const { stub } = buildStub({ mintFromDeviceSecret });
+    const { stub } = buildStub({ devices: { mintToken: mintFromDeviceSecret } });
     const first = renderProvider(stub);
     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
     const open = jest.spyOn(window, 'open');

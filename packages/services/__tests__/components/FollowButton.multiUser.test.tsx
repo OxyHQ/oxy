@@ -6,12 +6,10 @@ import { createElement } from 'react';
 const oxyServicesStub = {
   // Multi-user status resolution now goes through the batched bulk endpoint
   // (one call for all members) rather than N single `getFollowStatus` calls.
-  getFollowStatuses: jest.fn(async (ids: string[]) =>
+  follows: { statuses: jest.fn(async (ids: string[]) =>
     Object.fromEntries(ids.map((id) => [id, false])),
-  ),
-  followUsers: jest.fn(),
-  unfollowUsers: jest.fn(),
-  getCurrentUserId: jest.fn(() => 'me'),
+  ), followMany: jest.fn(), unfollowMany: jest.fn() },
+  session: { get userId() { return (jest.fn(() => 'me'))(); } },
 };
 
 let ctx = {

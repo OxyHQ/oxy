@@ -51,7 +51,6 @@ import {
   verifyRequestSchema,
   deleteAccountSchema,
   type DeleteAccountBody,
-  dataExportQuerySchema,
   identityExportQuerySchema,
   updatePrivacyBodySchema,
   usersByIdsBodySchema,
@@ -1219,67 +1218,6 @@ router.post(
       requestId,
       status: 'pending',
     });
-  })
-);
-
-/**
- * GET /users/me/data
- * 
- * Download account data export
- * 
- * @query {string} [format] - Export format: 'json' or 'csv' (default: 'json')
- * @returns {Blob} Account data file
- */
-router.get(
-  '/me/data',
-  authMiddleware,
-  validate({ query: dataExportQuerySchema }),
-  asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.user?.id;
-    if (!userId) {
-      throw new UnauthorizedError('Authentication required');
-    }
-
-    const format = (req.query.format as string) || 'json';
-    // `readAccountDocument` selects through `publicColumns(users)`, so the
-    // protected set — the raw phone, the contact-discovery hashes, the refresh
-    // token, and the private mail configuration — is absent by construction
-    // rather than by a `-field` exclusion someone has to remember.
-    const safeUserData = await userService.readAccountDocument(userId);
-
-    if (!safeUserData) {
-      throw new NotFoundError('User not found');
-    }
-
-    let data: string;
-    let contentType: string;
-    let filename: string;
-
-    if (format === 'csv') {
-      // Convert to CSV format (simplified - you'd want a proper CSV library)
-      const fields = Object.keys(safeUserData);
-      const valuesByField = Object.entries(safeUserData);
-      const headers = fields.join(',');
-      const values = valuesByField.map(([, value]) => {
-        if (typeof value === 'object') {
-          return JSON.stringify(value);
-        }
-        return String(value || '');
-      }).join(',');
-      data = `${headers}\n${values}`;
-      contentType = 'text/csv';
-      filename = `account-data-${Date.now()}.csv`;
-    } else {
-      data = JSON.stringify(safeUserData, null, 2);
-      contentType = 'application/json';
-      filename = `account-data-${Date.now()}.json`;
-    }
-
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(data);
-
-    logger.info('Account data exported', { userId, format });
   })
 );
 

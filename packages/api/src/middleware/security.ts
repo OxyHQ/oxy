@@ -354,7 +354,7 @@ const idpServiceLimiter = rateLimit({
 
 // Per-IP rate limiting for /auth/*. This guards against blanket abuse of the
 // auth surface; individual sensitive endpoints (/auth/challenge, /auth/verify,
-// /auth/login, /auth/lookup, /auth/refresh, ...) layer their own tighter
+// /auth/login, /auth/refresh, ...) layer their own tighter
 // limiters on top. The ceiling here must stay well above realistic per-IP
 // traffic for shared NAT egress (offices, mobile carriers): a single user
 // signing in hits ~5–8 /auth/* endpoints, and active sessions refresh on

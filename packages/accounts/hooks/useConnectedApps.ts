@@ -13,7 +13,7 @@ export function connectedAppsQueryKey(userId: string | null | undefined) {
 
 /**
  * Reads the third-party applications the current user has authorized via the
- * OAuth consent flow (`oxyServices.listConnectedApps()` → `GET /auth/grants`).
+ * OAuth consent flow (`oxyServices.apps.connected.list()` → `GET /auth/grants`).
  *
  * The API returns only revocable third-party grants — trusted/official Oxy apps
  * are never listed — so no client-side special-casing is needed. The query is
@@ -24,7 +24,7 @@ export function useConnectedApps() {
 
   return useQuery<ConnectedApp[]>({
     queryKey: connectedAppsQueryKey(user?.id),
-    queryFn: () => oxyServices.listConnectedApps(),
+    queryFn: () => oxyServices.apps.connected.list(),
     enabled: isAuthenticated && Boolean(user?.id),
     staleTime: 60 * 1000,
   });
@@ -50,7 +50,7 @@ export function useRevokeAppGrant() {
 
   return useMutation<void, Error, string, RevokeContext>({
     mutationKey: ['connected-apps', 'revoke', user?.id ?? null],
-    mutationFn: (applicationId: string) => oxyServices.revokeAppGrant(applicationId),
+    mutationFn: (applicationId: string) => oxyServices.apps.connected.revoke(applicationId),
     onMutate: async (applicationId: string): Promise<RevokeContext> => {
       // Cancel in-flight reads so they don't overwrite the optimistic update.
       await queryClient.cancelQueries({ queryKey });
@@ -82,7 +82,7 @@ export function useConnectedMcpClients() {
   const { oxyServices, user, isAuthenticated } = useOxy();
   return useQuery<ConnectedMcpClient[]>({
     queryKey: connectedMcpClientsQueryKey(user?.id),
-    queryFn: () => oxyServices.listConnectedMcpClients(),
+    queryFn: () => oxyServices.apps.connected.mcpClients(),
     enabled: isAuthenticated && Boolean(user?.id),
     staleTime: 60 * 1000,
   });
@@ -99,7 +99,7 @@ export function useRevokeConnectedMcpClient() {
 
   return useMutation<void, Error, string, RevokeMcpContext>({
     mutationKey: ['connected-mcp-clients', 'revoke', user?.id ?? null],
-    mutationFn: (grantId: string) => oxyServices.revokeConnectedMcpClient(grantId),
+    mutationFn: (grantId: string) => oxyServices.apps.connected.revokeMcpClient(grantId),
     onMutate: async (grantId): Promise<RevokeMcpContext> => {
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<ConnectedMcpClient[]>(queryKey);

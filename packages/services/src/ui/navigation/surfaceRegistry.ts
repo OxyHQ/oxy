@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import type { AccountDialogView, FileMetadata } from '@oxy.so/core';
+import type { AccountDialogView } from '@oxy.so/core/session';
+import type { FileMetadata } from '@oxy.so/core';
 import type { RouteName } from './routes';
 import type { AvatarCropResult } from '../screens/AvatarCropScreen';
 import type { AvatarRemovalResult } from '../screens/ChangeAvatarScreen';
@@ -38,15 +39,11 @@ export interface SurfaceRegistry {
    */
   FileManagement: SurfaceRoute<Record<string, unknown>, FileMetadata>;
   HelpSupport: SurfaceRoute;
-  FAQ: SurfaceRoute;
-  Feedback: SurfaceRoute;
   LegalDocuments: SurfaceRoute;
   AppInfo: SurfaceRoute;
-  PremiumSubscription: SurfaceRoute;
   WelcomeNewUser: SurfaceRoute;
   UserLinks: SurfaceRoute;
   HistoryView: SurfaceRoute;
-  SavesCollections: SurfaceRoute;
   EditProfile: SurfaceRoute;
   EditProfileField: SurfaceRoute;
   LearnMoreUsernames: SurfaceRoute;
@@ -56,6 +53,7 @@ export interface SurfaceRegistry {
   TrustRules: SurfaceRoute;
   AboutTrust: SurfaceRoute;
   TrustFAQ: SurfaceRoute;
+  Domains: SurfaceRoute;
   FollowersList: SurfaceRoute;
   FollowingList: SurfaceRoute;
   CreateAccount: SurfaceRoute;
@@ -238,7 +236,7 @@ const isFileManagementImageOnlyPicker = (props: Record<string, unknown>): boolea
  * (`scrollable: false`) so there is exactly ONE scroll container — otherwise a
  * VirtualizedList nests inside a plain ScrollView (RN warning) or a nested
  * vertical scroll-in-scroll breaks windowing. Screens with only a HORIZONTAL
- * ScrollView (FAQ's category row, Premium's plan carousel) are NOT listed — a
+ * ScrollView are NOT listed — a
  * horizontal scroller does not conflict with the Dialog's vertical scroll.
  */
 const OWN_SCROLL_CONTAINER_ROUTES: ReadonlySet<RouteName> = new Set<RouteName>([

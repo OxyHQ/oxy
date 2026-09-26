@@ -41,8 +41,7 @@ const croppedResult = {
 };
 
 const makeOxyServices = () => ({
-  assetGetUrl: jest.fn().mockResolvedValue({ url: 'https://cdn.example/pic.png' }),
-  assetUpload: jest.fn().mockResolvedValue({ id: 'uploaded-1' }),
+  assets: { url: jest.fn().mockResolvedValue({ url: 'https://cdn.example/pic.png' }), upload: jest.fn().mockResolvedValue({ id: 'uploaded-1' }) },
 });
 
 const renderPicker = (oxyServices: ReturnType<typeof makeOxyServices>) =>
@@ -74,7 +73,7 @@ describe('useAvatarPicker', () => {
     expect(openWithinOrPresent).toHaveBeenCalledTimes(1);
     expect(openWithinOrPresent).toHaveBeenCalledWith('ChangeAvatar');
 
-    expect(oxyServices.assetUpload).toHaveBeenCalledTimes(1);
+    expect(oxyServices.assets.upload).toHaveBeenCalledTimes(1);
     expect(updateAvatarVisibility).toHaveBeenCalledWith(
       'uploaded-1',
       expect.anything(),
@@ -99,7 +98,7 @@ describe('useAvatarPicker', () => {
     });
 
     // A removal writes an EMPTY avatar — it never uploads anything.
-    expect(oxyServices.assetUpload).not.toHaveBeenCalled();
+    expect(oxyServices.assets.upload).not.toHaveBeenCalled();
     expect(updateProfileWithAvatar).toHaveBeenCalledWith(
       { avatar: '' },
       expect.anything(),
@@ -119,14 +118,14 @@ describe('useAvatarPicker', () => {
     });
 
     expect(openWithinOrPresent).toHaveBeenCalledTimes(1);
-    expect(oxyServices.assetUpload).not.toHaveBeenCalled();
+    expect(oxyServices.assets.upload).not.toHaveBeenCalled();
     expect(updateProfileWithAvatar).not.toHaveBeenCalled();
   });
 
   it('surfaces an error when the upload returns no file id', async () => {
     openWithinOrPresent.mockResolvedValue(croppedResult);
     const oxyServices = makeOxyServices();
-    oxyServices.assetUpload.mockResolvedValue({});
+    oxyServices.assets.upload.mockResolvedValue({});
     const { result } = renderPicker(oxyServices);
 
     await act(async () => {

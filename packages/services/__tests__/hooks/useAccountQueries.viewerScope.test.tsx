@@ -40,8 +40,7 @@ const AUTH_PROFILE: User = {
 } as User;
 
 const makeServices = (): MockOxyServices => ({
-  getUserById: jest.fn(async () => ANON_PROFILE),
-  getProfileByUsername: jest.fn(async () => ANON_PROFILE),
+  users: { get: jest.fn(async () => ANON_PROFILE), byUsername: jest.fn(async () => ANON_PROFILE) },
 });
 
 let mockState: MockOxyState = {
@@ -78,7 +77,7 @@ describe('useUserById identity (viewer-independent)', () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockState.oxyServices.getUserById).toHaveBeenCalledTimes(1);
+    expect(mockState.oxyServices.users.get).toHaveBeenCalledTimes(1);
 
     // The identity entry lives at the viewer-INDEPENDENT key.
     expect(queryClient.getQueryData(queryKeys.users.detail('target-1'))).toEqual(ANON_PROFILE);
@@ -89,14 +88,14 @@ describe('useUserById identity (viewer-independent)', () => {
     mockState = {
       oxyServices: {
         ...makeServices(),
-        getUserById: jest.fn(async () => AUTH_PROFILE),
+        users: { get: jest.fn(async () => AUTH_PROFILE) },
       },
       user: { id: 'viewer-1' },
     };
     rerender();
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockState.oxyServices.getUserById).not.toHaveBeenCalled();
+    expect(mockState.oxyServices.users.get).not.toHaveBeenCalled();
     expect(result.current.data).toEqual(ANON_PROFILE);
 
     // The key never became viewer-scoped, so no detailForViewer entry exists.
@@ -128,20 +127,20 @@ describe('useUserByUsername viewer scope', () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockState.oxyServices.getProfileByUsername).toHaveBeenCalledTimes(1);
-    expect(mockState.oxyServices.getProfileByUsername).toHaveBeenCalledWith('alice');
+    expect(mockState.oxyServices.users.byUsername).toHaveBeenCalledTimes(1);
+    expect(mockState.oxyServices.users.byUsername).toHaveBeenCalledWith('alice');
 
     mockState = {
       oxyServices: {
         ...makeServices(),
-        getProfileByUsername: jest.fn(async () => AUTH_PROFILE),
+        users: { byUsername: jest.fn(async () => AUTH_PROFILE) },
       },
       user: { id: 'viewer-1' },
     };
     rerender();
 
     await waitFor(() => expect(result.current.data?.relationship?.followsYou).toBe(true));
-    expect(mockState.oxyServices.getProfileByUsername).toHaveBeenCalledTimes(1);
+    expect(mockState.oxyServices.users.byUsername).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(queryKeys.users.byUsername('alice', 'viewer-1'))).toEqual(
       AUTH_PROFILE,
     );
@@ -153,7 +152,7 @@ describe('useUserByUsername viewer scope', () => {
     });
 
     await waitFor(() =>
-      expect(mockState.oxyServices.getProfileByUsername).toHaveBeenCalledWith('alice'),
+      expect(mockState.oxyServices.users.byUsername).toHaveBeenCalledWith('alice'),
     );
   });
 });

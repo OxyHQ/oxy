@@ -29,13 +29,9 @@
 import React from 'react';
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  AUTH_STATE_STORAGE_KEY,
-  IDENTITY_PIN_STORAGE_KEY,
-  KeyManager,
-  SignatureService,
-  type User,
-} from '@oxy.so/core';
+import { AUTH_STATE_STORAGE_KEY, IDENTITY_PIN_STORAGE_KEY } from '@oxy.so/core/session';
+import { KeyManager, SignatureService } from '@oxy.so/core/crypto';
+import { type User } from '@oxy.so/core';
 import type { DeviceSessionState } from '@oxy.so/contracts';
 
 const redirectToAuthorize = jest.fn();
@@ -155,11 +151,11 @@ function seedPersistedSession(overrides: Record<string, unknown> = {}): void {
  * the zero-cookie mint (cold boot), the challenge/verify pair (identity sign-in),
  * and the profile reads the projection makes.
  */
-function buildStub(overrides: Record<string, unknown> = {}) {
+function buildStub(overrides: { auth?: Record<string, unknown> } = {}) {
   let currentToken: string | null = null;
-  return {
+  const stub = {
     config: {},
-    httpService: {
+    http: {
       setTokens: (token: string) => {
         currentToken = token;
       },
@@ -168,48 +164,39 @@ function buildStub(overrides: Record<string, unknown> = {}) {
       runSingleFlightDeviceSecretMint: (mint: () => Promise<unknown>) => mint(),
       getSessionEpoch: () => 0,
     },
-    getBaseURL: () => API_BASE_URL,
+    baseURL: API_BASE_URL,
     getSessionBaseUrl: () => API_BASE_URL,
-    getAccessToken: () => currentToken,
-    getAccessTokenExpiry: () => null,
-    onTokensChanged: () => () => undefined,
-    setDeviceCredentialProvider: () => () => undefined,
-    setTokens: (token: string) => {
+    session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => {
       currentToken = token;
-    },
-    clearTokens: () => {
+    }, clear: () => {
       currentToken = null;
-    },
-    clearCache: jest.fn(),
-    mintFromDeviceSecret: jest.fn(async () => ({
+    } },
+cache: { clear: jest.fn() },
+devices: { mintToken: jest.fn(async () => ({
       accessToken: MINTED_PINNED_TOKEN,
       expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
       nextDeviceSecret: 'identity.next.secret',
       // The device is switched to somebody else — the pinned account is still a
       // member, and a pinned mint must resolve THAT entry.
       state: buildDeviceState({ activeAccountId: OTHER_ACCOUNT }),
-    })),
-    requestChallenge: jest.fn(async () => ({ challenge: 'chal_1' })),
-    verifyChallenge: jest.fn(async () => ({
+    })) },
+    auth: { requestChallenge: jest.fn(async () => ({ challenge: 'chal_1' })), verifyChallenge: jest.fn(async () => ({
       sessionId: 'sess_pinned_reestablished',
       accessToken: fakeJwt(PINNED_ACCOUNT),
       expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
       deviceId: 'dev_identity',
       deviceSecret: 'identity.reestablished.secret',
       user: { id: PINNED_ACCOUNT, username: 'pinned' },
-    })),
-    signInWithSharedIdentity: jest.fn(async () => null),
-    getCurrentUser: jest.fn(
+    })), signInWithSharedIdentity: jest.fn(async () => null) },
+    users: { me: jest.fn(
       async (): Promise<User> => ({ id: PINNED_ACCOUNT, username: 'pinned' } as User),
-    ),
-    getUsersByIds: jest.fn(
+    ), getMany: jest.fn(
       async (ids: string[]): Promise<User[]> =>
         ids.map((id) => ({ id, username: `user_${id}` } as User)),
-    ),
-    listAccounts: jest.fn(async () => []),
-    switchToAccount: jest.fn(async () => null),
-    ...overrides,
+    ) },
+    accounts: { list: jest.fn(async () => []), actAs: jest.fn(async () => null) },
   };
+  return { ...stub, auth: { ...stub.auth, ...overrides.auth } };
 }
 
 let capturedContext: OxyContextState | null = null;
@@ -299,7 +286,7 @@ describe('OxyProvider sessionMode: "identity" (identity-bound sessions)', () => 
     await waitFor(() => expect(capturedContext?.isAuthenticated).toBe(true));
     await waitFor(() => expect(requireContext().sessions.length).toBe(2));
     expect(requireContext().user?.id).toBe(PINNED_ACCOUNT);
-    const tokenBeforeSwitch = stub.getAccessToken();
+    const tokenBeforeSwitch = stub.session.accessToken;
     fakeSessionClientHost.setCurrentAccountId.mockClear();
 
     // Another app on this device switches the shared DeviceSession.
@@ -313,7 +300,7 @@ describe('OxyProvider sessionMode: "identity" (identity-bound sessions)', () => 
     // The switch is visible in device state but changes NOTHING here.
     expect(requireContext().user?.id).toBe(PINNED_ACCOUNT);
     expect(requireContext().activeSessionId).toBe('sess_pinned');
-    expect(stub.getAccessToken()).toBe(tokenBeforeSwitch);
+    expect(stub.session.accessToken).toBe(tokenBeforeSwitch);
     expect(fakeSessionClientHost.setCurrentAccountId).not.toHaveBeenCalledWith(OTHER_ACCOUNT);
     // …and the resolver `SessionClient` reads (to bypass its transport + refuse a
     // foreign `activeToken`) reports the pinned account.
@@ -333,10 +320,10 @@ describe('OxyProvider sessionMode: "identity" (identity-bound sessions)', () => 
 
     // The mint was PINNED: it names the account explicitly instead of letting the
     // server mint for whatever `activeAccountId` currently is.
-    expect(stub.mintFromDeviceSecret).toHaveBeenCalledWith('dev_identity', 'identity.device.secret', {
+    expect(stub.devices.mintToken).toHaveBeenCalledWith('dev_identity', 'identity.device.secret', {
       accountId: PINNED_ACCOUNT,
     });
-    expect(stub.getAccessToken()).toBe(MINTED_PINNED_TOKEN);
+    expect(stub.session.accessToken).toBe(MINTED_PINNED_TOKEN);
     // The persisted session converged on the pinned account's entry, not the active one.
     const persisted = JSON.parse(window.localStorage.getItem(AUTH_STATE_STORAGE_KEY) ?? '{}');
     expect(persisted.userId).toBe(PINNED_ACCOUNT);
@@ -358,8 +345,8 @@ describe('OxyProvider sessionMode: "identity" (identity-bound sessions)', () => 
 
     renderProvider(stub, 'identity');
     await waitFor(() => expect(requireContext().user?.id).toBe(PINNED_ACCOUNT));
-    stub.requestChallenge.mockClear();
-    stub.verifyChallenge.mockClear();
+    stub.auth.requestChallenge.mockClear();
+    stub.auth.verifyChallenge.mockClear();
     fakeSessionClient.bootstrap.mockClear();
 
     // Another app signed the pinned account out of the shared device session.
@@ -370,11 +357,11 @@ describe('OxyProvider sessionMode: "identity" (identity-bound sessions)', () => 
         revision: 2,
       }),
     );
-    await waitFor(() => expect(stub.verifyChallenge).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(stub.auth.verifyChallenge).toHaveBeenCalledTimes(1));
 
     // The local key re-derived the session instead of the projection adopting the
     // only account left on the device.
-    expect(stub.requestChallenge).toHaveBeenCalledWith(LOCAL_PUBLIC_KEY, undefined);
+    expect(stub.auth.requestChallenge).toHaveBeenCalledWith(LOCAL_PUBLIC_KEY, undefined);
     expect(fakeSessionClient.bootstrap).toHaveBeenCalled();
     expect(requireContext().user?.id).toBe(PINNED_ACCOUNT);
     expect(requireContext().activeSessionId).toBe('sess_pinned');
@@ -387,12 +374,12 @@ describe('OxyProvider sessionMode: "identity" (identity-bound sessions)', () => 
     const stub = buildStub({
       // A device the local key can no longer sign into: every attempt fails, so a
       // repeated notify must not turn into a sign-in loop.
-      verifyChallenge: jest.fn(async () => null),
+      auth: { verifyChallenge: jest.fn(async () => null) },
     });
 
     renderProvider(stub, 'identity');
     await waitFor(() => expect(requireContext().user?.id).toBe(PINNED_ACCOUNT));
-    stub.requestChallenge.mockClear();
+    stub.auth.requestChallenge.mockClear();
 
     const orphanedState = buildDeviceState({
       accounts: [{ accountId: OTHER_ACCOUNT, sessionId: 'sess_other', authuser: 1 }],
@@ -400,11 +387,11 @@ describe('OxyProvider sessionMode: "identity" (identity-bound sessions)', () => 
       revision: 2,
     });
     await pushDeviceState(orphanedState);
-    await waitFor(() => expect(stub.requestChallenge).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(stub.auth.requestChallenge).toHaveBeenCalledTimes(1));
     await pushDeviceState(orphanedState);
     await pushDeviceState(orphanedState);
 
-    expect(stub.requestChallenge).toHaveBeenCalledTimes(1);
+    expect(stub.auth.requestChallenge).toHaveBeenCalledTimes(1);
     // Still never adopts the account that IS on the device.
     expect(requireContext().user?.id).toBe(PINNED_ACCOUNT);
   });
@@ -427,11 +414,11 @@ describe('OxyProvider sessionMode: "identity" (identity-bound sessions)', () => 
       IdentityBoundSessionError,
     );
     expect(fakeSessionClient.switchAccount).not.toHaveBeenCalled();
-    expect(stub.switchToAccount).not.toHaveBeenCalled();
+    expect(stub.accounts.actAs).not.toHaveBeenCalled();
 
     // The graph is never fetched and the dialog never exists.
     expect(requireContext().accounts).toEqual([]);
-    expect(stub.listAccounts).not.toHaveBeenCalled();
+    expect(stub.accounts.list).not.toHaveBeenCalled();
     expect(requireContext().accountDialogController).toBeNull();
     act(() => {
       requireContext().openAccountDialog();
@@ -460,7 +447,7 @@ describe('OxyProvider sessionMode: "identity" (identity-bound sessions)', () => 
     expect(fakeSessionClientHost.setCurrentAccountId).toHaveBeenLastCalledWith(OTHER_ACCOUNT);
     // The account graph + dialog stay live.
     expect(requireContext().accountDialogController).not.toBeNull();
-    await waitFor(() => expect(stub.listAccounts).toHaveBeenCalled());
+    await waitFor(() => expect(stub.accounts.list).toHaveBeenCalled());
     // No identity pin was ever written or read: the local key is untouched.
     expect(window.localStorage.getItem(IDENTITY_PIN_STORAGE_KEY)).toBeNull();
     expect(getPublicKeySpy).not.toHaveBeenCalled();

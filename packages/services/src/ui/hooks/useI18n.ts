@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { useOptionalOxy } from '../context/OxyContext';
-import { translate } from '@oxy.so/core';
+import { getLocalesVersion, subscribeLocales, translate } from '@oxy.so/core';
 
 /**
  * The locale `@oxy.so/core`'s translator falls back to. Mirrors its own
@@ -25,8 +25,11 @@ const FALLBACK_LOCALE = 'en-US';
 export function useI18n() {
   const oxy = useOptionalOxy();
   const currentLanguage = oxy?.currentLanguage ?? FALLBACK_LOCALE;
+  // Core's non-English dictionaries load on demand; re-translate when one lands.
+  const localesVersion = useSyncExternalStore(subscribeLocales, getLocalesVersion, getLocalesVersion);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `localesVersion` is the re-translate signal — a new `t` makes consumers re-render once a dictionary lands.
   const t = useMemo(() => {
     return (key: string, vars?: Record<string, string | number>) => translate(currentLanguage, key, vars);
-  }, [currentLanguage]);
+  }, [currentLanguage, localesVersion]);
   return { t, locale: currentLanguage };
 }

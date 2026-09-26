@@ -114,7 +114,6 @@ beforeAll(async () => {
   await connectPostgres();
   process.env.OXY_PRIVATE_KEY = OXY_PRIVATE;
   process.env.OXY_PUBLIC_KEY = OXY_PUBLIC;
-  await reputationService.seedDefaultRules();
 });
 
 afterAll(async () => {

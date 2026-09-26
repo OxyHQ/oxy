@@ -3,7 +3,7 @@ import { logger } from '@oxy.so/core';
 import { createTokenTransport } from '../tokenTransport';
 
 // The device-first transport no longer owns a private mint single-flight: it
-// routes through the ONE shared `oxyServices.httpService.refreshAccessToken(...)`
+// routes through the ONE shared `oxyServices.http.refreshAccessToken(...)`
 // the scheduler/preflight/401 use, so concurrent lanes can never double-rotate
 // the device secret. It short-circuits ONLY when the planted bearer already
 // identifies the state's active account — a bearer for a DIFFERENT account (an
@@ -11,9 +11,11 @@ import { createTokenTransport } from '../tokenTransport';
 // that account-match contract and the transport's error/swallow behavior.
 
 function fakeOxy(currentUserId: string | null, refreshAccessToken = jest.fn(async () => 'minted-token')) {
+  const userId = jest.fn((): string | null => currentUserId);
   return {
-    getCurrentUserId: jest.fn().mockReturnValue(currentUserId),
-    httpService: { refreshAccessToken },
+    userId,
+    session: { get userId() { return userId(); } },
+    http: { refreshAccessToken },
   };
 }
 
@@ -49,7 +51,7 @@ describe('createTokenTransport', () => {
     expect(refreshAccessToken).toHaveBeenCalledWith('preflight');
   });
 
-  test('mints via the shared httpService.refreshAccessToken single-flight when no bearer is present', async () => {
+  test('mints via the shared http.refreshAccessToken single-flight when no bearer is present', async () => {
     const refreshAccessToken = jest.fn(async () => 'minted-token');
     const oxy = fakeOxy(null, refreshAccessToken);
     const transport = createTokenTransport(oxy as never);
@@ -90,7 +92,7 @@ describe('createTokenTransport', () => {
 
   test('delegates concurrent calls to the shared single-flight (no private guard of its own)', async () => {
     // The transport keeps NO local coalescing — it forwards each call to the
-    // shared `httpService.refreshAccessToken`, which owns the single-flight that
+    // shared `http.refreshAccessToken`, which owns the single-flight that
     // collapses concurrent mints into one server rotation (covered in core).
     const refreshAccessToken = jest.fn(async () => 'minted-token');
     const oxy = fakeOxy(null, refreshAccessToken);
@@ -126,7 +128,7 @@ describe('createTokenTransport', () => {
     });
 
     expect(refreshAccessToken).not.toHaveBeenCalled();
-    expect(oxy.getCurrentUserId).not.toHaveBeenCalled();
+    expect(oxy.userId).not.toHaveBeenCalled();
   });
 
   test('a resolver reporting no pin (every account-mode provider) behaves exactly as an absent one', async () => {
@@ -143,7 +145,7 @@ describe('createTokenTransport', () => {
   test('treats a throwing bearer-account check as a mismatch and still mints', async () => {
     const refreshAccessToken = jest.fn(async () => 'minted-token');
     const oxy = fakeOxy(null, refreshAccessToken);
-    oxy.getCurrentUserId.mockImplementation(() => {
+    oxy.userId.mockImplementation(() => {
       throw new Error('storage unavailable');
     });
     const transport = createTokenTransport(oxy as never);

@@ -76,7 +76,7 @@ const AppInfoScreen: React.FC<BaseScreenProps> = ({
             }
 
             try {
-                await oxyServices.healthCheck();
+                await oxyServices.health();
                 setConnectionStatus('connected');
             } catch (error) {
                 setConnectionStatus('disconnected');
@@ -110,7 +110,7 @@ const AppInfoScreen: React.FC<BaseScreenProps> = ({
             // Check API connection
             if (oxyServices) {
                 try {
-                    await oxyServices.healthCheck();
+                    await oxyServices.health();
                     setConnectionStatus('connected');
                 } catch (error) {
                     setConnectionStatus('disconnected');
@@ -271,8 +271,8 @@ const AppInfoScreen: React.FC<BaseScreenProps> = ({
                         <SettingsListItem
                             icon={<SettingsIcon name="server" color={colors.primary} />}
                             title={t('appInfo.items.apiBaseUrl')}
-                            description={oxyServices?.getBaseURL() || t('appInfo.items.notConfigured')}
-                            onPress={() => copyToClipboard(oxyServices?.getBaseURL() || t('appInfo.items.notConfigured'), t('appInfo.items.apiBaseUrl'))}
+                            description={oxyServices?.baseURL || t('appInfo.items.notConfigured')}
+                            onPress={() => copyToClipboard(oxyServices?.baseURL || t('appInfo.items.notConfigured'), t('appInfo.items.apiBaseUrl'))}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon
@@ -291,7 +291,7 @@ const AppInfoScreen: React.FC<BaseScreenProps> = ({
                                 }
 
                                 try {
-                                    await oxyServices.healthCheck();
+                                    await oxyServices.health();
                                     setConnectionStatus('connected');
                                     toast.success(t('appInfo.toasts.apiConnectionSuccess'));
                                 } catch (error) {

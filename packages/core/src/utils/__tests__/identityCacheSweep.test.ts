@@ -43,11 +43,9 @@ function makeRecordingEvictor() {
   const entries: string[] = [];
   const prefixes: string[] = [];
   const evictor: OxyIdentityCacheEvictor = {
-    clearCacheEntry: (key) => {
-      entries.push(key);
-    },
-    clearCacheByPrefix: (prefix) => {
-      prefixes.push(prefix);
+    invalidateCache: (spec) => {
+      entries.push(...(spec.keys ?? []));
+      prefixes.push(...(spec.prefixes ?? []));
       return 0;
     },
   };
@@ -62,7 +60,6 @@ describe('evictOxyIdentityCache — the key list', () => {
     expect(prefixes).toEqual([
       'GET:/session/user/',
       'GET:/users/me',
-      'GET:/auth/lookup/',
       'GET:/profiles/username/',
       'GET:/profiles/resolve',
     ]);
@@ -103,7 +100,7 @@ describe('evictOxyIdentityCache — every prefix matches a real read', () => {
       enableRetry: false,
       requestTimeout: 1000,
     });
-    oxy.httpService.setTokens(makeJwt({ userId: USER_ID }));
+    oxy.http.setTokens(makeJwt({ userId: USER_ID }));
   });
 
   afterEach(() => {
@@ -116,12 +113,11 @@ describe('evictOxyIdentityCache — every prefix matches a real read', () => {
     key: string;
     warm: (client: OxyServices) => Promise<unknown>;
   }> = [
-    { key: 'GET:/session/user/', warm: (c) => c.getUserBySession('sess-1') },
-    { key: 'GET:/users/me', warm: (c) => c.getCurrentUser() },
-    { key: 'GET:/auth/lookup/', warm: (c) => c.lookupUsername('alice') },
-    { key: 'GET:/profiles/username/', warm: (c) => c.getProfileByUsername('alice') },
-    { key: 'GET:/profiles/resolve', warm: (c) => c.resolveProfile('@alice@test.invalid') },
-    { key: 'GET:/users/<id>', warm: (c) => c.getUserById(USER_ID) },
+    { key: 'GET:/session/user/', warm: (c) => c.users.bySession('sess-1') },
+    { key: 'GET:/users/me', warm: (c) => c.users.me() },
+    { key: 'GET:/profiles/username/', warm: (c) => c.users.byUsername('alice') },
+    { key: 'GET:/profiles/resolve', warm: (c) => c.users.resolveHandle('@alice@test.invalid') },
+    { key: 'GET:/users/<id>', warm: (c) => c.users.get(USER_ID) },
   ];
 
   it('covers every prefix in the list with a read (no prefix goes unexercised)', () => {
@@ -142,7 +138,7 @@ describe('evictOxyIdentityCache — every prefix matches a real read', () => {
     await warm(oxy);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    evictOxyIdentityCache(oxy, USER_ID);
+    evictOxyIdentityCache(oxy.http, USER_ID);
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ id: USER_ID, username: 'alice-2' }));
     await warm(oxy);

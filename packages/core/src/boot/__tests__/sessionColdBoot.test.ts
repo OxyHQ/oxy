@@ -14,8 +14,8 @@ import type { DeviceSecretMintOutcome } from '../../session/refresh';
 import { createMemoryAuthStateStore, type PersistedAuthState } from '../../session/authStateStore';
 
 interface OxyOverrides {
-  signInWithSharedIdentity?: OxyServices['signInWithSharedIdentity'];
-  mintFromDeviceSecret?: OxyServices['mintFromDeviceSecret'];
+  signInWithSharedIdentity?: OxyServices['auth']['signInWithSharedIdentity'];
+  mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
 }
 
 /** A real device-secret mint single-flight matching HttpService's. */
@@ -34,18 +34,20 @@ function makeMintSingleFlight(): (mint: () => Promise<DeviceSecretMintOutcome>) 
 function makeOxy(overrides: OxyOverrides = {}): { oxy: OxyServices; setTokens: jest.Mock } {
   const setTokens = jest.fn();
   const oxy = {
-    getBaseURL: () => 'https://api.oxy.so',
-    setTokens,
-    signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null),
-    // Default: no persisted secret in these fixtures, so the mint step skips
-    // before ever calling this. Tests that exercise the mint pass an override.
-    mintFromDeviceSecret:
-      overrides.mintFromDeviceSecret
-      ?? (async () => {
-        throw new Error('mintFromDeviceSecret not stubbed');
-      }),
+    baseURL: 'https://api.oxy.so',
+    session: { setAccessToken: setTokens },
+    auth: { signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null) },
+    devices: {
+      // Default: no persisted secret in these fixtures, so the mint step skips
+      // before ever calling this. Tests that exercise the mint pass an override.
+      mintToken:
+        overrides.mintFromDeviceSecret
+        ?? (async () => {
+          throw new Error('mintToken not stubbed');
+        }),
+    },
     // The device-secret-mint step runs through the client's single-flight.
-    httpService: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
+    http: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
   } as unknown as OxyServices;
   return { oxy, setTokens };
 }

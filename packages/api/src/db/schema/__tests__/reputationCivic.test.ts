@@ -18,7 +18,6 @@ import {
   CONTRIBUTION_TIERS as CONTRACT_CONTRIBUTION_TIERS,
   PERSONHOOD_STATUSES as CONTRACT_PERSONHOOD_STATUSES,
   REPUTATION_CATEGORIES as CONTRACT_REPUTATION_CATEGORIES,
-  REPUTATION_DISPUTE_STATUSES as CONTRACT_DISPUTE_STATUSES,
   REPUTATION_TARGET_ENTITY_TYPES as CONTRACT_TARGET_ENTITY_TYPES,
   REPUTATION_TRANSACTION_STATUSES as CONTRACT_TRANSACTION_STATUSES,
   TRUST_TIERS as CONTRACT_TRUST_TIERS,
@@ -35,9 +34,8 @@ import {
   reputationBalances,
   reputationReviewingReliability,
 } from '../reputationBalances';
-import { REPUTATION_DISPUTE_STATUSES, reputationDisputes } from '../reputationDisputes';
-import { REPUTATION_CATEGORIES, reputationRules } from '../reputationRules';
 import {
+  REPUTATION_CATEGORIES,
   REPUTATION_TARGET_ENTITY_TYPES,
   REPUTATION_TRANSACTION_STATUSES,
   reputationTransactions,
@@ -663,47 +661,6 @@ describe('reputation_balances — nine subdocuments as columns', () => {
   });
 });
 
-describe('reputation_disputes — a resolution is whole or absent', () => {
-  it('refuses a resolved status with no resolution timestamp', async () => {
-    const userId = await owner();
-    const [txn] = await getDb()
-      .insert(reputationTransactions)
-      .values({ userId, points: 5, actionType: 'x', category: 'trust' })
-      .returning({ id: reputationTransactions.id });
-
-    const error = await rejection(
-      getDb()
-        .insert(reputationDisputes)
-        .values({ transactionId: txn.id, userId, reason: 'wrong', status: 'accepted' })
-    );
-
-    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
-    expect(pgConstraint(error)).toBe('reputation_disputes_resolution_check');
-  });
-
-  it('distinguishes absent evidence from empty evidence', async () => {
-    // `default: undefined` in Mongoose means ABSENT, so the column has no
-    // default. `'{}'` would be a different value the user actually supplied.
-    const userId = await owner();
-    const [txn] = await getDb()
-      .insert(reputationTransactions)
-      .values({ userId, points: 5, actionType: 'x', category: 'trust' })
-      .returning({ id: reputationTransactions.id });
-
-    const [absent] = await getDb()
-      .insert(reputationDisputes)
-      .values({ transactionId: txn.id, userId, reason: 'no evidence' })
-      .returning();
-    const [empty] = await getDb()
-      .insert(reputationDisputes)
-      .values({ transactionId: txn.id, userId, reason: 'empty evidence', evidence: [] })
-      .returning();
-
-    expect(absent.evidence).toBeNull();
-    expect(empty.evidence).toEqual([]);
-  });
-});
-
 describe('verifiable_credentials — revocation coherence', () => {
   it('refuses a revocation timestamp on an active credential', async () => {
     const holderUserId = await owner();
@@ -784,7 +741,6 @@ describe('closed value sets stay equal to the contract', () => {
     ['reputation categories', REPUTATION_CATEGORIES, [...CONTRACT_REPUTATION_CATEGORIES]],
     ['transaction statuses', REPUTATION_TRANSACTION_STATUSES, [...CONTRACT_TRANSACTION_STATUSES]],
     ['target entity types', REPUTATION_TARGET_ENTITY_TYPES, [...CONTRACT_TARGET_ENTITY_TYPES]],
-    ['dispute statuses', REPUTATION_DISPUTE_STATUSES, [...CONTRACT_DISPUTE_STATUSES]],
     ['trust tiers', TRUST_TIERS, [...CONTRACT_TRUST_TIERS]],
     ['personhood statuses', PERSONHOOD_STATUSES, [...CONTRACT_PERSONHOOD_STATUSES]],
     ['contribution tiers', CONTRIBUTION_TIERS, [...CONTRACT_CONTRIBUTION_TIERS]],
@@ -839,36 +795,5 @@ describe('closed value sets stay equal to the contract', () => {
       const error = await rejection(getDb().execute(statement));
       expect([label, pgErrorCode(error)]).toEqual([label, CHECK_VIOLATION]);
     }
-  });
-});
-
-describe('reputation_rules', () => {
-  it('holds one rule per action key', async () => {
-    const actionType = `act-${randomUUID()}`;
-    await getDb()
-      .insert(reputationRules)
-      .values({ actionType, points: 5, category: 'trust', description: 'd' });
-
-    const error = await rejection(
-      getDb()
-        .insert(reputationRules)
-        .values({ actionType, points: 9, category: 'social', description: 'd' })
-    );
-
-    expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
-  });
-
-  it('refuses a negative cooldown', async () => {
-    const error = await rejection(
-      getDb().insert(reputationRules).values({
-        actionType: `act-${randomUUID()}`,
-        points: 5,
-        category: 'trust',
-        description: 'd',
-        cooldownInMinutes: -1,
-      })
-    );
-
-    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
 });

@@ -3,7 +3,7 @@ import { Icons } from '@/constants/icons';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { BackHandler, Platform } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { RecoveryPhraseService } from '@oxy.so/core';
+import { RecoveryPhraseService } from '@oxy.so/core/crypto';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { useColors } from '@/hooks/useColors';
 import { RecoveryPhraseStep } from '@/components/auth/RecoveryPhraseStep';

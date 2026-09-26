@@ -43,7 +43,7 @@ export type VouchErrorCode =
 /**
  * Recognized rejection reasons for a credential VERIFY (`valid: false`).
  *
- * `verifyCredential` resolves to `{ valid, reason?, credential }` (it does NOT
+ * `civic.credentials.verify` resolves to `{ valid, reason?, credential }` (it does NOT
  * throw on an untrusted credential), so this maps the stable server `reason`
  * string — not a thrown `Error.message`.
  */
@@ -150,8 +150,8 @@ const CREDENTIAL_VERIFY_REASONS: readonly Exclude<CredentialVerifyReasonCode, 'g
 ];
 
 /**
- * Classify the stable `reason` from a `verifyCredential` result
- * (`valid: false`). `verifyCredential` never throws on an untrusted credential,
+ * Classify the stable `reason` from a `civic.credentials.verify` result
+ * (`valid: false`). `civic.credentials.verify` never throws on an untrusted credential,
  * so this maps the machine-readable `reason` string directly. Anything
  * unmodelled (or a missing reason) collapses to `'generic'`, so a screen can
  * always do `t('civic.credentials.verify.reason.' + code)`.

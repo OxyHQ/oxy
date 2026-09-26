@@ -15,7 +15,7 @@ const SESSION = {
 };
 
 function makeOxyServices(exchange: jest.Mock): OxyServices {
-  return { exchangeOAuthCode: exchange } as unknown as OxyServices;
+  return { auth: { oauth: { exchangeCode: exchange } } } as unknown as OxyServices;
 }
 
 describe('completeOAuthCode', () => {
