@@ -56,6 +56,7 @@ import {
   webauthnLoginVerifyRequestSchema,
   isValidUsername,
   USERNAME_INVALID_MESSAGE,
+  type DeviceProof,
 } from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { notifications } from '../db/schema/notifications';
@@ -76,6 +77,7 @@ import { normalizeUsername } from '../utils/username';
 import { buildSessionAuthResponse, sessionCreateOptionsFromBody } from '../controllers/session.controller';
 import sessionService from '../services/session.service';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
+import { resolveProvenDeviceId } from '../services/deviceJoin.service';
 import securityActivityService from '../services/securityActivityService';
 import type { SessionAuthResponse } from '../types/session';
 
@@ -106,6 +108,11 @@ const loginVerifyLimiter = rateLimit({ prefix: 'rl:webauthn:login-verify:', wind
 export interface DeviceEnvelope {
   deviceName?: string;
   deviceFingerprint?: string;
+  /**
+   * Proof of the browser's device (ADR 0029 D2). Valid → the session is created
+   * ON that device, so every app holding it sees the account; invalid → ignored.
+   */
+  device?: DeviceProof;
 }
 
 /**
@@ -416,11 +423,14 @@ export async function mintWebauthnSession(
   account: WebauthnAccount,
   envelope: DeviceEnvelope,
 ): Promise<void> {
-  const session: MintedSession = await sessionService.createSession(
-    account.id,
-    req,
-    sessionCreateOptionsFromBody(envelope),
-  );
+  // A proven device is the browser's shared one: the new session joins it
+  // instead of getting a device of its own. The id is the server's own lookup
+  // of the presented secret, never a value read from the body.
+  const provenDeviceId = await resolveProvenDeviceId(envelope.device);
+  const session: MintedSession = await sessionService.createSession(account.id, req, {
+    ...sessionCreateOptionsFromBody(envelope),
+    ...(provenDeviceId ? { deviceId: provenDeviceId } : {}),
+  });
 
   // `buildSessionAuthResponse` projects exactly `id`, `username` and `avatar`
   // onto the wire, which is why those are the three columns selected above.

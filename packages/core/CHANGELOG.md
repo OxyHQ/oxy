@@ -1,5 +1,29 @@
 # Changelog — `@oxy.so/core`
 
+## 1.19.0
+
+One browser, one session: the browser bridge (ADR 0029 D2).
+
+### Added
+
+- `registerBrowserDevice()`, `requestDeviceJoinCode(request)` and
+  `joinBrowserDevice(request)` — `POST /session/device/{register,join-code,join}`,
+  bearer-less and validated against the contracts. auth.oxy.so's bridge page
+  registers or proves the browser's device and hands an official app a one-use,
+  PKCE-bound code; the app redeems it for its own holder credential.
+- `setDeviceCredentialProvider(provider)` and `readDeviceProof()`: tell a client
+  how to read the device credential it holds, and `claimSessionByToken`,
+  `webauthnLoginVerify` and `webauthnRegisterVerify` (sign-up, recovery) send it
+  as `device`, so the new session is created on that device. An explicit
+  `device: null` opts out. Type `DeviceCredentialProvider`.
+
+### Changed
+
+- The in-session re-mint on the web KEEPS a device credential that answers
+  `no_active_session` (it drops only the session fields) instead of clearing the
+  store: a joined, signed-out app stays a holder of the browser's device and never
+  needs the bridge again. `invalid_device_secret` still clears it.
+
 ## 1.18.0
 
 Web accounts are a username, a passkey and a recovery email (ADR 0029 D3). The

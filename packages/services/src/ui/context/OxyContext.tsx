@@ -21,6 +21,7 @@ import type {
 } from '@oxy.so/core';
 import {
   KeyManager,
+  refreshDeviceSecretArm,
   establishIdentitySession,
   installAuthRefreshHandler,
   startTokenRefreshScheduler,
@@ -37,6 +38,8 @@ import {
   type StartWebOAuthSignInOptions,
 } from '../oauth/browserAuthTransport';
 import type { WebOAuthSignInResult } from '../oauth/types';
+import { openBridgeWindow, resolveBridgeOrigin, runBrowserBridge } from '../oauth/browserBridge';
+import { trackDeviceCredential, type CredentialTrackingAuthStateStore } from '../session/deviceCredentialTracker';
 import {
   requestOAuthConsent,
   type OAuthConsentResult,
@@ -45,7 +48,7 @@ import {
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { resolveDeliveryPlatform } from '../utils/deliveryPlatform';
 import { runProviderColdBoot } from '../boot/runProviderColdBoot';
-import { hasPersistedDeviceCredential, loadPersistedDeviceCredential } from '../utils/deviceCredential';
+import { hasPersistedSessionCredential, loadPersistedDeviceCredential } from '../utils/deviceCredential';
 import { createTokenLossRecovery } from '../session/tokenLossRecovery';
 import { bindAuthStoreToRuntime } from '../stores/authStore';
 import { useLanguageManagement } from '../hooks/useLanguageManagement';
@@ -169,11 +172,13 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
 
   // The device-first persisted auth-state store (per-origin device credential on
   // web; SecureStore session blob on native). Built ONCE per provider mount.
-  const authStoreRef = useRef<AuthStateStore | null>(null);
+  // Tracked, so a sign-in press can tell SYNCHRONOUSLY whether this origin
+  // holds a device credential (the browser bridge must open inside the press).
+  const authStoreRef = useRef<CredentialTrackingAuthStateStore | null>(null);
   if (!authStoreRef.current) {
-    authStoreRef.current = createPlatformAuthStateStore({ sessionMode });
+    authStoreRef.current = trackDeviceCredential(createPlatformAuthStateStore({ sessionMode }));
   }
-  const authStore = authStoreRef.current;
+  const authStore: AuthStateStore = authStoreRef.current;
 
   // Identity-bound session binding (`sessionMode: 'identity'`) — the platform pin
   // store plus the memoised pinned account id every lane below binds to. Built
@@ -564,7 +569,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     };
     const recovery = createTokenLossRecovery({
       remint: () => oxyServices.httpService.refreshAccessToken('preflight'),
-      hasDeviceCredential: () => hasPersistedDeviceCredential(authStore),
+      hasDeviceCredential: () => hasPersistedSessionCredential(authStore),
       hasKeyedRecovery: async () => {
         if (Platform.OS === 'web') {
           return false;
@@ -877,6 +882,85 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   }
   const accountDialogController = accountDialogControllerRef.current;
 
+  // Every sign-in on the web PROVES the device this origin holds (ADR 0029 D2):
+  // the QR claim and the passkey sign-ins send it, so the account lands on the
+  // browser's shared device and every Oxy app holding it sees it at once.
+  // Native is untouched: its apps already share a device through the keychain.
+  useEffect(() => {
+    if (!isWebBrowser()) return undefined;
+    return oxyServices.setDeviceCredentialProvider(() => loadPersistedDeviceCredential(authStore));
+  }, [oxyServices, authStore]);
+
+  // ── The browser bridge (ADR 0029 D2) ──────────────────────────────────────
+  // The first time a person presses sign-in in this app on the web and it holds
+  // no device credential, open auth.oxy.so/bridge FROM THE PRESS: it hands this
+  // app a one-use code to join the browser's device and closes at once. Then
+  // restore through the ordinary mint — signed in already if the browser is,
+  // otherwise the dialog's sign-in carries the device proof. Never on page load,
+  // never on auth.oxy.so itself, never identity-bound; a blocked window only
+  // means this app signs in on a device of its own.
+  const bridgeInFlightRef = useRef(false);
+  const closeAccountDialogRef = useRef<() => void>(() => undefined);
+  const startBrowserBridge = useCallback((): void => {
+    if (isIdentityBound || !clientId || !isWebBrowser() || bridgeInFlightRef.current) return;
+    if (authStoreRef.current?.heldDeviceCredential() !== null) return;
+    const bridgeOrigin = resolveBridgeOrigin(authorizeBaseUrl);
+    const pageOrigin = globalThis.location?.origin;
+    if (!bridgeOrigin || !pageOrigin || pageOrigin === bridgeOrigin) return;
+    const popup = openBridgeWindow();
+    if (!popup) return;
+    bridgeInFlightRef.current = true;
+    void (async () => {
+      const joined = await runBrowserBridge({
+        popup,
+        bridgeOrigin,
+        oxyServices,
+        clientId,
+        redirectUri: authRedirectUri ?? pageOrigin,
+      });
+      if (!joined.ok) return;
+      // A sign-in that finished while the bridge ran keeps its own credential.
+      if ((await loadPersistedDeviceCredential(authStore)) !== null) return;
+      const credential = { deviceId: joined.deviceId, deviceSecret: joined.deviceSecret };
+      await authStore.save({ sessionId: '', userId: '', ...credential });
+      sessionClientHost.setDeviceCredential(credential);
+      const minted = await refreshDeviceSecretArm({ oxy: oxyServices, store: authStore });
+      if (minted.status === 'invalid-secret') {
+        await authStore.clear();
+        sessionClientHost.setDeviceCredential(null);
+        return;
+      }
+      if (minted.status !== 'ok') return;
+      // The browser is already signed in: this app follows, and the dialog it
+      // opened for a sign-in has nothing left to do.
+      await commitSessionRef.current(
+        {
+          sessionId: minted.sessionId,
+          accessToken: minted.token,
+          userId: minted.userId,
+          deviceState: minted.state,
+        },
+        { activate: false },
+      );
+      closeAccountDialogRef.current();
+    })()
+      .catch((bridgeError) => {
+        logger('The browser bridge failed', bridgeError);
+      })
+      .finally(() => {
+        bridgeInFlightRef.current = false;
+      });
+  }, [
+    isIdentityBound,
+    clientId,
+    authorizeBaseUrl,
+    authRedirectUri,
+    oxyServices,
+    authStore,
+    sessionClientHost,
+    logger,
+  ]);
+
   const openAccountDialog = useCallback((view?: AccountDialogView): void => {
     if (isIdentityBound) {
       // No controller was built, and there is nothing to choose: this app's user
@@ -890,6 +974,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       return;
     }
     const nextView = view ?? 'accounts';
+    // Synchronously, while the press is still being handled.
+    startBrowserBridge();
     accountDialogControllerRef.current?.setView(nextView);
 
     // Its own detached surface is already open → just re-point the view above.
@@ -932,12 +1018,15 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       }
     });
     setAccountDialogOpen(true);
-  }, [isIdentityBound]);
+  }, [isIdentityBound, startBrowserBridge]);
 
   const closeAccountDialog = useCallback((): void => {
     accountDialogControllerRef.current?.cancelSignIn();
     dismissAccountDialogSurface();
   }, [dismissAccountDialogSurface]);
+  useEffect(() => {
+    closeAccountDialogRef.current = closeAccountDialog;
+  }, [closeAccountDialog]);
 
   // Start driving the dialog on mount; tear it down on unmount.
   useEffect(() => {

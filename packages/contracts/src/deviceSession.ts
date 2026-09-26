@@ -191,3 +191,75 @@ export type DeviceBackgroundCredentialResponse = z.infer<
 >;
 export type DeviceBackgroundTokenRequest = z.infer<typeof deviceBackgroundTokenRequestSchema>;
 export type DeviceBackgroundTokenResponse = z.infer<typeof deviceBackgroundTokenResponseSchema>;
+
+/* -------------------------------------------------------------------------- */
+/*  The browser bridge — joining the browser's DeviceSession (ADR 0029 D2)    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Proof that the caller holds a device: the `deviceId` it stored first-party and
+ * one of that device's holder secrets. Sent with `POST /session/device/join-code`
+ * and, optionally, with a sign-in (`POST /auth/session/claim`,
+ * `POST /auth/webauthn/login/verify`, `POST /auth/webauthn/register/verify`), where
+ * a valid proof puts the new session on THAT device so every app holding it sees
+ * the account. An invalid proof on a sign-in is ignored, never an error.
+ */
+export const deviceProofSchema = z.object({
+  deviceId: z.string().min(1).max(128),
+  deviceSecret: z.string().min(1).max(256),
+});
+
+/**
+ * `POST /session/device/register` — auth.oxy.so only. No body. A new, empty
+ * DeviceSession with a server-chosen `deviceId` and ONE holder credential for
+ * auth.oxy.so. The raw secret is returned exactly once.
+ */
+export const deviceRegisterResponseSchema = z.object({
+  deviceId: z.string().min(1),
+  deviceSecret: z.string().min(1),
+});
+
+/** PKCE S256 challenge: base64url of a SHA-256 digest (43 characters). */
+const pkceS256ChallengeSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+
+/**
+ * `POST /session/device/join-code` — auth.oxy.so only (the bridge window). Proves
+ * auth.oxy.so's device and asks for a one-use code an official app redeems to
+ * join it. The code is bound to the application (`clientId`), its exact
+ * registered `redirectUri` and the app's PKCE challenge, and lives about a
+ * minute.
+ */
+export const deviceJoinCodeRequestSchema = deviceProofSchema.extend({
+  clientId: z.string().min(1).max(256),
+  redirectUri: z.string().url().max(2048),
+  codeChallenge: pkceS256ChallengeSchema,
+  codeChallengeMethod: z.literal('S256'),
+});
+
+export const deviceJoinCodeResponseSchema = z.object({
+  code: z.string().min(1),
+  /** Seconds until the code expires. */
+  expiresIn: z.number().int().positive(),
+});
+
+/**
+ * `POST /session/device/join` — called by the app's own origin with the code the
+ * bridge window posted to it and the PKCE verifier only the app holds. Returns a
+ * NEW holder credential for the browser's device; the app then mints through the
+ * ordinary `POST /session/device/token`.
+ */
+export const deviceJoinRequestSchema = z.object({
+  code: z.string().min(1).max(256),
+  codeVerifier: z.string().min(43).max(128).regex(/^[A-Za-z0-9._~-]+$/),
+  clientId: z.string().min(1).max(256),
+  redirectUri: z.string().url().max(2048),
+});
+
+export const deviceJoinResponseSchema = deviceRegisterResponseSchema;
+
+export type DeviceProof = z.infer<typeof deviceProofSchema>;
+export type DeviceRegisterResponse = z.infer<typeof deviceRegisterResponseSchema>;
+export type DeviceJoinCodeRequest = z.infer<typeof deviceJoinCodeRequestSchema>;
+export type DeviceJoinCodeResponse = z.infer<typeof deviceJoinCodeResponseSchema>;
+export type DeviceJoinRequest = z.infer<typeof deviceJoinRequestSchema>;
+export type DeviceJoinResponse = z.infer<typeof deviceJoinResponseSchema>;

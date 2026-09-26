@@ -324,12 +324,18 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
       // 401: secret diverged or no live session. When a key-based arm 2 can still
       // recover (native shared key, or an identity-bound client's own primary
       // key) drop ONLY the secret and keep the deviceId; otherwise (web) the
-      // session is over — clear the store.
+      // session is over.
       const persisted = await store.load();
       if (allowSharedKeyFallback || identity) {
         if (persisted) {
           await store.save({ ...persisted, deviceSecret: undefined });
         }
+      } else if (arm1.status === 'no-session' && persisted?.deviceId && persisted.deviceSecret) {
+        // Web, a credential the server still recognises: this origin stays a
+        // holder of the browser's device (ADR 0029 D2) — the next sign-in in any
+        // app lands on it, and this app follows without opening the bridge
+        // again. Only the session fields go.
+        await store.save({ sessionId: '', userId: '', deviceId: persisted.deviceId, deviceSecret: persisted.deviceSecret });
       } else {
         await store.clear();
       }

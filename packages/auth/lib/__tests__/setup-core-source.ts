@@ -24,6 +24,7 @@ import { getCommonsApprovalBlockingReason } from "../../../core/src/utils/common
 import { getNormalizedUserHandle } from "../../../core/src/utils/userHandle"
 import { translate } from "../../../core/src/i18n"
 import { selectCommonsDelivery } from "../../../core/src/utils/commonsDelivery"
+import { createWebAuthStateStore } from "../../../core/src/session/authStateStore"
 
 mock.module("@oxy.so/core", () => ({
     getNormalizedUserHandle,
@@ -32,4 +33,7 @@ mock.module("@oxy.so/core", () => ({
     // The shared "one primary delivery route" decision the OAuth-bound Commons
     // lane (`lib/commons-oauth-request.ts`) reuses rather than re-deciding.
     selectCommonsDelivery,
+    // The bridge page's credential store — the SAME one this origin's provider
+    // uses (`src/bridge.ts`, ADR 0029 D2).
+    createWebAuthStateStore,
 }))

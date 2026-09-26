@@ -799,6 +799,13 @@
       "when": 1790395727915,
       "tag": "0114_drop_device_session_secret",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1790418429503,
+      "tag": "0115_device_join_codes",
+      "breakpoints": true
     }
   ]
 }

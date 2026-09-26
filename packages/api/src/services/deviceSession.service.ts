@@ -16,6 +16,7 @@ import {
   isOperatorSwitchTargetKind,
 } from '@oxy.so/contracts';
 import { isUniqueViolation } from '@oxy.so/db';
+import { v7 as uuidv7 } from 'uuid';
 import { getDb, type Database } from '../config/postgres';
 import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
 import { deviceCredentials } from '../db/schema/deviceCredentials';
@@ -1817,6 +1818,26 @@ class DeviceSessionService {
       return true;
     });
     return issued ? rawSecret : null;
+  }
+
+  /**
+   * A new, EMPTY DeviceSession with a server-chosen `deviceId` and one holder
+   * credential — the browser's device, created by auth.oxy.so the first time
+   * the bridge runs there without a credential of its own (ADR 0029 D2). Every
+   * official app that joins through the bridge, and every sign-in that proves
+   * this device, lands on it.
+   *
+   * The id is never the caller's: a device id a client could choose is a device
+   * somebody else might already hold.
+   */
+  async registerDevice(): Promise<{ deviceId: string; deviceSecret: string }> {
+    const deviceId = uuidv7();
+    await this.ensureDeviceRecord(getDb(), deviceId);
+    const deviceSecret = await this.issueDeviceSecret(deviceId);
+    if (!deviceSecret) {
+      throw new Error(`device_sessions row for "${deviceId}" vanished after insert`);
+    }
+    return { deviceId, deviceSecret };
   }
 
   /**

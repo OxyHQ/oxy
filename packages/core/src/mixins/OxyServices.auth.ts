@@ -8,6 +8,7 @@ import type {
   UserNameResponse,
   LoginResult,
   CommonsDenyReason,
+  DeviceProof,
 } from '@oxy.so/contracts';
 import {
   emailVerificationConfirmResponseSchema,
@@ -1066,7 +1067,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      */
     async claimSessionByToken(
       sessionToken: string,
-      options: { deviceFingerprint?: string; plantTokens?: boolean } = {}
+      options: { deviceFingerprint?: string; plantTokens?: boolean; device?: DeviceProof | null } = {}
     ): Promise<{
       accessToken: string;
       sessionId: string;
@@ -1076,6 +1077,9 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
       deviceSecret?: string;
     }> {
       try {
+        // The device this client holds, so an official app's claim joins it
+        // (ADR 0029 D2). `null` opts out explicitly.
+        const device = options.device === undefined ? await this.readDeviceProof() : options.device;
         const res = await this.makeRequest<{
           accessToken: string;
           sessionId: string;
@@ -1089,6 +1093,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
           {
             sessionToken,
             ...(options.deviceFingerprint ? { deviceFingerprint: options.deviceFingerprint } : {}),
+            ...(device ? { device } : {}),
           },
           // Body-authenticated device-flow claim (no bearer) — skip the preflight.
           { cache: false, retry: false, skipAuth: true }
@@ -1797,13 +1802,19 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         recoveryTicket?: string;
         deviceName?: string;
         deviceFingerprint?: string;
+        /** The device the new session joins; defaults to the one this client holds. */
+        device?: DeviceProof | null;
       } = {},
     ): Promise<{ success: true; message: string } | LoginResult> {
       try {
+        // Only sign-up and recovery mint a session; a link never does.
+        const mintsSession = envelope.username !== undefined || envelope.recoveryTicket !== undefined;
+        const { device: explicitDevice, ...rest } = envelope;
+        const device = explicitDevice === undefined && mintsSession ? await this.readDeviceProof() : explicitDevice;
         const res = await this.makeRequest<unknown>(
           'POST',
           '/auth/webauthn/register/verify',
-          { response, ...envelope },
+          { response, ...rest, ...(device ? { device } : {}) },
           {
             cache: false,
             ...(envelope.username !== undefined || envelope.recoveryTicket !== undefined ? { skipAuth: true } : {}),
@@ -1868,13 +1879,16 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      */
     async webauthnLoginVerify(
       response: unknown,
-      envelope: { deviceName?: string; deviceFingerprint?: string } = {},
+      envelope: { deviceName?: string; deviceFingerprint?: string; device?: DeviceProof | null } = {},
     ): Promise<LoginResult> {
       try {
+        // The device this client holds, so the session joins it (ADR 0029 D2).
+        const { device: explicitDevice, ...rest } = envelope;
+        const device = explicitDevice === undefined ? await this.readDeviceProof() : explicitDevice;
         const res = await this.makeRequest<unknown>(
           'POST',
           '/auth/webauthn/login/verify',
-          { response, ...envelope },
+          { response, ...rest, ...(device ? { device } : {}) },
           // Pre-session login ceremony — skip the bearer preflight.
           { cache: false, skipAuth: true },
         );

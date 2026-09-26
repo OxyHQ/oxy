@@ -33400,6 +33400,193 @@
         "operationId": "getSessionDeviceDirectory"
       }
     },
+    "/session/device/join": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Join the browser's device with a bridge code.",
+        "description": "Called by the app's own origin, no bearer. Redeems a bridge code with the PKCE verifier only the app holds: unused,\nunexpired, issued to this application for this exact redirect URI. Returns a\nNEW holder credential for the browser's device; the app then mints through\n`POST /session/device/token` like every other holder. A browser caller must\nbe the redirect URI's own origin.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/sessionDevice.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "codeVerifier": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9._~-]+$",
+                    "minLength": 43,
+                    "maxLength": 128
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "redirectUri": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "code",
+                  "codeVerifier",
+                  "clientId",
+                  "redirectUri"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postSessionDeviceJoin"
+      }
+    },
+    "/session/device/join-code": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Mint a one-use code for an official app to join the browser's device.",
+        "description": "auth.oxy.so only (the bridge window). Proves auth.oxy.so's device with one of its holder secrets and mints a\none-use, ~60 s code for an OFFICIAL application, bound to one of its exact\nregistered redirect URIs and to the app's PKCE S256 challenge. A wrong secret\ncounts toward the same per-device lockout as the mint.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/sessionDevice.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "deviceSecret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "redirectUri": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048
+                  },
+                  "codeChallenge": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "codeChallengeMethod": {
+                    "type": "string",
+                    "enum": [
+                      "S256"
+                    ]
+                  }
+                },
+                "required": [
+                  "deviceId",
+                  "deviceSecret",
+                  "clientId",
+                  "redirectUri",
+                  "codeChallenge",
+                  "codeChallengeMethod"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postSessionDeviceJoinCode"
+      }
+    },
     "/session/device/logout-all/{sessionId}": {
       "post": {
         "tags": [
@@ -33476,6 +33663,45 @@
           }
         },
         "operationId": "putSessionDeviceNameSessionId"
+      }
+    },
+    "/session/device/register": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Register the browser's device (auth.oxy.so only).",
+        "description": "No bearer, no body. A new, EMPTY DeviceSession with a server-chosen id and one holder credential.\nThe bridge calls it when auth.oxy.so holds no credential, or its credential\nanswers `invalid_device_secret` (the device ended with nobody signed in).",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/sessionDevice.ts`, naming a Zod schema the file imports."
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "postSessionDeviceRegister"
       }
     },
     "/session/device/sessions/{sessionId}": {

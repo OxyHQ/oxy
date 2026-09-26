@@ -1,5 +1,19 @@
 # Changelog: `@oxy.so/contracts`
 
+## 2.3.0
+
+The browser bridge (ADR 0029 D2).
+
+### Added
+
+- `deviceProofSchema` (`{ deviceId, deviceSecret }`),
+  `deviceRegisterResponseSchema`, `deviceJoinCodeRequestSchema` (PKCE S256
+  only), `deviceJoinCodeResponseSchema`, `deviceJoinRequestSchema` (an RFC 7636
+  verifier), `deviceJoinResponseSchema` and their types.
+- `webauthnLoginVerifyRequestSchema.device` and
+  `webauthnRegisterVerifyRequestSchema.device`: an optional proof of the device
+  the new session joins.
+
 ## 2.2.0
 
 Web accounts are a username, a passkey and a recovery email (ADR 0029 D3).
