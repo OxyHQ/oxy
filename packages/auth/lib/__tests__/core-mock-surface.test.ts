@@ -7,9 +7,9 @@
  * particular drift is close to invisible: a missing name does not fail one
  * assertion, it makes bun abort the ENTIRE importing test file with
  * `SyntaxError: Export named '…' not found in module …/core/dist/esm/index.js`.
- * Those cases then simply do not run. When `hub-passkey.tsx` moved from
+ * Those cases then simply do not run. When a hub page moved from
  * `getAccountDisplayName` to `getNormalizedUserHandle`, the suite reported
- * "120 pass, 1 fail" — four `hub-passkey` cases had silently left the run, and
+ * "120 pass, 1 fail" — four of that page's cases had silently left the run, and
  * the error text pointed at core's built output rather than at this allowlist,
  * which sent the first diagnosis at the build.
  *

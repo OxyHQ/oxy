@@ -1855,7 +1855,7 @@
       "openCommons": "Abrir Oxy Commons",
       "commonsOpenFailed": "No se pudo abrir Oxy Commons. Ábrelo tú y ve a Ajustes > Eliminar cuenta.",
       "elsewhereTitle": "Elimina tu cuenta donde está tu identidad",
-      "elsewhereMessage": "Eliminar tu cuenta necesita tu clave de identidad, y no está en este dispositivo. Abre Oxy Commons en el dispositivo que la guarda y ve a Ajustes > Eliminar cuenta. Una cuenta sin clave se elimina desde sus ajustes en {{site}}.",
+      "elsewhereMessage": "Eliminar tu cuenta necesita tu clave de identidad, y no está en este dispositivo. Abre Oxy Commons en el dispositivo que la guarda y ve a Ajustes > Eliminar cuenta.",
       "gotIt": "Entendido",
       "identityUnreadable": "No se pudo leer el almacén de identidad de este dispositivo. Desbloquea el dispositivo e inténtalo de nuevo."
     },

@@ -1,5 +1,5 @@
 /**
- * Signing in without a passkey: an email code or link, an optional password,
+ * Signing in: an email code or link, an optional password,
  * and an optional authenticator app (TOTP) as a second factor.
  *
  * Every Oxy app runs these from its own account dialog (official apps and

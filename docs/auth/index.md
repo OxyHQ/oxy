@@ -11,7 +11,7 @@ out. This page exists so there is one place that is answerable for being right.
 
 ## The model in five nouns
 
-An **identity** is a cryptographic human identity controlled by its owner's root key, held in Commons or in a passkey-sealed web holder ([ADR 0024](../adr/0024-one-oxy-account-root-holders.md)).
+An **identity** is a cryptographic human identity controlled by its owner's root key, held in Commons ([ADR 0024](../adr/0024-one-oxy-account-root-holders.md)); an account without a key has no identity root and signs in by email ([ADR 0030](../adr/0030-email-code-password-authenticator.md)).
 A **principal** is a human who has authenticated onto one device or browser
 profile. An **account** is the subject an application acts as. A **device
 session** is the server's record of one device, its principals, and their
@@ -44,20 +44,23 @@ these before proposing a change to the model:
 - [ADR 0003 — the browser DeviceSession hub](../adr/0003-browser-device-session-hub.md) (superseded: never deployed, deleted)
 - [ADR 0004 — one headless `OxyRuntime` behind one public `OxyProvider`](../adr/0004-single-oxy-runtime-provider.md)
 - [ADR 0024 — one Oxy account: `auth.oxy.so` is the web entry, the root lives in user-controlled holders](../adr/0024-one-oxy-account-root-holders.md)
+- [ADR 0029 — one Oxy session: the dialog in every app, one browser session](../adr/0029-one-oxy-session.md)
+- [ADR 0030 — email, code, password and authenticator; passkeys removed](../adr/0030-email-code-password-authenticator.md)
 
 ## What is NOT built yet
 
 Stated here rather than left for a reader to infer from silence. Each is an
 accepted gap with a named reason, not an oversight:
 
-- **Web accounts are a username, a passkey and a recovery email**
-  ([ADR 0029](../adr/0029-one-oxy-session.md) D3, changing 0024 D3–D6 and D9):
-  there is no web identity carrier. They are created, recovered (a code to the
-  recovery email, then a new passkey) and deleted (with the passkey) on
-  `auth.oxy.so`, the one origin that asserts Oxy passkeys (RP ID `oxy.so`).
-  Commons is the self-custody way. The accepted differences of `auth.oxy.so`
-  from a minimal host — the full SDK graph, `style-src 'unsafe-inline'` for
-  react-native-web, no release manifest yet — are listed in ADR 0028.
+- **An account without a key signs in by email** ([ADR 0030](../adr/0030-email-code-password-authenticator.md),
+  changing 0029 D1/D3): a 6-digit code or a link (which approves only the
+  browser that asked), an optional password and an optional authenticator, all
+  inside every app's dialog; there is no passkey and no web identity carrier.
+  Sign-up, deletion and linking Commons are services panels, confirmed with an
+  emailed code. Commons is the self-custody way. The accepted differences of
+  `auth.oxy.so` from a minimal host — the full SDK graph,
+  `style-src 'unsafe-inline'` for react-native-web, no release manifest yet —
+  are listed in ADR 0028.
   Inventory, invariants and open items: [holders-and-recovery.md](../identity/holders-and-recovery.md).
 
 - **The native shared DeviceSession credential is BUILT and UNVERIFIED ON A

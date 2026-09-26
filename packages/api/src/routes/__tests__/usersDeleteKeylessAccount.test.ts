@@ -4,8 +4,7 @@
  *
  * - an account without a key confirms with a code just sent to its email FOR
  *   THIS DELETION, plus its authenticator code when it has one;
- * - a passkey assertion no longer deletes anything (a stolen bearer could have
- *   planted the passkey);
+ * - nothing else confirms it: a body without that code is refused;
  * - a key account signs with its key, plus its authenticator code if any;
  * - a third-party application's token never deletes an account.
  *
@@ -85,7 +84,6 @@ jest.mock('../../utils/userCache', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
-import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
 import { errorHandler } from '../../middleware/errorHandler';
 import { startReauthEmail } from '../../services/reauth.service';
 import { _resetInMemoryStateForTests } from '../../services/loginLockout.service';
@@ -161,18 +159,8 @@ describe('deleting an account without a key', () => {
     expect(await accountExists(me.id)).toBe(false);
   });
 
-  it('refuses a passkey assertion — even from an account that has a passkey', async () => {
+  it('refuses anything but the email code — a leftover assertion field included', async () => {
     const me = await person();
-    await getDb().insert(webauthnCredentials).values({
-      userId: me.id,
-      credentialID: `cred${randomUUID().replace(/-/g, '')}`,
-      credentialPublicKey: Buffer.from([1, 2, 3]),
-      counter: 0,
-      deviceType: 'multiDevice',
-      backedUp: true,
-      userVerified: true,
-      name: 'Planted',
-    });
     const assertion = { id: 'c'.repeat(20), rawId: 'c', type: 'public-key', response: { clientDataJSON: 'e30', authenticatorData: 'AA', signature: 'AA' } };
     const res = await call('DELETE', '/users/me', { confirmText: me.username, assertion });
     expect(res.status).toBe(400);

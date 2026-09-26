@@ -199,15 +199,15 @@ capped at `MAX_LOG_LIMIT = 500`.
 
 `GET /auth/methods` (`listAuthMethods()`) returns
 `{ did, methods: AuthMethodEntry[] }` where each entry is
-`{ type: 'identity'|'password'|'google'|'apple'|'github', linkedAt, verificationMethodId? }`
-(`verificationMethodId` is present only for `identity` and links to a DID VM
-fragment).
+`{ type: 'identity', linkedAt, verificationMethodId? }` — the account's Commons
+root, the only auth method (email, password and authenticator are sign-in
+factors, not DID verification methods; ADR 0030). `verificationMethodId` links
+to a DID VM fragment.
 
-- `POST /auth/link` — first link of a root only (ADR 0024 D8): a root proof,
-  plus a fresh passkey assertion for a keyless account. Clients reach it through
-  the holder flow on `auth.oxy.so` (web) or Commons (native), not an SDK method.
-- `removePasskey(credentialId)` → `DELETE /auth/link/webauthn/:id`; refuses to
-  drop the last web holder wrap.
+- `POST /auth/link` — a root proof for an account whose root is this key
+  (ADR 0024 D8). A keyless account's first link goes through `/identity/link`
+  (`createIdentityLink` … `completeIdentityLinkWithEmailCode`), confirmed by a
+  fresh email code (ADR 0030 D6).
 - A root is never unlinked; it is replaced only by `rotateKey()`.
 
 Every identity mutation invalidates the identity caches (`_invalidateIdentityCaches`:

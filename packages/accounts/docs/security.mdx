@@ -33,14 +33,14 @@ A device is distinct from a session — devices outlive sessions and survive sig
 
 Marking a device `untrusted` revokes its refresh token without ending the active session; the next refresh fails and the device signs out. Use this when a phone has been lost or sold.
 
-## Two-factor auth
+## Password and authenticator
 
-MyAccount supports TOTP and WebAuthn / passkeys. Both are managed under `/settings/security/2fa`.
+An account without a Commons key signs in with a code or link sent to its email; the Security screen adds the optional factors (ADR 0030):
 
-- **TOTP** — scan a QR code in any authenticator app (Aegis, 1Password, Authy, Google Authenticator). On enrolment the UI presents 10 single-use recovery codes; the user must check **I have saved my codes** before completing setup.
-- **Passkeys** — uses platform WebAuthn. On supported browsers/OSes the user can register Face ID / Touch ID / Windows Hello / a hardware key. Passkeys are bound to the device's keychain or the user's iCloud / Google account, depending on platform.
+- **Password** — set or change it; an alternative to the email code at sign-in.
+- **Authenticator (TOTP)** — scan a QR code in any authenticator app (Aegis, 1Password, Authy, Google Authenticator). Turning it on issues 10 one-use backup codes; from then on every sign-in asks for its code (or a backup code) after the email code or password.
 
-Either factor alone is enough to satisfy 2FA at sign-in. Enabling both gives the user a fallback if one fails (lost phone vs lost yubikey).
+Every change needs a fresh confirmation — the current password or a code just sent to the email, plus the authenticator code when it is on — and is announced to the account's email. Linking Commons deletes the email, the password and the authenticator: the key signs in from then on.
 
 ## Recovery phrase health
 

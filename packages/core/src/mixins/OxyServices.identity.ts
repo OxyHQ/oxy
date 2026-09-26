@@ -4,9 +4,9 @@
  * Provides typed access to Oxy's AtProto/Bluesky-flavoured identity &
  * portability layer:
  *  - DID resolution (`did:web:oxy.so:u:<userId>`, derived on demand by the API).
- *  - The auth-method ↔ DID verification-method mapping (`GET /auth/methods`) and
- *    passkey removal. A root is linked by the holder flows (ADR 0024) and never
- *    unlinked; it is replaced by rotation.
+ *  - The auth-method ↔ DID verification-method mapping (`GET /auth/methods`). A
+ *    root is linked by the holder flows (ADR 0024) and never unlinked; it is
+ *    replaced by rotation.
  *  - Signed records: clients sign an envelope with their own cryptographic key
  *    (`SignatureService.signRecord` + the shared `canonicalize`) and publish it;
  *    anyone can fetch and verify it.
@@ -68,12 +68,6 @@ const OXY_IDENTITY_APEX = 'oxy.so';
  * record set.
  */
 export type IdentityRecordType = OxySignedRecordType;
-
-/** Result of an auth-method mutation (`DELETE /auth/link/webauthn/:id`). */
-export interface LinkAuthMethodResult {
-  success: boolean;
-  message: string;
-}
 
 /**
  * Result of publishing a signed record (`POST /identity/records`). Echoes the
@@ -230,7 +224,7 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
 
     /**
      * How the signed-in account is kept (ADR 0029 D3): whether Commons' root is
-     * linked (self-custody), or the recovery email of a passkey account. Any
+     * linked (self-custody), or the email of an account without a key. Any
      * first-party surface may read it to recommend linking Commons.
      */
     async getIdentityRootStatus(): Promise<IdentityRootStatus> {
@@ -242,8 +236,8 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     }
 
     /**
-     * Open a request to link Commons to the signed-in passkey account (ADR 0029
-     * D3). auth.oxy.so shows its `qrPayload`; Commons scans it and signs with
+     * Open a request to link Commons to the signed-in account (ADR 0029 D3). The
+     * "Link Commons" panel shows its `qrPayload`; Commons scans it and signs with
      * {@link signIdentityLink}.
      */
     async createIdentityLink(): Promise<IdentityLinkCreateResponse> {
@@ -275,7 +269,7 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     /**
      * Commons' half: sign the scanned request's `link_identity` proof with THIS
      * device's identity key and post it. NATIVE-ONLY (the key lives in native
-     * secure storage). Resolves to the key and the 6-digit code auth.oxy.so will
+     * secure storage). Resolves to the key and the 6-digit code the other screen will
      * show for it, for the person to compare.
      */
     async signIdentityLink(linkId: string, challenge: string): Promise<{ publicKey: string; code: string; username: string | null }> {
@@ -313,46 +307,6 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     }
 
     /**
-     * @deprecated The API no longer confirms a link with a passkey (security
-     * review of #1421); this endpoint is gone. Use
-     * {@link completeIdentityLinkWithEmailCode}. Removed with passkeys.
-     */
-    async getIdentityLinkAssertionOptions(linkId: string, challenge: string): Promise<unknown> {
-      try {
-        return await this.makeRequest<unknown>(
-          'POST',
-          `/identity/link/${encodeURIComponent(linkId)}/options`,
-          { challenge },
-          { cache: false },
-        );
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * @deprecated Refused by the API: a passkey no longer confirms a link. Use
-     * {@link completeIdentityLinkWithEmailCode}. Removed with passkeys.
-     *
-     * auth.oxy.so's half: the passkey assertion over the link's challenge. The
-     * account gains Commons' root and loses its recovery email.
-     */
-    async completeIdentityLink(linkId: string, assertion: unknown): Promise<{ success: true }> {
-      try {
-        const result = await this.makeRequest<{ success: true }>(
-          'POST',
-          `/identity/link/${encodeURIComponent(linkId)}/complete`,
-          { assertion },
-          { cache: false },
-        );
-        this._invalidateIdentityCaches(this.getCurrentUserId());
-        return result;
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
      * Complete a link with a code just sent to the account's email
      * (`requestReauthEmailCode`) — plus its authenticator code when it has one.
      * The account gains Commons' root and loses its email; every other session
@@ -380,31 +334,6 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     async cancelIdentityLink(linkId: string): Promise<void> {
       try {
         await this.makeRequest<unknown>('DELETE', `/identity/link/${encodeURIComponent(linkId)}`, undefined, { cache: false });
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * Remove ONE passkey (WebAuthn credential) from the current account.
-     *
-     * Passkeys are per-credential, so this targets a specific credential id.
-     * The server refuses to remove the last remaining auth method (the account
-     * would become inaccessible) and deletes the stored `WebauthnCredential`.
-     *
-     * @param credentialId - The passkey's public credential id
-     *   (`AuthMethodEntry.credentialId`).
-     */
-    async removePasskey(credentialId: string): Promise<LinkAuthMethodResult> {
-      try {
-        const result = await this.makeRequest<LinkAuthMethodResult>(
-          'DELETE',
-          `/auth/link/webauthn/${encodeURIComponent(credentialId)}`,
-          undefined,
-          { cache: false },
-        );
-        this._invalidateIdentityCaches(this.getCurrentUserId());
-        return result;
       } catch (error) {
         throw this.handleError(error);
       }

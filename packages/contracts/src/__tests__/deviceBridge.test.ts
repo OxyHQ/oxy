@@ -5,8 +5,7 @@ import {
   deviceJoinCodeResponseSchema,
   deviceJoinRequestSchema,
   deviceJoinResponseSchema,
-  webauthnLoginVerifyRequestSchema,
-  webauthnRegisterVerifyRequestSchema,
+  passwordSignInRequestSchema,
 } from '../index';
 
 const CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
@@ -52,11 +51,11 @@ describe('the browser bridge contracts (ADR 0029 D2)', () => {
     expect(deviceJoinRequestSchema.safeParse({ ...request, codeVerifier: `${VERIFIER}!` }).success).toBe(false);
   });
 
-  it('passkey sign-ins may carry a device proof', () => {
+  it('a sign-in may carry a device proof', () => {
     const device = { deviceId: 'd1', deviceSecret: 's1' };
-    expect(webauthnLoginVerifyRequestSchema.parse({ device }).device).toEqual(device);
-    expect(webauthnRegisterVerifyRequestSchema.parse({ device }).device).toEqual(device);
-    expect(webauthnLoginVerifyRequestSchema.parse({}).device).toBeUndefined();
-    expect(webauthnLoginVerifyRequestSchema.safeParse({ device: { deviceId: 'd1' } }).success).toBe(false);
+    const body = { identifier: 'ada', password: 'correct horse' };
+    expect(passwordSignInRequestSchema.parse({ ...body, device }).device).toEqual(device);
+    expect(passwordSignInRequestSchema.parse(body).device).toBeUndefined();
+    expect(passwordSignInRequestSchema.safeParse({ ...body, device: { deviceId: 'd1' } }).success).toBe(false);
   });
 });

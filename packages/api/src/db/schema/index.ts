@@ -176,8 +176,6 @@ export * from './validationVotes';
 export * from './validatorAffinities';
 export * from './verifiableCredentials';
 export * from './wallets';
-export * from './webauthnChallenges';
-export * from './webauthnCredentials';
 export * from './externalIdentities';
 export * from './userLinkedAccounts';
 export * from './federatedAccountMoves';

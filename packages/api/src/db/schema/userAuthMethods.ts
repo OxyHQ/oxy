@@ -2,17 +2,14 @@
  * `user_auth_methods` — one way an account can prove it is itself.
  *
  * Ported from the `authMethods` array embedded in `models/User.ts`. An account
- * may link an identity key and/or one or more passkeys; this table is the single
- * source the DID document's `verificationMethod[]` is built from
- * (`did.service.ts`), so it is a real relation rather than an opaque array.
- *
- * `metadata.*` flattens to columns: the shape is known and closed (four fields,
- * each meaningful to exactly one `type`), which is the opposite of the
- * shape-less data `jsonb` is for.
+ * may link an identity key (its Commons root); this table is the single source
+ * the DID document's `verificationMethod[]` is built from (`did.service.ts`),
+ * so it is a real relation rather than an opaque array. Email, password and
+ * authenticator are not auth methods here: they are the account's own
+ * sign-in factors (`users.email`, `user_passwords`, `user_totp`).
  *
  * No ordinal column. Mongo's array had a position, but nothing read it — the
- * meaningful order is `linked_at`, and the two identifiers (`public_key`,
- * `credential_id`) address a row directly.
+ * meaningful order is `linked_at`, and the key addresses a row directly.
  */
 
 import { sql } from 'drizzle-orm';
@@ -21,7 +18,7 @@ import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { users } from './users';
 
 /** The kinds of proof an account can carry. */
-export const AUTH_METHOD_TYPES = ['identity', 'webauthn'] as const;
+export const AUTH_METHOD_TYPES = ['identity'] as const;
 
 export const userAuthMethods = pgTable(
   'user_auth_methods',
@@ -38,15 +35,10 @@ export const userAuthMethods = pgTable(
      */
     linkedAt: timestamptz().notNull().defaultNow(),
 
-    // ---- metadata (flattened; each field belongs to one `type`) -----------
-    /** `type = 'identity'` — the secp256k1 public key, lowercase hex. */
+    /** The secp256k1 public key, lowercase hex. */
     methodPublicKey: text(),
     /** Contact email captured at link time. Advisory only; never an identifier. */
     methodEmail: text(),
-    /** `type = 'webauthn'` — the base64url credential handle. */
-    methodCredentialId: text(),
-    /** `type = 'webauthn'` — the user-facing label for the passkey. */
-    methodName: text(),
 
     createdAt: createdAt(),
   },
@@ -61,18 +53,12 @@ export const userAuthMethods = pgTable(
     uniqueIndex('user_auth_methods_lower_method_public_key_key')
       .on(sql`lower(${t.methodPublicKey})`)
       .where(sql`${t.methodPublicKey} is not null`),
-    uniqueIndex('user_auth_methods_method_credential_id_key')
-      .on(t.methodCredentialId)
-      .where(sql`${t.methodCredentialId} is not null`),
     check(
       'user_auth_methods_type_check',
       sql`${t.type} in (${sql.raw(AUTH_METHOD_TYPES.map((value) => `'${value}'`).join(', '))})`
     ),
-    // A method must carry the identifier its own type is addressed by, or it can
-    // never be matched to an assertion. Mongo allowed a row with neither.
-    check(
-      'user_auth_methods_identifier_check',
-      sql`(${t.type} = 'identity' and ${t.methodPublicKey} is not null) or (${t.type} = 'webauthn' and ${t.methodCredentialId} is not null)`
-    ),
+    // A method must carry the key it is addressed by, or it can never be
+    // matched to a signature. Mongo allowed a row without one.
+    check('user_auth_methods_identifier_check', sql`${t.methodPublicKey} is not null`),
   ]
 );

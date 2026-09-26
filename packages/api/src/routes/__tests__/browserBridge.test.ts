@@ -1,6 +1,6 @@
 /**
  * The browser bridge END TO END (ADR 0029 D2) — register → join-code → join,
- * then a Commons QR claim and a passkey sign-in that carry the device proof —
+ * then a Commons QR claim and an email/password sign-in that carry the device proof —
  * over the REAL `session.service`, `deviceSession.service` and
  * `deviceJoin.service`, against a real Postgres.
  *
@@ -8,7 +8,7 @@
  *   1. auth.oxy.so's bridge registers the browser's device (no account yet).
  *   2. App A joins it through a one-use, PKCE-bound code and holds its own
  *      credential, which mints `no_active_session` until someone signs in.
- *   3. A person signs in in app A (Commons QR, or passkey on auth.oxy.so) with the
+ *   3. A person signs in in app A (Commons QR, or email/password in the dialog) with the
  *      device proof: the account lands on THAT device.
  *   4. App B joins later and is signed in to the same account without a sign-in.
  *   5. Signing the account out in B signs A (and auth.oxy.so) out too.
@@ -88,7 +88,7 @@ import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 import authRouter from '../auth';
 import sessionDeviceRouter from '../sessionDevice';
-import { mintWebauthnSession } from '../webauthn';
+import { mintSignInSession } from '../../services/signInSession.service';
 
 const AUTH_ORIGIN = 'https://auth.oxy.so';
 const USER_AGENT =
@@ -223,12 +223,14 @@ beforeAll(async () => {
   app.use(express.json());
   app.use('/auth', authRouter);
   app.use('/session/device', sessionDeviceRouter);
-  // The passkey ceremony itself is `webauthn.test.ts`'s; this is its session tail.
-  app.post('/test/passkey-mint', rateLimit({ prefix: 'rl:test:passkey-mint:', windowMs: 60_000, max: 100 }), (req: Request, res: Response, next) => {
+  // The first factor itself is `signIn.test.ts`'s; this is the session tail every sign-in shares.
+  app.post('/test/signin-mint', rateLimit({ prefix: 'rl:test:signin-mint:', windowMs: 60_000, max: 100 }), (req: Request, res: Response, next) => {
     const { account, device } = req.body as { account: { id: string; username: string }; device?: unknown };
-    mintWebauthnSession(req, res, { id: account.id, username: account.username, avatar: null }, {
+    mintSignInSession(req, { id: account.id, username: account.username, avatar: null }, {
       ...(device ? { device: device as { deviceId: string; deviceSecret: string } } : {}),
-    }).catch(next);
+    })
+      .then((result) => res.json(result))
+      .catch(next);
   });
   app.use(errorHandler);
 });
@@ -383,7 +385,7 @@ describe('one browser, one session through the bridge', () => {
     }
   });
 
-  it('a passkey sign-in with the device proof adds the account to that device', async () => {
+  it('a sign-in with the device proof adds the account to that device', async () => {
     const appA = await registeredApp(true);
     const alice = await user();
     const bob = await user();
@@ -391,12 +393,12 @@ describe('one browser, one session through the bridge', () => {
     const inA = await bridge(auth, appA);
 
     await qrSignIn(appA, alice, inA);
-    const passkey = await request(app)
-      .post('/test/passkey-mint')
+    const signedIn = await request(app)
+      .post('/test/signin-mint')
       .set('user-agent', USER_AGENT)
       .send({ account: bob, device: auth });
-    expect(passkey.status).toBe(200);
-    expect(passkey.body.deviceId).toBe(auth.deviceId);
+    expect(signedIn.status).toBe(200);
+    expect(signedIn.body.deviceId).toBe(auth.deviceId);
 
     const res = await mint(inA);
     expect(res.status).toBe(200);
@@ -415,12 +417,12 @@ describe('one browser, one session through the bridge', () => {
     const claimed = await qrSignIn(appA, alice, forged);
     expect(claimed.deviceId).not.toBe(auth.deviceId);
 
-    const passkey = await request(app)
-      .post('/test/passkey-mint')
+    const signedIn = await request(app)
+      .post('/test/signin-mint')
       .set('user-agent', USER_AGENT)
       .send({ account: alice, device: forged });
-    expect(passkey.status).toBe(200);
-    expect(passkey.body.deviceId).not.toBe(auth.deviceId);
+    expect(signedIn.status).toBe(200);
+    expect(signedIn.body.deviceId).not.toBe(auth.deviceId);
 
     expect((await mint(auth)).body.error).toBe('no_active_session');
   });

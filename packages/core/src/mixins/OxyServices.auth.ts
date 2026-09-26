@@ -13,9 +13,7 @@ import type {
 import {
   emailVerificationConfirmResponseSchema,
   emailVerificationStartResponseSchema,
-  loginResultSchema,
   safeParseContract,
-  secondFactorRequiredSchema,
   type EmailVerificationConfirmResponse,
   type EmailVerificationStartRequest,
   type EmailVerificationStartResponse,
@@ -27,7 +25,7 @@ export {
   getCommonsApprovalBlockingReason,
   parseCommonsApprovalExpiresAt,
 } from '../utils/commonsApproval';
-import { OxyAuthenticationError, SecondFactorRequiredError } from '../OxyServices.errors';
+import { OxyAuthenticationError } from '../OxyServices.errors';
 import { KeyManager } from '../crypto/keyManager';
 import { solveRegistrationPow } from '../crypto/registrationPow';
 import { SignatureService } from '../crypto/signatureService';
@@ -1706,11 +1704,9 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
     }
 
     /**
-     * Send a 6-digit code to an email (ADR 0029 D3): the recovery email of a
-     * new passkey account (`purpose: 'signup'`), or — named by username or
-     * email — the recovery email of an account being recovered
-     * (`purpose: 'recovery'`). The answer is the same whether or not an
-     * account exists; nothing is revealed about who has one.
+     * Send a 6-digit code to the email of a new account
+     * (`purpose: 'signup'`). The answer is the same whether or not the address
+     * already has an account; nothing is revealed about who has one.
      */
     async startEmailVerification(request: EmailVerificationStartRequest): Promise<EmailVerificationStartResponse> {
       try {
@@ -1728,9 +1724,8 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
 
     /**
      * Confirm the code {@link startEmailVerification} sent. Resolves to a
-     * short-lived one-use ticket: a sign-up passes it (with the email) to
-     * {@link webauthnRegisterVerify}; a recovery passes it as `recoveryTicket`
-     * to {@link webauthnRegisterOptions} and {@link webauthnRegisterVerify}.
+     * short-lived one-use ticket, which a sign-up passes (with the email) to
+     * `signUp`.
      */
     async confirmEmailVerification(verificationId: string, code: string): Promise<EmailVerificationConfirmResponse> {
       try {
@@ -1744,171 +1739,6 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         if (!parsed) throw new Error('auth/email/verify/confirm returned an unexpected response shape');
         return parsed;
       } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * Begin a WebAuthn / passkey REGISTRATION ceremony. Requests the
-     * `PublicKeyCredentialCreationOptions` the browser's `navigator.credentials
-     * .create()` (or `@simplewebauthn/browser`'s `startRegistration`) needs.
-     *
-     * A passkey is never added to a signed-in account any more: the API refuses
-     * a request that carries a bearer (security review of #1421).
-     * Without one, `username` is a prospective sign-up's handle, and
-     * `recoveryTicket` a recovery's new passkey for the account it names. The
-     * returned options are OPAQUE — Oxy does not own their shape (the browser /
-     * `@simplewebauthn` does), so they pass through as `unknown` for the caller
-     * to hand straight to the ceremony.
-     */
-    async webauthnRegisterOptions(request: { username?: string; recoveryTicket?: string } = {}): Promise<unknown> {
-      const signedOut = request.username !== undefined || request.recoveryTicket !== undefined;
-      try {
-        return await this.makeRequest<unknown>(
-          'POST',
-          '/auth/webauthn/register/options',
-          {
-            ...(request.username !== undefined ? { username: request.username } : {}),
-            ...(request.recoveryTicket !== undefined ? { recoveryTicket: request.recoveryTicket } : {}),
-          },
-          { cache: false, ...(signedOut ? { skipAuth: true } : {}) },
-        );
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * Finish a WebAuthn / passkey REGISTRATION ceremony. Forwards the opaque
-     * browser `RegistrationResponseJSON` (`response`) alongside the Oxy envelope
-     * (desired `username` for signup + the device-session naming fields).
-     *
-     * Server branches, disambiguated by the response shape:
-     *  - **Sign-up** (no bearer; `username`, `email`, `emailTicket`) and
-     *    **recovery** (no bearer; `recoveryTicket`): the account is created, or
-     *    gains the passkey, and a session is minted — the response carries
-     *    `sessionId`, is the SAME {@link LoginResult} contract as
-     *    `POST /auth/verify`, and its access token is planted here.
-     *  - **Link** (bearer present): the passkey is attached to the signed-in
-     *    account and the server returns `{ success, message }` with no session,
-     *    which is returned verbatim (no token planting).
-     */
-    async webauthnRegisterVerify(
-      response: unknown,
-      envelope: {
-        username?: string;
-        /** Sign-up: the recovery email, confirmed with `emailTicket`. */
-        email?: string;
-        emailTicket?: string;
-        /** Recovery: the ticket {@link confirmEmailVerification} returned. */
-        recoveryTicket?: string;
-        deviceName?: string;
-        deviceFingerprint?: string;
-        /** The device the new session joins; defaults to the one this client holds. */
-        device?: DeviceProof | null;
-      } = {},
-    ): Promise<{ success: true; message: string } | LoginResult> {
-      try {
-        // Only sign-up and recovery mint a session; a link never does.
-        const mintsSession = envelope.username !== undefined || envelope.recoveryTicket !== undefined;
-        const { device: explicitDevice, ...rest } = envelope;
-        const device = explicitDevice === undefined && mintsSession ? await this.readDeviceProof() : explicitDevice;
-        const res = await this.makeRequest<unknown>(
-          'POST',
-          '/auth/webauthn/register/verify',
-          { response, ...rest, ...(device ? { device } : {}) },
-          {
-            cache: false,
-            ...(envelope.username !== undefined || envelope.recoveryTicket !== undefined ? { skipAuth: true } : {}),
-          },
-        );
-        const secondFactor = safeParseContract(secondFactorRequiredSchema, res);
-        if (secondFactor) throw new SecondFactorRequiredError(secondFactor);
-        if (res && typeof res === 'object') {
-          const record = res as Record<string, unknown>;
-          // Signup branch: mints a session (LoginSessionResult, carries
-          // `sessionId`). Parse against the login contract and plant the token.
-          if ('sessionId' in record) {
-            const parsed = safeParseContract(loginResultSchema, record);
-            if (!parsed) {
-              throw new Error('auth/webauthn/register/verify returned an unexpected response shape');
-            }
-            if (parsed.accessToken) {
-              this.setTokens(parsed.accessToken);
-            }
-            return parsed;
-          }
-          // Link branch: passkey attached to the signed-in account, no session.
-          if (record.success === true && typeof record.message === 'string') {
-            return { success: true, message: record.message };
-          }
-        }
-        throw new Error('auth/webauthn/register/verify returned an unexpected response shape');
-      } catch (error) {
-        if (error instanceof SecondFactorRequiredError) throw error;
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * Begin a WebAuthn / passkey AUTHENTICATION ceremony. Requests the
-     * `PublicKeyCredentialRequestOptions` the browser's `navigator.credentials
-     * .get()` (or `@simplewebauthn/browser`'s `startAuthentication`) needs.
-     *
-     * When `username` is present the server scopes `allowCredentials` to that
-     * user's passkeys (username-first); when omitted it returns an empty
-     * allow-list for the usernameless / discoverable-credential flow. The
-     * returned options are OPAQUE and pass through as `unknown`.
-     */
-    async webauthnLoginOptions(username?: string): Promise<unknown> {
-      try {
-        return await this.makeRequest<unknown>(
-          'POST',
-          '/auth/webauthn/login/options',
-          { ...(username !== undefined ? { username } : {}) },
-          // Pre-session login ceremony — skip the bearer preflight.
-          { cache: false, skipAuth: true },
-        );
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * Finish a WebAuthn / passkey AUTHENTICATION ceremony. Forwards the opaque
-     * browser `AuthenticationResponseJSON` (`response`) alongside the
-     * device-session envelope. Resolves to the SAME {@link LoginResult} contract
-     * as `POST /auth/verify`; the access token is planted immediately, and the
-     * response's `deviceId` + `deviceSecret` are the zero-cookie restore
-     * credential.
-     */
-    async webauthnLoginVerify(
-      response: unknown,
-      envelope: { deviceName?: string; deviceFingerprint?: string; device?: DeviceProof | null } = {},
-    ): Promise<LoginResult> {
-      try {
-        // The device this client holds, so the session joins it (ADR 0029 D2).
-        const { device: explicitDevice, ...rest } = envelope;
-        const device = explicitDevice === undefined ? await this.readDeviceProof() : explicitDevice;
-        const res = await this.makeRequest<unknown>(
-          'POST',
-          '/auth/webauthn/login/verify',
-          { response, ...rest, ...(device ? { device } : {}) },
-          // Pre-session login ceremony — skip the bearer preflight.
-          { cache: false, skipAuth: true },
-        );
-        const secondFactor = safeParseContract(secondFactorRequiredSchema, res);
-        if (secondFactor) throw new SecondFactorRequiredError(secondFactor);
-        const parsed = safeParseContract(loginResultSchema, res);
-        if (!parsed) {
-          throw new Error('auth/webauthn/login/verify returned an unexpected response shape');
-        }
-        if (parsed.accessToken) {
-          this.setTokens(parsed.accessToken);
-        }
-        return parsed;
-      } catch (error) {
-        if (error instanceof SecondFactorRequiredError) throw error;
         throw this.handleError(error);
       }
     }

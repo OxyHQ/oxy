@@ -4,9 +4,8 @@
  * The header (title/subtitle per view + back button) around the headless chooser
  * logic, which lives in `OxyAuthChooser` — the account switcher, sign-in,
  * sign-up, and QR views are ALL there, extracted so the same chooser can be
- * mounted bare by a future host with no Dialog chrome (e.g. an auth.oxy.so hub
- * page driving the cross-origin passkey popup, b2). This file owns ONLY the
- * header + the scroll body.
+ * mounted bare by a host with no Dialog chrome (auth.oxy.so's `/login`). This
+ * file owns ONLY the header + the scroll body.
  *
  * It is presented as the `AccountDialog` route on the shared Bloom SURFACE STACK
  * (`@oxy.so/bloom/surfaces`) — `OxyContext.openAccountDialog` calls

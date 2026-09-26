@@ -1,22 +1,25 @@
 /**
- * Linking Commons to a passkey account (ADR 0029 D3) — the two-device relay.
+ * Linking Commons to an account without a key (ADR 0029 D3) — the two-device
+ * relay.
  *
- * A passkey account links a Commons root once, and becomes self-custodied: its
- * recovery email is deleted and its phrase in Commons is how it gets back in.
- * The authority is the same as `POST /auth/link` (ADR 0024 D8): a root proof
- * (`link_identity`) by the key Commons holds, and a fresh assertion by one of
- * the account's passkeys over the SAME one-use challenge. Only the transport is
- * new, because the two factors live on two devices:
+ * An account without a key links a Commons root once, and becomes
+ * self-custodied: its email is deleted and its phrase in Commons is how it gets
+ * back in. The authority is the same as `POST /auth/link` (ADR 0024 D8): a root
+ * proof (`link_identity`) by the key Commons holds over a one-use challenge,
+ * and the account's own confirmation — a code just sent to its email (plus its
+ * authenticator code when it has one). Only the transport is new, because the
+ * two factors live on two devices:
  *
- *   1. auth.oxy.so (signed in) opens a link request → `{ linkId, challenge }`,
- *      shown as a QR (`oxycommons://link?id=…&c=…`).
+ *   1. The signed-in account (the "Link Commons" panel of `@oxy.so/services`)
+ *      opens a link request → `{ linkId, challenge }`, shown as a QR
+ *      (`oxycommons://link?id=…&c=…`).
  *   2. Commons scans it, reads the request (the account's id and username),
  *      signs the root proof over the challenge and posts it with its key.
  *   3. Both screens show the same 6-digit code, derived from the link id and
  *      that key (`deriveIdentityLinkCode` in `@oxy.so/core`); the person checks
  *      they match, so a photographed QR cannot slip another key in.
- *   4. auth.oxy.so asserts the passkey over the challenge and completes: the
- *      account gains the root, loses the email, and Commons signs in with it.
+ *   4. The panel completes with the email code: the account gains the root,
+ *      loses the email, and Commons signs in with it.
  *
  * The server stores only the challenge's hash; the challenge travels in the QR.
  */
@@ -107,16 +110,10 @@ export const identityLinkProofRequestSchema = z
     .strict();
 export type IdentityLinkProofRequest = z.infer<typeof identityLinkProofRequestSchema>;
 
-/** `POST /identity/link/:linkId/options` — WebAuthn request options over the challenge. */
-export const identityLinkOptionsRequestSchema = z
-    .object({ challenge: z.string().trim().regex(CHALLENGE, 'challenge must be 64 lowercase hex characters') })
-    .strict();
-export type IdentityLinkOptionsRequest = z.infer<typeof identityLinkOptionsRequestSchema>;
-
 /**
  * `POST /identity/link/:linkId/complete` — the account's own confirmation: a
  * code just sent to its email for this link (`reauth`, plus its authenticator
- * code when it has one). A passkey assertion no longer confirms a link.
+ * code when it has one).
  */
 export const identityLinkCompleteRequestSchema = z.object({ reauth: emailReauthProofSchema }).strict();
 export type IdentityLinkCompleteRequest = z.infer<typeof identityLinkCompleteRequestSchema>;

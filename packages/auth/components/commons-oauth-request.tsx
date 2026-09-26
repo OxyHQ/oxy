@@ -76,7 +76,7 @@ type CommonsOAuthLaneProps = {
      * relay and the redirect fallback stay one decision.
      */
     onOutcome: (outcome: CommonsOAuthOutcome) => void
-    /** Fall back to signing in on this origin (passkey / security key). */
+    /** Fall back to signing in on this origin (email, password). */
     onSignInHere: () => void
 }
 

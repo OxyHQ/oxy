@@ -124,7 +124,7 @@ describe('the walker reads code, not prose', () => {
   it('does not apply a PATH-SCOPED router.use, which gates a subtree it cannot resolve', () => {
     const routes = parseRoutesFromFile(`
       const router = Router();
-      router.use('/webauthn', webauthnRouter);
+      router.use('/email', accountEmailRouter);
       router.get('/after', handler);
     `);
 

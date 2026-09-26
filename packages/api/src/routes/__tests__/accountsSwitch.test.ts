@@ -257,7 +257,7 @@ describe('POST /accounts/:id/switch', () => {
    * The structural half of "a channel can never be logged into". A channel is
    * minted with no auth methods, but that alone only makes direct login
    * impossible — every auth-method write (`routes/authLinking.ts`,
-   * `routes/webauthn.ts`) resolves its target from `req.user`, i.e. from the
+   * `routes/identityLink.ts`) resolves its target from `req.user`, i.e. from the
    * AUTHENTICATED subject, never from a parameter. So the only way to add a
    * credential to a channel would be to hold a bearer whose subject IS the
    * channel, and this route is the one place such a bearer could be minted.

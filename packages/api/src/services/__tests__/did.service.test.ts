@@ -122,49 +122,6 @@ describe('buildDidDocument — custodial (password-only) account', () => {
   });
 });
 
-describe('buildDidDocument — webauthn stays CUSTODIAL (Fase B/b1)', () => {
-  // A passkey is NOT a DID verification method: `collectIdentityKeys` must never
-  // read a `webauthn` auth-method row, so a passkey-only account remains
-  // custodial (controlled solely by OXY_DID), exactly like a password-only one.
-  const webauthnOnlyUser = {
-    _id: '507f1f77bcf86cd799439013',
-    username: 'wren',
-    authMethods: [{ type: 'webauthn', metadata: { credentialID: 'passkey-abc', name: 'Laptop' } }],
-    type: 'local',
-  };
-
-  it('is controlled solely by OXY_DID and derives NO self-key verification method from the passkey', () => {
-    delete process.env.OXY_PUBLIC_KEY;
-    const doc = buildDidDocument(webauthnOnlyUser);
-    const did = buildUserDid(webauthnOnlyUser._id);
-
-    expect(() => didDocumentSchema.parse(doc)).not.toThrow();
-    expect(doc.controller).toEqual([OXY_DID]);
-    // No verification method carries the passkey (no #key-1, no credential id).
-    expect(doc.verificationMethod).toEqual([]);
-    expect(doc.verificationMethod.some((vm) => vm.id === `${did}#key-1`)).toBe(false);
-    expect(JSON.stringify(doc)).not.toContain('passkey-abc');
-  });
-
-  it('a password + passkey account is still custodial (the passkey adds no key)', () => {
-    process.env.OXY_PUBLIC_KEY = newPublicKey();
-    const doc = buildDidDocument({
-      _id: '507f1f77bcf86cd799439014',
-      username: 'pax',
-      authMethods: [
-        { type: 'password', metadata: { email: 'pax@oxy.so' } },
-        { type: 'webauthn', metadata: { credentialID: 'passkey-def' } },
-      ],
-      type: 'local',
-    });
-
-    expect(doc.controller).toEqual([OXY_DID]);
-    // Only the Oxy custodial key — nothing derived from the passkey.
-    expect(doc.verificationMethod).toHaveLength(1);
-    expect(doc.verificationMethod[0]?.id).toBe(`${OXY_DID}#oxy-custodial-key`);
-  });
-});
-
 describe('buildOxyDidDocument', () => {
   it('returns the Oxy organisation DID document', () => {
     process.env.OXY_PUBLIC_KEY = newPublicKey();

@@ -89,8 +89,8 @@ export interface BuildOAuthAuthorizeUrlParams {
   responseMode?: 'web_message';
   /**
    * Which of the IdP's screens a person with no session there lands on:
-   * `signin` (sign in with a passkey), `signup` (create an account with its
-   * root), `recover` (recover it from the recovery phrase). Omitted, the IdP
+   * `signin` (sign in), `signup` (create an account), `recover` (get back
+   * into one); each opens its sign-in panel. Omitted, the IdP
    * offers its Commons request first. An Oxy app sends this when it sends the
    * person to auth.oxy.so for what only that origin can do, in the same tab.
    */

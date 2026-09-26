@@ -26,7 +26,7 @@ import './crypto/polyfill';
 // ---------------------------------------------------------------------------
 // API client
 // ---------------------------------------------------------------------------
-export { OxyServices, AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError, SecondFactorRequiredError, ServiceAssetMetadataError } from './OxyServices';
+export { OxyServices, AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError, ServiceAssetMetadataError } from './OxyServices';
 export { OXY_CLOUD_URL, oxyClient } from './OxyServices';
 export type { DeviceCredentialProvider, LinkedHttpClient } from './OxyServices.base';
 // Auth-refresh handler surface — consumed by `@oxy.so/services`'s OxyContext to
@@ -240,7 +240,6 @@ export {
 export { buildUserDid } from './mixins/OxyServices.identity';
 export type {
     IdentityRecordType,
-    LinkAuthMethodResult,
     PublishRecordResult,
     VerifyRecordResult,
     VerifyDomainResult,
@@ -347,7 +346,7 @@ export { deriveSharedSecret } from './crypto/ecdh';
 // Identity proofs — the one signed format for operations on a personal root
 // (docs/adr/0024-one-oxy-account-root-holders.md D7)
 export { digestIdentityPayload, signIdentityProof } from './crypto/identityProof';
-// Linking Commons to a passkey account: the code both screens compare (ADR 0029 D3)
+// Linking Commons to an account: the code both screens compare (ADR 0029 D3)
 export { deriveIdentityLinkCode } from './crypto/identityLink';
 
 // ---------------------------------------------------------------------------
@@ -642,11 +641,6 @@ export type { QuickAccount, DisplayNameUserShape } from './utils/accountUtils';
 export { registrableApex } from './utils/registrableApex';
 export { AUTH_WEB_ORIGIN, CENTRAL_IDP_APEX } from './utils/authWebUrl';
 
-// WebAuthn relying-party origin guard (client side). Mirrors the server's
-// `isOxyApexOrigin` so consumers can decide whether to offer passkey UI on the
-// current page (first-party Oxy origin / loopback only).
-export { isOxyRpOrigin } from './utils/webauthnOrigin';
-
 export { runColdBoot } from './utils/coldBoot';
 export type {
     ColdBootStep,
@@ -771,8 +765,8 @@ export type {
 
 // Headless controller for the unified account dialog. Framework-agnostic
 // state machine + subscribe/getSnapshot store (bind via `useSyncExternalStore`)
-// — sign-in is passkey (WebAuthn) or the Commons QR / shared-keychain handoff;
-// password, social login, and 2FA were removed ecosystem-wide. Reuses
+// — sign-in is by email (code or link), password and authenticator, or the
+// Commons QR / shared-keychain handoff. Reuses
 // `SessionClient.switchAccount` / `oxyServices.switchToAccount` for the uniform
 // switch and the existing device-flow methods for sign-in.
 export {

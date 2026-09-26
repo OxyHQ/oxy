@@ -1,10 +1,14 @@
 # Changelog: `@oxy.so/federation`
 
-## Unreleased
+## 2.1.2
+
+### Changed
 
 - The `@oxy.so/core` dependency range admits core 2 (`^1.0.0 || ^2.0.0`). Core
   2.0.0 only removes the server-side `jwtSecret` option, which this package
   never used.
+- `@oxy.so/contracts` admits `^3.0.0`: 3.0 removes only the passkey (WebAuthn)
+  schemas and the email `recovery` purpose, which this package never imported.
 
 ## 2.1.1
 

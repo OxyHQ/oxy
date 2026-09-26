@@ -1,11 +1,11 @@
 /**
- * Signing in without a passkey on OxyServices: each method hits its endpoint
+ * Signing in on OxyServices: each method hits its endpoint
  * bearer-less with the right body, attaches THIS client's device proof unless
  * told otherwise, plants the access token of a session and never of a
  * second-factor step, and validates every answer against the contracts.
  */
 import type { LoginResult } from '@oxy.so/contracts';
-import { OxyServices, SecondFactorRequiredError } from '../../OxyServices';
+import { OxyServices } from '../../OxyServices';
 
 const SESSION: LoginResult = {
   sessionId: 'sess-1',
@@ -174,17 +174,5 @@ describe('the signed-in account', () => {
     makeRequest.mockResolvedValueOnce({ success: true });
     await oxy.completeIdentityLinkWithEmailCode('ab'.repeat(16), reauth);
     expect(makeRequest).toHaveBeenLastCalledWith('POST', `/identity/link/${'ab'.repeat(16)}/complete`, { reauth }, { cache: false });
-  });
-});
-
-describe('passkey sign-in with an authenticator on the account', () => {
-  it('throws SecondFactorRequiredError carrying the challenge, and plants nothing', async () => {
-    makeRequest.mockResolvedValueOnce(CHALLENGE);
-    const error = await oxy.webauthnLoginVerify({ id: 'cred' }).catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(SecondFactorRequiredError);
-    expect(error).toMatchObject({ challengeId: CHALLENGE.challengeId, code: 'SECOND_FACTOR_REQUIRED' });
-    makeRequest.mockResolvedValueOnce(CHALLENGE);
-    await expect(oxy.webauthnRegisterVerify({ id: 'cred' }, { recoveryTicket: TOKEN })).rejects.toBeInstanceOf(SecondFactorRequiredError);
-    expect(setTokens).not.toHaveBeenCalled();
   });
 });

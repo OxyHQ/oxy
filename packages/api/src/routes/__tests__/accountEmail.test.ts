@@ -1,5 +1,5 @@
 /**
- * `POST /auth/email/verify/{start,confirm}` (ADR 0029 D3) against a REAL
+ * `POST /auth/email/verify/{start,confirm}` (ADR 0030) against a REAL
  * Postgres: the code goes only where it may, every other case is a decoy that
  * answers the same, codes are capped and expire, and a confirmed code is a
  * one-use ticket stored only as its hash.
@@ -42,7 +42,6 @@ import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import { EMAIL_SENDS_PER_HOUR } from '../../services/accountEmail.service';
 import { hashEmail } from '../../utils/contactHash';
-import { confirmTotp, enrollTotp, totpCodeAt } from '../../services/totp.service';
 import accountEmailRouter from '../accountEmail';
 
 const AUTH_ORIGIN = 'https://auth.oxy.so';
@@ -113,7 +112,7 @@ describe('sign-up', () => {
     const email = freshEmail();
     const { verificationId, expiresAt } = await start({ purpose: 'signup', email: email.toUpperCase() });
 
-    expect(mockSendCode).toHaveBeenCalledWith(email, expect.stringMatching(/^\d{6}$/), 'signup');
+    expect(mockSendCode).toHaveBeenCalledWith(email, expect.stringMatching(/^\d{6}$/));
     expect(expiresAt).toBeGreaterThan(Date.now());
     const row = await storedVerification(verificationId);
     expect(row).toMatchObject({ purpose: 'signup', emailHash: hashEmail(email), userId: null, attempts: 0, confirmedAt: null });
@@ -129,7 +128,7 @@ describe('sign-up', () => {
 
     expect(res.status).toBe(200);
     expect(emailTicketSchema.safeParse(res.body.ticket).success).toBe(true);
-    expect(res.body.username).toBeNull();
+    expect(Object.keys(res.body).sort()).toEqual(['expiresAt', 'ticket']);
     const row = await storedVerification(verificationId);
     expect(row.confirmedAt).toBeInstanceOf(Date);
     expect(row.ticketHash).toBe(createHash('sha256').update(res.body.ticket as string).digest('hex'));
@@ -201,81 +200,10 @@ describe('sign-up', () => {
   });
 });
 
-describe('recovery', () => {
-  async function passkeyAccount() {
-    const email = freshEmail();
-    const username = freshUsername();
-    const [row] = await getDb().insert(users).values({ email, username }).returning({ id: users.id });
-    return { id: row.id, email, username };
-  }
-
-  it.each(['username', 'email'] as const)('sends the code to the recovery email of the account its %s names', async (by) => {
-    const account = await passkeyAccount();
-    const identifier = by === 'username' ? account.username.toUpperCase() : account.email;
-    const { verificationId } = await start({ purpose: 'recovery', identifier });
-
-    expect(mockSendCode).toHaveBeenCalledWith(account.email, expect.stringMatching(/^\d{6}$/), 'recovery');
-    expect((await storedVerification(verificationId)).userId).toBe(account.id);
-
-    const res = await post('/verify/confirm', { verificationId, code: sentCode(account.email) });
-    expect(res.status).toBe(200);
-    expect(res.body.username).toBe(account.username);
-  });
-
-  it('needs the authenticator code too when the account has one — the email alone never gets past it', async () => {
-    const account = await passkeyAccount();
-    const { secret } = await enrollTotp(account.id, 'x');
-    await confirmTotp(account.id, totpCodeAt(secret, new Date(Date.now() - 30_000)));
-    const { verificationId } = await start({ purpose: 'recovery', identifier: account.username });
-    const code = sentCode(account.email);
-
-    const without = await post('/verify/confirm', { verificationId, code });
-    expect(without.status).toBe(401);
-    expect(without.body.error).toBe('TOTP_REQUIRED');
-    expect((await storedVerification(verificationId)).confirmedAt).toBeNull();
-
-    const wrong = await post('/verify/confirm', { verificationId, code, totpCode: 'zzzzz-zzzzz' });
-    expect(wrong.status).toBe(401);
-    expect(wrong.body.error).toBe('SECOND_FACTOR_INVALID');
-
-    const right = await post('/verify/confirm', { verificationId, code, totpCode: totpCodeAt(secret, new Date()) });
-    expect(right.status).toBe(200);
-    expect(emailTicketSchema.safeParse(right.body.ticket).success).toBe(true);
-  });
-
-  it('answers the same, and sends nothing, for a name no account has', async () => {
+describe('no recovery purpose', () => {
+  it('refuses a recovery request: recovering an account is signing in by email (ADR 0030)', async () => {
     const res = await post('/verify/start', { purpose: 'recovery', identifier: freshUsername() });
-
-    expect(res.status).toBe(200);
-    expect(Object.keys(res.body).sort()).toEqual(['expiresAt', 'verificationId']);
-    expect(mockSendCode).not.toHaveBeenCalled();
-    expect(mockSendNotice).not.toHaveBeenCalled();
-    expect((await storedVerification(res.body.verificationId as string)).userId).toBeNull();
-  });
-
-  it('sends nothing for a Commons account: it recovers in Commons', async () => {
-    const username = freshUsername();
-    await getDb().insert(users).values({ username, email: freshEmail(), publicKey: `04${'c'.repeat(128)}` });
-
-    const res = await post('/verify/start', { purpose: 'recovery', identifier: username });
-
-    expect(res.status).toBe(200);
-    expect(mockSendCode).not.toHaveBeenCalled();
-  });
-
-  it('sends nothing for a deleted account kept for its records', async () => {
-    const username = freshUsername();
-    await getDb().insert(users).values({ username, email: freshEmail(), accountStatus: 'archived' });
-
-    await start({ purpose: 'recovery', identifier: username });
-    expect(mockSendCode).not.toHaveBeenCalled();
-  });
-
-  it('sends nothing for a managed account', async () => {
-    const username = freshUsername();
-    await getDb().insert(users).values({ username, email: freshEmail(), kind: 'organization' });
-
-    await start({ purpose: 'recovery', identifier: username });
+    expect(res.status).toBe(400);
     expect(mockSendCode).not.toHaveBeenCalled();
   });
 });

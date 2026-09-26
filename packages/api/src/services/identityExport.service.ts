@@ -279,8 +279,6 @@ export async function buildExportBundle(userId: string): Promise<ExportBundleRes
         type: userAuthMethods.type,
         linkedAt: userAuthMethods.linkedAt,
         methodPublicKey: userAuthMethods.methodPublicKey,
-        methodCredentialId: userAuthMethods.methodCredentialId,
-        methodName: userAuthMethods.methodName,
       })
       .from(userAuthMethods)
       .where(eq(userAuthMethods.userId, userId))
@@ -323,11 +321,7 @@ export async function buildExportBundle(userId: string): Promise<ExportBundleRes
 
   const authMethods = buildAuthMethodEntries({
     publicKey: self.publicKey,
-    authMethods: authMethodRows.map((method) => ({
-      type: method.type,
-      linkedAt: method.linkedAt,
-      metadata: { credentialID: method.methodCredentialId, name: method.methodName },
-    })),
+    authMethods: authMethodRows,
     createdAt: self.createdAt,
   });
 

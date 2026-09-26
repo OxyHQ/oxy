@@ -1901,9 +1901,9 @@
     "confirmBody": "Commons crea una clave para esta cuenta y la guarda en este móvil. El email de recuperación de la cuenta se elimina, y la frase de recuperación que Commons te muestra a continuación es cómo vuelves a entrar.",
     "confirmAction": "Vincular esta cuenta",
     "codeTitle": "Comprueba el código",
-    "codeBody": "auth.oxy.so muestra este mismo código. Si es así, confírmalo allí con tu passkey.",
-    "waiting": "Esperando a auth.oxy.so…",
-    "expired": "La vinculación se canceló o caducó. Empieza de nuevo en auth.oxy.so.",
+    "codeBody": "La otra pantalla muestra este mismo código. Si es así, confírmalo allí con el código que te enviamos por email.",
+    "waiting": "Esperando a la otra pantalla…",
+    "expired": "La vinculación se canceló o caducó. Empieza de nuevo en la otra pantalla.",
     "alreadyLinked": "Esta cuenta ya usa Commons.",
     "failed": "No se ha podido vincular esta cuenta. Inténtalo de nuevo."
   }

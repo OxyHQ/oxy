@@ -17,9 +17,8 @@
 export const CENTRAL_IDP_APEX = 'oxy.so';
 
 /**
- * The IdP's origin, `auth.oxy.so` — the OAuth authorize/consent surface and the
- * one origin that asserts Oxy passkeys: where a person signs in, creates,
- * recovers or deletes a web account, in the window an app opens (ADR 0029).
- * Apps open it; they never run the passkey themselves.
+ * The IdP's origin, `auth.oxy.so` — the OAuth authorize/consent surface for
+ * third parties, the browser bridge (ADR 0029 D2) and the page an email
+ * sign-in link opens. Official apps sign in inside their own dialog (ADR 0030).
  */
 export const AUTH_WEB_ORIGIN = `https://auth.${CENTRAL_IDP_APEX}`;

@@ -151,8 +151,8 @@ function envelopeFor(userId: string, type: 'identity' | 'profile', publicKey: st
 }
 
 /**
- * A fully-populated account: profile fields, SECRETS, an identity key, a
- * passkey, two verified domains, two app-data entries, a follow in each
+ * A fully-populated account: profile fields, SECRETS, an identity key, two
+ * verified domains, two app-data entries, a follow in each
  * direction, and one signed record per type.
  */
 async function seedFullAccount(): Promise<{ userId: string; publicKey: string; followedId: string; followerId: string }> {
@@ -187,13 +187,6 @@ async function seedFullAccount(): Promise<{ userId: string; publicKey: string; f
       type: 'identity',
       methodPublicKey: publicKey,
       linkedAt: new Date('2026-05-01T00:00:00.000Z'),
-    },
-    {
-      userId,
-      type: 'webauthn',
-      methodCredentialId: `cred${randomUUID().replace(/-/g, '')}`,
-      methodName: 'Laptop',
-      linkedAt: new Date('2026-05-02T00:00:00.000Z'),
     },
   ]);
 
@@ -337,7 +330,6 @@ describe('GET /users/me/export (JSON)', () => {
 
     expect(bundle.authMethods).toEqual([
       { type: 'identity', linkedAt: '2026-05-01T00:00:00.000Z', verificationMethodId: '#key-1' },
-      { type: 'webauthn', linkedAt: '2026-05-02T00:00:00.000Z', credentialId: expect.any(String), name: 'Laptop' },
     ]);
 
     // `namespace, key` — the order Mongo's `{userId, namespace, key}` index gave.

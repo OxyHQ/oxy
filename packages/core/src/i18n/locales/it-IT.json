@@ -306,7 +306,7 @@
       "keyed": "Questo account usa Commons: eliminalo in Oxy Commons, Impostazioni > Elimina account, con la sua chiave."
     },
     "handoff": {
-      "elsewhereMessage": "Per eliminare il tuo account serve la tua chiave di identità, che non si trova su questo dispositivo. Apri Oxy Commons sul dispositivo che la contiene e vai su Impostazioni > Elimina account. Un account senza chiave si elimina dalle sue impostazioni su {{site}}."
+      "elsewhereMessage": "Per eliminare il tuo account serve la tua chiave di identità, che non si trova su questo dispositivo. Apri Oxy Commons sul dispositivo che la contiene e vai su Impostazioni > Elimina account."
     }
   },
   "linkCommons": {

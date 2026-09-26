@@ -3,8 +3,8 @@
  *
  * Bearer-authed sibling of `/auth/session/authorize/:sessionToken` (see
  * `sessionAuthorize.test.ts`), keyed on the PUBLIC `authorizeCode` instead of
- * the secret `sessionToken` — for an approver (e.g. the auth.oxy.so passkey
- * hub) that authenticates via bearer token but never holds the secret.
+ * the secret `sessionToken` — for an approver (e.g. the auth.oxy.so sign-in
+ * page) that authenticates via bearer token but never holds the secret.
  *
  * The actual claim/mint logic (atomic burn, origin-verified audit log) lives
  * in `authorizeSessionWithBearer` and is unit-tested in

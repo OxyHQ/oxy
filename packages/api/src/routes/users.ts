@@ -12,7 +12,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { identityBackups } from '../db/schema/identityBackups';
 import { users } from '../db/schema/users';
 import { authMiddleware, serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
@@ -40,18 +39,7 @@ import SignatureService from '../services/signature.service';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { isTotpEnabled, verifySecondFactor } from '../services/totp.service';
 import { verifyEmailReauth } from '../services/reauth.service';
-import { emailService } from '../services/email.service';
-import {
-  archiveAccountForRetention,
-  beginAccountClosure,
-  describeAccountFinancialHolds,
-} from '../services/accountFinancialHolds.service';
-import { recordAccountDeletedEvent, type RecordedAccountEvent } from '../services/accountEvents.service';
-import {
-  recordAccountStorageDeletion,
-  type RecordedAccountStorageDeletion,
-} from '../services/accountStorageDeletion.service';
-import fileCache from '../utils/fileCache';
+import { deleteAccount } from '../services/accountDeletion.service';
 import { validate } from '../middleware/validate';
 import {
   optionalUserOrServiceAuth,
@@ -74,8 +62,6 @@ import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { buildExportBundle } from '../services/identityExport.service';
 import { SIGN_IN_ERROR_CODES, exportBundleSchema } from '@oxy.so/contracts';
-import sessionService from '../services/session.service';
-import deviceSessionService from '../services/deviceSession.service';
 
 // Types
 interface AuthRequest extends Request {
@@ -1403,9 +1389,8 @@ router.get(
  *       than 5 minutes (plus `totpCode` if it has an authenticator); an
  *       account without a key sends `reauth` — the code
  *       `POST /users/me/reauth/email` (action `delete_account`) just sent to
- *       its email, plus its authenticator code when it has one. A passkey no
- *       longer confirms a deletion, and a third-party application's token is
- *       refused. Either way the confirmation text must match the account's
+ *       its email, plus its authenticator code when it has one. A
+ *       third-party application's token is refused. Either way the confirmation text must match the account's
  *       username.
  *
  *       Successful deletion removes all mailboxes, messages, and S3
@@ -1526,201 +1511,27 @@ router.delete(
     } else {
       // An account without a key: a code just sent to its email for THIS
       // deletion, plus its authenticator code when it has one
-      // (`reauth.service.ts`). A passkey no longer confirms a deletion.
+      // (`reauth.service.ts`).
       if (!reauth) {
         throw new BadRequestError('Confirm the deletion with a code sent to your email');
       }
       await verifyEmailReauth(userId, reauth, 'delete_account');
     }
 
-    /*
-     * FINANCIAL HOLDS ARE CHECKED BEFORE ANYTHING IS DESTROYED (issue #972,
-     * section 7.4).
-     *
-     * Every financial table references `users` with `ON DELETE RESTRICT`, so for
-     * any account that had ever transacted, this route used to destroy the
-     * mailboxes, the identity backup, the sessions and the whole social graph and
-     * THEN fail on a foreign key violation — a 500, after the irreversible part.
-     * Moving the check above the first destructive step is the fix; the rest of
-     * this block decides what to do with the answer.
-     */
-    const holds = await describeAccountFinancialHolds(userId);
-
-    if (holds.hasLiveSubscription) {
-      // Refused outright rather than worked around. Cancelling somebody's
-      // payment agreement as a side effect of a delete is not this route's
-      // decision to make, and if Stripe were unreachable the alternative would
-      // delete the account and leave Stripe billing a customer who no longer
-      // exists.
-      throw new ConflictError(
-        'This account has a live subscription. Cancel it first, then delete the account.',
-        { subscriptions: holds.liveSubscriptionIds }
-      );
-    }
-
-    if (holds.heldReservations > 0) {
-      // Money neither spent nor returned. The holds expire on their own, so this
-      // is a wait rather than a dead end.
-      throw new ConflictError(
-        'This account has inference reservations still in flight. Try again once they settle.',
-        { heldReservations: holds.heldReservations }
-      );
-    }
-
-    if (holds.hasLiveProviderConnection) {
-      /*
-       * A BYOK CREDENTIAL IS STILL ACTIVE IN KAANA CUSTODY (issue #972 section 12).
-       *
-       * `inference_provider_connections.owner_account_id` is `RESTRICT` rather
-       * than `CASCADE` precisely so this cannot happen silently, and its schema
-       * comment promises the missing half: "Account deletion must revoke these
-       * first, which is a deliberate, loud step." Until now the step did not
-       * exist — the account archived and the connection stayed live with its
-       * credential in Kaana, listed among the records Oxy claimed to be
-       * retaining for legal reasons.
-       *
-       * Refused rather than revoked on the customer's behalf, for the same reason
-       * the subscription above is refused: revoking a BYOK credential is a
-       * declaration to a THIRD PARTY, whose own console still shows a key the
-       * customer believes is in use. Destroying it as a side effect of a delete is
-       * the same class of act as cancelling somebody's payment agreement, and if
-       * Kaana control path were unreachable the alternative would delete the account
-       * and orphan the ciphertext — which is the exact outcome the `RESTRICT` exists
-       * to prevent.
-       */
-      throw new ConflictError(
-        'This account still holds provider credentials. Revoke each connection first — ' +
-          'revoking retires the Kaana-held credential, which deleting the account cannot do for you.',
-        { providerConnections: holds.liveProviderConnections }
-      );
-    }
-
-    // Establish the durable closure fence before deleting any optional data.
-    // Provider-connection creation locks this same account row and requires it
-    // to remain active, so no account/project/application BYOK row can appear
-    // after the holds check and become orphaned during this workflow.
-    await beginAccountClosure(userId);
-
-    // Delete all email data (mailboxes, messages, S3 attachments)
-    await emailService.deleteAllUserData(userId);
-
-    // Drop any encrypted off-device identity backup for this account.
-    await getDb().delete(identityBackups).where(eq(identityBackups.userId, userId));
-
-    // Revoke every active session and detach the account from all device-session
-    // docs so a deleted user cannot keep minting tokens from a retained secret.
-    await sessionService.deactivateAllUserSessions(userId);
-    await deviceSessionService.purgeAccountFromAllDevices(userId);
-
-    // Remove follow edges, blocks, restrictions, and repair counterparty counts
-    // before deleting the user document (mirrors federation actor-delete).
-    await userService.purgeUserSocialGraph(userId);
-
-    if (holds.blocksHardDelete) {
-      /*
-       * RETAIN AND ARCHIVE. Receipts, ledger entries, invoices and processor
-       * payments are kept by law and by reconciliation need, and the `users` row
-       * they reference has to survive with them — so the account is archived
-       * instead of removed. Everything optional above this line has already been
-       * erased, which is #972 section 12's "deletion that preserves legally
-       * required financial records while deleting optional payload data".
-       *
-       * `account_status = 'archived'` is an EXISTING state with existing
-       * meaning: `accountService.resolveEffectiveAccess` resolves an archived
-       * account to nothing, so no membership, no application access and no
-       * billing authority survives. Combined with the session revocation above,
-       * the account can no longer act.
-       *
-       * What this does NOT do is anonymise the profile. Releasing a username and
-       * clearing an email is a separate decision with its own consequences — a
-       * released handle is immediately claimable by somebody else — and belongs
-       * to section 12's deletion/export work rather than to the financial-holds
-       * question. The boundary is stated rather than inferred.
-       */
-      // The `account.deleted` event commits with the archive, never without
-      // it: every relying party holding this person's data is told to erase
-      // (OxyHQ/Mention#1169). The archive keeps financial records, not the
-      // person's data anywhere else.
-      //
-      // Uploads are optional data, not financial records: the archive deletes
-      // the asset rows itself (the `users` cascade that removes them on a hard
-      // delete never fires here) and records their storage for deletion, in the
-      // same commit (OxyHQ/Mention#1178).
-      let archivedEvent: RecordedAccountEvent | undefined;
-      let archivedStorage: RecordedAccountStorageDeletion | undefined;
-      await archiveAccountForRetention(userId, {
-        withinTransaction: async (tx) => {
-          archivedEvent = await recordAccountDeletedEvent(tx, {
-            userId,
-            username: user.username ?? null,
-            retained: true,
-          });
-          archivedStorage = await recordAccountStorageDeletion(tx, userId, { removeAssetRows: true });
-        },
-      });
-      userCache.invalidate(userId);
-      await graphCache.invalidate(userId);
-      for (const fileId of archivedStorage?.fileIds ?? []) fileCache.invalidate(fileId);
-
-      logger.info('Account archived with retained financial records', {
-        userId,
-        username: user.username,
-        retainedRecords: holds.retainedRecords,
-        accountEventId: archivedEvent?.eventId,
-        accountEventRecipients: archivedEvent?.recipients,
-        storageDeletionFiles: archivedStorage?.fileIds.length ?? 0,
-        storageDeletionTargets: archivedStorage?.targets ?? 0,
-      });
-
+    // Holds are checked before anything is destroyed; a live subscription,
+    // an in-flight reservation or a live BYOK connection answers 409.
+    const outcome = await deleteAccount(userId, user.username ?? null);
+    if (outcome.retained) {
       sendSuccess(res, {
         message:
           'Account closed. Records that must be retained are kept — financial history as required ' +
           'by law, and the lifecycle audit of any credential that existed; all optional data has ' +
           'been deleted.',
         retained: true,
-        retainedRecords: holds.retainedRecords,
+        retainedRecords: outcome.retainedRecords,
       });
       return;
     }
-
-    // Delete the account row. Every remaining edge that references it is
-    // removed by its own foreign key; the graph purge above ran first because it
-    // is what invalidates each counterparty's cached graph by name — a cascade
-    // tells nobody whose graph just changed.
-    //
-    // The `account.deleted` event for relying parties is recorded in the SAME
-    // transaction, and before the row goes: its recipients are read from the
-    // account's grants and sessions, which cascade with it. So the event exists
-    // exactly when the deletion committed (OxyHQ/Mention#1169).
-    //
-    // The account's uploads go with it: the asset rows cascade, so their
-    // storage keys are recorded for deletion first, in the same transaction
-    // (OxyHQ/Mention#1178). The objects themselves are deleted by
-    // `accountStorageDeletion.worker.ts`.
-    const { deletedEvent, storage } = await getDb().transaction(async (tx) => {
-      const recorded = await recordAccountDeletedEvent(tx, {
-        userId,
-        username: user.username ?? null,
-        retained: false,
-      });
-      const recordedStorage = await recordAccountStorageDeletion(tx, userId, { removeAssetRows: false });
-      await tx.delete(users).where(eq(users.id, userId));
-      return { deletedEvent: recorded, storage: recordedStorage };
-    });
-
-    userCache.invalidate(userId);
-    await graphCache.invalidate(userId);
-    for (const fileId of storage.fileIds) fileCache.invalidate(fileId);
-
-    logger.info('Account deleted', {
-      userId,
-      username: user.username,
-      accountEventId: deletedEvent.eventId,
-      accountEventRecipients: deletedEvent.recipients,
-      storageDeletionFiles: storage.fileIds.length,
-      storageDeletionTargets: storage.targets,
-    });
-
     sendSuccess(res, {
       message: 'Account deleted successfully',
       retained: false,

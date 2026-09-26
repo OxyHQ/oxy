@@ -46,7 +46,7 @@ export const InlineCommonsQr: React.FC<{ controller: AccountDialogController | n
 
   // One request for as long as the block is on screen. Withdrawn on the way
   // out only while it is still ours and still approvable: an attempt the
-  // person started meanwhile (a passkey window, "Continue with Oxy") is theirs.
+  // person started meanwhile ("Continue with Oxy") is theirs.
   useEffect(() => {
     if (!controller || !shown) return;
     const { signIn: current } = controller.getSnapshot();

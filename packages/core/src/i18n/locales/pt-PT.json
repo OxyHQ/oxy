@@ -306,7 +306,7 @@
       "keyed": "Esta conta usa o Commons: elimina-a no Oxy Commons, Definições > Eliminar conta, com a sua chave."
     },
     "handoff": {
-      "elsewhereMessage": "Eliminar a tua conta requer a tua chave de identidade, e ela não está neste dispositivo. Abre o Oxy Commons no dispositivo que a guarda e vai a Definições > Eliminar conta. Uma conta sem chave é eliminada nas suas definições em {{site}}."
+      "elsewhereMessage": "Eliminar a tua conta requer a tua chave de identidade, e ela não está neste dispositivo. Abre o Oxy Commons no dispositivo que a guarda e vai a Definições > Eliminar conta."
     }
   },
   "linkCommons": {

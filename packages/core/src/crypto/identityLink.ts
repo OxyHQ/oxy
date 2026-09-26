@@ -1,9 +1,9 @@
 /**
- * The code both screens show while Commons is being linked to a passkey
- * account (ADR 0029 D3): 6 digits derived from the link request and the key
- * Commons signed with. auth.oxy.so derives it from the key the API relayed,
- * Commons from its own; the person checks they match before the passkey is
- * asserted, so a photographed QR cannot slip another key in.
+ * The code both screens show while Commons is being linked to an account
+ * (ADR 0029 D3): 6 digits derived from the link request and the key Commons
+ * signed with. The linking panel derives it from the key the API relayed,
+ * Commons from its own; the person checks they match before the link is
+ * confirmed, so a photographed QR cannot slip another key in.
  */
 
 import { sha256 } from '@noble/hashes/sha256';

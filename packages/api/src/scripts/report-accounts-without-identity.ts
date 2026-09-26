@@ -1,23 +1,23 @@
 #!/usr/bin/env bun
 /**
- * Report accounts that have no identity key (phase 2 of "one identity, two
- * carriers": `docs/superpowers/specs/2026-09-15-one-identity-two-carriers-design.md`).
+ * Report personal accounts that have no identity key (phase 2 of "one
+ * identity, two carriers", revised by ADR 0030).
  *
- * An account with `users.public_key IS NULL` can sign in but owns no identity:
- * it cannot sign anything, cannot be moved to Commons, and has no recovery
- * phrase. This script MEASURES that population so the prompt to create one on
- * auth.oxy.so can be aimed and its effect watched. It is read-only by
- * construction — there is nothing to write, because an identity can only be
- * created by its owner, on their device.
+ * An account with `users.public_key IS NULL` signs in with its email (a code
+ * or link, a password, an authenticator) but owns no identity: it cannot sign
+ * anything and has no recovery phrase until it links Commons. This script
+ * MEASURES that population. It is read-only by construction — an identity can
+ * only be created by its owner, on their device.
  *
- * Output: totals, a split by which auth methods the account has (passkey-only
- * accounts are the ones the sign-in prompt reaches), and — with `SAMPLE` — a
- * handful of ids to spot-check, NEWEST first, because a
- * gap among accounts created today says something different from a gap among
- * accounts created before the identity existed. No usernames, no emails, no IPs.
+ * Only `type = 'local'`, `kind = 'personal'` accounts are counted: federated,
+ * agent and managed accounts never sign in with an email. Output: totals, a
+ * split by how a key-less account can sign in, and — with `SAMPLE` — a handful
+ * of ids per bucket, NEWEST first. `noSignIn` (no key and no email) is the
+ * bucket to act on: such an account has no way in at all. No usernames, no
+ * emails, no IPs.
  *
  * Run (inside the oxy-api image, working dir /app):
- *   bun run packages/api/src/scripts/report-accounts-without-identity.ts
+ *   node packages/api/dist/scripts/report-accounts-without-identity.js
  *
  * Env:
  *   DATABASE_URL   Postgres connection string (required, injected by ECS from SSM)
@@ -32,21 +32,21 @@ export interface IdentityGapReport {
   totalUsers: number;
   withIdentity: number;
   withoutIdentity: number;
-  /** Accounts with no key whose auth methods are passkeys — reachable by the sign-in prompt. */
-  passkeyOnly: number;
-  /** Accounts with no key and no auth method at all (e.g. key-less legacy rows). */
-  noAuthMethod: number;
+  /** No key, an email: signs in with it. */
+  emailOnly: number;
+  /** No key and no email: nothing to sign in with. */
+  noSignIn: number;
   /**
-   * Accounts with no `users.public_key` that nevertheless carry a linked
-   * `identity` auth method — an inconsistency, not a population to prompt:
-   * something linked a key and did not write it back.
+   * No `users.public_key` but a linked `identity` auth method — an
+   * inconsistency, not a population: something linked a key and did not write
+   * it back.
    */
   linkedKeyMissing: number;
   /** Up to `SAMPLE` ids per bucket, newest first. Empty unless `SAMPLE` is set. */
-  samples: { passkeyOnly: string[]; noAuthMethod: string[]; linkedKeyMissing: string[] };
+  samples: { emailOnly: string[]; noSignIn: string[]; linkedKeyMissing: string[] };
 }
 
-type Bucket = 'passkeyOnly' | 'noAuthMethod' | 'linkedKeyMissing';
+type Bucket = 'emailOnly' | 'noSignIn' | 'linkedKeyMissing';
 
 export async function reportAccountsWithoutIdentity(sampleSize = 0): Promise<IdentityGapReport> {
   const db = getDb();
@@ -55,6 +55,7 @@ export async function reportAccountsWithoutIdentity(sampleSize = 0): Promise<Ide
     select count(*)::text as total,
            count(*) filter (where public_key is not null)::text as with_identity
       from users
+     where type = 'local' and kind = 'personal'
   `);
 
   // One pass over the key-less accounts, bucketed by what they can sign in with.
@@ -62,16 +63,14 @@ export async function reportAccountsWithoutIdentity(sampleSize = 0): Promise<Ide
     with gap as (
       select u.id,
              u.created_at,
-             coalesce(bool_or(m.type = 'identity'), false) as has_identity_method,
-             count(m.id) as methods
+             nullif(btrim(u.email), '') is not null as has_email,
+             exists (select 1 from user_auth_methods m where m.user_id = u.id and m.type = 'identity') as has_identity_method
         from users u
-        left join user_auth_methods m on m.user_id = u.id
-       where u.public_key is null
-       group by u.id, u.created_at
+       where u.public_key is null and u.type = 'local' and u.kind = 'personal'
     )
-    select case when methods = 0 then 'noAuthMethod'
-                when has_identity_method then 'linkedKeyMissing'
-                else 'passkeyOnly' end as bucket,
+    select case when has_identity_method then 'linkedKeyMissing'
+                when has_email then 'emailOnly'
+                else 'noSignIn' end as bucket,
            count(*)::text as count,
            (array_agg(id order by created_at desc, id desc))[1:${sql.raw(String(Math.max(0, Math.trunc(sampleSize))))}] as sample
       from gap
@@ -82,10 +81,10 @@ export async function reportAccountsWithoutIdentity(sampleSize = 0): Promise<Ide
     totalUsers: Number(totals?.total ?? 0),
     withIdentity: Number(totals?.with_identity ?? 0),
     withoutIdentity: 0,
-    passkeyOnly: 0,
-    noAuthMethod: 0,
+    emailOnly: 0,
+    noSignIn: 0,
     linkedKeyMissing: 0,
-    samples: { passkeyOnly: [], noAuthMethod: [], linkedKeyMissing: [] },
+    samples: { emailOnly: [], noSignIn: [], linkedKeyMissing: [] },
   };
   for (const row of rows) {
     const count = Number(row.count);

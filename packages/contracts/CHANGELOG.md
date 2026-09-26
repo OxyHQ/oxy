@@ -1,5 +1,32 @@
 # Changelog: `@oxy.so/contracts`
 
+## 3.0.0
+
+Passkeys are removed from Oxy (ADR 0030): an account signs in with an email
+code or link, an optional password and an optional authenticator, or with
+Commons.
+
+### Removed
+
+- `webauthn.ts` and every export from it: `webauthnRegisterOptionsRequestSchema`,
+  `webauthnLoginOptionsRequestSchema`, `webauthnRegisterVerifyRequestSchema`,
+  `webauthnLoginVerifyRequestSchema`, `webauthnCredentialIdSchema`,
+  `webauthnAssertionResponseSchema` and their types
+  (`WebauthnRegisterOptionsRequest`, `WebauthnLoginOptionsRequest`,
+  `WebauthnRegisterVerifyRequest`, `WebauthnLoginVerifyRequest`,
+  `WebauthnAssertionResponse`).
+- `identityLinkOptionsRequestSchema` / `IdentityLinkOptionsRequest` (the
+  passkey assertion options of a Commons link).
+- The email `recovery` purpose: `EMAIL_VERIFICATION_PURPOSES` is
+  `['signup', 'signin', 'reauth']`; `emailVerificationStartRequestSchema` is
+  the sign-up request `{ purpose: 'signup', email }` only. Getting back into an
+  account is an email sign-in.
+- `emailVerificationConfirmRequestSchema.totpCode` and
+  `EmailVerificationConfirmResponse.username` (both recovery-only): the
+  response is `{ ticket, expiresAt }`.
+- `AuthMethodEntry` is the identity key only: `type` is `'identity'`, and
+  `credentialId`/`name` are gone.
+
 ## 2.4.0
 
 Signing in without a passkey (email code or link, password, authenticator).

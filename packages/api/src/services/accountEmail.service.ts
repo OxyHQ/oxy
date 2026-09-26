@@ -1,24 +1,22 @@
 /**
- * Recovery email codes and tickets (ADR 0029 D3).
+ * Email codes and tickets (ADR 0030).
  *
- * `start` records one `email_verifications` row and — only when there is
- * somewhere legitimate to send it — mails a 6-digit code. Every other case
- * records a DECOY row whose code nobody was sent, and answers identically, so
- * neither purpose tells a caller which emails or usernames have an account:
- *
- * - `signup` for an address that is already an account's recovery email: a
- *   decoy, and a notice to that address pointing at recovery;
- * - `recovery` naming nothing, a managed or archived account, or an account
- *   without a recovery email (a Commons account, which recovers in Commons): a
- *   decoy.
+ * The sign-up `start` records one `email_verifications` row and — only when
+ * the address has no account yet — mails a 6-digit code. For an address that
+ * already has one it records a DECOY row whose code nobody was sent, mails a
+ * notice pointing at sign-in instead, and answers identically, so it does not
+ * tell a caller which emails have an account.
  *
  * Mail is sent after the answer is decided and is not awaited by it, so the
  * response time does not say which case ran. A code is confirmed at most
  * {@link EMAIL_CODE_MAX_ATTEMPTS} times; the right one mints a one-use ticket,
- * stored as its SHA-256, that registration spends in its own transaction.
+ * stored as its SHA-256, that `POST /auth/signup` spends in its own
+ * transaction. The sign-in (`signin`) and re-verification (`reauth`) codes
+ * share {@link recordVerification}, {@link reserveSendBudget} and
+ * {@link consumeEmailCode} but are confirmed by their own routes.
  */
 import crypto from 'node:crypto';
-import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import {
   EMAIL_CODE_LENGTH,
   EMAIL_CODE_MAX_ATTEMPTS,
@@ -27,7 +25,6 @@ import {
   EMAIL_SIGNIN_LONG_CODE_ALPHABET,
   EMAIL_SIGNIN_LONG_CODE_LENGTH,
   EMAIL_VERIFICATION_ERROR_CODES,
-  SIGN_IN_ERROR_CODES,
   type EmailVerificationConfirmResponse,
   type EmailVerificationPurpose,
   type EmailVerificationStartRequest,
@@ -39,12 +36,10 @@ import { emailVerifications } from '../db/schema/emailVerifications';
 import { users } from '../db/schema/users';
 import { hashEmail } from '../utils/contactHash';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
-import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
 import { ApiError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendAccountExistsNotice, sendVerificationCode } from './accountEmail.mail';
 import { reserveAttempt } from './loginLockout.service';
-import { isTotpEnabled, verifySecondFactor } from './totp.service';
 import { SMTP_RELAYS } from '../config/email.config';
 
 /** Mails one requester (hashed IP) may cause to one address per hour. */
@@ -100,12 +95,10 @@ function emailMatches(email: string) {
   return sql`lower(btrim(${users.email})) = lower(btrim(${email}))`;
 }
 
-/** What `start` decided, before anything is sent. */
+/** What the sign-up `start` decided, before anything is sent. */
 interface Delivery {
-  purpose: EmailVerificationPurpose;
-  /** The rate-limit and matching key: `hashEmail` of the address (or of the identifier, for a decoy). */
+  /** The rate-limit and matching key: `hashEmail` of the address. */
   emailHash: string;
-  userId: string | null;
   /** Where the code goes; `null` for a decoy. */
   sendCodeTo: string | null;
   /** A sign-up for an address that already has an account. */
@@ -113,49 +106,26 @@ interface Delivery {
 }
 
 async function resolveDelivery(request: EmailVerificationStartRequest): Promise<Delivery> {
-  const db = getDb();
-  if (request.purpose === 'signup') {
-    const [existing] = await db.select({ id: users.id }).from(users).where(emailMatches(request.email)).limit(1);
-    return {
-      purpose: 'signup',
-      emailHash: hashEmail(request.email),
-      userId: null,
-      sendCodeTo: existing ? null : request.email,
-      sendNoticeTo: existing ? request.email : null,
-    };
-  }
-
-  const identifier = request.identifier.trim();
-  // The one sign-in normalisation (`utils/signInIdentifier.ts`); outside it a decoy.
-  const lookup = normalizeSignInIdentifier(identifier) ?? '';
-  const match = lookup.includes('@')
-    ? sql`lower(btrim(${users.email})) = ${lookup}`
-    : sql`lower(btrim(${users.username})) = ${lookup}`;
-  const [account] = await db
-    .select({ id: users.id, kind: users.kind, email: users.email, publicKey: users.publicKey, accountStatus: users.accountStatus })
-    .from(users)
-    .where(match)
-    .limit(1);
-  const email = account?.email?.trim().toLowerCase() || null;
-  // A deleted account kept for its financial records (`archived`) is not recovered.
-  if (account && email && account.kind === 'personal' && !account.publicKey && account.accountStatus === 'active') {
-    return { purpose: 'recovery', emailHash: hashEmail(email), userId: account.id, sendCodeTo: email, sendNoticeTo: null };
-  }
-  return { purpose: 'recovery', emailHash: hashEmail(identifier), userId: null, sendCodeTo: null, sendNoticeTo: null };
+  const [existing] = await getDb().select({ id: users.id }).from(users).where(emailMatches(request.email)).limit(1);
+  return {
+    emailHash: hashEmail(request.email),
+    sendCodeTo: existing ? null : request.email,
+    sendNoticeTo: existing ? request.email : null,
+  };
 }
 
 /** Hand the mail off without making the caller wait on it. */
 function dispatch(delivery: Delivery, code: string): void {
   const send = delivery.sendCodeTo
-    ? sendVerificationCode(delivery.sendCodeTo, code, delivery.purpose)
+    ? sendVerificationCode(delivery.sendCodeTo, code)
     : delivery.sendNoticeTo
       ? sendAccountExistsNotice(delivery.sendNoticeTo)
       : null;
   send?.catch((error: unknown) => {
     logger.error(
-      'Recovery email could not be sent',
+      'Sign-up email could not be sent',
       error instanceof Error ? error : new Error(String(error)),
-      { component: 'accountEmail', purpose: delivery.purpose },
+      { component: 'accountEmail', purpose: 'signup' },
     );
   });
 }
@@ -250,11 +220,15 @@ export async function startEmailVerification(
   const db = getDb();
   if (!(await reserveSendBudget({ group: 'public', emailHash: delivery.emailHash, requesterKey }))) {
     // Over budget: the same answer, a decoy row, and nothing sent.
-    delivery = { ...delivery, userId: null, sendCodeTo: null, sendNoticeTo: null };
+    delivery = { ...delivery, sendCodeTo: null, sendNoticeTo: null };
   }
 
   // A decoy's code is generated and hashed like a real one, and never sent.
-  const { verificationId, code, expiresAt } = await recordVerification(db, delivery, now);
+  const { verificationId, code, expiresAt } = await recordVerification(
+    db,
+    { purpose: 'signup', emailHash: delivery.emailHash, userId: null },
+    now,
+  );
   dispatch(delivery, code);
   return { verificationId, expiresAt: expiresAt.getTime() };
 }
@@ -321,20 +295,11 @@ export async function consumeEmailCode(
   return { userId: row.userId };
 }
 
-/**
- * Confirm a sign-up or recovery code into a one-use ticket.
- *
- * A RECOVERY of an account with an authenticator also needs its code (or a
- * backup code): a recovery ticket adds a passkey and signs in, so the email
- * alone must not be enough to get past the second factor. Without one the
- * answer is `TOTP_REQUIRED` and nothing is spent; a wrong one counts against
- * the row's attempts and the authenticator's lockout.
- */
+/** Confirm a sign-up code into a one-use ticket. */
 export async function confirmEmailVerification(
   verificationId: string,
   code: string,
   now: Date = new Date(),
-  totpCode?: string,
 ): Promise<EmailVerificationConfirmResponse> {
   const ticket = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(now.getTime() + EMAIL_TICKET_TTL_MS);
@@ -343,8 +308,6 @@ export async function confirmEmailVerification(
     const [row] = await tx
       .select({
         id: emailVerifications.id,
-        purpose: emailVerifications.purpose,
-        userId: emailVerifications.userId,
         codeHash: emailVerifications.codeHash,
         attempts: emailVerifications.attempts,
       })
@@ -353,7 +316,7 @@ export async function confirmEmailVerification(
         and(
           eq(emailVerifications.id, verificationId),
           // A sign-in or re-verification code is confirmed only by its own route.
-          inArray(emailVerifications.purpose, ['signup', 'recovery']),
+          eq(emailVerifications.purpose, 'signup'),
           isNull(emailVerifications.confirmedAt),
           gt(emailVerifications.expiresAt, now),
         ),
@@ -371,35 +334,16 @@ export async function confirmEmailVerification(
       return { error: attempts >= EMAIL_CODE_MAX_ATTEMPTS ? tooManyAttempts() : codeInvalid() };
     }
 
-    if (row.purpose === 'recovery' && row.userId && (await isTotpEnabled(row.userId))) {
-      if (!totpCode) {
-        return { error: new ApiError(401, 'Enter the code from your authenticator app too.', SIGN_IN_ERROR_CODES.totpRequired) };
-      }
-      if (!(await verifySecondFactor(row.userId, totpCode, now))) {
-        const attempts = row.attempts + 1;
-        await tx.update(emailVerifications).set({ attempts }).where(eq(emailVerifications.id, row.id));
-        return {
-          error: new ApiError(401, 'That authenticator code is not right.', SIGN_IN_ERROR_CODES.secondFactorInvalid),
-        };
-      }
-    }
-
     await tx
       .update(emailVerifications)
       .set({ attempts: row.attempts + 1, confirmedAt: now, ticketHash: sha256Hex(ticket), expiresAt })
       .where(eq(emailVerifications.id, row.id));
-
-    let username: string | null = null;
-    if (row.purpose === 'recovery' && row.userId) {
-      const [account] = await tx.select({ username: users.username }).from(users).where(eq(users.id, row.userId)).limit(1);
-      username = account?.username ?? null;
-    }
-    return { username };
+    return null;
   });
 
   // A wrong attempt is committed before the error is thrown, so it counts.
-  if ('error' in outcome) throw outcome.error;
-  return { ticket, expiresAt: expiresAt.getTime(), username: outcome.username };
+  if (outcome) throw outcome.error;
+  return { ticket, expiresAt: expiresAt.getTime() };
 }
 
 function tooManyAttempts(): ApiError {
@@ -431,26 +375,4 @@ export async function spendSignupTicket(
     .where(and(liveTicket(ticket, 'signup', now), eq(emailVerifications.emailHash, hashEmail(email))))
     .returning({ id: emailVerifications.id });
   if (spent.length === 0) throw ticketInvalid();
-}
-
-/** The account a live recovery ticket recovers, without spending it (registration options). */
-export async function readRecoveryTicket(ticket: string, now: Date = new Date()): Promise<string> {
-  const [row] = await getDb()
-    .select({ userId: emailVerifications.userId })
-    .from(emailVerifications)
-    .where(liveTicket(ticket, 'recovery', now))
-    .limit(1);
-  if (!row?.userId) throw ticketInvalid();
-  return row.userId;
-}
-
-/** Spend a recovery ticket inside the transaction that adds the new passkey. */
-export async function spendRecoveryTicket(tx: DatabaseOrTransaction, ticket: string, now: Date = new Date()): Promise<string> {
-  const [row] = await tx
-    .update(emailVerifications)
-    .set({ usedAt: now })
-    .where(liveTicket(ticket, 'recovery', now))
-    .returning({ userId: emailVerifications.userId });
-  if (!row?.userId) throw ticketInvalid();
-  return row.userId;
 }

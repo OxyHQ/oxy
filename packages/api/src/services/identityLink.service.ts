@@ -1,5 +1,5 @@
 /**
- * Linking Commons' root to a passkey account (ADR 0024 D8, ADR 0029 D3).
+ * Linking Commons' root to an account (ADR 0024 D8, ADR 0029 D3, ADR 0030).
  *
  * `linkRootToAccount` is the ONE place a root is first linked, whether the
  * request carries both factors at once (`POST /auth/link`) or they arrive from
@@ -8,18 +8,16 @@
  * - a root proof (`link_identity`) by the key, spending its one-use challenge;
  * - for a keyless account, a fresh confirmation by the person, not only their
  *   session: a code just sent to the account's email (plus its authenticator
- *   code when it has one, `reauth.service.ts`). A passkey assertion no longer
- *   confirms it (security review of #1421); it was: an assertion by one of its
- *   own passkeys over the SAME challenge, from auth.oxy.so.
+ *   code when it has one, `reauth.service.ts`).
  *
  * The first link makes the account self-custodied: `users.public_key` and its
- * `identity` auth method are written, and the recovery email — with every
+ * `identity` auth method are written, and the account's email — with every
  * outstanding code sent to it — is deleted in the same transaction.
  *
- * A link request only relays: auth.oxy.so opens it (the challenge travels in
+ * A link request only relays: the signed-in app opens it (the challenge travels in
  * the QR, the row keeps its hash), Commons posts the signed proof with its key,
  * both devices show the code derived from that key, and the account completes
- * it with the email code (or the passkey). First proof wins; nothing is linked
+ * it with the email code. First proof wins; nothing is linked
  * until that confirmation.
  */
 
@@ -72,8 +70,7 @@ export interface LinkRootInput {
   /**
    * A keyless account's confirmation: the email re-verification (plus the
    * authenticator), ALREADY checked by the caller ({@link completeLinkRequest}
-   * runs `verifyEmailReauth` first). Only that caller sets it. A passkey
-   * assertion no longer confirms a link (security review of #1421).
+   * runs `verifyEmailReauth` first). Only that caller sets it.
    */
   emailReauthVerified?: true;
 }
@@ -152,7 +149,7 @@ function liveRequest(linkId: string, statuses: readonly ('pending' | 'signed')[]
   );
 }
 
-/** Open a link request for a passkey account; earlier open ones are withdrawn. */
+/** Open a link request for an account without a key; earlier open ones are withdrawn. */
 export async function createLinkRequest(userId: string, now: Date = new Date()): Promise<IdentityLinkCreateResponse> {
   const db = getDb();
   const [account] = await db
@@ -214,8 +211,8 @@ export async function readLinkRequest(linkId: string, now: Date = new Date()): P
 
 /**
  * Commons' signed proof. Checked (signature, challenge, expiry, a key no other
- * account holds) but NOT spent: the challenge is burned only when the passkey
- * completes the link. The first proof wins.
+ * account holds) but NOT spent: the challenge is burned only when the email
+ * code completes the link. The first proof wins.
  */
 export async function submitLinkProof(
   linkId: string,

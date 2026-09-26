@@ -237,8 +237,8 @@ async function checkSecurityHeaders(hostBase: string): Promise<void> {
   // The rest of the holder policy (ADR 0028 D2): this origin opens roots.
   if (!csp.includes("form-action 'none'")) missing.push("form-action 'none'");
   if (out.headers.get('referrer-policy') !== 'no-referrer') missing.push('Referrer-Policy: no-referrer');
-  if (!out.headers.get('permissions-policy')?.includes('publickey-credentials-get=(self)')) {
-    missing.push('Permissions-Policy with passkeys for this origin only');
+  if (!out.headers.get('permissions-policy')?.includes('publickey-credentials-get=()')) {
+    missing.push('Permissions-Policy with WebAuthn off (ADR 0030)');
   }
   // The third-party OAuth popup reports back to its opener; COOP would sever it.
   if (out.headers.get('cross-origin-opener-policy')) missing.push('NO Cross-Origin-Opener-Policy');

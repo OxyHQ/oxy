@@ -68,11 +68,11 @@ describe('OxyServices — browser bridge', () => {
   describe('device proof on sign-ins', () => {
     it('sends nothing without a provider', async () => {
       makeRequest.mockResolvedValueOnce(LOGIN);
-      await oxy.webauthnLoginVerify({ id: 'cred' });
-      expect(makeRequest.mock.calls[0][2]).toEqual({ response: { id: 'cred' } });
+      await oxy.signInWithPassword({ identifier: 'alice', password: 'pw' });
+      expect(makeRequest.mock.calls[0][2]).toEqual({ identifier: 'alice', password: 'pw' });
     });
 
-    it('attaches the held credential to a claim and a passkey sign-in', async () => {
+    it('attaches the held credential to a claim, a password sign-in and a sign-up', async () => {
       const dispose = oxy.setDeviceCredentialProvider(async () => ({ deviceId: 'dev-1', deviceSecret: 'app-secret' }));
       const device = { deviceId: 'dev-1', deviceSecret: 'app-secret' };
 
@@ -81,28 +81,17 @@ describe('OxyServices — browser bridge', () => {
       expect(makeRequest.mock.calls[0][2]).toEqual({ sessionToken: 'st-1', device });
 
       makeRequest.mockResolvedValueOnce(LOGIN);
-      await oxy.webauthnLoginVerify({ id: 'cred' }, { deviceName: 'Chrome' });
-      expect(makeRequest.mock.calls[1][2]).toEqual({ response: { id: 'cred' }, deviceName: 'Chrome', device });
+      await oxy.signInWithPassword({ identifier: 'alice', password: 'pw', deviceName: 'Chrome' });
+      expect(makeRequest.mock.calls[1][2]).toEqual({ identifier: 'alice', password: 'pw', deviceName: 'Chrome', device });
 
       makeRequest.mockResolvedValueOnce(LOGIN);
-      await oxy.webauthnRegisterVerify({ id: 'cred' }, { username: 'alice', email: 'a@b.c', emailTicket: 't' });
-      expect(makeRequest.mock.calls[2][2]).toEqual({
-        response: { id: 'cred' },
-        username: 'alice',
-        email: 'a@b.c',
-        emailTicket: 't',
-        device,
-      });
-
-      // Linking a passkey mints no session, so it carries no proof.
-      makeRequest.mockResolvedValueOnce({ success: true, message: 'linked' });
-      await oxy.webauthnRegisterVerify({ id: 'cred' });
-      expect(makeRequest.mock.calls[3][2]).toEqual({ response: { id: 'cred' } });
+      await oxy.signUp({ username: 'alice', email: 'a@b.c', emailTicket: 't' });
+      expect(makeRequest.mock.calls[2][2]).toEqual({ username: 'alice', email: 'a@b.c', emailTicket: 't', device });
 
       dispose();
       makeRequest.mockResolvedValueOnce(LOGIN);
-      await oxy.webauthnLoginVerify({ id: 'cred' });
-      expect(makeRequest.mock.calls[4][2]).toEqual({ response: { id: 'cred' } });
+      await oxy.signInWithPassword({ identifier: 'alice', password: 'pw' });
+      expect(makeRequest.mock.calls[3][2]).toEqual({ identifier: 'alice', password: 'pw' });
     });
 
     it('an explicit null opts out, and a failing provider is no proof', async () => {

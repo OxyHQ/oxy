@@ -646,25 +646,7 @@ export type {
 } from './updates';
 
 export {
-    // Schemas
-    webauthnRegisterOptionsRequestSchema,
-    webauthnLoginOptionsRequestSchema,
-    webauthnRegisterVerifyRequestSchema,
-    webauthnLoginVerifyRequestSchema,
-    webauthnCredentialIdSchema,
-    webauthnAssertionResponseSchema,
-} from './webauthn';
-
-export type {
-    WebauthnRegisterOptionsRequest,
-    WebauthnLoginOptionsRequest,
-    WebauthnRegisterVerifyRequest,
-    WebauthnLoginVerifyRequest,
-    WebauthnAssertionResponse,
-} from './webauthn';
-
-export {
-    // Recovery email of a passkey account (ADR 0029 D3)
+    // Email codes and tickets for sign-up and re-verification
     EMAIL_VERIFICATION_PURPOSES,
     EMAIL_CODE_LENGTH,
     EMAIL_CODE_TTL_MS,
@@ -749,7 +731,7 @@ export type {
 } from './signIn';
 
 export {
-    // Linking Commons to a passkey account (ADR 0029 D3)
+    // Linking Commons to an account without a key (ADR 0029 D3)
     IDENTITY_LINK_STATUSES,
     IDENTITY_LINK_QR_PREFIX,
     identityLinkIdSchema,
@@ -758,7 +740,6 @@ export {
     identityLinkCreateResponseSchema,
     identityLinkStateSchema,
     identityLinkProofRequestSchema,
-    identityLinkOptionsRequestSchema,
     identityLinkCompleteRequestSchema,
 } from './identityLink';
 
@@ -767,7 +748,6 @@ export type {
     IdentityLinkCreateResponse,
     IdentityLinkState,
     IdentityLinkProofRequest,
-    IdentityLinkOptionsRequest,
     IdentityLinkCompleteRequest,
 } from './identityLink';
 

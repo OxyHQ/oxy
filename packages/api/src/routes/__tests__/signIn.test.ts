@@ -1,5 +1,5 @@
 /**
- * Signing in without a passkey — `POST /auth/signin/*` and `POST /auth/signup`
+ * Signing in — `POST /auth/signin/*` and `POST /auth/signup`
  * — through the real router, the real services, the real session mint and the
  * real browser-device lookup, against a REAL Postgres.
  *
@@ -52,7 +52,6 @@ import { signInSecondFactorChallenges } from '../../db/schema/signInChallenges';
 import { userPasswords } from '../../db/schema/userPasswords';
 import { userTotp } from '../../db/schema/userTotp';
 import { users } from '../../db/schema/users';
-import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
 import { errorHandler } from '../../middleware/errorHandler';
 import deviceSessionService from '../../services/deviceSession.service';
 import { _resetInMemoryStateForTests } from '../../services/loginLockout.service';
@@ -202,7 +201,7 @@ describe('email sign-in — start', () => {
 });
 
 describe('email sign-in — the code is its own', () => {
-  it('cannot be turned into a sign-up or recovery ticket', async () => {
+  it('cannot be turned into a sign-up ticket', async () => {
     const { confirmEmailVerification } = await import('../../services/accountEmail.service');
     const real = await account();
     const { requestId, requestSecret } = await start(real.username);
@@ -806,7 +805,7 @@ describe('sign-up', () => {
     return (await confirmEmailVerification(verificationId, code)).ticket;
   }
 
-  it('creates the account from a username and a confirmed email — no key, no passkey — and signs in on the device', async () => {
+  it('creates the account from a username and a confirmed email — no key — and signs in on the device', async () => {
     const email = `new-${suffix()}@example.test`;
     const username = `new${suffix()}`;
     const emailTicket = await signupTicket(email);
@@ -818,7 +817,6 @@ describe('sign-up', () => {
     const userId = (res.body.user as { id: string }).id;
     const [created] = await getDb().select({ email: users.email, publicKey: users.publicKey }).from(users).where(eq(users.id, userId));
     expect(created).toEqual({ email, publicKey: null });
-    expect(await getDb().select({ id: webauthnCredentials.id }).from(webauthnCredentials).where(eq(webauthnCredentials.userId, userId))).toHaveLength(0);
 
     // The ticket is spent.
     expect((await post('/signup', { username: `other${suffix()}`, email, emailTicket })).status).toBe(401);

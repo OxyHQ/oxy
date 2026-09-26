@@ -1855,7 +1855,7 @@
       "openCommons": "Open Oxy Commons",
       "commonsOpenFailed": "Couldn't open Oxy Commons. Open it yourself and go to Settings > Delete account.",
       "elsewhereTitle": "Delete your account where your identity is",
-      "elsewhereMessage": "Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds it and go to Settings > Delete account. An account without a key is deleted from its settings at {{site}}.",
+      "elsewhereMessage": "Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds it and go to Settings > Delete account.",
       "gotIt": "Got it",
       "identityUnreadable": "Couldn't read this device's identity storage. Unlock your device and try again."
     },

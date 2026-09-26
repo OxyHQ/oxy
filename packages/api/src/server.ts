@@ -845,8 +845,8 @@ app.use('/app-signals', appSignalsRouter);
 // auth. Mounted
 // BEFORE `/identity` so the more specific `/identity/backup` prefix wins.
 app.use('/identity/backup', identityBackupRoutes);
-// Linking Commons to a passkey account from two devices (ADR 0029 D3): a relay
-// for the root proof Commons signs and the passkey auth.oxy.so asserts. Before
+// Linking Commons to an account without a key from two devices (ADR 0030): a
+// relay for the root proof Commons signs, confirmed by an email code. Before
 // `/identity`.
 app.use('/identity/link', identityLinkRoutes);
 // One-use challenges for root proofs (ADR 0024 D7) and root readiness metadata.

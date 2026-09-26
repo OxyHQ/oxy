@@ -1,6 +1,6 @@
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { AUTH_WEB_ORIGIN, logger } from '@oxy.so/core';
+import { logger } from '@oxy.so/core';
 
 /**
  * Commons' own delete-account screen (`app/(tabs)/(settings)/delete-account.tsx`
@@ -100,13 +100,11 @@ export async function runAccountDeletionHandoff(
     return 'handled';
   }
 
-  const site = `${AUTH_WEB_ORIGIN.replace(/^https?:\/\//, '')}/delete-account`;
   await surfaces.confirm({
     title: text('deleteAccount.handoff.elsewhereTitle', 'Delete your account where your identity is'),
     description: text(
       'deleteAccount.handoff.elsewhereMessage',
-      `Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds it and go to Settings > Delete account. An account that uses a passkey is deleted at ${site}.`,
-      { site },
+      "Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds it and go to Settings > Delete account.",
     ),
     confirmLabel: text('deleteAccount.handoff.gotIt', 'Got it'),
     hideCancel: true,

@@ -1,16 +1,15 @@
 /**
- * Recovery email verification (ADR 0029 D3), mounted at `/auth/email`:
+ * Sign-up email verification (ADR 0030), mounted at `/auth/email`:
  *
- *  - `POST /verify/start`    send a 6-digit code (`signup`: to the new
- *    account's email; `recovery`: to the recovery email of the account a
- *    username or email names) → `{ verificationId, expiresAt }`
+ *  - `POST /verify/start`    send a 6-digit code to the new account's email
+ *    → `{ verificationId, expiresAt }`
  *  - `POST /verify/confirm`  the code → a one-use ticket, spent by
- *    `POST /auth/webauthn/register/*`
+ *    `POST /auth/signup`
  *
- * No bearer: the person is signing up or has lost their passkey. Every
- * official Oxy app creates accounts in its own dialog, so browser requests are
- * accepted from official apps' origins and auth.oxy.so (and loopback) —
- * `requireOfficialOrigin`; a third-party site is refused. Rate limits are keyed by the hashed IP
+ * No bearer: the person is signing up. Every official Oxy app creates
+ * accounts in its own dialog, so browser requests are accepted from official
+ * apps' origins and auth.oxy.so (and loopback) — `requireOfficialOrigin`; a
+ * third-party site is refused. Rate limits are keyed by the hashed IP
  * (`hashedIpKey`), and the service limits sends per hashed email. Neither
  * route says whether an account exists (see `accountEmail.service.ts`).
  */
@@ -59,8 +58,8 @@ router.post(
   confirmLimiter,
   validate({ body: emailVerificationConfirmRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
-    const { verificationId, code, totpCode } = req.body as EmailVerificationConfirmRequest;
-    res.status(200).json(await confirmEmailVerification(verificationId, code, new Date(), totpCode));
+    const { verificationId, code } = req.body as EmailVerificationConfirmRequest;
+    res.status(200).json(await confirmEmailVerification(verificationId, code));
   }),
 );
 

@@ -4,8 +4,8 @@
  * SINGLE SOURCE OF TRUTH for the first-party login result (the session arm). The
  * API validates its OUTPUT against this schema; every consumer (`@oxy.so/core`'s
  * auth mixin) validates its INPUT against the same definition, so producer and
- * consumers cannot drift. Sign-in is passkey (WebAuthn) or Commons handoff —
- * password and 2FA were removed, so the only outcome is a completed session.
+ * consumers cannot drift. This is the session arm every sign-in
+ * ends in (email code or link, password, authenticator, Commons handoff).
  *
  * The device transport is `deviceId` + `deviceSecret` + `POST /session/device/token`
  * (see `deviceSession.ts`). The legacy cookie/bootstrap/refresh-family lanes were

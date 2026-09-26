@@ -435,33 +435,14 @@ export function isDevelopment(): boolean {
 }
 
 /**
- * The IdP's web origin (`auth.oxy.so`), which is also the web identity
- * carrier — the ONLY browser origin that may read or write the sealed web copy
- * of an identity, recover it, or move it to Commons. Overridable via
+ * The IdP's web origin (`auth.oxy.so`): the browser bridge, the OAuth pages
+ * and the page an email sign-in link opens. Overridable via
  * `AUTH_WEB_ORIGIN` for staging. Loopback origins are accepted separately, in
  * every environment, by the route guard itself.
  */
 export function getAuthWebOrigin(): string {
   const configured = process.env.AUTH_WEB_ORIGIN?.trim();
   return configured || 'https://auth.oxy.so';
-}
-
-/**
- * The WebAuthn Relying Party ID — the registrable domain a passkey is scoped to.
- * Defaults to the Oxy apex `oxy.so` in production (so a single passkey works
- * across every `*.oxy.so` first-party origin) and to `localhost` in development
- * (matching a loopback dev server). Overridable via `WEBAUTHN_RP_ID`, mirroring
- * the other domain-override envs (`FEDERATION_DOMAIN`, `DID_WEB_DOMAIN`) that are
- * read inline at their call sites. The RP ID is a bare hostname — never a scheme,
- * port, or path — so `verifyRegistrationResponse`/`verifyAuthenticationResponse`
- * can match it against the ceremony's `rpIdHash`.
- */
-export function getWebauthnRpId(): string {
-  const configured = process.env.WEBAUTHN_RP_ID?.trim();
-  if (configured) {
-    return configured;
-  }
-  return isDevelopment() ? 'localhost' : 'oxy.so';
 }
 
 /**

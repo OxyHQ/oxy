@@ -1,4 +1,4 @@
-import { EMAIL_VERIFICATION_PURPOSES, emailVerificationConfirmRequestSchema } from '../accountEmail';
+import { EMAIL_VERIFICATION_PURPOSES } from '../accountEmail';
 import { identityLinkCompleteRequestSchema } from '../identityLink';
 import {
   emailReauthProofSchema,
@@ -22,7 +22,7 @@ const DEVICE = { deviceId: 'device-1', deviceSecret: 'secret-1' };
 
 describe('sign-in contracts', () => {
   it('knows the sign-in and re-verification code purposes', () => {
-    expect(EMAIL_VERIFICATION_PURPOSES).toEqual(['signup', 'recovery', 'signin', 'reauth']);
+    expect(EMAIL_VERIFICATION_PURPOSES).toEqual(['signup', 'signin', 'reauth']);
   });
 
   it('starts an email sign-in with an identifier and, optionally, the device', () => {
@@ -53,7 +53,7 @@ describe('sign-in contracts', () => {
     expect(emailReauthProofSchema.safeParse({ password: 'nope' }).success).toBe(false);
   });
 
-  it('completes a Commons link with an email proof or a passkey, never both or neither', () => {
+  it('completes a Commons link with an email proof, never without one', () => {
     const reauth = { emailCode: { verificationId: 'v', code: '123456' } };
     expect(identityLinkCompleteRequestSchema.safeParse({ reauth }).success).toBe(true);
     expect(identityLinkCompleteRequestSchema.safeParse({}).success).toBe(false);
@@ -84,10 +84,6 @@ describe('sign-in contracts', () => {
     expect(reauthEmailStartRequestSchema.safeParse({ action: 'delete_account' }).success).toBe(true);
     expect(reauthEmailStartRequestSchema.safeParse({}).success).toBe(false);
     expect(reauthEmailStartRequestSchema.safeParse({ action: 'anything' }).success).toBe(false);
-  });
-
-  it('lets a recovery confirmation carry the authenticator code', () => {
-    expect(emailVerificationConfirmRequestSchema.safeParse({ verificationId: 'v', code: '123456', totpCode: 'abcde-fghjk' }).success).toBe(true);
   });
 
   it('takes a sign-in code as 6 digits or as the 10-character long code, in any case, with or without its dash', () => {

@@ -1,20 +1,13 @@
 import { z } from 'zod';
-import { identityProofSchema, webauthnAssertionResponseSchema } from '@oxy.so/contracts';
+import { identityProofSchema } from '@oxy.so/contracts';
 
-// POST /auth/link — first link of a root only (ADR 0024 D8). Passkeys register
-// via the WebAuthn ceremony, not this route.
+// POST /auth/link — a root proof for an account whose root is this key
+// (ADR 0024 D8); a keyless account links through `routes/identityLink.ts`.
 export const linkAuthMethodSchema = z
   .object({
     type: z.literal('identity'),
     publicKey: z.string().trim().min(1),
     proof: identityProofSchema,
-    /** A fresh assertion by an existing passkey over `proof.challenge`; required for a keyless account. */
-    assertion: webauthnAssertionResponseSchema.optional(),
   })
   .strict();
 export type LinkAuthMethodBody = z.infer<typeof linkAuthMethodSchema>;
-
-// DELETE /auth/link/webauthn/:credentialID
-export const unlinkWebauthnParams = z.object({
-  credentialID: z.string().trim().min(1),
-});

@@ -13,7 +13,7 @@ const state = (status: IdentityLinkState['status'], expiresAt = 10_000): Identit
 const noSleep = async () => undefined;
 
 describe('awaitLinkCompletion', () => {
-  it('waits through signed until auth.oxy.so completes the link', async () => {
+  it('waits through signed until the other screen completes the link', async () => {
     const getState = jest.fn()
       .mockResolvedValueOnce(state('signed'))
       .mockRejectedValueOnce(new Error('offline'))

@@ -88,7 +88,7 @@ export const queryKeys = {
       [...queryKeys.security.all, 'infinite', limit, eventType] as const,
   },
 
-  // Linked authentication methods (passwords, identity keys, passkeys, social)
+  // Linked authentication methods (the identity key)
   /** How the signed-in account signs in: email, password, authenticator (`GET /users/me/sign-in-methods`). */
   signInMethods: {
     all: ['signInMethods'] as const,
@@ -197,7 +197,7 @@ export const invalidateStorageQueries = (queryClient: QueryClient): void => {
 
 /**
  * Helper to invalidate the user's linked auth-methods list (call after linking
- * or removing a passkey / password / identity key).
+ * or rotating the identity key).
  */
 export const invalidateAuthMethodsQueries = (queryClient: QueryClient): void => {
   queryClient.invalidateQueries({ queryKey: queryKeys.authMethods.all });

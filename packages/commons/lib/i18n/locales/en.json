@@ -1901,9 +1901,9 @@
     "confirmBody": "Commons creates a key for this account and keeps it on this phone. The account's recovery email is deleted, and the recovery phrase Commons shows you next is how you get back in.",
     "confirmAction": "Link this account",
     "codeTitle": "Check the code",
-    "codeBody": "auth.oxy.so shows this same code. If it does, confirm there with your passkey.",
-    "waiting": "Waiting for auth.oxy.so…",
-    "expired": "The link was cancelled or expired. Start again on auth.oxy.so.",
+    "codeBody": "The other screen shows this same code. If it does, confirm there with the code we email you.",
+    "waiting": "Waiting for the other screen…",
+    "expired": "The link was cancelled or expired. Start again on the other screen.",
     "alreadyLinked": "This account already uses Commons.",
     "failed": "Couldn't link this account. Try again."
   }

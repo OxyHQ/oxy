@@ -1,8 +1,8 @@
 /**
- * Waiting for auth.oxy.so to finish a link (ADR 0029 D3).
+ * Waiting for the other screen to finish a link (ADR 0029 D3).
  *
- * Commons has signed the link proof; the person now confirms the code on
- * auth.oxy.so with their passkey. This polls the request until it completes,
+ * Commons has signed the link proof; the person now confirms the code on the
+ * other screen with a code sent to the account's email. This polls the request until it completes,
  * is cancelled, or expires — the only three endings — and never outlives the
  * screen that started it (`signal`).
  */

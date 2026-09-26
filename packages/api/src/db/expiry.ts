@@ -99,7 +99,6 @@ import {
 } from './schema/securityActivities';
 import { senderAvatars } from './schema/senderAvatars';
 import { sessions } from './schema/sessions';
-import { webauthnChallenges } from './schema/webauthnChallenges';
 
 import {
   API_KEY_USAGE_RETENTION_SECONDS,
@@ -279,14 +278,6 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'and `expires_at > now()`, and wipes the PKCE verifier and provider state ' +
       'in the same UPDATE, so an expired challenge is unspendable whether or not ' +
       'the sweep has run.',
-  },
-  {
-    table: webauthnChallenges,
-    column: webauthnChallenges.expiresAt,
-    retentionSeconds: 0,
-    reason:
-      'Housekeeping only — the ceremony verify step checks the deadline and ' +
-      'burns `used` atomically, so a challenge is unspendable at expiry.',
   },
   {
     table: domainVerifications,

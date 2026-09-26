@@ -85,7 +85,7 @@ The transport that carries "which device is this?" across reloads is **`deviceId
 `deviceSecret`** — no refresh-token family, no boot-fragment hop, and no cookie on any
 origin, `auth.oxy.so` included.
 
-1. **`deviceId` + `deviceSecret`** — every successful sign-in (password, 2FA, QR claim,
+1. **`deviceId` + `deviceSecret`** — every successful sign-in (email code or link, password, authenticator, QR claim,
    challenge verify) returns the session's `deviceId` and a 256-bit `deviceSecret`. The
    client persists both first-party (localStorage on web per origin; SecureStore on
    native). Each sign-in ADDS a holder credential; the server stores only
@@ -107,9 +107,9 @@ origin, `auth.oxy.so` included.
    (including custom domains like `mention.earth`) converge on the **same** server-side
    `DeviceSession` only from a press on that origin: the first sign-in press opens the
    browser bridge (`auth.oxy.so/bridge`, see "One browser, one session"), which joins the
-   app to the browser's device; the passkey popup to `auth.oxy.so/authorize` puts the
-   browser's `deviceId` on the code, and `/oauth/token` joins the app to that device and
-   issues it its own holder credential.
+   app to the browser's device; a sign-in carrying that device proof (`/auth/signin/*`,
+   the QR claim) or an OAuth code issued on auth.oxy.so (`/oauth/token`) lands the app on
+   that device with its own holder credential.
    A third-party RP never joins: it gets an isolated per-(user, client) device. Once each
    app holds a bearer, realtime changes propagate over Socket.IO `session_state` on
    `device:<deviceId>`.
@@ -167,9 +167,8 @@ its own account dialog (ADR 0029 D1), and all of them share the browser's ONE
   and its sign-in carries the device proof. A blocked window, a timeout or any failure
   only means the app signs in on a device of its own, as before. The bridge never opens
   on page load, and once the app holds a credential it never opens again.
-- **Sign-in with a device proof.** `POST /auth/session/claim` (Commons QR),
-  `POST /auth/webauthn/login/verify` and `POST /auth/webauthn/register/verify` (sign-up,
-  recovery) accept an optional `device: { deviceId, deviceSecret }`. When it proves a
+- **Sign-in with a device proof.** `POST /auth/session/claim` (Commons QR), the email,
+  password and second-factor sign-ins (`/auth/signin/*`) and `POST /auth/signup` accept an optional `device: { deviceId, deviceSecret }`. When it proves a
   device (`getStateBySecret`) the new session is created ON that device — the claim
   creates it there and retires the approval's claim-only session, for official
   applications only — so the account is added to the browser's device and every holder
@@ -439,9 +438,9 @@ function Home() {
   screen auth.oxy.so renders: the device's accounts, then the Commons way in (the
   embedded QR in a split card on a wide web screen, "Continue with Oxy" elsewhere —
   Oxy picks that route: same-device Commons deep link → known-install push → QR; see
-  [device-session.md](./auth/device-session.md) § Automatic delivery), then the
-  username (a username-first passkey, which also takes a hardware security key)
-  or a passkey with nothing to type. There is no password option.
+  [device-session.md](./auth/device-session.md) § Automatic delivery), then "Email or username": an emailed code or link (the link approves only this
+  browser), "Use your password instead", and the authenticator step when the account has
+  one — all inside the dialog, on every domain ([ADR 0030](./adr/0030-email-code-password-authenticator.md)).
 - **`OxySignInButton`** resolves the registered Application via
   `GET /auth/oauth/client/:clientId`: official apps open the dialog in-app;
   `third_party` apps sign in via OAuth + PKCE (`generatePkcePair`, `generateOAuthState`,

@@ -127,35 +127,6 @@ describe('OxyServices.identity', () => {
     });
   });
 
-  describe('removePasskey', () => {
-    it('DELETEs /auth/link/webauthn/:credentialID and sweeps cache', async () => {
-      makeRequestSpy.mockResolvedValue({ success: true, message: 'Passkey unlinked successfully' });
-
-      await oxy.removePasskey('cred-abc');
-
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'DELETE',
-        '/auth/link/webauthn/cred-abc',
-        undefined,
-        expect.objectContaining({ cache: false }),
-      );
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/u/user-123/did.json');
-    });
-
-    it('URL-encodes the credential id', async () => {
-      makeRequestSpy.mockResolvedValue({ success: true, message: 'Passkey unlinked successfully' });
-
-      await oxy.removePasskey('a/b+c=');
-
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'DELETE',
-        '/auth/link/webauthn/a%2Fb%2Bc%3D',
-        undefined,
-        expect.objectContaining({ cache: false }),
-      );
-    });
-  });
-
   describe('signRecord (client-only)', () => {
     it('signs with the current user DID as subject and does not hit the network', async () => {
       const signRecordSpy = jest

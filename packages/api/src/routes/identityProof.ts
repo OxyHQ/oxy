@@ -12,8 +12,8 @@
  * rotates roots too. The routes that SPEND a challenge keep their own guards.
  *
  * `GET /identity/root-status` — how the account is kept (ADR 0029 D3): whether
- * Commons' root is linked (self-custody), or which recovery email gets a
- * passkey account back. Accounts and the account menu read it from any origin
+ * Commons' root is linked (self-custody), or which email the account signs in
+ * with. Accounts and the account menu read it from any origin
  * to recommend linking Commons.
  */
 import { Router, type Request, type Response } from 'express';

@@ -365,24 +365,10 @@ describe('authMethodEntrySchema / authMethodsResponseSchema', () => {
         expect(parsed?.verificationMethodId).toBe('did:web:oxy.so:u:1#key-1');
     });
 
-    it('accepts a webauthn method with no verificationMethodId', () => {
-        const parsed = safeParseContract(authMethodEntrySchema, {
-            type: 'webauthn',
-            linkedAt: '2026-06-26T12:00:00.000Z',
-            credentialId: 'cred_abc',
-            name: 'MacBook Touch ID',
-        });
-        expect(parsed).not.toBeNull();
-        expect(parsed?.verificationMethodId).toBeUndefined();
-        expect(parsed?.credentialId).toBe('cred_abc');
-    });
-
-    it('rejects an unknown auth-method type', () => {
-        const parsed = safeParseContract(authMethodEntrySchema, {
-            type: 'magiclink',
-            linkedAt: '2026-06-26T12:00:00.000Z',
-        });
-        expect(parsed).toBeNull();
+    it('rejects any auth-method type but a key', () => {
+        for (const type of ['webauthn', 'magiclink']) {
+            expect(safeParseContract(authMethodEntrySchema, { type, linkedAt: '2026-06-26T12:00:00.000Z' })).toBeNull();
+        }
     });
 
     it('round-trips the full GET /auth/methods response', () => {
@@ -394,12 +380,11 @@ describe('authMethodEntrySchema / authMethodsResponseSchema', () => {
                     linkedAt: '2026-06-26T12:00:00.000Z',
                     verificationMethodId: 'did:web:oxy.so:u:1#key-1',
                 },
-                { type: 'webauthn', linkedAt: '2026-06-26T12:01:00.000Z', credentialId: 'cred_abc', name: 'Passkey' },
             ],
         };
         const parsed = safeParseContract(authMethodsResponseSchema, response);
         expect(parsed).not.toBeNull();
-        expect(parsed?.methods).toHaveLength(2);
+        expect(parsed?.methods).toHaveLength(1);
         expect(parsed?.did).toBe('did:web:oxy.so:u:507f1f77bcf86cd799439011');
     });
 });

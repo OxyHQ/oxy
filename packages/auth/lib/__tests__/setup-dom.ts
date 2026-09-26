@@ -36,8 +36,8 @@ const w = dom.window
 g.window = w
 g.document = w.document
 // Browsers expose `location` on `globalThis` (`globalThis.location === window.location`);
-// mirror that so code reading `globalThis.location` directly (e.g. the SDK's
-// `isOxyRpOrigin` WebAuthn origin guard) sees the jsdom `http://localhost/` URL.
+// mirror that so code reading `globalThis.location` directly sees the jsdom
+// `http://localhost/` URL.
 g.location = w.location
 g.HTMLElement = w.HTMLElement
 g.HTMLStyleElement = w.HTMLStyleElement
