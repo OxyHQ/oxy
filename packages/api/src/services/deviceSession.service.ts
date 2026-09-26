@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 import type { Request } from 'express';
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import type {
   AccountKind,
   DeviceAccountContext,

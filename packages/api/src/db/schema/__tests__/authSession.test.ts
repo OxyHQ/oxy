@@ -13,7 +13,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getTableName } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { sqlColumnName } from '@oxy.so/db';
@@ -179,39 +179,6 @@ afterAll(async () => {
 });
 
 describe('sparse-unique becomes a plain UNIQUE on a nullable column', () => {
-  it('lets many device rows carry NO secret hash at once', async () => {
-    // Mongo needed `sparse: true` + `default: undefined` here because its
-    // unique index collides on nulls. If that workaround had been carried over
-    // as `default: ''`, this insert would fail on the second row.
-    const deviceIds = [`d-${randomUUID()}`, `d-${randomUUID()}`, `d-${randomUUID()}`];
-    await expect(
-      getDb()
-        .insert(deviceSessions)
-        .values(deviceIds.map((deviceId) => ({ deviceId })))
-    ).resolves.toBeDefined();
-
-    const rows = await getDb()
-      .select({ hubSecretHash: deviceSessions.hubSecretHash })
-      .from(deviceSessions)
-      .where(inArray(deviceSessions.deviceId, deviceIds));
-
-    expect(rows).toHaveLength(3);
-    // NULL, never `''` — an empty string is a VALUE and would collide for real.
-    expect(rows.map((row) => row.hubSecretHash)).toEqual([null, null, null]);
-  });
-
-  it('still refuses two devices bound to the SAME secret hash', async () => {
-    const hubSecretHash = `sha-${randomUUID()}`;
-    await getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, hubSecretHash });
-
-    const error = await rejection(
-      getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, hubSecretHash })
-    );
-
-    expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
-    expect(pgErrorText(error)).toContain('device_sessions_hub_secret_hash_key');
-  });
-
   it('lets many authorization requests carry NO authorize code at once', async () => {
     const first = await deviceSignInRequest();
     const second = await deviceSignInRequest();
@@ -238,25 +205,23 @@ describe('sparse-unique becomes a plain UNIQUE on a nullable column', () => {
   it("shows why `''` would be worse than the problem it looks like a fix for", async () => {
     // The claim the two assertions above rest on, demonstrated rather than
     // asserted: an empty string is a VALUE, so a `default: ''` port of Mongo's
-    // `default: undefined` would make every secret-less device collide with
+    // `default: undefined` would make every code-less request collide with
     // every other one — converting a non-problem into a live outage.
-    await getDb().delete(deviceSessions).where(eq(deviceSessions.hubSecretHash, ''));
-    await getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, hubSecretHash: '' });
+    await getDb().delete(authSessions).where(eq(authSessions.authorizeCode, ''));
+    await deviceSignInRequest({ authorizeCode: '' });
 
-    const error = await rejection(
-      getDb().insert(deviceSessions).values({ deviceId: `d-${randomUUID()}`, hubSecretHash: '' })
-    );
+    const error = await rejection(deviceSignInRequest({ authorizeCode: '' }));
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
-    await getDb().delete(deviceSessions).where(eq(deviceSessions.hubSecretHash, ''));
+    await getDb().delete(authSessions).where(eq(authSessions.authorizeCode, ''));
   });
 
-  it('never defaults either column to an empty string', async () => {
+  it('never defaults the column to an empty string', async () => {
     const rows = await getDb().execute<{ table_name: string; column_name: string }>(sql`
       select table_name, column_name from information_schema.columns
       where table_schema = 'public'
         and (table_name, column_name) in (
-          ('device_sessions', 'hub_secret_hash'), ('auth_sessions', 'authorize_code')
+          ('auth_sessions', 'authorize_code')
         )
         and column_default is not null
     `);
