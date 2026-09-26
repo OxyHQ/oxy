@@ -37,9 +37,10 @@ export type DeviceSessionSync = z.infer<typeof deviceSessionSyncSchema>;
 /**
  * Request body for `POST /session/device/token` — the client presents the
  * `deviceId` it stored first-party plus the opaque `deviceSecret`. NO bearer:
- * possession of the secret IS the proof of device ownership. The server matches
- * `sha256(deviceSecret)` against the device's stored `secretHash` (constant-time)
- * and mints a short access token for the device's active account.
+ * possession of the secret IS the proof of device ownership. The server looks
+ * `sha256(deviceSecret)` up among the device's holder credentials (one per app
+ * or origin that joined the shared DeviceSession) and mints a short access
+ * token for the device's active account.
  *
  * `accountId` pins the mint to ONE account of that device instead of whichever
  * account is currently active. It exists for identity-bound clients (Commons),
@@ -60,8 +61,8 @@ export const deviceTokenMintRequestSchema = z.object({
  * short access token for the active account, its expiry, the device secret the
  * client must persist (`nextDeviceSecret` — on mint this echoes the presented
  * secret unchanged so concurrent refreshes from multiple origins do not race),
- * and the projected device-session state. Sign-in rotates the secret via
- * `issueDeviceSecret`; mint does not.
+ * and the projected device-session state. Nothing rotates: each sign-in issues
+ * a NEW holder credential and leaves the others valid.
  */
 export const deviceTokenMintResponseSchema = z.object({
   accessToken: z.string(),
@@ -131,12 +132,11 @@ export type SessionAccountsChangedEvent = z.infer<typeof sessionAccountsChangedE
  * derived server-side from it) and consumed afterwards only by native
  * background code, which has no JS runtime to mint a token for itself.
  *
- * Deliberately a SEPARATE credential from the rotating `deviceSecret`: that one
- * rotates on every mint, so background code presenting it would become a second
- * writer of a value the JS runtime depends on, and background code killed
- * mid-rotation would silently sign the user out on the next cold start. Against
- * this credential background code is the sole writer, and it can never rotate
- * anything JS reads.
+ * Deliberately a SEPARATE credential from the holder `deviceSecret`: that one
+ * is device-wide and mints for whichever account is active, while this one is
+ * bound to ONE account and expires, so a widget worker never holds a
+ * credential that reaches every account on the device. Background code is its
+ * sole writer and never touches anything JS reads.
  *
  * The raw `secret` is returned exactly once, at provision time — never stored
  * retrievably, never logged, never re-read. A caller that loses it provisions
@@ -160,10 +160,10 @@ export const deviceBackgroundCredentialResponseSchema = z.object({
  * native background code with NO bearer and NO cookies: possession of the
  * background `secret` IS the proof, as it is for the device-secret mint.
  *
- * Unlike that mint this one NEVER rotates the presented secret (hence no
- * `next…` field to persist in the response), so background code interrupted
- * anywhere between request and response leaves the credential intact and
- * usable on its next run.
+ * Like that mint this one NEVER rotates the presented secret, and it carries
+ * no `next…` field at all, so background code interrupted anywhere between
+ * request and response leaves the credential intact and usable on its next
+ * run.
  */
 export const deviceBackgroundTokenRequestSchema = z.object({
   deviceId: z.string().min(1),

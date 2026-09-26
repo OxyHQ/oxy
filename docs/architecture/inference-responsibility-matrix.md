@@ -255,10 +255,10 @@ known key tables, and a list cannot report what is not on it. The audit that fou
 it was reading the schema. So the invariant now has a gate that derives its answer
 from column shape instead of an enumeration:
 `packages/api/src/db/schema/__tests__/schemaInvariants.test.ts` asserts that
-exactly two tables in the migrated database carry a `*secret_hash` —
-`application_credentials` (the permitted lifecycle) and `device_sessions` (the
-device-first session transport, a different lifecycle with a different owner). A
-third fails it. Mutation-tested both ways: a planted third table fails the
+only `application_credentials` (the permitted lifecycle) and the device-first
+session transport — `device_sessions` and its per-holder `device_credentials`
+(ADR 0029 D2), a different lifecycle with a different owner — carry a
+`*secret_hash` in the migrated database. Any other table fails it. Mutation-tested both ways: a planted third table fails the
 assertion, and a `LIKE` pattern that matches nothing fails the positive control
 rather than passing on an empty set.
 

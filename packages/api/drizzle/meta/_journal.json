@@ -785,6 +785,20 @@
       "when": 1790393749590,
       "tag": "0112_drop_web_identity_carrier",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1790395725967,
+      "tag": "0113_device_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1790395727915,
+      "tag": "0114_drop_device_session_secret",
+      "breakpoints": true
     }
   ]
 }

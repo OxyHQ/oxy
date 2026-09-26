@@ -242,8 +242,9 @@ export function decideSharedDevicePublish(
       if (shared.credential.deviceSecret === proven.deviceSecret) {
         return { action: 'skip', reason: 'already-current' };
       }
-      // Same device, newer secret. Sign-in rotates the secret (the mint does
-      // not), so the just-proven one is the credential a fresh install should
+      // Same device, newer secret. Each sign-in issues a new holder credential
+      // (the older one stays valid until the device ends with nobody signed
+      // in), so the just-proven one is the credential a fresh install should
       // join with.
       return { action: 'publish' };
     }

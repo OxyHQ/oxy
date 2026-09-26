@@ -812,7 +812,7 @@ export type {
 
 // The shared NATIVE DeviceSession credential — how several official apps on one
 // device end up on ONE `DeviceSession` and therefore one active context. It is an
-// ordinary rotatable/revocable `deviceId` + `deviceSecret`, deliberately NOT the
+// ordinary revocable `deviceId` + `deviceSecret`, deliberately NOT the
 // Commons private identity key: an app that only needs a session must never be
 // handed the key that signs identity approvals.
 export {

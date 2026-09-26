@@ -3,8 +3,9 @@
  * (`/auth/login`, `/auth/signup`, `/auth/verify`, `/security/2fa/verify-login`).
  *
  * ADD-ONLY: registers the freshly-credentialed session into its device's set
- * WITHOUT stealing the active account (`activate: 'if-empty'`), and mints the
- * rotating `deviceSecret` the client persists first-party. The client presents
+ * WITHOUT stealing the active account (`activate: 'if-empty'`), and mints a new
+ * holder `deviceSecret` the client persists first-party (one per holder, never
+ * rotated — ADR 0029 D2). The client presents
  * `deviceId` + `deviceSecret` at `POST /session/device/token` to restore the
  * session (zero-cookie transport); the secret is the SOLE restore credential.
  *
@@ -20,8 +21,8 @@ import { logger } from '../utils/logger';
 
 /**
  * Finalize a fresh sign-in for the device-first lane: register the session into
- * its device's set (add-only, never flips active) + broadcast, and mint the
- * rotating `deviceSecret` for the response. Everything is best-effort — a failure
+ * its device's set (add-only, never flips active) + broadcast, and mint a new
+ * holder `deviceSecret` for the response. Everything is best-effort — a failure
  * here never breaks the sign-in.
  *
  * Returns `{ deviceSecret? }` to be merged into the auth response. The client

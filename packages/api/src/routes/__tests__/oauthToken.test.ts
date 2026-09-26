@@ -744,12 +744,10 @@ describe('POST /auth/oauth/token — third-party isolation', () => {
     // change what every official Oxy app there is signed in as. Bound to its
     // own per-(user, client) device, it reaches exactly one session: its own.
     //
-    // #937 asks for the pair to be omitted outright. That is the end state and
-    // it is not this: `exchangeOAuthCode` in `@oxy.so/core` throws without both
-    // fields, so omitting them breaks every third-party sign-in through the SDK
-    // until core ships a release that tolerates a device-less session. This test
-    // therefore pins the property that actually protects the user, and the
-    // omission is tracked separately.
+    // #937 asks for the pair to be omitted outright. `exchangeOAuthCode` in
+    // `@oxy.so/core` already accepts a device-less grant, but the server still
+    // sends the pair (see the route's lane-split comment), so this test pins the
+    // property that actually protects the user.
     mockExchangeAuthCode.mockResolvedValueOnce(grant({ deviceId: 'dev-shared' }));
 
     const res = await requestForm(pkceParams());

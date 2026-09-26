@@ -51,9 +51,10 @@ const BACKGROUND_TOKEN_LOCKOUT_SCOPE = 'background-token';
  *
  * On a valid secret it mints a short access token for the device's active
  * account. The successful response carries the same secret back as
- * `nextDeviceSecret`: the secret is a stable device credential, so several
- * official apps/origins sharing one device can refresh concurrently without
- * invalidating one another. A dead/absent active session returns
+ * `nextDeviceSecret`: each holder (`auth.oxy.so`, every official web app that
+ * joined the browser's device, a native app group) has its own stable
+ * credential for the ONE shared DeviceSession (ADR 0029 D2), so they refresh
+ * concurrently without invalidating one another. A dead/absent active session returns
  * `no_active_session` WITHOUT changing the credential — the client must
  * re-authenticate and keeps its still-valid secret. Per-device lockout + rate
  * limiting blunt online secret-guessing.
@@ -65,8 +66,8 @@ const BACKGROUND_TOKEN_LOCKOUT_SCOPE = 'background-token';
  * `DeviceSession`. A pinned mint is READ-ONLY with respect to device state: it
  * never writes `activeAccountId`, never bumps `revision` and never broadcasts —
  * the returned `state` therefore still reports the device's TRUE active account.
- * Rotation is unchanged. A pin that names an account which is not on the device,
- * or whose session is dead, answers `account_not_on_device` without rotating.
+ * A pin that names an account which is not on the device, or whose session is
+ * dead, answers `account_not_on_device`; the credential stays valid.
  */
 router.post(
   '/token',
@@ -108,8 +109,8 @@ router.post(
       ? await deviceSessionService.resolveTokenForAccount(state, accountId)
       : await deviceSessionService.resolveActiveToken(state);
     if (!mintedToken) {
-      // Known device, but nothing live to mint for. Do NOT rotate — the client
-      // re-authenticates (or drops its pin) and keeps its still-valid secret.
+      // Known device, but nothing live to mint for. The client re-authenticates
+      // (or drops its pin) and keeps its still-valid secret.
       res.status(401).json({ error: accountId ? 'account_not_on_device' : 'no_active_session' });
       return;
     }
@@ -121,9 +122,7 @@ router.post(
       data: {
         accessToken: mintedToken.accessToken,
         expiresAt: mintedToken.expiresAt,
-        // Keep the proven credential stable. Rotating here makes separate
-        // first-party origins race over one DeviceSession secret and causes
-        // otherwise healthy sessions to disappear after the grace window.
+        // The proven credential is stable; nothing rotates on a mint.
         nextDeviceSecret: deviceSecret,
         // The device's TRUE state — a pin never rewrites `activeAccountId`, and
         // the response must not pretend otherwise.
@@ -461,7 +460,12 @@ router.post('/switch', asyncHandler(async (req: AuthRequest, res: Response) => {
  *                        independently operates the same account.
  *  - `{ accountId }`   — the FLAT compatibility meaning: that account, however
  *                        it is reached, plus the operator cascade. Unchanged.
- *  - `{ all: true }`   — the whole device, credentials included. Unchanged.
+ *  - `{ all: true }`   — the whole device, every holder's credential included.
+ *
+ * The device is the browser's ONE shared DeviceSession (ADR 0029 D2), so every
+ * removal applies to every official app on it at once: the `session_state`
+ * broadcast below reaches them all. Holder credentials survive while any
+ * account remains, and are all revoked when none does.
  *
  * The first two elect a replacement active context in the documented order
  * (same principal's personal, then another of that principal's, then the next

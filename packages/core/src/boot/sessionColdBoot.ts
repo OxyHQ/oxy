@@ -14,7 +14,7 @@
  *   2. `device-secret-mint` (web + native) — the zero-cookie transport: when the
  *      origin persisted a `deviceId` + `deviceSecret`, mint a short access token
  *      with a single bearer-less POST to `/session/device/token` (no cookie, no
- *      navigation) and rotate the secret in-use.
+ *      navigation). The secret is stable across mints.
  *   3. `shared-device-adopt` (native, ACCOUNT mode) — this app has no credential
  *      of its own but a sibling official app already put one in the shared native
  *      slot: adopt it and mint. This is how a newly installed official app joins
@@ -487,7 +487,7 @@ export async function runSessionColdBoot(
         if (!session?.accessToken) {
           return { kind: 'skip' };
         }
-        // `verifyChallenge` mints a rotating deviceSecret; persist it so the next
+        // `verifyChallenge` issues a deviceSecret; persist it so the next
         // boot can use the faster device-secret-mint lane (sockets + tab-focus
         // re-mint depend on the credential being in the store).
         if (session.deviceId && session.deviceSecret) {
