@@ -1,3 +1,5 @@
+import { emailSignInRequests } from './emailSignInRequests';
+import { signInSecondFactorChallenges } from './signInChallenges';
 import { externalIdentities, externalIdentityClaims } from './externalIdentities';
 import { externalIdentityInstagramPins, externalIdentityMetaProofs } from './externalIdentityMetaProofs';
 /**
@@ -278,6 +280,23 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'provenance of sessions already issued. The enforceable half of the ' +
       'binding is `application_id` beside it, which IS a foreign key and does ' +
       'CASCADE.',
+  },
+  {
+    table: emailSignInRequests,
+    column: emailSignInRequests.requesterDeviceId,
+    reason:
+      '(b) The central DEVICE id space (`device_sessions.device_id`), as the ' +
+      'server resolved it from the requester\'s proof: the link approves only ' +
+      'when the same device is proven again. A snapshot, not a reference — the ' +
+      'request (15 minutes) must not depend on the device row surviving it.',
+  },
+  {
+    table: signInSecondFactorChallenges,
+    column: signInSecondFactorChallenges.deviceId,
+    reason:
+      '(b) The central DEVICE id space, as proven by the first factor; the ' +
+      'second factor must prove the same one. A five-minute snapshot, not a ' +
+      'reference to a row.',
   },
   {
     table: deviceSessions,

@@ -133,7 +133,13 @@ it('holds every schema invariant', async () => {
  * origins join one device and cannot share one secret. Same owner (the device),
  * same lifecycle (revoked with the device's last account), not a customer key.
  *
- * Anything else with a `*secret_hash` is a fourth key table, which is what this
+ * `email_signin_requests.request_secret_hash` is not a key table either: the
+ * SHA-256 of a one-use secret the sign-in dialog holds for at most 15 minutes
+ * to collect ITS OWN pending request — the same kind of thing as an
+ * `auth_sessions.session_token`, bound to one request and spent with it. It
+ * authorises nothing else and has no customer and no rotation.
+ *
+ * Anything else with a `*secret_hash` is a key table, which is what this
  * fails on. Adding one is an amendment to ADR 0005 with its reason stated — and
  * the amendment includes this list, deliberately, so the decision is recorded in
  * the same commit as the table.
@@ -156,5 +162,6 @@ it('stores a hashed secret only in the customer credential table and the device 
     'application_credentials',
     'device_credentials',
     'device_sessions',
+    'email_signin_requests',
   ]);
 });
