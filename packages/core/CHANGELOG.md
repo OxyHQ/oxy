@@ -1,5 +1,36 @@
 # Changelog — `@oxy.so/core`
 
+## 1.18.1
+
+A backend's reads that carry no user session can identify as the service.
+Maintenance release from `release/core-1.18.x` (1.18.0 plus this change only),
+so a 1.x consumer takes it without the 1.19–2.1 changes; the same feature is
+in 2.2.0 on `main`.
+
+### Added
+
+- `OxyConfig.serviceIdentity: 'never' | 'when-anonymous'` (default `'never'`).
+  With `'when-anonymous'`, a request made while the client holds no user
+  session carries this process's service token — the `configureServiceAuth()`
+  key pair, or workload attestation (ADR 0026) without one. A user session
+  still wins, `skipAuth` requests stay unauthenticated, and a process that can
+  mint no token (a local checkout) sends the request anonymous as before. A
+  failed mint sends reads anonymous for 30 s (`ANONYMOUS_SERVICE_TOKEN_RETRY_MS`)
+  before trying again, so a refusing Oxy is asked once per window, not once per
+  read.
+
+  Why: oxy-api charges anonymous traffic to its source address — `rl:general`
+  and a +500 ms `slowDown` per request past 100 in 15 minutes — and a backend
+  fleet shares one NAT address, so its public reads (`getUserById`,
+  `getProfileByUsername`, …) paid the delay together once past the threshold.
+  A first-party service token is exempt and charged to its own application.
+  Measured from Mention's task: `GET /users/:id` 543–575 ms anonymous past the
+  threshold; `POST /users/by-ids` 19–24 ms with the service token
+  (OxyHQ/Mention#1173). `getUsersByIds` already chose the service path on its
+  own (1.12.1); this extends the same identity to every call.
+- `HttpService.setAnonymousAuthProvider(provider)`: the hook the option uses,
+  consulted only when there is no access token.
+
 ## 1.18.0
 
 Web accounts are a username, a passkey and a recovery email (ADR 0029 D3). The
