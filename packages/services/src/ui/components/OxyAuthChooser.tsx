@@ -16,8 +16,9 @@
  *
  *  - `accounts` → `AccountsMenuView` — the signed-in Oxy account menu.
  *  - `add` / `signin` → `OxySignInPanel` — THE sign-in screen, the one
- *    auth.oxy.so renders too: the device's accounts, then "Continue with
- *    Oxy" (on the web, auth.oxy.so's window over the app).
+ *    auth.oxy.so renders too: the device's accounts, then the Commons way in
+ *    (the embedded QR, or "Continue with Oxy"), then the passkey (on the web
+ *    in an app, auth.oxy.so's window for that one step).
  *  - `qr` → `SignInRequestView` — the ACTIVE REQUEST: the controller-bound
  *    wiring over the shared, presentational `OxySignInRequestSurface` (the same
  *    component the auth.oxy.so IdP mounts from its OAuth-bound request). It maps
@@ -112,10 +113,10 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   // so the two switchers cannot drift.
   const { principals } = useDeviceSwitcher();
 
-  // On the web every sign-in and sign-up runs in auth.oxy.so's window over the
-  // app (`continueOnAuth`): the passkey belongs to that origin, and the
-  // browser's session lives there, shared by every Oxy app. Native has no
-  // passkey path: Commons owns identity there ('none').
+  // Sign-in happens in this dialog. On the web the passkey and account
+  // creation open auth.oxy.so's window for that one step (`continueOnAuth`):
+  // the passkey belongs to that origin. Native has no passkey path: Commons
+  // owns identity there ('none').
   const passkeyMode = useMemo<PasskeyMode>(() => (isWebBrowser() ? 'hub' : 'none'), []);
 
   /** auth.oxy.so's window; this surface closes once it signs the app in. */

@@ -34,14 +34,16 @@ services screen on a page, and is the common point for third parties (OAuth),
 MCP and the CLI.
 
 - Native: the dialog is the whole screen (Commons, the QR, "Get Commons").
-- Web, on every domain including `*.oxy.so`: the dialog's "Continue with Oxy"
-  and "Create account" open auth.oxy.so in a window over the app, from the
-  press (`useOxy().continueOnAuth(screen)`, `transport: 'popup'`,
-  `/authorize?screen=signin|signup|recover`, `response_mode=web_message`).
-  There the person uses the QR, their username or a passkey; official apps are
-  approved without a consent screen, and a browser auth.oxy.so already knows
-  closes the window at once — the second app is one click. A blocked window
-  falls back to the same page in this tab. Nothing opens on page load.
+- Web, on every domain including `*.oxy.so`: sign-in happens IN the dialog.
+  It is the split card — the Commons QR on the right (below `md`, "Continue
+  with Oxy"), the passkey and "Create account" on the left. The passkey belongs
+  to `oxy.so`, so that one step (and account creation) opens auth.oxy.so's
+  window from the press (`useOxy().continueOnAuth(screen)`, `transport:
+  'popup'`, `/authorize?screen=signin|signup|recover`,
+  `response_mode=web_message`) and closes once it signs the app in. A blocked
+  window falls back to the same page in this tab. Nothing opens on page load.
+  (Amended 2026-09-26: the first cut moved the whole screen into that window;
+  the owner's direction is that auth.oxy.so is only the intermediary.)
 - No code decides by domain (`isOxyRpOrigin` no longer picks a route): the
   passkey runs only on auth.oxy.so.
 - Third-party "Sign in with Oxy" is unchanged: a window by default, a redirect
