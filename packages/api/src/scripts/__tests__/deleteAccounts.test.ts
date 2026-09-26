@@ -1,9 +1,11 @@
 /**
  * The operator deletion script's guards, against a REAL Postgres.
  *
- * What matters is what it refuses: anything but an active local personal
- * account, an unknown name, an account with a financial hold — and that one
- * refusal stops the whole run, and a dry run changes nothing. The destructive
+ * What matters is what it refuses: anything but a STRANDED active local
+ * personal account (no key, no email — its owner cannot delete it), an
+ * unknown name, an account with a financial hold; that one refusal in the
+ * plan stops the whole run; that an account changed after the plan is caught
+ * under a row lock; and that a dry run changes nothing. The destructive
  * side systems the deletion workflow calls (mail, sessions, devices, the social
  * graph, caches) are stubbed; the workflow itself has the route's tests.
  */
@@ -37,7 +39,7 @@ jest.mock('../../utils/userCache', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import * as holdsService from '../../services/accountFinancialHolds.service';
-import { parseDeleteAccountsArgs, planAccountDeletions, runAccountDeletions } from '../delete-accounts';
+import { parseDeleteAccountsArgs, planAccountDeletions, recheckPlannedAccount, runAccountDeletions } from '../delete-accounts';
 
 jest.setTimeout(60_000);
 
@@ -85,18 +87,32 @@ describe('parseDeleteAccountsArgs', () => {
 });
 
 describe('planAccountDeletions', () => {
-  it('plans an active local personal account by username (any case) or id, without touching it', async () => {
-    const byName = await account({ email: `${handle('m')}@example.com` });
+  it('plans a stranded account by username (any case) or id, without touching it', async () => {
+    const byName = await account();
     const byId = await account();
 
     const plan = await planAccountDeletions([byName.username.toUpperCase(), byId.id, byId.username]);
 
     expect(plan.refused).toEqual([]);
     expect(plan.planned.map((entry) => entry.id)).toEqual([byName.id, byId.id]);
-    expect(plan.planned[0]).toMatchObject({ outcome: 'delete', hasEmail: true, hasKey: false });
-    // The plan never carries the address itself.
-    expect(JSON.stringify(plan)).not.toContain('@example.com');
+    expect(plan.planned[0]).toMatchObject({ outcome: 'delete', username: byName.username });
     expect(await exists([byName.id, byId.id])).toHaveLength(2);
+  });
+
+  it('refuses an account its owner can delete: one with a key, one with an email', async () => {
+    const keyed = await account({ publicKey: `04${randomUUID().replace(/-/g, '')}` });
+    const withEmail = await account({ email: `${handle('m')}@example.com` });
+
+    const plan = await planAccountDeletions([keyed.username, withEmail.username]);
+
+    expect(plan.planned).toEqual([]);
+    expect(plan.refused).toEqual([
+      { identifier: keyed.username, reason: expect.stringMatching(/has a key/) },
+      { identifier: withEmail.username, reason: expect.stringMatching(/has an email/) },
+    ]);
+    // The refusal never carries the address itself.
+    expect(JSON.stringify(plan)).not.toContain('@example.com');
+    expect(await exists([keyed.id, withEmail.id])).toHaveLength(2);
   });
 
   it('refuses unknown, non-personal, non-local and closed accounts', async () => {
@@ -148,6 +164,42 @@ describe('runAccountDeletions', () => {
     expect(report.plan.refused).toHaveLength(1);
     expect(report.results).toEqual([]);
     expect(await exists([target.id, federated.id])).toHaveLength(2);
+  });
+
+  it('re-reads the row under a lock and refuses an account that changed since the plan', async () => {
+    const target = await account();
+    const [planned] = (await planAccountDeletions([target.username])).planned;
+    expect(await recheckPlannedAccount(planned)).toBeNull();
+
+    await getDb().update(users).set({ email: `${handle('late')}@example.com` }).where(eq(users.id, target.id));
+    expect(await recheckPlannedAccount(planned)).toBe('has an email now');
+    await getDb().update(users).set({ email: null, publicKey: `04${randomUUID().replace(/-/g, '')}` }).where(eq(users.id, target.id));
+    expect(await recheckPlannedAccount(planned)).toBe('has a key now');
+    await getDb().update(users).set({ publicKey: null, accountStatus: 'archived' }).where(eq(users.id, target.id));
+    expect(await recheckPlannedAccount(planned)).toBe('is now archived');
+    await getDb().update(users).set({ accountStatus: 'active', kind: 'bot' }).where(eq(users.id, target.id));
+    expect(await recheckPlannedAccount(planned)).toBe('is no longer a local personal account');
+  });
+
+  it('stops the run at an account that changed after the plan, keeping what it already deleted', async () => {
+    const first = await account();
+    const second = await account();
+    const deletion = await import('../../services/accountDeletion.service');
+    const real = deletion.deleteAccount;
+    // Between the first deletion and the second: the second account gains an email.
+    jest.spyOn(deletion, 'deleteAccount').mockImplementation(async (id, username) => {
+      const result = await real(id, username);
+      if (id === first.id) {
+        await getDb().update(users).set({ email: `${handle('race')}@example.com` }).where(eq(users.id, second.id));
+      }
+      return result;
+    });
+
+    const report = await runAccountDeletions({ identifiers: [first.username, second.username], confirm: true });
+
+    expect(report.results.map((entry) => entry.id)).toEqual([first.id]);
+    expect(report.aborted).toEqual({ identifier: second.username, reason: 'changed since the plan: has an email now' });
+    expect(await exists([first.id, second.id])).toEqual([second.id]);
   });
 
   it('deletes every planned account with --confirm, through the one workflow', async () => {
