@@ -15,7 +15,7 @@ import { SecurityActivitySection } from '@/components/security/security-activity
 import { useSecurityActivityItems } from '@/components/security/useSecurityActivityItems';
 import { SignInSection } from '@/components/security/sign-in-section';
 import { useSignInItems } from '@/components/security/useSignInItems';
-import { usePasskeyItems } from '@/components/security/usePasskeyItems';
+import { useSignInMethodItems } from '@/components/security/useSignInMethodItems';
 import { LanguageSection } from '@/components/security/language-section';
 import { DevicesSection } from '@/components/security/devices-section';
 import { useDeviceItems } from '@/components/security/useDeviceItems';
@@ -76,9 +76,11 @@ export default function SecurityScreen() {
         toggleBiometricLogin,
     });
 
-    // Passkey rows (web-only, Oxy RP origin) appended to "How you sign in".
-    // Returns [] on native / non-Oxy origins, so the spread below is a no-op there.
-    const passkeyItems = usePasskeyItems();
+    // An account without a key: its email, password, authenticator and
+    // linking Commons. Returns [] for a Commons account, which signs in with its
+    // key (the public-key row says so).
+    const signInMethodItems = useSignInMethodItems();
+    const keyed = Boolean(user?.publicKey);
 
     const deviceItems = useDeviceItems({ devices });
 
@@ -106,7 +108,9 @@ export default function SecurityScreen() {
                 isLoading={securityActivityLoading}
             />
 
-            <SignInSection items={[...signInItems, ...passkeyItems]} />
+            <SignInSection
+                items={[...signInMethodItems, ...signInItems.filter((item) => keyed || item.id !== 'public-key-auth')]}
+            />
 
             <LanguageSection />
 

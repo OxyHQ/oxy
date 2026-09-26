@@ -11,9 +11,12 @@
  * This playground mounts OxyProvider from @oxy.so/services (and Bloom UI). Tailwind
  * v4 only scans the app's own tree by default, so layout utilities from those
  * packages would never be generated without scoped @source globs — same fix as
- * auth/console Vite apps.
+ * auth/console Vite apps. Services is the workspace sibling: bun links it under
+ * this package's own node_modules, never the repo root's, so it is scanned at
+ * its source path (a root `node_modules` path scans nothing, and the sign-in
+ * screen's `md:` split never rendered here).
  */
-@source "../../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
+@source "../../services/lib/**/*.{js,jsx}";
 @source "../../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
 
 @custom-variant dark (&:is(.dark *));

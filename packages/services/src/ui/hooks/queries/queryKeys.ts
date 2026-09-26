@@ -89,6 +89,12 @@ export const queryKeys = {
   },
 
   // Linked authentication methods (passwords, identity keys, passkeys, social)
+  /** How the signed-in account signs in: email, password, authenticator (`GET /users/me/sign-in-methods`). */
+  signInMethods: {
+    all: ['signInMethods'] as const,
+    current: (userId?: string) => [...queryKeys.signInMethods.all, userId || 'current'] as const,
+  },
+
   authMethods: {
     all: ['authMethods'] as const,
     list: (userId?: string) => [...queryKeys.authMethods.all, 'list', userId || 'current'] as const,

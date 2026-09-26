@@ -233,8 +233,10 @@ export const AvatarGroup = ({
 export const Text = ({
   children,
   testID,
-}: { children?: ReactNode; testID?: string } & Record<string, unknown>) =>
-  createElement('span', { 'data-testid': testID }, children);
+  accessibilityRole,
+}: { children?: ReactNode; testID?: string; accessibilityRole?: string } & Record<string, unknown>) =>
+  // Only `alert` is carried: an error line is found by its role.
+  createElement('span', { 'data-testid': testID, role: accessibilityRole === 'alert' ? 'alert' : undefined }, children);
 
 export const Divider = ({ children }: { children?: ReactNode }) => createElement('div', { role: 'separator' }, children);
 

@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { Linking, Platform } from 'react-native';
-import { DeviceManager, OxyServices, oxyClient, type OxyAuthScreen } from '@oxy.so/core';
+import { OxyServices, oxyClient } from '@oxy.so/core';
 import type { LoginSessionResult } from '@oxy.so/contracts';
 import type {
   User,
@@ -99,13 +99,7 @@ import { DEFAULT_SESSION_VALIDITY_MS } from './oxyContextHelpers';
 // never dereferenced at module scope here.
 import { useFollow } from '../hooks/useFollow';
 import { commitDeviceSetAndResolve } from './commitSessionFlow';
-import { runPasskeyLogin, runPasskeyAdd } from './passkeyFlow';
-import {
-  isPasskeySupported,
-  runRegistrationCeremony,
-  runAuthenticationCeremony,
-} from '../../webauthn/passkeyClient';
-import { queryKeys } from '../hooks/queries/queryKeys';
+import { clearSignInFlows } from '../components/signIn/signInFlowStore';
 import { useOxyAccountGraph } from './useOxyAccountGraph';
 
 export type { LogoutResult, OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
@@ -790,20 +784,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     [webAuthMode, oxyServices, clientId, authorizeBaseUrl, isIdentityBound, user?.id],
   );
 
-  // What only auth.oxy.so can do for an Oxy app on the web — assert the
-  // `oxy.so` passkey, create or recover a passkey account — runs in its window
-  // over the app, for that one step. A blocked window falls back to the same
-  // page in this tab.
-  const continueOnAuth = useCallback(
-    (screen: OxyAuthScreen): Promise<WebOAuthSignInResult> =>
-      startWebOAuthSignInForContext({
-        redirectUri: authRedirectUri ?? globalThis.location?.origin ?? '',
-        transport: 'popup',
-        screen,
-      }),
-    [startWebOAuthSignInForContext, authRedirectUri],
-  );
-
   // ── Unified account dialog ─────────────────────────────────────────────────
   // The single account-chooser + sign-in surface. Built ONCE per provider mount
   // and bound to the live `oxyServices` + `sessionClient` + this provider's
@@ -883,7 +863,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   const accountDialogController = accountDialogControllerRef.current;
 
   // Every sign-in on the web PROVES the device this origin holds (ADR 0029 D2):
-  // the QR claim and the passkey sign-ins send it, so the account lands on the
+  // the QR claim and the email and password sign-ins send it, so the account lands on the
   // browser's shared device and every Oxy app holding it sees it at once.
   // Native is untouched: its apps already share a device through the keychain.
   useEffect(() => {
@@ -1048,66 +1028,12 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     notifyAccountDialogVisibility(accountDialogOpen);
   }, [accountDialogOpen]);
 
-  // ── Passkey (WebAuthn) ─────────────────────────────────────────────────────
-  // Web-only sign-in / registration via the browser WebAuthn ceremony. The fixed
-  // `options → ceremony → verify → commit` ordering lives in the pure
-  // `passkeyFlow` helpers (deps-injected, unit-tested); these wrappers supply the
-  // real deps (core `webauthn*` methods, the platform ceremony client, and the
-  // `commitSession` funnel). All three GATE on `isPasskeySupported()` so a native
-  // / unsupported surface throws loudly instead of stalling in a ceremony.
-
-  // Passkey sign-in. No `username` → usernameless (discoverable) flow. With a
-  // `username` → username-first: the server scopes `allowCredentials` to that
-  // user's passkeys so a non-discoverable hardware key (U2F/security key) can
-  // be selected.
-  const signInWithPasskey = useCallback(
-    async (opts?: { username?: string; deviceName?: string; deviceFingerprint?: string }): Promise<void> => {
-      const persisted = await authStore.load();
-      await runPasskeyLogin({
-        isSupported: isPasskeySupported,
-        getLoginOptions: (username) => oxyServices.webauthnLoginOptions(username),
-        runCeremony: runAuthenticationCeremony,
-        loginVerify: (response, envelope) => oxyServices.webauthnLoginVerify(response, envelope),
-        commit: (input) => commitSession(input, { activate: true }),
-        username: opts?.username,
-        deviceId: persisted?.deviceId,
-        deviceName: opts?.deviceName,
-        // The same shape every other sign-in path sends; the server only reads it
-        // to place a device that has no persisted id yet.
-        deviceFingerprint: opts?.deviceFingerprint ?? JSON.stringify(DeviceManager.getDeviceFingerprint()),
-      });
-    },
-    [oxyServices, authStore, commitSession],
-  );
-
-  // Add a passkey to the already-signed-in account (bearer present). No new
-  // session is committed — just refresh the linked auth-methods list.
-  const addPasskey = useCallback(
-    async (params?: { deviceName?: string }): Promise<void> => {
-      await runPasskeyAdd({
-        isSupported: isPasskeySupported,
-        getRegisterOptions: () => oxyServices.webauthnRegisterOptions(),
-        runCeremony: runRegistrationCeremony,
-        registerVerify: (response, envelope) => oxyServices.webauthnRegisterVerify(response, envelope),
-        onLinked: () => {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.authMethods.all });
-        },
-        deviceName: params?.deviceName,
-      });
-    },
-    [oxyServices, queryClient],
-  );
-
-  // Remove a passkey from the already-signed-in account by credential id. Not a
-  // ceremony — a plain unlink — so it needs no `isPasskeySupported` gate; it just
-  // refreshes the linked auth-methods list on success.
-  const removePasskey = useCallback(
-    async (credentialId: string): Promise<void> => {
-      await oxyServices.removePasskey(credentialId);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.authMethods.all });
-    },
-    [oxyServices, queryClient],
-  );
+  // A closed dialog forgets the sign-in or sign-up step it was on: the next
+  // open starts over. (While it is open the step survives the surface's
+  // breakpoint remount — `signInFlowStore`.)
+  useEffect(() => {
+    if (!accountDialogOpen) clearSignInFlows(accountDialogControllerRef.current);
+  }, [accountDialogOpen]);
 
   // ── Cold boot ────────────────────────────────────────────────────────────
   // Device-first session restore via `runProviderColdBoot` (see boot/runProviderColdBoot.ts).
@@ -1369,13 +1295,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       hasIdentity,
       getPublicKey,
       signIn,
-      signInWithPasskey,
-      addPasskey,
-      removePasskey,
       revokeSuspiciousSignIn,
       handleWebSession,
       startWebOAuthSignIn: startWebOAuthSignInForContext,
-      continueOnAuth,
       requestOAuthConsent: requestOAuthConsentForContext,
       logout,
       logoutAll,
@@ -1427,13 +1349,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       hasIdentity,
       getPublicKey,
       signIn,
-      signInWithPasskey,
-      addPasskey,
-      removePasskey,
       revokeSuspiciousSignIn,
       handleWebSession,
       startWebOAuthSignInForContext,
-      continueOnAuth,
       requestOAuthConsentForContext,
       logout,
       logoutAll,

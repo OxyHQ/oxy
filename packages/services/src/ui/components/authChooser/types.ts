@@ -104,15 +104,6 @@ export interface AccountsMenuActions {
 }
 
 /**
- * Where a passkey sign-in or sign-up can run from the current surface.
- *
- * `'hub'`  = web: it runs in auth.oxy.so's window over the app
- *            (`continueOnAuth`), on every web origin.
- * `'none'` = native, where Commons owns identity.
- */
-export type PasskeyMode = 'hub' | 'none';
-
-/**
  * Everything that is NOT the sign-in surface's one primary action.
  *
  * The container wires these once; each view decides which of them are genuine
@@ -121,14 +112,11 @@ export type PasskeyMode = 'hub' | 'none';
  * fails). A view never renders one of these as a button.
  */
 export interface SignInAlternatives {
-  /** Whether a WebAuthn ceremony is reachable from this origin at all. */
-  passkeyAvailable: boolean;
-  onSignInWithPasskey: () => void;
   /** Fall back to the cross-device QR handoff (restarts the request). */
   onShowQr: () => void;
   /** Open the Commons store listing / landing page for this platform. */
   onGetCommons: () => void;
-  /** Create an account: the identity-origin window on web, the Commons flow on native. */
+  /** Create an account, in the dialog. */
   onCreateAccount: () => void;
 }
 

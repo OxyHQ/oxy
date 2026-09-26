@@ -6,7 +6,8 @@
  * it ("No identity found on this device…"). The screen now asks where the key
  * is first: the app's own deletion runs only when the app holds it; otherwise
  * it hands off to Commons' delete-account screen, or explains where to go, and
- * never calls the deletion API.
+ * never calls the deletion API. An account WITHOUT a key is deleted with a code
+ * by email, in the `DeleteAccount` panel.
  */
 
 import { act, fireEvent, render, screen } from '@testing-library/react';
@@ -14,11 +15,12 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 const deleteAccount = jest.fn();
 const hasIdentity = jest.fn<Promise<boolean>, []>();
 const logout = jest.fn();
+let user: { id: string; username: string; publicKey?: string } = { id: 'u1', username: 'nate', publicKey: '04ab' };
 
 jest.mock('../../src/ui/context/OxyContext', () => ({
   __esModule: true,
   useOxy: () => ({
-    user: { id: 'u1', username: 'nate' },
+    user,
     isAuthenticated: true,
     oxyServices: {
       deleteAccount: (...a: unknown[]) => deleteAccount(...a),
@@ -45,7 +47,7 @@ jest.mock('../../src/ui/hooks/useSurfaceHeader', () => ({
 
 jest.mock('../../src/ui/hooks/queries/useAccountQueries', () => ({
   __esModule: true,
-  useCurrentUser: () => ({ data: { id: 'u1', username: 'nate' }, isLoading: false }),
+  useCurrentUser: () => ({ data: user, isLoading: false }),
 }));
 jest.mock('../../src/ui/hooks/queries/usePaymentQueries', () => ({
   __esModule: true,
@@ -84,8 +86,9 @@ import ManageAccountScreen from '../../src/ui/screens/ManageAccountScreen';
 
 const confirm = surfaces.confirm as unknown as jest.Mock;
 
+const navigate = jest.fn();
 const pressDeleteAccount = async () => {
-  render(<ManageAccountScreen onClose={jest.fn()} />);
+  render(<ManageAccountScreen onClose={jest.fn()} navigate={navigate} />);
   await act(async () => {
     fireEvent.click(
       screen.getByText('[accountOverview.items.deleteAccount.title]').closest('button') as HTMLButtonElement,
@@ -98,6 +101,7 @@ let openURL: jest.SpyInstance;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  user = { id: 'u1', username: 'nate', publicKey: '04ab' };
   canOpenURL = jest.spyOn(Linking, 'canOpenURL');
   openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   presentDeleteAccount.mockResolvedValue(false);
@@ -109,6 +113,17 @@ afterEach(() => {
 });
 
 describe('ManageAccountScreen: Delete account', () => {
+  it('opens the email-code panel for an account without a key', async () => {
+    user = { id: 'u1', username: 'nate' };
+
+    await pressDeleteAccount();
+
+    expect(navigate).toHaveBeenCalledWith('DeleteAccount');
+    expect(hasIdentity).not.toHaveBeenCalled();
+    expect(presentDeleteAccount).not.toHaveBeenCalled();
+    expect(deleteAccount).not.toHaveBeenCalled();
+  });
+
   it('opens Commons at its delete-account screen when Commons holds the identity', async () => {
     hasIdentity.mockResolvedValue(false);
     canOpenURL.mockResolvedValue(true);

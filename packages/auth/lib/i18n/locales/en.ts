@@ -52,6 +52,11 @@ const en: LocaleDict = {
       switchFailed: 'That account could not be selected. Sign in again to continue.',
     },
   },
+  login: {
+    errors: {
+      sessionExpired: 'Your session expired. Please sign in again.',
+    },
+  },
   authorize: {
     title: 'Continue to {{app}}',
     cancel: 'Cancel',

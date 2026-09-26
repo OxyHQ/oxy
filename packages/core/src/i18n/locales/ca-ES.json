@@ -4,11 +4,6 @@
     "subtitle": "Fes servir el teu compte d'Oxy",
     "addAccountTitle": "Afegeix un altre compte",
     "addAccountSubtitle": "Inicia sessió amb un altre compte",
-    "username": {
-      "label": "Nom d'usuari",
-      "placeholder": "elteunom",
-      "required": "Si us plau, introdueix el teu nom d'usuari."
-    },
     "actions": {
       "continue": "Continuar",
       "back": "Enrere"
@@ -23,16 +18,25 @@
       "caption": "Escaneja amb Commons per entrar",
       "renew": "Mostra un codi nou"
     },
-    "methods": {
-      "passkey": "Entra amb una passkey"
-    },
     "errors": {
       "rateLimited": "Massa intents. Torna-ho a provar d’aquí a {{seconds}} s.",
-      "passkeyCancelled": "Has tancat la passkey. Torna-ho a provar quan vulguis.",
-      "passkeyFailed": "No s'ha pogut completar la passkey. Torna-ho a provar."
+      "invalidCredentials": "El nom d'usuari, el correu o la contrasenya no són correctes.",
+      "codeInvalid": "Aquest codi no és correcte o ha caducat.",
+      "requestExpired": "Aquest inici de sessió ha caducat. Envia un correu nou.",
+      "secondFactorInvalid": "Aquest codi no és correcte. Prova amb l'actual.",
+      "originNotAllowed": "Aquí no es pot iniciar sessió.",
+      "generic": "Alguna cosa ha anat malament. Torna-ho a provar.",
+      "notConfigured": "L'inici de sessió no està disponible",
+      "notConfiguredDescription": "{{app}} encara no està configurada per iniciar sessió. Contacta amb qui desenvolupa l'app.",
+      "failed": "No s'ha pogut iniciar la sessió",
+      "failedDescription": "Alguna cosa ha anat malament. Torna-ho a provar."
     },
     "chooser": {
-      "subtitleToApp": "per continuar a {{app}}"
+      "subtitleToApp": "per continuar a {{app}}",
+      "title": "Tria un compte",
+      "subtitle": "Continua amb un dels teus comptes o fes-ne servir un altre.",
+      "useAnother": "Fes servir un altre compte",
+      "continueAs": "Continua com a {{name}}"
     },
     "terms": {
       "before": "En continuar, acceptes les nostres",
@@ -42,15 +46,52 @@
     },
     "noAccount": "No tens compte?",
     "createAccount": "Crea un compte",
-    "recoverLink": "Has perdut la passkey? Recupera el compte"
+    "identifier": {
+      "label": "Correu o nom d'usuari",
+      "placeholder": "tu@exemple.com",
+      "required": "Escriu el teu correu o nom d'usuari."
+    },
+    "checkEmail": {
+      "title": "Mira el correu",
+      "description": "Si hi ha un compte amb {{identifier}}, li hem enviat un codi i un enllaç per iniciar sessió.",
+      "codeLabel": "Codi",
+      "codeHint": "Escriu el codi del correu o obre'n l'enllaç en aquest navegador.",
+      "resend": "Envia un correu nou",
+      "resendIn": "Envia un correu nou d'aquí a {{seconds}} s",
+      "resent": "T'hem enviat un correu nou.",
+      "retryLater": "Ja t'hem enviat diversos correus. Espera uns minuts i torna-ho a provar.",
+      "usePassword": "Fes servir la contrasenya",
+      "differentAccount": "Fes servir un altre compte"
+    },
+    "password": {
+      "title": "Escriu la contrasenya",
+      "label": "Contrasenya",
+      "required": "Escriu la contrasenya.",
+      "forgot": "L'has oblidada? Rep un codi per correu"
+    },
+    "secondFactor": {
+      "title": "Verificació en dos passos",
+      "description": "Escriu el codi de la teva app d'autenticació.",
+      "backupDescription": "Escriu un dels teus codis de seguretat. Cadascun funciona una sola vegada.",
+      "label": "Codi d'autenticació",
+      "backupLabel": "Codi de seguretat",
+      "useBackup": "Fes servir un codi de seguretat",
+      "useAuthenticator": "Fes servir l'app d'autenticació"
+    },
+    "link": {
+      "approvedTitle": "Has iniciat la sessió",
+      "approvedDescription": "Torna a l'app on vas demanar iniciar sessió: continuarà sola. Pots tancar aquesta pestanya.",
+      "otherDeviceTitle": "Obre l'enllaç al mateix navegador",
+      "otherDeviceDescription": "Aquest enllaç només funciona al navegador on vas demanar iniciar sessió. Obre'l allà o escriu a l'app el codi del correu.",
+      "invalidTitle": "Aquest enllaç no es pot fer servir",
+      "invalidDescription": "Ha caducat o ja s'ha fet servir. Demana un correu nou a l'app o escriu el codi de l'últim."
+    }
   },
   "signup": {
     "title": "Crea el teu compte",
-    "subtitle": "Una identitat per a tot l'ecosistema.",
-    "createInCommons": "Crea la teva identitat a Commons",
-    "createAccount": "Crear compte",
+    "subtitle": "Tria el teu nom d'usuari. Després confirmem el teu correu.",
+    "createInCommons": "Crea-la a Commons",
     "backToSignInLink": "Ja tens compte? Inicia sessió",
-    "webSubtitle": "Sense contrasenya: el teu dispositiu crea una passkey i un correu de recuperació et torna l'accés si la perds.",
     "username": {
       "label": "Nom d'usuari",
       "placeholder": "elteunom",
@@ -58,25 +99,20 @@
       "taken": "Aquest nom d'usuari ja està agafat."
     },
     "email": {
-      "title": "El teu correu de recuperació",
-      "subtitle": "Si perds la passkey, t'hi enviem un codi per tornar a entrar. No s'utilitza per a res més.",
+      "title": "Quin és el teu correu?",
+      "subtitle": "L'utilitzes per iniciar sessió: t'enviem un codi cada vegada. Ningú més el veu.",
       "label": "Correu",
       "placeholder": "tu@exemple.com",
       "invalid": "Escriu un correu vàlid."
     },
-    "passkey": {
-      "title": "Crea la teva passkey",
-      "subtitle": "Hi inicies la sessió: l'empremta, la cara o el bloqueig de pantalla. No cal recordar res.",
-      "action": "Crea la passkey"
-    },
-    "commonsInstead": "Vols guardar la teva pròpia clau? Fes servir Commons"
+    "commonsSubtitle": "O crea la teva identitat a Commons i guarda la teva pròpia clau.",
+    "laterNote": "Més endavant pots afegir una contrasenya o una app d'autenticació a la configuració de seguretat del compte."
   },
   "accountSwitcher": {
     "loading": "S'estan carregant els comptes...",
     "qrHeadline": "Inicia sessió amb la teva identitat d'Oxy",
     "signInWithOxy": "Inicia sessió amb Oxy",
     "signUpWithOxy": "Registra't amb Oxy",
-    "useIdentityOnDevice": "No tens Commons? Fes servir una clau d'accés en aquest dispositiu",
     "getCommons": "Descarrega Commons",
     "commonsNotInstalled": "No tens Commons? Descarrega l'app per iniciar sessió amb el teu Oxy ID.",
     "showQrAnyway": "Tinc Commons en un altre dispositiu",
@@ -246,26 +282,9 @@
     "privacy": "Política de privacitat",
     "terms": "Condicions del servei"
   },
-  "recover": {
-    "title": "Recupera el compte",
-    "subtitle": "Escriu el nom d'usuari o el correu de recuperació. Enviarem un codi al correu de recuperació del compte.",
-    "identifier": {
-      "label": "Usuari o correu",
-      "placeholder": "elteunom",
-      "required": "Escriu l'usuari o el correu."
-    },
-    "commonsNote": "El teu compte fa servir Commons? Recupera-lo a Commons amb la frase de recuperació.",
-    "passkey": {
-      "title": "Afegeix una passkey nova",
-      "subtitle": "Per a @{{username}}. Treu les passkeys perdudes més tard a la configuració de seguretat del compte.",
-      "action": "Crea la passkey"
-    },
-    "backToSignIn": "Torna a iniciar la sessió"
-  },
   "emailCode": {
     "title": "Mira el correu",
     "sentTo": "Hem enviat un codi de 6 xifres a {{email}}.",
-    "sentIfAccount": "Si aquest compte té un correu de recuperació, li hem enviat un codi de 6 xifres.",
     "label": "Codi",
     "resend": "Envia un codi nou",
     "resent": "T'hem enviat un codi nou.",
@@ -279,17 +298,20 @@
     }
   },
   "deleteAccount": {
-    "passkey": {
-      "subtitle": "Confirma amb la passkey. @{{username}} i tot el que conté s'eliminen per sempre.",
-      "action": "Elimina amb passkey",
+    "keyless": {
+      "subtitle": "@{{username}} i tot el que conté s'eliminen per sempre. Escriu el teu nom d'usuari i confirma amb un codi que t'enviem per correu.",
+      "action": "Elimina el compte",
       "done": "El teu compte s'ha eliminat.",
-      "closeWindow": "Pots tancar aquesta finestra.",
-      "commons": "Aquest compte fa servir Commons: elimina'l a Oxy Commons, Configuració > Elimina el compte, amb la seva clau."
+      "doneDescription": "S'ha tancat la sessió.",
+      "keyed": "Aquest compte fa servir Commons: elimina'l a Oxy Commons, Configuració > Elimina el compte, amb la seva clau."
+    },
+    "handoff": {
+      "elsewhereMessage": "Per eliminar el compte cal la teva clau d'identitat, i no és en aquest dispositiu. Obre Oxy Commons al dispositiu que la guarda i ves a Configuració > Elimina el compte. Un compte sense clau s'elimina des de la seva configuració a {{site}}."
     }
   },
   "linkCommons": {
     "title": "Vincula Commons",
-    "subtitle": "Guarda la teva pròpia clau: vincula Commons i aquest compte serà només teu. El seu correu de recuperació s'elimina, i la frase de recuperació de Commons és com hi tornes a entrar.",
+    "subtitle": "Guarda la teva pròpia clau: vincula Commons i aquest compte serà només teu. El seu correu s'elimina, i la frase de recuperació de Commons és com hi tornes a entrar.",
     "scan": "Al mòbil, obre Commons, tria «Tinc un compte d'Oxy al web» i escaneja aquest codi.",
     "waiting": "Esperant Commons…",
     "compareTitle": "Comprova el codi",
@@ -297,10 +319,67 @@
     "confirm": "Sí, vincula Commons",
     "cancel": "Cancel·la",
     "doneTitle": "Commons està vinculat",
-    "done": "Aquest compte ara és d'autocustòdia. El seu correu de recuperació s'ha eliminat: la frase de recuperació de Commons és com hi tornes a entrar.",
+    "done": "Aquest compte ara és d'autocustòdia. El seu correu s'ha eliminat: la frase de recuperació de Commons és com hi tornes a entrar.",
     "already": "Aquest compte ja fa servir Commons.",
     "expired": "Aquest codi ha caducat.",
     "renew": "Mostra un codi nou",
-    "failed": "No s'ha pogut vincular Commons. Torna-ho a provar."
+    "failed": "No s'ha pogut vincular Commons. Torna-ho a provar.",
+    "confirmTitle": "Confirma la vinculació",
+    "confirmDescription": "Per acabar, confirma que ets tu amb un codi que t'enviem per correu.",
+    "row": "Guarda la teva pròpia clau amb Commons"
+  },
+  "reauth": {
+    "title": "Confirma que ets tu",
+    "emailDescription": "T'enviarem un codi al correu per confirmar aquest canvi.",
+    "sendCode": "Envia el codi",
+    "codeSent": "Hem enviat un codi de 6 xifres al teu correu.",
+    "codeLabel": "Codi del correu",
+    "passwordLabel": "Contrasenya actual",
+    "usePassword": "Fes servir la contrasenya",
+    "useEmail": "Rep un codi per correu",
+    "totpLabel": "Codi d'autenticació o de seguretat",
+    "errors": {
+      "invalid": "No ha funcionat. Revisa el que has escrit i torna-ho a provar.",
+      "totpRequired": "Escriu també el codi de la teva app d'autenticació."
+    }
+  },
+  "signInSecurity": {
+    "password": {
+      "title": "Contrasenya",
+      "setTitle": "Crea una contrasenya",
+      "changeTitle": "Canvia la contrasenya",
+      "description": "Inicia sessió amb la contrasenya en lloc d'un codi per correu. Fes servir almenys {{min}} caràcters.",
+      "newLabel": "Contrasenya nova",
+      "repeatLabel": "Repeteix la contrasenya",
+      "tooShort": "Fes servir almenys {{min}} caràcters.",
+      "mismatch": "Les contrasenyes no coincideixen.",
+      "signOutOthers": "Tanca la sessió a tots els altres llocs",
+      "save": "Desa la contrasenya",
+      "saved": "S'ha desat la contrasenya.",
+      "row": "Opcional: inicia sessió amb contrasenya"
+    },
+    "totp": {
+      "title": "App d'autenticació",
+      "description": "Després del codi per correu o de la contrasenya, Oxy també et demana un codi d'una app com Google Authenticator o 1Password.",
+      "setUp": "Configura",
+      "scan": "Escaneja aquest codi QR amb la teva app d'autenticació o escriu la clau de configuració.",
+      "secretLabel": "Clau de configuració",
+      "codeLabel": "Codi de l'app",
+      "enable": "Activa",
+      "enabled": "L'app d'autenticació està activada.",
+      "disable": "Desactiva l'app d'autenticació",
+      "disabled": "L'app d'autenticació està desactivada.",
+      "on": "Activada",
+      "off": "Desactivada",
+      "backupTitle": "Desa els codis de seguretat",
+      "backupDescription": "Si perds el mòbil, cada codi et permet iniciar sessió una vegada. Guarda'ls en un lloc segur: no es tornaran a mostrar.",
+      "copy": "Copia els codis",
+      "copied": "S'han copiat els codis de seguretat.",
+      "savedThem": "Ja els he desat",
+      "regenerate": "Obtén codis de seguretat nous",
+      "regenerateDescription": "Els codis de seguretat anteriors deixaran de funcionar.",
+      "remaining": "Queden {{count}} codis de seguretat",
+      "row": "Un segon pas en iniciar sessió"
+    }
   }
 }

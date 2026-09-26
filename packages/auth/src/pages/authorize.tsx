@@ -13,6 +13,7 @@ import { OxyAccountPicker, OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader, O
 import { Button } from "@oxy.so/bloom/button";
 import { CommonsOAuthLane } from "@/components/commons-oauth-request";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { LOGIN_ERROR_SESSION_EXPIRED } from "@/lib/login-errors";
 import {
   sessionStatusSchema,
   safeParse,
@@ -192,10 +193,11 @@ function AuthorizeRequest() {
   // request, not a guarantee — with no opener we still redirect (see
   // `lib/oauth-web-message.ts`).
   const responseMode = searchParams.get("response_mode");
-  // The IdP screen an Oxy app's window opens on (`screen=signin|signup|recover`)
-  // when this browser has no session here yet.
+  // The IdP screen a request asks to open on (`screen=signin|signup|recover`)
+  // when this browser has no session here yet: `/login`, starting at account
+  // creation for `signup` (recovery is signing in with a code by email).
   const screen = searchParams.get("screen");
-  const screenPath = screen === "signin" ? "/login" : screen === "signup" ? "/signup" : screen === "recover" ? "/recover" : null;
+  const screenPath = screen === "signin" || screen === "signup" || screen === "recover" ? "/login" : null;
 
   // Device-first SDK: the signed-in user + active bearer + the device directory.
   // The bearer for the OAuth authorize call is ALWAYS the SDK's active-context
@@ -624,7 +626,7 @@ function AuthorizeRequest() {
           resource: resource || undefined,
           response_type: responseType || undefined,
           response_mode: responseMode || undefined,
-          error: "Session expired. Please sign in again.",
+          error: LOGIN_ERROR_SESSION_EXPIRED,
         })
       );
       return;
@@ -871,7 +873,7 @@ function AuthorizeRequest() {
             resource: resource || undefined,
             response_type: responseType || undefined,
             response_mode: responseMode || undefined,
-            error: "Session expired. Please sign in again.",
+            error: LOGIN_ERROR_SESSION_EXPIRED,
           })
         );
         return;
@@ -963,6 +965,7 @@ function AuthorizeRequest() {
       return (
         <Navigate
           to={buildRelativeUrl(screenPath, {
+            screen: screen === "signup" ? "signup" : undefined,
             token: token || undefined,
             redirect_uri: redirectUri || undefined,
             state: state || undefined,

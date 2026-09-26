@@ -4,11 +4,6 @@
     "subtitle": "Oxy アカウントを使用",
     "addAccountTitle": "別のアカウントを追加",
     "addAccountSubtitle": "別のアカウントでサインイン",
-    "username": {
-      "label": "ユーザー名",
-      "placeholder": "yourname",
-      "required": "ユーザー名を入力してください。"
-    },
     "actions": {
       "continue": "続ける",
       "back": "戻る"
@@ -23,16 +18,25 @@
       "caption": "Commons でスキャンしてサインイン",
       "renew": "新しいコードを表示"
     },
-    "methods": {
-      "passkey": "パスキーでサインイン"
-    },
     "errors": {
       "rateLimited": "試行回数が多すぎます。{{seconds}} 秒後にもう一度お試しください。",
-      "passkeyCancelled": "パスキーの確認を閉じました。準備ができたらもう一度お試しください。",
-      "passkeyFailed": "パスキーを完了できませんでした。もう一度お試しください。"
+      "invalidCredentials": "ユーザー名、メールアドレス、またはパスワードが正しくありません。",
+      "codeInvalid": "コードが正しくないか、有効期限が切れています。",
+      "requestExpired": "このサインインは期限切れです。新しいメールを送ってください。",
+      "secondFactorInvalid": "コードが正しくありません。現在のコードをお試しください。",
+      "originNotAllowed": "ここではサインインできません。",
+      "generic": "問題が発生しました。もう一度お試しください。",
+      "notConfigured": "サインインは利用できません",
+      "notConfiguredDescription": "{{app}} はまだサインインの設定がされていません。アプリの開発者にお問い合わせください。",
+      "failed": "サインインを開始できませんでした",
+      "failedDescription": "問題が発生しました。もう一度お試しください。"
     },
     "chooser": {
-      "subtitleToApp": "{{app}} に進む"
+      "subtitleToApp": "{{app}} に進む",
+      "title": "アカウントを選択",
+      "subtitle": "以下のアカウントで続けるか、別のアカウントを使ってください。",
+      "useAnother": "別のアカウントを使う",
+      "continueAs": "{{name}} として続ける"
     },
     "terms": {
       "before": "続行すると、次に同意したことになります:",
@@ -42,15 +46,52 @@
     },
     "noAccount": "アカウントをお持ちでない場合",
     "createAccount": "アカウントを作成",
-    "recoverLink": "パスキーをなくしましたか？アカウントを復元"
+    "identifier": {
+      "label": "メールアドレスまたはユーザー名",
+      "placeholder": "you@example.com",
+      "required": "メールアドレスまたはユーザー名を入力してください。"
+    },
+    "checkEmail": {
+      "title": "メールを確認",
+      "description": "{{identifier}} に一致するアカウントがあれば、コードとサインイン用リンクを送りました。",
+      "codeLabel": "コード",
+      "codeHint": "メールに記載のコードを入力するか、メール内のリンクをこのブラウザで開いてください。",
+      "resend": "新しいメールを送る",
+      "resendIn": "{{seconds}} 秒後に新しいメールを送れます",
+      "resent": "新しいメールを送りました。",
+      "retryLater": "すでに何通かメールを送りました。数分待ってからもう一度お試しください。",
+      "usePassword": "パスワードを使う",
+      "differentAccount": "別のアカウントを使う"
+    },
+    "password": {
+      "title": "パスワードを入力",
+      "label": "パスワード",
+      "required": "パスワードを入力してください。",
+      "forgot": "お忘れですか？メールでコードを受け取る"
+    },
+    "secondFactor": {
+      "title": "2 段階認証",
+      "description": "認証アプリに表示されたコードを入力してください。",
+      "backupDescription": "バックアップコードを 1 つ入力してください。各コードは 1 回だけ使えます。",
+      "label": "認証コード",
+      "backupLabel": "バックアップコード",
+      "useBackup": "バックアップコードを使う",
+      "useAuthenticator": "認証アプリを使う"
+    },
+    "link": {
+      "approvedTitle": "サインインしました",
+      "approvedDescription": "サインインをリクエストしたアプリに戻ってください。自動的に続きます。このタブは閉じてかまいません。",
+      "otherDeviceTitle": "同じブラウザでリンクを開いてください",
+      "otherDeviceDescription": "このリンクは、サインインをリクエストしたブラウザでのみ使えます。そのブラウザで開くか、メールのコードをアプリに入力してください。",
+      "invalidTitle": "このリンクは使えません",
+      "invalidDescription": "有効期限が切れているか、すでに使用されています。アプリで新しいメールをリクエストするか、最新のメールのコードを入力してください。"
+    }
   },
   "signup": {
     "title": "アカウントを作成",
-    "subtitle": "エコシステム全体で使える1つのアイデンティティ。",
-    "createInCommons": "Commonsであなたのアイデンティティを作成",
-    "createAccount": "アカウントを作成",
+    "subtitle": "ユーザー名を選んでください。次にメールアドレスを確認します。",
+    "createInCommons": "Commons で作成する",
     "backToSignInLink": "すでにアカウントをお持ちですか？サインイン",
-    "webSubtitle": "パスワードは不要です。デバイスがパスキーを作成し、なくした場合は復旧用メールで戻れます。",
     "username": {
       "label": "ユーザー名",
       "placeholder": "yourname",
@@ -58,25 +99,20 @@
       "taken": "そのユーザー名は使われています。"
     },
     "email": {
-      "title": "復旧用メール",
-      "subtitle": "パスキーをなくしたとき、戻るためのコードをここに送ります。それ以外には使いません。",
+      "title": "メールアドレスを入力",
+      "subtitle": "サインインに使います。毎回コードをお送りします。ほかの人には表示されません。",
       "label": "メール",
       "placeholder": "you@example.com",
       "invalid": "有効なメールアドレスを入力してください。"
     },
-    "passkey": {
-      "title": "パスキーを作成",
-      "subtitle": "指紋、顔、画面ロックでサインインします。覚えることは何もありません。",
-      "action": "パスキーを作成"
-    },
-    "commonsInstead": "自分の鍵を持ちたいですか？ Commons を使う"
+    "commonsSubtitle": "または、Commons でアイデンティティを作成して、自分の鍵を持つこともできます。",
+    "laterNote": "パスワードや認証アプリは、あとでアカウントのセキュリティ設定から追加できます。"
   },
   "accountSwitcher": {
     "loading": "アカウントを読み込み中...",
     "qrHeadline": "Oxy IDでサインイン",
     "signInWithOxy": "Oxyでサインイン",
     "signUpWithOxy": "Oxyで登録",
-    "useIdentityOnDevice": "Commonsがありませんか？このデバイスのパスキーを使用",
     "getCommons": "Commonsを入手",
     "commonsNotInstalled": "Commonsがありませんか？アプリを入手してOxy IDでサインインしましょう。",
     "showQrAnyway": "別のデバイスにCommonsがあります",
@@ -246,26 +282,9 @@
     "privacy": "プライバシーポリシー",
     "terms": "利用規約"
   },
-  "recover": {
-    "title": "アカウントを復旧",
-    "subtitle": "ユーザー名か復旧用メールを入力してください。アカウントの復旧用メールにコードを送ります。",
-    "identifier": {
-      "label": "ユーザー名またはメール",
-      "placeholder": "yourname",
-      "required": "ユーザー名かメールを入力してください。"
-    },
-    "commonsNote": "Commons を使うアカウントですか？ Commons で復旧フレーズを使って復旧してください。",
-    "passkey": {
-      "title": "新しいパスキーを追加",
-      "subtitle": "@{{username}} 用。なくしたパスキーは後でアカウントのセキュリティ設定から削除できます。",
-      "action": "パスキーを作成"
-    },
-    "backToSignIn": "サインインに戻る"
-  },
   "emailCode": {
     "title": "メールを確認",
     "sentTo": "{{email}} に6桁のコードを送りました。",
-    "sentIfAccount": "このアカウントに復旧用メールがあれば、6桁のコードを送りました。",
     "label": "コード",
     "resend": "新しいコードを送る",
     "resent": "新しいコードを送りました。",
@@ -279,17 +298,20 @@
     }
   },
   "deleteAccount": {
-    "passkey": {
-      "subtitle": "パスキーで確認してください。@{{username}} とそのすべてが完全に削除されます。",
-      "action": "パスキーで削除",
+    "keyless": {
+      "subtitle": "@{{username}} とそのすべてが完全に削除されます。ユーザー名を入力し、メールでお送りするコードで確認してください。",
+      "action": "アカウントを削除",
       "done": "アカウントを削除しました。",
-      "closeWindow": "このウィンドウは閉じてかまいません。",
-      "commons": "このアカウントは Commons を使っています。Oxy Commons の 設定 > アカウントを削除 から、その鍵で削除してください。"
+      "doneDescription": "サインアウトしました。",
+      "keyed": "このアカウントは Commons を使っています。Oxy Commons の 設定 > アカウントを削除 から、その鍵で削除してください。"
+    },
+    "handoff": {
+      "elsewhereMessage": "アカウントの削除にはアイデンティティの鍵が必要ですが、このデバイスにはありません。鍵があるデバイスで Oxy Commons を開き、設定 > アカウントを削除 に進んでください。鍵のないアカウントは {{site}} の設定から削除できます。"
     }
   },
   "linkCommons": {
     "title": "Commons をリンク",
-    "subtitle": "自分の鍵を持ちましょう。Commons をリンクすると、このアカウントはあなただけのものになります。復旧用メールは削除され、Commons の復旧フレーズで戻れるようになります。",
+    "subtitle": "自分の鍵を持ちましょう。Commons をリンクすると、このアカウントはあなただけのものになります。メールアドレスは削除され、Commons の復旧フレーズで戻れるようになります。",
     "scan": "スマートフォンで Commons を開き、「Web に Oxy アカウントがあります」を選んで、このコードをスキャンしてください。",
     "waiting": "Commons を待っています…",
     "compareTitle": "コードを確認",
@@ -297,10 +319,67 @@
     "confirm": "はい、Commons をリンク",
     "cancel": "キャンセル",
     "doneTitle": "Commons をリンクしました",
-    "done": "このアカウントは自己管理になりました。復旧用メールは削除されました。Commons の復旧フレーズで戻れます。",
+    "done": "このアカウントは自己管理になりました。メールアドレスは削除されました。Commons の復旧フレーズで戻れます。",
     "already": "このアカウントはすでに Commons を使っています。",
     "expired": "このコードは期限切れです。",
     "renew": "新しいコードを表示",
-    "failed": "Commons をリンクできませんでした。もう一度お試しください。"
+    "failed": "Commons をリンクできませんでした。もう一度お試しください。",
+    "confirmTitle": "リンクを確認",
+    "confirmDescription": "最後に、メールでお送りするコードで本人確認をしてください。",
+    "row": "Commons で自分の鍵を持つ"
+  },
+  "reauth": {
+    "title": "本人確認",
+    "emailDescription": "この変更を確認するため、メールにコードを送ります。",
+    "sendCode": "コードを送る",
+    "codeSent": "メールに6桁のコードを送りました。",
+    "codeLabel": "メールに記載のコード",
+    "passwordLabel": "現在のパスワード",
+    "usePassword": "パスワードを使う",
+    "useEmail": "メールでコードを受け取る",
+    "totpLabel": "認証コードまたはバックアップコード",
+    "errors": {
+      "invalid": "うまくいきませんでした。入力内容を確認して、もう一度お試しください。",
+      "totpRequired": "認証アプリのコードも入力してください。"
+    }
+  },
+  "signInSecurity": {
+    "password": {
+      "title": "パスワード",
+      "setTitle": "パスワードを設定",
+      "changeTitle": "パスワードを変更",
+      "description": "メールのコードの代わりにパスワードでサインインできます。{{min}} 文字以上にしてください。",
+      "newLabel": "新しいパスワード",
+      "repeatLabel": "パスワードをもう一度入力",
+      "tooShort": "{{min}} 文字以上にしてください。",
+      "mismatch": "パスワードが一致しません。",
+      "signOutOthers": "ほかのすべての場所からサインアウト",
+      "save": "パスワードを保存",
+      "saved": "パスワードを保存しました。",
+      "row": "任意：パスワードでサインイン"
+    },
+    "totp": {
+      "title": "認証アプリ",
+      "description": "メールのコードまたはパスワードのあとに、Google Authenticator や 1Password などのアプリのコードも求められます。",
+      "setUp": "設定する",
+      "scan": "認証アプリでこの QR コードをスキャンするか、セットアップキーを入力してください。",
+      "secretLabel": "セットアップキー",
+      "codeLabel": "アプリのコード",
+      "enable": "オンにする",
+      "enabled": "認証アプリをオンにしました。",
+      "disable": "認証アプリをオフにする",
+      "disabled": "認証アプリをオフにしました。",
+      "on": "オン",
+      "off": "オフ",
+      "backupTitle": "バックアップコードを保存",
+      "backupDescription": "スマートフォンをなくしても、各コードで 1 回サインインできます。安全な場所に保管してください。再表示はされません。",
+      "copy": "コードをコピー",
+      "copied": "バックアップコードをコピーしました。",
+      "savedThem": "保存しました",
+      "regenerate": "新しいバックアップコードを取得",
+      "regenerateDescription": "以前のバックアップコードは使えなくなります。",
+      "remaining": "バックアップコード残り {{count}} 個",
+      "row": "サインイン時の 2 段階目の確認"
+    }
   }
 }

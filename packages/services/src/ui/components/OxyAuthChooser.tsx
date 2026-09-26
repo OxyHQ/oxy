@@ -6,9 +6,9 @@
  * `@oxy.so/core` (bound via `useSyncExternalStore`) — the same data/state
  * machine {@link OxyAccountDialogScreen} renders, extracted so it can be mounted in
  * TWO places: wrapped in Bloom's `<Dialog>` by `OxyAccountDialogScreen` (the normal
- * in-app surface), and mounted bare by a future auth.oxy.so hub page for the
- * cross-origin passkey popup (b2) — same chooser, two hosts, two completion
- * strategies via the `onComplete` prop. Neither host duplicates view logic.
+ * in-app surface), and mountable bare by any other host — same chooser, two
+ * completion strategies via the `onComplete` prop. Neither host duplicates view
+ * logic.
  *
  * This file owns WIRING only: the controller binding, the action handlers, and
  * which view module renders. Every view lives in `./authChooser/`, one
@@ -17,15 +17,15 @@
  *  - `accounts` → `AccountsMenuView` — the signed-in Oxy account menu.
  *  - `add` / `signin` → `OxySignInPanel` — THE sign-in screen, the one
  *    auth.oxy.so renders too: the device's accounts, then the Commons way in
- *    (the embedded QR, or "Continue with Oxy"), then the passkey (on the web
- *    in an app, auth.oxy.so's window for that one step).
+ *    (the embedded QR, or "Continue with Oxy"), then an email or username —
+ *    a code or link by email, a password, the authenticator — all in place.
  *  - `qr` → `SignInRequestView` — the ACTIVE REQUEST: the controller-bound
  *    wiring over the shared, presentational `OxySignInRequestSurface` (the same
  *    component the auth.oxy.so IdP mounts from its OAuth-bound request). It maps
  *    `snapshot.signIn` onto that surface's props; alternatives stay behind
  *    "Having trouble?" until the chosen route reports `routeFailed`.
- *  - `signup` → `OxySignUpPanel` — account creation: auth.oxy.so's window on
- *    the web, Commons on native.
+ *  - `signup` → `OxySignUpPanel` — account creation, in place: a username, an
+ *    email and its code (Commons stays the recommended way to hold a key).
  *
  * Per-account color re-theming uses Bloom's `APP_COLOR_PRESETS` + `BloomColorScope`
  * (same visual language auth.oxy.so uses). Base theming is `useTheme()` + a
@@ -39,7 +39,7 @@ import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { getNormalizedUserHandle, type OxyAuthScreen, type User } from '@oxy.so/core';
+import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../context/OxyContext';
 import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';
@@ -48,7 +48,6 @@ import {
   getAccountDialogConsumerHooks,
   subscribeToAccountDialogConsumerHooks,
 } from '../navigation/accountDialogManager';
-import { isWebBrowser } from '../utils/isWebBrowser';
 import { getCommonsAcquisitionUrl } from '../utils/commonsStoreLinks';
 import { useAccountStorageUsage } from '../hooks/queries/useServicesQueries';
 import AccountsMenuView from './authChooser/AccountsMenuView';
@@ -60,7 +59,6 @@ import {
   type AccountStorageModel,
   type AccountsMenuActions,
   type OxyAuthChooserHandlers,
-  type PasskeyMode,
   type SignInAlternatives,
 } from './authChooser/types';
 import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from '../hooks/accountDialogSnapshot';
@@ -103,7 +101,6 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
     logout,
     openAvatarPicker,
     user,
-    continueOnAuth,
   } = useOxy();
   const theme = useTheme();
   const { t } = useI18n();
@@ -112,23 +109,6 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   // SAME hook (and the same one builder) the auth.oxy.so chooser renders from,
   // so the two switchers cannot drift.
   const { principals } = useDeviceSwitcher();
-
-  // Sign-in happens in this dialog. On the web the passkey and account
-  // creation open auth.oxy.so's window for that one step (`continueOnAuth`):
-  // the passkey belongs to that origin. Native has no passkey path: Commons
-  // owns identity there ('none').
-  const passkeyMode = useMemo<PasskeyMode>(() => (isWebBrowser() ? 'hub' : 'none'), []);
-
-  /** auth.oxy.so's window; this surface closes once it signs the app in. */
-  const openOnOxy = useCallback(
-    (screen: OxyAuthScreen) => {
-      void continueOnAuth(screen).then((result) => {
-        if (result.status === 'signed-in') onComplete?.();
-        else if (result.status === 'failed') toast.error(t('signin.errors.failed'));
-      });
-    },
-    [continueOnAuth, onComplete, t],
-  );
 
   // Bind the headless controller. `getSnapshot` returns a stable reference
   // between changes, so it is `useSyncExternalStore`-safe. Guard the no-provider
@@ -366,15 +346,12 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   // surface and hides them behind "Having trouble?" (issue #691).
   const alternatives = useMemo<SignInAlternatives>(
     () => ({
-      passkeyAvailable: passkeyMode !== 'none',
-      // auth.oxy.so asserts the passkey, in its window.
-      onSignInWithPasskey: () => openOnOxy('signin'),
       onShowQr: () => void controller?.showQr(),
       onGetCommons: () => openExternal(getCommonsAcquisitionUrl(Platform.OS)),
-      // Web: the account is made on auth.oxy.so. Native: Commons makes it.
-      onCreateAccount: () => (passkeyMode === 'hub' ? openOnOxy('signup') : controller?.startSignup()),
+      // Made right here, on every platform: a username, an email and its code.
+      onCreateAccount: () => controller?.startSignup(),
     }),
-    [passkeyMode, controller, openExternal, openOnOxy],
+    [controller, openExternal],
   );
 
   // Real storage usage for the account menu's "Oxy storage" block. Disabled
@@ -461,7 +438,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   }
 
   if (view === 'signup') {
-    return <OxySignUpPanel onSignIn={() => controller.setView('signin')} onCreateOnWeb={() => openOnOxy('signup')} />;
+    return <OxySignUpPanel host="dialog" onSignedIn={() => onComplete?.()} onSignIn={() => controller.setView('signin')} />;
   }
 
   return (

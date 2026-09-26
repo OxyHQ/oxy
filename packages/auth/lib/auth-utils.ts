@@ -105,17 +105,7 @@ const REQUEST_QUERY_KEYS = [
     "user_code",
 ] as const
 
-/**
- * `pathname` carrying the request `search` describes, so moving between
- * `/login` and `/signup` never loses what the person came to finish.
- */
-export function withRequestQuery(pathname: string, search: URLSearchParams): string {
-    const params: Record<string, string | undefined> = {}
-    for (const key of REQUEST_QUERY_KEYS) params[key] = search.get(key) ?? undefined
-    return pathWithQuery(pathname, params)
-}
-
-/** Where a sign-in on `/login` or `/signup` continues to, read off that page's query. */
+/** Where a sign-in on `/login` continues to, read off that page's query. */
 export function postLoginRedirectFrom(search: URLSearchParams): string {
     const get = (key: string) => search.get(key) ?? undefined
     return buildPostLoginRedirect({

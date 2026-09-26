@@ -98,6 +98,12 @@ export const Linking = {
   getInitialURL: async (): Promise<string | null> => null,
 };
 
+/** The system clipboard (backup codes, app info). Tests spy on it. */
+export const Clipboard = {
+  setString: (_text: string): void => undefined,
+  getString: async (): Promise<string> => '',
+};
+
 export const TouchableOpacity = ({
   children,
   onPress,

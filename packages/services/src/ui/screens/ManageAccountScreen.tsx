@@ -14,7 +14,6 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
-    AUTH_WEB_ORIGIN,
     getAccountDisplayName,
     getAccountFallbackHandle,
     getNormalizedUserHandle,
@@ -323,12 +322,11 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
             );
             return;
         }
-        // Web: a passkey account confirms its deletion with its passkey, which
-        // only auth.oxy.so asserts — the deletion happens there, never on this page.
-        if (isWebBrowser()) {
-            await Linking.openURL(`${AUTH_WEB_ORIGIN}/delete-account`).catch(() => {
-                toast.error(t('accountSwitcher.linkOpenFailed'));
-            });
+        // An account without a key confirms its deletion with a code by email,
+        // right here; the panel also tells a keyed account on the web where its
+        // key is.
+        if (!user.publicKey || isWebBrowser()) {
+            navigate?.('DeleteAccount');
             return;
         }
         // Native: the deletion is signed with the identity key. When this app
@@ -353,7 +351,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
             await logout();
             onClose?.();
         }
-    }, [user, t, handleConfirmDelete, hasIdentity, logout, onClose]);
+    }, [user, t, handleConfirmDelete, hasIdentity, logout, onClose, navigate]);
 
     if (!isAuthenticated) {
         return (
@@ -598,6 +596,28 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
                         }
                         onPress={() => navigate?.('PrivacySettings')}
                     />
+                    {user && !user.publicKey ? (
+                        <>
+                            <SettingsListItem
+                                icon={<SettingsIcon name="key" color={bloomTheme.colors.primary} />}
+                                title={t('signInSecurity.password.title')}
+                                description={t('signInSecurity.password.row')}
+                                onPress={() => navigate?.('SignInPassword')}
+                            />
+                            <SettingsListItem
+                                icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
+                                title={t('signInSecurity.totp.title')}
+                                description={t('signInSecurity.totp.row')}
+                                onPress={() => navigate?.('SignInAuthenticator')}
+                            />
+                            <SettingsListItem
+                                icon={<SettingsIcon name="link" color={bloomTheme.colors.primary} />}
+                                title={t('linkCommons.title')}
+                                description={t('linkCommons.row')}
+                                onPress={() => navigate?.('LinkCommons')}
+                            />
+                        </>
+                    ) : null}
                     <SettingsListItem
                         icon={
                             <SettingsIcon

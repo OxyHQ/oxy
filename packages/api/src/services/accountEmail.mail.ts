@@ -39,7 +39,7 @@ export async function sendVerificationCode(to: string, code: string, purpose: Em
   const subject = purpose === 'signup' ? `${code} is your Oxy code` : `${code} is your Oxy recovery code`;
   const lead =
     purpose === 'signup'
-      ? 'Enter this code to confirm the recovery email of your new Oxy account:'
+      ? 'Enter this code to confirm the email of your new Oxy account:'
       : 'Enter this code to get back into your Oxy account and add a new passkey:';
   const tail = [
     'It expires in 10 minutes.',
@@ -57,10 +57,10 @@ export async function sendVerificationCode(to: string, code: string, purpose: Em
 
 /** Someone tried to create an account with an address that already has one. */
 export async function sendAccountExistsNotice(to: string): Promise<void> {
-  const recoverUrl = `${getAuthWebOrigin()}/recover`;
+  const signInUrl = `${getAuthWebOrigin()}/login`;
   const paragraphs = [
-    'Someone tried to create an Oxy account with this email, but it is already the recovery email of an account.',
-    `If it was you and you can't sign in, recover your account at ${recoverUrl}.`,
+    'Someone tried to create an Oxy account with this email, but an account already uses it.',
+    `If it was you, sign in with this email instead: we send you a code. ${signInUrl}`,
     "If it wasn't you, you can ignore this email.",
   ];
   await sendSystem({

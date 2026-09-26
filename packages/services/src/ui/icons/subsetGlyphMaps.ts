@@ -254,7 +254,6 @@ export const materialCommunityIconsGlyphMap = {
   "help-circle": 983767,
   "help-circle-outline": 984613,
   "history": 983770,
-  "hub": 990357,
   "image": 983785,
   "image-multiple-outline": 983791,
   "image-outline": 985462,

@@ -1,5 +1,24 @@
 # Changelog — `@oxy.so/core`
 
+## 2.2.0
+
+### Changed
+
+- Locales (all 11): the strings of the email sign-in dialog — `signin.identifier`,
+  `signin.checkEmail`, `signin.password`, `signin.secondFactor`, `signin.link`
+  (auth.oxy.so's `/email-signin`), new `signin.errors` —, account creation by
+  email (`signup`), `reauth`, `signInSecurity` (password, authenticator app,
+  backup codes) and `deleteAccount.keyless`; `linkCommons` no longer speaks of a
+  recovery email.
+
+### Removed
+
+- The passkey strings no longer used: `signin.username`, `signin.methods`,
+  `signin.recoverLink`, `signin.errors.passkey*`, `signup.passkey`,
+  `signup.webSubtitle`, `signup.createAccount`, `signup.commonsInstead`,
+  `recover`, `emailCode.sentIfAccount`, `deleteAccount.passkey`,
+  `accountSwitcher.useIdentityOnDevice`.
+
 ## 2.1.0
 
 Signing in without a passkey: an email code or link, an optional password, an

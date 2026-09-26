@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { LoginSessionResult } from '@oxy.so/contracts';
-import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode, OxyAuthScreen } from '@oxy.so/core';
+import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode } from '@oxy.so/core';
 import type { UseFollowHook } from '../hooks/useFollow.types';
 import type { useLanguageManagement } from '../hooks/useLanguageManagement';
 import type { RouteName } from '../navigation/routes';
@@ -74,41 +74,11 @@ export interface OxyContextState {
 
   signIn: (publicKey: string, deviceName?: string) => Promise<User>;
 
-  /**
-   * Sign in with a passkey (WebAuthn). With no `username` this is the
-   * usernameless / discoverable-credential flow: the browser prompts for any
-   * resident Oxy passkey. Pass `username` for the username-first flow — the
-   * server scopes `allowCredentials` to that user's passkeys so a
-   * NON-discoverable hardware key (e.g. a U2F/security key) can be used.
-   * WEB-ONLY — throws on native or an unsupported browser (native passkeys are
-   * Commons' job). On `useOxy()`, NOT re-exposed on `useAuth()`.
-   */
-  signInWithPasskey: (opts?: {
-    username?: string;
-    deviceName?: string;
-    deviceFingerprint?: string;
-  }) => Promise<void>;
-
-  /**
-   * Add a passkey to the already-signed-in account (bearer present). Does NOT
-   * commit a new session; refreshes the linked auth-methods list on success.
-   * WEB-ONLY — throws on native or an unsupported browser.
-   */
-  addPasskey: (params?: { deviceName?: string }) => Promise<void>;
-
-  /**
-   * Remove a passkey from the current account by its credential id
-   * (`AuthMethodEntry.credentialId`). Refreshes the linked auth-methods list on
-   * success. Works on any platform (it is a plain unlink, not a WebAuthn
-   * ceremony) but is only reachable from surfaces that list passkeys.
-   */
-  removePasskey: (credentialId: string) => Promise<void>;
-
   revokeSuspiciousSignIn: () => Promise<void>;
   /**
    * Commit a session a first-party sign-in minted on THIS origin — an OAuth
-   * code exchange, or a passkey registration on auth.oxy.so (sign-up,
-   * recovery) — as the active one.
+   * code exchange, an email code or link, a password, a sign-up — as the
+   * active one.
    */
   handleWebSession: (session: SessionLoginResponse | LoginSessionResult) => Promise<void>;
 
@@ -129,14 +99,6 @@ export interface OxyContextState {
    * resolve to `{ status: 'unsupported' }`.
    */
   startWebOAuthSignIn: (options: StartWebOAuthSignInOptions) => Promise<WebOAuthSignInResult>;
-
-  /**
-   * The passkey sign-in (`signin`), account creation (`signup`) or recovery
-   * (`recover`) in auth.oxy.so's window over the app — the one step the
-   * account dialog cannot run itself, since the passkey belongs to `oxy.so`.
-   * Web only; call it from the press, so the window opens with the gesture.
-   */
-  continueOnAuth: (screen: OxyAuthScreen) => Promise<WebOAuthSignInResult>;
 
   /**
    * Ask the already-authenticated user for explicit OAuth consent to exact

@@ -77,12 +77,10 @@ export const stubAuthScreens = {
             ),
             React.createElement("button", { type: "button", onClick: onUseAnother, disabled: isLoading }, "Use another account"),
         ),
-    OxySignInPanel: Null,
-    OxySignUpPanel: Null,
-    OxyCreateAccountPanel: Null,
-    OxyRecoverAccountPanel: Null,
-    OxyDeleteAccountPanel: Null,
-    OxyLinkCommonsPanel: Null,
+    OxySignInPanel: ({ onCreateAccount }: { onCreateAccount?: () => void }) =>
+        React.createElement("button", { type: "button", "data-testid": "stub-signin-panel", onClick: onCreateAccount }, "Sign in"),
+    OxySignUpPanel: ({ onSignIn }: { onSignIn?: () => void }) =>
+        React.createElement("button", { type: "button", "data-testid": "stub-signup-panel", onClick: onSignIn }, "Create your account"),
 }
 
 export function createServicesMock(

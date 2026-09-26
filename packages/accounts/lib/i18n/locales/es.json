@@ -127,7 +127,7 @@
       "needsAttention": "Requiere atención",
       "protected": "Protegida",
       "recovery": "Recuperación de la cuenta",
-      "recoveryEmail": "Email de recuperación: {{email}}"
+      "recoveryEmail": "Por correo: {{email}}"
     }
   },
   "security": {
@@ -166,7 +166,7 @@
       "suspiciousAlertTitle": "Eventos de seguridad críticos",
       "suspiciousAlertMessage": "Tienes {{count}} evento(s) de seguridad críticos. Revisa tu actividad de seguridad y considera cambiar tu contraseña o cerrar sesión en todos los dispositivos si detectas actividad sospechosa.",
       "linkCommons": "Vincula Commons",
-      "linkCommonsSubtitle": "Guarda tu propia clave: tu cuenta será solo tuya y tu frase de recuperación sustituirá al email de recuperación."
+      "linkCommonsSubtitle": "Ten tu propia clave: la cuenta pasa a ser solo tuya y tu frase de recuperación sustituye a su correo."
     },
     "activity": {
       "loading": "Cargando actividad de seguridad...",
@@ -197,21 +197,6 @@
       "publicKeyAuth": "Autenticación por clave pública",
       "publicKeyAuthSubtitle": "Tu cuenta usa claves criptográficas para iniciar sesión de forma segura"
     },
-    "passkeys": {
-      "unnamed": "Llave de acceso",
-      "addedOn": "Añadida el {{date}}",
-      "addTitle": "Añadir una llave de acceso",
-      "addSubtitle": "Inicia sesión con tu huella, tu cara o el PIN del dispositivo",
-      "addSuccess": "Llave de acceso añadida",
-      "addCancelled": "Configuración de la llave de acceso cancelada",
-      "addFailed": "No se pudo añadir la llave de acceso",
-      "removeA11yLabel": "Eliminar llave de acceso",
-      "removeConfirmTitle": "¿Eliminar esta llave de acceso?",
-      "removeConfirmMessage": "Ya no podrás iniciar sesión con esta llave de acceso. Asegúrate de tener otra forma de iniciar sesión.",
-      "removeAction": "Eliminar",
-      "removeSuccess": "Llave de acceso eliminada",
-      "removeFailed": "No se pudo eliminar la llave de acceso"
-    },
     "recoveryWarning": {
       "title": "Sin copia de la frase de recuperación",
       "subtitle": "Si no has anotado tu frase de recuperación de 12 palabras, no podrás restaurar tu cuenta en otro dispositivo. Crea una copia cifrada o anota tu frase ahora.",
@@ -241,6 +226,18 @@
       "modalTitle": "Elige un idioma",
       "modalSubtitle": "Selecciona el idioma preferido para esta app",
       "changed": "Idioma actualizado"
+    },
+    "signInMethods": {
+      "email": "Correo",
+      "emailSubtitle": "Un código o un enlace cada vez que entras",
+      "password": "Contraseña",
+      "passwordSet": "Puesta — toca para cambiarla",
+      "passwordNotSet": "Sin poner — opcional",
+      "authenticator": "App de autenticación",
+      "authenticatorOn": "Activada · quedan {{count}} códigos de respaldo",
+      "authenticatorOff": "Desactivada — añade un segundo paso al entrar",
+      "linkCommons": "Vincular Commons",
+      "linkCommonsSubtitle": "Ten tu propia clave: la cuenta pasa a ser solo tuya y se borra su correo"
     }
   },
   "data": {

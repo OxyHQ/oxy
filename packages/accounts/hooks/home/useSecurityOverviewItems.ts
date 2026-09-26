@@ -13,15 +13,15 @@ interface UseSecurityOverviewItemsArgs {
   biometricLoading: boolean;
   /** `GET /identity/root-status`, or `undefined` while unknown. */
   rootStatus: IdentityRootStatus | undefined;
-  /** Link Commons to this passkey account (auth.oxy.so/link-commons). */
+  /** Link Commons to this account (the SDK's `LinkCommons` panel). */
   handleLinkCommons: () => void;
   handleSecurity: HomeHandlers['handleSecurity'];
 }
 
 /**
  * Builds the security-overview rows on the home screen (biometric status, how
- * the account is recovered, overall security status). The recovery row of a
- * passkey account links Commons; every other row opens the security screen.
+ * the account is recovered, overall security status). The recovery row of an
+ * account without a key links Commons; every other row opens the security screen.
  * The biometric row is native-only.
  *
  * Extracted verbatim from the screen's inline `useMemo`.
@@ -66,8 +66,8 @@ export function useSecurityOverviewItems({
       });
     }
 
-    // How the account gets back in (ADR 0029 D3): Commons' recovery phrase for
-    // a self-custodied account, the recovery email for a passkey account.
+    // How the account gets back in: Commons' recovery phrase for a
+    // self-custodied account, its email (a code) for one without a key.
     // Unknown status shows no verdict.
     const recoveryNeedsAttention = rootStatus !== undefined && !rootStatus.rootLinked && !rootStatus.recoveryEmail;
     let recoverySubtitle = '';
@@ -81,7 +81,7 @@ export function useSecurityOverviewItems({
       iconColor: recoveryNeedsAttention ? colors.sidebarIconSecurity : colors.success,
       title: t('home.securityOverview.recovery'),
       subtitle: recoverySubtitle,
-      // A passkey account is one step from its own key.
+      // An account without a key is one step from its own key.
       onPress: rootStatus && !rootStatus.rootLinked ? handleLinkCommons : handleSecurity,
     });
 

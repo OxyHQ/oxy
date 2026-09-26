@@ -4,11 +4,6 @@
     "subtitle": "Verwende dein Oxy-Konto",
     "addAccountTitle": "Weiteres Konto hinzufügen",
     "addAccountSubtitle": "Mit einem anderen Konto anmelden",
-    "username": {
-      "label": "Benutzername",
-      "placeholder": "deinname",
-      "required": "Bitte geben Sie Ihren Benutzernamen ein."
-    },
     "actions": {
       "continue": "Fortfahren",
       "back": "Zurück"
@@ -23,16 +18,25 @@
       "caption": "Mit Commons scannen, um dich anzumelden",
       "renew": "Neuen Code anzeigen"
     },
-    "methods": {
-      "passkey": "Mit einem Passkey anmelden"
-    },
     "errors": {
       "rateLimited": "Zu viele Versuche. Versuche es in {{seconds}} s erneut.",
-      "passkeyCancelled": "Passkey-Abfrage geschlossen. Versuche es erneut, wenn du bereit bist.",
-      "passkeyFailed": "Der Passkey konnte nicht abgeschlossen werden. Bitte versuche es erneut."
+      "invalidCredentials": "Benutzername, E-Mail oder Passwort stimmen nicht.",
+      "codeInvalid": "Dieser Code stimmt nicht oder ist abgelaufen.",
+      "requestExpired": "Diese Anmeldung ist abgelaufen. Sende eine neue E-Mail.",
+      "secondFactorInvalid": "Dieser Code stimmt nicht. Versuch es mit dem aktuellen.",
+      "originNotAllowed": "Die Anmeldung ist hier nicht verfügbar.",
+      "generic": "Etwas ist schiefgelaufen. Bitte versuch es noch einmal.",
+      "notConfigured": "Anmeldung nicht verfügbar",
+      "notConfiguredDescription": "{{app}} ist noch nicht für die Anmeldung eingerichtet. Wende dich an die Entwickler der App.",
+      "failed": "Anmeldung konnte nicht gestartet werden",
+      "failedDescription": "Etwas ist schiefgelaufen. Bitte versuch es noch einmal."
     },
     "chooser": {
-      "subtitleToApp": "um mit {{app}} fortzufahren"
+      "subtitleToApp": "um mit {{app}} fortzufahren",
+      "title": "Konto auswählen",
+      "subtitle": "Fahre mit einem deiner Konten fort oder verwende ein anderes.",
+      "useAnother": "Anderes Konto verwenden",
+      "continueAs": "Weiter als {{name}}"
     },
     "terms": {
       "before": "Wenn du fortfährst, akzeptierst du unsere",
@@ -42,15 +46,52 @@
     },
     "noAccount": "Noch kein Konto?",
     "createAccount": "Konto erstellen",
-    "recoverLink": "Passkey verloren? Konto wiederherstellen"
+    "identifier": {
+      "label": "E-Mail oder Benutzername",
+      "placeholder": "du@beispiel.de",
+      "required": "Gib deine E-Mail-Adresse oder deinen Benutzernamen ein."
+    },
+    "checkEmail": {
+      "title": "Sieh in deine E-Mails",
+      "description": "Wenn es ein Konto zu {{identifier}} gibt, haben wir ihm einen Code und einen Anmeldelink geschickt.",
+      "codeLabel": "Code",
+      "codeHint": "Gib den Code aus der E-Mail ein oder öffne ihren Link in diesem Browser.",
+      "resend": "Neue E-Mail senden",
+      "resendIn": "Neue E-Mail senden in {{seconds}} s",
+      "resent": "Wir haben eine neue E-Mail geschickt.",
+      "retryLater": "Wir haben schon mehrere E-Mails geschickt. Warte ein paar Minuten und versuch es noch einmal.",
+      "usePassword": "Stattdessen dein Passwort verwenden",
+      "differentAccount": "Anderes Konto verwenden"
+    },
+    "password": {
+      "title": "Gib dein Passwort ein",
+      "label": "Passwort",
+      "required": "Gib dein Passwort ein.",
+      "forgot": "Vergessen? Code per E-Mail anfordern"
+    },
+    "secondFactor": {
+      "title": "Bestätigung in zwei Schritten",
+      "description": "Gib den Code aus deiner Authenticator-App ein.",
+      "backupDescription": "Gib einen deiner Backup-Codes ein. Jeder funktioniert nur einmal.",
+      "label": "Authenticator-Code",
+      "backupLabel": "Backup-Code",
+      "useBackup": "Backup-Code verwenden",
+      "useAuthenticator": "Authenticator-App verwenden"
+    },
+    "link": {
+      "approvedTitle": "Du bist angemeldet",
+      "approvedDescription": "Geh zurück zur App, in der du die Anmeldung angefordert hast: Sie macht von selbst weiter. Du kannst diesen Tab schließen.",
+      "otherDeviceTitle": "Öffne den Link im selben Browser",
+      "otherDeviceDescription": "Dieser Link funktioniert nur in dem Browser, in dem du die Anmeldung angefordert hast. Öffne ihn dort oder gib den Code aus der E-Mail in der App ein.",
+      "invalidTitle": "Dieser Link kann nicht verwendet werden",
+      "invalidDescription": "Er ist abgelaufen oder wurde schon verwendet. Fordere in der App eine neue E-Mail an oder gib den Code aus der neuesten ein."
+    }
   },
   "signup": {
-    "title": "Erstellen Sie Ihr Konto",
-    "subtitle": "Eine Identität für das gesamte Ökosystem.",
-    "createInCommons": "Erstellen Sie Ihre Identität in Commons",
-    "createAccount": "Konto erstellen",
-    "backToSignInLink": "Sie haben bereits ein Konto? Anmelden",
-    "webSubtitle": "Kein Passwort: Dein Gerät erstellt einen Passkey, und eine Wiederherstellungs-E-Mail bringt dich zurück, wenn du ihn verlierst.",
+    "title": "Erstelle dein Konto",
+    "subtitle": "Wähle deinen Benutzernamen. Danach bestätigen wir deine E-Mail.",
+    "createInCommons": "Stattdessen in Commons erstellen",
+    "backToSignInLink": "Du hast schon ein Konto? Anmelden",
     "username": {
       "label": "Benutzername",
       "placeholder": "deinname",
@@ -58,25 +99,20 @@
       "taken": "Dieser Benutzername ist vergeben."
     },
     "email": {
-      "title": "Deine Wiederherstellungs-E-Mail",
-      "subtitle": "Wenn du deinen Passkey verlierst, schicken wir dir hierhin einen Code, um wieder hineinzukommen. Sonst wird sie für nichts verwendet.",
+      "title": "Wie lautet deine E-Mail-Adresse?",
+      "subtitle": "Damit meldest du dich an: Wir schicken dir jedes Mal einen Code. Niemand sonst sieht sie.",
       "label": "E-Mail",
       "placeholder": "du@beispiel.de",
       "invalid": "Gib eine gültige E-Mail-Adresse ein."
     },
-    "passkey": {
-      "title": "Erstelle deinen Passkey",
-      "subtitle": "Damit meldest du dich an: Fingerabdruck, Gesicht oder Bildschirmsperre. Nichts zu merken.",
-      "action": "Passkey erstellen"
-    },
-    "commonsInstead": "Willst du deinen eigenen Schlüssel behalten? Nutze stattdessen Commons"
+    "commonsSubtitle": "Oder erstelle deine Identität in Commons und behalte deinen eigenen Schlüssel.",
+    "laterNote": "Ein Passwort oder eine Authenticator-App kannst du später in den Sicherheitseinstellungen deines Kontos hinzufügen."
   },
   "accountSwitcher": {
     "loading": "Konten werden geladen...",
     "qrHeadline": "Melden Sie sich mit Ihrer Oxy-Identität an",
     "signInWithOxy": "Mit Oxy anmelden",
     "signUpWithOxy": "Mit Oxy registrieren",
-    "useIdentityOnDevice": "Kein Commons? Verwenden Sie stattdessen einen Passkey auf diesem Gerät",
     "getCommons": "Commons herunterladen",
     "commonsNotInstalled": "Kein Commons? Holen Sie sich die App, um sich mit Ihrer Oxy-ID anzumelden.",
     "showQrAnyway": "Ich habe Commons auf einem anderen Gerät",
@@ -246,26 +282,9 @@
     "privacy": "Datenschutzerklärung",
     "terms": "Nutzungsbedingungen"
   },
-  "recover": {
-    "title": "Konto wiederherstellen",
-    "subtitle": "Gib deinen Benutzernamen oder deine Wiederherstellungs-E-Mail ein. Wir schicken einen Code an die Wiederherstellungs-E-Mail des Kontos.",
-    "identifier": {
-      "label": "Benutzername oder E-Mail",
-      "placeholder": "deinname",
-      "required": "Gib deinen Benutzernamen oder deine E-Mail ein."
-    },
-    "commonsNote": "Nutzt dein Konto Commons? Stelle es in Commons mit deiner Wiederherstellungsphrase wieder her.",
-    "passkey": {
-      "title": "Neuen Passkey hinzufügen",
-      "subtitle": "Für @{{username}}. Entferne verlorene Passkeys später in den Sicherheitseinstellungen deines Kontos.",
-      "action": "Passkey erstellen"
-    },
-    "backToSignIn": "Zurück zur Anmeldung"
-  },
   "emailCode": {
     "title": "Sieh in deine E-Mails",
     "sentTo": "Wir haben einen 6-stelligen Code an {{email}} geschickt.",
-    "sentIfAccount": "Wenn dieses Konto eine Wiederherstellungs-E-Mail hat, haben wir ihr einen 6-stelligen Code geschickt.",
     "label": "Code",
     "resend": "Neuen Code senden",
     "resent": "Wir haben einen neuen Code geschickt.",
@@ -279,17 +298,20 @@
     }
   },
   "deleteAccount": {
-    "passkey": {
-      "subtitle": "Bestätige mit deinem Passkey. @{{username}} und alles darin werden endgültig gelöscht.",
-      "action": "Mit Passkey löschen",
+    "keyless": {
+      "subtitle": "@{{username}} und alles darin werden endgültig gelöscht. Gib deinen Benutzernamen ein und bestätige mit einem Code, den wir dir per E-Mail schicken.",
+      "action": "Konto löschen",
       "done": "Dein Konto ist gelöscht.",
-      "closeWindow": "Du kannst dieses Fenster schließen.",
-      "commons": "Dieses Konto nutzt Commons: Lösche es in Oxy Commons unter Einstellungen > Konto löschen, mit seinem Schlüssel."
+      "doneDescription": "Du wurdest abgemeldet.",
+      "keyed": "Dieses Konto nutzt Commons: Lösche es in Oxy Commons unter Einstellungen > Konto löschen, mit seinem Schlüssel."
+    },
+    "handoff": {
+      "elsewhereMessage": "Zum Löschen deines Kontos brauchst du deinen Identitätsschlüssel, und der ist nicht auf diesem Gerät. Öffne Oxy Commons auf dem Gerät, auf dem er liegt, und geh zu Einstellungen > Konto löschen. Ein Konto ohne Schlüssel wird in seinen Einstellungen auf {{site}} gelöscht."
     }
   },
   "linkCommons": {
     "title": "Commons verknüpfen",
-    "subtitle": "Behalte deinen eigenen Schlüssel: Verknüpfe Commons, und dieses Konto gehört nur dir. Seine Wiederherstellungs-E-Mail wird gelöscht, und deine Wiederherstellungsphrase in Commons bringt dich zurück.",
+    "subtitle": "Behalte deinen eigenen Schlüssel: Verknüpfe Commons, und dieses Konto gehört nur dir. Seine E-Mail-Adresse wird gelöscht, und deine Wiederherstellungsphrase in Commons bringt dich zurück.",
     "scan": "Öffne Commons auf deinem Handy, wähle „Ich habe ein Oxy-Konto im Web“ und scanne diesen Code.",
     "waiting": "Warte auf Commons…",
     "compareTitle": "Prüfe den Code",
@@ -297,10 +319,67 @@
     "confirm": "Ja, Commons verknüpfen",
     "cancel": "Abbrechen",
     "doneTitle": "Commons ist verknüpft",
-    "done": "Dieses Konto ist jetzt selbstverwahrt. Seine Wiederherstellungs-E-Mail wurde gelöscht: Deine Wiederherstellungsphrase in Commons bringt dich zurück.",
+    "done": "Dieses Konto ist jetzt selbstverwahrt. Seine E-Mail-Adresse wurde gelöscht: Deine Wiederherstellungsphrase in Commons bringt dich zurück.",
     "already": "Dieses Konto nutzt bereits Commons.",
     "expired": "Dieser Code ist abgelaufen.",
     "renew": "Neuen Code anzeigen",
-    "failed": "Commons konnte nicht verknüpft werden. Versuch es noch einmal."
+    "failed": "Commons konnte nicht verknüpft werden. Versuch es noch einmal.",
+    "confirmTitle": "Verknüpfung bestätigen",
+    "confirmDescription": "Bestätige zum Abschluss mit einem Code, den wir dir per E-Mail schicken, dass du es bist.",
+    "row": "Behalte deinen eigenen Schlüssel mit Commons"
+  },
+  "reauth": {
+    "title": "Bestätige, dass du es bist",
+    "emailDescription": "Wir schicken einen Code an deine E-Mail-Adresse, um diese Änderung zu bestätigen.",
+    "sendCode": "Code senden",
+    "codeSent": "Wir haben einen 6-stelligen Code an deine E-Mail-Adresse geschickt.",
+    "codeLabel": "Code aus der E-Mail",
+    "passwordLabel": "Aktuelles Passwort",
+    "usePassword": "Stattdessen dein Passwort verwenden",
+    "useEmail": "Stattdessen Code per E-Mail erhalten",
+    "totpLabel": "Authenticator-Code oder Backup-Code",
+    "errors": {
+      "invalid": "Das hat nicht geklappt. Prüfe deine Eingabe und versuch es noch einmal.",
+      "totpRequired": "Gib auch den Code aus deiner Authenticator-App ein."
+    }
+  },
+  "signInSecurity": {
+    "password": {
+      "title": "Passwort",
+      "setTitle": "Passwort festlegen",
+      "changeTitle": "Passwort ändern",
+      "description": "Melde dich mit deinem Passwort statt mit einem Code per E-Mail an. Verwende mindestens {{min}} Zeichen.",
+      "newLabel": "Neues Passwort",
+      "repeatLabel": "Passwort wiederholen",
+      "tooShort": "Verwende mindestens {{min}} Zeichen.",
+      "mismatch": "Die Passwörter stimmen nicht überein.",
+      "signOutOthers": "Überall sonst abmelden",
+      "save": "Passwort speichern",
+      "saved": "Dein Passwort ist gespeichert.",
+      "row": "Optional: Mit Passwort anmelden"
+    },
+    "totp": {
+      "title": "Authenticator-App",
+      "description": "Nach deinem E-Mail-Code oder Passwort fragt Oxy zusätzlich nach einem Code aus einer App wie Google Authenticator oder 1Password.",
+      "setUp": "Einrichten",
+      "scan": "Scanne diesen QR-Code mit deiner Authenticator-App oder gib den Einrichtungsschlüssel ein.",
+      "secretLabel": "Einrichtungsschlüssel",
+      "codeLabel": "Code aus der App",
+      "enable": "Aktivieren",
+      "enabled": "Die Authenticator-App ist aktiviert.",
+      "disable": "Authenticator-App deaktivieren",
+      "disabled": "Die Authenticator-App ist deaktiviert.",
+      "on": "An",
+      "off": "Aus",
+      "backupTitle": "Speichere deine Backup-Codes",
+      "backupDescription": "Wenn du dein Handy verlierst, meldet dich jeder Code einmal an. Bewahre sie sicher auf: Sie werden nicht noch einmal angezeigt.",
+      "copy": "Codes kopieren",
+      "copied": "Backup-Codes kopiert.",
+      "savedThem": "Ich habe sie gespeichert",
+      "regenerate": "Neue Backup-Codes erhalten",
+      "regenerateDescription": "Deine alten Backup-Codes funktionieren dann nicht mehr.",
+      "remaining": "Noch {{count}} Backup-Codes übrig",
+      "row": "Ein zweiter Schritt bei der Anmeldung"
+    }
   }
 }

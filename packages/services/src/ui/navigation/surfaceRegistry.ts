@@ -76,6 +76,10 @@ export interface SurfaceRegistry {
   Notifications: SurfaceRoute;
   ConnectedApps: SurfaceRoute;
   Preferences: SurfaceRoute;
+  DeleteAccount: SurfaceRoute;
+  LinkCommons: SurfaceRoute;
+  SignInPassword: SurfaceRoute;
+  SignInAuthenticator: SurfaceRoute;
   /** Unified account switcher + sign-in surface (folded `OxyAccountDialogScreen` body). */
   AccountDialog: SurfaceRoute<{ initialView?: AccountDialogView }>;
 }

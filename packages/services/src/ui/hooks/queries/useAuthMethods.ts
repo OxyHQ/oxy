@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { AuthMethodEntry, AuthMethodsResponse } from '@oxy.so/contracts';
+import type { AuthMethodEntry, AuthMethodsResponse, SignInMethods } from '@oxy.so/contracts';
 import { queryKeys } from './queryKeys';
 import { useOxy } from '../../context/OxyContext';
 
@@ -8,13 +7,9 @@ import { useOxy } from '../../context/OxyContext';
 const EMPTY_METHODS: readonly AuthMethodEntry[] = Object.freeze([]);
 
 /**
- * The current account's linked authentication methods (`GET /auth/methods`),
- * plus convenience projections. Backs the security / account surfaces that let a
- * user see and manage their passwords, identity key, social logins, and passkeys.
- *
- * `passkeys` is the `type === 'webauthn'` subset — one entry per registered
- * credential. Invalidate via `queryKeys.authMethods.all` after linking a passkey
- * (`useOxy().addPasskey()` does this) or removing one.
+ * The current account's linked authentication methods (`GET /auth/methods`).
+ * Backs the security / account surfaces that let a user see their identity key
+ * and social logins.
  */
 export const useAuthMethods = (options?: { enabled?: boolean }) => {
   const { oxyServices, activeSessionId } = useOxy();
@@ -27,19 +22,27 @@ export const useAuthMethods = (options?: { enabled?: boolean }) => {
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  const methods = query.data?.methods ?? EMPTY_METHODS;
-  const passkeys = useMemo(
-    () => methods.filter((method) => method.type === 'webauthn'),
-    [methods],
-  );
-
   return {
     ...query,
     /** Every linked auth method. Empty while loading. */
-    methods,
-    /** The registered passkeys (a `type === 'webauthn'` subset of `methods`). */
-    passkeys,
+    methods: query.data?.methods ?? EMPTY_METHODS,
     /** The account's DID, or `null` while loading. */
     did: query.data?.did ?? null,
   };
+};
+
+/**
+ * How the signed-in account signs in (`GET /users/me/sign-in-methods`): whether
+ * it has an email, a password, an authenticator app, and how many backup codes
+ * are left. Invalidate `queryKeys.signInMethods.all` after changing any of them
+ * (the security panels do).
+ */
+export const useSignInMethods = (options?: { enabled?: boolean }) => {
+  const { oxyServices, activeSessionId, user } = useOxy();
+  return useQuery<SignInMethods>({
+    queryKey: queryKeys.signInMethods.current(user?.id),
+    queryFn: () => oxyServices.getSignInMethods(),
+    enabled: options?.enabled !== false && !!activeSessionId,
+    staleTime: 60 * 1000,
+  });
 };

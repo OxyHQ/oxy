@@ -24,7 +24,7 @@ export default function DataScreen() {
   const { t } = useTranslation();
 
   // OxyServices integration — auth is enforced by the `(tabs)` layout.
-  const { user, isLoading: oxyLoading, oxyServices } = useOxy();
+  const { user, isLoading: oxyLoading, oxyServices, showBottomSheet } = useOxy();
   const { data: privacySettings, isLoading: privacyLoading } = usePrivacySettings(user?.id, {
     enabled: !!user?.id,
   });
@@ -123,10 +123,16 @@ export default function DataScreen() {
     );
   }, [downloadFormat, t]);
 
-  // Handle delete account — deletion is key-gated (the API verifies a signature
-  // over the user's private key), and that key lives in the Commons app, never
-  // in this management-only app. Hand off to Commons via its deep link.
+  // Handle delete account. An account WITHOUT a key confirms with a code by
+  // email in the SDK's own panel. A keyed account's deletion is signed with its
+  // private key, which lives in the Commons app, never in this management-only
+  // app: hand off to Commons via its deep link.
   const handleDeleteAccount = useCallback(() => {
+    // An account without a key is deleted right here, with a code by email.
+    if (!user?.publicKey) {
+      showBottomSheet?.('DeleteAccount');
+      return;
+    }
     alert(
       t('data.deleteAccount.title'),
       t('data.deleteAccount.commonsMessage'),
@@ -148,7 +154,7 @@ export default function DataScreen() {
         },
       ],
     );
-  }, [t]);
+  }, [t, user?.publicKey, showBottomSheet]);
 
   // Data download section
   const dataDownloadItems = useMemo(() => [
