@@ -66,20 +66,29 @@ export const OxyAuthScreen: React.FC<{ children: React.ReactNode; className?: st
   <View className={`w-full max-w-[448px] self-center gap-6 ${className ?? ''}`}>{children}</View>
 );
 
-/** The split card: `children` on the left and, from `md`, `aside` on the right. */
-export const OxyAuthSplit: React.FC<{ children: React.ReactNode; aside: React.ReactNode }> = ({ children, aside }) => {
+/**
+ * The split card: `children` on the left and, from `md`, `aside` on the right.
+ * `bare` inside a surface that already is the card (the account dialog): no
+ * border of its own, and the right column is a rounded tile within the
+ * dialog's margins.
+ */
+export const OxyAuthSplit: React.FC<{ children: React.ReactNode; aside: React.ReactNode; bare?: boolean }> = ({
+  children,
+  aside,
+  bare = false,
+}) => {
   const theme = useTheme();
   return (
     <View
-      className="w-full self-center md:max-w-[880px] md:flex-row md:rounded-3xl md:border md:border-border md:bg-card md:overflow-hidden"
+      className={`w-full self-center md:max-w-[880px] md:flex-row ${bare ? 'md:gap-8' : 'md:rounded-3xl md:border md:border-border md:bg-card md:overflow-hidden'}`}
     >
       {/* Padding on an inner box: a padded flex item cannot shrink its base
           size below its padding, which breaks the two equal tracks. */}
       <View className="md:flex-1 md:basis-0 md:min-w-0">
-        <View className="md:p-8">{children}</View>
+        <View className={bare ? '' : 'md:p-8'}>{children}</View>
       </View>
       <View
-        className="hidden md:flex md:flex-1 md:basis-0 md:min-w-0 items-center justify-center overflow-hidden p-8"
+        className={`hidden md:flex md:flex-1 md:basis-0 md:min-w-0 items-center justify-center overflow-hidden p-8 ${bare ? 'rounded-[20px]' : ''}`}
         style={{ backgroundColor: theme.colors.backgroundSecondary }}
       >
         {aside}

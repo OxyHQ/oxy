@@ -1,5 +1,20 @@
 # Changelog
 
+## [6.2.0] - 2026-09-26
+
+### Changed
+
+- Sign-in happens in the account dialog again (ADR 0029 D1, amended): on the
+  web it is the split card — the Commons QR on the right ("Continue with Oxy"
+  below `md`), the passkey and "Create account" on the left — and only the
+  passkey and account creation open auth.oxy.so's window, for that one step.
+  6.0's dialog, which moved the whole screen into that window, is gone.
+
+### Added
+
+- `useSurfaceFrameWidth` and `OxyAuthSplit`'s `bare` are back: the dialog grows
+  to the 880 split card.
+
 ## [6.1.0] - 2026-09-26
 
 Requires `@oxy.so/core` `^1.18.0`.

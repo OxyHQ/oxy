@@ -1,34 +1,38 @@
 /**
  * Which sign-in methods a surface offers, from where it runs.
  *
- * One screen everywhere; only the transport behind each block changes:
+ * One screen everywhere, and sign-in happens IN it (ADR 0029 D1):
  *
- *  - auth.oxy.so (`page`) is where the web signs in: the embedded Commons QR
- *    (the split card's right column from `md`, "Continue with Oxy" below it),
- *    the username with its Continue, and the passkey — asserted right here,
- *    on the one origin every Oxy passkey belongs to;
- *  - an app's account dialog on the web (`dialog`) opens that screen in a
- *    window over the app ("Continue with Oxy"), like "Sign in with Google":
- *    the browser's session lives on auth.oxy.so, so every Oxy app shares it;
- *  - native signs in with Commons: "Continue with Oxy", or "Get Commons" on a
- *    device that has no Commons to continue with.
+ *  - the COMMONS way in — on the web the embedded QR (the split card's right
+ *    column from `md`, with "Continue with Oxy" below `md`, where the screen
+ *    is the phone that would scan it); on native "Continue with Oxy", and
+ *    "Get Commons" on a device that has no Commons to continue with;
+ *  - the PASSKEY — it belongs to `oxy.so`, so it runs right here on auth.oxy.so
+ *    (`page`: the username with its Continue, and the discoverable passkey), and
+ *    in an app's dialog on the web it opens auth.oxy.so's window for that one
+ *    step (with account creation); native has none, Commons holds the identity.
  */
 
 import type { CommonsAvailability } from '@oxy.so/core';
 
 /**
- * `qr`          — auth.oxy.so: the embedded QR from `md`, "Continue with Oxy" below.
- * `window`      — an app on the web: "Continue with Oxy" opens auth.oxy.so's window.
+ * `qr`          — the web: the embedded QR from `md`, "Continue with Oxy" below.
  * `continue`    — native "Continue with Oxy": Oxy picks the route (shared
  *                 keychain, Commons on this device, a push, or the QR view).
  * `get-commons` — native, and Commons is not installed here.
  */
-export type CommonsEntry = 'qr' | 'window' | 'continue' | 'get-commons';
+export type CommonsEntry = 'qr' | 'continue' | 'get-commons';
+
+/**
+ * `here`   — auth.oxy.so: the username and the passkey run on this page.
+ * `window` — an app's dialog on the web: the passkey opens auth.oxy.so's window.
+ * `none`   — native.
+ */
+export type PasskeyEntry = 'here' | 'window' | 'none';
 
 export interface SignInMethods {
   commons: CommonsEntry;
-  /** The username and passkey block: only on auth.oxy.so. */
-  passkey: boolean;
+  passkey: PasskeyEntry;
 }
 
 export interface SignInSurfaceFacts {
@@ -42,10 +46,10 @@ export interface SignInSurfaceFacts {
 
 export function resolveSignInMethods(facts: SignInSurfaceFacts): SignInMethods {
   if (facts.web) {
-    return facts.host === 'page' ? { commons: 'qr', passkey: true } : { commons: 'window', passkey: false };
+    return { commons: 'qr', passkey: facts.host === 'page' ? 'here' : 'window' };
   }
   return {
     commons: facts.commonsAvailability === 'unavailable' ? 'get-commons' : 'continue',
-    passkey: false,
+    passkey: 'none',
   };
 }

@@ -251,40 +251,45 @@ describe('on auth.oxy.so — the passkey runs right here', () => {
   });
 });
 
-describe("in an app's dialog on the web — auth.oxy.so's window", () => {
-  it('offers "Continue with Oxy" and account creation, and nothing that runs here', () => {
+describe("in an app's dialog on the web — sign-in happens here", () => {
+  it('shows the QR and "Continue with Oxy" here, and the passkey without a username', () => {
     renderPanel({ host: 'dialog' });
 
+    expect(screen.getByTestId('inline-commons-qr')).toBeTruthy();
     expect(screen.getByTestId('continue-with-oxy')).toBeTruthy();
+    expect(screen.getByTestId('passkey-sign-in')).toBeTruthy();
     expect(screen.getByTestId('create-account-link')).toBeTruthy();
     expect(screen.queryByTestId('username')).toBeNull();
-    expect(screen.queryByTestId('passkey-sign-in')).toBeNull();
-    expect(screen.queryByTestId('inline-commons-qr')).toBeNull();
-    expect(screen.queryByTestId('scan-qr')).toBeNull();
-    expect(screen.queryByText('or continue with')).toBeNull();
   });
 
-  it('signs in in the window and reports it', async () => {
-    continueOnAuth.mockResolvedValueOnce({ status: 'signed-in' } as never);
+  it('runs "Continue with Oxy" here, never in a window', () => {
     renderPanel({ host: 'dialog' });
     fireEvent.click(screen.getByTestId('continue-with-oxy'));
+
+    expect(controller.signInWithOxy).toHaveBeenCalledTimes(1);
+    expect(continueOnAuth).not.toHaveBeenCalled();
+  });
+
+  it("opens auth.oxy.so's window only for the passkey, and reports the sign-in", async () => {
+    continueOnAuth.mockResolvedValueOnce({ status: 'signed-in' } as never);
+    renderPanel({ host: 'dialog' });
+    fireEvent.click(screen.getByTestId('passkey-sign-in'));
 
     expect(continueOnAuth).toHaveBeenCalledWith('signin');
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
     expect(signInWithPasskey).not.toHaveBeenCalled();
-    expect(controller.signInWithOxy).not.toHaveBeenCalled();
   });
 
   it('says so when the window could not sign in, and stays', async () => {
     continueOnAuth.mockResolvedValueOnce({ status: 'failed', reason: 'idp-error' } as never);
     renderPanel({ host: 'dialog' });
-    fireEvent.click(screen.getByTestId('continue-with-oxy'));
+    fireEvent.click(screen.getByTestId('passkey-sign-in'));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 
-  it('has no recovery link of its own: recovery is in the window', () => {
+  it('has no recovery link of its own: recovery is on auth.oxy.so', () => {
     renderPanel({ host: 'dialog' });
     expect(screen.queryByTestId('recover-link')).toBeNull();
   });

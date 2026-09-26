@@ -785,10 +785,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     [webAuthMode, oxyServices, clientId, authorizeBaseUrl, isIdentityBound, user?.id],
   );
 
-  // On the web an Oxy app signs in and creates accounts in auth.oxy.so's
-  // window over the app, like "Sign in with Google": the passkey belongs to
-  // that origin, and the browser's session lives there, shared by every Oxy
-  // app. A blocked window falls back to the same page in this tab.
+  // What only auth.oxy.so can do for an Oxy app on the web — assert the
+  // `oxy.so` passkey, create or recover a passkey account — runs in its window
+  // over the app, for that one step. A blocked window falls back to the same
+  // page in this tab.
   const continueOnAuth = useCallback(
     (screen: OxyAuthScreen): Promise<WebOAuthSignInResult> =>
       startWebOAuthSignInForContext({

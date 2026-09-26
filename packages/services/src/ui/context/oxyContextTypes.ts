@@ -131,10 +131,10 @@ export interface OxyContextState {
   startWebOAuthSignIn: (options: StartWebOAuthSignInOptions) => Promise<WebOAuthSignInResult>;
 
   /**
-   * Sign in (`signin`), create an account (`signup`) or recover one
-   * (`recover`) in auth.oxy.so's window over the app, where the browser's
-   * shared Oxy session lives. Web only; call it from the press, so the window
-   * opens with the gesture.
+   * The passkey sign-in (`signin`), account creation (`signup`) or recovery
+   * (`recover`) in auth.oxy.so's window over the app — the one step the
+   * account dialog cannot run itself, since the passkey belongs to `oxy.so`.
+   * Web only; call it from the press, so the window opens with the gesture.
    */
   continueOnAuth: (screen: OxyAuthScreen) => Promise<WebOAuthSignInResult>;
 
