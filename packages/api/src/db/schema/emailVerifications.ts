@@ -2,8 +2,10 @@
  * `email_verifications` — a 6-digit code sent to a recovery email, and the
  * one-use ticket its confirmation mints (ADR 0029 D3).
  *
- * One row per code sent: a new passkey account proving its recovery email
- * (`signup`), or an account being recovered through it (`recovery`). A
+ * One row per code sent: a new account proving its email (`signup`), an
+ * account being recovered through it (`recovery`), signing in with it
+ * (`signin`, see `emailSignInRequests.ts`), or a signed-in person proving it
+ * is them before a sensitive step (`reauth`). A
  * `recovery` row that named no account — or an account with no recovery email —
  * is a decoy: its code was never sent, so it can never be confirmed, and the
  * caller cannot tell it from a real one.
@@ -32,8 +34,9 @@ export const emailVerifications = pgTable(
     /** `hashEmail` of the address the code went (or would have gone) to. */
     emailHash: text().notNull(),
     /**
-     * Recovery only: the account the code recovers. `null` for a sign-up and for
-     * a decoy. `CASCADE`: a deleted account has nothing left to recover.
+     * The account the code is for (recovery, sign-in, re-verification). `null`
+     * for a sign-up and for a decoy. `CASCADE`: a deleted account has nothing
+     * left to prove.
      */
     userId: text().references(() => users.id, { onDelete: 'cascade' }),
     /** HMAC-SHA256 (server salt) of the row id and the code. */
@@ -54,7 +57,7 @@ export const emailVerifications = pgTable(
     index('email_verifications_email_hash_created_at_idx').on(t.emailHash, t.createdAt),
     index('email_verifications_expires_at_idx').on(t.expiresAt),
     index('email_verifications_user_id_idx').on(t.userId),
-    check('email_verifications_purpose_check', sql`${t.purpose} in ('signup', 'recovery')`),
+    check('email_verifications_purpose_check', sql`${t.purpose} in ('signup', 'recovery', 'signin', 'reauth')`),
     check('email_verifications_ticket_check', sql`${t.ticketHash} is null or ${t.confirmedAt} is not null`),
     check('email_verifications_used_check', sql`${t.usedAt} is null or ${t.ticketHash} is not null`),
     check('email_verifications_attempts_check', sql`${t.attempts} >= 0`),

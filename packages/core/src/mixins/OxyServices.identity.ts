@@ -345,6 +345,30 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
       }
     }
 
+    /**
+     * Complete a link with a code just sent to the account's email
+     * (`requestReauthEmailCode`) — plus its authenticator code when it has one.
+     * The account gains Commons' root and loses its email; every other session
+     * of the account is signed out.
+     */
+    async completeIdentityLinkWithEmailCode(
+      linkId: string,
+      reauth: { emailCode: { verificationId: string; code: string }; totpCode?: string },
+    ): Promise<{ success: true }> {
+      try {
+        const result = await this.makeRequest<{ success: true }>(
+          'POST',
+          `/identity/link/${encodeURIComponent(linkId)}/complete`,
+          { reauth },
+          { cache: false },
+        );
+        this._invalidateIdentityCaches(this.getCurrentUserId());
+        return result;
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
     /** Withdraw a link request that has not completed. */
     async cancelIdentityLink(linkId: string): Promise<void> {
       try {

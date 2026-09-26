@@ -70,3 +70,89 @@ export async function sendAccountExistsNotice(to: string): Promise<void> {
     html: htmlPage(paragraphs),
   });
 }
+
+/**
+ * A sign-in email: the 6-digit code and a one-use link to auth.oxy.so, either
+ * of which signs the person in. The link's token travels in the URL FRAGMENT,
+ * which a browser never sends to a server or in a `Referer`, so it reaches only
+ * the auth.oxy.so page that reads it. Nothing about the account but its
+ * username is in the email.
+ */
+export async function sendSignInEmail(
+  to: string,
+  message: { code: string; linkToken: string; username: string | null },
+): Promise<void> {
+  const link = `${getAuthWebOrigin()}/email-signin#t=${encodeURIComponent(message.linkToken)}`;
+  const greeting = message.username ? `Hi @${message.username},` : 'Hi,';
+  const lead = 'Enter this code in the app to sign in to Oxy:';
+  const tail = [
+    `Or open this link in the same browser: ${link}`,
+    'The code expires in 10 minutes and the link in 15.',
+    "If you didn't ask to sign in, you can ignore this email: nobody gets into your account without the code or this link.",
+  ];
+  await sendSystem({
+    to,
+    subject: `${message.code} is your Oxy sign-in code`,
+    text: [greeting, '', lead, '', message.code, '', ...tail].join('\n'),
+    html: htmlPage([greeting, lead, ...tail], message.code).replace(
+      escapeHtml(link),
+      `<a href="${escapeHtml(link)}">${escapeHtml(link)}</a>`,
+    ),
+  });
+}
+
+/** A code a signed-in person enters to confirm a sensitive change. */
+export async function sendReauthCode(to: string, code: string, username: string | null): Promise<void> {
+  const greeting = username ? `Hi @${username},` : 'Hi,';
+  const lead = 'Enter this code to confirm the change to your Oxy account:';
+  const tail = [
+    'It expires in 10 minutes.',
+    "If you didn't ask for it, someone may be signed in to your account: sign out of every device from your account settings.",
+  ];
+  await sendSystem({
+    to,
+    subject: `${code} is your Oxy confirmation code`,
+    text: [greeting, '', lead, '', code, '', ...tail].join('\n'),
+    html: htmlPage([greeting, lead, ...tail], code),
+  });
+}
+
+export type SecurityNotice =
+  | 'password_set'
+  | 'password_changed'
+  | 'totp_enabled'
+  | 'totp_disabled'
+  | 'backup_codes_regenerated'
+  | 'commons_linked';
+
+const SECURITY_NOTICE_TEXT: Record<SecurityNotice, { subject: string; body: string }> = {
+  password_set: { subject: 'A password was added to your Oxy account', body: 'A password was just added to your Oxy account.' },
+  password_changed: { subject: 'Your Oxy password was changed', body: 'The password of your Oxy account was just changed.' },
+  totp_enabled: {
+    subject: 'An authenticator app was turned on',
+    body: 'An authenticator app was just turned on for your Oxy account. Signing in now also asks for its code.',
+  },
+  totp_disabled: {
+    subject: 'The authenticator app was turned off',
+    body: 'The authenticator app of your Oxy account was just turned off. Signing in no longer asks for its code.',
+  },
+  backup_codes_regenerated: {
+    subject: 'New backup codes for your Oxy account',
+    body: 'New backup codes were just created for your Oxy account. The old ones no longer work.',
+  },
+  commons_linked: {
+    subject: 'Your Oxy account is now linked to Commons',
+    body: 'Your Oxy account was just linked to Commons. From now on you sign in with Commons, and this email address is no longer part of the account.',
+  },
+};
+
+/** Tell the account's email that a security setting changed. Only the username is named. */
+export async function sendSecurityNotice(to: string, notice: SecurityNotice, username: string | null): Promise<void> {
+  const text = SECURITY_NOTICE_TEXT[notice];
+  const paragraphs = [
+    username ? `Hi @${username},` : 'Hi,',
+    text.body,
+    `If it wasn't you, sign in at ${getAuthWebOrigin()} and secure your account now.`,
+  ];
+  await sendSystem({ to, subject: text.subject, text: paragraphs.join('\n\n'), html: htmlPage(paragraphs) });
+}

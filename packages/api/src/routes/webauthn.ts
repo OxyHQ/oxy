@@ -74,12 +74,8 @@ import userCache from '../utils/userCache';
 import { isAuthWebOrigin, isOxyApexOrigin } from '../utils/origin';
 import { getWebauthnRpId } from '../config/env';
 import { normalizeUsername } from '../utils/username';
-import { buildSessionAuthResponse, sessionCreateOptionsFromBody } from '../controllers/session.controller';
-import sessionService from '../services/session.service';
-import { finalizeDeviceLogin } from '../services/deviceLogin.service';
-import { resolveProvenDeviceId } from '../services/deviceJoin.service';
+import { mintSignInSession } from '../services/signInSession.service';
 import securityActivityService from '../services/securityActivityService';
-import type { SessionAuthResponse } from '../types/session';
 
 const router = Router();
 
@@ -131,25 +127,6 @@ export interface WebauthnAccount {
 /** Managed accounts are operated only through the audited account-switch flow. */
 function isPersonalAccount(kind: string): boolean {
   return kind === 'personal';
-}
-
-/**
- * The `sessions` fields the mint tail reads, declared structurally.
- *
- * `session.service` returns a FLAT `sessions` row — `deviceName` / `deviceType`
- * / `platform` are columns, not a nested `deviceInfo` subdocument. Naming the
- * shape here rather than importing the service's row type states exactly what
- * this route depends on, and is what makes the flat read explicit at the
- * boundary instead of implied by a property access.
- */
-interface MintedSession {
-  sessionId: string;
-  deviceId: string;
-  expiresAt: Date;
-  accessToken?: string;
-  deviceName?: string | null;
-  deviceType?: string | null;
-  platform?: string | null;
 }
 
 /**
@@ -423,53 +400,7 @@ export async function mintWebauthnSession(
   account: WebauthnAccount,
   envelope: DeviceEnvelope,
 ): Promise<void> {
-  // A proven device is the browser's shared one: the new session joins it
-  // instead of getting a device of its own. The id is the server's own lookup
-  // of the presented secret, never a value read from the body.
-  const provenDeviceId = await resolveProvenDeviceId(envelope.device);
-  const session: MintedSession = await sessionService.createSession(account.id, req, {
-    ...sessionCreateOptionsFromBody(envelope),
-    ...(provenDeviceId ? { deviceId: provenDeviceId } : {}),
-  });
-
-  // `buildSessionAuthResponse` projects exactly `id`, `username` and `avatar`
-  // onto the wire, which is why those are the three columns selected above.
-  const baseResponse = buildSessionAuthResponse(session, {
-    _id: account.id,
-    username: account.username ?? undefined,
-    avatar: account.avatar ?? undefined,
-  });
-  if (!baseResponse) {
-    throw new InternalServerError('Failed to format user data');
-  }
-  const response: SessionAuthResponse & { deviceSecret?: string } = baseResponse;
-
-  const deviceExtras = await finalizeDeviceLogin({ session, userId: account.id });
-  if (deviceExtras.deviceSecret) {
-    response.deviceSecret = deviceExtras.deviceSecret;
-  }
-  const boundToken = await sessionService.getAccessToken(session.sessionId);
-  if (!boundToken) {
-    throw new InternalServerError('Failed to mint the bound access token');
-  }
-  response.accessToken = boundToken.accessToken;
-  response.expiresAt = boundToken.expiresAt.toISOString();
-
-  try {
-    await securityActivityService.logSignIn(account.id, req, session.deviceId, {
-      deviceName: envelope.deviceName || session.deviceName || undefined,
-      deviceType: session.deviceType ?? undefined,
-      platform: session.platform ?? undefined,
-    });
-  } catch (error) {
-    logger.error(
-      'Failed to log security event for webauthn sign-in',
-      error instanceof Error ? error : new Error(String(error)),
-      { component: 'webauthn', method: 'mintWebauthnSession', userId: account.id },
-    );
-  }
-
-  res.json(response);
+  res.json(await mintSignInSession(req, account, envelope));
 }
 
 /**

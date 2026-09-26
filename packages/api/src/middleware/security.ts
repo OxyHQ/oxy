@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import slowDown from "express-slow-down";
-import { type Request, Response, NextFunction } from "express";
+import { type Request } from "express";
 import helmet from "helmet";
 import { RedisStore } from "rate-limit-redis";
 import type { RedisReply } from "rate-limit-redis";
@@ -369,8 +369,13 @@ const authRateLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: hashedIpKey,
   // Mounted under `/auth`, so the mount point is in `baseUrl`, not `path`.
+  // The email sign-in dialog polls `collect` every few seconds for the link's
+  // 15 minutes; that route carries its own hashed-IP limiter
+  // (`routes/signIn.ts`), so it is not charged here as well.
   skip: (req: Request) =>
-    req.path.startsWith('/files/upload') || isServiceTokenMintPath(`${req.baseUrl}${req.path}`),
+    req.path.startsWith('/files/upload') ||
+    isServiceTokenMintPath(`${req.baseUrl}${req.path}`) ||
+    `${req.baseUrl}${req.path}` === '/auth/signin/email/collect',
 });
 
 /**

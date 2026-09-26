@@ -31,6 +31,13 @@ jest.mock('../../utils/userCache', () => ({
   __esModule: true,
   default: { invalidate: jest.fn() },
 }));
+const mockSendReauthCode = jest.fn();
+const mockSendSecurityNotice = jest.fn();
+jest.mock('../../services/accountEmail.mail', () => ({
+  sendReauthCode: (...args: unknown[]) => mockSendReauthCode(...args),
+  sendSecurityNotice: (...args: unknown[]) => mockSendSecurityNotice(...args),
+}));
+jest.mock('../../config/email.config', () => ({ SMTP_RELAYS: [{ name: 'test-relay' }] }));
 jest.mock('@simplewebauthn/server', () => ({
   ...jest.requireActual('@simplewebauthn/server'),
   verifyAuthenticationResponse: (...args: unknown[]) => mockVerifyAuthentication(...args),
@@ -46,6 +53,9 @@ import { users } from '../../db/schema/users';
 import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
 import { errorHandler } from '../../middleware/errorHandler';
 import identityLinkRouter from '../identityLink';
+import { userTotp } from '../../db/schema/userTotp';
+import { startReauthEmail } from '../../services/reauth.service';
+import { resetOriginRegistryForTests, setOriginSnapshotForTests } from '../../config/dynamicOriginRegistry';
 
 const AUTH_ORIGIN = 'https://auth.oxy.so';
 
@@ -79,6 +89,8 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
+  mockSendReauthCode.mockReset().mockResolvedValue(undefined);
+  mockSendSecurityNotice.mockReset().mockResolvedValue(undefined);
   mockVerifyAuthentication.mockReset();
   mockVerifyAuthentication.mockResolvedValue({ verified: true, authenticationInfo: { newCounter: 1, userVerified: true } });
 });
@@ -254,14 +266,20 @@ describe('linking Commons from two devices', () => {
     expect((await call('GET', `/${later.linkId}`, undefined, null)).status).toBe(404);
   });
 
-  it('opens a request only on auth.oxy.so, for a passkey account without a root', async () => {
+  it('opens a request only from an official app, for an account without a root that can confirm it', async () => {
     const account = await passkeyAccount();
-    expect((await call('POST', '/', undefined, 'https://mention.oxy.so')).status).toBe(403);
+    expect((await call('POST', '/', undefined, 'https://third-party.example')).status).toBe(403);
 
     await getDb().update(users).set({ publicKey: commonsKey().publicKey }).where(eq(users.id, account.id));
     expect((await call('POST', '/')).status).toBe(409);
 
-    const [bare] = await getDb().insert(users).values({ email: `bare-${randomUUID()}@example.test` }).returning({ id: users.id });
+    // An email is enough to confirm with…
+    const [emailOnly] = await getDb().insert(users).values({ email: `bare-${randomUUID()}@example.test` }).returning({ id: users.id });
+    currentUserId = emailOnly.id;
+    expect((await call('POST', '/')).status).toBe(200);
+
+    // …but with neither an email nor a passkey there is nothing to confirm with.
+    const [bare] = await getDb().insert(users).values({ username: `bare${randomUUID().slice(0, 8)}` }).returning({ id: users.id });
     currentUserId = bare.id;
     expect((await call('POST', '/')).status).toBe(401);
   });
@@ -271,5 +289,85 @@ describe('linking Commons from two devices', () => {
     const first = await open();
     await open();
     expect((await call('GET', `/${first.linkId}`, undefined, null)).body.status).toBe('cancelled');
+  });
+
+  describe('confirmed with a code sent to the email', () => {
+    async function reauthCode(userId: string) {
+      mockSendReauthCode.mockClear();
+      const { verificationId } = await startReauthEmail(userId);
+      const code = mockSendReauthCode.mock.calls[0][1] as string;
+      return { verificationId, code };
+    }
+
+    async function signedLink() {
+      const account = await passkeyAccount();
+      const link = await open();
+      const { key, body } = await commonsProof(link.linkId, link.challenge);
+      expect((await call('POST', `/${link.linkId}/proof`, body, null)).status).toBe(200);
+      return { account, link, key };
+    }
+
+    it('links from any official app with the email code, deletes the email and tells it so', async () => {
+      const { account, link, key } = await signedLink();
+      const emailCode = await reauthCode(account.id);
+
+      const done = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } }, 'http://localhost:8081');
+      expect(done).toEqual({ status: 200, body: { success: true } });
+      expect(await storedUser(account.id)).toEqual({ publicKey: key.publicKey, email: null });
+      expect(mockSendSecurityNotice).toHaveBeenCalledWith(account.email, 'commons_linked', account.username);
+    });
+
+    it('links nothing on a wrong code, and a spent code does not work twice', async () => {
+      const { account, link } = await signedLink();
+      const emailCode = await reauthCode(account.id);
+      const wrong = emailCode.code === '000000' ? '111111' : '000000';
+
+      const refused = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: { ...emailCode, code: wrong } } });
+      expect(refused.status).toBe(401);
+      expect(refused.body.error).toBe('EMAIL_CODE_INVALID');
+      expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
+
+      // The request stays signed; the right code links once.
+      expect((await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } })).status).toBe(200);
+      const again = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } });
+      expect(again.status).toBe(404);
+    });
+
+    it('refuses a code sent to another account', async () => {
+      const { account, link } = await signedLink();
+      const other = await passkeyAccount();
+      const othersCode = await reauthCode(other.id);
+      currentUserId = account.id;
+      const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: othersCode } });
+      expect(res.status).toBe(401);
+      expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
+    });
+
+    it('asks for the authenticator code too when the account has one', async () => {
+      const { account, link } = await signedLink();
+      await getDb().insert(userTotp).values({ userId: account.id, secretCiphertext: 'v1.x.x.x', enabledAt: new Date() });
+      const emailCode = await reauthCode(account.id);
+      const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } });
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('TOTP_REQUIRED');
+      expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
+    });
+
+    it('takes a passkey assertion only from auth.oxy.so, not from another official app', async () => {
+      const { account, link } = await signedLink();
+      setOriginSnapshotForTests(['https://mention.earth'], []);
+      try {
+        const res = await call(
+          'POST',
+          `/${link.linkId}/complete`,
+          { assertion: assertion(account.credentialId, link.challenge) },
+          'https://mention.earth',
+        );
+        expect(res.status).toBe(403);
+        expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
+      } finally {
+        resetOriginRegistryForTests();
+      }
+    });
   });
 });

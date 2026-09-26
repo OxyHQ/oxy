@@ -34,6 +34,7 @@ jest.mock('../../middleware/rateLimiter', () => ({
 
 import { emailTicketSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { resetOriginRegistryForTests, setOriginSnapshotForTests } from '../../config/dynamicOriginRegistry';
 import { emailVerifications } from '../../db/schema/emailVerifications';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -253,13 +254,24 @@ describe('recovery', () => {
 });
 
 describe('the gate', () => {
-  it.each([
-    ['no browser origin', null],
-    ['another Oxy app', 'https://mention.oxy.so'],
-  ])('refuses %s: accounts are created and recovered on auth.oxy.so', async (_label, origin) => {
-    const res = await post('/verify/start', { purpose: 'signup', email: freshEmail() }, origin);
-    expect(res.status).toBe(403);
+  afterEach(() => resetOriginRegistryForTests());
+
+  it('refuses a site that is not an official Oxy app', async () => {
+    setOriginSnapshotForTests(['https://mention.earth'], ['https://third-party.example']);
+    for (const origin of ['https://third-party.example', 'https://evil.example']) {
+      const res = await post('/verify/start', { purpose: 'signup', email: freshEmail() }, origin);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('SIGNIN_ORIGIN_NOT_ALLOWED');
+    }
     expect(mockSendCode).not.toHaveBeenCalled();
+  });
+
+  it('accepts an official app, auth.oxy.so, and a native app (no browser origin)', async () => {
+    setOriginSnapshotForTests(['https://mention.earth'], []);
+    for (const origin of ['https://mention.earth', AUTH_ORIGIN, null]) {
+      const res = await post('/verify/start', { purpose: 'signup', email: freshEmail() }, origin);
+      expect(res.status).toBe(200);
+    }
   });
 
   it('answers 503 when this server cannot send mail, before anything is recorded', async () => {

@@ -37,6 +37,7 @@ import { resolveUserIdToObjectId, isAccountIdFormat } from '../utils/validation'
 import userCache from '../utils/userCache';
 import SignatureService from '../services/signature.service';
 import { accountPasskeyAssertionOptions, verifyAccountPasskeyAssertion } from '../services/accountPasskeyAssertion.service';
+import { verifyEmailReauth } from '../services/reauth.service';
 import { emailService } from '../services/email.service';
 import {
   archiveAccountForRetention,
@@ -1392,7 +1393,9 @@ router.get(
  *       is them at the time of deletion with the account's own factor: an
  *       account with a Commons key signs `delete:{publicKey}:{timestamp}`
  *       with it (see `KeyManager.sign` in `@oxy.so/core`), rejected if older
- *       than 5 minutes; a passkey account sends an `assertion` by one of its
+ *       than 5 minutes; an account without a key sends `reauth` — the code
+ *       `POST /users/me/reauth/email` just sent to its email, plus its
+ *       authenticator code when it has one — or an `assertion` by one of its
  *       passkeys, made on auth.oxy.so over the challenge of
  *       `POST /users/me/delete/options`. Either way the confirmation text
  *       must match the account's username.
@@ -1411,6 +1414,9 @@ router.get(
  *             required:
  *               - confirmText
  *             properties:
+ *               reauth:
+ *                 type: object
+ *                 description: "An account without a key: the email code `POST /users/me/reauth/email` sent (emailCode.verificationId, emailCode.code), plus totpCode when the account has an authenticator."
  *               assertion:
  *                 type: object
  *                 description: A passkey account's WebAuthn assertion over the `POST /users/me/delete/options` challenge.
@@ -1495,7 +1501,7 @@ router.delete(
       throw new UnauthorizedError('Authentication required');
     }
 
-    const { signature, timestamp, assertion, confirmText } = req.body as DeleteAccountBody;
+    const { signature, timestamp, assertion, reauth, confirmText } = req.body as DeleteAccountBody;
 
     const [user] = await getDb()
       .select({ publicKey: users.publicKey, username: users.username })
@@ -1527,11 +1533,15 @@ router.delete(
       if (!isValidSignature) {
         throw new UnauthorizedError('Invalid signature');
       }
+    } else if (reauth) {
+      // An account without a key: a code just sent to its email, plus its
+      // authenticator code when it has one (`reauth.service.ts`).
+      await verifyEmailReauth(userId, reauth);
     } else {
       // A passkey account (ADR 0029 D3): a fresh assertion by one of its
       // passkeys, on auth.oxy.so, over a challenge minted for this account.
       if (!assertion) {
-        throw new BadRequestError('Confirm the deletion with your passkey');
+        throw new BadRequestError('Confirm the deletion with a code sent to your email');
       }
       await verifyAccountPasskeyAssertion(userId, assertion);
     }

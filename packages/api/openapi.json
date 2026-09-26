@@ -17774,75 +17774,118 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "assertion": {
+                "oneOf": [
+                  {
                     "type": "object",
                     "properties": {
-                      "id": {
-                        "type": "string",
-                        "pattern": "^[A-Za-z0-9_-]+$",
-                        "minLength": 16,
-                        "maxLength": 1024
-                      },
-                      "rawId": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 2048
-                      },
-                      "type": {
-                        "type": "string",
-                        "enum": [
-                          "public-key"
-                        ]
-                      },
-                      "response": {
+                      "reauth": {
                         "type": "object",
                         "properties": {
-                          "clientDataJSON": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 8192
+                          "emailCode": {
+                            "type": "object",
+                            "properties": {
+                              "verificationId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "code": {
+                                "type": "string",
+                                "pattern": "^\\d{6}$"
+                              }
+                            },
+                            "required": [
+                              "verificationId",
+                              "code"
+                            ]
                           },
-                          "authenticatorData": {
+                          "totpCode": {
                             "type": "string",
-                            "minLength": 1,
-                            "maxLength": 8192
-                          },
-                          "signature": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 2048
-                          },
-                          "userHandle": {
-                            "type": "string",
-                            "maxLength": 2048
+                            "minLength": 6,
+                            "maxLength": 16
                           }
                         },
                         "required": [
-                          "clientDataJSON",
-                          "authenticatorData",
-                          "signature"
+                          "emailCode"
                         ]
-                      },
-                      "clientExtensionResults": {
-                        "type": "object",
-                        "additionalProperties": {}
-                      },
-                      "authenticatorAttachment": {
-                        "type": "string"
                       }
                     },
                     "required": [
-                      "id",
-                      "rawId",
-                      "type",
-                      "response"
+                      "reauth"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "assertion": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]+$",
+                            "minLength": 16,
+                            "maxLength": 1024
+                          },
+                          "rawId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "public-key"
+                            ]
+                          },
+                          "response": {
+                            "type": "object",
+                            "properties": {
+                              "clientDataJSON": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 8192
+                              },
+                              "authenticatorData": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 8192
+                              },
+                              "signature": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2048
+                              },
+                              "userHandle": {
+                                "type": "string",
+                                "maxLength": 2048
+                              }
+                            },
+                            "required": [
+                              "clientDataJSON",
+                              "authenticatorData",
+                              "signature"
+                            ]
+                          },
+                          "clientExtensionResults": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          },
+                          "authenticatorAttachment": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "rawId",
+                          "type",
+                          "response"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "assertion"
                     ]
                   }
-                },
-                "required": [
-                  "assertion"
                 ]
               }
             }
@@ -35067,7 +35110,7 @@
           "Users"
         ],
         "summary": "Permanently delete the current account",
-        "description": "Hard-delete the authenticated user's account. The person proves it is them at the time of deletion with the account's own factor: an account with a Commons key signs `delete:{publicKey}:{timestamp}` with it (see `KeyManager.sign` in `@oxy.so/core`), rejected if older than 5 minutes; a passkey account sends an `assertion` by one of its passkeys, made on auth.oxy.so over the challenge of `POST /users/me/delete/options`. Either way the confirmation text must match the account's username.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user, and records an `account.deleted` event that tells every relying application to erase what it holds for this account (pushed as a signed webhook and served from `/internal/account-events`; see docs/identity/account-events.md).\n",
+        "description": "Hard-delete the authenticated user's account. The person proves it is them at the time of deletion with the account's own factor: an account with a Commons key signs `delete:{publicKey}:{timestamp}` with it (see `KeyManager.sign` in `@oxy.so/core`), rejected if older than 5 minutes; an account without a key sends `reauth` — the code `POST /users/me/reauth/email` just sent to its email, plus its authenticator code when it has one — or an `assertion` by one of its passkeys, made on auth.oxy.so over the challenge of `POST /users/me/delete/options`. Either way the confirmation text must match the account's username.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user, and records an `account.deleted` event that tells every relying application to erase what it holds for this account (pushed as a signed webhook and served from `/internal/account-events`; see docs/identity/account-events.md).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -35078,6 +35121,10 @@
                   "confirmText"
                 ],
                 "properties": {
+                  "reauth": {
+                    "type": "object",
+                    "description": "An account without a key: the email code `POST /users/me/reauth/email` sent (emailCode.verificationId, emailCode.code), plus totpCode when the account has an authenticator."
+                  },
                   "assertion": {
                     "type": "object",
                     "description": "A passkey account's WebAuthn assertion over the `POST /users/me/delete/options` challenge."

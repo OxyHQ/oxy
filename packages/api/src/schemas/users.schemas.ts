@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { webauthnAssertionResponseSchema } from '@oxy.so/contracts';
+import { emailReauthProofSchema, webauthnAssertionResponseSchema } from '@oxy.so/contracts';
 import { privacySettingsSchema } from './privacy.schemas';
 
 // Shared params for routes with :userId
@@ -36,6 +36,8 @@ export const deleteAccountSchema = z.object({
   signature: z.string().trim().min(1).optional(),
   timestamp: z.number().optional(),
   assertion: webauthnAssertionResponseSchema.optional(),
+  /** An account without a key: a code just sent to its email (+ its authenticator code). */
+  reauth: emailReauthProofSchema.optional(),
   confirmText: z.string().trim().min(1),
 });
 export type DeleteAccountBody = z.infer<typeof deleteAccountSchema>;

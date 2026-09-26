@@ -786,6 +786,24 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
     }
 
     /**
+     * Delete an account WITHOUT a key permanently, confirmed with a code just
+     * sent to its email (`requestReauthEmailCode`) — plus its authenticator
+     * code when it has one.
+     *
+     * @param confirmText - Must equal the user's username (verified server-side)
+     */
+    async deleteAccountWithEmailCode(
+      confirmText: string,
+      reauth: { emailCode: { verificationId: string; code: string }; totpCode?: string },
+    ): Promise<{ message: string }> {
+      try {
+        return await this.makeRequest<{ message: string }>('DELETE', '/users/me', { confirmText, reauth }, { cache: false });
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
      * Invalidate every cached read a follow/unfollow write invalidates.
      *
      * Shared by the four mutation entry points (`followUser`, `unfollowUser`,

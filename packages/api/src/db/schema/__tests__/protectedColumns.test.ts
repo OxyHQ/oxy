@@ -159,6 +159,27 @@ describe('protected columns — the registry', () => {
   });
 });
 
+describe('protected columns — sign-in secrets', () => {
+  /**
+   * Written out, not derived: every column that holds a sign-in credential or
+   * what one is checked against. Dropping one from the registry fails here.
+   */
+  const SIGN_IN_SECRETS = {
+    user_passwords: ['passwordHash'],
+    user_totp: ['secretCiphertext'],
+    user_totp_backup_codes: ['codeHash'],
+    email_signin_requests: ['linkTokenHash', 'requestSecretHash'],
+    signin_second_factor_challenges: ['challengeHash'],
+  } as const;
+
+  it.each(Object.entries(SIGN_IN_SECRETS))('protects %s', (tableName, columns) => {
+    const registered = PROTECTED_COLUMNS_BY_TABLE[tableName as keyof typeof PROTECTED_COLUMNS_BY_TABLE];
+    expect([...registered].sort()).toEqual([...columns].sort());
+    const reasoned = PROTECTED_COLUMNS.filter((entry) => getTableName(entry.table) === tableName).map((entry) => entry.column.name);
+    expect(reasoned.sort()).toEqual([...columns].sort());
+  });
+});
+
 describe('protected columns — publicColumns()', () => {
   it('withholds every protected column', () => {
     const selectable = Object.keys(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE));

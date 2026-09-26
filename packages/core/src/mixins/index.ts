@@ -7,6 +7,7 @@
 
 import { OxyServicesBase } from '../OxyServices.base';
 import { OxyServicesAuthMixin } from './OxyServices.auth';
+import { OxyServicesSignInMixin } from './OxyServices.signIn';
 import { OxyServicesUserMixin } from './OxyServices.user';
 import { OxyServicesIdentityMixin } from './OxyServices.identity';
 import { OxyServicesIdentityBackupMixin } from './OxyServices.identityBackup';
@@ -48,6 +49,7 @@ import { OxyServicesLinkedAccountsMixin } from './OxyServices.linkedAccounts';
  */
 type AllMixinInstances =
   & InstanceType<ReturnType<typeof OxyServicesAuthMixin<typeof OxyServicesBase>>>
+  & InstanceType<ReturnType<typeof OxyServicesSignInMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesUserMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesIdentityMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesIdentityBackupMixin<typeof OxyServicesBase>>>
@@ -107,6 +109,8 @@ type MixinFunction = (Base: new (...args: unknown[]) => OxyServicesBase) => new 
 const MIXIN_PIPELINE: MixinFunction[] = [
     // Base authentication
     OxyServicesAuthMixin,
+    // Email, password, authenticator and sign-up (no passkey)
+    OxyServicesSignInMixin,
 
     // User management (requires auth)
     OxyServicesUserMixin,

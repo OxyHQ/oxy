@@ -18,7 +18,7 @@
  * stored as its SHA-256, that registration spends in its own transaction.
  */
 import crypto from 'node:crypto';
-import { and, count, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, count, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import {
   EMAIL_CODE_LENGTH,
   EMAIL_CODE_MAX_ATTEMPTS,
@@ -128,43 +128,115 @@ function dispatch(delivery: Delivery, code: string): void {
   });
 }
 
-export async function startEmailVerification(
-  request: EmailVerificationStartRequest,
-  now: Date = new Date(),
-): Promise<EmailVerificationStartResponse> {
+/** 503 when this server has no relay to send mail through. */
+export function assertMailConfigured(): void {
   if (SMTP_RELAYS.length === 0) {
     throw new ApiError(503, 'Oxy cannot send email right now. Try again later.', EMAIL_VERIFICATION_ERROR_CODES.unavailable);
   }
-  const delivery = await resolveDelivery(request);
-  const db = getDb();
+}
 
+/** 429 when {@link EMAIL_SENDS_PER_HOUR} codes already went to (or were asked for) `emailHash`. */
+export async function assertEmailSendBudget(db: DatabaseOrTransaction, emailHash: string, now: Date): Promise<void> {
   const [recent] = await db
     .select({ value: count() })
     .from(emailVerifications)
     .where(
       and(
-        eq(emailVerifications.emailHash, delivery.emailHash),
+        eq(emailVerifications.emailHash, emailHash),
         gt(emailVerifications.createdAt, new Date(now.getTime() - 60 * 60 * 1000)),
       ),
     );
   if ((recent?.value ?? 0) >= EMAIL_SENDS_PER_HOUR) {
     throw new ApiError(429, 'Too many codes for this email. Try again in an hour.', 'RATE_LIMITED');
   }
+}
 
-  // A decoy's code is generated and hashed like a real one, and never sent.
+/**
+ * Record one `email_verifications` row and return its (unsent) code. A decoy
+ * is recorded exactly like a real one; only the caller decides whether the
+ * code is ever mailed.
+ */
+export async function recordVerification(
+  db: DatabaseOrTransaction,
+  row: { purpose: EmailVerificationPurpose; emailHash: string; userId: string | null },
+  now: Date,
+): Promise<{ verificationId: string; code: string; expiresAt: Date }> {
   const code = newCode();
   const verificationId = crypto.randomUUID();
   const expiresAt = new Date(now.getTime() + EMAIL_CODE_TTL_MS);
   await db.insert(emailVerifications).values({
     id: verificationId,
-    purpose: delivery.purpose,
-    emailHash: delivery.emailHash,
-    userId: delivery.userId,
+    purpose: row.purpose,
+    emailHash: row.emailHash,
+    userId: row.userId,
     codeHash: hashCode(verificationId, code),
     expiresAt,
   });
+  return { verificationId, code, expiresAt };
+}
+
+export async function startEmailVerification(
+  request: EmailVerificationStartRequest,
+  now: Date = new Date(),
+): Promise<EmailVerificationStartResponse> {
+  assertMailConfigured();
+  const delivery = await resolveDelivery(request);
+  const db = getDb();
+  await assertEmailSendBudget(db, delivery.emailHash, now);
+
+  // A decoy's code is generated and hashed like a real one, and never sent.
+  const { verificationId, code, expiresAt } = await recordVerification(db, delivery, now);
   dispatch(delivery, code);
   return { verificationId, expiresAt: expiresAt.getTime() };
+}
+
+/**
+ * Check `code` against a live, unconfirmed `purpose` row inside `tx`, counting
+ * a wrong one. The right one marks the row confirmed, so it is spent. Returns
+ * the row's account on success, or the error to throw AFTER the transaction
+ * commits (so the wrong attempt counts). A row with no account — a decoy —
+ * never succeeds.
+ */
+export async function consumeEmailCode(
+  tx: DatabaseOrTransaction,
+  input: { verificationId: string; code: string; purpose: EmailVerificationPurpose; userId?: string },
+  now: Date,
+): Promise<{ userId: string } | { error: ApiError }> {
+  const [row] = await tx
+    .select({
+      id: emailVerifications.id,
+      userId: emailVerifications.userId,
+      codeHash: emailVerifications.codeHash,
+      attempts: emailVerifications.attempts,
+    })
+    .from(emailVerifications)
+    .where(
+      and(
+        eq(emailVerifications.id, input.verificationId),
+        eq(emailVerifications.purpose, input.purpose),
+        isNull(emailVerifications.confirmedAt),
+        gt(emailVerifications.expiresAt, now),
+        ...(input.userId ? [eq(emailVerifications.userId, input.userId)] : []),
+      ),
+    )
+    .for('update')
+    .limit(1);
+  if (!row) return { error: codeInvalid() };
+  if (row.attempts >= EMAIL_CODE_MAX_ATTEMPTS) return { error: tooManyAttempts() };
+
+  const expected = Buffer.from(row.codeHash, 'hex');
+  const given = Buffer.from(hashCode(row.id, input.code), 'hex');
+  const matches = expected.length === given.length && crypto.timingSafeEqual(expected, given);
+  if (!matches || !row.userId) {
+    const attempts = row.attempts + 1;
+    await tx.update(emailVerifications).set({ attempts }).where(eq(emailVerifications.id, row.id));
+    return { error: attempts >= EMAIL_CODE_MAX_ATTEMPTS ? tooManyAttempts() : codeInvalid() };
+  }
+  await tx
+    .update(emailVerifications)
+    .set({ attempts: row.attempts + 1, confirmedAt: now })
+    .where(eq(emailVerifications.id, row.id));
+  return { userId: row.userId };
 }
 
 export async function confirmEmailVerification(
@@ -188,6 +260,8 @@ export async function confirmEmailVerification(
       .where(
         and(
           eq(emailVerifications.id, verificationId),
+          // A sign-in or re-verification code is confirmed only by its own route.
+          inArray(emailVerifications.purpose, ['signup', 'recovery']),
           isNull(emailVerifications.confirmedAt),
           gt(emailVerifications.expiresAt, now),
         ),

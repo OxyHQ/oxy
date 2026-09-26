@@ -252,8 +252,9 @@ export class OxyServicesBase {
   /**
    * Tell this client how to read the device credential it holds, so a sign-in
    * can PROVE the device (ADR 0029 D2). `claimSessionByToken`,
-   * `webauthnLoginVerify` and `webauthnRegisterVerify` (sign-up, recovery) then
-   * send it as `device`, and the server puts the new session on that device —
+   * `webauthnLoginVerify`, `webauthnRegisterVerify` (sign-up, recovery) and
+   * every email, password, second-factor and sign-up call of the sign-in mixin
+   * then send it as `device`, and the server puts the new session on that device —
    * the browser's shared one, which every Oxy app holding it sees at once.
    *
    * `@oxy.so/services`' `OxyProvider` wires this from its auth store; nothing

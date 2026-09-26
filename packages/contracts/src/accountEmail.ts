@@ -17,7 +17,14 @@
  */
 import { z } from 'zod';
 
-export const EMAIL_VERIFICATION_PURPOSES = ['signup', 'recovery'] as const;
+/**
+ * - `signup`, `recovery`: above.
+ * - `signin`: the code (and link) of an email sign-in (`POST /auth/signin/email/start`).
+ * - `reauth`: a signed-in person proving it is them before a sensitive step
+ *   (`POST /users/me/reauth/email`): a password, an authenticator, deleting the
+ *   account, linking Commons.
+ */
+export const EMAIL_VERIFICATION_PURPOSES = ['signup', 'recovery', 'signin', 'reauth'] as const;
 export type EmailVerificationPurpose = (typeof EMAIL_VERIFICATION_PURPOSES)[number];
 
 /** Digits in a code. */

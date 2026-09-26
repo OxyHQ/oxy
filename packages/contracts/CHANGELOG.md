@@ -1,5 +1,31 @@
 # Changelog: `@oxy.so/contracts`
 
+## 2.4.0
+
+Signing in without a passkey (email code or link, password, authenticator).
+
+### Added
+
+- `signIn.ts`: `emailSignInStartRequestSchema`/`ResponseSchema`,
+  `emailSignInConfirmRequestSchema`, `emailSignInCollectRequestSchema`,
+  `emailSignInLinkRequestSchema`/`ResponseSchema`, `emailSignInPendingSchema`,
+  `passwordSignInRequestSchema`, `secondFactorSignInRequestSchema`,
+  `secondFactorRequiredSchema`, `signUpRequestSchema`, `reauthProofSchema`,
+  `emailReauthProofSchema`, `passwordSetRequestSchema`, `signInMethodsSchema`,
+  `totpEnrollResponseSchema`, `totpConfirmRequestSchema`,
+  `totpReauthRequestSchema`, `totpBackupCodesResponseSchema`,
+  `isSecondFactorRequired`, `SIGN_IN_ERROR_CODES`, the constants
+  (`EMAIL_SIGNIN_LINK_TTL_MS`, `SIGNIN_SECOND_FACTOR_TTL_MS`,
+  `SIGNIN_SECOND_FACTOR_MAX_ATTEMPTS`, `PASSWORD_MIN_LENGTH`,
+  `PASSWORD_MAX_LENGTH`, `TOTP_DIGITS`, `TOTP_PERIOD_SECONDS`,
+  `TOTP_BACKUP_CODE_COUNT`) and their types.
+- `EMAIL_VERIFICATION_PURPOSES` gains `signin` and `reauth`.
+
+### Changed
+
+- `identityLinkCompleteRequestSchema` is `{ reauth }` (an emailed code, plus the
+  authenticator's) OR `{ assertion }` (a passkey).
+
 ## 2.3.0
 
 The browser bridge (ADR 0029 D2).

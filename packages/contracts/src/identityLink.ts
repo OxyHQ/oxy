@@ -22,6 +22,7 @@
  */
 import { z } from 'zod';
 import { identityProofSchema } from './identityProof';
+import { emailReauthProofSchema } from './signIn';
 import { webauthnAssertionResponseSchema } from './webauthn';
 
 export const IDENTITY_LINK_STATUSES = ['pending', 'signed', 'completed', 'cancelled'] as const;
@@ -113,6 +114,13 @@ export const identityLinkOptionsRequestSchema = z
     .strict();
 export type IdentityLinkOptionsRequest = z.infer<typeof identityLinkOptionsRequestSchema>;
 
-/** `POST /identity/link/:linkId/complete` — the passkey assertion over the challenge. */
-export const identityLinkCompleteRequestSchema = z.object({ assertion: webauthnAssertionResponseSchema }).strict();
+/**
+ * `POST /identity/link/:linkId/complete` — the account's own confirmation: a
+ * code just sent to its email (`reauth`, plus its authenticator code when it
+ * has one), or the passkey assertion over the challenge.
+ */
+export const identityLinkCompleteRequestSchema = z.union([
+    z.object({ reauth: emailReauthProofSchema }).strict(),
+    z.object({ assertion: webauthnAssertionResponseSchema }).strict(),
+]);
 export type IdentityLinkCompleteRequest = z.infer<typeof identityLinkCompleteRequestSchema>;
