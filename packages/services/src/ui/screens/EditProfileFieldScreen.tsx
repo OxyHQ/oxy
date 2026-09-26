@@ -30,7 +30,7 @@ import { SurfaceHeaderAction } from '../components/SurfaceHeaderAction';
 import { useOxy } from '../context/OxyContext';
 import { useProfileEditing } from '../hooks/useProfileEditing';
 import { toast } from '@oxy.so/bloom/toast';
-import { EMAIL_REGEX, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxy.so/core';
+import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxy.so/core';
 import { getLinkTitle, getLinkDescription, linksToListItems } from './linkFormat';
 
 /**
@@ -39,7 +39,6 @@ import { getLinkTitle, getLinkDescription, linksToListItems } from './linkFormat
 export type ProfileFieldType =
     | 'displayName'
     | 'username'
-    | 'email'
     | 'bio'
     | 'phone'
     | 'address'
@@ -214,7 +213,6 @@ function buildInitialProfileState(
             fieldValues.address = String(userData.address || '');
             break;
         case 'username':
-        case 'email':
         case 'bio':
         case 'phone':
             fieldValues[fieldType] = String(userData[fieldType] || '');
@@ -312,30 +310,6 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
                                 return undefined;
                             },
                             inputProps: {
-                                autoCapitalize: 'none',
-                                autoCorrect: false,
-                            },
-                        },
-                    ],
-                };
-            case 'email':
-                return {
-                    title: t('editProfile.items.email.title') || 'Email',
-                    subtitle: t('editProfile.items.email.subtitle') || 'Your primary email address',
-                    fields: [
-                        {
-                            key: 'email',
-                            label: t('editProfile.items.email.label') || 'Email Address',
-                            placeholder: t('editProfile.items.email.placeholder') || 'Enter your email address',
-                            type: 'email',
-                            validation: (value) => {
-                                if (!EMAIL_REGEX.test(value)) {
-                                    return t('editProfile.items.email.invalid') || 'Please enter a valid email address';
-                                }
-                                return undefined;
-                            },
-                            inputProps: {
-                                keyboardType: 'email-address',
                                 autoCapitalize: 'none',
                                 autoCorrect: false,
                             },

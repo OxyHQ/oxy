@@ -142,7 +142,7 @@ Self-hosted `expo-updates`-protocol OTA server, namespaced entirely under `/upda
 
 ## Accounts App Patterns (packages/accounts — "Accounts by Oxy")
 
-**Post-PR #415: Accounts is KEYLESS and management-only.** All identity creation, key management, recovery phrase, backup, and key-based flows moved to `packages/commons`. Accounts signs in via the shared `OxyAccountDialog` from `@oxy.so/services` — one primary "Continue with Oxy" action, Commons QR / shared-keychain / automatic delivery (issue #691 Phases 4–5); there is no password option in this dialog. Account deletion deep-links to `commons://delete-account` — Accounts no longer owns the key-signed deletion flow.
+**Post-PR #415: Accounts is KEYLESS and management-only.** All identity creation, key management, recovery phrase, backup, and key-based flows moved to `packages/commons`. Accounts signs in via the shared `OxyAccountDialog` from `@oxy.so/services` — one primary "Continue with Oxy" action, Commons QR / shared-keychain / automatic delivery (issue #691 Phases 4–5); there is no password option in this dialog. Account deletion deep-links to `commons://delete-account` on native and opens `auth.oxy.so/delete-account` on the web (a passkey account confirms with its passkey, ADR 0029 D3) — Accounts no longer owns a deletion flow.
 
 - **i18n**: `LocaleProvider` + `useTranslation` hook in `packages/accounts/lib/i18n/`; 11 locales (EN + ES fully populated); device locale via `Intl.DateTimeFormat().resolvedOptions().locale` (no `expo-localization` native module needed)
 - **Typed routes**: `typedRoutes: true` in `app.json` — all `router.push()` calls must use typed path strings, no `as any` casts

@@ -75,9 +75,8 @@ import {
   PROVIDER_CONNECTION_AUDIT_RETENTION_SECONDS,
   inferenceProviderConnectionAuditEvents,
 } from './schema/inferenceProviderConnectionAuditEvents';
-import { identityMoves } from './schema/identityMoves';
 import { identityProofChallenges } from './schema/identityProofChallenges';
-import { identityRecoveryAttempts } from './schema/identityRecoveryAttempts';
+import { emailVerifications } from './schema/emailVerifications';
 import { linkedAccountOauthChallenges } from './schema/userLinkedAccounts';
 import { domainVerifications } from './schema/domainVerifications';
 import {
@@ -112,8 +111,8 @@ import {
  * (that is the class-(A) rule above), so the ninety-day entries are indifferent
  * to anything under a day.
  *
- * What is not indifferent is `identity_moves` and `auth_sessions`, whose entries
- * keep an hour of grace so a late poll is told "expired" rather than "unknown".
+ * What is not indifferent is `auth_sessions`, whose entries keep an hour of
+ * grace so a late poll is told "expired" rather than "unknown".
  * Shortening this interval is therefore not a free "sweep more promptly"; it
  * spends that grace.
  *
@@ -208,15 +207,6 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'expiry itself, so nothing depends on the sweep for correctness.',
   },
   {
-    table: identityMoves,
-    column: identityMoves.expiresAt,
-    retentionSeconds: 3600,
-    reason:
-      'Storage reclamation ONLY, an hour after the deadline so a late poll is ' +
-      'told "expired" rather than "unknown". Every read and transition in ' +
-      '`routes/identityMove.ts` filters on `expires_at` itself.',
-  },
-  {
     table: identityProofChallenges,
     column: identityProofChallenges.expiresAt,
     retentionSeconds: 0,
@@ -226,13 +216,14 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'unspendable at its deadline whether or not the sweep has run.',
   },
   {
-    table: identityRecoveryAttempts,
-    column: identityRecoveryAttempts.expiresAt,
+    table: emailVerifications,
+    column: emailVerifications.expiresAt,
     retentionSeconds: 3600,
     reason:
-      'Storage reclamation ONLY, an hour after the deadline. Every transition ' +
-      'in `routes/identityRecovery.ts` filters `expires_at` in the same UPDATE, ' +
-      'so an expired attempt is unspendable whether or not the sweep has run.',
+      'Storage reclamation ONLY, an hour after the deadline. Confirming a code ' +
+      'and spending a ticket both filter `expires_at` in the same UPDATE, so an ' +
+      'expired row is unspendable whether or not the sweep has run; the hour ' +
+      'keeps the per-email send limit, which counts these rows, honest.',
   },
   {
     table: linkedAccountOauthChallenges,

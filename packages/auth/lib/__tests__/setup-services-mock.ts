@@ -79,6 +79,9 @@ export const stubAuthScreens = {
         ),
     OxySignInPanel: Null,
     OxySignUpPanel: Null,
+    OxyCreateAccountPanel: Null,
+    OxyRecoverAccountPanel: Null,
+    OxyDeleteAccountPanel: Null,
 }
 
 export function createServicesMock(

@@ -1,6 +1,6 @@
 # 0024 — One Oxy account: `auth.oxy.so` is the web entry, the root lives in user-controlled holders
 
-- Status: accepted; D1 and D2 changed by [ADR 0028](0028-the-identity-carrier-is-auth-oxy-so.md) (the holder is `auth.oxy.so`, `id.oxy.so` is gone)
+- Status: accepted; D1 and D2 changed by [ADR 0028](0028-the-identity-carrier-is-auth-oxy-so.md) (the holder is `auth.oxy.so`, `id.oxy.so` is gone); D3–D6 and D9 changed by [ADR 0029](0029-one-oxy-session.md) D3 (a web account is a username, a passkey and a recovery email: no web holder, no web phrase; Commons is the one holder of a root, and linking it deletes the recovery email)
 - Issue: #1302 (coordinates with #937, #691, #1288–#1296, #1301)
 - Scope: web sign-in and account creation, the personal identity root, the web
   holder (`packages/id`), the identity envelope and move APIs, root link/unlink/
@@ -88,6 +88,11 @@ a credential that wraps a root must be exercised on the holder origin, and
 
 ### D3 — Login is not root unlock
 
+> **Changed by ADR 0029 D3.** There is no web holder to unlock: a web account has no
+> root, and the envelope, the PRF ceremonies and `GET /identity/web-envelope` are
+> deleted. A passkey only authenticates.
+
+
 Authentication yields a verified account and a session. It never requests PRF,
 never decrypts, and nothing derived from a PRF output is kept on session state.
 Holder status is read from non-sensitive metadata (`GET /identity/web-envelope`
@@ -99,6 +104,12 @@ against the envelope's own wraps, opens the root, performs that one operation,
 and wipes the material. Cancellation or unmount drops it.
 
 ### D4 — A personal account is created with its root, atomically, or not at all
+
+> **Changed by ADR 0029 D3.** A web account is created with its username, passkey
+> and a recovery email confirmed with a code, in one transaction, and no root
+> (`POST /webauthn/register/verify` spends the email's ticket). Commons sign-up
+> (`/auth/register`) still creates an account with its key, and no email.
+
 
 Web sign-up runs entirely on the holder before the server is told anything:
 create the passkey → obtain a 32-byte PRF output (at `create()` or a follow-up
@@ -122,6 +133,12 @@ identity key, both auth methods and the envelope in **one transaction**.
 
 ### D5 — Recovery restores the same account from root possession alone
 
+> **Changed by ADR 0029 D3.** A passkey account recovers through its recovery
+> email: a 6-digit code, then a new passkey (`/auth/email/verify/*`,
+> `recoveryTicket` on `/webauthn/register/*`). A Commons account recovers in
+> Commons with its phrase. Signed-out recovery from a root proof is deleted.
+
+
 Signed out, with no passkey and no session: the holder derives the root locally
 from recovery material, asks for a one-use challenge, and proves possession.
 Only a valid proof learns anything about the account (so the public endpoint is
@@ -139,6 +156,12 @@ opens it; another independent holder exists; recovery material confirmed; recove
 material re-derived the root (`recoveryVerifiedAt`).
 
 ### D6 — Holders, not moves
+
+> **Changed by ADR 0029 D3.** Commons is the one holder of a root; there is no
+> web holder to add, keep or move. A passkey account links Commons with
+> `POST /auth/link` (a root proof and a fresh passkey assertion over one
+> challenge), which makes it self-custodied and deletes its recovery email.
+
 
 A root has one or more user-controlled holders (Commons on a phone, a browser
 passkey wrap, another device). A recovery phrase is recovery material, not a
@@ -190,6 +213,11 @@ than kept for a rollout window.
   principal's own proof.
 
 ### D9 — DID controller is the person
+
+> **Changed by ADR 0029 D3.** A passkey account is keyless by design, not a legacy
+> class: its DID lists Oxy as controller (custodial) until the person links
+> Commons, and then only the person.
+
 
 A self-sovereign DID document lists the user's DID as its only `controller`.
 Oxy's key appears only on accounts that have no root (managed, federated,

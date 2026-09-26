@@ -1,13 +1,13 @@
 # One Identity, Two Carriers — passkey web identity + Commons, same key, same recovery
 
 **Date:** 2026-09-15
-**Status:** Approved 2026-09-15; **partly superseded by [ADR 0024](../../adr/0024-one-oxy-account-root-holders.md)** (#1302): the identity origin is an internal holder host, not a product; moving is one of two holder operations (add or move); decision D2's session block is replaced by readiness metadata; the `{action,userId,timestamp}` proof is replaced by the v2 payload-bound proof. Read the ADR first.
+**Status:** Approved 2026-09-15; **the web carrier is deleted by [ADR 0029](../../adr/0029-one-oxy-session.md) D3** (web accounts are passkey + recovery email, no web identity); earlier **partly superseded by [ADR 0024](../../adr/0024-one-oxy-account-root-holders.md)** (#1302): the identity origin is an internal holder host, not a product; moving is one of two holder operations (add or move); decision D2's session block is replaced by readiness metadata; the `{action,userId,timestamp}` proof is replaced by the v2 payload-bound proof. Read the ADR first.
 **Owner question:** a newcomer to any Oxy app should get in with "Continue → passkey → username → done", without first understanding Commons. Can a passkey account be a first-class Oxy identity without making Oxy a custodian and without weakening Commons as *the* identity?
 
 **Decisions already taken by the owner (2026-09-15):**
 
 1. **No custodial accounts.** Oxy must never be able to use, recover or reset a user's identity. The web identity is locally custodied, like Commons.
-2. **No email.** Not for sign-up, not for recovery, not optional.
+2. **No email.** Not for sign-up, not for recovery, not optional. **Reversed for passkey accounts by [ADR 0029](../../adr/0029-one-oxy-session.md) D3 (2026-09-26):** a web account is a username, a passkey and a recovery email; the web carrier this document proposes is deleted, and Commons stays the self-custody way (linking it deletes the email).
 3. **One recovery system for both carriers.** Whatever recovers a Commons identity recovers a web identity, and vice versa.
 4. **Moving to Commons is easy and is a MOVE.** A web user can take their identity into Commons (QR scan). Afterwards the web copy no longer exists.
 

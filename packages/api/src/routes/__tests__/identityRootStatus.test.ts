@@ -1,7 +1,7 @@
 /**
- * `GET /identity/root-status` (ADR 0024 D5), against a REAL Postgres: readiness
- * metadata for reminders, readable from any first-party origin with a bearer —
- * and nothing in it that opens anything.
+ * `GET /identity/root-status` (ADR 0029 D3), against a REAL Postgres: how the
+ * account is kept — Commons' root, or a passkey and a recovery email — readable
+ * from any first-party origin with a bearer.
  */
 
 import express from 'express';
@@ -19,12 +19,10 @@ jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-import { generateWebIdentity, markWrapVerified, sealWebIdentity } from '@oxy.so/core';
+import { randomUUID } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { identityWebEnvelopes } from '../../db/schema/identityWebEnvelopes';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import { envelopeColumns } from '../../utils/identityEnvelopeColumns';
 import identityProofRouter from '../identityProof';
 
 let server: http.Server;
@@ -51,39 +49,24 @@ afterAll(async () => {
   await closePostgres();
 });
 
-it('reports an account with no root', async () => {
+it('reports a passkey account by its recovery email', async () => {
+  const email = `${randomUUID()}@example.com`;
+  const [row] = await getDb().insert(users).values({ email }).returning({ id: users.id });
+  currentUserId = row.id;
+  expect(await status()).toEqual({ status: 200, body: { rootLinked: false, recoveryEmail: email } });
+});
+
+it('reports an account with neither', async () => {
   const [row] = await getDb().insert(users).values({}).returning({ id: users.id });
   currentUserId = row.id;
-  expect(await status()).toEqual({
-    status: 200,
-    body: { rootLinked: false, webHolder: null, hasPhrase: null, phraseConfirmedAt: null, recoveryVerifiedAt: null },
-  });
+  expect((await status()).body).toEqual({ rootLinked: false, recoveryEmail: null });
 });
 
-it('reports a root kept elsewhere, and a web holder by its passkey counts — never its ciphertext', async () => {
-  const identity = generateWebIdentity();
-  const [row] = await getDb().insert(users).values({ publicKey: identity.publicKey }).returning({ id: users.id });
+it('reports a Commons account as self-custodied, with no recovery email even if a row still has one', async () => {
+  const [row] = await getDb()
+    .insert(users)
+    .values({ publicKey: `04${'b'.repeat(128)}`, email: `${randomUUID()}@example.com` })
+    .returning({ id: users.id });
   currentUserId = row.id;
-  expect((await status()).body).toMatchObject({ rootLinked: true, webHolder: null });
-
-  const { envelope, dataKey } = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: 'credential-aaaaaaaaaaaaaaaa', rpId: 'oxy.so' });
-  dataKey.fill(0);
-  const verified = markWrapVerified(envelope, 'credential-aaaaaaaaaaaaaaaa');
-  await getDb().insert(identityWebEnvelopes).values({ userId: row.id, ...envelopeColumns(verified, identity.publicKey), phraseConfirmedAt: new Date() });
-
-  const res = await status();
-  expect(res.body).toMatchObject({ rootLinked: true, webHolder: { passkeys: 1, verifiedPasskeys: 1 }, hasPhrase: true, phraseConfirmedAt: expect.any(String), recoveryVerifiedAt: null });
-  const serialized = JSON.stringify(res.body);
-  expect(serialized).not.toContain(verified.wraps[0].wrappedKey);
-  expect(serialized).not.toContain(verified.sealedSecret);
-});
-
-it('ignores a web holder sealing a root the account no longer has', async () => {
-  const identity = generateWebIdentity();
-  const [row] = await getDb().insert(users).values({ publicKey: generateWebIdentity().publicKey }).returning({ id: users.id });
-  currentUserId = row.id;
-  const { envelope, dataKey } = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: 'credential-aaaaaaaaaaaaaaaa', rpId: 'oxy.so' });
-  dataKey.fill(0);
-  await getDb().insert(identityWebEnvelopes).values({ userId: row.id, ...envelopeColumns(envelope, identity.publicKey) });
-  expect((await status()).body).toMatchObject({ rootLinked: true, webHolder: null, hasPhrase: null });
+  expect((await status()).body).toEqual({ rootLinked: true, recoveryEmail: null });
 });

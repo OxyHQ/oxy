@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { webauthnAssertionResponseSchema } from '@oxy.so/contracts';
 import { privacySettingsSchema } from './privacy.schemas';
 
 // Shared params for routes with :userId
@@ -29,11 +30,15 @@ export const verifyRequestSchema = z.object({
 });
 
 // DELETE /users/me
+// An account with a Commons key signs the deletion with it; a passkey account
+// asserts one of its passkeys, on auth.oxy.so, over `POST /users/me/delete/options`.
 export const deleteAccountSchema = z.object({
-  signature: z.string().trim().min(1),
-  timestamp: z.number(),
+  signature: z.string().trim().min(1).optional(),
+  timestamp: z.number().optional(),
+  assertion: webauthnAssertionResponseSchema.optional(),
   confirmText: z.string().trim().min(1),
 });
+export type DeleteAccountBody = z.infer<typeof deleteAccountSchema>;
 
 // GET /users/me/data
 export const dataExportQuerySchema = z.object({

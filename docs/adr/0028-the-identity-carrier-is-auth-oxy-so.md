@@ -1,6 +1,6 @@
 # ADR 0028 — The web identity carrier is `auth.oxy.so`; `id.oxy.so` is gone
 
-- Status: accepted; D1b changed by [ADR 0029](0029-one-oxy-session.md) (Oxy apps use auth.oxy.so's window on the web)
+- Status: accepted; D1b changed by [ADR 0029](0029-one-oxy-session.md) (Oxy apps use auth.oxy.so's window on the web); D1's page list changed by ADR 0029 D3 (no web identity: `/identity` and `/prf-check` are gone)
 - Date: 2026-09-26
 - Decided by: the owner (product direction), recorded here
 - Changes: ADR 0024 D1 (the internal holder host `id.oxy.so`, and the gate it
@@ -24,24 +24,33 @@ migrate: the holder can move now, as a clean cut.
 
 ### D1 — `auth.oxy.so` is the web identity carrier
 
-Everything `id.oxy.so` did runs on `auth.oxy.so`:
+> **Changed by ADR 0029 D3.** There is no web identity to carry: a web account is
+> a username, a passkey and a recovery email. `auth.oxy.so`'s account pages are
+> now `/signup` (username → recovery email and its code → passkey), `/recover`
+> (a code to the recovery email → a new passkey) and `/delete-account` (typed
+> username + a passkey assertion), all rendered from `@oxy.so/services`
+> (`OxyCreateAccountPanel`, `OxyRecoverAccountPanel`, `OxyDeleteAccountPanel`).
+> `/identity`, `/identity/move`, `/prf-check` and `packages/auth/lib/identity/`
+> are deleted. The original decision, for the record:
 
-- `/signup` — create an account WITH its root: a username, a passkey that
-  seals the new identity, the recovery phrase.
-- `/recover` — get an account back from its recovery phrase, protected with a
-  new passkey.
-- `/identity` (and `/identity/move`) — saving or showing the recovery phrase,
-  recovery, securing a legacy account, the move to Commons, account deletion.
-- `/prf-check` — the local PRF diagnostic.
-
-The holder logic lives in `packages/auth/lib/identity/` and runs on its own
-`OxyServices` client with an in-memory bearer. When a creation or recovery IS
-the person signing in here (`/signup`, `/recover`), the origin's `OxyProvider`
-adopts that session (`handleWebSession`), so no second passkey is asked, and
-the page continues to the request in its query. It does NOT move into `@oxy.so/services`: every app
-bundles that package, and root-handling code has no business in them. The
-screens are built from the SDK's sign-in shell (`OxyAuthScreen`,
-`OxyAuthScreenHeader`) and Bloom, like the IdP's other pages.
+> Everything `id.oxy.so` did runs on `auth.oxy.so`:
+>
+> - `/signup` — create an account WITH its root: a username, a passkey that
+>   seals the new identity, the recovery phrase.
+> - `/recover` — get an account back from its recovery phrase, protected with a
+>   new passkey.
+> - `/identity` (and `/identity/move`) — saving or showing the recovery phrase,
+>   recovery, securing a legacy account, the move to Commons, account deletion.
+> - `/prf-check` — the local PRF diagnostic.
+>
+> The holder logic lives in `packages/auth/lib/identity/` and runs on its own
+> `OxyServices` client with an in-memory bearer. When a creation or recovery IS
+> the person signing in here (`/signup`, `/recover`), the origin's `OxyProvider`
+> adopts that session (`handleWebSession`), so no second passkey is asked, and
+> the page continues to the request in its query. It does NOT move into `@oxy.so/services`: every app
+> bundles that package, and root-handling code has no business in them. The
+> screens are built from the SDK's sign-in shell (`OxyAuthScreen`,
+> `OxyAuthScreenHeader`) and Bloom, like the IdP's other pages.
 
 ### D1b — No popups: an Oxy app goes to `auth.oxy.so` and comes back
 

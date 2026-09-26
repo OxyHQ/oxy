@@ -86,7 +86,7 @@ describe('pre-session public endpoints use skipAuth', () => {
   });
 
   it('webauthnRegisterOptions skips auth preflight on signup (username provided)', async () => {
-    await oxy.webauthnRegisterOptions('alice');
+    await oxy.webauthnRegisterOptions({ username: 'alice' });
     expect(makeRequest).toHaveBeenCalledWith(
       'POST',
       '/auth/webauthn/register/options',

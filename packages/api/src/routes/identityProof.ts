@@ -11,16 +11,15 @@
  * Not restricted to the holder origin: Commons (no browser origin) links and
  * rotates roots too. The routes that SPEND a challenge keep their own guards.
  *
- * `GET /identity/root-status` — readiness metadata only (ADR 0024 D5): whether a
- * root is linked, how many passkeys can open the web holder, and the two
- * recovery facts. No ciphertext, nothing that opens anything — so Accounts and
- * the account menu can remind a person to save their phrase from any origin.
+ * `GET /identity/root-status` — how the account is kept (ADR 0029 D3): whether
+ * Commons' root is linked (self-custody), or which recovery email gets a
+ * passkey account back. Accounts and the account menu read it from any origin
+ * to recommend linking Commons.
  */
 import { Router, type Request, type Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { identityProofChallengeRequestSchema, type IdentityProofChallengeRequest, type IdentityRootStatus } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
-import { identityWebEnvelopes } from '../db/schema/identityWebEnvelopes';
 import { users } from '../db/schema/users';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
@@ -62,30 +61,15 @@ router.get(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user?._id;
     if (!userId) throw new UnauthorizedError('Authentication required');
-    const db = getDb();
-    const [account] = await db.select({ publicKey: users.publicKey }).from(users).where(eq(users.id, userId)).limit(1);
-    const root = account?.publicKey?.trim().toLowerCase() || null;
-    const [envelope] = await db
-      .select({
-        publicKey: identityWebEnvelopes.publicKey,
-        version: identityWebEnvelopes.version,
-        secretKind: identityWebEnvelopes.secretKind,
-        wraps: identityWebEnvelopes.wraps,
-        phraseConfirmedAt: identityWebEnvelopes.phraseConfirmedAt,
-        recoveryVerifiedAt: identityWebEnvelopes.recoveryVerifiedAt,
-      })
-      .from(identityWebEnvelopes)
-      .where(eq(identityWebEnvelopes.userId, userId))
+    const [account] = await getDb()
+      .select({ publicKey: users.publicKey, email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
       .limit(1);
-    const current = envelope && root && envelope.publicKey === root ? envelope : null;
+    const rootLinked = Boolean(account?.publicKey?.trim());
     const status: IdentityRootStatus = {
-      rootLinked: root !== null,
-      webHolder: current
-        ? { passkeys: current.wraps.length, verifiedPasskeys: current.wraps.filter((wrap) => wrap.verifiedAt).length }
-        : null,
-      hasPhrase: current ? current.version === 1 || current.secretKind === 'mnemonic-entropy' : null,
-      phraseConfirmedAt: current?.phraseConfirmedAt ? current.phraseConfirmedAt.toISOString() : null,
-      recoveryVerifiedAt: current?.recoveryVerifiedAt ? current.recoveryVerifiedAt.toISOString() : null,
+      rootLinked,
+      recoveryEmail: rootLinked ? null : account?.email?.trim() || null,
     };
     res.status(200).json(status);
   }),

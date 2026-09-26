@@ -83,12 +83,9 @@ import appSignalsRouter from './routes/appSignals';
 import identityRoutes from './routes/identity';
 import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
-import identityWebEnvelopeRoutes from './routes/identityWebEnvelope';
-import identityMoveRoutes from './routes/identityMove';
 import linkedAccountsRoutes from './routes/linkedAccounts';
 import { aliasesForUser } from './services/linkedAccounts/linkedAccounts.service';
 import identityProofRoutes from './routes/identityProof';
-import identityRecoveryRoutes from './routes/identityRecovery';
 import civicRoutes from './routes/civic';
 import nodeRoutes from './routes/nodes';
 import { sweepValidations } from './services/civic/validator.service';
@@ -837,21 +834,10 @@ app.use('/app-signals', appSignalsRouter);
 // auth. Mounted
 // BEFORE `/identity` so the more specific `/identity/backup` prefix wins.
 app.use('/identity/backup', identityBackupRoutes);
-// Sealed web copy of an identity (one identity, two carriers). Bearer +
-// identity-key proof on every write and restricted to auth.oxy.so, the web identity carrier.
-// Mounted BEFORE `/identity` so its specific prefix wins.
 // One-use challenges for root proofs (ADR 0024 D7) and root readiness metadata.
 // Bearer only; a challenge authorizes nothing until a root signs it, and the
 // status carries no ciphertext. Two exact paths, before `/identity`.
 app.use('/identity', identityProofRoutes);
-// Signed-out recovery from a root proof alone (ADR 0024 D5). Holder origin only,
-// no bearer and no cookies. Before `/identity`.
-app.use('/identity/recovery', identityRecoveryRoutes);
-app.use('/identity/web-envelope', identityWebEnvelopeRoutes);
-// Moving a web identity into Commons: E2E relay (two ephemeral keys + opaque
-// ciphertext), bearer + identity-key proof on the web's writes, identity-key
-// receipt from Commons. Before `/identity`.
-app.use('/identity/move', identityMoveRoutes);
 // Self-sovereign identity layer: signed records + verified-domain badges.
 // Mixed public/private routes (each gates its own auth); writes are
 // Bearer-authenticated.

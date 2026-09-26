@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { Linking, Platform } from 'react-native';
 import { DeviceManager, OxyServices, oxyClient, type OxyAuthScreen } from '@oxy.so/core';
+import type { LoginSessionResult } from '@oxy.so/contracts';
 import type {
   User,
   SessionLoginResponse,
@@ -720,7 +721,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // Public `handleWebSession`: commit a session from the QR device flow. It is a
   // deliberate sign-in on THIS device, so it activates the account.
   const handleWebSession = useCallback(
-    async (session: SessionLoginResponse): Promise<void> => {
+    async (session: SessionLoginResponse | LoginSessionResult): Promise<void> => {
       if (!session?.user || !session?.sessionId || !session.accessToken) {
         throw new Error('Session response did not include a usable session');
       }

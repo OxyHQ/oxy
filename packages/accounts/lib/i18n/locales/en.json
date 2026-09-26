@@ -120,15 +120,14 @@
       "biometricNotSetUp": "Not set up",
       "faceTouchId": "Face ID / Touch ID",
       "biometricAuth": "Biometric Auth",
-      "recoveryPhrase": "Recovery phrase",
       "recoveryChecking": "Checking…",
-      "recoveryNotSecured": "Account not secured",
-      "recoveryInCommons": "Kept in Commons",
-      "recoverySaved": "Saved",
-      "recoveryNotSaved": "Not saved",
+      "recoveryNotSecured": "Not set up",
+      "recoveryInCommons": "Commons, with your recovery phrase",
       "securityStatus": "Security Status",
       "needsAttention": "Needs attention",
-      "protected": "Protected"
+      "protected": "Protected",
+      "recovery": "Account recovery",
+      "recoveryEmail": "Recovery email: {{email}}"
     }
   },
   "security": {
@@ -156,10 +155,6 @@
       "biometricAlertTitle": "Enable Biometric Authentication",
       "biometricAlertMessage": "You can enable biometric authentication in the \"How you sign in\" section below. This adds an extra layer of security to your account.",
       "biometricGoToSettings": "Go to Settings",
-      "secureAccount": "Secure your account",
-      "secureAccountSubtitle": "Create your own identity and recovery phrase. Oxy can’t recover an account for you.",
-      "recoveryPhrase": "Save your recovery phrase",
-      "recoveryPhraseSubtitle": "It’s the only way back into your account if you lose your passkeys. Oxy can’t reset it.",
       "oldSessions": "Review {{count}} inactive sessions",
       "oldSessions_one": "Review {{count}} inactive session",
       "oldSessionsSubtitle": "Some sessions haven't been used in over 30 days",
@@ -213,8 +208,7 @@
       "removeConfirmMessage": "You will no longer be able to sign in with this passkey. Make sure you have another way to sign in.",
       "removeAction": "Remove",
       "removeSuccess": "Passkey removed",
-      "removeFailed": "Could not remove the passkey",
-      "removeLastWebHolder": "This passkey is the only one that opens your identity on the web. Add another passkey first, or keep your identity only in Commons."
+      "removeFailed": "Could not remove the passkey"
     },
     "recoveryWarning": {
       "title": "No recovery phrase backup",

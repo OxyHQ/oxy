@@ -50,7 +50,26 @@
     "createInCommons": "Commonsであなたのアイデンティティを作成",
     "createAccount": "アカウントを作成",
     "backToSignInLink": "すでにアカウントをお持ちですか？サインイン",
-    "webSubtitle": "パスワードは不要です。デバイスがパスキーを作成し、アカウントにはあなただけが保管する復元フレーズが付きます。"
+    "webSubtitle": "パスワードは不要です。デバイスがパスキーを作成し、なくした場合は復旧用メールで戻れます。",
+    "username": {
+      "label": "ユーザー名",
+      "placeholder": "yourname",
+      "required": "ユーザー名を選んでください。",
+      "taken": "そのユーザー名は使われています。"
+    },
+    "email": {
+      "title": "復旧用メール",
+      "subtitle": "パスキーをなくしたとき、戻るためのコードをここに送ります。それ以外には使いません。",
+      "label": "メール",
+      "placeholder": "you@example.com",
+      "invalid": "有効なメールアドレスを入力してください。"
+    },
+    "passkey": {
+      "title": "パスキーを作成",
+      "subtitle": "指紋、顔、画面ロックでサインインします。覚えることは何もありません。",
+      "action": "パスキーを作成"
+    },
+    "commonsInstead": "自分の鍵を持ちたいですか？ Commons を使う"
   },
   "accountSwitcher": {
     "loading": "アカウントを読み込み中...",
@@ -225,7 +244,48 @@
     "help": "ヘルプとフィードバック",
     "signOut": "サインアウト",
     "privacy": "プライバシーポリシー",
-    "terms": "利用規約",
-    "identity": "あなたのアイデンティティ"
+    "terms": "利用規約"
+  },
+  "recover": {
+    "title": "アカウントを復旧",
+    "subtitle": "ユーザー名か復旧用メールを入力してください。アカウントの復旧用メールにコードを送ります。",
+    "identifier": {
+      "label": "ユーザー名またはメール",
+      "placeholder": "yourname",
+      "required": "ユーザー名かメールを入力してください。"
+    },
+    "commonsNote": "Commons を使うアカウントですか？ Commons で復旧フレーズを使って復旧してください。",
+    "passkey": {
+      "title": "新しいパスキーを追加",
+      "subtitle": "@{{username}} 用。なくしたパスキーは後でアカウントのセキュリティ設定から削除できます。",
+      "action": "パスキーを作成"
+    },
+    "backToSignIn": "サインインに戻る"
+  },
+  "emailCode": {
+    "title": "メールを確認",
+    "sentTo": "{{email}} に6桁のコードを送りました。",
+    "sentIfAccount": "このアカウントに復旧用メールがあれば、6桁のコードを送りました。",
+    "label": "コード",
+    "resend": "新しいコードを送る",
+    "resent": "新しいコードを送りました。",
+    "changeEmail": "別のメールを使う",
+    "errors": {
+      "codeInvalid": "コードが正しくないか、有効期限が切れています。",
+      "tooManyAttempts": "間違ったコードが多すぎます。新しいコードを請求してください。",
+      "expired": "時間がかかりすぎました。最初からやり直してください。",
+      "unavailable": "現在 Oxy はメールを送信できません。後でもう一度お試しください。",
+      "rateLimited": "コードが多すぎます。後でもう一度お試しください。"
+    }
+  },
+  "deleteAccount": {
+    "passkey": {
+      "subtitle": "パスキーで確認してください。@{{username}} とそのすべてが完全に削除されます。",
+      "action": "パスキーで削除",
+      "done": "アカウントを削除しました。",
+      "closeWindow": "このウィンドウは閉じてかまいません。",
+      "signIn": "削除するアカウントにサインインしてください。",
+      "commons": "このアカウントは Commons を使っています。Oxy Commons の 設定 > アカウントを削除 から、その鍵で削除してください。"
+    }
   }
 }

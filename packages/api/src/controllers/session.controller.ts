@@ -93,14 +93,6 @@ function violatedUniqueIndex(error: unknown): string | null {
 // Challenge expiration time (5 minutes)
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
-// More robust email validation regex (RFC 5322 compliant)
-// Validates: local-part@domain with proper character restrictions
-const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
 export function buildSessionAuthResponse(session: { sessionId: string; deviceId: string; expiresAt: Date; accessToken?: string }, user: UserLike): SessionAuthResponse | null {
   const userData = formatUserResponse(user);
   if (!userData) {
@@ -128,7 +120,7 @@ export class SessionController {
    */
   static async register(req: Request, res: Response) {
     try {
-      const { publicKey, signature, timestamp, email, username } = req.body;
+      const { publicKey, signature, timestamp, username } = req.body;
       const db = getDb();
 
       // Validate required fields
@@ -200,18 +192,6 @@ export class SessionController {
         });
       }
 
-      let normalizedEmail: string | undefined;
-      if (email) {
-        if (typeof email !== 'string') {
-          return res.status(400).json({ message: 'Please provide a valid email address' });
-        }
-
-        normalizedEmail = normalizeEmail(email);
-        if (!EMAIL_REGEX.test(normalizedEmail)) {
-          return res.status(400).json({ message: 'Please provide a valid email address' });
-        }
-      }
-
       let normalizedUsername: string | undefined;
       if (username) {
         if (typeof username !== 'string') {
@@ -221,17 +201,6 @@ export class SessionController {
         normalizedUsername = normalizeUsername(username);
         if (!isValidUsername(normalizedUsername)) {
           return res.status(400).json({ message: USERNAME_INVALID_MESSAGE });
-        }
-      }
-
-      if (normalizedEmail) {
-        const [existingEmail] = await db
-          .select({ id: users.id })
-          .from(users)
-          .where(sql`lower(btrim(${users.email})) = lower(btrim(${normalizedEmail}))`)
-          .limit(1);
-        if (existingEmail) {
-          return res.status(409).json({ message: 'Email already registered' });
         }
       }
 
@@ -258,7 +227,6 @@ export class SessionController {
           .insert(users)
           .values({
             publicKey,
-            ...(normalizedEmail ? { email: normalizedEmail } : {}),
             ...(normalizedUsername ? { username: normalizedUsername } : {}),
           })
           .returning(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE));
@@ -304,9 +272,6 @@ export class SessionController {
       const violated = violatedUniqueIndex(error);
       if (violated === 'users_lower_public_key_key') {
         return res.status(409).json({ message: 'Identity already registered' });
-      }
-      if (violated === 'users_lower_email_key') {
-        return res.status(409).json({ message: 'Email already registered' });
       }
       if (violated === 'users_lower_username_key') {
         return res.status(409).json({ message: 'Username already taken' });

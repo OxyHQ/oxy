@@ -1,5 +1,44 @@
 # Changelog — `@oxy.so/core`
 
+## 1.17.0
+
+Web accounts are a username, a passkey and a recovery email (ADR 0029 D3). The
+web identity carrier is deleted: Commons is the one place a key lives.
+
+### Added
+
+- `startEmailVerification({ purpose: 'signup', email } | { purpose: 'recovery', identifier })`
+  and `confirmEmailVerification(verificationId, code)`: a 6-digit code to a
+  recovery email, and the one-use ticket it confirms into.
+- `webauthnRegisterOptions({ username?, recoveryTicket? })` (was a bare
+  `username`) and `webauthnRegisterVerify`'s `email`, `emailTicket` and
+  `recoveryTicket`: a sign-up is created with its confirmed recovery email, and
+  a recovery registers a new passkey for the account its ticket names.
+- `getAccountDeletionOptions()` and `deleteAccountWithPasskey(confirmText, assertion)`:
+  a passkey account is deleted with an assertion by one of its passkeys.
+- Locale keys in all 11 locales: `signup.username.*`, `signup.email.*`,
+  `signup.passkey.*`, `signup.commonsInstead`, `emailCode.*`, `recover.*`
+  (replaced), `deleteAccount.passkey.*`. `signup.webSubtitle` and
+  `deleteAccount.handoff.elsewhereMessage` say what a web account is now.
+
+### Removed
+
+- The web identity carrier (`crypto/webIdentityCarrier.ts`): `sealWebIdentity`,
+  `openWebIdentity`, `unlockWebIdentity`, `addWrap`, `removeWrap`,
+  `markWrapVerified`, `unwrapDataKey`, `deriveKeyEncryptionKey`,
+  `generateDataKey`, `generateWebIdentity`, `deriveIdentityFromMnemonic`,
+  `deriveIdentityFromPrivateKey`, `deriveIdentityFromRecoveryMaterial`,
+  `parseRecoveryMaterial`, `normalizeMnemonic`, `isUsablePrfOutput`,
+  `wipeBytes`, `wipeOpenedIdentity`, `WEB_IDENTITY_PRF_INPUT`,
+  `WEB_IDENTITY_PRF_OUTPUT_LENGTH`, `WebIdentityUnlockError` and their types.
+- The move to Commons (`crypto/identityMove.ts`): `buildMoveQrPayload`,
+  `parseMoveQrPayload`, `createMoveCommitment`, `verifyMoveCommitment`,
+  `deriveMoveKey`, `deriveMoveSas`, `digestMoveCiphertext`,
+  `generateMoveEphemeralKeyPair`, `sealIdentityForMove`, `openMovedIdentity`,
+  `signMoveReceipt`, `verifyMoveReceipt`, `MoveReceiptClaims`.
+- `checkEmailAvailability`: nothing says whether an email is an account's.
+- The `accountMenu.identity` locale key.
+
 ## 1.16.0
 
 No identity popups (ADR 0028 D1b).

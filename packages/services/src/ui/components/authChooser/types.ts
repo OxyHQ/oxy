@@ -95,11 +95,6 @@ export interface AccountsMenuActions {
   onPrivacy: () => void;
   onTerms: () => void;
   onSignOut: () => void;
-  /**
-   * Open the person's identity at auth.oxy.so/identity (recovery phrase,
-   * recovery, account deletion). Web only — `undefined` hides the row.
-   */
-  onOpenIdentity?: () => void;
   customItems: readonly {
     key: string;
     label: string;

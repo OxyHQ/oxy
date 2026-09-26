@@ -50,7 +50,26 @@
     "createInCommons": "Commons에서 나의 아이덴티티 만들기",
     "createAccount": "계정 만들기",
     "backToSignInLink": "이미 계정이 있으신가요? 로그인",
-    "webSubtitle": "비밀번호가 없습니다. 기기가 패스키를 만들고, 계정에는 본인만 보관하는 복구 문구가 생깁니다."
+    "webSubtitle": "비밀번호가 없습니다. 기기가 패스키를 만들고, 잃어버리면 복구 이메일로 다시 들어올 수 있습니다.",
+    "username": {
+      "label": "사용자 이름",
+      "placeholder": "yourname",
+      "required": "사용자 이름을 정하세요.",
+      "taken": "이미 사용 중인 사용자 이름입니다."
+    },
+    "email": {
+      "title": "복구 이메일",
+      "subtitle": "패스키를 잃어버리면 다시 들어올 수 있도록 여기로 코드를 보냅니다. 다른 용도로는 쓰지 않습니다.",
+      "label": "이메일",
+      "placeholder": "you@example.com",
+      "invalid": "올바른 이메일 주소를 입력하세요."
+    },
+    "passkey": {
+      "title": "패스키 만들기",
+      "subtitle": "지문, 얼굴 또는 화면 잠금으로 로그인합니다. 기억할 것은 없습니다.",
+      "action": "패스키 만들기"
+    },
+    "commonsInstead": "직접 키를 보관하고 싶으신가요? Commons 사용하기"
   },
   "accountSwitcher": {
     "loading": "계정을 불러오는 중...",
@@ -225,7 +244,48 @@
     "help": "도움말 및 피드백",
     "signOut": "로그아웃",
     "privacy": "개인정보 처리방침",
-    "terms": "서비스 약관",
-    "identity": "내 아이덴티티"
+    "terms": "서비스 약관"
+  },
+  "recover": {
+    "title": "계정 복구",
+    "subtitle": "사용자 이름이나 복구 이메일을 입력하세요. 계정의 복구 이메일로 코드를 보냅니다.",
+    "identifier": {
+      "label": "사용자 이름 또는 이메일",
+      "placeholder": "yourname",
+      "required": "사용자 이름이나 이메일을 입력하세요."
+    },
+    "commonsNote": "Commons를 쓰는 계정인가요? Commons에서 복구 문구로 복구하세요.",
+    "passkey": {
+      "title": "새 패스키 추가",
+      "subtitle": "@{{username}}용. 잃어버린 패스키는 나중에 계정 보안 설정에서 삭제하세요.",
+      "action": "패스키 만들기"
+    },
+    "backToSignIn": "로그인으로 돌아가기"
+  },
+  "emailCode": {
+    "title": "이메일을 확인하세요",
+    "sentTo": "{{email}}(으)로 6자리 코드를 보냈습니다.",
+    "sentIfAccount": "이 계정에 복구 이메일이 있다면 6자리 코드를 보냈습니다.",
+    "label": "코드",
+    "resend": "새 코드 보내기",
+    "resent": "새 코드를 보냈습니다.",
+    "changeEmail": "다른 이메일 사용",
+    "errors": {
+      "codeInvalid": "코드가 올바르지 않거나 만료되었습니다.",
+      "tooManyAttempts": "틀린 코드가 너무 많습니다. 새 코드를 요청하세요.",
+      "expired": "시간이 너무 오래 걸렸습니다. 다시 시작하세요.",
+      "unavailable": "지금은 Oxy가 이메일을 보낼 수 없습니다. 나중에 다시 시도하세요.",
+      "rateLimited": "코드가 너무 많습니다. 나중에 다시 시도하세요."
+    }
+  },
+  "deleteAccount": {
+    "passkey": {
+      "subtitle": "패스키로 확인하세요. @{{username}}과(와) 그 안의 모든 것이 영구적으로 삭제됩니다.",
+      "action": "패스키로 삭제",
+      "done": "계정이 삭제되었습니다.",
+      "closeWindow": "이 창을 닫아도 됩니다.",
+      "signIn": "삭제할 계정에 로그인하세요.",
+      "commons": "이 계정은 Commons를 사용합니다. Oxy Commons의 설정 > 계정 삭제에서 해당 키로 삭제하세요."
+    }
   }
 }

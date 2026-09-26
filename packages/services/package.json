@@ -216,7 +216,7 @@
   "peerDependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@oxy.so/bloom": "^4.26.0",
-    "@oxy.so/core": "^1.16.0",
+    "@oxy.so/core": "^1.17.0",
     "@react-native-async-storage/async-storage": "^2.0.0",
     "@react-native-community/netinfo": ">=11.4.1",
     "@tanstack/query-async-storage-persister": "catalog:",

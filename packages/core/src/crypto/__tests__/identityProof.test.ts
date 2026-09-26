@@ -6,12 +6,13 @@
 import { buildIdentityProofMessage, canonicalJson, type IdentityProofClaims } from '@oxy.so/contracts';
 import { verifySignature } from '@oxy.so/protocol';
 import { digestIdentityPayload, signIdentityProof } from '../identityProof';
-import { deriveIdentityFromMnemonic } from '../webIdentityCarrier';
+import { deriveSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 
-const identity = deriveIdentityFromMnemonic('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+const keyPair = (privateKey: string) => ({ privateKey, publicKey: deriveSecp256k1PublicKey(privateKey) });
+const identity = keyPair('11'.repeat(32));
 
 const claims = (overrides: Partial<IdentityProofClaims> = {}): IdentityProofClaims => ({
-  action: 'web_envelope_put',
+  action: 'link_identity',
   subject: 'user-1',
   actor: 'user-1',
   rootPublicKey: identity.publicKey,
@@ -42,7 +43,7 @@ describe('canonical JSON', () => {
 describe('the signed bytes', () => {
   it('are a fixed, versioned, domain-separated shape', () => {
     expect(buildIdentityProofMessage(claims())).toBe(
-      `{"action":"web_envelope_put","actor":"user-1","audience":"oxy-api/identity","challenge":"${'ab'.repeat(32)}","domain":"oxy-identity-proof","expectedRevision":3,"expiresAt":1800000000000,"payloadDigest":"${claims().payloadDigest}","rootPublicKey":"${identity.publicKey}","subject":"user-1","v":2}`,
+      `{"action":"link_identity","actor":"user-1","audience":"oxy-api/identity","challenge":"${'ab'.repeat(32)}","domain":"oxy-identity-proof","expectedRevision":3,"expiresAt":1800000000000,"payloadDigest":"${claims().payloadDigest}","rootPublicKey":"${identity.publicKey}","subject":"user-1","v":2}`,
     );
   });
 
@@ -61,7 +62,6 @@ describe('signing', () => {
 
     expect(await verifySignature(buildIdentityProofMessage(claims()), proof.signature, identity.publicKey)).toBe(true);
     for (const changed of [
-      claims({ action: 'web_envelope_delete' }),
       claims({ subject: 'user-2' }),
       claims({ actor: 'user-2' }),
       claims({ payloadDigest: digestIdentityPayload({ b: 2 }) }),
@@ -75,7 +75,7 @@ describe('signing', () => {
   });
 
   it('will not sign claims naming a different root', async () => {
-    const other = deriveIdentityFromMnemonic('legal winner thank year wave sausage worth useful legal winner thank yellow');
+    const other = keyPair('22'.repeat(32));
     await expect(signIdentityProof(identity, claims({ rootPublicKey: other.publicKey }))).rejects.toThrow('different root');
   });
 });

@@ -1,12 +1,10 @@
 import { useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import type { IdentityRootStatus } from '@oxy.so/contracts';
 import { alert } from '@oxy.so/bloom';
 import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
-import { useOpenIdentity } from '@/hooks/useIdentityRootStatus';
 import type { PrioritizedGroupedItem } from '@/components/sections/types';
 import {
   selectSecurityRecommendations,
@@ -17,7 +15,6 @@ interface UseSecurityRecommendationsArgs {
   canEnableBiometric: boolean;
   biometricEnabled: boolean;
   biometricLoading: boolean;
-  rootStatus: IdentityRootStatus | undefined;
   sessions: ClientSession[] | undefined;
   deviceCount: number;
   securityActivities: SecurityActivity[];
@@ -37,7 +34,6 @@ export function useSecurityRecommendations({
   canEnableBiometric,
   biometricEnabled,
   biometricLoading,
-  rootStatus,
   sessions,
   deviceCount,
   securityActivities,
@@ -45,14 +41,12 @@ export function useSecurityRecommendations({
   const colors = useColors();
   const router = useRouter();
   const { t } = useTranslation();
-  const openIdentity = useOpenIdentity();
 
   return useMemo(() => {
     const descriptors = selectSecurityRecommendations({
       canEnableBiometric,
       biometricEnabled,
       biometricLoading,
-      rootStatus,
       sessions,
       deviceCount,
       securityActivities,
@@ -80,28 +74,6 @@ export function useSecurityRecommendations({
                 [{ text: t('common.ok'), style: 'default' }]
               );
             },
-            showChevron: true,
-          };
-        case 'secure-account':
-          return {
-            id: descriptor.id,
-            priority: descriptor.priority,
-            icon: 'shield-key-outline',
-            iconColor: colors.warning,
-            title: t('security.recommendations.secureAccount'),
-            subtitle: t('security.recommendations.secureAccountSubtitle'),
-            onPress: openIdentity,
-            showChevron: true,
-          };
-        case 'recovery-phrase':
-          return {
-            id: descriptor.id,
-            priority: descriptor.priority,
-            icon: 'form-textbox-password',
-            iconColor: colors.warning,
-            title: t('security.recommendations.recoveryPhrase'),
-            subtitle: t('security.recommendations.recoveryPhraseSubtitle'),
-            onPress: openIdentity,
             showChevron: true,
           };
         case 'old-sessions':
@@ -155,12 +127,10 @@ export function useSecurityRecommendations({
     canEnableBiometric,
     biometricEnabled,
     biometricLoading,
-    rootStatus,
     sessions,
     deviceCount,
     securityActivities,
     router,
-    openIdentity,
     t,
     colors.warning,
     colors.error,

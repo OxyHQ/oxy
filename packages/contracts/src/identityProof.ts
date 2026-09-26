@@ -31,26 +31,12 @@ export const IDENTITY_PROOF_CHALLENGE_TTL_MS = 5 * 60 * 1000;
  * action and spent only by a proof for that action.
  */
 export const IDENTITY_PROOF_ACTIONS = {
-    /** A keyless account's FIRST root, stored with its web envelope. */
-    establish: 'web_envelope_establish',
-    /** Replace the web envelope (add or remove a wrap, re-seal). */
-    put: 'web_envelope_put',
-    /** Record that the recovery material is written down. */
-    phraseConfirmed: 'web_envelope_phrase_confirmed',
-    /** Record that the recovery material re-derived the root. */
-    recoveryVerified: 'web_envelope_recovery_verified',
-    /** Remove the web holder. */
-    delete: 'web_envelope_delete',
-    /** Link a keyless account's first root without a web envelope (`POST /auth/link`). */
+    /**
+     * Link Commons' root to a passkey account that has none (`POST /auth/link`).
+     * The account becomes self-custodied and its recovery email is deleted
+     * (ADR 0029 D3).
+     */
     link: 'link_identity',
-    /** Create a personal account together with its root (passkey sign-up). */
-    enroll: 'enroll_identity',
-    /** Prove the root to start signed-out recovery. */
-    recoverStart: 'recover_account_start',
-    /** Bind the new passkey and envelope when completing signed-out recovery. */
-    recoverComplete: 'recover_account_complete',
-    /** Seal the root for the Commons device that joined a move (payload: move id + sealed bytes). */
-    moveSeal: 'identity_move_seal',
 } as const;
 
 export type IdentityProofAction = (typeof IDENTITY_PROOF_ACTIONS)[keyof typeof IDENTITY_PROOF_ACTIONS];
@@ -74,7 +60,7 @@ export interface IdentityProofClaims {
     rootPublicKey: string;
     /** SHA-256 hex of `canonicalJson(payload)`, or `null` when the operation has no payload. */
     payloadDigest: string | null;
-    /** The envelope revision the operation expects to replace, or `null`. */
+    /** The revision the operation expects to replace, or `null` when it replaces nothing. */
     expectedRevision: number | null;
     audience: string;
     /** The one-use server challenge. */
@@ -181,39 +167,26 @@ export const identityProofChallengeResponseSchema: z.ZodType<IdentityProofChalle
  */
 export const IDENTITY_ERROR_CODES = {
     proofInvalid: 'IDENTITY_PROOF_INVALID',
-    revisionConflict: 'IDENTITY_ENVELOPE_REVISION_CONFLICT',
     rootAlreadyLinked: 'IDENTITY_ROOT_ALREADY_LINKED',
     rootLinkedElsewhere: 'IDENTITY_ROOT_LINKED_ELSEWHERE',
-    noRoot: 'IDENTITY_NO_ROOT',
     freshFactorRequired: 'IDENTITY_FRESH_FACTOR_REQUIRED',
-    lastWebHolder: 'IDENTITY_LAST_WEB_HOLDER',
-    enrollmentRequired: 'IDENTITY_ENROLLMENT_REQUIRED',
-    enrollmentInvalid: 'IDENTITY_ENROLLMENT_INVALID',
     notPersonal: 'IDENTITY_NOT_PERSONAL_ACCOUNT',
-    recoveryFailed: 'IDENTITY_RECOVERY_FAILED',
 } as const;
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[keyof typeof IDENTITY_ERROR_CODES];
 
 /**
- * `GET /identity/root-status` — non-sensitive readiness metadata any first-party
- * surface (Accounts, the account menu) may read with a bearer to show a reminder,
- * without the ciphertext and without opening anything (ADR 0024 D5).
+ * `GET /identity/root-status` — how the signed-in account is kept (ADR 0029 D3),
+ * for Accounts and the account menu to recommend linking Commons. Read with a
+ * bearer from any first-party origin.
  */
 export interface IdentityRootStatus {
-    /** Whether the account has a root at all. */
+    /** Whether Commons' root is linked: the account is self-custodied. */
     rootLinked: boolean;
-    /** Passkeys whose wraps can open the web holder, and how many have proven it. `null`: no web holder. */
-    webHolder: { passkeys: number; verifiedPasskeys: number } | null;
-    /** Whether the root has recovery words (a raw-key root does not). `null` when unknown (no web holder). */
-    hasPhrase: boolean | null;
-    phraseConfirmedAt: string | null;
-    recoveryVerifiedAt: string | null;
+    /** The recovery email of a passkey account; `null` once Commons is linked. */
+    recoveryEmail: string | null;
 }
 
 export const identityRootStatusSchema: z.ZodType<IdentityRootStatus> = z.object({
     rootLinked: z.boolean(),
-    webHolder: z.object({ passkeys: z.number().int().nonnegative(), verifiedPasskeys: z.number().int().nonnegative() }).nullable(),
-    hasPhrase: z.boolean().nullable(),
-    phraseConfirmedAt: z.string().datetime().nullable(),
-    recoveryVerifiedAt: z.string().datetime().nullable(),
+    recoveryEmail: z.string().nullable(),
 });

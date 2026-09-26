@@ -372,9 +372,9 @@ export interface OxyPagesHeadersOptions {
    * violation for a script we never asked for. The rest of the value is Pages'
    * own default, so caching is unchanged.
    *
-   * And, because this origin is the web identity carrier — where a person's
-   * self-custody root is created, opened, recovered and moved (ADR 0028) — the
-   * rest of the holder policy: no `<base>` and no form posts (`base-uri` /
+   * And, because this origin is where a web account is created, recovered and
+   * deleted and every Oxy passkey is asserted (ADR 0028, ADR 0029) — the rest
+   * of the holder policy: no `<base>` and no form posts (`base-uri` /
    * `form-action 'none'`), no Referer to anyone, passkeys for this origin only
    * with every other powerful feature off (`Permissions-Policy`), and its
    * responses readable by no other origin (`Cross-Origin-Resource-Policy`).

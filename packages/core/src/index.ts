@@ -344,55 +344,9 @@ export {
 export type { AeadResult } from './crypto/aead';
 export { deriveSharedSecret } from './crypto/ecdh';
 
-// Web identity holder — the same root as Commons, sealed under a passkey's PRF
-// output; identity proofs; transfer to Commons (docs/adr/0024-one-oxy-account-root-holders.md)
-export {
-    WEB_IDENTITY_PRF_INPUT,
-    WebIdentityUnlockError,
-    WEB_IDENTITY_PRF_OUTPUT_LENGTH,
-    addWrap,
-    deriveIdentityFromMnemonic,
-    deriveIdentityFromPrivateKey,
-    deriveIdentityFromRecoveryMaterial,
-    deriveKeyEncryptionKey,
-    generateDataKey,
-    generateWebIdentity,
-    isUsablePrfOutput,
-    markWrapVerified,
-    normalizeMnemonic,
-    openWebIdentity,
-    parseRecoveryMaterial,
-    removeWrap,
-    sealWebIdentity,
-    unlockWebIdentity,
-    unwrapDataKey,
-    wipeBytes,
-    wipeOpenedIdentity,
-} from './crypto/webIdentityCarrier';
-export type {
-    OpenedMnemonicIdentity,
-    OpenedRawKeyIdentity,
-    OpenedWebIdentity,
-    WebIdentityRecoveryMaterial,
-    WebIdentityUnlockFailure,
-    WrapInput,
-} from './crypto/webIdentityCarrier';
+// Identity proofs — the one signed format for operations on a personal root
+// (docs/adr/0024-one-oxy-account-root-holders.md D7)
 export { digestIdentityPayload, signIdentityProof } from './crypto/identityProof';
-export {
-    buildMoveQrPayload,
-    createMoveCommitment,
-    deriveMoveKey,
-    deriveMoveSas,
-    digestMoveCiphertext,
-    generateMoveEphemeralKeyPair,
-    openMovedIdentity,
-    parseMoveQrPayload,
-    sealIdentityForMove,
-    signMoveReceipt,
-    verifyMoveCommitment,
-    verifyMoveReceipt,
-} from './crypto/identityMove';
-export type { MoveReceiptClaims } from './crypto/identityMove';
 
 // ---------------------------------------------------------------------------
 // Devices

@@ -2,14 +2,31 @@
 
 ## [6.0.0] - 2026-09-26
 
+Requires `@oxy.so/core` `^1.17.0`.
+
 **Web sign-in in auth.oxy.so's window** (ADR 0029 D1). On the web, an app's
 account dialog shows "Continue with Oxy" and "Create account", and both open
 auth.oxy.so in a window over the app, like "Sign in with Google": the QR, the
 username and the passkey are there, on every domain alike. No code picks a
 route by domain any more.
 
+**Web accounts are a username, a passkey and a recovery email** (ADR 0029 D3):
+no web identity, no web recovery phrase.
+
+### Added
+
+- `OxyCreateAccountPanel` (username → recovery email → its code → passkey),
+  `OxyRecoverAccountPanel` (username or email → the code sent to the recovery
+  email → a new passkey) and `OxyDeleteAccountPanel` (typed username → a
+  passkey assertion): auth.oxy.so's `/signup`, `/recover` and
+  `/delete-account`, built from the sign-in shell.
+- `useOxy().handleWebSession` takes a `LoginSessionResult` too (a passkey
+  registration's session).
+
 ### Changed
 
+- "Delete account" on the web opens `auth.oxy.so/delete-account`; the native
+  handoff's "elsewhere" copy points there for a passkey account.
 - `useOxy().continueOnAuth(screen)` opens auth.oxy.so's window
   (`transport: 'popup'`) instead of leaving the tab; a blocked window still
   falls back to the tab. `startWebOAuthSignIn`'s `transport` takes `'popup'`
@@ -22,6 +39,10 @@ route by domain any more.
 
 ### Removed
 
+- The account menu's "Your identity" row (`onOpenIdentity`): there is no web
+  identity to open.
+- Editing the email in `EditProfileScreen` / `EditProfileFieldScreen`: the
+  recovery email is not a profile field.
 - The passkey ceremony inside an app's dialog on `*.oxy.so`, and the
   `isOxyRpOrigin` route choice (`PasskeyRoute`).
 - The dialog's 880 split (`useSurfaceFrameWidth`) and `OxyAuthSplit`'s `bare`.

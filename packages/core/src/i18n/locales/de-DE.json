@@ -50,7 +50,26 @@
     "createInCommons": "Erstellen Sie Ihre Identität in Commons",
     "createAccount": "Konto erstellen",
     "backToSignInLink": "Sie haben bereits ein Konto? Anmelden",
-    "webSubtitle": "Kein Passwort. Dein Gerät erstellt einen Passkey, und dein Konto erhält eine Wiederherstellungsphrase, die nur du aufbewahrst."
+    "webSubtitle": "Kein Passwort: Dein Gerät erstellt einen Passkey, und eine Wiederherstellungs-E-Mail bringt dich zurück, wenn du ihn verlierst.",
+    "username": {
+      "label": "Benutzername",
+      "placeholder": "deinname",
+      "required": "Wähle einen Benutzernamen.",
+      "taken": "Dieser Benutzername ist vergeben."
+    },
+    "email": {
+      "title": "Deine Wiederherstellungs-E-Mail",
+      "subtitle": "Wenn du deinen Passkey verlierst, schicken wir dir hierhin einen Code, um wieder hineinzukommen. Sonst wird sie für nichts verwendet.",
+      "label": "E-Mail",
+      "placeholder": "du@beispiel.de",
+      "invalid": "Gib eine gültige E-Mail-Adresse ein."
+    },
+    "passkey": {
+      "title": "Erstelle deinen Passkey",
+      "subtitle": "Damit meldest du dich an: Fingerabdruck, Gesicht oder Bildschirmsperre. Nichts zu merken.",
+      "action": "Passkey erstellen"
+    },
+    "commonsInstead": "Willst du deinen eigenen Schlüssel behalten? Nutze stattdessen Commons"
   },
   "accountSwitcher": {
     "loading": "Konten werden geladen...",
@@ -225,7 +244,48 @@
     "help": "Hilfe & Feedback",
     "signOut": "Abmelden",
     "privacy": "Datenschutzerklärung",
-    "terms": "Nutzungsbedingungen",
-    "identity": "Ihre Identität"
+    "terms": "Nutzungsbedingungen"
+  },
+  "recover": {
+    "title": "Konto wiederherstellen",
+    "subtitle": "Gib deinen Benutzernamen oder deine Wiederherstellungs-E-Mail ein. Wir schicken einen Code an die Wiederherstellungs-E-Mail des Kontos.",
+    "identifier": {
+      "label": "Benutzername oder E-Mail",
+      "placeholder": "deinname",
+      "required": "Gib deinen Benutzernamen oder deine E-Mail ein."
+    },
+    "commonsNote": "Nutzt dein Konto Commons? Stelle es in Commons mit deiner Wiederherstellungsphrase wieder her.",
+    "passkey": {
+      "title": "Neuen Passkey hinzufügen",
+      "subtitle": "Für @{{username}}. Entferne verlorene Passkeys später in den Sicherheitseinstellungen deines Kontos.",
+      "action": "Passkey erstellen"
+    },
+    "backToSignIn": "Zurück zur Anmeldung"
+  },
+  "emailCode": {
+    "title": "Sieh in deine E-Mails",
+    "sentTo": "Wir haben einen 6-stelligen Code an {{email}} geschickt.",
+    "sentIfAccount": "Wenn dieses Konto eine Wiederherstellungs-E-Mail hat, haben wir ihr einen 6-stelligen Code geschickt.",
+    "label": "Code",
+    "resend": "Neuen Code senden",
+    "resent": "Wir haben einen neuen Code geschickt.",
+    "changeEmail": "Andere E-Mail verwenden",
+    "errors": {
+      "codeInvalid": "Dieser Code stimmt nicht oder ist abgelaufen.",
+      "tooManyAttempts": "Zu viele falsche Codes. Fordere einen neuen an.",
+      "expired": "Das hat zu lange gedauert. Fang noch einmal an.",
+      "unavailable": "Oxy kann gerade keine E-Mails senden. Versuch es später noch einmal.",
+      "rateLimited": "Zu viele Codes. Versuch es später noch einmal."
+    }
+  },
+  "deleteAccount": {
+    "passkey": {
+      "subtitle": "Bestätige mit deinem Passkey. @{{username}} und alles darin werden endgültig gelöscht.",
+      "action": "Mit Passkey löschen",
+      "done": "Dein Konto ist gelöscht.",
+      "closeWindow": "Du kannst dieses Fenster schließen.",
+      "signIn": "Melde dich bei dem Konto an, das du löschen willst.",
+      "commons": "Dieses Konto nutzt Commons: Lösche es in Oxy Commons unter Einstellungen > Konto löschen, mit seinem Schlüssel."
+    }
   }
 }

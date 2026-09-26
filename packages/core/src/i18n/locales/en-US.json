@@ -58,7 +58,26 @@
     "createInCommons": "Create your identity in Commons",
     "createAccount": "Create account",
     "backToSignInLink": "Already have an account? Sign in",
-    "webSubtitle": "No password. Your device creates a passkey, and your account gets a recovery phrase only you keep."
+    "webSubtitle": "No password: your device makes a passkey, and a recovery email gets you back in if you lose it.",
+    "username": {
+      "label": "Username",
+      "placeholder": "yourname",
+      "required": "Choose a username.",
+      "taken": "That username is taken."
+    },
+    "email": {
+      "title": "Your recovery email",
+      "subtitle": "If you lose your passkey, we send a code here to get you back in. It's used for nothing else.",
+      "label": "Email",
+      "placeholder": "you@example.com",
+      "invalid": "Enter a valid email address."
+    },
+    "passkey": {
+      "title": "Create your passkey",
+      "subtitle": "You sign in with it: your fingerprint, face or screen lock. There's nothing to remember.",
+      "action": "Create passkey"
+    },
+    "commonsInstead": "Want to hold your own key? Use Commons instead"
   },
   "welcomeNew": {
     "navTitle": "Welcome",
@@ -206,30 +225,20 @@
     "subtitle": "Tell us what you think"
   },
   "recover": {
-    "title": "Recover Account",
-    "username": {
-      "label": "Username",
-      "placeholder": "Enter your username",
-      "errorRequired": "Please enter your username.",
-      "helper": "Enter your username or email"
+    "title": "Recover your account",
+    "subtitle": "Enter your username or recovery email. We'll send a code to the account's recovery email.",
+    "identifier": {
+      "label": "Username or email",
+      "placeholder": "yourname",
+      "required": "Enter your username or email."
     },
-    "verify": {
-      "title": "Verify Code",
-      "action": "Verify Code"
+    "commonsNote": "Does your account use Commons? Recover it in Commons with your recovery phrase.",
+    "passkey": {
+      "title": "Add a new passkey",
+      "subtitle": "For @{{username}}. Remove lost passkeys later in your account's security settings.",
+      "action": "Create passkey"
     },
-    "enterCode": "Enter the 6‑digit code from your authenticator app.",
-    "newPassword": "Set New Password",
-    "resetSuccess": "Your password has been reset! You can now sign in.",
-    "noEmail": "We no longer send recovery emails. Please use your recovery phrase to restore your identity. Contact support if you need assistance.",
-    "password": {
-      "minLength": "Password must be at least 8 characters long",
-      "mismatch": "Passwords do not match",
-      "resetFailed": "Failed to reset password"
-    },
-    "missingCode": "Missing code",
-    "whatsNextTitle": "What's next?",
-    "whatsNextBody": "You can now reset your password or return to sign in with your existing credentials.",
-    "completeSecure": "Your account recovery is complete and secure."
+    "backToSignIn": "Back to sign in"
   },
   "accountCenter": {
     "sections": {
@@ -1617,8 +1626,7 @@
     "help": "Help & feedback",
     "signOut": "Sign out",
     "privacy": "Privacy Policy",
-    "terms": "Terms of Service",
-    "identity": "Your identity"
+    "terms": "Terms of Service"
   },
   "accounts": {
     "activeAccount": {
@@ -1835,9 +1843,17 @@
       "openCommons": "Open Oxy Commons",
       "commonsOpenFailed": "Couldn't open Oxy Commons. Open it yourself and go to Settings > Delete account.",
       "elsewhereTitle": "Delete your account where your identity is",
-      "elsewhereMessage": "Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds your identity and go to Settings > Delete account, or open {{site}} in a browser that holds it.",
+      "elsewhereMessage": "Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds it and go to Settings > Delete account. An account that uses a passkey is deleted at {{site}}.",
       "gotIt": "Got it",
       "identityUnreadable": "Couldn't read this device's identity storage. Unlock your device and try again."
+    },
+    "passkey": {
+      "subtitle": "Confirm with your passkey. @{{username}} and everything in it are deleted for good.",
+      "action": "Delete with passkey",
+      "done": "Your account is deleted.",
+      "closeWindow": "You can close this window.",
+      "signIn": "Sign in to the account you want to delete.",
+      "commons": "This account uses Commons: delete it in Oxy Commons, Settings > Delete account, with its key."
     }
   },
   "manageAccount": {
@@ -2076,5 +2092,21 @@
     "allow": "Continue to {{app}}",
     "deny": "Cancel",
     "disclaimer": "By continuing, {{app}} will be able to sign in with your Oxy account. You can manage connected apps anytime in your Oxy account settings."
+  },
+  "emailCode": {
+    "title": "Check your email",
+    "sentTo": "We sent a 6-digit code to {{email}}.",
+    "sentIfAccount": "If this account has a recovery email, we sent a 6-digit code to it.",
+    "label": "Code",
+    "resend": "Send a new code",
+    "resent": "We sent a new code.",
+    "changeEmail": "Use another email",
+    "errors": {
+      "codeInvalid": "That code isn't right, or it has expired.",
+      "tooManyAttempts": "Too many wrong codes. Ask for a new one.",
+      "expired": "This took too long. Start again.",
+      "unavailable": "Oxy can't send email right now. Try again later.",
+      "rateLimited": "Too many codes. Try again later."
+    }
   }
 }

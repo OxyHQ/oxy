@@ -17,10 +17,9 @@
 export const CENTRAL_IDP_APEX = 'oxy.so';
 
 /**
- * The IdP's origin, `auth.oxy.so` — the OAuth authorize/consent surface AND the
- * web identity carrier: where a person signs in or creates an account with a
- * passkey from another origin's popup, and the one origin that may create,
- * open, recover or move their self-custody identity (one identity, two
- * carriers). Apps open it; they never handle the identity themselves.
+ * The IdP's origin, `auth.oxy.so` — the OAuth authorize/consent surface and the
+ * one origin that asserts Oxy passkeys: where a person signs in, creates,
+ * recovers or deletes a web account, in the window an app opens (ADR 0029).
+ * Apps open it; they never run the passkey themselves.
  */
 export const AUTH_WEB_ORIGIN = `https://auth.${CENTRAL_IDP_APEX}`;

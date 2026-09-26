@@ -50,7 +50,26 @@
     "createInCommons": "Crea la tua identità in Commons",
     "createAccount": "Crea account",
     "backToSignInLink": "Hai già un account? Accedi",
-    "webSubtitle": "Nessuna password. Il tuo dispositivo crea una passkey e il tuo account riceve una frase di recupero che conservi solo tu."
+    "webSubtitle": "Niente password: il tuo dispositivo crea una passkey e un'email di recupero ti fa rientrare se la perdi.",
+    "username": {
+      "label": "Nome utente",
+      "placeholder": "iltuonome",
+      "required": "Scegli un nome utente.",
+      "taken": "Questo nome utente è già in uso."
+    },
+    "email": {
+      "title": "La tua email di recupero",
+      "subtitle": "Se perdi la passkey, ti mandiamo qui un codice per rientrare. Non viene usata per nient’altro.",
+      "label": "Email",
+      "placeholder": "tu@esempio.it",
+      "invalid": "Inserisci un'email valida."
+    },
+    "passkey": {
+      "title": "Crea la tua passkey",
+      "subtitle": "La usi per accedere: impronta, volto o blocco schermo. Niente da ricordare.",
+      "action": "Crea passkey"
+    },
+    "commonsInstead": "Vuoi tenere la tua chiave? Usa Commons"
   },
   "accountSwitcher": {
     "loading": "Caricamento account...",
@@ -225,7 +244,48 @@
     "help": "Aiuto e feedback",
     "signOut": "Esci",
     "privacy": "Informativa sulla privacy",
-    "terms": "Termini di servizio",
-    "identity": "La tua identità"
+    "terms": "Termini di servizio"
+  },
+  "recover": {
+    "title": "Recupera il tuo account",
+    "subtitle": "Inserisci il nome utente o l'email di recupero. Invieremo un codice all'email di recupero dell'account.",
+    "identifier": {
+      "label": "Nome utente o email",
+      "placeholder": "iltuonome",
+      "required": "Inserisci il nome utente o l’email."
+    },
+    "commonsNote": "Il tuo account usa Commons? Recuperalo in Commons con la frase di recupero.",
+    "passkey": {
+      "title": "Aggiungi una nuova passkey",
+      "subtitle": "Per @{{username}}. Rimuovi più tardi le passkey perse nelle impostazioni di sicurezza dell'account.",
+      "action": "Crea passkey"
+    },
+    "backToSignIn": "Torna all'accesso"
+  },
+  "emailCode": {
+    "title": "Controlla la tua email",
+    "sentTo": "Abbiamo inviato un codice di 6 cifre a {{email}}.",
+    "sentIfAccount": "Se questo account ha un'email di recupero, le abbiamo inviato un codice di 6 cifre.",
+    "label": "Codice",
+    "resend": "Invia un nuovo codice",
+    "resent": "Abbiamo inviato un nuovo codice.",
+    "changeEmail": "Usa un'altra email",
+    "errors": {
+      "codeInvalid": "Il codice non è corretto o è scaduto.",
+      "tooManyAttempts": "Troppi codici errati. Chiedine uno nuovo.",
+      "expired": "È passato troppo tempo. Ricomincia.",
+      "unavailable": "Oxy non può inviare email ora. Riprova più tardi.",
+      "rateLimited": "Troppi codici. Riprova più tardi."
+    }
+  },
+  "deleteAccount": {
+    "passkey": {
+      "subtitle": "Conferma con la tua passkey. @{{username}} e tutto il suo contenuto vengono eliminati per sempre.",
+      "action": "Elimina con passkey",
+      "done": "Il tuo account è stato eliminato.",
+      "closeWindow": "Puoi chiudere questa finestra.",
+      "signIn": "Accedi all'account che vuoi eliminare.",
+      "commons": "Questo account usa Commons: eliminalo in Oxy Commons, Impostazioni > Elimina account, con la sua chiave."
+    }
   }
 }

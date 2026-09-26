@@ -20,7 +20,39 @@
 
 ## 2.0.0
 
+### Added
+
+- `accountEmail`: the recovery email of a passkey account (ADR 0029 D3) —
+  `emailVerificationStartRequestSchema` (`signup` with `email`, `recovery` with
+  `identifier`), `emailVerificationConfirmRequestSchema` (6 digits),
+  their response schemas, `emailAddressSchema` (trimmed, lowercase),
+  `emailTicketSchema`, `EMAIL_CODE_LENGTH`, `EMAIL_CODE_TTL_MS`,
+  `EMAIL_CODE_MAX_ATTEMPTS`, `EMAIL_TICKET_TTL_MS`,
+  `EMAIL_VERIFICATION_PURPOSES` and `EMAIL_VERIFICATION_ERROR_CODES`.
+- `webauthnRegisterOptionsRequestSchema.recoveryTicket`;
+  `webauthnRegisterVerifyRequestSchema.email`, `.emailTicket` and
+  `.recoveryTicket`.
+- `webauthnCredentialIdSchema` and `webauthnAssertionResponseSchema` (with
+  `WebauthnAssertionResponse`) now live in `webauthn`.
+
+### Changed
+
+- `IdentityRootStatus` is `{ rootLinked, recoveryEmail }`.
+- `IDENTITY_PROOF_ACTIONS` is `{ link: 'link_identity' }`: the only root proof
+  left is linking Commons to a passkey account.
+
 ### Removed
+
+- The web identity carrier and its move: `webIdentityCarrier`
+  (`WEB_IDENTITY_ENVELOPE_VERSION`, every `webIdentity*` schema and type),
+  `identityRecovery` (`IDENTITY_RECOVERY_TTL_MS`, `identityRecovery*`) and
+  `identityMove` (`IDENTITY_MOVE_*`, `identityMove*`, `buildMove*`).
+- `webauthnRegisterVerifyRequestSchema.identity` (the sign-up enrollment).
+- The proof actions `web_envelope_*`, `enroll_identity`,
+  `recover_account_start`, `recover_account_complete`, `identity_move_seal`, and
+  the error codes `IDENTITY_ENVELOPE_REVISION_CONFLICT`, `IDENTITY_NO_ROOT`,
+  `IDENTITY_LAST_WEB_HOLDER`, `IDENTITY_ENROLLMENT_REQUIRED`,
+  `IDENTITY_ENROLLMENT_INVALID`, `IDENTITY_RECOVERY_FAILED`.
 
 - `browserHub`: `BROWSER_HUB_COOKIE_NAME`, `BROWSER_HUB_COOKIE_ATTRIBUTES`,
   `BROWSER_HUB_HANDLE_TTL_MS` and every `browserHub*` / `hub*` schema and type.

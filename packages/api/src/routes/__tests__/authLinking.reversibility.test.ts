@@ -4,8 +4,7 @@
  * Linking is FIRST LINK ONLY: a keyless personal account gains a root only with
  * a one-use root proof AND a fresh assertion by one of its existing passkeys; an
  * account that has a different root is never overwritten; a root is never
- * unlinked back to custodial; and removing a passkey never strands the web
- * holder (its wrap goes with it, and the last wrap stays). The DID flips to
+ * unlinked back to custodial. The DID flips to
  * self-sovereign — controlled by the person alone — and `userCache.invalidate`
  * fires after the write. Also locks the `GET /auth/methods` contract shape.
  *
@@ -19,7 +18,7 @@
  * session service, and the socket emitter.
  */
 
-import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
+import { deriveSecp256k1PublicKey, generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
@@ -68,15 +67,7 @@ import authLinkingRouter from '../authLinking';
 import SignatureService from '../../services/signature.service';
 import { buildDidDocument, buildUserDid, OXY_DID } from '../../services/did.service';
 import { mintIdentityProofChallenge } from '../../services/identityProof.service';
-import { identityWebEnvelopes } from '../../db/schema/identityWebEnvelopes';
-import {
-  deriveIdentityFromPrivateKey,
-  digestIdentityPayload,
-  generateWebIdentity,
-  sealWebIdentity,
-  signIdentityProof,
-  type OpenedWebIdentity,
-} from '@oxy.so/core';
+import { signIdentityProof } from '@oxy.so/core';
 import { IDENTITY_ERROR_CODES, IDENTITY_PROOF_AUDIENCE, type IdentityProofAction } from '@oxy.so/contracts';
 import { errorHandler } from '../../middleware/errorHandler';
 
@@ -230,8 +221,19 @@ beforeEach(async () => {
   await addPasskey(currentUserId, 'Baseline');
 });
 
+interface KeyIdentity {
+  privateKey: string;
+  publicKey: string;
+}
+
+/** A root as Commons holds it: a secp256k1 key, its public half canonical (lowercase, uncompressed). */
+function keyIdentity(privateKey?: string): KeyIdentity {
+  const pair = privateKey ? { privateKey, publicKey: deriveSecp256k1PublicKey(privateKey) } : generateSecp256k1KeyPair();
+  return { privateKey: pair.privateKey, publicKey: pair.publicKey.toLowerCase() };
+}
+
 /** A v2 root proof for `action` on the current account, spending a freshly minted challenge. */
-async function rootProof(identity: OpenedWebIdentity, action: IdentityProofAction, overrides: { payloadDigest?: string | null; subject?: string } = {}) {
+async function rootProof(identity: KeyIdentity, action: IdentityProofAction, overrides: { payloadDigest?: string | null; subject?: string } = {}) {
   const minted = await mintIdentityProofChallenge(currentUserId, action);
   return signIdentityProof(identity, {
     action,
@@ -271,7 +273,7 @@ describe('first link only (ADR 0024 D8)', () => {
   });
 
   it('links a keyless account’s first root with a root proof and a fresh passkey assertion', async () => {
-    const identity = generateWebIdentity();
+    const identity = keyIdentity();
     expect((await storedDidDocument(currentUserId)).controller).toEqual([OXY_DID]);
 
     const proof = await rootProof(identity, 'link_identity');
@@ -292,7 +294,7 @@ describe('first link only (ADR 0024 D8)', () => {
   });
 
   it('refuses a keyless account’s first link carried by a bearer and a new key alone', async () => {
-    const identity = generateWebIdentity();
+    const identity = keyIdentity();
     const noAssertion = await request(server, 'POST', '/auth/link', { type: 'identity', publicKey: identity.publicKey, proof: await rootProof(identity, 'link_identity') });
     expect(noAssertion.status).toBe(401);
 
@@ -302,7 +304,7 @@ describe('first link only (ADR 0024 D8)', () => {
   });
 
   it('refuses an assertion made over a different challenge, and a replayed proof', async () => {
-    const identity = generateWebIdentity();
+    const identity = keyIdentity();
     const proof = await rootProof(identity, 'link_identity');
     const elsewhere = await request(server, 'POST', '/auth/link', {
       type: 'identity',
@@ -322,9 +324,9 @@ describe('first link only (ADR 0024 D8)', () => {
   });
 
   it('never replaces an existing different root, whatever proofs come with the request', async () => {
-    const existing = deriveIdentityFromPrivateKey('11'.repeat(32));
+    const existing = keyIdentity('11'.repeat(32));
     await addIdentity(currentUserId, existing.publicKey);
-    const intruder = generateWebIdentity();
+    const intruder = keyIdentity();
 
     const proof = await rootProof(existing, 'link_identity');
     const res = await request(server, 'POST', '/auth/link', {
@@ -340,7 +342,7 @@ describe('first link only (ADR 0024 D8)', () => {
   });
 
   it('heals a missing identity method row for the SAME root, with a root proof, without adding a second', async () => {
-    const identity = generateWebIdentity();
+    const identity = keyIdentity();
     await getDb().update(users).set({ publicKey: identity.publicKey }).where(eq(users.id, currentUserId));
     const body = async () => ({ type: 'identity', publicKey: identity.publicKey.toUpperCase(), proof: await rootProof(identity, 'link_identity') });
 
@@ -360,7 +362,7 @@ describe('first link only (ADR 0024 D8)', () => {
   });
 
   it('rejects a key already linked to ANOTHER account (409, no write)', async () => {
-    const taken = generateWebIdentity();
+    const taken = keyIdentity();
     const other = await account();
     await addIdentity(other, taken.publicKey);
 
@@ -389,100 +391,6 @@ describe('a root is never unlinked (ADR 0024 D8)', () => {
     expect((await storedUser(currentUserId)).publicKey).toBe(publicKey);
     expect((await storedAuthMethods(currentUserId)).some((m) => m.type === 'identity')).toBe(true);
     expect((await storedDidDocument(currentUserId)).controller).toEqual([buildUserDid(currentUserId)]);
-  });
-});
-
-describe('removing a passkey that holds the root on the web (ADR 0024 D6)', () => {
-  async function webHolder(credentialIds: string[]) {
-    const identity = generateWebIdentity();
-    await addIdentity(currentUserId, identity.publicKey);
-    const sealed = sealWebIdentity(identity, { prfOutput: new Uint8Array(32).fill(1), credentialId: credentialIds[0], rpId: 'oxy.so' });
-    let envelope = sealed.envelope;
-    const dataKey = sealed.dataKey;
-    for (const [index, credentialId] of credentialIds.slice(1).entries()) {
-      const { addWrap } = await import('@oxy.so/core');
-      envelope = addWrap(envelope, dataKey, { prfOutput: new Uint8Array(32).fill(index + 2), credentialId, rpId: 'oxy.so' });
-    }
-    dataKey.fill(0);
-    await getDb().insert(identityWebEnvelopes).values({
-      userId: currentUserId,
-      publicKey: identity.publicKey,
-      version: 2,
-      algorithm: 'xchacha20poly1305',
-      secretKind: envelope.secretKind,
-      entropyNonce: envelope.secretNonce,
-      sealedEntropy: envelope.sealedSecret,
-      wraps: envelope.wraps,
-      revision: 3,
-    });
-    return digestIdentityPayload(envelope);
-  }
-
-  async function storedEnvelope() {
-    const [row] = await getDb().select().from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, currentUserId));
-    return row;
-  }
-
-  it('refuses to remove the passkey whose wrap is the LAST one', async () => {
-    const credentialId = await baselineCredentialId();
-    await webHolder([credentialId]);
-
-    const res = await request(server, 'DELETE', `/auth/link/webauthn/${credentialId}`);
-
-    expect(res.status).toBe(409);
-    expect((res.body as { error?: string }).error).toBe(IDENTITY_ERROR_CODES.lastWebHolder);
-    expect((await storedEnvelope()).wraps).toHaveLength(1);
-    expect((await storedAuthMethods(currentUserId)).some((m) => m.methodCredentialId === credentialId)).toBe(true);
-  });
-
-  it('removes the passkey AND its wrap when another wrap remains, bumping the revision', async () => {
-    const baseline = await baselineCredentialId();
-    const second = await addPasskey(currentUserId, 'Second');
-    await webHolder([baseline, second]);
-
-    const res = await request(server, 'DELETE', `/auth/link/webauthn/${second}`);
-
-    expect(res.status).toBe(200);
-    const envelope = await storedEnvelope();
-    expect(envelope.wraps.map((wrap) => wrap.credentialId)).toEqual([baseline]);
-    expect(envelope.revision).toBe(4);
-  });
-});
-
-describe('rotation retires the old root’s web holder', () => {
-  it('deletes the envelope sealing the old root in the same swap', async () => {
-    const oldRoot = generateSecp256k1KeyPair();
-    await addIdentity(currentUserId, oldRoot.publicKey.toLowerCase());
-    await getDb().insert(identityWebEnvelopes).values({
-      userId: currentUserId,
-      publicKey: oldRoot.publicKey.toLowerCase(),
-      version: 2,
-      algorithm: 'xchacha20poly1305',
-      secretKind: 'mnemonic-entropy',
-      entropyNonce: 'aa'.repeat(24),
-      sealedEntropy: 'bb'.repeat(32),
-      wraps: [{ credentialId: 'credential-aaaaaaaaaaaaaaaa', nonce: 'cc'.repeat(24), wrappedKey: 'dd'.repeat(48), createdAt: new Date().toISOString(), rpId: 'oxy.so' }],
-    });
-
-    const challengeRes = await request(server, 'POST', '/auth/rotate/challenge');
-    expect(challengeRes.status).toBe(200);
-    const challenge = challengeRes.body.challenge as string;
-    const newRoot = generateSecp256k1KeyPair();
-    const timestamp = Date.now();
-    const signature = SignatureService.signMessage(
-      JSON.stringify({ action: 'rotate_key', userId: currentUserId, oldPublicKey: SignatureService.canonicalizePublicKey(oldRoot.publicKey), newPublicKey: newRoot.publicKey, challenge, timestamp }),
-      oldRoot.privateKey,
-    );
-    const newKeyProof = SignatureService.signMessage(
-      JSON.stringify({ action: 'rotate_key_new', userId: currentUserId, newPublicKey: newRoot.publicKey, challenge, timestamp }),
-      newRoot.privateKey,
-    );
-
-    const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey: newRoot.publicKey, challenge, signature, newKeyProof, timestamp });
-
-    expect(res.status).toBe(200);
-    const rows = await getDb().select({ id: identityWebEnvelopes.id }).from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, currentUserId));
-    expect(rows).toHaveLength(0);
   });
 });
 

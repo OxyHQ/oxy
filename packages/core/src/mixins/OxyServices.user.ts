@@ -757,6 +757,35 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
 
 
     /**
+     * WebAuthn request options to delete a PASSKEY account (ADR 0029 D3): its own
+     * passkeys, user verification required, and a challenge bound to it. Opaque —
+     * hand them to the browser's authentication ceremony, on auth.oxy.so. An
+     * account with a Commons key deletes with {@link deleteAccount} instead.
+     */
+    async getAccountDeletionOptions(): Promise<unknown> {
+      try {
+        return await this.makeRequest<unknown>('POST', '/users/me/delete/options', undefined, { cache: false });
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Delete a PASSKEY account permanently, with an assertion by one of its
+     * passkeys over {@link getAccountDeletionOptions}' challenge.
+     *
+     * @param confirmText - Must equal the user's username (verified server-side)
+     * @param assertion - The ceremony's opaque `AuthenticationResponseJSON`
+     */
+    async deleteAccountWithPasskey(confirmText: string, assertion: unknown): Promise<{ message: string }> {
+      try {
+        return await this.makeRequest<{ message: string }>('DELETE', '/users/me', { confirmText, assertion }, { cache: false });
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
      * Invalidate every cached read a follow/unfollow write invalidates.
      *
      * Shared by the four mutation entry points (`followUser`, `unfollowUser`,

@@ -1,15 +1,10 @@
-import { useCallback } from 'react';
-import { Linking } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { IdentityRootStatus } from '@oxy.so/contracts';
-import { AUTH_WEB_ORIGIN } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 
 /**
- * The signed-in account's root readiness (ADR 0024 D5) — metadata only, so this
- * screen can remind a person to save their recovery phrase without ever holding
- * anything that opens their identity. `undefined` while unknown: no reminder is
- * shown on a guess.
+ * How the signed-in account is kept (ADR 0029 D3): Commons' root, or a passkey
+ * and a recovery email. `undefined` while unknown: nothing is shown on a guess.
  */
 export function useIdentityRootStatus(): IdentityRootStatus | undefined {
   const { oxyServices, isAuthenticated } = useOxy();
@@ -20,14 +15,4 @@ export function useIdentityRootStatus(): IdentityRootStatus | undefined {
     staleTime: 60_000,
   });
   return data;
-}
-
-/**
- * Open the person's Oxy identity (save or show the recovery phrase, recover,
- * add Commons). It runs on auth.oxy.so/identity, never inside this app.
- */
-export function useOpenIdentity(): () => void {
-  return useCallback(() => {
-    Linking.openURL(`${AUTH_WEB_ORIGIN}/identity`).catch(() => undefined);
-  }, []);
 }

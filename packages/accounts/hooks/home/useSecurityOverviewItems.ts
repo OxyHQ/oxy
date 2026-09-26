@@ -13,16 +13,13 @@ interface UseSecurityOverviewItemsArgs {
   biometricLoading: boolean;
   /** `GET /identity/root-status`, or `undefined` while unknown. */
   rootStatus: IdentityRootStatus | undefined;
-  /** Open the person's Oxy identity page (save/show the recovery phrase, recover). */
-  handleIdentity: () => void;
   handleSecurity: HomeHandlers['handleSecurity'];
 }
 
 /**
- * Builds the security-overview rows on the home screen (biometric status,
- * recovery phrase, overall security status). The biometric and status rows link
- * to the security screen; the recovery row opens the person's Oxy identity. The
- * biometric row is native-only.
+ * Builds the security-overview rows on the home screen (biometric status, how
+ * the account is recovered, overall security status). Every row links to the
+ * security screen. The biometric row is native-only.
  *
  * Extracted verbatim from the screen's inline `useMemo`.
  */
@@ -32,7 +29,6 @@ export function useSecurityOverviewItems({
   hasBiometricHardware,
   biometricLoading,
   rootStatus,
-  handleIdentity,
   handleSecurity,
 }: UseSecurityOverviewItemsArgs): GroupedItem[] {
   const colors = useColors();
@@ -66,23 +62,22 @@ export function useSecurityOverviewItems({
       });
     }
 
-    // Recovery phrase — what gets an Oxy account back (ADR 0024: no email or
-    // support recovery exists). Unknown status shows no verdict.
-    const recoveryNeedsAttention =
-      rootStatus !== undefined && (!rootStatus.rootLinked || (rootStatus.hasPhrase === true && !rootStatus.phraseConfirmedAt));
+    // How the account gets back in (ADR 0029 D3): Commons' recovery phrase for
+    // a self-custodied account, the recovery email for a passkey account.
+    // Unknown status shows no verdict.
+    const recoveryNeedsAttention = rootStatus !== undefined && !rootStatus.rootLinked && !rootStatus.recoveryEmail;
     let recoverySubtitle = '';
     if (rootStatus === undefined) recoverySubtitle = t('home.securityOverview.recoveryChecking');
-    else if (!rootStatus.rootLinked) recoverySubtitle = t('home.securityOverview.recoveryNotSecured');
-    else if (rootStatus.webHolder === null) recoverySubtitle = t('home.securityOverview.recoveryInCommons');
-    else if (rootStatus.hasPhrase === false || rootStatus.phraseConfirmedAt) recoverySubtitle = t('home.securityOverview.recoverySaved');
-    else recoverySubtitle = t('home.securityOverview.recoveryNotSaved');
+    else if (rootStatus.rootLinked) recoverySubtitle = t('home.securityOverview.recoveryInCommons');
+    else if (rootStatus.recoveryEmail) recoverySubtitle = t('home.securityOverview.recoveryEmail', { email: rootStatus.recoveryEmail });
+    else recoverySubtitle = t('home.securityOverview.recoveryNotSecured');
     items.push({
-      id: 'recovery-phrase',
-      icon: 'form-textbox-password',
+      id: 'recovery',
+      icon: rootStatus?.rootLinked ? 'form-textbox-password' : 'email-lock-outline',
       iconColor: recoveryNeedsAttention ? colors.sidebarIconSecurity : colors.success,
-      title: t('home.securityOverview.recoveryPhrase'),
+      title: t('home.securityOverview.recovery'),
       subtitle: recoverySubtitle,
-      onPress: handleIdentity,
+      onPress: handleSecurity,
     });
 
     // Security status based on recommendations
@@ -97,5 +92,5 @@ export function useSecurityOverviewItems({
     });
 
     return items;
-  }, [biometricEnabled, canEnableBiometric, hasBiometricHardware, biometricLoading, colors.sidebarIconSecurity, colors.sidebarIconPayments, colors.success, rootStatus, handleIdentity, handleSecurity, t]);
+  }, [biometricEnabled, canEnableBiometric, hasBiometricHardware, biometricLoading, colors.sidebarIconSecurity, colors.sidebarIconPayments, colors.success, rootStatus, handleSecurity, t]);
 }

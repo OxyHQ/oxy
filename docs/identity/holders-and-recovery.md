@@ -1,112 +1,95 @@
-# Root holders, enrollment and recovery — inventory
+# Accounts, recovery and Commons — inventory
 
-The living record for #1302 and [ADR 0024](../adr/0024-one-oxy-account-root-holders.md).
-The ADR says why; this page says what exists, who calls it, and what is still
-unverified or unbuilt. Update the row when the code changes — a stale row here is
-a bug.
+The living record for [ADR 0024](../adr/0024-one-oxy-account-root-holders.md) as
+changed by [ADR 0029](../adr/0029-one-oxy-session.md) D3. The ADRs say why; this
+page says what exists, who calls it, and what is still unverified or unbuilt.
+Update the row when the code changes — a stale row here is a bug.
+
+## Two kinds of personal account
+
+| | Passkey account (the web) | Commons account (self-custody) |
+|---|---|---|
+| Created | on `auth.oxy.so/signup`: username → recovery email, confirmed with a 6-digit code → passkey | in Commons: a key and its recovery phrase (`/auth/register`) |
+| `users.public_key` | `NULL` | the root |
+| `users.email` | the confirmed recovery email | `NULL` — none is stored |
+| Signs in with | a passkey, asserted only on `auth.oxy.so` (RP ID `oxy.so`) | Commons (QR, deep link, shared keychain) |
+| Recovers with | a code sent to the recovery email, then a new passkey (`auth.oxy.so/recover`) | its recovery phrase, in Commons |
+| Deleted with | the typed username and a passkey assertion (`auth.oxy.so/delete-account`) | its key, in Commons |
+| DID controller | Oxy (custodial) | the person |
+
+Commons is the official, recommended way: linking Commons to a passkey account
+makes it self-custodied and deletes its recovery email (ADR 0029 D3). There is
+no web identity carrier: no envelope, no web phrase, no PRF, no move.
 
 ## Vocabulary (for engineers, never for product copy)
 
 | Term | Meaning |
 |---|---|
-| Root | The account's self-custody secp256k1 key, linked as `users.public_key`. From a BIP-39 phrase (12–24 words): `seed[0:32]`. A few legacy roots are raw private keys with no phrase. |
-| Holder | A user-controlled place that can use the root: Commons' keychain, or a web envelope wrap that one passkey's PRF output opens. |
-| Recovery material | A phrase or a raw private key. Not a holder. |
-| Web envelope | `identity_web_envelopes`: sealed secret + one wrap per passkey. Ciphertext only. One scheme (`version 2`): phrase entropy of any length or a raw key; every wrap names its RP ID. |
-| Holder host | `auth.oxy.so` — the IdP, which runs every root operation in a browser (`/signup`, `/recover`, `/identity`; ADR 0028). |
-| Root proof | A signature by the root over `buildIdentityProofMessage` claims, spending a one-use challenge (ADR 0024 D7). |
+| Root | A Commons account's secp256k1 key, linked as `users.public_key`. From a BIP-39 phrase (12–24 words): `seed[0:32]`. |
+| Recovery email | A passkey account's `users.email`, set only by a verified sign-up. Not a profile field (`PUT /users/me` does not write it) and not a sign-in method. |
+| Verification | One `email_verifications` row: a code sent (or, for a decoy, not sent), its attempts, and the ticket its confirmation mints. |
+| Ticket | 32 random bytes (base64url) a confirmed code returns; stored as its SHA-256, spent once by registration. 15 minutes. |
+| Root proof | A signature by the root over `buildIdentityProofMessage` claims, spending a one-use challenge (ADR 0024 D7). The only action left is `link_identity`. |
 
 ## Invariants and where they are enforced
 
 | Invariant | Enforced by |
 |---|---|
-| A personal account is created with its root, or not at all | `POST /webauthn/register/verify` refuses sign-up without `identity` (`IDENTITY_ENROLLMENT_REQUIRED`); the holder host confirms a stable PRF output before registering; `auth.oxy.so` sign-up opens the holder flow |
-| Signing in never unlocks the root | `packages/auth/lib/identity/passkey.ts` (`assertPasskey` has no PRF extension); status from `GET /identity/web-envelope` metadata or `GET /identity/root-status` |
-| Every root operation is one fresh ceremony, wiped after | `withRoot` / `openRootForDisplay` in `packages/auth/lib/identity/carrier.ts` |
-| A root is linked first-time only, with a fresh factor | `POST /auth/link` and `POST /identity/web-envelope/establish` (proof + WebAuthn assertion over the same challenge) |
+| A web account is created with a confirmed recovery email and a passkey, and no key | `POST /webauthn/register/verify` refuses a sign-up without `email` + `emailTicket` (`EMAIL_TICKET_REQUIRED`), spends the ticket in the transaction that creates the user, the credential and its auth method |
+| Accounts are created and recovered only on `auth.oxy.so` | `/auth/email/*` answers only `getAuthWebOrigin()` and loopback; sign-up and recovery ceremonies reported from any other origin are refused (`isAuthWebOrigin`) |
+| Nothing says whether an email or username has an account | `start` answers the same for every case; a sign-up for a taken email sends a notice (no code), a recovery naming nothing — or a Commons/managed account — sends nothing; both record a decoy row. `GET /auth/check-email` is deleted. Mail is dispatched without the response waiting on it |
+| A code is guessed at most 5 times and lives 10 minutes | `confirmEmailVerification` (row lock, attempt counter, `expires_at` filter) |
+| Codes are limited per address and per IP | 5 per hashed email per hour (counted from `email_verifications`); `rl:auth:email:*` keyed by `hashedIpKey` |
+| No address, code or ticket is readable at rest | `email_hash` (`hashEmail`), `code_hash` (HMAC under `DEVICE_ID_SALT`), `ticket_hash` (SHA-256) |
+| No IP is persisted | rate-limit keys only, via `hashedIpKey` |
+| A ticket is spent once, by its purpose and its email | `spendSignupTicket` / `spendRecoveryTicket` — one conditional UPDATE inside the registration transaction |
+| An account that linked Commons is recovered in Commons | The recovery branch of `/webauthn/register/verify` refuses an account with `public_key` set |
+| Deleting a passkey account needs the person, not the session | `DELETE /users/me` with an `assertion` over a challenge from `POST /users/me/delete/options` (bound to the account, `authentication`, UV required, `auth.oxy.so` only); the confirmation is checked before the challenge is spent |
+| A root is linked first-time only, with a fresh factor | `POST /auth/link` (proof + WebAuthn assertion over the same challenge) |
 | A root is never unlinked | No route removes a root: `DELETE /auth/link/:type` does not exist; only `DELETE /auth/link/webauthn/:id` |
-| A root is replaced only by rotation | `POST /auth/rotate/*` (old-root + new-root proofs); rotation deletes the old root's envelope and backup |
-| Envelope writes are payload-, revision- and challenge-bound | `identityWebEnvelope.ts` + `identity_proof_challenges`; one proof format |
-| Concurrent holder changes cannot drop each other | `identity_web_envelopes.revision` compare-and-swap (`IDENTITY_ENVELOPE_REVISION_CONFLICT`) |
-| Removing a passkey never strands the web holder | `DELETE /auth/link/webauthn/:id` drops that passkey's wrap and refuses the last one (`IDENTITY_LAST_WEB_HOLDER`) |
-| Recovery needs only the root | `POST /identity/recovery/{challenge,start,complete}` |
-| A stale local copy never overrides the server | The holder uses IndexedDB only when the API gives no answer, and only to show the phrase |
-| A transfer relay cannot steer both codes together | Initiator key commitment read before the join; SAS over both keys + commitment |
-| A web holder is removed only after Commons stored the root | Receipt signed with the key read back from Commons' keychain, bound to the relayed ciphertext, verified by the web from what it sealed |
+| A root is replaced only by rotation | `POST /auth/rotate/*` (old-root + new-root proofs); rotation deletes the old root's backup |
 | The DID of a personal root is controlled by the person | `buildDidDocument` → `controller: [userDid]` |
 | `auth.oxy.so` runs no third-party analytics | No PostHog dependency or wiring; Pages headers in `sensitive` mode strip the Cloudflare beacon; `packages/auth/lib/__tests__/sensitive-origin.test.ts` |
 
-## Routes that touch a personal root
+## Routes
 
 | Route | Authority required | Notes |
 |---|---|---|
-| `POST /identity/proof-challenge` | bearer | One-use challenge bound to account, action and the root linked at mint time. |
-| `GET /identity/root-status` | bearer, any first-party origin | Readiness metadata only. |
-| `GET /identity/web-envelope` | bearer, holder host | Envelope + `revision` + holders + readiness facts. |
-| `PUT /identity/web-envelope` | holder host, root proof over the envelope digest, `expectedRevision` | CAS on `revision`. |
-| `POST /identity/web-envelope/establish` | holder host, root proof, fresh WebAuthn assertion by an existing passkey | Keyless account's first root (or a web holder for a root with none), atomically. |
-| `POST /identity/web-envelope/phrase-confirmed` | holder host, root proof, `expectedRevision` | Recovery material written down. |
-| `POST /identity/web-envelope/recovery-verified` | holder host, root proof, `expectedRevision` | Recovery material re-derived the root. |
-| `DELETE /identity/web-envelope` | holder host, root proof, `expectedRevision` | Removes the web holder. |
-| `POST /webauthn/register/verify` (sign-up) | registration challenge + `identity` (envelope + `enroll_identity` proof over that challenge) | User, passkey, root, both auth methods and envelope in one transaction. |
-| `POST /identity/recovery/challenge` | holder host, rate-limited per hashed IP | Names no account. |
-| `POST /identity/recovery/start` | root proof over that challenge | Learns the account; registration options for a new passkey; ticket. |
-| `POST /identity/recovery/complete` | ticket + registration (UV required) + envelope + `recover_account_complete` proof | New passkey + replaced web holder + session. Old passkeys stay. |
-| `POST /auth/link` | bearer + root proof; keyless → also a fresh assertion | First link only; same-root call heals the method row. |
+| `POST /auth/email/verify/start` | `auth.oxy.so` origin, per-IP and per-email limits | `{ purpose: 'signup', email }` or `{ purpose: 'recovery', identifier }` → `{ verificationId, expiresAt }`, whatever exists. |
+| `POST /auth/email/verify/confirm` | `auth.oxy.so` origin, the code | → `{ ticket, expiresAt, username }` (`username` for a recovery). |
+| `POST /webauthn/register/options` | none (sign-up: `username`), recovery ticket, or bearer | A recovery challenge is bound to the account the ticket names. |
+| `POST /webauthn/register/verify` | sign-up: `username` + `email` + `emailTicket`; recovery: `recoveryTicket`; link: bearer | Sign-up and recovery mint a session; link does not. |
+| `GET /identity/root-status` | bearer, any first-party origin | `{ rootLinked, recoveryEmail }`. |
+| `POST /identity/proof-challenge` | bearer | `link_identity` only. |
+| `POST /auth/link` | bearer + root proof; keyless → also a fresh passkey assertion | First link only; same-root call heals the method row. |
 | `POST /auth/rotate/challenge`, `/complete` | old-root + new-root proofs, one-use challenge | Only way to replace a root. |
-| `DELETE /auth/link/webauthn/:id` | bearer | Drops the wrap; refuses the last wrap. |
-| `POST /identity/move` (+ `/join`, `/reveal`, `/seal`, `/receipt`, `DELETE`) | see `identityMove.ts` | Transfer to Commons: commitment → join → reveal → SAS → seal (root proof over the sealed bytes) → receipt. |
-| `DELETE /users/me` | root signature | Account deletion. |
+| `DELETE /auth/link/webauthn/:id` | bearer | Keeps ≥1 auth method. |
+| `POST /users/me/delete/options` | bearer, passkey account | WebAuthn request options over the account's passkeys. |
+| `DELETE /users/me` | bearer + root signature (Commons) or passkey assertion (passkey account) + typed username | Account deletion. |
 | `/identity/backup*` | seed-derived locator | Commons' encrypted backup (full-seed HKDF). Unchanged. |
 
 ## Callers
 
 | Caller | Uses |
 |---|---|
-| `packages/commons` | Commons sign-up (`/auth/register`, key included), backup, transfer receiver |
-| `packages/services` account dialog | opens auth.oxy.so in a window over the app (`continueOnAuth`: `/authorize?screen=signup|recover|signin`, ADR 0029 D1) for every web sign-in and sign-up; `auth.oxy.so/identity` for the phrase, recovery and deletion; native creation goes to Commons |
-| `packages/auth` (`auth.oxy.so`, holder host) | passkey sign-in (no PRF); `lib/identity/` + `/signup`, `/recover`, `/identity`: sign-up with root, establish, phrase/recovery facts, signed-in reseal, signed-out recovery, transfer initiator, account deletion |
-| `packages/accounts` | `GET /identity/root-status` for the recovery-phrase row and recommendations; passkey list/remove |
+| `packages/commons` | Commons sign-up (`/auth/register`, key included, no email), backup, deletion |
+| `packages/services` | `OxyCreateAccountPanel`, `OxyRecoverAccountPanel`, `OxyDeleteAccountPanel` (auth.oxy.so's pages); the account dialog opens auth.oxy.so in a window (`continueOnAuth`, ADR 0029 D1); "Delete account" on the web opens `auth.oxy.so/delete-account` |
+| `packages/auth` (`auth.oxy.so`) | `/signup`, `/recover`, `/delete-account` render the services panels and continue to the request in the query |
+| `packages/accounts` | `GET /identity/root-status` for the account-recovery row; passkey list/remove |
 
-## Migration classes
+## Mail
 
-Counted by `packages/api/src/scripts/report-identity-holder-classes.ts`
-(aggregate only) and `report-accounts-without-identity.ts`.
-
-Baseline (production, read-only, 2026-09-16, after #1305): 51 local personal
-roots, all without a web holder (Commons); 3 keyless personal accounts with a
-passkey; 0 without any method; 0 web envelopes; 0 transfers in flight. Federated
-rows (~102k) are not personal roots. With 0 envelopes, 0 transfers and 0
-device-pairing sessions ever created, the compatibility paths (envelope v1,
-unscoped wraps, v1 proofs, transfer v1, `/device-transfer`, `DELETE
-/auth/link/:type`) were removed outright (migrations 0096–0098).
-
-| Class | Path |
-|---|---|
-| Commons-only root | Unchanged. Adding a web holder: "Keep my identity in this browser too" on the holder host (recovery material → establish). |
-| Local-only / server-missing envelope on the holder host | Local copy used only when the API is unreachable, only to show the phrase; otherwise recovery with material. |
-| Envelope the current passkey cannot open | Another wrap, or recovery with material (signed-in reseal or signed-out recovery). |
-| Keyless personal account (passkey only) | "Finish securing your account" after sign-in on the holder host (establish, fresh assertion). Never created server-side; no new ones can be created. |
-| Keyless personal account with no method | Cannot sign in; no path (no factor to prove). Counted, not migrated. |
-| 12- or 24-word phrase | Envelope v2 (`mnemonic-entropy`); transfers to Commons. |
-| Raw private key | Envelope v2 (`raw-private-key`); signed-out recovery supported. Transfer to Commons not supported (Commons imports phrases). |
-| Rotated root | Old envelope deleted by the rotation; any older one reads as absent (`staleRoot` in the census). |
-| Managed / federated / bot accounts | Not personal roots; excluded from every path. |
-
-## Open work (tracked in #1302)
-
-- **Holder host**: done (ADR 0028) — `id.oxy.so` is gone and `auth.oxy.so` is
-  the holder. Every credential stays on RP ID `oxy.so`.
-- **Commons "sign this" approvals** for roots kept only in Commons: not built.
+Codes and notices go out through the outbound relay (`smtpOutbound.sendSystem`,
+`Oxy <noreply@oxy.so>`, never stored in a mailbox and never queued — a code that
+cannot be sent now is not worth sending later). A server with no relay answers
+`start` with 503 `EMAIL_UNAVAILABLE`. Relay configuration:
+`~/Oxy/docs/outbound-mail-relay.md`.
 
 ## Not verifiable from source
 
-Open gates, not claimed by any test in this repository:
-
-- PRF at `create()` and at the follow-up `get()`, per browser and provider, and
-  synced-copy stability (the matrix in #1302).
+- Deliverability of the code mail to the major providers (SPF/DKIM alignment of
+  the `noreply@` sender through each configured relay).
 - iOS/Android: keychain access groups, the Android session broker, reinstall and
-  biometric-change behavior, universal/app links for same-phone continuation,
-  and Commons reading the root back before signing the receipt on a device.
+  biometric-change behavior, universal/app links for same-phone continuation.
 - Non-technical usability of create → return → second app → recover.
-- A content-addressed release manifest check of what the holder host serves.
+- A content-addressed release manifest check of what `auth.oxy.so` serves.

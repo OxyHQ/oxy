@@ -53,7 +53,6 @@ import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils.js
 import userCache from '../utils/userCache.js';
 import { buildUserDid } from '../services/did.service.js';
 import { buildAuthMethodEntries } from '../utils/authMethodEntries.js';
-import { identityWebEnvelopes } from '../db/schema/identityWebEnvelopes.js';
 import { verifyIdentityProof } from '../services/identityProof.service.js';
 import { verifyFreshPasskeyAssertion } from '../services/webauthnFreshAssertion.service.js';
 import { isOxyApexOrigin } from '../utils/origin.js';
@@ -477,10 +476,6 @@ router.post('/rotate/complete', rotateCompleteLimiter, validate({ body: rotateKe
       await tx.update(users).set({ publicKey: canonicalNewPublicKey }).where(eq(users.id, userId));
 
       await tx.delete(identityBackups).where(eq(identityBackups.userId, userId));
-      // The web holder sealed the OLD root; after the swap it could only ever
-      // read as absent. Removing it in the same transaction means a restored or
-      // stale client can never be handed ciphertext of a root that lost authority.
-      await tx.delete(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, userId));
     });
   } catch (error) {
     // The read-then-check in step 5 is not atomic with this write; the unique
@@ -659,33 +654,6 @@ router.delete('/link/webauthn/:credentialID', validate({ params: unlinkWebauthnP
     // Removing the last remaining auth method would lock the account out.
     if (posture.total <= 1) {
       throw new BadRequestError('Cannot unlink last authentication method - account would become inaccessible');
-    }
-
-    // A passkey may also be a ROOT HOLDER: a wrap in the web envelope. Login
-    // methods are not the only thing to count (ADR 0024 D6). Its wrap goes with
-    // it — a removed passkey must not keep opening the root — and the envelope's
-    // LAST wrap is never removed this way: removing the web holder itself is a
-    // root-proven `DELETE /identity/web-envelope`.
-    const [envelope] = await tx
-      .select({ publicKey: identityWebEnvelopes.publicKey, wraps: identityWebEnvelopes.wraps, revision: identityWebEnvelopes.revision })
-      .from(identityWebEnvelopes)
-      .where(eq(identityWebEnvelopes.userId, userId))
-      .for('update')
-      .limit(1);
-    const root = posture.publicKey?.trim().toLowerCase() ?? null;
-    if (envelope && root && envelope.publicKey === root && envelope.wraps.some((wrap) => wrap.credentialId === credentialID)) {
-      const remaining = envelope.wraps.filter((wrap) => wrap.credentialId !== credentialID);
-      if (remaining.length === 0) {
-        throw new ApiError(
-          409,
-          'This passkey is the only one that opens your identity on the web. Add another passkey or remove the web copy first.',
-          IDENTITY_ERROR_CODES.lastWebHolder,
-        );
-      }
-      await tx
-        .update(identityWebEnvelopes)
-        .set({ wraps: remaining, revision: envelope.revision + 1 })
-        .where(eq(identityWebEnvelopes.userId, userId));
     }
 
     await tx

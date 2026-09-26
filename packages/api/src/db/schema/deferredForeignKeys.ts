@@ -30,7 +30,6 @@ import { externalIdentityInstagramPins, externalIdentityMetaProofs } from './ext
  */
 
 import { accountEvents } from './accountEvents';
-import { identityMoves } from './identityMoves';
 import { mastodonAppRegistrations } from './userLinkedAccounts';
 import { federatedAccountMoves } from './federatedAccountMoves';
 import { inferenceCatalogueBlocklist } from './inferenceCatalogueSync';
@@ -117,8 +116,6 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason: 'The ActivityPub `id` of a remote Move activity (an IRI on the moving server), kept as the idempotency key; not an Oxy row reference.' },
   { table: mastodonAppRegistrations, column: mastodonAppRegistrations.clientId,
     reason: "Oxy's OAuth `client_id` AT A REMOTE Mastodon-API instance, issued by that instance's `POST /api/v1/apps`; a foreign system's identifier, not an Oxy row reference." },
-  { table: identityMoves, column: identityMoves.moveId,
-    reason: 'Random 128-bit capability minted by the move relay itself and carried in the QR; the public handle of this row, not a reference to any other row.' },
   { table: externalIdentityMetaProofs, column: externalIdentityMetaProofs.instagramGraphId,
     reason: 'Instagram first-party profile graph-ID namespace, retained with source hashes and parser provenance; distinct from Instagram pk, Threads web pk and ActivityPub actor URI, not an Oxy row reference.' },
   { table: externalIdentityInstagramPins, column: externalIdentityInstagramPins.instagramGraphId,

@@ -91,12 +91,6 @@ export function usePasskeyItems(): GroupedItem[] {
                 await removePasskey(credentialId);
                 toast.success(t('security.passkeys.removeSuccess'));
               } catch (error: unknown) {
-                // The only passkey that opens the account's identity on the web
-                // is kept (ADR 0024 D6); say why in the person's language.
-                if ((error as { code?: unknown } | null)?.code === 'IDENTITY_LAST_WEB_HOLDER') {
-                  toast.error(t('security.passkeys.removeLastWebHolder'));
-                  return;
-                }
                 const message = error instanceof Error ? error.message : '';
                 toast.error(message || t('security.passkeys.removeFailed'));
               } finally {

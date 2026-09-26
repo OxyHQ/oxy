@@ -24,7 +24,8 @@
  * `webauthn_credentials`, `webauthn_challenges`, `user_auth_methods` and `users`
  * are Drizzle tables. Two things the Mongo version could not do, and now does:
  *
- * - **Signup is ONE transaction** (account + credential + auth method). The
+ * - **Signup is ONE transaction** (account + credential + auth method + the
+ *   spend of its recovery email's ticket). The
  *   compensating `User.findByIdAndDelete` that used to unwind a half-created
  *   account existed only because Mongo gave this path no transaction; it is
  *   deleted rather than translated.
@@ -48,9 +49,7 @@ import {
 } from '@simplewebauthn/server';
 import { decodeClientDataJSON, isoUint8Array } from '@simplewebauthn/server/helpers';
 import {
-  IDENTITY_ERROR_CODES,
-  IDENTITY_PROOF_ACTIONS,
-  type WebIdentityEnvelope,
+  EMAIL_VERIFICATION_ERROR_CODES,
   webauthnRegisterOptionsRequestSchema,
   webauthnLoginOptionsRequestSchema,
   webauthnRegisterVerifyRequestSchema,
@@ -58,8 +57,7 @@ import {
   isValidUsername,
   USERNAME_INVALID_MESSAGE,
 } from '@oxy.so/contracts';
-import { getDb } from '../config/postgres';
-import { identityWebEnvelopes } from '../db/schema/identityWebEnvelopes';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { notifications } from '../db/schema/notifications';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users } from '../db/schema/users';
@@ -69,12 +67,10 @@ import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ApiError, BadRequestError, ConflictError, ForbiddenError, UnauthorizedError, InternalServerError } from '../utils/error';
-import { digestIdentityPayload, verifyIdentityProofSignature } from '../services/identityProof.service';
-import { envelopeColumns } from '../utils/identityEnvelopeColumns';
-import SignatureService from '../services/signature.service';
+import { readRecoveryTicket, spendRecoveryTicket, spendSignupTicket, ticketInvalid } from '../services/accountEmail.service';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
-import { isOxyApexOrigin } from '../utils/origin';
+import { isAuthWebOrigin, isOxyApexOrigin } from '../utils/origin';
 import { getWebauthnRpId } from '../config/env';
 import { normalizeUsername } from '../utils/username';
 import { buildSessionAuthResponse, sessionCreateOptionsFromBody } from '../controllers/session.controller';
@@ -93,8 +89,8 @@ const DEFAULT_CREDENTIAL_NAME = 'Passkey';
 const UNIQUE_VIOLATION = '23505';
 /** The unique index that rejects a second account claiming one username. */
 const USERNAME_UNIQUE_CONSTRAINT = 'users_lower_username_key';
-/** The unique index that rejects a root already linked to another account. */
-const PUBLIC_KEY_UNIQUE_CONSTRAINTS = new Set(['users_lower_public_key_key', 'user_auth_methods_lower_method_public_key_key']);
+/** The unique index that rejects a second account with one recovery email. */
+const EMAIL_UNIQUE_CONSTRAINT = 'users_lower_email_key';
 /** The two unique indexes a second registration of one passkey can collide with. */
 const CREDENTIAL_UNIQUE_CONSTRAINTS = new Set([
   'webauthn_credentials_credential_id_key',
@@ -466,56 +462,53 @@ export async function mintWebauthnSession(
   res.json(response);
 }
 
-function enrollmentInvalid(message: string): ApiError {
-  return new ApiError(400, message, IDENTITY_ERROR_CODES.enrollmentInvalid);
+/**
+ * Sign-up and recovery run only on auth.oxy.so (ADR 0029 D1, D3): a ceremony
+ * reported from any other origin — even another `*.oxy.so` app — is refused.
+ */
+function requireAuthWebCeremony(origin: string): void {
+  if (!isAuthWebOrigin(origin)) {
+    throw new BadRequestError('Accounts are created and recovered on auth.oxy.so');
+  }
 }
 
-/**
- * Check a sign-up's root enrollment, returning the canonical root.
- *
- * The envelope must open with the passkey being registered and nothing else (its
- * ONE wrap names that credential and, when present, this RP ID), and the root
- * proof must name this username, this credential, the digest of this envelope
- * and — as its challenge — this ceremony's registration challenge.
- */
-export function checkIdentityEnrollment(
-  envelope: WebIdentityEnvelope,
-  context: { username: string; credentialId: string; rpId: string; registrationChallenge: string; proof: { v: 2; challenge: string; expiresAt: number; signature: string } },
-): string {
-  const root = envelope.publicKey.toLowerCase();
-  if (!SignatureService.isValidPublicKey(root)) {
-    throw enrollmentInvalid('The identity is not a valid key');
-  }
-  if (envelope.wraps.length !== 1 || envelope.wraps[0].credentialId !== context.credentialId) {
-    throw enrollmentInvalid('The identity must be sealed with exactly the passkey being created');
-  }
-  if (envelope.wraps[0].rpId !== context.rpId) {
-    throw enrollmentInvalid('The identity was sealed for a different passkey domain');
-  }
-  const expectedChallenge = Buffer.from(context.registrationChallenge, 'base64url').toString('hex');
-  if (context.proof.challenge !== expectedChallenge) {
-    throw new ApiError(401, 'Invalid or expired identity proof', IDENTITY_ERROR_CODES.proofInvalid);
-  }
-  verifyIdentityProofSignature({
-    action: IDENTITY_PROOF_ACTIONS.enroll,
-    subject: `username:${context.username}`,
-    actor: `credential:${context.credentialId}`,
-    rootPublicKey: root,
-    payloadDigest: digestIdentityPayload({ envelope }),
-    expectedRevision: null,
-    proof: context.proof,
+/** The passkey's two rows — the credential and its auth method — written as ONE fact. */
+async function insertPasskey(
+  tx: DatabaseOrTransaction,
+  userId: string,
+  registration: NonNullable<Awaited<ReturnType<typeof verifyRegistrationResponse>>['registrationInfo']>,
+  name: string,
+): Promise<void> {
+  const { credential, credentialDeviceType, credentialBackedUp, userVerified } = registration;
+  await tx.insert(webauthnCredentials).values({
+    userId,
+    credentialID: credential.id,
+    credentialPublicKey: Buffer.from(credential.publicKey),
+    counter: credential.counter,
+    transports: credential.transports,
+    deviceType: credentialDeviceType,
+    backedUp: credentialBackedUp,
+    userVerified,
+    name,
   });
-  return root;
+  await tx.insert(userAuthMethods).values({
+    userId,
+    type: 'webauthn',
+    methodCredentialId: credential.id,
+    methodName: name,
+  });
 }
 
 /**
  * POST /webauthn/register/options
  *
  * Bearer → link a passkey to the signed-in account (excludes existing passkeys).
- * No bearer → prospective signup: validate the requested username is available
- * WITHOUT creating the user yet (a throwaway userID handle is used for the
- * ceremony). Either way the returned `challenge` is persisted as a
- * `registration` challenge and burned exactly once at verify time.
+ * `recoveryTicket` → a new passkey for the account a recovery code was confirmed
+ * for (the ticket is read here and spent at verify). `username` → prospective
+ * signup: validate the requested username is available WITHOUT creating the
+ * user yet (a throwaway userID handle is used for the ceremony). Either way the
+ * returned `challenge` is persisted as a `registration` challenge and burned
+ * exactly once at verify time.
  */
 router.post(
   '/register/options',
@@ -535,27 +528,30 @@ router.post(
     let challengeUserId: string | null = null;
     let excludeCredentials: { id: string; transports?: AuthenticatorTransportFuture[] }[] = [];
 
-    if (bearerUserId) {
-      // Linking branch: the signed-in account adds another passkey.
+    // Linking (bearer) and recovery (ticket) both add a passkey to an existing
+    // account; only how the account is named differs.
+    const existingAccountId = bearerUserId ?? (parsed.data.recoveryTicket ? await readRecoveryTicket(parsed.data.recoveryTicket) : null);
+
+    if (existingAccountId) {
       const [account] = await db
         .select({ id: users.id, username: users.username, kind: users.kind })
         .from(users)
-        .where(eq(users.id, bearerUserId))
+        .where(eq(users.id, existingAccountId))
         .limit(1);
       if (!account) {
-        throw new UnauthorizedError('User not found');
+        throw bearerUserId ? new UnauthorizedError('User not found') : ticketInvalid();
       }
       if (!isPersonalAccount(account.kind)) {
         throw new ForbiddenError('Passkeys can only be linked to personal accounts');
       }
-      userName = account.username || bearerUserId;
-      userHandle = bearerUserId;
-      challengeUserId = bearerUserId;
+      userName = account.username || existingAccountId;
+      userHandle = existingAccountId;
+      challengeUserId = existingAccountId;
 
       const existing = await db
         .select({ credentialID: webauthnCredentials.credentialID, transports: webauthnCredentials.transports })
         .from(webauthnCredentials)
-        .where(eq(webauthnCredentials.userId, bearerUserId));
+        .where(eq(webauthnCredentials.userId, existingAccountId));
       excludeCredentials = existing.map((cred) => ({
         id: cred.credentialID,
         transports: toTransports(cred.transports),
@@ -630,9 +626,14 @@ router.post(
  * POST /webauthn/register/verify
  *
  * Verifies the attestation, atomically burns the matching `registration`
- * challenge, then either LINKS the passkey to the bearer's account (returns
- * `{ success: true }`) or, for a signup, CREATES the account + credential and
- * runs the shared session mint (returns the `/auth/verify` `AuthSuccess` shape).
+ * challenge, then:
+ *
+ * - bearer → LINKS the passkey to the signed-in account (`{ success: true }`);
+ * - `recoveryTicket` → adds the passkey to the account being recovered, spends
+ *   the ticket and signs in (the `/auth/verify` `AuthSuccess` shape);
+ * - sign-up → CREATES the account — the username, this passkey and the
+ *   recovery email its `emailTicket` confirmed, and no key (ADR 0029 D3) — and
+ *   signs in.
  */
 router.post(
   '/register/verify',
@@ -648,22 +649,29 @@ router.post(
     const db = getDb();
     const rpID = getWebauthnRpId();
     const bearerUserId = resolveOptionalBearerUserId(req);
+    const recoveryTicket = bearerUserId ? undefined : envelope.recoveryTicket;
 
     const { origin, challenge } = decodeAndGuardClientData(response.response.clientDataJSON);
 
-    // ADR 0024 D4: a personal account is created WITH its root or not at all.
-    // Refused before the challenge is spent, so the holder can retry properly.
-    if (!bearerUserId && !envelope.identity) {
-      throw new ApiError(
-        400,
-        'Create Oxy accounts through the Oxy account flow, which gives the account its own identity.',
-        IDENTITY_ERROR_CODES.enrollmentRequired,
-      );
+    // Refused before the challenge is spent, so the person can retry properly.
+    if (!bearerUserId) {
+      requireAuthWebCeremony(origin);
+      if (!recoveryTicket && (!envelope.email || !envelope.emailTicket)) {
+        throw new ApiError(
+          400,
+          'Confirm a recovery email before creating the account',
+          EMAIL_VERIFICATION_ERROR_CODES.ticketRequired,
+        );
+      }
     }
 
-    // Bind the challenge to its flow: a linking challenge to its user, a signup
-    // challenge to no user.
-    const burned = await burnChallenge(challenge, 'registration', bearerUserId);
+    // The account a recovery adds the passkey to. Read (not spent) here so the
+    // challenge can be bound to it; the ticket is spent with the passkey below.
+    const recoveringUserId = recoveryTicket ? await readRecoveryTicket(recoveryTicket) : null;
+
+    // Bind the challenge to its flow: a linking or recovery challenge to its
+    // account, a signup challenge to no account.
+    const burned = await burnChallenge(challenge, 'registration', bearerUserId ?? recoveringUserId);
     if (!burned) {
       throw new UnauthorizedError('Invalid or expired registration challenge');
     }
@@ -700,7 +708,7 @@ router.post(
     // assurance/telemetry marker ONLY — it must NOT be used as a hard security
     // boundary for step-up (e.g. "require a UV-backed credential for sensitive
     // actions"). A real step-up gate needs attestation.
-    const { credential, credentialDeviceType, credentialBackedUp, userVerified } = verification.registrationInfo;
+    const registration = verification.registrationInfo;
     const credentialName = envelope.deviceName?.trim() || DEFAULT_CREDENTIAL_NAME;
 
     if (bearerUserId) {
@@ -717,29 +725,10 @@ router.post(
         throw new ForbiddenError('Passkeys can only be linked to personal accounts');
       }
 
-      // The credential row and its `user_auth_methods` row describe ONE fact, so
-      // they are written together: a committed credential with no auth method
-      // would be invisible to `GET /auth/methods` and to the unlink guard.
+      // A committed credential with no auth method would be invisible to
+      // `GET /auth/methods` and to the unlink guard.
       try {
-        await db.transaction(async (tx) => {
-          await tx.insert(webauthnCredentials).values({
-            userId: account.id,
-            credentialID: credential.id,
-            credentialPublicKey: Buffer.from(credential.publicKey),
-            counter: credential.counter,
-            transports: credential.transports,
-            deviceType: credentialDeviceType,
-            backedUp: credentialBackedUp,
-            userVerified,
-            name: credentialName,
-          });
-          await tx.insert(userAuthMethods).values({
-            userId: account.id,
-            type: 'webauthn',
-            methodCredentialId: credential.id,
-            methodName: credentialName,
-          });
-        });
+        await db.transaction((tx) => insertPasskey(tx, account.id, registration, credentialName));
       } catch (error) {
         const constraint = uniqueViolationConstraint(error);
         if (constraint !== null && CREDENTIAL_UNIQUE_CONSTRAINTS.has(constraint)) {
@@ -754,10 +743,59 @@ router.post(
       return;
     }
 
+    if (recoveryTicket && recoveringUserId) {
+      // ---- Recovery branch -------------------------------------------------
+      // The ticket is spent with the passkey, in one transaction: a failed insert
+      // leaves it usable, and a second use of it finds it spent.
+      let account: WebauthnAccount;
+      try {
+        account = await db.transaction(async (tx) => {
+          const userId = await spendRecoveryTicket(tx, recoveryTicket);
+          const [user] = await tx
+            .select({
+              id: users.id,
+              username: users.username,
+              avatar: users.avatar,
+              kind: users.kind,
+              publicKey: users.publicKey,
+              accountStatus: users.accountStatus,
+            })
+            .from(users)
+            .where(eq(users.id, userId))
+            .for('update')
+            .limit(1);
+          // Linking Commons in between makes the account Commons' to recover;
+          // an archived (deleted) account is not recovered at all.
+          if (
+            !user ||
+            userId !== recoveringUserId ||
+            !isPersonalAccount(user.kind) ||
+            user.publicKey ||
+            user.accountStatus !== 'active'
+          ) {
+            throw ticketInvalid();
+          }
+          await insertPasskey(tx, userId, registration, credentialName);
+          return { id: user.id, username: user.username, avatar: user.avatar };
+        });
+      } catch (error) {
+        const constraint = uniqueViolationConstraint(error);
+        if (constraint !== null && CREDENTIAL_UNIQUE_CONSTRAINTS.has(constraint)) {
+          throw new ConflictError('This passkey is already registered');
+        }
+        throw error;
+      }
+      userCache.invalidate(account.id);
+      await mintWebauthnSession(req, res, account, envelope);
+      return;
+    }
+
     // ---- Signup branch -----------------------------------------------------
     const requestedUsername = envelope.username;
-    if (!requestedUsername) {
-      throw new BadRequestError('username is required to register a new account');
+    const email = envelope.email;
+    const emailTicket = envelope.emailTicket;
+    if (!requestedUsername || !email || !emailTicket) {
+      throw new BadRequestError('username, email and emailTicket are required to register a new account');
     }
     const normalizedUsername = normalizeUsername(requestedUsername);
     if (!isValidUsername(normalizedUsername)) {
@@ -772,52 +810,18 @@ router.post(
       throw new ConflictError('Username already taken');
     }
 
-    // ADR 0024 D4: when the holder created the root first, the account is born
-    // WITH it — user, passkey, root, both auth methods and the sealed envelope in
-    // ONE transaction, or nothing. The root proof's challenge IS this ceremony's
-    // registration challenge (burned above), and it names the username and the
-    // credential, so it cannot be replayed onto another sign-up.
-    const enrollment = envelope.identity;
-    if (!enrollment) {
-      throw new ApiError(400, 'An Oxy account is created with its identity', IDENTITY_ERROR_CODES.enrollmentRequired);
-    }
-    const enrolledRoot = checkIdentityEnrollment(enrollment.envelope, {
-      username: normalizedUsername,
-      credentialId: credential.id,
-      rpId: rpID,
-      registrationChallenge: challenge,
-      proof: enrollment.proof,
-    });
-
-    // The account, its credential and its auth method(s) are created in ONE
-    // transaction, so a failed credential insert can no longer orphan a username
-    // with no usable auth method.
+    // The account, its passkey (credential + auth method) and its confirmed
+    // recovery email are created in ONE transaction that also spends the email
+    // ticket: a failed insert orphans nothing and leaves the ticket usable.
     let account: WebauthnAccount;
     try {
       account = await db.transaction(async (tx) => {
+        await spendSignupTicket(tx, emailTicket, email);
         const [created] = await tx
           .insert(users)
-          .values({ username: normalizedUsername, publicKey: enrolledRoot })
+          .values({ username: normalizedUsername, email })
           .returning({ id: users.id, username: users.username, avatar: users.avatar });
-        await tx.insert(webauthnCredentials).values({
-          userId: created.id,
-          credentialID: credential.id,
-          credentialPublicKey: Buffer.from(credential.publicKey),
-          counter: credential.counter,
-          transports: credential.transports,
-          deviceType: credentialDeviceType,
-          backedUp: credentialBackedUp,
-          userVerified,
-          name: credentialName,
-        });
-        await tx.insert(userAuthMethods).values({
-          userId: created.id,
-          type: 'webauthn',
-          methodCredentialId: credential.id,
-          methodName: credentialName,
-        });
-        await tx.insert(userAuthMethods).values({ userId: created.id, type: 'identity', methodPublicKey: enrolledRoot });
-        await tx.insert(identityWebEnvelopes).values({ userId: created.id, ...envelopeColumns(enrollment.envelope, enrolledRoot), revision: 1 });
+        await insertPasskey(tx, created.id, registration, credentialName);
         return created;
       });
     } catch (error) {
@@ -828,11 +832,11 @@ router.post(
       if (constraint === USERNAME_UNIQUE_CONSTRAINT) {
         throw new ConflictError('Username already taken');
       }
+      if (constraint === EMAIL_UNIQUE_CONSTRAINT) {
+        throw new ConflictError('This email is already the recovery email of an account');
+      }
       if (constraint !== null && CREDENTIAL_UNIQUE_CONSTRAINTS.has(constraint)) {
         throw new ConflictError('This passkey is already registered');
-      }
-      if (constraint !== null && PUBLIC_KEY_UNIQUE_CONSTRAINTS.has(constraint)) {
-        throw new ApiError(409, 'This identity is already linked to another account', IDENTITY_ERROR_CODES.rootLinkedElsewhere);
       }
       throw error;
     }

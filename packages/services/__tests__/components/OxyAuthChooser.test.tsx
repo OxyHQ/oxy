@@ -834,19 +834,7 @@ describe('OxyAuthChooser', () => {
       expect(toast.error).not.toHaveBeenCalled();
     });
 
-    it('offers the person’s identity on web — recovery phrase, recovery, deletion live at the identity origin', async () => {
-      const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
-      snapshot = makeSnapshot({ directory: soloDirectory() });
-      render(<OxyAuthChooser />);
-
-      fireEvent.click(screen.getByRole('button', { name: 'Your identity' }));
-
-      await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://auth.oxy.so/identity'));
-      openURL.mockRestore();
-    });
-
-    it('has no identity row on native, where Commons carries the identity', () => {
-      isWebBrowserMock.mockReturnValue(false);
+    it('has no identity row: a web account has no identity to open (ADR 0029 D3)', () => {
       snapshot = makeSnapshot({ directory: soloDirectory() });
       render(<OxyAuthChooser />);
       expect(screen.queryByRole('button', { name: 'Your identity' })).toBeNull();

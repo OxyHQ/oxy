@@ -62,6 +62,7 @@ import SignatureService from '../services/signature.service';
 import { emitAuthSessionUpdate, emitAuthSessionProgress } from '../utils/authSessionSocket';
 import { broadcastSessionAccountsChanged } from '../utils/socket';
 import webauthnRouter from './webauthn';
+import accountEmailRouter from './accountEmail';
 import { validate } from '../middleware/validate';
 import sessionService from '../services/session.service';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
@@ -92,7 +93,6 @@ import {
   challengeSchema,
   verifyChallengeSchema,
   checkUsernameParams,
-  checkEmailParams,
   checkPublicKeyParams,
   getUserByPublicKeyParams,
   authSessionCreateSchema,
@@ -214,6 +214,14 @@ async function findActiveApplicationById(applicationId: string): Promise<Applica
  * same AuthSuccess shape as POST /auth/verify.
  */
 router.use('/webauthn', webauthnRouter);
+
+/**
+ * POST /auth/email/verify/start    - send a recovery email code (sign-up or recovery)
+ * POST /auth/email/verify/confirm  - the code → a one-use ticket for registration
+ *
+ * auth.oxy.so only; see `routes/accountEmail.ts` (ADR 0029 D3).
+ */
+router.use('/email', accountEmailRouter);
 
 // ============================================
 // Public Key Authentication Routes
@@ -569,68 +577,6 @@ router.get('/lookup/:username', checkLimiter, validate({ params: checkUsernamePa
       name: { first: user.nameFirst, last: user.nameLast },
       username: user.username,
     }),
-  });
-}));
-
-/**
- * @openapi
- * /auth/check-email/{email}:
- *   get:
- *     tags:
- *       - Authentication
- *     summary: Check email availability
- *     description: Check whether an email address is available for registration.
- *     parameters:
- *       - in: path
- *         name: email
- *         required: true
- *         schema:
- *           type: string
- *           format: email
- *         example: user@example.com
- *     responses:
- *       200:
- *         description: Availability check result
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 available:
- *                   type: boolean
- *                 message:
- *                   type: string
- *       400:
- *         description: Invalid email format
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       429:
- *         description: Rate limit exceeded
- */
-router.get('/check-email/:email', checkLimiter, validate({ params: checkEmailParams }), asyncHandler(async (req, res) => {
-  const { email } = req.params;
-  
-  if (!email || !email.includes('@')) {
-    throw new BadRequestError('Please provide a valid email address');
-  }
-
-  const normalizedEmail = email.trim().toLowerCase();
-  // Matched through `users_lower_email_key`, the `lower(btrim(email))` unique
-  // index — Mongoose's `lowercase: true` setter has no Postgres counterpart, so
-  // the normalization is re-applied on BOTH sides at the call site.
-  const [existingUser] = await getDb()
-    .select({ id: users.id })
-    .from(users)
-    .where(sql`lower(btrim(${users.email})) = lower(btrim(${normalizedEmail}))`)
-    .limit(1);
-
-  logger.debug('GET /auth/check-email', { email: normalizedEmail, available: !existingUser });
-
-  sendSuccess(res, {
-    available: !existingUser,
-    message: existingUser ? 'Email is already registered' : 'Email is available'
   });
 }));
 
