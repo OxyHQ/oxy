@@ -22,8 +22,8 @@ export interface TestRuntimeOptions {
 export function createTestRuntime(options: TestRuntimeOptions = {}): OxyRuntime {
   return createOxyRuntime({
     oxyServices: {
-      getAccessToken: options.getAccessToken ?? (() => null),
-      getUsersByIds: options.getUsersByIds ?? (async () => []),
+      session: { get accessToken() { return (options.getAccessToken ?? (() => null))(); } },
+      users: { getMany: options.getUsersByIds ?? (async () => []) },
     },
     sessionClient: {
       getState: options.getState ?? (() => null),

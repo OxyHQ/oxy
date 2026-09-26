@@ -1,5 +1,463 @@
 # Changelog — `@oxy.so/core`
 
+## 3.0.0
+
+The client is organised by namespace, the server half is its own class, and
+the transport is faster and correct under load. **Breaking:** every flat
+method moved. Run the codemod, then fix what it marks:
+
+```sh
+bun <oxy-repo>/scripts/codemods/core-3/codemod.ts ./src
+grep -rn "TODO(core-3)" ./src
+```
+
+### Changed
+
+- **Namespaces.** `oxy.users.get(id)`, `oxy.assets.upload(file)`,
+  `oxy.follows.follow(id)`, `oxy.session.accessToken`, … — one namespace per
+  API area, each created on first access. Duplicates are gone: one way to read
+  a user, one asset URL call, one delete that always clears the cache, one
+  "mine" convention (omit the user id). See `docs/api.mdx`.
+- **`OxyServer`** (`@oxy.so/core/server`) is the backend client: `OxyServices`
+  plus `serviceAuth: { apiKey, apiSecret }` (or workload identity),
+  `serviceToken()`, `serviceRequest(…, { actAs })`, `middleware.auth()` /
+  `.socket()` / `.service()` / `.requireScope()`, and the service-only
+  namespace methods. `OxyServices` no longer carries server code. 2.3.0's
+  `serviceIdentity: 'when-anonymous'` is an `OxyServer` option now (a client
+  has no service identity to offer): `new OxyServer({ …, serviceIdentity:
+  'when-anonymous' })`.
+- **Errors.** Every call rejects with `OxyApiError` (`status`, `code`,
+  `details`, `cancelled`, `timeout`).
+- **Entry points.** The root is the client; `@oxy.so/core/session`,
+  `/crypto`, `/civic` and `/inference` hold the heavy parts, so an app that only
+  calls the API no longer ships secp256k1, bip39, the session machinery or the
+  inference client. Non-English dictionaries load on demand (`loadLocale`,
+  `subscribeLocales`).
+- Signature changes: extra positional arguments became options objects
+  (`assets.upload(file, { visibility, onProgress })`, `assets.link`,
+  `assets.delete(id, { force })`, `reputation.transactions(userId, { limit,
+  offset })`, …) — each is listed below.
+
+### Fixed
+
+- A burst of 401s (a revoked session under load) could stall every request:
+  the refresh retry waited for a queue slot while its original held one.
+- Two concurrent uploads with different files were merged into one call (an
+  opaque `FormData` body keyed as empty); only GETs are deduplicated now.
+- POST/PATCH were re-sent on a 5xx or a dropped connection; only idempotent
+  methods (GET, PUT, DELETE) retry.
+- One caller cancelling a deduplicated GET cancelled it for every caller.
+- A retry's backoff and a deduplicated caller held a queue slot doing nothing.
+- `assets.delete(id, { force })` sent `force` in the body; the API reads the
+  query.
+- `notifications.create` and `reputation.award` sent the user bearer to
+  routes that only accept a service token.
+
+### Performance
+
+- No request waits on the Cloudflare edge-region trace any more.
+- The access token is decoded once per token, not several times per request;
+  the cache/dedupe key is computed once per call.
+- Cache invalidation after a write is one pass over the cache; the cache is
+  bounded (LRU); `dispose()` releases a client's cache.
+- `session.waitForAuth` is event-driven instead of polling.
+- No client is constructed at import time (`oxyClient` is gone).
+
+### Removed
+
+- Methods whose routes never existed or were superseded (subscriptions,
+  saves/collections, history, FAQs, achievements, feedback, location,
+  analytics, chains, `registerDevice`, payment creation), the Oxy-staff
+  reputation overrides and disputes, `checkEmailAvailability` (it disclosed
+  whether an email has an account), channel provisioning, the passkey-only
+  account deletion and identity link, and the default export.
+
+### Method map
+
+#### Client (`OxyServices`)
+
+| 2.x | 3.0 |
+|---|---|
+| `makeRequest` | `oxy.request` |
+| `getBaseURL` | `oxy.baseURL` — now a property: oxy.baseURL |
+| `getCloudURL` | `oxy.cloudURL` — now a property: oxy.cloudURL |
+| `getClient` | `oxy.http` — now a property: oxy.http |
+| `httpService` | `oxy.http` |
+| `createLinkedClient` | `oxy.createLinkedClient` |
+| `healthCheck` | `oxy.health` |
+| `getCacheStats` | `oxy.cache.stats` |
+| `clearCache` | `oxy.cache.clear` |
+| `clearCacheEntry` | `oxy.cache.delete` |
+| `clearCacheByPrefix` | `oxy.cache.deletePrefix` |
+| `setTokens` | `oxy.session.setAccessToken` |
+| `clearTokens` | `oxy.session.clear` |
+| `onTokensChanged` | `oxy.session.onChange` |
+| `getAccessToken` | `oxy.session.accessToken` — now a getter: oxy.session.accessToken |
+| `getAccessTokenExpiry` | `oxy.session.accessTokenExpiry` — now a getter |
+| `getCurrentUserId` | `oxy.session.userId` — now a getter: oxy.session.userId |
+| `hasValidToken` | `oxy.session.isAuthenticated` — now a getter |
+| `waitForAuth` | `oxy.session.waitForAuth` |
+| `validate` | `oxy.session.validateToken` |
+| `validateSession` | `oxy.session.validate` |
+| `setDeviceCredentialProvider` | `oxy.session.setDeviceCredentialProvider` |
+| `readDeviceProof` | `oxy.session.readDeviceProof` |
+| `getSessionsBySessionId` | `oxy.session.list` |
+| `logoutSession` | `oxy.session.logout` |
+| `logoutAllSessions` | `oxy.session.logoutAll` |
+| `register` | `oxy.auth.registerKey` |
+| `requestChallenge` | `oxy.auth.requestChallenge` |
+| `verifyChallenge` | `oxy.auth.verifyChallenge` |
+| `checkPublicKeyRegistered` | `oxy.auth.isKeyRegistered` |
+| `claimSessionByToken` | `oxy.auth.claimSession` |
+| `signInWithSharedIdentity` | `oxy.auth.signInWithSharedIdentity` |
+| `checkUsernameAvailability` | `oxy.auth.checkUsername` |
+| `startEmailVerification` | `oxy.auth.email.startVerification` |
+| `confirmEmailVerification` | `oxy.auth.email.confirmVerification` |
+| `startEmailSignIn` | `oxy.auth.email.start` |
+| `confirmEmailSignIn` | `oxy.auth.email.confirm` |
+| `collectEmailSignIn` | `oxy.auth.email.collect` |
+| `approveEmailSignInLink` | `oxy.auth.email.approveLink` |
+| `signInWithPassword` | `oxy.auth.password.signIn` |
+| `setPassword` | `oxy.auth.password.set` |
+| `completeSecondFactor` | `oxy.auth.completeSecondFactor` |
+| `signUp` | `oxy.auth.signUp` |
+| `getSignInMethods` | `oxy.auth.methods` |
+| `requestReauthEmailCode` | `oxy.auth.requestReauthCode` |
+| `enrollTotp` | `oxy.auth.totp.enroll` |
+| `confirmTotp` | `oxy.auth.totp.confirm` |
+| `disableTotp` | `oxy.auth.totp.disable` |
+| `regenerateTotpBackupCodes` | `oxy.auth.totp.regenerateBackupCodes` |
+| `exchangeOAuthCode` | `oxy.auth.oauth.exchangeCode` |
+| `getOAuthUserInfo` | `oxy.auth.oauth.userInfo` |
+| `startCommonsSignIn` | `oxy.auth.commons.start` |
+| `pollCommonsSignIn` | `oxy.auth.commons.poll` |
+| `deliverCommonsSignIn` | `oxy.auth.commons.deliver` |
+| `markCommonsApprovalOpened` | `oxy.auth.commons.markOpened` |
+| `finalizeCommonsOAuth` | `oxy.auth.commons.finalizeOAuth` |
+| `getCommonsApprovalInfo` | `oxy.auth.commons.approvalInfo` |
+| `approveCommonsSignIn` | `oxy.auth.commons.approve` |
+| `denyCommonsSignIn` | `oxy.auth.commons.deny` |
+| `getUserById` | `oxy.users.get` |
+| `getUsersByIds` | `oxy.users.getMany` |
+| `getCurrentUser` | `oxy.users.me` |
+| `getProfileByUsername` | `oxy.users.byUsername` |
+| `getUserByPublicKey` | `oxy.users.byPublicKey` |
+| `getUserBySession` | `oxy.users.bySession` |
+| `getUsersBySessions` | `oxy.users.bySessions` |
+| `searchProfiles` | `oxy.users.search` |
+| `resolveProfile` | `oxy.users.resolveHandle` |
+| `resolveExternalUser` | `oxy.users.resolveExternal` |
+| `getSimilarProfiles` | `oxy.users.similar` |
+| `getProfileRecommendations` | `oxy.users.recommendations` |
+| `updateProfile` | `oxy.users.updateMe` |
+| `updateNotificationPreferences` | `oxy.users.updateMe` — (prefs) → ({ notificationPreferences: prefs }) |
+| `updateUserPreferences` | `oxy.users.updateMe` — (prefs) → ({ preferences: prefs }) |
+| `updateThemePreference` | `oxy.users.updateMe` — (theme) → ({ themePreference: theme }) |
+| `requestAccountVerification` | `oxy.users.requestVerification` |
+| `deleteAccount` | `oxy.users.deleteMe` — (confirmText) → (confirmText, { deviceKey: true }) |
+| `deleteAccountWithEmailCode` | `oxy.users.deleteMe` — (confirmText, reauth) → (confirmText, { reauth }) |
+| `downloadAccountData` | `oxy.identity.export` — now the signed export (GET /users/me/export) |
+| `followUser` | `oxy.follows.follow` |
+| `followUsers` | `oxy.follows.followMany` |
+| `unfollowUser` | `oxy.follows.unfollow` |
+| `unfollowUsers` | `oxy.follows.unfollowMany` |
+| `getFollowStatus` | `oxy.follows.status` |
+| `getFollowStatuses` | `oxy.follows.statuses` |
+| `getUserFollowers` | `oxy.follows.followers` |
+| `getUserFollowing` | `oxy.follows.following` |
+| `getUserMutuals` | `oxy.follows.mutuals` |
+| `getMutualUserIds` | `oxy.follows.mutualIds` |
+| `getFollowsOfFollowsIds` | `oxy.follows.followsOfFollowsIds` |
+| `getViewerGraph` | `oxy.follows.viewerGraph` |
+| `followTarget` | `oxy.follows.followTarget` |
+| `unfollowTarget` | `oxy.follows.unfollowTarget` |
+| `getFollowTargetStatus` | `oxy.follows.targetStatus` |
+| `setFollowApplicationMode` | `oxy.follows.setApplicationMode` |
+| `restoreFollowInheritance` | `oxy.follows.restoreInheritance` |
+| `ensureFollowTarget` | `oxy.follows.ensureTarget` |
+| `claimFollowNamespace` | `oxy.follows.claimNamespace` |
+| `releaseFollowNamespace` | `oxy.follows.releaseNamespace` |
+| `registerFollowKind` | `oxy.follows.registerKind` |
+| `listFollows` | `oxy.follows.list` |
+| `getPrivacySettings` | `oxy.privacy.settings` |
+| `updatePrivacySettings` | `oxy.privacy.updateSettings` |
+| `getBlockedUsers` | `oxy.privacy.blocked` |
+| `blockUser` | `oxy.privacy.block` |
+| `unblockUser` | `oxy.privacy.unblock` |
+| `isUserBlocked` | `oxy.privacy.isBlocked` |
+| `getRestrictedUsers` | `oxy.privacy.restricted` |
+| `restrictUser` | `oxy.privacy.restrict` |
+| `unrestrictUser` | `oxy.privacy.unrestrict` |
+| `isUserRestricted` | `oxy.privacy.isRestricted` |
+| `getNotifications` | `oxy.notifications.list` |
+| `getUnreadCount` | `oxy.notifications.unreadCount` |
+| `markNotificationAsRead` | `oxy.notifications.markRead` |
+| `markAllNotificationsAsRead` | `oxy.notifications.markAllRead` |
+| `deleteNotification` | `oxy.notifications.delete` |
+| `registerPushToken` | `oxy.notifications.registerPushToken` |
+| `unregisterPushToken` | `oxy.notifications.unregisterPushToken` |
+| `assetUpload` | `oxy.assets.upload` — (file, visibility, metadata, onProgress) → (file, { visibility, metadata, onProgress }); returns { file } |
+| `uploadRawFile` | `oxy.assets.upload` — (file, visibility, metadata) → (file, { visibility, metadata }); returns { file } |
+| `assetLink` | `oxy.assets.link` — (fileId, app, entityType, entityId, visibility, webhookUrl) → (fileId, { app, entityType, entityId }, { visibility, webhookUrl }) |
+| `assetUnlink` | `oxy.assets.unlink` — (fileId, app, entityType, entityId) → (fileId, { app, entityType, entityId }) |
+| `assetGet` | `oxy.assets.get` |
+| `assetGetVariants` | `oxy.assets.get` — variants are on the asset: (await assets.get(id)).variants |
+| `assetGetUrl` | `oxy.assets.url` — returns the URL string, not { url } |
+| `getFileDownloadUrlAsync` | `oxy.assets.url` |
+| `fetchAssetDownloadUrl` | `oxy.assets.url` |
+| `getFileDownloadUrl` | `oxy.assets.publicUrl` |
+| `getFileDownloadUrls` | `oxy.assets.urls` |
+| `getBatchFileAccess` | `oxy.assets.access` |
+| `getFileContentAsText` | `oxy.assets.text` |
+| `getFileContentAsBlob` | `oxy.assets.blob` |
+| `assetRestore` | `oxy.assets.restore` |
+| `assetDelete` | `oxy.assets.delete` — (fileId, force) → (fileId, { force }) |
+| `deleteFile` | `oxy.assets.delete` |
+| `assetUpdateVisibility` | `oxy.assets.setVisibility` |
+| `listUserFiles` | `oxy.assets.list` — (limit, offset) → ({ limit, offset }) |
+| `getAccountStorageUsage` | `oxy.assets.usage` |
+| `uploadAvatar` | `oxy.assets.uploadAvatar` |
+| `resolveDid` | `oxy.identity.resolveDid` |
+| `getMyDid` | `oxy.identity.did` — now a getter |
+| `listAuthMethods` | `oxy.identity.authMethods` |
+| `getIdentityRootStatus` | `oxy.identity.rootStatus` |
+| `createIdentityLink` | `oxy.identity.links.create` |
+| `getIdentityLink` | `oxy.identity.links.get` |
+| `signIdentityLink` | `oxy.identity.links.sign` |
+| `completeIdentityLinkWithEmailCode` | `oxy.identity.links.complete` |
+| `cancelIdentityLink` | `oxy.identity.links.cancel` |
+| `rotateKey` | `oxy.identity.rotateKey` |
+| `exportMyData` | `oxy.identity.export` |
+| `requestDomainVerification` | `oxy.identity.domains.requestVerification` |
+| `verifyDomain` | `oxy.identity.domains.verify` |
+| `listDomains` | `oxy.identity.domains.list` |
+| `removeDomain` | `oxy.identity.domains.remove` |
+| `createEncryptedBackup` | `oxy.identity.backup.create` |
+| `getBackupStatus` | `oxy.identity.backup.status` |
+| `deleteBackup` | `oxy.identity.backup.delete` |
+| `restoreFromEncryptedBackup` | `oxy.identity.backup.restore` |
+| `listAccounts` | `oxy.accounts.list` |
+| `getAccount` | `oxy.accounts.get` |
+| `switchToAccount` | `oxy.accounts.actAs` |
+| `createAccount` | `oxy.accounts.create` |
+| `updateAccount` | `oxy.accounts.update` |
+| `archiveAccount` | `oxy.accounts.archive` |
+| `listAccountMembers` | `oxy.accounts.members.list` |
+| `inviteAccountMember` | `oxy.accounts.members.invite` |
+| `updateAccountMember` | `oxy.accounts.members.update` |
+| `removeAccountMember` | `oxy.accounts.members.remove` |
+| `transferAccountOwnership` | `oxy.accounts.transferOwnership` |
+| `listAccountApps` | `oxy.apps.list` |
+| `createApp` | `oxy.apps.create` |
+| `getApp` | `oxy.apps.get` |
+| `updateApp` | `oxy.apps.update` |
+| `deleteApp` | `oxy.apps.delete` |
+| `getAppUsage` | `oxy.apps.usage` |
+| `listAppCredentials` | `oxy.apps.credentials.list` |
+| `createAppCredential` | `oxy.apps.credentials.create` |
+| `rotateAppCredential` | `oxy.apps.credentials.rotate` |
+| `revokeAppCredential` | `oxy.apps.credentials.revoke` |
+| `getPublicApplication` | `oxy.apps.getPublic` |
+| `listConnectedApps` | `oxy.apps.connected.list` |
+| `revokeAppGrant` | `oxy.apps.connected.revoke` |
+| `listConnectedMcpClients` | `oxy.apps.connected.mcpClients` |
+| `revokeConnectedMcpClient` | `oxy.apps.connected.revokeMcpClient` |
+| `startLinkedAccount` | `oxy.linkedAccounts.start` |
+| `completeLinkedAccount` | `oxy.linkedAccounts.complete` |
+| `listLinkedAccounts` | `oxy.linkedAccounts.list` |
+| `revokeLinkedAccount` | `oxy.linkedAccounts.revoke` |
+| `listAvailableCapabilityCatalogs` | `oxy.agency.catalogs` |
+| `listDelegationGrants` | `oxy.agency.grants.list` |
+| `createDelegationGrant` | `oxy.agency.grants.create` |
+| `updateDelegationGrant` | `oxy.agency.grants.update` |
+| `revokeDelegationGrant` | `oxy.agency.grants.revoke` |
+| `listAccountCapabilityPolicies` | `oxy.agency.policies.list` |
+| `putAccountCapabilityPolicy` | `oxy.agency.policies.put` |
+| `deleteAccountCapabilityPolicy` | `oxy.agency.policies.delete` |
+| `listCapabilityExecutionAuthorizations` | `oxy.agency.authorizations.list` |
+| `revokeCapabilityExecutionAuthorization` | `oxy.agency.authorizations.revoke` |
+| `listCapabilityAuditEvents` | `oxy.agency.auditEvents` |
+| `listStoreCategories` | `oxy.store.categories` |
+| `listStoreApps` | `oxy.store.apps` |
+| `getStoreApp` | `oxy.store.app` |
+| `listStoreReviews` | `oxy.store.reviews.list` |
+| `getMyStoreReview` | `oxy.store.reviews.mine` |
+| `writeStoreReview` | `oxy.store.reviews.write` |
+| `deleteMyStoreReview` | `oxy.store.reviews.deleteMine` |
+| `getAppListing` | `oxy.store.listing.get` |
+| `writeAppListing` | `oxy.store.listing.write` |
+| `submitAppListing` | `oxy.store.listing.submit` |
+| `unpublishAppListing` | `oxy.store.listing.unpublish` |
+| `listAppListingScreenshots` | `oxy.store.listing.screenshots.list` |
+| `addAppListingScreenshot` | `oxy.store.listing.screenshots.add` |
+| `updateAppListingScreenshot` | `oxy.store.listing.screenshots.update` |
+| `deleteAppListingScreenshot` | `oxy.store.listing.screenshots.delete` |
+| `reorderAppListingScreenshots` | `oxy.store.listing.screenshots.reorder` |
+| `getUserPayments` | `oxy.billing.payments` |
+| `getSubscription` | `oxy.billing.subscription` |
+| `getCurrentUserSubscription` | `oxy.billing.subscription` |
+| `getWallet` | `oxy.billing.wallet` |
+| `getCurrentUserWallet` | `oxy.billing.wallet` |
+| `getWalletTransactions` | `oxy.billing.walletTransactions` — (userId, options) → ({ userId, ...options }) |
+| `getCurrentUserWalletTransactions` | `oxy.billing.walletTransactions` — (options) → (options) |
+| `getReputationBalance` | `oxy.reputation.balance` |
+| `getMyReputationBalance` | `oxy.reputation.balance` — no userId = mine |
+| `getReputationLeaderboard` | `oxy.reputation.leaderboard` — (limit, offset) → ({ limit, offset }) |
+| `getReputationRules` | `oxy.reputation.rules` |
+| `getReputationTransactions` | `oxy.reputation.transactions` — (userId, limit, offset) → (userId, { limit, offset }) |
+| `getReputationInfluence` | `oxy.reputation.influence` |
+| `getPublicCard` | `oxy.civic.publicCard` |
+| `getMyIdPayload` | `oxy.civic.idPayload` |
+| `buildAttestQrPayload` | `oxy.civic.buildAttestQrPayload` |
+| `submitRealLifeAttestation` | `oxy.civic.attest` |
+| `getValidatorInbox` | `oxy.civic.validation.inbox` |
+| `submitValidationVote` | `oxy.civic.validation.vote` |
+| `denyValidation` | `oxy.civic.validation.deny` |
+| `vouchForPerson` | `oxy.civic.vouch` |
+| `withdrawVouch` | `oxy.civic.withdrawVouch` |
+| `getPersonhood` | `oxy.civic.personhood` |
+| `getMyPersonhood` | `oxy.civic.personhood` — no userId = mine |
+| `issueCredential` | `oxy.civic.credentials.issue` |
+| `listCredentials` | `oxy.civic.credentials.list` |
+| `listMyCredentials` | `oxy.civic.credentials.list` — (opts) → (undefined, opts) |
+| `verifyCredential` | `oxy.civic.credentials.verify` |
+| `revokeCredential` | `oxy.civic.credentials.revoke` |
+| `registerNode` | `oxy.nodes.register` |
+| `getMyNode` | `oxy.nodes.mine` |
+| `removeMyNode` | `oxy.nodes.removeMine` |
+| `provisionManagedVault` | `oxy.nodes.provisionManagedVault` |
+| `notifyNodeIngest` | `oxy.nodes.notifyIngest` |
+| `getUserDevices` | `oxy.devices.list` |
+| `removeDevice` | `oxy.devices.remove` |
+| `getDeviceSessions` | `oxy.devices.sessions` |
+| `logoutAllDeviceSessions` | `oxy.devices.logoutAll` |
+| `updateDeviceName` | `oxy.devices.rename` |
+| `getSecurityInfo` | `oxy.devices.securityInfo` |
+| `getSecurityActivity` | `oxy.devices.securityActivity` |
+| `getRecentSecurityActivity` | `oxy.devices.securityActivity` — (limit) → (limit, 0); returns the page, read .data |
+| `logPrivateKeyExported` | `oxy.devices.logPrivateKeyExported` |
+| `logBackupCreated` | `oxy.devices.logBackupCreated` |
+| `mintFromDeviceSecret` | `oxy.devices.mintToken` |
+| `registerBrowserDevice` | `oxy.devices.registerBrowser` |
+| `requestDeviceJoinCode` | `oxy.devices.requestJoinCode` |
+| `joinBrowserDevice` | `oxy.devices.joinBrowser` |
+| `provisionBackgroundCredential` | `oxy.devices.provisionBackgroundCredential` |
+| `listTopics` | `oxy.topics.list` |
+| `searchTopics` | `oxy.topics.search` |
+| `getTopicBySlug` | `oxy.topics.get` |
+| `getTopicCategories` | `oxy.topics.categories` |
+| `resolveTopicNames` | `oxy.topics.resolveNames` |
+| `updateTopicMetadata` | `oxy.topics.update` |
+| `getAppData` | `oxy.appData.get` |
+| `setAppData` | `oxy.appData.set` |
+| `deleteAppData` | `oxy.appData.delete` |
+| `listAppData` | `oxy.appData.list` |
+| `discoverContacts` | `oxy.contacts.discover` |
+
+#### Server (`OxyServer`, `@oxy.so/core/server`)
+
+| 2.x | 3.0 |
+|---|---|
+| `createNotification` | `server.notifications.create` |
+| `getServiceAssetMetadataByIds` | `server.assets.metadataByIds` |
+| `getServiceAssetMetadataBySha256` | `server.assets.metadataBySha256` |
+| `getServiceLinkedDownloadUrls` | `server.assets.linkedDownloadUrls` |
+| `getLinkedAccountsForUser` | `server.linkedAccounts.forUser` |
+| `mintRequesterAssertion` | `server.agency.mintRequesterAssertion` |
+| `introspectRequesterAssertion` | `server.agency.introspectRequesterAssertion` |
+| `awardReputation` | `server.reputation.award` |
+| `configureServiceAuth` | `server.configureServiceAuth` |
+| `getServiceToken` | `server.serviceToken` |
+| `invalidateServiceToken` | `server.invalidateServiceToken` |
+| `makeServiceRequest` | `server.serviceRequest` |
+| `verifyServiceActingAs` | `server.verifyActingAs` |
+| `verifyAccountEvent` | `server.accountEvents.verify` |
+| `listAccountEvents` | `server.accountEvents.list` |
+| `auth` | `server.middleware.auth` |
+| `authSocket` | `server.middleware.socket` |
+| `serviceAuth` | `server.middleware.service` |
+| `requireScope` | `server.middleware.requireScope` |
+
+#### Removed
+
+- `handleError`
+- `getMetrics`
+- `withAuthRetry` — call the method directly; the HTTP layer already refreshes on 401
+- `__resetTokensForTests`
+- `webauthnRegisterOptions` — passkeys are removed (ADR 0030)
+- `webauthnRegisterVerify` — passkeys are removed (ADR 0030)
+- `webauthnLoginOptions` — passkeys are removed (ADR 0030)
+- `webauthnLoginVerify` — passkeys are removed (ADR 0030)
+- `checkEmailAvailability`
+- `getAccountDeletionOptions`
+- `deleteAccountWithPasskey`
+- `lookupUsername`
+- `getUserStats`
+- `invalidateFollowGraphCaches`
+- `extractUserId`
+- `isUserInList`
+- `fetchAssetContent`
+- `getAssetUrlCacheTTL`
+- `uploadProfileBanner`
+- `getMyDidDocument`
+- `getIdentityLinkAssertionOptions`
+- `completeIdentityLink`
+- `removePasskey` — passkeys are removed (ADR 0030)
+- `signRecord`
+- `publishRecord`
+- `getRecord`
+- `verifyRecord`
+- `listChildAccounts`
+- `provisionChannelAccount`
+- `provisionChannelMember`
+- `revokeChannelMember`
+- `replyToStoreReview`
+- `deleteStoreReviewReply`
+- `createPayment`
+- `getPayment`
+- `createReputationDispute`
+- `getUserReputationDisputes`
+- `upsertReputationRule`
+- `reverseReputationTransaction`
+- `voidReputationTransaction`
+- `recalculateReputation`
+- `getReputationDisputeQueue`
+- `resolveReputationDispute`
+- `registerDevice`
+- `inference` — createInferenceClient(oxy) from '@oxy.so/core/inference'
+- `getStorage`
+- `getCurrentLanguage` — use getLanguageCode / the i18n helpers
+- `getCurrentLanguageMetadata`
+- `getCurrentLanguageName`
+- `getCurrentNativeLanguageName`
+- `submitFeedback`
+- `getSubscriptionPlans`
+- `getIndividualFeatures`
+- `subscribe`
+- `subscribeToFeature`
+- `cancelSubscription`
+- `reactivateSubscription`
+- `getCurrentSubscription`
+- `getSavedItems`
+- `getCollections`
+- `saveItem`
+- `removeSavedItem`
+- `createCollection`
+- `deleteCollection`
+- `getUserHistory`
+- `clearUserHistory`
+- `deleteHistoryItem`
+- `getFAQs`
+- `searchFAQs`
+- `getUserAchievements`
+- `getAllAchievements`
+- `updateLocation`
+- `getNearbyUsers`
+- `trackEvent`
+- `getAnalytics`
+- `appendChainRecord`
+- `readChainRecords`
+
 ## 2.3.0
 
 A backend's reads that carry no user session can identify as the service.

@@ -11,41 +11,73 @@
 import { createElement, useEffect, useSyncExternalStore, type ReactElement } from 'react';
 import type { PushTokenPlatform } from '@oxy.so/core';
 
-interface MockOxyServices {
-  updateProfile?: jest.Mock;
-  getCommonsApprovalInfo?: jest.Mock;
-  markCommonsApprovalOpened?: jest.Mock;
-  approveCommonsSignIn?: jest.Mock;
-  denyCommonsSignIn?: jest.Mock;
-  registerPushToken?: jest.Mock;
-  unregisterPushToken?: jest.Mock;
-  getPublicKey?: jest.Mock;
-  getPublicCard?: jest.Mock;
-  getReputationBalance?: jest.Mock;
-  getMyReputationBalance?: jest.Mock;
-  getReputationTransactions?: jest.Mock;
-  getFileDownloadUrl?: jest.Mock;
-  getCurrentUserId?: jest.Mock;
-  getMyIdPayload?: jest.Mock;
-  buildAttestQrPayload?: jest.Mock;
-  submitRealLifeAttestation?: jest.Mock;
-  getValidatorInbox?: jest.Mock;
-  submitValidationVote?: jest.Mock;
-  denyValidation?: jest.Mock;
-  getMyPersonhood?: jest.Mock;
-  getPersonhood?: jest.Mock;
-  vouchForPerson?: jest.Mock;
-  withdrawVouch?: jest.Mock;
-  listMyCredentials?: jest.Mock;
-  listCredentials?: jest.Mock;
-  verifyCredential?: jest.Mock;
-  issueCredential?: jest.Mock;
-  revokeCredential?: jest.Mock;
-  getMyNode?: jest.Mock;
-  registerNode?: jest.Mock;
-  provisionManagedVault?: jest.Mock;
-  removeMyNode?: jest.Mock;
-  notifyNodeIngest?: jest.Mock;
+/**
+ * The SDK methods these tests double, by their `@oxy.so/core` 3 location.
+ * Tests hand `__setOxyState` a flat record of `jest.fn`s keyed by these names;
+ * the stub nests each under its namespace, so the code under test sees the
+ * real `oxyServices.<namespace>.<method>` shape and the test still asserts on
+ * its own `jest.fn`.
+ */
+const NAMESPACED: Record<string, string> = {
+  updateProfile: 'users.updateMe',
+  getCommonsApprovalInfo: 'auth.commons.approvalInfo',
+  markCommonsApprovalOpened: 'auth.commons.markOpened',
+  approveCommonsSignIn: 'auth.commons.approve',
+  denyCommonsSignIn: 'auth.commons.deny',
+  registerPushToken: 'notifications.registerPushToken',
+  unregisterPushToken: 'notifications.unregisterPushToken',
+  markNotificationAsRead: 'notifications.markRead',
+  getPublicCard: 'civic.publicCard',
+  getReputationBalance: 'reputation.balance',
+  getMyReputationBalance: 'reputation.balance',
+  getReputationTransactions: 'reputation.transactions',
+  getFileDownloadUrl: 'assets.publicUrl',
+  getMyIdPayload: 'civic.idPayload',
+  buildAttestQrPayload: 'civic.buildAttestQrPayload',
+  submitRealLifeAttestation: 'civic.attest',
+  getValidatorInbox: 'civic.validation.inbox',
+  submitValidationVote: 'civic.validation.vote',
+  denyValidation: 'civic.validation.deny',
+  getMyPersonhood: 'civic.personhood',
+  getPersonhood: 'civic.personhood',
+  vouchForPerson: 'civic.vouch',
+  withdrawVouch: 'civic.withdrawVouch',
+  listMyCredentials: 'civic.credentials.list',
+  listCredentials: 'civic.credentials.list',
+  verifyCredential: 'civic.credentials.verify',
+  issueCredential: 'civic.credentials.issue',
+  revokeCredential: 'civic.credentials.revoke',
+  getMyNode: 'nodes.mine',
+  registerNode: 'nodes.register',
+  provisionManagedVault: 'nodes.provisionManagedVault',
+  removeMyNode: 'nodes.removeMine',
+  notifyNodeIngest: 'nodes.notifyIngest',
+  deleteAccount: 'users.deleteMe',
+  rotateKey: 'identity.rotateKey',
+};
+
+/** A flat record of doubles, keyed by the names in {@link NAMESPACED}. */
+type MockOxyServices = Record<string, jest.Mock>;
+
+/** The namespaced client the code under test receives. */
+type NamespacedOxyServices = Record<string, unknown>;
+
+function toNamespaced(flat: MockOxyServices | null): NamespacedOxyServices | null {
+  if (!flat) return null;
+  const out: Record<string, unknown> = {};
+  for (const [name, fn] of Object.entries(flat)) {
+    if (name === 'getCurrentUserId') {
+      // A getter in 3.0: `oxyServices.session.userId`.
+      const session = (out.session ??= {}) as Record<string, unknown>;
+      Object.defineProperty(session, 'userId', { get: () => fn(), enumerable: true, configurable: true });
+      continue;
+    }
+    const path = (NAMESPACED[name] ?? name).split('.');
+    let node = out;
+    for (const key of path.slice(0, -1)) node = (node[key] ??= {}) as Record<string, unknown>;
+    node[path[path.length - 1]] = fn;
+  }
+  return out;
 }
 
 interface MockSessionClient {
@@ -76,7 +108,7 @@ interface MockOxyState {
   currentLanguage: string;
   /** The ordered account locales (primary first), or the single guest locale. */
   currentLanguages: string[];
-  oxyServices: MockOxyServices | null;
+  oxyServices: NamespacedOxyServices | null;
   /** The SDK key sign-in the silent/biometric sign-in hooks delegate to. */
   signIn: jest.Mock;
 }
@@ -94,7 +126,7 @@ function makeDefaultState(): MockOxyState {
     isLoading: false,
     currentLanguage: 'en-US',
     currentLanguages: [],
-    oxyServices: { updateProfile: jest.fn(async () => undefined) },
+    oxyServices: toNamespaced({ updateProfile: jest.fn(async () => undefined) }),
     signIn: jest.fn(async () => ({ id: 'mock-user' })),
   };
 }
@@ -106,8 +138,9 @@ function emit(): void {
   for (const fn of listeners) fn();
 }
 
-export function __setOxyState(next: Partial<MockOxyState>): void {
-  state = { ...state, ...next };
+export function __setOxyState(next: Partial<Omit<MockOxyState, 'oxyServices'>> & { oxyServices?: MockOxyServices | null }): void {
+  const { oxyServices, ...rest } = next;
+  state = { ...state, ...rest, ...(oxyServices !== undefined ? { oxyServices: toNamespaced(oxyServices) } : {}) };
   emit();
 }
 

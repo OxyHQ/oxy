@@ -182,34 +182,6 @@ export interface BackgroundSessionSyncInput {
 }
 
 /**
- * Fail LOUDLY when the installed `@oxy.so/core` predates
- * `provisionBackgroundCredential`.
- *
- * This is the one failure here that is a build/dependency mistake rather than a
- * runtime condition, and it is the one that must never be quiet. Everything else
- * in `syncBackgroundSession` is caught and logged at warn, which is right for a
- * flaky network — but applying that to a version skew would leave background
- * refreshes permanently non-functional behind a warning nobody reads. So this
- * throws, and logs at ERROR first so it is still visible in a release build whose
- * rejection handler is silent.
- *
- * Reachable only through a runtime skew: the declared `@oxy.so/core` range covers
- * the method, so a correctly-resolved install cannot get here, and TypeScript
- * rules it out at compile time.
- */
-function assertProvisioningAvailable(oxyServices: OxyServices): void {
-  if (typeof oxyServices.provisionBackgroundCredential === 'function') {
-    return;
-  }
-  const message =
-    '[backgroundSession] the installed @oxy.so/core has no provisionBackgroundCredential, ' +
-    'so no background credential can be provisioned and native background refreshes will ' +
-    'never authenticate. Install a @oxy.so/core that satisfies this package\'s declared range.';
-  logger.error(message, undefined, { component: 'backgroundSession' });
-  throw new Error(message);
-}
-
-/**
  * Bring the native credential in line with the session JS currently holds.
  *
  * Ordering is the load-bearing part: a credential belonging to a DIFFERENT
@@ -220,10 +192,9 @@ function assertProvisioningAvailable(oxyServices: OxyServices): void {
  * account), so this is the fast local half of a belt-and-braces pair, not the only
  * guard.
  *
- * Throws for exactly one thing — a `@oxy.so/core` too old to provision (see
- * {@link assertProvisioningAvailable}). Every other failure is caught and logged:
- * a background credential is an enhancement, and failing to provision one must
- * not disturb the session that is working.
+ * Every failure is caught and logged: a background credential is an
+ * enhancement, and failing to provision one must not disturb the session that
+ * is working.
  */
 export async function syncBackgroundSession(input: BackgroundSessionSyncInput): Promise<void> {
   const native = loadNativeModule();
@@ -231,13 +202,6 @@ export async function syncBackgroundSession(input: BackgroundSessionSyncInput): 
     return;
   }
   const { oxyServices, userId, canUsePrivateApi, isCurrent } = input;
-
-  // Before the try, so the catch below cannot turn a dependency skew into a
-  // warning. Signed-out is exempt: clearing needs no core method, and a sign-out
-  // must never be blocked by one.
-  if (userId) {
-    assertProvisioningAvailable(oxyServices);
-  }
 
   try {
     if (!userId) {
@@ -266,7 +230,7 @@ export async function syncBackgroundSession(input: BackgroundSessionSyncInput): 
       return;
     }
 
-    const provisioned = await oxyServices.provisionBackgroundCredential();
+    const provisioned = await oxyServices.devices.provisionBackgroundCredential();
     if (!provisioned) {
       // `null` means the endpoint is not deployed yet. Expected during the
       // rollout window (api leads the SDK) and deliberately quiet.
@@ -292,7 +256,7 @@ export async function syncBackgroundSession(input: BackgroundSessionSyncInput): 
     }
 
     const persisted = await native.put(
-      oxyServices.getBaseURL(),
+      oxyServices.baseURL,
       provisioned.deviceId,
       provisioned.secret,
       provisioned.accountId,

@@ -1,20 +1,14 @@
 /**
- * Crypto polyfill — `getRandomValues` install + platform routing.
- *
- * Regression coverage for the latent Node crash: when a Node runtime ships
- * WITHOUT a global WebCrypto (Node 18 script entrypoints, some embedded hosts),
- * the installed `getRandomValues` shim must be backed by `node:crypto` and MUST
- * NOT fall through to `@oxy.so/protocol`'s RN-only `getRandomBytesRN` stub (which
- * throws `Tried to load 'expo-crypto...' outside React Native`).
+ * Crypto polyfill — the `getRandomValues` shim a host without WebCrypto (React
+ * Native / Hermes) gets, backed by expo-crypto. Every supported Node and browser
+ * has a real one, which the polyfill leaves alone.
  */
 
 // Controllable stand-ins for `@oxy.so/protocol`'s platform predicates. Names are
 // `mock`-prefixed so the (hoisted) `jest.mock` factory may reference them.
 const mockGetRandomBytesRN = jest.fn<Uint8Array, [number]>();
-const mockState = { isNodeJS: true };
 
 jest.mock('@oxy.so/protocol/random', () => ({
-  isNodeJS: () => mockState.isNodeJS,
   getRandomBytesRN: (byteCount: number) => mockGetRandomBytesRN(byteCount),
 }));
 
@@ -55,47 +49,10 @@ function installShimWithoutHostCrypto(): CryptoLike {
 
 beforeEach(() => {
   mockGetRandomBytesRN.mockReset();
-  mockState.isNodeJS = true;
 });
 
 describe('crypto polyfill getRandomValues', () => {
-  it('on Node without global WebCrypto, fills from node:crypto and never calls the RN stub', () => {
-    mockState.isNodeJS = true;
-    // If the shim ever fell through to the RN path on Node, this would throw —
-    // exactly the latent crash we are guarding against.
-    mockGetRandomBytesRN.mockImplementation(() => {
-      throw new Error('RN getRandomBytesRN must not be called on Node');
-    });
-
-    const shim = installShimWithoutHostCrypto();
-    const array = new Uint8Array(16);
-
-    expect(() => shim.getRandomValues(array)).not.toThrow();
-    // Backed by a real CSPRNG: all-zero output is cryptographically impossible.
-    expect(array.some((byte) => byte !== 0)).toBe(true);
-    expect(mockGetRandomBytesRN).not.toHaveBeenCalled();
-  });
-
-  it('on Node, routes a non-integer view (DataView) through randomFillSync', () => {
-    mockState.isNodeJS = true;
-    mockGetRandomBytesRN.mockImplementation(() => {
-      throw new Error('RN getRandomBytesRN must not be called on Node');
-    });
-
-    const shim = installShimWithoutHostCrypto();
-    const view = new DataView(new ArrayBuffer(16));
-
-    expect(() => shim.getRandomValues(view)).not.toThrow();
-    let anyNonZero = false;
-    for (let i = 0; i < view.byteLength; i += 1) {
-      if (view.getUint8(i) !== 0) anyNonZero = true;
-    }
-    expect(anyNonZero).toBe(true);
-    expect(mockGetRandomBytesRN).not.toHaveBeenCalled();
-  });
-
-  it('on React Native, delegates to expo-crypto via getRandomBytesRN (path unchanged)', () => {
-    mockState.isNodeJS = false;
+  it('on React Native, delegates to expo-crypto via getRandomBytesRN ', () => {
     const rnBytes = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
     mockGetRandomBytesRN.mockReturnValue(rnBytes);
 
@@ -105,5 +62,15 @@ describe('crypto polyfill getRandomValues', () => {
 
     expect(mockGetRandomBytesRN).toHaveBeenCalledWith(8);
     expect(Array.from(result)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+});
+
+describe('crypto polyfill on a host with WebCrypto', () => {
+  it('leaves a real getRandomValues alone', () => {
+    const real = globalThis.crypto.getRandomValues;
+    jest.isolateModules(() => {
+      require('../polyfill');
+    });
+    expect(globalThis.crypto.getRandomValues).toBe(real);
   });
 });

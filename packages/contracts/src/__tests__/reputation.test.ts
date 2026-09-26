@@ -1,7 +1,6 @@
 import {
     isFullReputationBalance,
     REPUTATION_CATEGORIES,
-    REPUTATION_DISPUTE_STATUSES,
     REPUTATION_TARGET_ENTITY_TYPES,
     REPUTATION_TRANSACTION_STATUSES,
     reputationBalanceSchema,
@@ -9,7 +8,7 @@ import {
     reputationLeaderboardEntrySchema,
     reputationTransactionSchema,
     TRUST_TIERS,
-    upsertReputationRuleSchema,
+    reputationRulesResponseSchema,
 } from '../index';
 import type {
     ReputationBalance,
@@ -99,9 +98,7 @@ describe('closed value sets', () => {
         ]);
         expect([...REPUTATION_TRANSACTION_STATUSES]).toEqual([
             'active',
-            'disputed',
             'reversed',
-            'voided',
         ]);
         expect([...TRUST_TIERS]).toEqual([
             'restricted',
@@ -111,12 +108,6 @@ describe('closed value sets', () => {
             'verified',
         ]);
         expect(REPUTATION_TARGET_ENTITY_TYPES).toHaveLength(9);
-        expect([...REPUTATION_DISPUTE_STATUSES]).toEqual([
-            'open',
-            'accepted',
-            'rejected',
-            'needs_review',
-        ]);
     });
 });
 
@@ -231,25 +222,36 @@ describe('reputationLeaderboardEntrySchema', () => {
     });
 });
 
-describe('upsertReputationRuleSchema', () => {
-    it('fills in the omitted cooldown and enabled flag', () => {
-        const parsed = upsertReputationRuleSchema.parse({
-            actionType: 'post_created',
-            points: 2,
-            category: 'content',
-            description: 'Authored a post',
+describe('reputationRulesResponseSchema', () => {
+    it('accepts the versioned rules in code', () => {
+        const parsed = reputationRulesResponseSchema.parse({
+            version: 1,
+            rules: [
+                {
+                    actionType: 'endorsement_received',
+                    points: 2,
+                    category: 'social',
+                    description: 'Endorsed by another user in a connected app',
+                    cooldownInMinutes: 0,
+                },
+            ],
         });
-        expect(parsed.cooldownInMinutes).toBe(0);
-        expect(parsed.isEnabled).toBe(true);
+        expect(parsed.rules).toHaveLength(1);
     });
 
     it('rejects a category outside the closed set', () => {
         expect(
-            upsertReputationRuleSchema.safeParse({
-                actionType: 'post_created',
-                points: 2,
-                category: 'karma',
-                description: 'Authored a post',
+            reputationRulesResponseSchema.safeParse({
+                version: 1,
+                rules: [
+                    {
+                        actionType: 'post_created',
+                        points: 2,
+                        category: 'karma',
+                        description: 'Authored a post',
+                        cooldownInMinutes: 0,
+                    },
+                ],
             }).success,
         ).toBe(false);
     });

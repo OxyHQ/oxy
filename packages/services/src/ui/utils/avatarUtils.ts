@@ -30,7 +30,7 @@ export async function updateProfileWithAvatar(
   const data = await authenticatedApiCall<User>(
     oxyServices,
     activeSessionId,
-    () => oxyServices.updateProfile(updates),
+    () => oxyServices.users.updateMe(updates),
     syncSession
   );
 

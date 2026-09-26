@@ -35,6 +35,8 @@ const runSessionColdBootMock = jest.fn(
 const loggerWarn = jest.fn();
 jest.mock('@oxy.so/core', () => ({
   logger: { warn: (...args: unknown[]) => loggerWarn(...args), debug: jest.fn(), error: jest.fn() },
+}));
+jest.mock('@oxy.so/core/session', () => ({
   runSessionColdBoot: (opts: ColdBootOpts) => runSessionColdBootMock(opts),
 }));
 

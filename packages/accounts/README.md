@@ -72,7 +72,7 @@ app/
 ## Delete Account Flow
 
 Strict order enforced in `lib/account/delete-account-flow.ts`:
-1. `oxyServices.deleteAccount(...)` — signed deletion with username confirmation
+1. `oxyServices.users.deleteMe(confirmText, { deviceKey: true })` — signed deletion with username confirmation
 2. On SUCCESS ONLY: `KeyManager.deleteIdentity(skipBackup=true, force=true, userConfirmed=true)` — purges primary AND backup to prevent zombie identity auto-restore
 3. `signOutAll()`
 Local-purge failure is non-fatal (logged, not thrown).

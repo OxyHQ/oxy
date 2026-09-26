@@ -52,7 +52,7 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({
 
         setIsSubmitting(true);
         try {
-            const result = await oxyServices.requestAccountVerification(
+            const result = await oxyServices.users.requestVerification(
                 reason.trim(),
                 evidence.trim() || undefined
             );

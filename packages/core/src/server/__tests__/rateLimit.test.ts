@@ -1,5 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import type { OxyServices } from '../../OxyServices';
+import type { OxyServer } from '../OxyServer';
 
 const rateLimitMock = jest.fn();
 
@@ -28,10 +28,10 @@ interface RateLimitTestRequest extends Request {
 
 const HEX24 = /^[0-9a-f]{24}$/;
 
-function makeOxy(authHandler: RequestHandler): OxyServices {
+function makeOxy(authHandler: RequestHandler): OxyServer {
   return {
-    auth: jest.fn(() => authHandler),
-  } as unknown as OxyServices;
+    middleware: { auth: jest.fn(() => authHandler) },
+  } as unknown as OxyServer;
 }
 
 function makeRequest(overrides: Partial<RateLimitTestRequest> = {}): RateLimitTestRequest {
@@ -64,8 +64,8 @@ describe('@oxy.so/core/server rate limiter', () => {
 
   beforeEach(() => {
     // Isolate salt resolution from any ambient env so key assertions are deterministic.
-    delete process.env.IP_HASH_SALT;
-    delete process.env.DEVICE_ID_SALT;
+    Reflect.deleteProperty(process.env, 'IP_HASH_SALT');
+    Reflect.deleteProperty(process.env, 'DEVICE_ID_SALT');
     rateLimitMock.mockImplementation((options: CapturedRateLimitOptions) => {
       return (req: RateLimitTestRequest, _res: Response, next: NextFunction) => {
         req.observedMax = options.max(req);
@@ -77,9 +77,9 @@ describe('@oxy.so/core/server rate limiter', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    if (originalEnv.IP_HASH_SALT === undefined) delete process.env.IP_HASH_SALT;
+    if (originalEnv.IP_HASH_SALT === undefined) Reflect.deleteProperty(process.env, 'IP_HASH_SALT');
     else process.env.IP_HASH_SALT = originalEnv.IP_HASH_SALT;
-    if (originalEnv.DEVICE_ID_SALT === undefined) delete process.env.DEVICE_ID_SALT;
+    if (originalEnv.DEVICE_ID_SALT === undefined) Reflect.deleteProperty(process.env, 'DEVICE_ID_SALT');
     else process.env.DEVICE_ID_SALT = originalEnv.DEVICE_ID_SALT;
   });
 
@@ -127,7 +127,7 @@ describe('@oxy.so/core/server rate limiter', () => {
 
   it('does not clobber an identity a preceding middleware already resolved', () => {
     // The limiter mutates the SHARED `req`, so the unconditional
-    // `req.userId = null` that `oxy.auth({ optional: true })` writes for every
+    // `req.userId = null` that `oxy.middleware.auth({ optional: true })` writes for every
     // request it cannot authenticate is not merely a bucketing detail — it
     // erases the identity for every handler downstream of the limiter too.
     // The resolver must therefore skip entirely when a user is already present.

@@ -17,9 +17,9 @@ import {
  *   loading    → resolving the request identity via the API
  *   ready      → server-resolved identity available; awaiting the user's choice
  *   confirming → the device's own biometric/passcode prompt is up
- *   approving  → confirmation passed; calling `approveCommonsSignIn`
+ *   approving  → confirmation passed; calling `auth.commons.approve`
  *   approved   → the RP can now claim its session
- *   denying    → calling `denyCommonsSignIn` with the reason the user gave
+ *   denying    → calling `auth.commons.deny` with the reason the user gave
  *   denied     → the request was cancelled, and why is recorded
  *   error      → invalid / used / expired code, or a network failure
  *
@@ -87,7 +87,7 @@ export interface UseCommonsApproval {
  * Drives the Commons approval screen.
  *
  * SECURITY: the requesting-app identity shown to the user comes ONLY from
- * `getCommonsApprovalInfo(code)` (resolved server-side from the authorize
+ * `auth.commons.approvalInfo(code)` (resolved server-side from the authorize
  * code) — never from the scanned QR string. Approval is gated behind the
  * device biometric/passcode before the signed authorize call is made, so a
  * stolen unlocked-but-unattended phone still can't approve.
@@ -143,7 +143,7 @@ export function useCommonsApproval(
     // it is fired alongside — never before or instead of — the identity fetch,
     // is never awaited, and a rejection is logged and otherwise ignored: a
     // missed progress line must never cost the user their approval.
-    void oxyServices.markCommonsApprovalOpened(code).catch((error: unknown) => {
+    void oxyServices.auth.commons.markOpened(code).catch((error: unknown) => {
       logger.warn(
         '[commons] could not report the approval screen as opened',
         { component: 'useCommonsApproval' },
@@ -152,7 +152,7 @@ export function useCommonsApproval(
     });
 
     oxyServices
-      .getCommonsApprovalInfo(code)
+      .auth.commons.approvalInfo(code)
       .then((result) => {
         if (cancelled) return;
         const blockingReason = getCommonsApprovalBlockingReason(result);
@@ -200,7 +200,7 @@ export function useCommonsApproval(
 
       setState('approving');
       try {
-        await oxyServices.approveCommonsSignIn({ authorizeCode: code });
+        await oxyServices.auth.commons.approve({ authorizeCode: code });
         setState('approved');
       } catch (error: unknown) {
         setErrorMessage(error instanceof Error ? error.message : null);
@@ -219,7 +219,7 @@ export function useCommonsApproval(
 
       setState('denying');
       try {
-        await oxyServices.denyCommonsSignIn(code, reason);
+        await oxyServices.auth.commons.deny(code, reason);
         setDenialReason(reason);
         setState('denied');
       } catch (error: unknown) {

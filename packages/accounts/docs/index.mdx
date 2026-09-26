@@ -59,7 +59,7 @@ Routes the app surfaces externally:
 
 These apply to any Oxy-flavoured Expo app:
 
-- **`useUpdateProfile` for username writes** — `useUpdateProfile().mutateAsync()` gets the optimistic update + cache invalidation; calling `oxyServices.updateProfile()` directly skips both.
+- **`useUpdateProfile` for username writes** — `useUpdateProfile().mutateAsync()` gets the optimistic update + cache invalidation; calling `oxyServices.users.updateMe()` directly skips both.
 - **Stable lazy initial values** — `useState(() => initial)` for form state initialised from a query, so a remount doesn't reset to stale data.
 - **Session-keyed routing** — `(auth)`↔`(tabs)` keys purely on `isAuthResolved` / `isAuthenticated`; the root `<Stack>` is the sole authority for the group swap.
 - **`useUpdatePrivacySettings`** — don't call `invalidateAccountQueries(queryClient)` in `onSuccess` (defeats optimistic merge). Use `{ ...previous, ...requested, ...incoming }` merge in `onMutate`, targeted invalidate in `onError`.

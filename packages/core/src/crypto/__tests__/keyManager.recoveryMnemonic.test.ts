@@ -47,7 +47,7 @@ jest.mock('@oxy.so/protocol', () => {
     loadAsyncStorage: async () => ({ default: asyncStorage }),
     loadSharedIdentityBridge: async () => null,
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    loadNodeCrypto: async () => require('crypto'),
+    loadNodeCrypto: async () => require('node:crypto'),
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     getRandomBytesRN: (n: number) => require('expo-crypto').getRandomBytes(n),
   };

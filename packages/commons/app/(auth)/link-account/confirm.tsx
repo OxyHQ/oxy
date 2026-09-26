@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@oxy.so/bloom/button';
 import { IDENTITY_ERROR_CODES } from '@oxy.so/contracts';
-import { IdentityAlreadyExistsError, KeyManager } from '@oxy.so/core';
+import { IdentityAlreadyExistsError, KeyManager } from '@oxy.so/core/crypto';
 import { useOxy } from '@oxy.so/services';
 import { RecoveryPhraseStep } from '@/components/auth/RecoveryPhraseStep';
 import { useIdentityStore } from '@/hooks/identity/identityStore';
@@ -61,7 +61,7 @@ export default function LinkAccountConfirmScreen() {
   useEffect(() => {
     if (!id || !c) return;
     oxyServices
-      .getIdentityLink(id)
+      .identity.links.get(id)
       .then((state) =>
         setStep(
           state.status === 'pending' && Date.now() < state.expiresAt
@@ -89,11 +89,11 @@ export default function LinkAccountConfirmScreen() {
     if (!id || !c) return;
     setStep({ name: 'working' });
     try {
-      const { code } = await oxyServices.signIdentityLink(id, c);
+      const { code } = await oxyServices.identity.links.sign(id, c);
       setStep({ name: 'code', code });
 
       const outcome = await awaitLinkCompletion({
-        getState: () => oxyServices.getIdentityLink(id),
+        getState: () => oxyServices.identity.links.get(id),
         signal: aborter.current.signal,
       });
       if (outcome === 'aborted') return;

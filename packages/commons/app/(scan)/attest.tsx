@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '@/constants/icons';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { parseAttestPayload } from '@oxy.so/core';
+import { parseAttestPayload } from '@oxy.so/core/civic';
 import { useOxy } from '@oxy.so/services';
 import { useColors } from '@/hooks/useColors';
 import {

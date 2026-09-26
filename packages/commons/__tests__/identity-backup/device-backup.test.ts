@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
-import { KeyManager, type IdentityStatus, type IdentityRecoveryResult } from '@oxy.so/core';
+import { KeyManager, type IdentityStatus, type IdentityRecoveryResult } from '@oxy.so/core/crypto';
 import {
   createBlockStoreBackup,
   installIdentityDeviceBackup,

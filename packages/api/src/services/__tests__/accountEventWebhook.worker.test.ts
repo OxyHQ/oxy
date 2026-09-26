@@ -6,7 +6,7 @@
  */
 
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
-import { OxyServices } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 import { SsrfRejection } from '@oxy.so/core/server';
 import { and, eq, ne } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
@@ -123,8 +123,8 @@ describe('account event webhook worker', () => {
       JSON.stringify({ keys: serviceTokenPublicJwks() }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
-    const verified = await new OxyServices({ baseURL: 'https://api.oxy.test' })
-      .verifyAccountEvent(ours[0]!.token, { audience: seeded.applicationId });
+    const verified = await new OxyServer({ baseURL: 'https://api.oxy.test' })
+      .accountEvents.verify(ours[0]!.token, { audience: seeded.applicationId });
     expect(verified).toMatchObject({
       eventId: seeded.eventId,
       userId: seeded.personId,

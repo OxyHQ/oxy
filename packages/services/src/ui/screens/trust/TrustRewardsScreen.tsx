@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { View, StyleSheet } from 'react-native';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
@@ -8,6 +9,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { H1, H4, H5, Text } from '@oxy.so/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';
 import { useOxy } from '../../context/OxyContext';
+import { queryKeys } from '../../hooks/queries/queryKeys';
 import { darkenColor, lightenColor } from '../../utils/colorUtils';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -85,27 +87,15 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
         title: t('trust.rewards.title') || 'Trust Rewards',
         subtitle: t('trust.rewards.subtitle') || 'Unlock special features and recognition',
     });
-    const [reputationTotal, setReputationTotal] = useState<number>(0);
-    const [, setIsLoading] = useState(true);
+    const balance = useQuery({
+        queryKey: queryKeys.reputation.balance(user?.id),
+        enabled: Boolean(user?.id) && isAuthenticated,
+        queryFn: () => oxyServices.reputation.balance(),
+    });
+    const reputationTotal = balance.data?.total || 0;
 
     const bloomTheme = useTheme();
     const colors = bloomTheme.colors;
-
-    useEffect(() => {
-        if (!user || !isAuthenticated) {
-            setIsLoading(false);
-            return;
-        }
-        setIsLoading(true);
-        oxyServices.getMyReputationBalance()
-            .then((balance) => {
-                setReputationTotal(balance.total || 0);
-            })
-            .catch(() => {
-                setReputationTotal(0);
-            })
-            .finally(() => setIsLoading(false));
-    }, [user, isAuthenticated, oxyServices]);
 
     const achievements: Achievement[] = useMemo(() => [
         {

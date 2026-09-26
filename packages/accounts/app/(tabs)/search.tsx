@@ -88,13 +88,13 @@ export default function SearchScreen() {
   // independently of the search term so typing does not re-fetch them.
   const blockedQuery = useQuery<BlockedUser[]>({
     queryKey: ['search', 'blocked', user?.id ?? null],
-    queryFn: () => oxyServices.getBlockedUsers(),
+    queryFn: () => oxyServices.privacy.blocked(),
     enabled: isAuthenticated && !!user?.id,
     staleTime: 5 * 60 * 1000,
   });
   const restrictedQuery = useQuery<RestrictedUser[]>({
     queryKey: ['search', 'restricted', user?.id ?? null],
-    queryFn: () => oxyServices.getRestrictedUsers(),
+    queryFn: () => oxyServices.privacy.restricted(),
     enabled: isAuthenticated && !!user?.id,
     staleTime: 5 * 60 * 1000,
   });
@@ -109,7 +109,7 @@ export default function SearchScreen() {
   const searchQueryResult = useQuery<User[]>({
     queryKey: ['search', 'profiles', debouncedQuery],
     queryFn: async () => {
-      const response = await oxyServices.searchProfiles(debouncedQuery, { limit: 10 });
+      const response = await oxyServices.users.search(debouncedQuery, { limit: 10 });
       return response.data ?? [];
     },
     enabled: canSearch,
@@ -210,7 +210,7 @@ export default function SearchScreen() {
         const userUsername = user.username || undefined;
         const fallbackHandle = getAccountFallbackHandle(user);
         const avatarUrl = user.avatar && oxyServices
-          ? oxyServices.getFileDownloadUrl(user.avatar, 'thumb')
+          ? oxyServices.assets.publicUrl(user.avatar, 'thumb')
           : undefined;
 
         return {

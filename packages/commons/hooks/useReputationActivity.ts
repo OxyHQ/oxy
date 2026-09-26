@@ -37,7 +37,7 @@ export function useReputationActivity(
       if (!userId) {
         throw new Error('No user id to resolve activity for');
       }
-      return oxyServices.getReputationTransactions(userId, RECENT_ACTIVITY_LIMIT);
+      return oxyServices.reputation.transactions(userId, { limit: RECENT_ACTIVITY_LIMIT });
     },
     enabled: Boolean(oxyServices) && Boolean(userId),
     staleTime: ACTIVITY_STALE_TIME_MS,

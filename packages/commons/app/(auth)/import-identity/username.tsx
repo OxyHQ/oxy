@@ -52,7 +52,7 @@ export default function ImportIdentityUsernameScreen() {
 
     setUpdateError(null);
 
-    if (!oxyServices.getAccessToken()) {
+    if (!oxyServices.session.accessToken) {
       const offline = await checkIfOffline();
       setUpdateError(
         offline

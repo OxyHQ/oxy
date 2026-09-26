@@ -6,7 +6,7 @@
  * could silently disagree about what "solved" means.
  */
 
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import {
   meetsRegistrationPowDifficulty,
   registrationPowMessage,

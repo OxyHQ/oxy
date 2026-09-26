@@ -14,7 +14,7 @@ export const VALIDATOR_INBOX_KEY = ['civic', 'validator-inbox'] as const;
  */
 export function useValidatorInbox(): UseQueryResult<ValidationRequestSummary[]> {
   const { oxyServices, user } = useOxy();
-  const userId = user?.id ?? oxyServices?.getCurrentUserId?.() ?? null;
+  const userId = user?.id ?? oxyServices?.session.userId ?? null;
 
   return useQuery<ValidationRequestSummary[]>({
     queryKey: VALIDATOR_INBOX_KEY,
@@ -22,7 +22,7 @@ export function useValidatorInbox(): UseQueryResult<ValidationRequestSummary[]> 
       if (!oxyServices) {
         throw new Error('OxyServices not initialized');
       }
-      return oxyServices.getValidatorInbox();
+      return oxyServices.civic.validation.inbox();
     },
     enabled: Boolean(oxyServices) && Boolean(userId),
     staleTime: 30 * 1000,

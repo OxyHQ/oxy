@@ -1,20 +1,14 @@
-import express, { type Response, type NextFunction } from 'express';
+import express from 'express';
 import {
   awardReputationSchema,
-  createReputationDisputeSchema,
   reputationBalanceSchema,
   reputationBalanceSummarySchema,
-  reputationDisputeSchema,
   reputationInfluenceResultSchema,
   reputationLeaderboardEntrySchema,
   reputationRuleSchema,
   reputationTransactionSchema,
-  resolveReputationDisputeSchema,
-  reverseReputationTransactionSchema,
-  upsertReputationRuleSchema,
   type ReputationBalance,
   type ReputationBalanceSummary,
-  type ReputationDispute,
   type ReputationInfluenceContext,
   type ReputationInfluenceResult,
   type ReputationLeaderboardEntry,
@@ -30,8 +24,6 @@ import {
 } from '../middleware/auth';
 import type { AuthenticatedRequest } from '../middleware/authUtils';
 import { optionalAuthMiddleware } from '../middleware/optionalAuth';
-import { verifyServiceToken } from '../middleware/serviceToken';
-import { requireStaff } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler, sendSuccess, sendPaginated } from '../utils/asyncHandler';
@@ -39,13 +31,12 @@ import { ForbiddenError, UnauthorizedError } from '../utils/error';
 import { resolveUserIdToObjectId, validatePagination } from '../utils/validation';
 import { userIdentityFields } from '../utils/userTransform';
 import reputationService, { readMetadata } from '../services/reputation.service';
+import { REPUTATION_RULES_VERSION, type ReputationRuleDefinition } from '../services/reputationRules';
 import {
   DEFAULT_TRANSACTION_LIMIT,
   MAX_TRANSACTION_LIMIT,
   DEFAULT_LEADERBOARD_LIMIT,
   MAX_LEADERBOARD_LIMIT,
-  DEFAULT_DISPUTE_LIMIT,
-  MAX_DISPUTE_LIMIT,
   LEASE_SIGNED_ACTION,
   LEASE_COMPLETED_ACTION,
   CLEAN_MOVEOUT_ACTION,
@@ -53,8 +44,6 @@ import {
 } from '../utils/reputation.constants';
 import {
   reputationUserIdParams,
-  reputationTransactionIdParams,
-  reputationDisputeIdParams,
   reputationPaginationQuery,
   reputationInfluenceQuery,
 } from '../schemas/reputation.schemas';
@@ -79,38 +68,16 @@ const readLimiter = rateLimit({
   max: 300,
 });
 
-/** Award limiter — service tokens / staff award reputation. */
+/** Award limiter — service tokens award reputation. */
 const awardLimiter = rateLimit({
   prefix: 'rl:reputation:award:',
   windowMs: WINDOW_1_MIN,
   max: 120,
 });
 
-/** Mutating staff actions (reverse/void/recalculate/resolve/rules). */
-const adminLimiter = rateLimit({
-  prefix: 'rl:reputation:admin:',
-  windowMs: WINDOW_15_MIN,
-  max: 200,
-});
-
-/** Dispute creation limiter (per authenticated user). */
-const disputeLimiter = rateLimit({
-  prefix: 'rl:reputation:dispute:',
-  windowMs: WINDOW_15_MIN,
-  max: 30,
-});
-
 /**
- * A request that may carry EITHER an authenticated user (`req.user`) or a
- * service principal (`req.serviceApp`). Used by `/award`.
- */
-interface UserOrServiceRequest extends AuthRequest, ServiceAuthRequest {}
-
-/**
- * Accept either a user session token or a service token. Peeks at the verified
- * token's `type` claim and dispatches to the matching middleware. A `service`
- * token resolves `req.serviceApp`; anything else falls through to the regular
- * user `authMiddleware`.
+ * `reputation:write` awards any action in code; `reputation:lease:write` only
+ * the Homiio lease actions, and only with a `sourceActionId`.
  */
 function authorizeServiceAward(
   req: ServiceAuthRequest,
@@ -132,30 +99,6 @@ function authorizeServiceAward(
   if (!sourceActionId) {
     throw new ForbiddenError(`${LEASE_AWARD_SCOPE} requires sourceActionId`);
   }
-}
-
-function authUserOrService(
-  req: UserOrServiceRequest,
-  res: Response,
-  next: NextFunction
-): void {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    next(new UnauthorizedError('Invalid or missing authorization header'));
-    return;
-  }
-  // The lane is decided by the one service-token verifier, never by trying
-  // the user-token secret: service tokens are EdDSA (ADR 0012), so an HMAC
-  // check against ACCESS_TOKEN_SECRET can never recognise one. Anything that
-  // is recognisably a service token — valid, expired or forged — goes to the
-  // service lane for its precise 401; everything else is a user token.
-  const verification = verifyServiceToken(authHeader.slice('Bearer '.length));
-  const isServiceToken = verification.ok || verification.reason !== 'not_service';
-  if (isServiceToken) {
-    serviceAuthMiddleware(req, res, next);
-    return;
-  }
-  authMiddleware(req, res, next);
 }
 
 /*
@@ -217,7 +160,7 @@ function serializeTransaction(
 }
 
 /**
- * Shape a balance for its SUBJECT (or platform staff).
+ * Shape a balance for its SUBJECT.
  *
  * Carries the platform's internal judgements about the person — the
  * `reliability` scoring, the `influence` weights that drive ranking and
@@ -260,7 +203,7 @@ function serializeBalance(
 }
 
 /**
- * Shape a balance for a caller who is NEITHER its subject nor staff — including
+ * Shape a balance for a caller who is not its subject — including
  * an anonymous one.
  *
  * Deliberately limited to the fields the already-public `GET
@@ -297,37 +240,14 @@ function serializePublicBalance(
   return reputationBalanceSummarySchema.parse(dto);
 }
 
-/** Shape a dispute for the HTTP response. */
-function serializeDispute(
-  dispute: Awaited<ReturnType<typeof reputationService.createDispute>>
-): ReputationDispute {
-  const dto: ReputationDispute = {
-    id: dispute.id,
-    transactionId: dispute.transactionId,
-    userId: dispute.userId,
-    reason: dispute.reason,
-    status: dispute.status,
-    evidence: dispute.evidence ?? undefined,
-    resolvedAt: dispute.resolvedAt?.toISOString(),
-    resolvedByUserId: dispute.resolvedByUserId ?? undefined,
-    createdAt: dispute.createdAt.toISOString(),
-    updatedAt: dispute.updatedAt.toISOString(),
-  };
-  return reputationDisputeSchema.parse(dto);
-}
-
 /** Shape a rule for the HTTP response. */
-function serializeRule(
-  rule: Awaited<ReturnType<typeof reputationService.upsertRule>>
-): ReputationRule {
+function serializeRule(rule: ReputationRuleDefinition): ReputationRule {
   const dto: ReputationRule = {
-    id: rule.id,
     actionType: rule.actionType,
     points: rule.points,
     category: rule.category,
     description: rule.description,
     cooldownInMinutes: rule.cooldownInMinutes,
-    isEnabled: rule.isEnabled,
   };
   return reputationRuleSchema.parse(dto);
 }
@@ -406,13 +326,13 @@ router.get(
   })
 );
 
-/** GET /reputation/rules — enabled rules (for client display). */
+/** GET /reputation/rules — the rules in code, with their version. */
 router.get(
   '/rules',
   readLimiter,
   asyncHandler(async (_req, res) => {
-    const rules = await reputationService.listEnabledRules();
-    sendSuccess(res, { rules: rules.map(serializeRule) });
+    const rules = reputationService.listRules();
+    sendSuccess(res, { version: REPUTATION_RULES_VERSION, rules: rules.map(serializeRule) });
   })
 );
 
@@ -420,7 +340,7 @@ router.get(
  * GET /reputation/:userId/balance — derived totals + tier.
  *
  * Readable without a token so the public trust signal stays public, but the
- * RESPONSE IS VIEW-SPLIT: the subject themselves and platform staff get the
+ * RESPONSE IS VIEW-SPLIT: the subject themselves gets the
  * full balance, everyone else gets {@link serializePublicBalance}. Auth is
  * therefore optional rather than required — an invalid or absent token simply
  * resolves to the public view instead of rejecting the request.
@@ -434,71 +354,40 @@ router.get(
     const userObjectId = await resolveUserIdToObjectId(req.params.userId);
     const balance = await reputationService.getBalance(userObjectId);
     const callerId = req.user?._id?.toString();
-    const isSubject = callerId === userObjectId;
-    const isStaff = req.user?.isStaff === true;
     sendSuccess(
       res,
-      isSubject || isStaff ? serializeBalance(balance) : serializePublicBalance(balance)
+      callerId === userObjectId ? serializeBalance(balance) : serializePublicBalance(balance)
     );
   })
 );
 
 // =============================================================================
-// STAFF-ONLY RULE WRITE (auth + staff)
-// =============================================================================
-
-/** POST /reputation/rules — upsert a rule (staff only). */
-router.post(
-  '/rules',
-  adminLimiter,
-  authMiddleware,
-  requireStaff,
-  validate({ body: upsertReputationRuleSchema }),
-  asyncHandler(async (req, res) => {
-    const rule = await reputationService.upsertRule(req.body);
-    sendSuccess(res, { rule: serializeRule(rule) });
-  })
-);
-
-// =============================================================================
-// AWARD (service token OR staff)
+// AWARD (service token)
 // =============================================================================
 
 /**
  * POST /reputation/award.
  *
- * Awarding is restricted to service tokens with the privileged
- * `reputation:write` scope (the canonical path — a source app reports an
- * action) and platform staff. Regular users may NOT award reputation
- * (no self-award). When called with a service token the `applicationId` /
- * `credentialId` are resolved from `req.serviceApp` and any client-supplied
- * values for those fields are ignored.
+ * Only a source app awards reputation: a service token with the privileged
+ * `reputation:write` scope reports an action, and the points come from the
+ * rule in code (`services/reputationRules.ts`). No person — user or Oxy staff —
+ * can award, reverse or edit anyone's reputation by hand. The `applicationId` /
+ * `credentialId` are the token's; client-supplied values are ignored.
  */
 router.post(
   '/award',
   awardLimiter,
-  authUserOrService,
+  serviceAuthMiddleware,
   validate({ body: awardReputationSchema }),
-  asyncHandler(async (req: UserOrServiceRequest, res) => {
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
     const serviceApp = req.serviceApp;
-    const user = req.user;
-
-    let applicationId: string | undefined = req.body.applicationId;
-    let credentialId: string | undefined = req.body.credentialId;
-    let createdByUserId: string | undefined;
-
-    if (serviceApp) {
-      authorizeServiceAward(req, req.body.actionType, req.body.sourceActionId);
-
-      // Canonical service path — source app identity is the token's, not the
-      // client body's.
-      applicationId = serviceApp.appId;
-      credentialId = serviceApp.credentialId;
-    } else if (user?.isStaff === true) {
-      createdByUserId = user._id?.toString();
-    } else {
-      throw new ForbiddenError('Awarding reputation requires a service token or staff privileges');
+    if (!serviceApp) {
+      throw new ForbiddenError('Awarding reputation requires a service token');
     }
+    authorizeServiceAward(req, req.body.actionType, req.body.sourceActionId);
+    // The source app identity is the token's, never the client body's.
+    const applicationId = serviceApp.appId;
+    const credentialId = serviceApp.credentialId;
 
     const subjectObjectId = await resolveUserIdToObjectId(req.body.userId);
 
@@ -512,7 +401,6 @@ router.post(
       targetEntityId: req.body.targetEntityId,
       targetEntityType: req.body.targetEntityType,
       reason: req.body.reason,
-      createdByUserId,
       metadata: req.body.metadata,
     });
 
@@ -536,12 +424,12 @@ function requireUserId(req: AuthRequest): string {
 }
 
 /**
- * GET /reputation/:userId/transactions — paginated ledger (own or staff).
+ * GET /reputation/:userId/transactions — paginated ledger (own only).
  *
  * A transaction's `metadata` names the THIRD PARTIES behind the award — the
  * attestor who physically met the subject, the voucher who staked on them, the
- * jury that validated them — so the ledger is readable only by its own subject
- * and platform staff, never by an arbitrary authenticated caller.
+ * jury that validated them — so the ledger is readable only by its own
+ * subject, never by another caller (Oxy staff included).
  */
 router.get(
   '/:userId/transactions',
@@ -550,7 +438,7 @@ router.get(
   asyncHandler(async (req: AuthRequest, res) => {
     const callerId = requireUserId(req);
     const userObjectId = await resolveUserIdToObjectId(req.params.userId);
-    if (userObjectId !== callerId && req.user?.isStaff !== true) {
+    if (userObjectId !== callerId) {
       throw new ForbiddenError('You can only view your own transactions');
     }
     const { limit, offset } = validatePagination(
@@ -569,7 +457,7 @@ router.get(
 );
 
 /**
- * GET /reputation/:userId/influence — capped weight(s) (own or staff).
+ * GET /reputation/:userId/influence — capped weight(s) (own only).
  *
  * Influence weights are internal moderation/ranking signals — same class of
  * sensitive data as the `influence` block on the full balance view.
@@ -581,141 +469,12 @@ router.get(
   asyncHandler(async (req: AuthRequest, res) => {
     const callerId = requireUserId(req);
     const userObjectId = await resolveUserIdToObjectId(req.params.userId);
-    if (userObjectId !== callerId && req.user?.isStaff !== true) {
+    if (userObjectId !== callerId) {
       throw new ForbiddenError('You can only view your own influence');
     }
     const context = (req.query.context as ReputationInfluenceContext | undefined) ?? 'default';
     const result = await reputationService.getInfluence(userObjectId, context);
     sendSuccess(res, serializeInfluenceResult(result));
-  })
-);
-
-/** GET /reputation/:userId/disputes — a user's own disputes (auth). */
-router.get(
-  '/:userId/disputes',
-  readLimiter,
-  validate({ params: reputationUserIdParams, query: reputationPaginationQuery }),
-  asyncHandler(async (req: AuthRequest, res) => {
-    const callerId = requireUserId(req);
-    const userObjectId = await resolveUserIdToObjectId(req.params.userId);
-    if (userObjectId !== callerId && req.user?.isStaff !== true) {
-      throw new ForbiddenError('You can only view your own disputes');
-    }
-    const { limit, offset } = validatePagination(
-      req.query.limit,
-      req.query.offset,
-      MAX_DISPUTE_LIMIT,
-      DEFAULT_DISPUTE_LIMIT
-    );
-    const { items, total } = await reputationService.listDisputesForUser(
-      userObjectId,
-      limit,
-      offset
-    );
-    sendPaginated(res, items.map(serializeDispute), total, limit, offset);
-  })
-);
-
-/** POST /reputation/disputes — open a dispute (auth; disputer = req.user). */
-router.post(
-  '/disputes',
-  disputeLimiter,
-  validate({ body: createReputationDisputeSchema }),
-  asyncHandler(async (req: AuthRequest, res) => {
-    const callerId = requireUserId(req);
-    const dispute = await reputationService.createDispute(
-      req.body.transactionId,
-      callerId,
-      req.body.reason,
-      req.body.evidence
-    );
-    sendSuccess(res, { dispute: serializeDispute(dispute) }, 201);
-  })
-);
-
-/** GET /reputation/disputes — open dispute queue (staff). */
-router.get(
-  '/disputes',
-  readLimiter,
-  requireStaff,
-  validate({ query: reputationPaginationQuery }),
-  asyncHandler(async (req, res) => {
-    const { limit, offset } = validatePagination(
-      req.query.limit,
-      req.query.offset,
-      MAX_DISPUTE_LIMIT,
-      DEFAULT_DISPUTE_LIMIT
-    );
-    const { items, total } = await reputationService.listOpenDisputes(limit, offset);
-    sendPaginated(res, items.map(serializeDispute), total, limit, offset);
-  })
-);
-
-// =============================================================================
-// STAFF-ONLY MUTATIONS
-// =============================================================================
-
-/** POST /reputation/transactions/:id/reverse — reverse a transaction (staff). */
-router.post(
-  '/transactions/:id/reverse',
-  adminLimiter,
-  requireStaff,
-  validate({ params: reputationTransactionIdParams, body: reverseReputationTransactionSchema }),
-  asyncHandler(async (req: AuthRequest, res) => {
-    const reviewedByUserId = requireUserId(req);
-    const result = await reputationService.reverseTransaction(req.params.id, {
-      reviewedByUserId,
-      reason: req.body.reason,
-    });
-    sendSuccess(res, {
-      original: serializeTransaction(result.original),
-      reversal: serializeTransaction(result.reversal),
-    });
-  })
-);
-
-/** POST /reputation/transactions/:id/void — void a transaction (staff). */
-router.post(
-  '/transactions/:id/void',
-  adminLimiter,
-  requireStaff,
-  validate({ params: reputationTransactionIdParams, body: reverseReputationTransactionSchema }),
-  asyncHandler(async (req: AuthRequest, res) => {
-    const reviewedByUserId = requireUserId(req);
-    const txn = await reputationService.voidTransaction(req.params.id, {
-      reviewedByUserId,
-      reason: req.body.reason,
-    });
-    sendSuccess(res, { transaction: serializeTransaction(txn) });
-  })
-);
-
-/** POST /reputation/:userId/recalculate — force a balance recompute (staff). */
-router.post(
-  '/:userId/recalculate',
-  adminLimiter,
-  requireStaff,
-  validate({ params: reputationUserIdParams }),
-  asyncHandler(async (req, res) => {
-    const userObjectId = await resolveUserIdToObjectId(req.params.userId);
-    const balance = await reputationService.recalculateBalance(userObjectId);
-    sendSuccess(res, serializeBalance(balance));
-  })
-);
-
-/** POST /reputation/disputes/:id/resolve — resolve a dispute (staff). */
-router.post(
-  '/disputes/:id/resolve',
-  adminLimiter,
-  requireStaff,
-  validate({ params: reputationDisputeIdParams, body: resolveReputationDisputeSchema }),
-  asyncHandler(async (req: AuthRequest, res) => {
-    const resolvedByUserId = requireUserId(req);
-    const dispute = await reputationService.resolveDispute(req.params.id, {
-      status: req.body.status,
-      resolvedByUserId,
-    });
-    sendSuccess(res, { dispute: serializeDispute(dispute) });
   })
 );
 

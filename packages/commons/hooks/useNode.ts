@@ -6,11 +6,11 @@
  * instant while the node stays the source of truth. The SDK surface lives on
  * `@oxy.so/core`'s nodes mixin:
  *
- *  - `getMyNode()` → the caller's cached {@link UserNodeStatus} (or `null`).
- *  - `provisionManagedVault()` → ask Oxy to operate a MANAGED vault.
- *  - `registerNode(input)` → register a SELF-HOSTED node (signs on-device).
- *  - `removeMyNode()` → revoke the registration.
- *  - `notifyNodeIngest(userId)` → an unauthenticated re-pull HINT ("Sync now").
+ *  - `nodes.mine()` → the caller's cached {@link UserNodeStatus} (or `null`).
+ *  - `nodes.provisionManagedVault()` → ask Oxy to operate a MANAGED vault.
+ *  - `nodes.register(input)` → register a SELF-HOSTED node (signs on-device).
+ *  - `nodes.removeMine()` → revoke the registration.
+ *  - `nodes.notifyIngest(userId)` → an unauthenticated re-pull HINT ("Sync now").
  *
  * `useMyNode` mirrors the offline-first behaviour of `usePersonhood` /
  * `useCredentials`: a previously-resolved status is served from the in-memory
@@ -19,10 +19,10 @@
  * mirror `useVouch` / `useIssueCredential`: a hand-rolled state machine that runs
  * the device biometric gate (where the operation signs or mutates) BEFORE calling
  * the SDK, classifies the server rejection into a friendly code, and invalidates
- * the shared node query so the status view refreshes. `notifyNodeIngest` is an
+ * the shared node query so the status view refreshes. `nodes.notifyIngest` is an
  * unauthenticated fire-and-forget hint, so `useSyncNode` does NOT gate it.
  *
- * NATIVE-ONLY for the signing path (`registerNode` signs with the on-device
+ * NATIVE-ONLY for the signing path (`nodes.register` signs with the on-device
  * identity key and throws on web); the reads, managed provision, revoke, and sync
  * hint are plain authenticated/public requests.
  */
@@ -91,13 +91,13 @@ export function nodeErrorCode(error: unknown): NodeErrorCode {
 /** Resolve the current user id the same way every civic hook does. */
 function useCurrentUserId(): string | null {
   const { user, oxyServices } = useOxy();
-  return user?.id ?? oxyServices?.getCurrentUserId?.() ?? null;
+  return user?.id ?? oxyServices?.session.userId ?? null;
 }
 
 /**
  * Query the CURRENT user's node status (the "Your data node" screen).
  *
- * Resolves through `getMyNode()` (which derives the subject from the session) and
+ * Resolves through `nodes.mine()` (which derives the subject from the session) and
  * keys the result by the current user id so the mutations can invalidate it.
  * `data === null` means "loaded, no node yet"; `undefined` means "still loading".
  */
@@ -111,7 +111,7 @@ export function useMyNode(): UseQueryResult<UserNodeStatus | null> {
       if (!oxyServices) {
         throw new Error('OxyServices not initialized');
       }
-      return oxyServices.getMyNode();
+      return oxyServices.nodes.mine();
     },
     enabled: Boolean(oxyServices) && Boolean(userId),
     staleTime: NODE_STALE_TIME_MS,
@@ -146,7 +146,7 @@ export interface UseRegisterNode {
  *
  * Registration signs a `type:'node'` record on the caller's own hash chain with
  * the on-device identity key, so it is gated behind the device biometric BEFORE
- * `registerNode` signs. The server is authoritative — it verifies the signature
+ * `nodes.register` signs. The server is authoritative — it verifies the signature
  * and rejects a malformed endpoint (no node materializes); those surface as a
  * classified `errorCode`. On success the node query is invalidated so the status
  * view reflects the new node. NATIVE-ONLY (the registration signs on-device).
@@ -183,7 +183,7 @@ export function useRegisterNode(biometricReason: string): UseRegisterNode {
 
       setState('working');
       try {
-        const node = await oxyServices.registerNode(input);
+        const node = await oxyServices.nodes.register(input);
         setResult(node);
         setState('done');
         void queryClient.invalidateQueries({ queryKey: nodeQueryKey(userId) });
@@ -247,7 +247,7 @@ export function useProvisionVault(biometricReason: string): UseProvisionVault {
 
     setState('working');
     try {
-      const node = await oxyServices.provisionManagedVault();
+      const node = await oxyServices.nodes.provisionManagedVault();
       setResult(node);
       setState('done');
       void queryClient.invalidateQueries({ queryKey: nodeQueryKey(userId) });
@@ -303,7 +303,7 @@ export function useRemoveNode(biometricReason: string): UseRemoveNode {
 
     setState('working');
     try {
-      await oxyServices.removeMyNode();
+      await oxyServices.nodes.removeMine();
       setState('done');
       void queryClient.invalidateQueries({ queryKey: nodeQueryKey(userId) });
     } catch (error: unknown) {
@@ -323,7 +323,7 @@ export interface UseSyncNode {
 }
 
 /**
- * Trigger a node sync ("Sync now"). Sends the unauthenticated `notifyNodeIngest`
+ * Trigger a node sync ("Sync now"). Sends the unauthenticated `nodes.notifyIngest`
  * hint (a fire-and-forget re-pull request the server fully re-verifies, so it can
  * never inject data) and then invalidates the node query so the freshly-probed
  * status loads. No biometric gate — it neither signs nor mutates authoritative
@@ -341,7 +341,7 @@ export function useSyncNode(): UseSyncNode {
     if (!oxyServices || !userId) return;
     setState('working');
     try {
-      await oxyServices.notifyNodeIngest(userId);
+      await oxyServices.nodes.notifyIngest(userId);
       setState('done');
       void queryClient.invalidateQueries({ queryKey: nodeQueryKey(userId) });
     } catch {

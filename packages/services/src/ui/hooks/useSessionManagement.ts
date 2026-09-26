@@ -129,7 +129,7 @@ export const useSessionManagement = ({
     // leaking that stale token onto the shared `oxyClient` singleton after
     // sign-out. Clearing here fires `onTokensChanged(null)`, propagating the
     // logged-out state everywhere.
-    oxyServices.clearTokens();
+    oxyServices.session.clear();
 
     if (queryClient) {
       queryClient.clear();
@@ -157,11 +157,11 @@ export const useSessionManagement = ({
         // `SessionClient` sync) before validating — there is no client-side
         // refresh-cookie slot to fall back on. The native path arrives here only
         // after a bearer has been planted too.
-        if (isWebBrowser() && !oxyServices.getAccessToken()) {
+        if (isWebBrowser() && !oxyServices.session.accessToken) {
           throw new Error('Session is invalid or expired');
         }
 
-        const validation = await oxyServices.validateSession(sessionId, { useHeaderValidation: true });
+        const validation = await oxyServices.session.validate(sessionId, { useHeaderValidation: true });
         if (!validation?.valid) {
           throw new Error('Session is invalid or expired');
         }

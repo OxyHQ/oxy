@@ -43,7 +43,7 @@ export function claimSystemNotification(notificationId: string): boolean {
 
 /** The `@oxy.so/core` surface a tap drives (satisfied by `OxyServices`). */
 export interface SystemNotificationReader {
-  markNotificationAsRead: (notificationId: string) => Promise<Notification>;
+  notifications: { markRead: (notificationId: string) => Promise<Notification> };
 }
 
 /**
@@ -67,7 +67,7 @@ export type SystemNotificationTapOutcome = 'opened' | 'no-link';
  * Act on a tapped system-notification push: mark it read and open its stored
  * deep link, if it has one.
  *
- * @throws Whatever `markNotificationAsRead` throws (unknown id, no session);
+ * @throws Whatever `notifications.markRead` throws (unknown id, no session);
  *   the caller logs it — the notification itself was already seen in the shade.
  */
 export async function openSystemNotification(
@@ -75,7 +75,7 @@ export async function openSystemNotification(
   notificationId: string,
   openUrl: (url: string) => Promise<unknown>,
 ): Promise<SystemNotificationTapOutcome> {
-  const notification = await reader.markNotificationAsRead(notificationId);
+  const notification = await reader.notifications.markRead(notificationId);
   if (notification.type !== 'system' || !notification.url || !isOpenableLink(notification.url)) {
     return 'no-link';
   }

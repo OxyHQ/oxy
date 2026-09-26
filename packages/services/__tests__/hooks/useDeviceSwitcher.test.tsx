@@ -12,8 +12,8 @@
 
 import { renderHook, act } from '@testing-library/react';
 import type { DeviceDirectory } from '@oxy.so/contracts';
-import type { AccountDialogSnapshot } from '@oxy.so/core';
-import { resolveActiveContext } from '@oxy.so/core';
+import type { AccountDialogSnapshot } from '@oxy.so/core/session';
+import { resolveActiveContext } from '@oxy.so/core/session';
 
 /** Nate and Alice, both able to act as `org`. */
 const sharedDirectory = (activeContextId: string | null): DeviceDirectory => ({
@@ -116,7 +116,7 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
   __esModule: true,
   useOxy: () => ({
     accountDialogController: mockController,
-    oxyServices: { getFileDownloadUrl: (id: string) => `https://cdn/${id}` },
+    oxyServices: { assets: { publicUrl: (id: string) => `https://cdn/${id}` } },
   }),
 }));
 

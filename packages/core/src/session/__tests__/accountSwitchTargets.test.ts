@@ -1,6 +1,6 @@
 import { ACCOUNT_KINDS } from '@oxy.so/contracts';
 import type { User } from '../../models/interfaces';
-import type { AccountNode } from '../../mixins/OxyServices.accounts';
+import type { AccountNode } from '../../api/accounts';
 import { canSwitchIntoAccount, isSwitchTargetAccount } from '../accountSwitchTargets';
 
 function graphNode(id: string, over: Partial<AccountNode> = {}): AccountNode {

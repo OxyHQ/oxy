@@ -6,8 +6,8 @@ import type { Channel, Update, UpdatePlatform } from '@oxy.so/contracts';
 // Oxy Updates (self-hosted expo-updates) — console admin hooks.
 //
 // The Updates admin API (`/updates/v1/...` on api.oxy.so) is NOT an
-// `@oxy.so/core` mixin, so — like the billing/models hooks — these call it
-// through `oxyServices.makeRequest`, which unwraps the standard `{ data }`
+// `@oxy.so/core` namespace, so — like the billing/models hooks — these call it
+// through `oxyServices.request`, which unwraps the standard `{ data }`
 // envelope and keeps the bearer token in lockstep with the active session.
 // Wire types come from `@oxy.so/contracts` (the single source of truth the API
 // validates its output against), so producer and consumer cannot drift.
@@ -44,7 +44,7 @@ export function useUpdateChannels(appId: string, enabled: boolean = true) {
     queryKey: queryKeys.channels(appId),
     queryFn: () =>
       oxyServices
-        .makeRequest<{ channels: Array<Channel> }>('GET', `${UPDATES_BASE}/channels`, {
+        .request<{ channels: Array<Channel> }>('GET', `${UPDATES_BASE}/channels`, {
           applicationId: appId,
         })
         .then((result) => result.channels),
@@ -65,7 +65,7 @@ export function useChannelUpdates(appId: string, channel: string, enabled: boole
     queryKey: queryKeys.channelUpdates(appId, channel),
     queryFn: () =>
       oxyServices
-        .makeRequest<{ updates: Array<Update> }>(
+        .request<{ updates: Array<Update> }>(
           'GET',
           `${UPDATES_BASE}/channels/${encodeURIComponent(channel)}/updates`,
           { applicationId: appId, limit: 200 }
@@ -112,7 +112,7 @@ export function usePromoteUpdate(appId: string) {
   return useMutation({
     mutationFn: ({ channel, updateId, toChannel, rolloutPercent }: PromoteUpdateInput) =>
       oxyServices
-        .makeRequest<{ update: Update }>(
+        .request<{ update: Update }>(
           'POST',
           `${UPDATES_BASE}/channels/${encodeURIComponent(channel)}/promote`,
           { applicationId: appId, updateId, toChannel, rolloutPercent }
@@ -134,7 +134,7 @@ export function useRollbackChannel(appId: string) {
 
   return useMutation({
     mutationFn: ({ channel, runtimeVersion, platform }: ChannelTargetInput) =>
-      oxyServices.makeRequest<{ rolledBack: Update; head: Update | null }>(
+      oxyServices.request<{ rolledBack: Update; head: Update | null }>(
         'POST',
         `${UPDATES_BASE}/channels/${encodeURIComponent(channel)}/rollback`,
         { applicationId: appId, runtimeVersion, platform }
@@ -150,7 +150,7 @@ export function useRollbackToEmbedded(appId: string) {
   return useMutation({
     mutationFn: ({ channel, runtimeVersion, platform }: ChannelTargetInput) =>
       oxyServices
-        .makeRequest<{ channel: Channel }>(
+        .request<{ channel: Channel }>(
           'POST',
           `${UPDATES_BASE}/channels/${encodeURIComponent(channel)}/rollback-to-embedded`,
           { applicationId: appId, runtimeVersion, platform }
@@ -172,7 +172,7 @@ export function useSetRollout(appId: string) {
   return useMutation({
     mutationFn: ({ updateId, rolloutPercent }: SetRolloutInput) =>
       oxyServices
-        .makeRequest<{ update: Update }>(
+        .request<{ update: Update }>(
           'PATCH',
           `${UPDATES_BASE}/updates/${encodeURIComponent(updateId)}`,
           { applicationId: appId, rolloutPercent }

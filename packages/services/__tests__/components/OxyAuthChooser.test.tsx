@@ -34,8 +34,9 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { Linking } from 'react-native';
 import { surfaces, toast } from '@oxy.so/bloom';
 import type { DeviceDirectory } from '@oxy.so/contracts';
-import type { AccountDialogSnapshot, SignInFlowState, User } from '@oxy.so/core';
-import { resolveActiveContext } from '@oxy.so/core';
+import type { AccountDialogSnapshot, SignInFlowState } from '@oxy.so/core/session';
+import type { User } from '@oxy.so/core';
+import { resolveActiveContext } from '@oxy.so/core/session';
 
 const makeUser = (id: string, displayName: string): User =>
   ({ id, username: id, name: { displayName } } as unknown as User);
@@ -228,7 +229,7 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
     logoutAll: jest.fn(async () => undefined),
     openAvatarPicker,
     user: mockUser,
-    oxyServices: { getFileDownloadUrl: (id: string) => `https://cdn/${id}` },
+    oxyServices: { assets: { publicUrl: (id: string) => `https://cdn/${id}` } },
   }),
 }));
 

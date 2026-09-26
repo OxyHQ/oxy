@@ -1,11 +1,8 @@
 import { logger } from '../logger';
 
-/**
- * Minimal interface for services that can update asset visibility.
- * Kept loose to avoid mixin type-inference issues with the OxyServices class.
- */
+/** What `updateAvatarVisibility` needs of a client: `oxy.assets.setVisibility`. */
 export interface AssetVisibilityService {
-  assetUpdateVisibility(fileId: string, visibility: 'private' | 'public' | 'unlisted'): Promise<unknown>;
+  assets: { setVisibility(fileId: string, visibility: 'private' | 'public' | 'unlisted'): Promise<unknown> };
 }
 
 /**
@@ -13,7 +10,7 @@ export interface AssetVisibilityService {
  * Logs non-404 errors to help debug upload issues.
  *
  * @param fileId - The file ID to update visibility for
- * @param oxyServices - OxyServices instance (or any object with assetUpdateVisibility)
+ * @param oxyServices - An OxyServices client
  * @param contextName - Context name for error logging
  */
 export async function updateAvatarVisibility(
@@ -26,7 +23,7 @@ export async function updateAvatarVisibility(
   }
 
   try {
-    await oxyServices.assetUpdateVisibility(fileId, 'public');
+    await oxyServices.assets.setVisibility(fileId, 'public');
   } catch (visError: unknown) {
     // 404 is expected when asset doesn't exist yet — skip logging
     const status = (visError instanceof Error && 'status' in visError)

@@ -12,7 +12,7 @@
 
 **Application scoping:** `Application.workspaceId` is REQUIRED. `GET /applications?workspaceId=` filters by workspace; access granted if workspace member OR `ApplicationMember`.
 
-**SDK:** `@oxy.so/core` `workspaces` mixin — `OxyServices.workspaces.ts` with CRUD + members + transfer. `Workspace`/`WorkspaceMember` types exported. `getApplications(workspaceId?)` accepts workspace scope.
+**SDK (today):** workspaces became the account graph — `oxy.accounts` (`list`/`get`/`create`/`update`/`archive`, `members.*`, `transferOwnership`) and `oxy.apps.list(accountId)` in `@oxy.so/core`.
 
 **Production "Oxy" team workspace:** `_id 6a2f9d8989b795cfdfac350f`, slug `oxy`, owned by user `oxy` (`_id 69b2d3df5d12f58c9800d651`, username `oxy`, email `hello@oxy.so` — DISTINCT from human `nateus`/`nate@oxy.so`). All 12 official Applications assigned to it. Migration `scripts/migrate-workspaces.ts` ran (idempotent).
 
@@ -59,9 +59,10 @@ There is none, and there is nothing pending. Karma was hard-replaced by the repu
 - The API's Drizzle schema enums (`ReputationTransaction`/`ReputationRule`/`ReputationDispute`/`ReputationBalance`/`User`) and its `validate({ body })` schemas import the SAME tuples/schemas, so a value set cannot be widened on one side only. `packages/api/src/utils/reputation.constants.ts` keeps only the numeric TUNABLES.
 - Each serializer in `packages/api/src/routes/reputation.routes.ts` builds a `const dto: <ContractType>` (compile-time guard: a missing field, an undeclared field, or a `Date` where the wire promises an ISO string all fail `tsc` and name the field) and returns `schema.parse(dto)` (runtime guard). Do NOT loosen a serializer's return type back to `Record<string, unknown>` — that is exactly what let the `/:userId/balance` view split diverge from the SDK type silently.
 
-### SDK (`@oxy.so/core` — `reputation` mixin)
-- 15 methods on `OxyServices`: `getReputationBalance`, `getMyReputationBalance`, `getReputationLeaderboard`, `getReputationRules`, `getReputationTransactions`, `getReputationInfluence`, `awardReputation`, `createReputationDispute`, `getUserReputationDisputes`, `upsertReputationRule`, `reverseReputationTransaction`, `voidReputationTransaction`, `recalculateReputation`, `getReputationDisputeQueue`, `resolveReputationDispute`.
-- Writes sweep `clearCacheByPrefix('GET:/reputation/')`.
+### SDK (`@oxy.so/core` — `oxy.reputation`)
+- Read-only for people: `balance(userId?)` (no id = the signed-in user's full balance), `transactions(userId?, { limit, offset })`, `leaderboard({ limit, offset })`, `rules()`, `influence(userId?, context?)`.
+- Awards come only from apps, server-side: `OxyServer.reputation.award` (service token with `reputation:write`), which sweeps `GET:/reputation/`.
+- Nobody at Oxy moves a person's reputation by hand: there are no staff rule edits, reversals, voids, recalculations or disputes in the SDK.
 - **Deleted:** karma mixin + `KarmaRule`/`KarmaHistory`/`KarmaLeaderboardEntry`/`KarmaAwardRequest` types + `User.karma` field + `UserStats.karmaScore`.
 - **SEMVER NOTE:** the karma removal was a breaking change. Peer ranges in `@oxy.so/services` were updated at publish time.
 
@@ -137,7 +138,7 @@ Self-hosted `expo-updates`-protocol OTA server, namespaced entirely under `/upda
 
 - Endpoint: `POST /contacts/discover` — accepts `{ hashedEmails: string[], hashedPhones: string[] }` (SHA-256 on client before sending; no PII stored server-side)
 - Rate limited: 200 hashes per request, 5 requests/min/user
-- Core mixin: `oxy.contacts.discoverContacts(hashedEmails, hashedPhones)`
+- Core namespace: `oxy.contacts.discover(hashedEmails, hashedPhones)`
 - `User` model has `hashedEmail`, `hashedPhone`, `phone` fields; `hashedEmail` / `hashedPhone` auto-computed via pre-validate hook
 
 ## Accounts App Patterns (packages/accounts — "Accounts by Oxy")
@@ -151,7 +152,7 @@ Self-hosted `expo-updates`-protocol OTA server, namespaced entirely under `/upda
 - **Font**: do NOT set `fontFamily: 'Inter-*'` — `BloomThemeProvider` sets Inter as `Text.defaultProps` globally
 - **expo-router v56**: no `@react-navigation/*` direct imports; synthesize `{ type: 'OPEN_DRAWER' }` payloads inline
 - **`(auth)` routing** (session-only gate): `(auth)`↔`(tabs)` now keys **purely on session** — `needsAuth = isAuthResolved ? !isAuthenticated : true`. No `hasIdentity`/`KeyManager` in routing. `(auth)/index.tsx`: session resolved + authenticated → `/(tabs)`; not authenticated → sign-in. Always clean up timers from entrance animations.
-- **Username step**: use `useUpdateProfile().mutateAsync()`, NOT `oxyServices.updateProfile()` directly — gets optimistic update + cache invalidation. Stable initial value via lazy `useState` initializer (no `useEffect` reset on remount).
+- **Username step**: use `useUpdateProfile().mutateAsync()`, NOT `oxyServices.users.updateMe()` directly — gets optimistic update + cache invalidation. Stable initial value via lazy `useState` initializer (no `useEffect` reset on remount).
 - **`useUpdatePrivacySettings`**: do NOT call `invalidateAccountQueries(queryClient)` in `onSuccess` (defeats optimistic merge). Use `{ ...previous, ...requested, ...incoming }` merge in `onMutate`. `onError` does targeted `invalidateQueries({ queryKey: queryKeys.privacy.settings(...) })` for reconciliation.
 - **Web sign-in**: same in-app `OxyAccountDialog` as native — no redirects. No web identity creation (Commons is native-only; Accounts web is management after sign-in only).
 - **Shared modules** (use these, don't re-duplicate): `utils/relative-time.ts` + `hooks/useRelativeTime.ts` (i18n-aware relative time); `utils/device-utils.ts` (getDeviceIcon, getDeviceDisplayName, DeviceRecord, groupDevicesByType); `hooks/useAvatarUrl.ts`; `hooks/useDebounce.ts`; `constants/payments.ts` (FAIRCOIN_WALLET_URL); `constants/drawer-screens.ts` (typed DrawerScreenConfig[] — lives in `constants/` NOT `app/` so expo-router doesn't register it as a route); `constants/styles.ts` (`floatingPosition`: `Platform.select({ web: 'fixed', default: 'absolute' })` for floating action bar / FAB — used by `(tabs)/_layout.tsx` + `components/ui/bottom-action-bar.tsx`).

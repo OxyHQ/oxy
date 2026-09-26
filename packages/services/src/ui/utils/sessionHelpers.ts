@@ -74,14 +74,14 @@ export const fetchSessionsWithFallback = async (
   }: FetchSessionsWithFallbackOptions = {},
 ): Promise<ClientSession[]> => {
   try {
-    const deviceSessions = await oxyServices.getDeviceSessions(sessionId);
+    const deviceSessions = await oxyServices.devices.sessions(sessionId);
     return mapSessionsToClient(deviceSessions, fallbackDeviceId, fallbackUserId);
   } catch (error) {
     if (__DEV__ && logger) {
       logger('Failed to get device sessions, falling back to user sessions', error);
     }
 
-    const userSessions = await oxyServices.getSessionsBySessionId(sessionId);
+    const userSessions = await oxyServices.session.list(sessionId);
     return mapSessionsToClient(userSessions, fallbackDeviceId, fallbackUserId);
   }
 };

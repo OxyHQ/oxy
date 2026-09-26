@@ -10,11 +10,11 @@
  *    serving 500s the moment the process started. Asserted by booting against a
  *    database that does not exist and proving the server is NOT listening when
  *    the gate rejects.
- * 2. **The seeds chained behind the gate run.** `seedDefaultRules` and
- *    `seedBaselinePolicy` are idempotent seeds later write paths assume — the
- *    moderation bridge REJECTS every event naming a policy version it cannot
- *    find, so a boot that skipped them looks healthy and fails at the first real
- *    request. Asserted by reading the seeded rows back out of the database.
+ * 2. **The seed chained behind the gate runs.** `seedBaselinePolicy` is an
+ *    idempotent seed later write paths assume — the moderation bridge REJECTS
+ *    every event naming a policy version it cannot find, so a boot that
+ *    skipped it looks healthy and fails at the first real
+ *    request. Asserted by reading the seeded row back out of the database.
  * 3. **The API boots without MongoDB.** Mongo is not a dependency of the
  *    serving process.
  *
@@ -161,11 +161,6 @@ describe('startup gate', () => {
       // not depend on the pool the server just published.
       const sql = postgres(ownDatabaseUrl, { max: 1 });
       try {
-        const rules = await sql`
-          select action_type from reputation_rules where action_type = 'endorsement_received'
-        `;
-        expect(rules).toHaveLength(1);
-
         const policies = await sql`
           select policy_version from moderation_policies
           where policy_version = ${BASELINE_OXY_CONDUCT_POLICY_VERSION}

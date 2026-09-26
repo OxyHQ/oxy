@@ -4,13 +4,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services';
-import {
-  KeyManager,
-  RecoveryPhraseService,
-  IdentityAlreadyExistsError,
-  IdentityUnavailableError,
-  handleHttpError,
-} from '@oxy.so/core';
+import { KeyManager, RecoveryPhraseService, IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
+import { handleHttpError } from '@oxy.so/core';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
@@ -96,7 +91,7 @@ export default function RestoreFromBackupScreen() {
           await clearSessionState();
         }
 
-        await oxyServices.restoreFromEncryptedBackup(phrase, { overwrite });
+        await oxyServices.identity.backup.restore(phrase, { overwrite });
 
         // Mirror importIdentity: reset the local onboarding milestone for the
         // freshly-restored identity so a stale flag from a prior account cannot

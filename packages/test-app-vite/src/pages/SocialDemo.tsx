@@ -68,7 +68,7 @@ export function SocialDemo() {
             <div className="rounded-lg border p-4">
               <div className="flex items-center gap-4">
                 <Avatar className="size-12">
-                  <AvatarImage src={foundUser.avatar && oxyServices ? oxyServices.getFileDownloadUrl(foundUser.avatar, 'thumb') : undefined} />
+                  <AvatarImage src={foundUser.avatar && oxyServices ? oxyServices.assets.publicUrl(foundUser.avatar, 'thumb') : undefined} />
                   <AvatarFallback>
                     {(foundUser.username || "?")[0].toUpperCase()}
                   </AvatarFallback>

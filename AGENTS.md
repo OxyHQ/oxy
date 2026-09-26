@@ -52,7 +52,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - An account without a key signs in inside the dialog by email code or link, optional password, optional TOTP; no passkey, no auth.oxy.so window but the bridge — docs/adr/0030
 - Passwords only through `password.service.ts` (scrypt); TOTP secrets sealed by `secretBox`, backup codes HMAC'd; never logged or returned — auth-and-identity.md#accounts-without-a-key--email-code-password-authenticator-adr-0030
 - Password, TOTP, Commons link and deletion need a fresh `reauth` for that action (password or emailed code, + TOTP) — docs/adr/0030
-- App backends use `@oxy.so/core/server`; no local auth middleware; socket rooms from `socket.user.id`.
+- App backends use `OxyServer` (`@oxy.so/core/server`) and its `middleware.*`; no local auth middleware; socket rooms from `socket.user.id`.
 - App backend clients use `oxyServices.createLinkedClient({ baseURL })`; no local token plumbing.
 - Never `new Model(req.body)` or spread `req.body` into an update; whitelist fields.
 - Loopback origins stay trusted in ALL environments via `isLoopbackOrigin`; never gate on `NODE_ENV`.
@@ -62,7 +62,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 
 ## Terminology
 
-`OxyServices` · `OxyProvider` (the ONE provider) · `useOxy`/`useAuth` · `OxyAccountDialog` (switcher + sign-in) · bottom sheet (auth uses the dialog) · `LogoIcon`/`LogoText`.
+`OxyServices` (namespaced: `oxy.users.get`, `oxy.assets.upload`) · `OxyServer` (backends) · `OxyProvider` (the ONE provider) · `useOxy`/`useAuth` · `OxyAccountDialog` (switcher + sign-in) · bottom sheet (auth uses the dialog) · `LogoIcon`/`LogoText`.
 
 ## Read before touching
 

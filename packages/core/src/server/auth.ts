@@ -1,6 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import type { OxyServices } from '../OxyServices';
-import type { OxyAuthRefusal } from '../mixins/OxyServices.utility';
+import type { AuthMiddlewareOptions, OxyAuthRefusal, OxyMiddleware } from './middleware';
 import { logger } from '../logger';
 import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '../utils/oxyServiceEnvironment';
 
@@ -59,11 +58,11 @@ export interface OxyAuthenticatedRequest extends OxyAuthRequest {
 
 export interface OxyAuthMiddlewareOptions {
   /**
-   * Options forwarded to `oxy.auth()`.
+   * Options forwarded to `server.middleware.auth()`.
    * `optional` is forced to `true` by the composed helpers so route guards can
    * produce one consistent 401 shape.
    */
-  auth?: Parameters<OxyServices['auth']>[0];
+  auth?: AuthMiddlewareOptions;
 }
 
 function normalizeId(value: string | null | undefined): string | null {
@@ -224,7 +223,7 @@ export function getRequiredOxyUserId(req: Request): string {
  * Why the credential on this request was refused, or `null` when none was
  * presented (or it was accepted).
  *
- * Set by `oxy.auth()` — including the `optional: true` mount the composed
+ * Set by `server.middleware.auth()` — including the `optional: true` mount the composed
  * helpers use, where a refusal otherwise leaves no trace: the request simply
  * arrives unauthenticated and the host answers its own generic 401. Hosts log
  * this beside their own 401; it is diagnostic and **must not be put into a
@@ -264,11 +263,16 @@ export function requireOxyAuth(req: Request, res: Response, next: NextFunction):
   next();
 }
 
+/** What the composed helpers need of an `OxyServer`: its `middleware.auth`. */
+export interface OxyAuthHost {
+  readonly middleware: Pick<OxyMiddleware, 'auth'>;
+}
+
 export function createOptionalOxyAuth(
-  oxy: OxyServices,
+  oxy: OxyAuthHost,
   options: OxyAuthMiddlewareOptions = {},
 ): RequestHandler {
-  const resolveSession = oxy.auth({ ...options.auth, optional: true });
+  const resolveSession = oxy.middleware.auth({ ...options.auth, optional: true }) as unknown as RequestHandler;
 
   return (req, res, next) => {
     if (getOxyUserId(req)) {
@@ -287,7 +291,7 @@ export function createOptionalOxyAuth(
 }
 
 export function createOxyAuthMiddleware(
-  oxy: OxyServices,
+  oxy: OxyAuthHost,
   options: OxyAuthMiddlewareOptions = {},
 ): RequestHandler {
   const resolveSession = createOptionalOxyAuth(oxy, options);

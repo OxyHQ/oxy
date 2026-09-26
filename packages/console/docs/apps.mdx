@@ -65,7 +65,7 @@ For first-party Oxy products (Mention, Inbox, MyAccount, …) an app is register
 
 - Bypass the third-party consent screen (the user has already consented by signing up to the ecosystem).
 - Can mint **service tokens** via `POST /auth/service-token`. Service tokens are short-lived JWTs that authenticate as the *service*, with optional delegation to a specific user via the `X-Oxy-User-Id` header.
-- Can call protected internal endpoints (`/internal/*`) gated by `oxy.serviceAuth()` middleware.
+- Can call protected internal endpoints (`/internal/*`) gated by `oxy.middleware.service()` (`OxyServer`).
 
 Internal apps require manual database seeding; the console UI does not expose the toggle.
 

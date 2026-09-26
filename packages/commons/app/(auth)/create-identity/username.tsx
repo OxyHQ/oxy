@@ -15,7 +15,7 @@ import { extractAuthErrorMessage, isNetworkOrTimeoutError } from '@/utils/auth/e
  * Allows the user to choose a username (mandatory when online).
  *
  * IMPORTANT: We route the username update through the `useUpdateProfile`
- * mutation hook (NOT a direct `oxyServices.updateProfile` call). The
+ * mutation hook (NOT a direct `oxyServices.users.updateMe` call). The
  * mutation performs an optimistic cache update that:
  *  1. Writes the new username into `queryKeys.accounts.current()` immediately.
  *  2. Mirrors it into `useAuthStore` via `onSuccess`.
@@ -86,7 +86,7 @@ export default function CreateIdentityUsernameScreen() {
     // (issue #605). Guard it: surface a clear, actionable state instead. The
     // session self-establishes via the reconnect/sync handler, so tapping
     // Continue again once it's ready succeeds.
-    if (!oxyServices.getAccessToken()) {
+    if (!oxyServices.session.accessToken) {
       const offline = await checkIfOffline();
       setUpdateError(
         offline

@@ -91,7 +91,7 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
     }, [onNavigateManage, onAddAccount, onNavigateProfile, menuItems]);
 
     const avatarUrl = useMemo(
-        () => (user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar, 'thumb') : undefined),
+        () => (user?.avatar ? oxyServices.assets.publicUrl(user.avatar, 'thumb') : undefined),
         [user?.avatar, oxyServices],
     );
 

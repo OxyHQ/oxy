@@ -64,7 +64,7 @@ import authLinkingRouter from '../authLinking';
 import SignatureService from '../../services/signature.service';
 import { buildDidDocument, buildUserDid, OXY_DID } from '../../services/did.service';
 import { mintIdentityProofChallenge } from '../../services/identityProof.service';
-import { signIdentityProof } from '@oxy.so/core';
+import { signIdentityProof } from '@oxy.so/core/crypto';
 import { IDENTITY_ERROR_CODES, IDENTITY_PROOF_AUDIENCE, type IdentityProofAction } from '@oxy.so/contracts';
 import { errorHandler } from '../../middleware/errorHandler';
 

@@ -193,7 +193,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   const accountsQuery = useQuery({
     queryKey: accountQueryKeys.all,
-    queryFn: () => oxyServices.listAccounts(),
+    queryFn: () => oxyServices.accounts.list(),
     enabled: isReady && isAuthenticated,
     staleTime: 1000 * 60 * 5,
     retry: 2,
@@ -259,7 +259,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   const createAccountMutation = useMutation({
     mutationFn: (data: CreateAccountInput): Promise<AccountNode> =>
-      oxyServices.createAccount(data),
+      oxyServices.accounts.create(data),
     onSuccess: (created) => {
       queryClient.setQueryData<Array<AccountNode>>(
         accountQueryKeys.all,
@@ -277,7 +277,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     }: {
       accountId: string
       data: UpdateAccountInput
-    }): Promise<AccountNode> => oxyServices.updateAccount(accountId, data),
+    }): Promise<AccountNode> => oxyServices.accounts.update(accountId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.all })
     },
@@ -285,7 +285,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   const archiveAccountMutation = useMutation({
     mutationFn: (accountId: string): Promise<AccountSuccessResult> =>
-      oxyServices.archiveAccount(accountId),
+      oxyServices.accounts.archive(accountId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.all })
     },
@@ -476,7 +476,7 @@ export function useAccountMembers(
 
   return useQuery({
     queryKey: accountQueryKeys.members(accountId ?? ''),
-    queryFn: () => oxyServices.listAccountMembers(accountId ?? ''),
+    queryFn: () => oxyServices.accounts.members.list(accountId ?? ''),
     enabled: isReady && isAuthenticated && !!accountId && enabled,
     staleTime: 1000 * 60 * 2,
     retry: 1,
@@ -497,7 +497,7 @@ export function useInviteAccountMember() {
       usernameOrEmail: string
       role: AssignableAccountRole
     }): Promise<AccountMember> =>
-      oxyServices.inviteAccountMember(accountId, { usernameOrEmail, role }),
+      oxyServices.accounts.members.invite(accountId, { usernameOrEmail, role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll })
     },
@@ -518,7 +518,7 @@ export function useUpdateAccountMember() {
       memberId: string
       role: AssignableAccountRole
     }): Promise<AccountMember> =>
-      oxyServices.updateAccountMember(accountId, memberId, { role }),
+      oxyServices.accounts.members.update(accountId, memberId, { role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll })
     },
@@ -537,7 +537,7 @@ export function useRemoveAccountMember() {
       accountId: string
       memberId: string
     }): Promise<{ accountId: string; memberId: string }> => {
-      await oxyServices.removeAccountMember(accountId, memberId)
+      await oxyServices.accounts.members.remove(accountId, memberId)
       return { accountId, memberId }
     },
     onSuccess: () => {
@@ -558,7 +558,7 @@ export function useTransferAccountOwnership() {
       accountId: string
       userId: string
     }): Promise<AccountSuccessResult> =>
-      oxyServices.transferAccountOwnership(accountId, { userId }),
+      oxyServices.accounts.transferOwnership(accountId, { userId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll })
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.all })

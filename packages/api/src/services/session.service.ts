@@ -4,8 +4,8 @@ import { sessions } from '../db/schema/sessions';
 /**
  * The user half of `getSessionWithUser` — the value that becomes `req.user`.
  *
- * `userService.readAccountDocument` is the SAME serializer `GET /users/me/data`
- * and `PUT /users/resolve` return, so the authenticated request's view of an
+ * `userService.readAccountDocument` is the SAME serializer `PUT /users/resolve`
+ * returns, so the authenticated request's view of an
  * account and the API's own document view of it cannot describe it differently.
  * It reads through `publicColumns(users)`, which is strictly narrower than the
  * `.select('-password')` this replaces: the contact-discovery hashes, the raw

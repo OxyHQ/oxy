@@ -187,7 +187,7 @@ export function useAccountAuditTrail(accountId: string | undefined, enabled: boo
   return useInfiniteQuery({
     queryKey: queryKeys.trail(accountId ?? ''),
     queryFn: ({ pageParam }) =>
-      oxyServices.makeRequest<AuditPageResponse<AccountAuditEntry>>(
+      oxyServices.request<AuditPageResponse<AccountAuditEntry>>(
         'GET',
         `/accounts/${accountId ?? ''}/audit`,
         pageParams(pageParam),
@@ -216,7 +216,7 @@ export function useAccountBillingAudit(accountId: string | undefined, enabled: b
   return useInfiniteQuery({
     queryKey: queryKeys.billing(accountId ?? ''),
     queryFn: ({ pageParam }) =>
-      oxyServices.makeRequest<AuditPageResponse<BillingAuditEntry>>(
+      oxyServices.request<AuditPageResponse<BillingAuditEntry>>(
         'GET',
         `/accounts/${accountId ?? ''}/billing/audit`,
         pageParams(pageParam),

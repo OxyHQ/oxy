@@ -5,7 +5,7 @@ import {
   publishOxyUserInvalidation,
 } from '../userInvalidation';
 // The key enumeration this subscriber sweeps is platform-neutral and shared
-// with the client mixins — see `utils/identityCacheSweep` and its own suite.
+// with the client namespaces — see `utils/identityCacheSweep` and its own suite.
 import type { OxyIdentityCacheEvictor } from '../../utils/identityCacheSweep';
 
 function makePublisher() {
@@ -22,16 +22,14 @@ function makePublisher() {
 function makeEvictor() {
   const entries: string[] = [];
   const prefixes: string[] = [];
-  const evictor: OxyIdentityCacheEvictor = {
-    clearCacheEntry: (key) => {
-      entries.push(key);
-    },
-    clearCacheByPrefix: (prefix) => {
-      prefixes.push(prefix);
+  const http: OxyIdentityCacheEvictor = {
+    invalidateCache: ({ keys = [], prefixes: p = [] }) => {
+      entries.push(...keys);
+      prefixes.push(...p);
       return 0;
     },
   };
-  return { evictor, entries, prefixes };
+  return { evictor: { http }, entries, prefixes };
 }
 
 describe('@oxy.so/core/server publishOxyUserInvalidation', () => {
@@ -116,7 +114,6 @@ describe('@oxy.so/core/server createOxyUserInvalidationHandler', () => {
     expect(prefixes).toEqual([
       'GET:/session/user/',
       'GET:/users/me',
-      'GET:/auth/lookup/',
       'GET:/profiles/username/',
       'GET:/profiles/resolve',
     ]);
@@ -184,11 +181,12 @@ describe('@oxy.so/core/server createOxyUserInvalidationHandler', () => {
   it('still runs app eviction when the SDK sweep throws', () => {
     const onInvalidate = jest.fn();
     const onError = jest.fn();
-    const evictor: OxyIdentityCacheEvictor = {
-      clearCacheEntry: () => {
-        throw new Error('sweep failed');
-      },
-      clearCacheByPrefix: () => 0,
+    const evictor = {
+      http: {
+        invalidateCache: (): number => {
+          throw new Error('sweep failed');
+        },
+      } satisfies OxyIdentityCacheEvictor,
     };
 
     createOxyUserInvalidationHandler({ oxy: evictor, onInvalidate, onError })(validMessage);

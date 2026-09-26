@@ -64,22 +64,28 @@ function mint401(body: string): Error & { status: number } {
 }
 
 function makeOxy(overrides: {
-  mintFromDeviceSecret?: OxyServices['mintFromDeviceSecret'];
-  signInWithSharedIdentity?: OxyServices['signInWithSharedIdentity'];
+  mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
+  signInWithSharedIdentity?: OxyServices['auth']['signInWithSharedIdentity'];
 } = {}) {
   const setTokens = jest.fn();
   const mintFromDeviceSecret = jest.fn(
     overrides.mintFromDeviceSecret ?? (async () => MINT),
-  ) as unknown as OxyServices['mintFromDeviceSecret'];
+  ) as unknown as OxyServices['devices']['mintToken'];
   const signInWithSharedIdentity = jest.fn(
     overrides.signInWithSharedIdentity ?? (async () => null),
-  ) as unknown as OxyServices['signInWithSharedIdentity'];
+  ) as unknown as OxyServices['auth']['signInWithSharedIdentity'];
   const oxy = {
-    getBaseURL: () => 'https://api.oxy.so',
-    setTokens,
-    mintFromDeviceSecret,
-    signInWithSharedIdentity,
-    httpService: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
+    get baseURL() { return 'https://api.oxy.so'; },
+    http: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
+    session: {
+      setAccessToken: setTokens,
+    },
+    devices: {
+      mintToken: mintFromDeviceSecret,
+    },
+    auth: {
+      signInWithSharedIdentity: signInWithSharedIdentity,
+    },
   } as unknown as OxyServices;
   return { oxy, setTokens, mintFromDeviceSecret, signInWithSharedIdentity };
 }
@@ -156,7 +162,7 @@ describe('cold boot — shared-device-adopt', () => {
         ...MINT,
         nextDeviceSecret: OWN_CRED.deviceSecret,
         state: { ...MINT.state, deviceId: OWN_CRED.deviceId },
-      })) as unknown as OxyServices['mintFromDeviceSecret'],
+      })) as unknown as OxyServices['devices']['mintToken'],
     });
 
     const outcome = await runSessionColdBoot({
@@ -187,7 +193,7 @@ describe('cold boot — shared-device-adopt', () => {
       deviceSecret: 'ds-legacy',
     } as unknown as SessionLoginResponse;
     const { oxy, signInWithSharedIdentity } = makeOxy({
-      signInWithSharedIdentity: (async () => sharedKeySession) as unknown as OxyServices['signInWithSharedIdentity'],
+      signInWithSharedIdentity: (async () => sharedKeySession) as unknown as OxyServices['auth']['signInWithSharedIdentity'],
     });
 
     const outcome = await runSessionColdBoot({
@@ -229,7 +235,7 @@ describe('cold boot — shared-device-adopt', () => {
     const { oxy } = makeOxy({
       mintFromDeviceSecret: (async () => {
         throw mint401('invalid_device_secret');
-      }) as unknown as OxyServices['mintFromDeviceSecret'],
+      }) as unknown as OxyServices['devices']['mintToken'],
     });
 
     const outcome = await runSessionColdBoot({
@@ -252,7 +258,7 @@ describe('cold boot — shared-device-adopt', () => {
     const { oxy } = makeOxy({
       mintFromDeviceSecret: (async () => {
         throw new Error('network down');
-      }) as unknown as OxyServices['mintFromDeviceSecret'],
+      }) as unknown as OxyServices['devices']['mintToken'],
     });
 
     await runSessionColdBoot({ oxy, store, platform: NATIVE, sharedDeviceCredential: slot.store });

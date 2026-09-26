@@ -35,6 +35,22 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import reputationService from '../reputation.service';
+import type { ReputationRuleDefinition } from '../reputationRules';
+/**
+ * Production rules live in code (`reputationRules.ts`) and nothing edits them.
+ * This suite needs rules with chosen points, so it adds TEST-ONLY rules through
+ * a mock of that module; production has no such seam.
+ */
+const mockTestRules = new Map<string, ReputationRuleDefinition>();
+jest.mock('../reputationRules', () => {
+  const actual = jest.requireActual('../reputationRules');
+  return {
+    ...actual,
+    findReputationRule: (actionType: string) =>
+      mockTestRules.get(actionType) ?? actual.findReputationRule(actionType),
+  };
+});
+
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
@@ -76,13 +92,12 @@ async function makeUser(): Promise<string> {
 async function makeRanked(points: number): Promise<string> {
   const userId = await makeUser();
   const actionType = `leaderboard_${uniqueId().slice(0, 12)}`;
-  await reputationService.upsertRule({
+  mockTestRules.set(actionType, {
     actionType,
     points,
     category: 'content',
     description: 'leaderboard fixture',
     cooldownInMinutes: 0,
-    isEnabled: true,
   });
   await reputationService.award({ userId, actionType });
   return userId;

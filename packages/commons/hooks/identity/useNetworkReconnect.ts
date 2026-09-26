@@ -69,7 +69,7 @@ export const useNetworkReconnect = (options: UseNetworkReconnectOptions): void =
         }
 
         // Try a lightweight health check to see if we're online
-        await oxyServices.healthCheck().catch(() => {
+        await oxyServices.health().catch(() => {
           wasOfflineRef.current = true;
           throw new Error('Health check failed');
         });

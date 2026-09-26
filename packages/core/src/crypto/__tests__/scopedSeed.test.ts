@@ -37,7 +37,7 @@ jest.mock('@oxy.so/protocol', () => ({
   ...jest.requireActual('@oxy.so/protocol'),
   loadExpoCrypto: async () => require('expo-crypto'),
   loadSecureStore: async () => require('expo-secure-store'),
-  loadNodeCrypto: async () => require('crypto'),
+  loadNodeCrypto: async () => require('node:crypto'),
   loadSharedIdentityBridge: async () => null,
 }));
 

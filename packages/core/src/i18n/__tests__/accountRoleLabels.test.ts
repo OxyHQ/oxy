@@ -1,4 +1,4 @@
-import type { AccountRole } from '../../mixins/OxyServices.accounts';
+import type { AccountRole } from '../../api/accounts';
 import { EN_ACCOUNT_ROLE_LABELS, accountRoleLabel } from '../accountRoleLabels';
 
 const ACCOUNT_ROLES: AccountRole[] = [

@@ -88,7 +88,7 @@ export function ProfileDemo() {
           ) : currentUser ? (
             <div className="flex items-center gap-4">
               <Avatar className="size-16">
-                <AvatarImage src={currentUser?.avatar && oxyServices ? oxyServices.getFileDownloadUrl(currentUser.avatar, 'thumb') : undefined} alt={currentUser.username} />
+                <AvatarImage src={currentUser?.avatar && oxyServices ? oxyServices.assets.publicUrl(currentUser.avatar, 'thumb') : undefined} alt={currentUser.username} />
                 <AvatarFallback className="text-lg">{(currentUser.username || "U")[0].toUpperCase()}</AvatarFallback>
               </Avatar>
               <div>
@@ -155,7 +155,7 @@ export function ProfileDemo() {
             >
               <Avatar className="size-20">
                 <AvatarImage
-                  src={avatarPreview || (currentUser?.avatar && oxyServices ? oxyServices.getFileDownloadUrl(currentUser.avatar, 'thumb') : undefined)}
+                  src={avatarPreview || (currentUser?.avatar && oxyServices ? oxyServices.assets.publicUrl(currentUser.avatar, 'thumb') : undefined)}
                   alt="Avatar"
                 />
                 <AvatarFallback className="text-2xl">
@@ -227,7 +227,7 @@ export function ProfileDemo() {
           {lookedUpUser && !lookupLoading && (
             <div className="flex items-center gap-3 rounded-md border p-3">
               <Avatar>
-                <AvatarImage src={lookedUpUser.avatar && oxyServices ? oxyServices.getFileDownloadUrl(lookedUpUser.avatar, 'thumb') : undefined} />
+                <AvatarImage src={lookedUpUser.avatar && oxyServices ? oxyServices.assets.publicUrl(lookedUpUser.avatar, 'thumb') : undefined} />
                 <AvatarFallback>{(lookedUpUser.username || "?")[0].toUpperCase()}</AvatarFallback>
               </Avatar>
               <div>

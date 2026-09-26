@@ -11,7 +11,7 @@
  *
  * The CLOSED VALUE SETS this system is built on — `REPUTATION_CATEGORIES`,
  * `TRUST_TIERS`, `REPUTATION_TRANSACTION_STATUSES`,
- * `REPUTATION_TARGET_ENTITY_TYPES`, `REPUTATION_DISPUTE_STATUSES` and their
+ * `REPUTATION_TARGET_ENTITY_TYPES` and their
  * derived unions — deliberately do NOT live here: they are part of the wire
  * contract and are owned by `@oxy.so/contracts`, so the mongoose enums below,
  * the route request schemas, and the SDK's unions are all the same tuple.
@@ -247,12 +247,6 @@ export const DEFAULT_LEADERBOARD_LIMIT = 10;
 
 /** Maximum page size for the leaderboard. */
 export const MAX_LEADERBOARD_LIMIT = 100;
-
-/** Default page size for dispute lists. */
-export const DEFAULT_DISPUTE_LIMIT = 50;
-
-/** Maximum page size for dispute lists. */
-export const MAX_DISPUTE_LIMIT = 100;
 
 // =============================================================================
 // HELPERS

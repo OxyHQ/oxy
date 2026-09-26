@@ -23,7 +23,8 @@
 import React from 'react';
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AUTH_STATE_STORAGE_KEY, type User } from '@oxy.so/core';
+import { AUTH_STATE_STORAGE_KEY } from '@oxy.so/core/session';
+import { type User } from '@oxy.so/core';
 
 const redirectToAuthorize = jest.fn();
 jest.mock('../../src/ui/components/oauthNavigation', () => ({
@@ -84,7 +85,7 @@ function buildStub(overrides: Record<string, unknown> = {}) {
   return {
     stub: {
       config: {},
-      httpService: {
+      http: {
         setTokens: (token: string) => { currentToken = token; },
         setAuthRefreshHandler: jest.fn(),
         refreshAccessToken: jest.fn(async () => null),
@@ -93,18 +94,11 @@ function buildStub(overrides: Record<string, unknown> = {}) {
         runSingleFlightDeviceSecretMint: (mint: () => Promise<unknown>) => mint(),
         getSessionEpoch: () => 0,
       },
-      getBaseURL: () => API_BASE_URL,
+      baseURL: API_BASE_URL,
       getSessionBaseUrl: () => API_BASE_URL,
-      getAccessToken: () => currentToken,
-      getAccessTokenExpiry: () => null,
-      onTokensChanged: () => () => undefined,
-      setDeviceCredentialProvider: () => () => undefined,
-      setTokens: (token: string) => { currentToken = token; },
-      clearTokens: () => { currentToken = null; },
-      clearCache: jest.fn(),
-      // Zero-cookie mint: restores the device's active account from the persisted
-      // device credential. Never invoked when no credential is seeded.
-      mintFromDeviceSecret: jest.fn(async () => ({
+      session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => { currentToken = token; }, clear: () => { currentToken = null; } },
+cache: { clear: jest.fn() },
+devices: { mintToken: jest.fn(async () => ({
         accessToken: 'cb.minted.access',
         expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
         nextDeviceSecret: 'cb.next.secret',
@@ -115,11 +109,10 @@ function buildStub(overrides: Record<string, unknown> = {}) {
           revision: 1,
           updatedAt: Date.now(),
         },
-      })),
-      signInWithSharedIdentity: jest.fn(async () => null),
-      getCurrentUser: jest.fn(async (): Promise<User> => ({ id: USER_ID, username: 'cbuser' } as User)),
-      getUsersByIds: jest.fn(async () => []),
-      listAccounts: jest.fn(async () => []),
+      })) },
+      auth: { signInWithSharedIdentity: jest.fn(async () => null) },
+      users: { me: jest.fn(async (): Promise<User> => ({ id: USER_ID, username: 'cbuser' } as User)), getMany: jest.fn(async () => []) },
+      accounts: { list: jest.fn(async () => []) },
       ...overrides,
     },
   };
@@ -167,7 +160,7 @@ describe('OxyContext cold boot (device-first)', () => {
     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
 
     expect(capturedContext?.isAuthenticated).toBe(false);
-    expect(stub.mintFromDeviceSecret).not.toHaveBeenCalled();
+    expect(stub.devices.mintToken).not.toHaveBeenCalled();
     expect(redirectToAuthorize).not.toHaveBeenCalled();
     // Nothing was written to sessionStorage either: the silent-restore loop
     // guards went away with the lane they guarded.
@@ -208,10 +201,10 @@ describe('OxyContext cold boot (device-first)', () => {
     expect(capturedContext?.isAuthResolved).toBe(true);
 
     // Warm token planted AS-IS; the zero-cookie mint was skipped entirely.
-    expect(stub.mintFromDeviceSecret).not.toHaveBeenCalled();
-    expect(stub.getAccessToken()).toBe('cb.warm.token');
+    expect(stub.devices.mintToken).not.toHaveBeenCalled();
+    expect(stub.session.accessToken).toBe('cb.warm.token');
     // The full user is still hydrated for the committed session.
-    expect(stub.getCurrentUser).toHaveBeenCalled();
+    expect(stub.users.me).toHaveBeenCalled();
     expect(capturedContext?.user?.id).toBe(USER_ID);
     expect(redirectToAuthorize).not.toHaveBeenCalled();
   });
@@ -240,12 +233,12 @@ describe('OxyContext cold boot (device-first)', () => {
     expect(capturedContext?.isAuthResolved).toBe(true);
 
     // The device credential was presented to the zero-cookie mint.
-    expect(stub.mintFromDeviceSecret).toHaveBeenCalledWith('dev-cb', 'cb.device.secret');
+    expect(stub.devices.mintToken).toHaveBeenCalledWith('dev-cb', 'cb.device.secret');
     // The full user was hydrated via getCurrentUser.
-    expect(stub.getCurrentUser).toHaveBeenCalled();
+    expect(stub.users.me).toHaveBeenCalled();
     expect(capturedContext?.user?.id).toBe(USER_ID);
     // The token was planted from the freshly minted access token.
-    expect(stub.getAccessToken()).toBe('cb.minted.access');
+    expect(stub.session.accessToken).toBe('cb.minted.access');
     // The mint already returned authoritative device state, so handoff neither
     // re-registers nor re-reads the same state.
     expect(fakeSessionClient.adoptState).toHaveBeenCalledTimes(1);
@@ -279,7 +272,7 @@ describe('OxyContext cold boot (device-first)', () => {
 
     await waitFor(() => expect(capturedContext?.isAuthenticated).toBe(true));
 
-    expect(stub.mintFromDeviceSecret).toHaveBeenCalledWith('dev-legacy', 'legacy.secret');
+    expect(stub.devices.mintToken).toHaveBeenCalledWith('dev-legacy', 'legacy.secret');
     expect(redirectToAuthorize).not.toHaveBeenCalled();
   });
 });

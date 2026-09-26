@@ -1,6 +1,6 @@
 /**
- * The four enumeration-sensitive identifier lookups on `/auth`, against a REAL
- * Postgres: `check-username`, `check-publickey` and `lookup`.
+ * The enumeration-sensitive identifier lookups on `/auth`, against a REAL
+ * Postgres: `check-username` and `check-publickey`.
  *
  * These had NO suite before the Postgres port, and they are exactly where the
  * port CHANGES observable behaviour, so they get one now. `users` is unique on
@@ -179,66 +179,5 @@ describe('GET /auth/check-publickey/:publicKey', () => {
   it('rejects a malformed key with 400 before any lookup', async () => {
     const res = await get('/auth/check-publickey/not-a-key');
     expect(res.status).toBe(400);
-  });
-});
-
-describe('GET /auth/lookup/:username', () => {
-  it('returns the minimal public identity for the login flow', async () => {
-    const username = uniqueUsername();
-    await account({
-      username,
-      color: 'teal',
-      avatar: 'file-id-1',
-      nameFirst: 'Ada',
-      nameLast: 'Lovelace',
-    });
-
-    const res = await get(`/auth/lookup/${username}`);
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({
-      exists: true,
-      username,
-      color: 'teal',
-      avatar: 'file-id-1',
-      // `name.displayName` is composed server-side from the FLAT columns; the
-      // wire shape is unchanged by the port.
-      name: { displayName: 'Ada Lovelace', first: 'Ada', last: 'Lovelace', full: 'Ada Lovelace' },
-    });
-  });
-
-  it('omits displayName when the account has no real name', async () => {
-    const username = uniqueUsername();
-    await account({ username, color: 'blue' });
-
-    const res = await get(`/auth/lookup/${username}`);
-
-    // The API never synthesizes a display name from the username — consumers
-    // fall back to the handle themselves.
-    expect((res.body.data as { name: Record<string, unknown> }).name).toEqual({});
-  });
-
-  it('returns null for an absent avatar rather than omitting it', async () => {
-    const username = uniqueUsername();
-    await account({ username });
-
-    const res = await get(`/auth/lookup/${username}`);
-
-    expect((res.body.data as { avatar: string | null }).avatar).toBeNull();
-  });
-
-  it('is case-insensitive', async () => {
-    const username = uniqueUsername();
-    await account({ username });
-
-    const res = await get(`/auth/lookup/${username.toUpperCase()}`);
-
-    expect(res.status).toBe(200);
-    expect((res.body.data as { username: string }).username).toBe(username);
-  });
-
-  it('returns 404 for an unknown username', async () => {
-    const res = await get(`/auth/lookup/${uniqueUsername()}`);
-    expect(res.status).toBe(404);
   });
 });

@@ -51,7 +51,7 @@ export default function AuthorizeScreen() {
     }
 
     try {
-      const response = await oxyServices.makeRequest(
+      const response = await oxyServices.request(
         'GET',
         `/auth/session/status/${params.token}`,
         undefined,
@@ -102,7 +102,7 @@ export default function AuthorizeScreen() {
     setError(null);
 
     try {
-      await oxyServices.makeRequest('POST', `/auth/session/authorize/${params.token}`, {}, {
+      await oxyServices.request('POST', `/auth/session/authorize/${params.token}`, {}, {
         cache: false,
         headers: {
           'x-session-id': activeSessionId,
@@ -124,7 +124,7 @@ export default function AuthorizeScreen() {
     if (!params.token) return;
 
     try {
-      await oxyServices.makeRequest('POST', `/auth/session/cancel/${params.token}`, {}, {
+      await oxyServices.request('POST', `/auth/session/cancel/${params.token}`, {}, {
         cache: false,
       });
     } catch {

@@ -83,28 +83,32 @@ const SHARED_SESSION: SessionLoginResponse = {
 };
 
 interface OxyOverrides {
-  mintFromDeviceSecret?: OxyServices['mintFromDeviceSecret'];
-  signInWithSharedIdentity?: OxyServices['signInWithSharedIdentity'];
-  requestChallenge?: OxyServices['requestChallenge'];
-  verifyChallenge?: OxyServices['verifyChallenge'];
+  mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
+  signInWithSharedIdentity?: OxyServices['auth']['signInWithSharedIdentity'];
+  requestChallenge?: OxyServices['auth']['requestChallenge'];
+  verifyChallenge?: OxyServices['auth']['verifyChallenge'];
 }
 
 function makeOxy(overrides: OxyOverrides = {}): { oxy: OxyServices; setTokens: jest.Mock } {
   const setTokens = jest.fn();
   const oxy = {
-    getBaseURL: () => 'https://api.oxy.so',
-    setTokens,
-    mintFromDeviceSecret:
-      overrides.mintFromDeviceSecret
+    get baseURL() { return 'https://api.oxy.so'; },
+    http: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
+    session: {
+      setAccessToken: setTokens,
+    },
+    devices: {
+      mintToken: overrides.mintFromDeviceSecret
       ?? (async () => {
         throw new Error('mintFromDeviceSecret not stubbed');
       }),
-    signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null),
-    requestChallenge:
-      overrides.requestChallenge
+    },
+    auth: {
+      signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null),
+      requestChallenge: overrides.requestChallenge
       ?? (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
-    verifyChallenge: overrides.verifyChallenge ?? (async () => IDENTITY_SESSION),
-    httpService: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
+      verifyChallenge: overrides.verifyChallenge ?? (async () => IDENTITY_SESSION),
+    },
   } as unknown as OxyServices;
   return { oxy, setTokens };
 }

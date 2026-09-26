@@ -53,8 +53,8 @@ const MINT: DeviceTokenMintResponse = {
 };
 
 interface RefreshMockOverrides {
-  mintFromDeviceSecret?: OxyServices['mintFromDeviceSecret'];
-  signInWithSharedIdentity?: OxyServices['signInWithSharedIdentity'];
+  mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
+  signInWithSharedIdentity?: OxyServices['auth']['signInWithSharedIdentity'];
 }
 
 function makeOxy(
@@ -73,16 +73,20 @@ function makeOxy(
   const ended = { current: false };
   const noteRefreshRateLimited = jest.fn();
   const oxy = {
-    setTokens,
-    mintFromDeviceSecret: overrides.mintFromDeviceSecret ?? (async () => MINT),
-    signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null),
-    // The rotating mint runs under the client's process-wide single-flight; the
-    // arm reaches for it via `oxy.httpService.runSingleFlightDeviceSecretMint`.
-    httpService: {
+    http: {
       runSingleFlightDeviceSecretMint: makeMintSingleFlight(),
       noteRefreshRateLimited,
       getSessionEpoch: () => epoch.current,
       hasSessionEnded: () => ended.current,
+    },
+    session: {
+      setAccessToken: setTokens,
+    },
+    devices: {
+      mintToken: overrides.mintFromDeviceSecret ?? (async () => MINT),
+    },
+    auth: {
+      signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null),
     },
   } as unknown as OxyServices;
   return { oxy, setTokens, noteRefreshRateLimited, epoch, ended };
@@ -527,10 +531,12 @@ describe('startTokenRefreshScheduler', () => {
     });
     const nowSec = Math.floor(Date.now() / 1000);
     const oxy = {
-      getAccessToken: () => (cleared ? null : 'tok'),
-      getAccessTokenExpiry: () => (expiresInSeconds === null ? null : nowSec + expiresInSeconds),
-      onTokensChanged: () => () => undefined,
-      httpService: { refreshAccessToken },
+      http: { refreshAccessToken },
+      session: {
+        get accessToken() { return (cleared ? null : 'tok'); },
+        get accessTokenExpiry() { return (expiresInSeconds === null ? null : nowSec + expiresInSeconds); },
+        onChange: () => () => undefined,
+      },
     } as unknown as OxyServices;
     return { oxy, refreshAccessToken };
   }
@@ -569,10 +575,12 @@ describe('startTokenRefreshScheduler', () => {
     const refreshAccessToken = jest.fn(async () => null);
     const nowSec = Math.floor(Date.now() / 1000);
     const oxy = {
-      getAccessToken: () => 'tok',
-      getAccessTokenExpiry: () => nowSec - 10,
-      onTokensChanged: () => () => undefined,
-      httpService: { refreshAccessToken },
+      http: { refreshAccessToken },
+      session: {
+        get accessToken() { return 'tok'; },
+        get accessTokenExpiry() { return nowSec - 10; },
+        onChange: () => () => undefined,
+      },
     } as unknown as OxyServices;
 
     const handle = startTokenRefreshScheduler(oxy);
@@ -592,10 +600,12 @@ describe('startTokenRefreshScheduler', () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValue('fresh');
     const oxy = {
-      getAccessToken: () => 'tok',
-      getAccessTokenExpiry: () => Math.floor(Date.now() / 1000) + 3600,
-      onTokensChanged: () => () => undefined,
-      httpService: { refreshAccessToken },
+      http: { refreshAccessToken },
+      session: {
+        get accessToken() { return 'tok'; },
+        get accessTokenExpiry() { return Math.floor(Date.now() / 1000) + 3600; },
+        onChange: () => () => undefined,
+      },
     } as unknown as OxyServices;
 
     const handle = startTokenRefreshScheduler(oxy);

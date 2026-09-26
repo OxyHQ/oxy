@@ -66,6 +66,11 @@ function makeWrapper() {
   };
 }
 
+/** The store takes the client directly: nest the double where 3.0 reads it (`civic.attest`). */
+function asClient(services: { submitRealLifeAttestation: jest.Mock }) {
+  return { civic: { attest: services.submitRealLifeAttestation } };
+}
+
 describe('attestStore', () => {
   beforeEach(() => {
     useAttestStore.getState().reset();
@@ -76,7 +81,7 @@ describe('attestStore', () => {
   it('submit signs + submits automatically and reaches done — no biometric call', async () => {
     const services = { submitRealLifeAttestation: jest.fn(async () => RESULT) };
 
-    const pending = useAttestStore.getState().submit(PARAMS, services);
+    const pending = useAttestStore.getState().submit(PARAMS, asClient(services));
     // The flow must feel instant: `submitting` is entered synchronously with
     // the subject already resolved for the card lookup.
     expect(useAttestStore.getState().status).toBe('submitting');
@@ -105,7 +110,7 @@ describe('attestStore', () => {
       }),
     };
 
-    await useAttestStore.getState().submit(PARAMS, services);
+    await useAttestStore.getState().submit(PARAMS, asClient(services));
 
     const state = useAttestStore.getState();
     expect(state.status).toBe('error');
@@ -118,7 +123,7 @@ describe('attestStore', () => {
   it('errors as subject_not_found for an unresolvable DID without burning a request', async () => {
     const services = { submitRealLifeAttestation: jest.fn(async () => RESULT) };
 
-    await useAttestStore.getState().submit({ ...PARAMS, subjectDid: 'not-a-did' }, services);
+    await useAttestStore.getState().submit({ ...PARAMS, subjectDid: 'not-a-did' }, asClient(services));
 
     const state = useAttestStore.getState();
     expect(state.status).toBe('error');
@@ -135,7 +140,7 @@ describe('attestStore', () => {
       ),
     };
 
-    await useAttestStore.getState().submit(PARAMS, services);
+    await useAttestStore.getState().submit(PARAMS, asClient(services));
     expect(useAttestStore.getState().result?.recordId).toBe('rec-1');
 
     const otherParams: AttestSubmitParams = {
@@ -144,7 +149,7 @@ describe('attestStore', () => {
       nonce: 'nonce-2',
       exp: PARAMS.exp,
     };
-    const pending = useAttestStore.getState().submit(otherParams, services);
+    const pending = useAttestStore.getState().submit(otherParams, asClient(services));
     // The new payload's flow replaces the previous one immediately.
     expect(useAttestStore.getState().status).toBe('submitting');
     expect(useAttestStore.getState().subjectUserId).toBe('otherUser');
@@ -153,7 +158,7 @@ describe('attestStore', () => {
     expect(useAttestStore.getState().result?.recordId).toBe('rec-2');
 
     // Re-confirming the same person just submits again — the server upserts.
-    await useAttestStore.getState().submit(PARAMS, services);
+    await useAttestStore.getState().submit(PARAMS, asClient(services));
     expect(useAttestStore.getState().status).toBe('done');
     expect(services.submitRealLifeAttestation).toHaveBeenCalledTimes(3);
   });
@@ -168,10 +173,10 @@ describe('attestStore', () => {
         .mockReturnValueOnce(second.promise),
     };
 
-    const p1 = useAttestStore.getState().submit(PARAMS, services);
+    const p1 = useAttestStore.getState().submit(PARAMS, asClient(services));
     const p2 = useAttestStore
       .getState()
-      .submit({ ...PARAMS, subjectDid: 'did:web:oxy.so:u:otherUser', nonce: 'nonce-2' }, services);
+      .submit({ ...PARAMS, subjectDid: 'did:web:oxy.so:u:otherUser', nonce: 'nonce-2' }, asClient(services));
 
     second.resolve({ ...RESULT, recordId: 'rec-2' });
     await p2;
@@ -187,7 +192,7 @@ describe('attestStore', () => {
     const gate = deferred<typeof RESULT>();
     const services = { submitRealLifeAttestation: jest.fn(() => gate.promise) };
 
-    const pending = useAttestStore.getState().submit(PARAMS, services);
+    const pending = useAttestStore.getState().submit(PARAMS, asClient(services));
     expect(useAttestStore.getState().status).toBe('submitting');
 
     useAttestStore.getState().reset();
@@ -223,7 +228,7 @@ describe('attestStore', () => {
     const services = { submitRealLifeAttestation: jest.fn(async () => RESULT) };
 
     useAttestStore.getState().prepare(PARAMS);
-    await useAttestStore.getState().confirm(services, true);
+    await useAttestStore.getState().confirm(asClient(services), true);
 
     const state = useAttestStore.getState();
     expect(state.status).toBe('done');
@@ -237,7 +242,7 @@ describe('attestStore', () => {
   it('confirm is a no-op when nothing is held for review', async () => {
     const services = { submitRealLifeAttestation: jest.fn(async () => RESULT) };
 
-    await useAttestStore.getState().confirm(services, true);
+    await useAttestStore.getState().confirm(asClient(services), true);
 
     expect(useAttestStore.getState().status).toBe('idle');
     expect(services.submitRealLifeAttestation).not.toHaveBeenCalled();

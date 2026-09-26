@@ -64,7 +64,7 @@ export function useEffectiveRoutingPolicy(applicationId: string, enabled: boolea
   return useQuery({
     queryKey: queryKeys.effective(applicationId),
     queryFn: () =>
-      oxyServices.makeRequest<StoredRoutingPolicy | null>(
+      oxyServices.request<StoredRoutingPolicy | null>(
         'GET',
         `/inference/routing-policies/applications/${applicationId}`,
         undefined,
@@ -89,7 +89,7 @@ export function useRoutingPolicyVersions(policyId: string | undefined, enabled: 
   return useQuery({
     queryKey: queryKeys.versions(policyId ?? ''),
     queryFn: () =>
-      oxyServices.makeRequest<Array<StoredRoutingPolicy>>(
+      oxyServices.request<Array<StoredRoutingPolicy>>(
         'GET',
         `/inference/routing-policies/${policyId ?? ''}/versions`,
         undefined,
@@ -118,7 +118,7 @@ export function useRouteSwitchEvents(
   return useQuery({
     queryKey: queryKeys.routeSwitches(applicationId),
     queryFn: () =>
-      oxyServices.makeRequest<Array<RouteSwitchEvent>>(
+      oxyServices.request<Array<RouteSwitchEvent>>(
         'GET',
         `/inference/routing-policies/applications/${applicationId}/route-switches`,
         { limit },
@@ -143,7 +143,7 @@ export function useCreateApplicationRoutingPolicy() {
       applicationId: string;
       controls: RoutingPolicyControls;
     }): Promise<RoutingPolicy> =>
-      oxyServices.makeRequest<RoutingPolicy>(
+      oxyServices.request<RoutingPolicy>(
         'POST',
         `/inference/routing-policies/applications/${applicationId}`,
         controls,
@@ -175,7 +175,7 @@ export function useAppendRoutingPolicyVersion() {
       applicationId: string;
       controls: RoutingPolicyControls;
     }): Promise<RoutingPolicy> =>
-      oxyServices.makeRequest<RoutingPolicy>(
+      oxyServices.request<RoutingPolicy>(
         'POST',
         `/inference/routing-policies/${policyId}/versions`,
         controls,
@@ -205,7 +205,7 @@ export function useArchiveRoutingPolicy() {
       policyId: string;
       applicationId: string;
     }): Promise<{ routingPolicyId: string; status: string }> =>
-      oxyServices.makeRequest<{ routingPolicyId: string; status: string }>(
+      oxyServices.request<{ routingPolicyId: string; status: string }>(
         'POST',
         `/inference/routing-policies/${policyId}/archive`,
         {},

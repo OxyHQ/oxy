@@ -15,7 +15,7 @@ import {
 import { useOxy } from '@oxy.so/services';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { KeyManager } from '@oxy.so/core';
+import { KeyManager } from '@oxy.so/core/crypto';
 import { useTranslation } from '@/lib/i18n';
 import { runAccountDeletion } from '@/lib/account/delete-account-flow';
 import { retireVaultPushToken } from '@/lib/notifications/push-registration';
@@ -94,7 +94,7 @@ export default function DeleteAccountScreen() {
         // authenticated identity, so this device would otherwise keep a live
         // registration for the account being destroyed.
         retirePushToken: () => retireVaultPushToken(oxyServices),
-        deleteAccount: (text) => oxyServices.deleteAccount(text),
+        deleteAccount: (text) => oxyServices.users.deleteMe(text, { deviceKey: true }),
         // skipBackup=true (no point backing up keys for a deleted account),
         // force=true (also purges the backup slot, no re-prompt), and
         // userConfirmed=true (the user already confirmed via username match +

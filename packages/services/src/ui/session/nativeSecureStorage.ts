@@ -14,7 +14,7 @@
  * controller), so the web bundle never pulls it and a device without it falls
  * back to AsyncStorage rather than crashing.
  */
-import type { NativeKeyValueStorage } from '@oxy.so/core';
+import type { NativeKeyValueStorage } from '@oxy.so/core/session';
 import { createPlatformStorage } from '../utils/storageHelpers';
 
 // Variable indirection so Metro's static analyzer never traces expo-secure-store

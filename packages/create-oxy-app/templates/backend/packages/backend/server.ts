@@ -3,8 +3,9 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { Server as SocketIOServer } from 'socket.io';
 import type { Socket } from 'socket.io';
-import { oxyClient } from '@oxy.so/core';
+import { OXY_API_URL } from '@oxy.so/core';
 import {
+  OxyServer,
   createOxyAuthMiddleware,
   createOxyCors,
   createOxyRateLimit,
@@ -28,7 +29,9 @@ const PORT = Number(process.env.PORT ?? 3000);
 // only non-apex dev origins (the Expo dev server) need listing here.
 const APP_ORIGINS = ['http://localhost:8081', 'http://localhost:19006'];
 
-const oxy = oxyClient;
+// Verifies Oxy sessions on requests and sockets. Add `serviceAuth` (this app's
+// credential from the Oxy Console) when the backend calls Oxy on its own behalf.
+const oxy = new OxyServer({ baseURL: process.env.OXY_API_URL || OXY_API_URL });
 const app = express();
 
 app.use(express.json());
@@ -81,7 +84,7 @@ const io = new SocketIOServer(server, {
 // Socket auth: only authenticated clients connect; rooms derive from the
 // authenticated user id, never from client-supplied values.
 type AuthedSocket = Socket & { user?: { id: string } };
-io.use(oxy.authSocket());
+io.use(oxy.middleware.socket());
 io.on('connection', (socket: AuthedSocket) => {
   const userId = socket.user?.id;
   if (!userId) {

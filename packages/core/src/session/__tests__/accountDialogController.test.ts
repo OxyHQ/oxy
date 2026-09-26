@@ -2,7 +2,7 @@ import type { DeviceSessionState } from '@oxy.so/contracts';
 import type { OxyServices } from '../../OxyServices';
 import type { User } from '../../models/interfaces';
 import type { SessionLoginResponse, MinimalUserData } from '../../models/session';
-import type { AccountNode } from '../../mixins/OxyServices.accounts';
+import type { AccountNode } from '../../api/accounts';
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 import type { MinimalSocket, SocketIOFactory } from '../socketLoader';
 import { logger } from '../../logger';
@@ -140,6 +140,17 @@ interface OxyMock {
   /** Plant / clear the bearer — both fire `onTokensChanged`, like `OxyServices`. */
   setTokens: jest.Mock;
   clearTokens: jest.Mock;
+  /** The namespaced client the controller calls — views over the mocks above. */
+  baseURL: string;
+  session: { readonly accessToken: string | null; onChange: jest.Mock; setAccessToken: jest.Mock; clear: jest.Mock };
+  auth: {
+    signInWithSharedIdentity: jest.Mock;
+    claimSession: jest.Mock;
+    commons: { start: jest.Mock; poll: jest.Mock; deliver: jest.Mock; deny: jest.Mock };
+  };
+  accounts: { list: jest.Mock; actAs: jest.Mock };
+  users: { getMany: jest.Mock };
+  assets: { publicUrl: jest.Mock };
   /**
    * Test helper: set the current access token and fire every registered
    * `onTokensChanged` listener (mirrors `OxyServices.setTokens`/`clearTokens`).
@@ -158,7 +169,7 @@ function makeOxy(): OxyMock {
       listener(token);
     }
   };
-  return {
+  const mock = {
     getAccessToken: jest.fn(() => currentToken),
     getBaseURL: jest.fn(() => 'http://test.invalid'),
     onTokensChanged: jest.fn((listener: (token: string | null) => void) => {
@@ -180,6 +191,31 @@ function makeOxy(): OxyMock {
     setTokens: jest.fn((token: string) => emitTokenChange(token)),
     clearTokens: jest.fn(() => emitTokenChange(null)),
     emitTokenChange,
+  } as Omit<OxyMock, 'baseURL' | 'session' | 'auth' | 'accounts' | 'users' | 'assets'>;
+  return {
+    ...mock,
+    baseURL: 'http://test.invalid',
+    session: {
+      get accessToken() {
+        return mock.getAccessToken();
+      },
+      onChange: mock.onTokensChanged,
+      setAccessToken: mock.setTokens,
+      clear: mock.clearTokens,
+    },
+    auth: {
+      signInWithSharedIdentity: mock.signInWithSharedIdentity,
+      claimSession: mock.claimSessionByToken,
+      commons: {
+        start: mock.startCommonsSignIn,
+        poll: mock.pollCommonsSignIn,
+        deliver: mock.deliverCommonsSignIn,
+        deny: mock.denyCommonsSignIn,
+      },
+    },
+    accounts: { list: mock.listAccounts, actAs: mock.switchToAccount },
+    users: { getMany: mock.getUsersByIds },
+    assets: { publicUrl: mock.getFileDownloadUrl },
   };
 }
 
@@ -2146,7 +2182,7 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
       await jest.advanceTimersByTimeAsync(1000);
 
       // Requests must not keep going out as an account the device never took.
-      expect(oxy.getAccessToken()).toBe('access-token');
+      expect(oxy.session.accessToken).toBe('access-token');
       expect(onSignedIn).not.toHaveBeenCalled();
       expect(controller.getSnapshot().signIn.phase).toBe('error');
       expect(controller.getSnapshot().signIn.failure).toBe('unknown');
@@ -2170,7 +2206,7 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
 
     await controller.signInWithOxy();
 
-    expect(oxy.getAccessToken()).toBe('access-token');
+    expect(oxy.session.accessToken).toBe('access-token');
     expect(controller.getSnapshot().signIn.phase).toBe('waiting');
     controller.cancelSignIn();
     warnSpy.mockRestore();
@@ -2401,7 +2437,7 @@ describe('AccountDialogController — choosing a device account row (OxyHQ/oxy#1
         return undefined;
       }),
       getBaseURL: () => 'http://test.invalid',
-      getAccessToken: () => oxy.getAccessToken(),
+      getAccessToken: () => oxy.session.accessToken,
       getDeviceCredential: () => null,
       onTokensChanged: () => () => undefined,
       setTokens: jest.fn(),

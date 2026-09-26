@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type RefObject } from 'react';
-import type { OxyServices, AccountNode, CreateAccountInput, AccountDialogController, SessionClient } from '@oxy.so/core';
+import type { OxyServices, AccountNode, CreateAccountInput } from '@oxy.so/core';
+import type { AccountDialogController, SessionClient } from '@oxy.so/core/session';
 import { logger as loggerUtil } from '@oxy.so/core';
 import { isUnauthorizedStatus } from './oxyContextHelpers';
 import { IdentityBoundSessionError } from '../session';
@@ -38,12 +39,12 @@ export function useOxyAccountGraph({
   const [accounts, setAccounts] = useState<AccountNode[]>([]);
 
   const refreshAccounts = useCallback(async (): Promise<void> => {
-    if (identityBound || !isAuthenticated || !tokenReady || !oxyServices.getAccessToken()) {
+    if (identityBound || !isAuthenticated || !tokenReady || !oxyServices.session.accessToken) {
       setAccounts([]);
       return;
     }
     try {
-      const list = await oxyServices.listAccounts();
+      const list = await oxyServices.accounts.list();
       setAccounts(list);
     } catch (err) {
       if (isUnauthorizedStatus(err)) {
@@ -79,7 +80,7 @@ export function useOxyAccountGraph({
         return;
       }
 
-      const result = await oxyServices.switchToAccount(accountId);
+      const result = await oxyServices.accounts.actAs(accountId);
       if (!result?.user || !result?.sessionId) {
         throw new Error('Account switch did not return a valid session');
       }
@@ -107,7 +108,7 @@ export function useOxyAccountGraph({
 
   const createAccount = useCallback(
     async (data: CreateAccountInput): Promise<AccountNode> => {
-      const account = await oxyServices.createAccount(data);
+      const account = await oxyServices.accounts.create(data);
       await refreshAccounts();
       return account;
     },

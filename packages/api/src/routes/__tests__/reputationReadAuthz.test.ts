@@ -6,7 +6,8 @@
  *  - `GET /:userId/transactions` used to serve ANY user's ledger to ANY
  *    authenticated caller. A transaction's `metadata` names third parties — the
  *    attestor who physically met the subject, the staking voucher, the full
- *    juror roster of a resolved validation — so the ledger is owner-or-staff.
+ *    juror roster of a resolved validation — so the ledger is owner-only, and
+ *    Oxy staff get no special view of anyone's reputation.
  *  - `GET /:userId/balance` used to serve `reliability` (abuseScore,
  *    reportAccuracyScore, report counts) and the `influence` weights to
  *    ANONYMOUS callers, for any subject enumerable by id or publicKey. The
@@ -230,15 +231,14 @@ describe('GET /reputation/:userId/transactions — ownership gate', () => {
     expect(safeParseContract(reputationTransactionSchema, rows[0])).not.toBeNull();
   });
 
-  it("serves staff another user's ledger", async () => {
+  it("refuses staff another user's ledger — staff get no special view", async () => {
     const subject = await account();
     await ledgerEntry(subject);
     currentCaller = { _id: await account(), isStaff: true };
 
     const res = await get(`/reputation/${subject}/transactions`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.data).toHaveLength(1);
+    expect(res.status).toBe(403);
   });
 
   it('resolves the subject by publicKey as well as by id', async () => {
@@ -333,7 +333,7 @@ describe('GET /reputation/:userId/balance — view split', () => {
     expect(safeParseContract(reputationBalanceSchema, data)).not.toBeNull();
   });
 
-  it("serves staff another user's full balance", async () => {
+  it("serves staff only the PUBLIC view of another user's balance", async () => {
     const subject = await account();
     await ledgerEntry(subject, { points: 120, actionType: 'peer_validated', category: 'trust' });
     currentCaller = { _id: await account(), isStaff: true };
@@ -342,8 +342,8 @@ describe('GET /reputation/:userId/balance — view split', () => {
 
     expect(res.status).toBe(200);
     const data = res.body.data as Record<string, unknown>;
-    expect(data).toHaveProperty('reliability');
-    expect(data).toHaveProperty('influence');
+    expect(data).not.toHaveProperty('reliability');
+    expect(data).not.toHaveProperty('influence');
   });
 
   it('hides from a non-subject the penalty history the total alone conceals', async () => {
@@ -396,12 +396,12 @@ describe('GET /reputation/:userId/influence — ownership gate', () => {
     expect(typeof data.weight).toBe('number');
   });
 
-  it("serves staff another user's influence", async () => {
+  it("refuses staff another user's influence", async () => {
     const subject = await account();
     currentCaller = { _id: await account(), isStaff: true };
 
     const res = await get(`/reputation/${subject}/influence`);
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
   });
 });

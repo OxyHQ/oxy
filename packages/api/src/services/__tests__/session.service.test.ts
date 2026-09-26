@@ -731,7 +731,7 @@ describe('validateSession / getSessionWithUser', () => {
     expect(result?.session.userId).toBe(user);
     // The user half is the REAL account document, hydrated through
     // `userService.readAccountDocument` — the same serializer
-    // `GET /users/me/data` returns. `_id` is the account id, which is the field
+    // `PUT /users/resolve` returns. `_id` is the account id, which is the field
     // `middleware/auth.ts` puts on `req.user`.
     expect(result?.user._id).toBe(user);
     expect(result?.user.privacySettings).toEqual(expect.objectContaining({

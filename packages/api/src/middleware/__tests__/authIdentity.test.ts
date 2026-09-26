@@ -266,7 +266,7 @@ describe('authMiddleware — the identity a handler receives', () => {
   it('does NOT write the pinned `id` back into the shared user cache', async () => {
     // `req.user` is a shallow COPY. The code this replaced mutated the cached
     // object (`fullUser.id = fullUser._id`), so every concurrent request for
-    // this account — and `GET /users/me/data`, which serves the same document
+    // this account — and `PUT /users/resolve`, which serves the same document
     // shape — inherited the overwrite.
     const publicKey = `04${randomUUID().replace(/-/g, '')}${randomUUID().replace(/-/g, '')}`;
     const userId = await account({ publicKey });

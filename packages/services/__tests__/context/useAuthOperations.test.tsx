@@ -24,7 +24,7 @@
 import { renderHook, act } from '@testing-library/react';
 import type { SessionLoginResponse, User } from '@oxy.so/core';
 
-jest.mock('@oxy.so/core', () => {
+jest.mock('@oxy.so/core/session', () => {
   return {
     __esModule: true,
     DeviceManager: {
@@ -35,6 +35,12 @@ jest.mock('@oxy.so/core', () => {
       getDeviceInfo: jest.fn(async () => ({ deviceName: 'Test Device' })),
       getDefaultDeviceName: jest.fn(() => 'Default Device'),
     },
+  };
+});
+
+jest.mock('@oxy.so/core/crypto', () => {
+  return {
+    __esModule: true,
     SignatureService: {
       generateChallenge: jest.fn(async () => 'local-challenge'),
       signChallenge: jest.fn(async (challenge: string) => ({
@@ -60,44 +66,37 @@ import { useAuthOperations } from '../../src/ui/context/hooks/useAuthOperations'
 import * as sessionHelpers from '../../src/ui/utils/sessionHelpers';
 
 interface FakeServices {
-  requestChallenge: jest.Mock;
-  verifyChallenge: jest.Mock;
-  setTokens: jest.Mock;
-  getCurrentUser: jest.Mock;
-  logoutSession: jest.Mock;
-  logoutAllSessions: jest.Mock;
+  auth: { requestChallenge: jest.Mock; verifyChallenge: jest.Mock };
+  session: { setAccessToken: jest.Mock; logout: jest.Mock; logoutAll: jest.Mock };
+  users: { me: jest.Mock };
 }
 
-const makeOxyServices = (overrides: Partial<FakeServices> = {}): FakeServices => ({
-  requestChallenge: jest.fn(async () => ({ challenge: 'server-challenge' })),
-  // The real `/auth/verify` always returns the first access token in its body,
-  // and `OxyServices.verifyChallenge` now PLANTS that token internally
-  // (mirroring `claimSessionByToken`). The mock returns the token to mirror the
-  // real response shape, but the consumer no longer reads it directly. The
-  // zero-cookie device credential (`deviceId` + `deviceSecret`) is returned so
-  // `performSignIn` persists the durable blob (`store.save`).
-  verifyChallenge: jest.fn(async (): Promise<SessionLoginResponse> => ({
+type FakeServicesOverrides = { [K in keyof FakeServices]?: Partial<FakeServices[K]> };
+
+const makeOxyServices = (overrides: FakeServicesOverrides = {}): FakeServices => {
+  const base = makeDefaultOxyServices();
+  return {
+    auth: { ...base.auth, ...overrides.auth },
+    session: { ...base.session, ...overrides.session },
+    users: { ...base.users, ...overrides.users },
+  };
+};
+
+const makeDefaultOxyServices = (): FakeServices => ({
+  auth: { requestChallenge: jest.fn(async () => ({ challenge: 'server-challenge' })), verifyChallenge: jest.fn(async (): Promise<SessionLoginResponse> => ({
     sessionId: 'new-session',
     deviceId: 'device-1',
     expiresAt: '2030-01-01',
     accessToken: 'verify-access-token',
     deviceSecret: 'verify-device-secret',
     user: { id: 'user-1', username: 'alice' },
-  })),
-  setTokens: jest.fn(),
-  // `performSignIn` hydrates the full user from the bearer (`GET /users/me`)
-  // now that `verifyChallenge` has planted the access token — not from a
-  // session-id URL. `getCurrentUser` takes no args and returns the bearer's user.
-  getCurrentUser: jest.fn(async (): Promise<User> => ({
+  })) },
+  session: { setAccessToken: jest.fn(), logout: jest.fn(async () => undefined), logoutAll: jest.fn(async () => undefined) },
+  users: { me: jest.fn(async (): Promise<User> => ({
     id: 'user-1',
     username: 'alice',
     privacySettings: {},
-  } as User)),
-  // Still used by `performSignIn`'s same-user duplicate-session dedup path —
-  // unrelated to the SessionClient-routed `logout`/`logoutAll`.
-  logoutSession: jest.fn(async () => undefined),
-  logoutAllSessions: jest.fn(async () => undefined),
-  ...overrides,
+  } as User)) },
 });
 
 /** A device account tracked by the (mocked) `SessionClient`. */
@@ -166,7 +165,7 @@ function buildFakeStore() {
 }
 
 interface SetupOpts {
-  oxyServices?: Partial<FakeServices>;
+  oxyServices?: FakeServicesOverrides;
   activeSessionId?: string | null;
   sessionClient?: ReturnType<typeof buildFakeSessionClient>;
   store?: ReturnType<typeof buildFakeStore>;
@@ -251,15 +250,15 @@ describe('useAuthOperations.signIn — online flow', () => {
       signedInUser = await helpers.result.current.signIn('pubkey-1');
     });
 
-    expect(helpers.oxyServices.requestChallenge).toHaveBeenCalledWith('pubkey-1');
-    expect(helpers.oxyServices.verifyChallenge).toHaveBeenCalled();
+    expect(helpers.oxyServices.auth.requestChallenge).toHaveBeenCalledWith('pubkey-1');
+    expect(helpers.oxyServices.auth.verifyChallenge).toHaveBeenCalled();
     // `verifyChallenge` now plants the first access token internally (asserted
     // in @oxy.so/core's auth mixin tests), so the consumer no longer touches
     // `setTokens` directly...
-    expect(helpers.oxyServices.setTokens).not.toHaveBeenCalled();
+    expect(helpers.oxyServices.session.setAccessToken).not.toHaveBeenCalled();
     // ...and hydrates the user from the bearer (`GET /users/me`), NOT a
     // session-id URL that could disagree with the planted token.
-    expect(helpers.oxyServices.getCurrentUser).toHaveBeenCalled();
+    expect(helpers.oxyServices.users.me).toHaveBeenCalled();
     // The response carried the zero-cookie device credential, so the durable blob
     // was persisted for a redirect-less reload restore.
     expect(helpers.store.save).toHaveBeenCalledWith(
@@ -344,12 +343,12 @@ describe('useAuthOperations.signIn — online flow', () => {
         // A token-less new identity (onboarding): verify returns no access
         // token. The consumer must still proceed to fetch the user without
         // depending on legacy session-id token exchange.
-        verifyChallenge: jest.fn(async (): Promise<SessionLoginResponse> => ({
+        auth: { verifyChallenge: jest.fn(async (): Promise<SessionLoginResponse> => ({
           sessionId: 'new-session',
           deviceId: 'device-1',
           expiresAt: '2030-01-01',
           user: { id: 'user-1', username: 'alice' },
-        })),
+        })) },
       },
     });
 
@@ -358,8 +357,8 @@ describe('useAuthOperations.signIn — online flow', () => {
       signedInUser = await helpers.result.current.signIn('pubkey-1');
     });
 
-    expect(helpers.oxyServices.setTokens).not.toHaveBeenCalled();
-    expect(helpers.oxyServices.getCurrentUser).toHaveBeenCalled();
+    expect(helpers.oxyServices.session.setAccessToken).not.toHaveBeenCalled();
+    expect(helpers.oxyServices.users.me).toHaveBeenCalled();
     // No rotating refresh token in the response → nothing durable to persist.
     expect(helpers.store.save).not.toHaveBeenCalled();
     expect(signedInUser?.id).toBe('user-1');
@@ -368,9 +367,9 @@ describe('useAuthOperations.signIn — online flow', () => {
   it('rejects with the original error when verifyChallenge throws', async () => {
     const helpers = setup({
       oxyServices: {
-        verifyChallenge: jest.fn(async () => {
+        auth: { verifyChallenge: jest.fn(async () => {
           throw new Error('signature mismatch');
-        }),
+        }) },
       },
     });
 
@@ -403,7 +402,7 @@ describe('useAuthOperations.signIn — online flow', () => {
     });
 
     // Should have killed the newly-created duplicate and switched to the existing one
-    expect(helpers.oxyServices.logoutSession).toHaveBeenCalledWith('new-session', 'new-session');
+    expect(helpers.oxyServices.session.logout).toHaveBeenCalledWith('new-session', 'new-session');
     expect(helpers.switchSession).toHaveBeenCalledWith('old-session');
     expect(helpers.mergeSessions).toHaveBeenCalledWith(
       expect.arrayContaining([
@@ -418,9 +417,9 @@ describe('useAuthOperations.signIn — requestChallenge failures', () => {
   it('does not create a local session when the network is unavailable', async () => {
     const helpers = setup({
       oxyServices: {
-        requestChallenge: jest.fn(async () => {
+        auth: { requestChallenge: jest.fn(async () => {
           throw new Error('Network request failed');
-        }),
+        }) },
       },
     });
 
@@ -430,8 +429,8 @@ describe('useAuthOperations.signIn — requestChallenge failures', () => {
       }),
     ).rejects.toThrow('Network request failed');
 
-    expect(helpers.oxyServices.verifyChallenge).not.toHaveBeenCalled();
-    expect(helpers.oxyServices.getCurrentUser).not.toHaveBeenCalled();
+    expect(helpers.oxyServices.auth.verifyChallenge).not.toHaveBeenCalled();
+    expect(helpers.oxyServices.users.me).not.toHaveBeenCalled();
     expect(helpers.setActiveSessionId).not.toHaveBeenCalled();
     expect(helpers.setAccount).not.toHaveBeenCalled();
     expect(helpers.onAuthStateChange).not.toHaveBeenCalled();
@@ -440,9 +439,9 @@ describe('useAuthOperations.signIn — requestChallenge failures', () => {
   it('re-throws non-network errors from requestChallenge', async () => {
     const helpers = setup({
       oxyServices: {
-        requestChallenge: jest.fn(async () => {
+        auth: { requestChallenge: jest.fn(async () => {
           throw new Error('bad request (400)');
-        }),
+        }) },
       },
     });
 
@@ -606,8 +605,8 @@ describe('useAuthOperations.logoutAll', () => {
     await act(async () => {
       await helpers.result.current.logoutAll();
     });
-    expect(helpers.oxyServices.logoutAllSessions).toHaveBeenCalledWith('session-1');
-    expect(helpers.oxyServices.logoutAllSessions.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(helpers.oxyServices.session.logoutAll).toHaveBeenCalledWith('session-1');
+    expect(helpers.oxyServices.session.logoutAll.mock.invocationCallOrder[0]).toBeLessThan(
       sessionClient.signOut.mock.invocationCallOrder[0],
     );
     expect(sessionClient.signOut).toHaveBeenCalledWith({ all: true });
@@ -621,9 +620,9 @@ describe('useAuthOperations.logoutAll', () => {
     const helpers = setup({
       activeSessionId: 'session-1',
       oxyServices: {
-        logoutAllSessions: jest.fn(async () => {
+        session: { logoutAll: jest.fn(async () => {
           throw new Error('global revoke failed');
-        }),
+        }) },
       },
     });
 

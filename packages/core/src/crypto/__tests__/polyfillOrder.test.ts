@@ -53,6 +53,11 @@ function withReactNativeNobleAndNoHostCrypto(body: () => void): void {
   try {
     jest.isolateModules(() => {
       jest.doMock('@noble/hashes/crypto', () => jest.requireActual(NOBLE_CAPTURING_CRYPTO));
+      // expo-crypto, as the RN variant of `@oxy.so/protocol/random` reaches it.
+      jest.doMock('@oxy.so/protocol/random', () => ({
+        ...jest.requireActual('@oxy.so/protocol/random'),
+        getRandomBytesRN: (length: number) => new Uint8Array(require('node:crypto').randomBytes(length)),
+      }));
       body();
     });
   } finally {
@@ -82,9 +87,9 @@ describe('crypto polyfill evaluation order', () => {
     });
   });
 
-  it('generates an identity (key pair + recovery mnemonic) through core', () => {
+  it('generates an identity (key pair + recovery mnemonic) through @oxy.so/core/crypto', () => {
     withReactNativeNobleAndNoHostCrypto(() => {
-      const core = require('../../index') as typeof import('../../index');
+      const core = require('../index') as typeof import('../index');
       const { generateMnemonic } = require('@scure/bip39') as typeof import('@scure/bip39');
       const { wordlist } = require('@scure/bip39/wordlists/english') as {
         wordlist: string[];
@@ -106,9 +111,15 @@ describe('crypto polyfill evaluation order', () => {
     expect(specifiers.sort()).toEqual(['@oxy.so/protocol/random', 'buffer']);
   });
 
-  it('the core entry imports the polyfill before anything else', () => {
-    const source = readFileSync(resolve(__dirname, '..', '..', 'index.ts'), 'utf8');
+  it.each([
+    ['index.ts', './crypto/polyfill'],
+    ['crypto/index.ts', './polyfill'],
+    ['crypto/internal.ts', './polyfill'],
+    ['session/index.ts', '../crypto/polyfill'],
+    ['civic/index.ts', '../crypto/polyfill'],
+  ])('%s imports the polyfill before anything else', (entry, polyfill) => {
+    const source = readFileSync(resolve(__dirname, '..', '..', entry), 'utf8');
     const firstModuleReference = source.match(/^(?:import|export)\s[^;]*?['"]([^'"]+)['"]/m);
-    expect(firstModuleReference?.[1]).toBe('./crypto/polyfill');
+    expect(firstModuleReference?.[1]).toBe(polyfill);
   });
 });

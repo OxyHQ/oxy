@@ -257,7 +257,8 @@
       "title": "Download your data",
       "subtitle": "Get a copy of your data in a portable format",
       "promptTitle": "Download Your Data",
-      "promptMessage": "Choose a format for your data export:",
+      "promptMessage": "Your data is exported as one signed JSON file you can verify away from Oxy.",
+      "confirm": "Download",
       "successTitle": "Download Complete",
       "successMessage": "Your data has been saved successfully.",
       "failedTitle": "Download Failed",
@@ -367,8 +368,6 @@
       "editProfileSubtitle": "Name, username, bio, links, and locations",
       "manageSessions": "Manage devices & sessions",
       "manageSessionsSubtitle": "Review active devices and sign out",
-      "subscription": "Payments & subscription",
-      "subscriptionSubtitle": "Manage billing and plan",
       "identitySecurity": "Identity & security",
       "identitySecuritySubtitle": "Keys, recovery, and account status"
     }
@@ -412,14 +411,11 @@
     },
     "subscription": {
       "noActive": "No active subscription",
-      "upgrade": "Upgrade to unlock premium features",
       "nextBilling": "Next billing: {{date}}",
       "renews": "Renews {{date}}",
       "active": "Active",
       "canceled": "Canceled",
       "expired": "Expired",
-      "manage": "Manage",
-      "upgradeCta": "Upgrade",
       "plans": {
         "basic": "Basic",
         "pro": "Oxy Pro",
@@ -861,8 +857,6 @@
     "togglePaymentMethod": "Toggle payment method details",
     "openStore": "Open store",
     "openStoreHint": "Opens the app store to install the FairCoin wallet",
-    "manageSubscription": "Manage subscription",
-    "upgradeSubscription": "Upgrade subscription",
     "alertCancel": "Cancel",
     "alertConfirm": "Confirm",
     "settings": "Settings",

@@ -257,7 +257,8 @@
       "title": "Descargar tus datos",
       "subtitle": "Obtén una copia de tus datos en un formato portable",
       "promptTitle": "Descargar tus datos",
-      "promptMessage": "Elige un formato para exportar tus datos:",
+      "promptMessage": "Tus datos se exportan en un único archivo JSON firmado que puedes verificar fuera de Oxy.",
+      "confirm": "Descargar",
       "successTitle": "Descarga completada",
       "successMessage": "Tus datos se han guardado correctamente.",
       "failedTitle": "Descarga fallida",
@@ -367,8 +368,6 @@
       "editProfileSubtitle": "Nombre, nombre de usuario, biografía, enlaces y ubicaciones",
       "manageSessions": "Gestionar dispositivos y sesiones",
       "manageSessionsSubtitle": "Revisa los dispositivos activos y cierra sesión",
-      "subscription": "Pagos y suscripción",
-      "subscriptionSubtitle": "Gestiona tu facturación y plan",
       "identitySecurity": "Identidad y seguridad",
       "identitySecuritySubtitle": "Claves, recuperación y estado de la cuenta"
     }
@@ -412,14 +411,11 @@
     },
     "subscription": {
       "noActive": "Sin suscripción activa",
-      "upgrade": "Mejora tu plan para desbloquear funciones premium",
       "nextBilling": "Próxima facturación: {{date}}",
       "renews": "Se renueva el {{date}}",
       "active": "Activa",
       "canceled": "Cancelada",
       "expired": "Caducada",
-      "manage": "Gestionar",
-      "upgradeCta": "Mejorar",
       "plans": {
         "basic": "Básico",
         "pro": "Oxy Pro",
@@ -861,8 +857,6 @@
     "togglePaymentMethod": "Mostrar detalles del método de pago",
     "openStore": "Abrir tienda",
     "openStoreHint": "Abre la tienda de aplicaciones para instalar la cartera FairCoin",
-    "manageSubscription": "Gestionar suscripción",
-    "upgradeSubscription": "Mejorar suscripción",
     "alertCancel": "Cancelar",
     "alertConfirm": "Confirmar",
     "settings": "Ajustes",

@@ -79,7 +79,7 @@ export function useProviderValidationDeployments(
   return useQuery({
     queryKey: queryKeys.validationDeployments(connectionId ?? '', applicationId),
     queryFn: () =>
-      oxyServices.makeRequest<Array<ProviderCredentialValidationDeployment>>(
+      oxyServices.request<Array<ProviderCredentialValidationDeployment>>(
         'GET',
         `/inference/provider-connections/${connectionId ?? ''}/validation-deployments`,
         { applicationId },
@@ -101,7 +101,7 @@ export function useProviderCredentialValidation(
   return useQuery({
     queryKey: queryKeys.validation(connectionId ?? '', applicationId),
     queryFn: () =>
-      oxyServices.makeRequest<ProviderCredentialValidationOperation | null>(
+      oxyServices.request<ProviderCredentialValidationOperation | null>(
         'GET',
         `/inference/provider-connections/${connectionId ?? ''}/validation-bootstrap`,
         { applicationId },
@@ -128,7 +128,7 @@ export function useStartProviderCredentialValidation() {
       applicationId: string
       deploymentId: string
     }) =>
-      oxyServices.makeRequest<ProviderCredentialValidationOperation>(
+      oxyServices.request<ProviderCredentialValidationOperation>(
         'POST',
         `/inference/provider-connections/${connectionId}/validation-bootstrap`,
         { applicationId, deploymentId },
@@ -164,7 +164,7 @@ export function useAccountProviderConnections(
     queryKey: queryKeys.accountConnections(accountId ?? ''),
     queryFn: async (): Promise<Array<ProviderConnectionView>> =>
       (
-        await oxyServices.makeRequest<Array<ProviderConnection>>(
+        await oxyServices.request<Array<ProviderConnection>>(
           'GET',
           `/inference/provider-connections/accounts/${accountId ?? ''}`,
           undefined,
@@ -195,7 +195,7 @@ export function useProviderConnectionAudit(
     queryKey: queryKeys.audit(connectionId ?? ''),
     queryFn: async (): Promise<Array<ProviderConnectionAuditEvent>> =>
       (
-        await oxyServices.makeRequest<
+        await oxyServices.request<
           Array<ProviderConnectionAuditEvent & { metadata?: unknown }>
         >(
           'GET',
@@ -252,7 +252,7 @@ export function useCreateApplicationProviderConnection() {
     }: CreateProviderConnectionInput): Promise<ProviderConnectionView> => {
       setIsPending(true)
       try {
-        const connection = await oxyServices.makeRequest<ProviderConnection>(
+        const connection = await oxyServices.request<ProviderConnection>(
           'POST',
           `/inference/provider-connections/applications/${applicationId}`,
           { provider, environment, secret, acknowledgeProviderTerms },
@@ -298,7 +298,7 @@ export function useRotateProviderConnection() {
     }): Promise<ProviderConnectionView> => {
       setIsPending(true)
       try {
-        const connection = await oxyServices.makeRequest<ProviderConnection>(
+        const connection = await oxyServices.request<ProviderConnection>(
           'POST',
           `/inference/provider-connections/${connectionId}/rotate`,
           { secret },
@@ -349,7 +349,7 @@ export function useReconcileProviderConnection() {
     }): Promise<ProviderConnectionView> => {
       setIsPending(true)
       try {
-        const connection = await oxyServices.makeRequest<ProviderConnection>(
+        const connection = await oxyServices.request<ProviderConnection>(
           'POST',
           `/inference/provider-connections/${connectionId}/reconcile`,
           secret === undefined ? {} : { secret },
@@ -395,7 +395,7 @@ export function useSetProviderConnectionEnabled() {
       enabled: boolean
     }): Promise<ProviderConnectionView> =>
       oxyServices
-        .makeRequest<ProviderConnection>(
+        .request<ProviderConnection>(
           'POST',
           `/inference/provider-connections/${connectionId}/${enabled ? 'enable' : 'disable'}`,
           {},
@@ -432,7 +432,7 @@ export function useRevokeProviderConnection() {
       ownerAccountId: string
     }): Promise<ProviderConnectionView> =>
       oxyServices
-        .makeRequest<ProviderConnection>(
+        .request<ProviderConnection>(
           'POST',
           `/inference/provider-connections/${connectionId}/revoke`,
           {},

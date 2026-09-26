@@ -27,6 +27,7 @@ export interface StoredDeviceInfo {
  * Client-side device management utility
  * Handles persistent device identification across app sessions
  */
+// biome-ignore lint/complexity/noStaticOnlyClass: a public, static-only API surface (`X.method()`) that consumers and tests call and spy on by name.
 export class DeviceManager {
   private static DEVICE_KEY = 'oxy_device_info';
   
@@ -45,7 +46,7 @@ export class DeviceManager {
     setItem: (key: string, value: string) => Promise<void>;
     removeItem: (key: string) => Promise<void>;
   }> {
-    if (this.isReactNative()) {
+    if (DeviceManager.isReactNative()) {
       try {
         // `loadAsyncStorage` is per-platform: the RN variant statically imports
         // @react-native-async-storage/async-storage, the default variant throws
@@ -99,24 +100,24 @@ export class DeviceManager {
    */
   static async getDeviceInfo(): Promise<StoredDeviceInfo> {
     try {
-      const storage = await this.getStorage();
-      const stored = await storage.getItem(this.DEVICE_KEY);
+      const storage = await DeviceManager.getStorage();
+      const stored = await storage.getItem(DeviceManager.DEVICE_KEY);
       
       if (stored) {
         const deviceInfo: StoredDeviceInfo = JSON.parse(stored);
         
         // Update last used timestamp
         deviceInfo.lastUsed = new Date().toISOString();
-        await this.saveDeviceInfo(deviceInfo);
+        await DeviceManager.saveDeviceInfo(deviceInfo);
         
         return deviceInfo;
       }
       
       // Create new device info
-      return await this.createNewDeviceInfo();
+      return await DeviceManager.createNewDeviceInfo();
     } catch (error) {
       log.error('Error getting device info', error);
-      return await this.createNewDeviceInfo();
+      return await DeviceManager.createNewDeviceInfo();
     }
   }
 
@@ -125,13 +126,13 @@ export class DeviceManager {
    */
   static async createNewDeviceInfo(): Promise<StoredDeviceInfo> {
     const deviceInfo: StoredDeviceInfo = {
-      deviceId: this.generateDeviceId(),
-      fingerprint: JSON.stringify(this.getDeviceFingerprint()),
+      deviceId: DeviceManager.generateDeviceId(),
+      fingerprint: JSON.stringify(DeviceManager.getDeviceFingerprint()),
       createdAt: new Date().toISOString(),
       lastUsed: new Date().toISOString()
     };
 
-    await this.saveDeviceInfo(deviceInfo);
+    await DeviceManager.saveDeviceInfo(deviceInfo);
     return deviceInfo;
   }
 
@@ -140,8 +141,8 @@ export class DeviceManager {
    */
   static async saveDeviceInfo(deviceInfo: StoredDeviceInfo): Promise<void> {
     try {
-      const storage = await this.getStorage();
-      await storage.setItem(this.DEVICE_KEY, JSON.stringify(deviceInfo));
+      const storage = await DeviceManager.getStorage();
+      await storage.setItem(DeviceManager.DEVICE_KEY, JSON.stringify(deviceInfo));
     } catch (error) {
       log.error('Error saving device info', error);
     }
@@ -152,9 +153,9 @@ export class DeviceManager {
    */
   static async updateDeviceName(deviceName: string): Promise<void> {
     try {
-      const deviceInfo = await this.getDeviceInfo();
+      const deviceInfo = await DeviceManager.getDeviceInfo();
       deviceInfo.deviceName = deviceName;
-      await this.saveDeviceInfo(deviceInfo);
+      await DeviceManager.saveDeviceInfo(deviceInfo);
     } catch (error) {
       log.error('Error updating device name', error);
     }
@@ -165,8 +166,8 @@ export class DeviceManager {
    */
   static async clearDeviceInfo(): Promise<void> {
     try {
-      const storage = await this.getStorage();
-      await storage.removeItem(this.DEVICE_KEY);
+      const storage = await DeviceManager.getStorage();
+      await storage.removeItem(DeviceManager.DEVICE_KEY);
     } catch (error) {
       log.error('Error clearing device info', error);
     }
@@ -188,7 +189,7 @@ export class DeviceManager {
    * Get a user-friendly device name based on platform
    */
   static getDefaultDeviceName(): string {
-    const fingerprint = this.getDeviceFingerprint();
+    const fingerprint = DeviceManager.getDeviceFingerprint();
     const platform = (fingerprint.platform || '').toLowerCase();
     
     if (platform.includes('win')) return 'Windows Computer';

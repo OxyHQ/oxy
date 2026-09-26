@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { DeviceDirectory } from '@oxy.so/contracts';
-import type { DeviceContext, User } from '@oxy.so/core';
+import type { DeviceContext } from '@oxy.so/core/session';
+import type { User } from '@oxy.so/core';
 import type { OxyRuntime } from './createOxyRuntime';
 import type { OxyRuntimeStatus } from './types';
 import { useRuntimeSelector, useRuntimeSnapshot } from './useRuntimeSnapshot';

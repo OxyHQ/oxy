@@ -317,8 +317,7 @@ async function initSecureStore(): Promise<ExpoSecureStoreLike> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Failed to load expo-secure-store: ${errorMessage}. ` +
-        'Make sure expo-secure-store is installed and properly configured.',
+      `Failed to load expo-secure-store: ${errorMessage}. Make sure expo-secure-store is installed and properly configured.`,
     );
   }
 }
@@ -378,6 +377,7 @@ export interface KeyPair {
   privateKey: string;
 }
 
+// biome-ignore lint/complexity/noStaticOnlyClass: a public, static-only API surface (`X.method()`) that consumers and tests call and spy on by name.
 export class KeyManager {
   // In-memory cache for identity state (invalidated on identity changes)
   private static cachedPublicKey: string | null = null;

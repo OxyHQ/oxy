@@ -39,8 +39,7 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
   useOxy: () => ({
     user: { avatar: 'file-current', username: 'nate' },
     oxyServices: {
-      getFileDownloadUrl: (id: string) => `https://cdn.example/${id}`,
-      assetGetUrl: (...a: unknown[]) => assetGetUrl(...a),
+      assets: { publicUrl: (id: string) => `https://cdn.example/${id}`, url: (...a: unknown[]) => assetGetUrl(...a) },
     },
   }),
 }));

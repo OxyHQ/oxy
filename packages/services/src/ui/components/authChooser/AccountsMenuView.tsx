@@ -44,12 +44,7 @@ import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { CompositionBar, type CompositionCategory } from '@oxy.so/bloom/composition-bar';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Text } from '@oxy.so/bloom/typography';
-import {
-  showsPrincipalHeaders,
-  type AccountDialogSnapshot,
-  type SwitcherContextRow,
-  type SwitcherPrincipalRow,
-} from '@oxy.so/core';
+import { showsPrincipalHeaders, type AccountDialogSnapshot, type SwitcherContextRow, type SwitcherPrincipalRow } from '@oxy.so/core/session';
 import AvatarCameraBadge from '../AvatarCameraBadge';
 import { authChooserStyles as styles } from './styles';
 import {

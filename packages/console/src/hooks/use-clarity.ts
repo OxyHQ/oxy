@@ -12,7 +12,7 @@ export function useClarityClient(): ClarityClient {
       new ClarityClient({
         baseUrl: config.clarityUrl,
         getAccessToken: () => {
-          const token = oxyServices.getAccessToken();
+          const token = oxyServices.session.accessToken;
           if (!token) throw new Error('Your Oxy session is not ready.');
           return token;
         },

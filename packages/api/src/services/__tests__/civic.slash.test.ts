@@ -199,9 +199,6 @@ async function ledger(userId: string, actionType: string): Promise<Array<{ point
 
 beforeAll(async () => {
   await connectPostgres();
-  // `award` resolves points from a rule row, so the civic rules have to exist
-  // before any slash can be recorded. Idempotent by `action_type`.
-  await reputationService.seedDefaultRules();
 });
 
 afterAll(async () => {

@@ -1,4 +1,4 @@
-import { getEquivalentUserIds } from './externalIdentityRegistry.service';
+import { expandEquivalentUserIds, getEquivalentUserIds } from './externalIdentityRegistry.service';
 /**
  * The ONE place a follow relationship changes.
  *
@@ -34,10 +34,10 @@ import { getEquivalentUserIds } from './externalIdentityRegistry.service';
  */
 
 import { and, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { followApplicationOverrides } from '../db/schema/followApplicationOverrides';
 import { followEvents, type FollowEventCause, type FollowEventType } from '../db/schema/followEvents';
-import { followRelationships } from '../db/schema/followRelationships';
+import { followRelationships, type FOLLOW_SOURCES } from '../db/schema/followRelationships';
 import { followTargets } from '../db/schema/followTargets';
 import { userFollows } from '../db/schema/userFollows';
 import { blocks } from '../db/schema/blocks';
@@ -734,4 +734,208 @@ export async function invalidateMovedFollowerCaches(
   const ids = new Set([input.fromUserId, input.toUserId, ...moved.moved, ...moved.alreadyFollowing, ...moved.skippedBlocked]);
   await Promise.all([...ids].map((id) => graphCache.invalidate(id)));
   for (const id of ids) userCache.invalidate(id, 'graph');
+}
+
+// =============================================================================
+// ACCOUNT FOLLOWS — the user-to-user graph behind the account routes
+// =============================================================================
+
+type FollowSource = (typeof FOLLOW_SOURCES)[number];
+
+/** The canonical follow target URI of an Oxy account. */
+export function accountTargetUri(userId: string): string {
+  return `https://oxy.so/users/${userId}`;
+}
+
+/**
+ * The `oxy.user` follow target of each account, created the way `ensureTarget`
+ * would when missing. Keyed by the account id.
+ */
+async function ensureAccountTargets(
+  tx: Tx,
+  userIds: readonly string[],
+): Promise<Map<string, { id: string; canonicalUri: string; kind: string }>> {
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return new Map();
+  await tx
+    .insert(followTargets)
+    .values(ids.map((id) => ({ canonicalUri: accountTargetUri(id), kind: 'oxy.user', localUserId: id })))
+    .onConflictDoNothing();
+  const rows = await tx
+    .select({ id: followTargets.id, canonicalUri: followTargets.canonicalUri, kind: followTargets.kind, localUserId: followTargets.localUserId })
+    .from(followTargets)
+    .where(inArray(followTargets.localUserId, ids));
+  return new Map(rows.map((row) => [row.localUserId as string, row]));
+}
+
+/**
+ * Follow Oxy accounts on the user's own behalf — the account routes
+ * (`POST /users/:id/follow`, the bulk follow), an MCP connection, and the
+ * federation bridge.
+ *
+ * The same one-transaction write as {@link followTarget}: the relationship on
+ * each account's `oxy.user` target, the `user_follows` projection, and a
+ * `follow.created` event per relationship this call created. No application
+ * delegated the action, so the relationship carries no origin application and
+ * no grant — the user acted directly.
+ *
+ * Callers decide WHICH accounts are followed (existence, self-follow, blocks,
+ * "already following" across equivalent identities); this writes them.
+ *
+ * @returns The account ids whose `user_follows` edge this call created.
+ */
+export async function followAccounts(input: {
+  followerId: string;
+  followedIds: readonly string[];
+  cause?: FollowEventCause;
+  source?: FollowSource;
+}): Promise<{ created: string[] }> {
+  const { followerId } = input;
+  const followedIds = [...new Set(input.followedIds)].filter((id) => id !== followerId);
+  if (followedIds.length === 0) return { created: [] };
+  const at = new Date();
+  const actor = { userId: followerId, applicationId: null, grantId: null };
+
+  const created = await getDb().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'follow:' + followerId}))`);
+    const targets = await ensureAccountTargets(tx, followedIds);
+    const targetById = new Map([...targets.values()].map((target) => [target.id, target]));
+
+    const relationships = await tx
+      .insert(followRelationships)
+      .values([...targets.values()].map((target) => ({
+        followerUserId: followerId,
+        followTargetId: target.id,
+        state: 'active' as const,
+        source: input.source ?? 'app',
+      })))
+      .onConflictDoNothing({ target: [followRelationships.followerUserId, followRelationships.followTargetId] })
+      .returning({ id: followRelationships.id, followTargetId: followRelationships.followTargetId });
+
+    const edges = await tx
+      .insert(userFollows)
+      .values(followedIds.map((followedId) => ({ followerId, followedId })))
+      .onConflictDoNothing()
+      .returning({ followedId: userFollows.followedId });
+
+    for (const relationship of relationships) {
+      const target = targetById.get(relationship.followTargetId);
+      if (!target) continue;
+      await emit(tx, {
+        type: 'follow.created',
+        cause: input.cause ?? 'user_action',
+        capability: actor,
+        relationshipId: relationship.id,
+        targetUri: target.canonicalUri,
+        targetKind: target.kind,
+        at,
+      });
+    }
+
+    return edges.map((edge) => edge.followedId);
+  });
+
+  if (created.length > 0) {
+    await Promise.all([graphCache.invalidate(followerId), ...created.map((id) => graphCache.invalidate(id))]);
+    userCache.invalidate(followerId, 'graph');
+    for (const id of created) userCache.invalidate(id, 'graph');
+  }
+
+  return { created };
+}
+
+/**
+ * Unfollow Oxy accounts on the user's own behalf — the inverse of
+ * {@link followAccounts}, across every equivalent identity of both sides (as
+ * the account graph reads them).
+ *
+ * Removes the relationships with a `follow.removed` event each, and the
+ * `user_follows` projection, in one transaction.
+ *
+ * @returns The account ids whose `user_follows` edge this call removed.
+ */
+export async function unfollowAccounts(input: {
+  followerId: string;
+  followedIds: readonly string[];
+  cause?: FollowEventCause;
+}): Promise<{ removed: string[] }> {
+  const { followerId } = input;
+  const followedIds = [...new Set(input.followedIds)].filter((id) => id !== followerId);
+  if (followedIds.length === 0) return { removed: [] };
+  const at = new Date();
+  const actor = { userId: followerId, applicationId: null, grantId: null };
+
+  const removed = await getDb().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'follow:' + followerId}))`);
+    const followerIds = await getEquivalentUserIds(followerId, tx);
+    const accountIds = await expandEquivalentUserIds(followedIds, tx);
+
+    const relationships = await tx
+      .select({ id: followRelationships.id, canonicalUri: followTargets.canonicalUri, kind: followTargets.kind })
+      .from(followRelationships)
+      .innerJoin(followTargets, eq(followTargets.id, followRelationships.followTargetId))
+      .where(and(inArray(followRelationships.followerUserId, followerIds), inArray(followTargets.localUserId, accountIds)));
+    for (const relationship of relationships) {
+      await emit(tx, {
+        type: 'follow.removed',
+        cause: input.cause ?? 'user_action',
+        capability: actor,
+        relationshipId: relationship.id,
+        targetUri: relationship.canonicalUri,
+        targetKind: relationship.kind,
+        at,
+      });
+    }
+    if (relationships.length > 0) {
+      await tx.delete(followRelationships).where(inArray(followRelationships.id, relationships.map((row) => row.id)));
+    }
+
+    const edges = await tx
+      .delete(userFollows)
+      .where(and(inArray(userFollows.followerId, followerIds), inArray(userFollows.followedId, accountIds)))
+      .returning({ followedId: userFollows.followedId });
+    return edges.map((edge) => edge.followedId);
+  });
+
+  if (removed.length > 0) {
+    await Promise.all([graphCache.invalidate(followerId), ...removed.map((id) => graphCache.invalidate(id))]);
+    userCache.invalidate(followerId, 'graph');
+    for (const id of removed) userCache.invalidate(id, 'graph');
+  }
+
+  return { removed };
+}
+
+/**
+ * Remove every follow relationship touching an account — the ones it holds and
+ * the ones on its `oxy.user` target — with a `follow.removed` event each
+ * (`reconciliation`: the platform tearing the account's graph down, not a
+ * decision by either side). Runs in the caller's transaction; the caller owns
+ * the `user_follows` projection and cache invalidation.
+ */
+export async function removeAccountRelationships(db: DatabaseOrTransaction, userId: string): Promise<void> {
+  const at = new Date();
+  const rows = await db
+    .select({
+      id: followRelationships.id,
+      followerUserId: followRelationships.followerUserId,
+      canonicalUri: followTargets.canonicalUri,
+      kind: followTargets.kind,
+    })
+    .from(followRelationships)
+    .innerJoin(followTargets, eq(followTargets.id, followRelationships.followTargetId))
+    .where(or(eq(followRelationships.followerUserId, userId), eq(followTargets.localUserId, userId)));
+  if (rows.length === 0) return;
+  for (const row of rows) {
+    await emit(db as Tx, {
+      type: 'follow.removed',
+      cause: 'reconciliation',
+      capability: { userId: row.followerUserId, applicationId: null, grantId: null },
+      relationshipId: row.id,
+      targetUri: row.canonicalUri,
+      targetKind: row.kind,
+      at,
+    });
+  }
+  await db.delete(followRelationships).where(inArray(followRelationships.id, rows.map((row) => row.id)));
 }

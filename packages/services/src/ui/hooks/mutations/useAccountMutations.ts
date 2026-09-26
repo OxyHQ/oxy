@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authenticatedApiCall } from '@oxy.so/core';
 import type {
+  AssetMetadata,
   AssetUploadInput,
   NotificationPreferences,
   PrivacySettings,
@@ -37,7 +38,7 @@ export const useUpdateProfile = () => {
       return authenticatedApiCall<User>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.updateProfile(updates)
+        () => oxyServices.users.updateMe(updates)
       );
     },
     // Optimistic update
@@ -134,7 +135,7 @@ export const useUploadAvatar = () => {
     mutationKey: [...mutationKeys.account.uploadAvatar],
     mutationFn: async (file: { uri: string; type?: string; name?: string; size?: number }) => {
       return authenticatedApiCall<User>(oxyServices, activeSessionId, async () => {
-        const uploadResult = await oxyServices.assetUpload(file, 'public');
+        const uploadResult = await oxyServices.assets.upload(file, { visibility: 'public' });
         const fileId = uploadResult?.file?.id;
 
         if (!fileId || typeof fileId !== 'string') {
@@ -142,7 +143,7 @@ export const useUploadAvatar = () => {
         }
 
         // Update profile with file ID
-        return await oxyServices.updateProfile({ avatar: fileId });
+        return await oxyServices.users.updateMe({ avatar: fileId });
       });
     },
     onMutate: async (file) => {
@@ -255,7 +256,7 @@ export const useUpdateAccountSettings = () => {
       const updatedPrivacy = await authenticatedApiCall<PrivacySettings>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.updatePrivacySettings(updates, userId)
+        () => oxyServices.privacy.updateSettings(updates, userId)
       );
       // Rebuild against the dispatch-time snapshot, NOT the live cache.
       // The cache may have been mutated by a sibling write between
@@ -361,7 +362,7 @@ export const useUpdatePrivacySettings = () => {
       return authenticatedApiCall<PrivacySettings>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.updatePrivacySettings(settings, targetUserId)
+        () => oxyServices.privacy.updateSettings(settings, targetUserId)
       );
     },
     // Optimistic update
@@ -532,7 +533,7 @@ export const useUpdateNotificationPreferences = () => {
       return authenticatedApiCall<User>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.updateNotificationPreferences(preferences)
+        () => oxyServices.users.updateMe({ notificationPreferences: preferences })
       );
     },
     onMutate: async (preferences) => {
@@ -590,7 +591,7 @@ export const useUpdateUserPreferences = () => {
       return authenticatedApiCall<User>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.updateUserPreferences(preferences)
+        () => oxyServices.users.updateMe({ userPreferences: preferences })
       );
     },
     onMutate: async (preferences) => {
@@ -643,7 +644,7 @@ export const useRevokeConnectedApp = () => {
     mutationKey: [...mutationKeys.connectedApps.revoke],
     mutationFn: async (applicationId: string) => {
       return authenticatedApiCall<void>(oxyServices, activeSessionId, () =>
-        oxyServices.revokeAppGrant(applicationId)
+        oxyServices.apps.connected.revoke(applicationId)
       );
     },
     onSuccess: () => {
@@ -673,13 +674,13 @@ export const useUploadFile = () => {
     }: {
       file: AssetUploadInput;
       visibility?: 'private' | 'public' | 'unlisted';
-      metadata?: Record<string, unknown>;
+      metadata?: AssetMetadata;
       onProgress?: (progress: number) => void;
     }) => {
       return authenticatedApiCall<UploadResult>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.assetUpload(file, visibility, metadata, onProgress)
+        () => oxyServices.assets.upload(file, { visibility, metadata, onProgress })
       );
     },
   });

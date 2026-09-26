@@ -56,7 +56,7 @@ export default function ReputationScreen() {
   const [tab, setTab] = useState<ReputationTab>('overview');
   const [getStartedDismissed, setGetStartedDismissed] = useState(false);
 
-  const userId = user?.id ?? oxyServices?.getCurrentUserId() ?? null;
+  const userId = user?.id ?? oxyServices?.session.userId ?? null;
   const balanceQuery = useCivicReputation(userId);
   const balance = balanceQuery.data;
   const sources = useReputationSources(balance);

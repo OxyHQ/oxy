@@ -42,7 +42,6 @@ import { REPUTATION_ATTESTATION_COLLECTION } from '../civic/attestation.service'
 import { submitRealLifeAttestation } from '../civic/realLife.service';
 import { buildUserDid } from '../did.service';
 import { getHead } from '../repoLog.service';
-import { reputationService } from '../reputation.service';
 import { signRecordEnvelope } from '../signedRecord.service';
 import {
   REAL_LIFE_ATTESTED_ACTION,
@@ -193,7 +192,6 @@ beforeAll(async () => {
   await connectPostgres();
   process.env.OXY_PRIVATE_KEY = OXY_PRIVATE;
   process.env.OXY_PUBLIC_KEY = OXY_PUBLIC;
-  await reputationService.seedDefaultRules();
 });
 
 afterAll(async () => {

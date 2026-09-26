@@ -106,8 +106,7 @@
  *   with that account's voice everywhere in the ecosystem. Spelling one as a
  *   flavour of the other would have silently handed that authority to every
  *   application already holding the smaller one, which is why the name sits in
- *   the `accounts:` family beside `accounts:provision` rather than in the
- *   `acting-as:` one.
+ *   the `accounts:` family rather than in the `acting-as:` one.
  *
  *   It authorises the CALL, never the delegation. The per-human decision is
  *   `account:act_as` on the account graph, re-read from `account_members` on
@@ -199,7 +198,6 @@ export const APPLICATION_SCOPES = [
   'capability-events:publish',
   'payments:read',
   'payments:write',
-  'accounts:provision',
   'follows:read',
   'follows:write',
   'follows:context:write',
@@ -259,11 +257,6 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   write records into any account it can name — and nothing can be unwritten.
  *   The namespace grant narrows WHAT it may write; only staff decide whether it
  *   may write at all.
- * - `accounts:provision` lets a service credential MINT a `channel` account
- *   under an arbitrary user and grant membership on one. It creates no session
- *   and writes no auth method — a channel cannot be acted as at all, which is
- *   what bounds it — but it acts on behalf of users outside the app's own
- *   tenant, so it is not self-grantable.
  * - `reputation:binding:register` lets an application assert that a named local
  *   principal is a particular Oxy user. The assertion must be backed by that
  *   user's own access token, but the scope is still privileged because a binding
@@ -308,8 +301,7 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  * - `accounts:act-as-session` mints a real, refreshable session whose subject is
  *   a managed account the calling application does not own. It is the largest
  *   authority `/internal` grants, and it reaches accounts in every tenant, so it
- *   is staff-only for the same reason `accounts:provision` is — an application
- *   owner may not decide for themselves that their app may become other people's
+ *   is staff-only — an application owner may not decide for themselves that their app may become other people's
  *   organizations and bots.
  *
  *   It is deliberately ABSENT from {@link USER_CONSENT_REQUIRED_SCOPES}, which
@@ -373,7 +365,6 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'reputation:binding:register',
   'signals:write',
   'notifications:write',
-  'accounts:provision',
   'chains:write',
   'inference:routing:write',
   'inference:providers:write',

@@ -4,11 +4,11 @@ import type { OxyServices } from '@oxy.so/core';
  * Shared image-upload helpers for Console logo / avatar widgets.
  *
  * Upload mechanism (Google-Cloud-Console style — upload only, no URL paste):
- *  1. `oxyServices.uploadRawFile(file, 'public')` uploads the raw `File`.
+ *  1. `oxyServices.assets.upload(file, { visibility: 'public' })` uploads the raw `File`.
  *  2. The upload response is `{ file: { id, mime, size, ... } }` — the id is at
  *     `response.file.id`. The response does NOT contain a ready URL.
  *  3. We derive a public, directly-renderable URL with the synchronous helper
- *     `oxyServices.getFileDownloadUrl(id)`, which for a public asset returns the
+ *     `oxyServices.assets.publicUrl(id)`, which for a public asset returns the
  *     clean CDN URL (`${cloudURL}/<id>`). That URL is token-free by construction
  *     — core never embeds the caller's bearer token in a download URL (#317) —
  *     so persisted logo/avatar metadata cannot disclose a user's access token.
@@ -54,7 +54,7 @@ export function stripSensitiveImageUrlQueryParams(value: string): string {
   }
 }
 
-/** Shape of the `uploadRawFile` response that we depend on. */
+/** Shape of the `assets.upload` response that we depend on. */
 interface RawFileUploadResponse {
   file: { id: string };
 }
@@ -104,7 +104,7 @@ export async function uploadPublicImage(
   file: File
 ): Promise<string> {
   const fileId = await uploadPublicImageFileId(oxyServices, file);
-  return stripSensitiveImageUrlQueryParams(oxyServices.getFileDownloadUrl(fileId));
+  return stripSensitiveImageUrlQueryParams(oxyServices.assets.publicUrl(fileId));
 }
 
 /**
@@ -122,7 +122,7 @@ export async function uploadPublicImageFileId(
   oxyServices: OxyServices,
   file: File
 ): Promise<string> {
-  const response = await oxyServices.uploadRawFile(file, PUBLIC_VISIBILITY);
+  const response = await oxyServices.assets.upload(file, { visibility: PUBLIC_VISIBILITY });
   if (!isRawFileUploadResponse(response)) {
     throw new Error('Upload did not return a file id');
   }
@@ -137,5 +137,5 @@ export function resolveStoredImageUrl(
 ): string | undefined {
   if (!fileId) return undefined;
   if (fileId.startsWith('http')) return fileId;
-  return oxyServices.getFileDownloadUrl(fileId, variant);
+  return oxyServices.assets.publicUrl(fileId, variant);
 }

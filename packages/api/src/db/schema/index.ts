@@ -139,8 +139,6 @@ export * from './reminders';
 export * from './repoHeads';
 export * from './reporterReputationProfiles';
 export * from './reputationBalances';
-export * from './reputationDisputes';
-export * from './reputationRules';
 export * from './reputationTransactions';
 export * from './restrictions';
 export * from './reviewerReputationProfiles';

@@ -102,7 +102,7 @@ describe('readBridgeMessage', () => {
 describe('runBrowserBridge', () => {
   it('navigates with a PKCE-bound request, joins with the verifier, and closes', async () => {
     const oxy = new OxyServices({ baseURL: 'http://test.invalid' });
-    const join = jest.spyOn(oxy, 'joinBrowserDevice').mockResolvedValue({ deviceId: 'dev-1', deviceSecret: 'app-secret' });
+    const join = jest.spyOn(oxy.devices, 'joinBrowser').mockResolvedValue({ deviceId: 'dev-1', deviceSecret: 'app-secret' });
     const popup = fakePopup();
 
     const result = runBrowserBridge({ popup, bridgeOrigin: AUTH, oxyServices: oxy, clientId: 'oxy_dk_1', redirectUri: APP });
@@ -129,7 +129,7 @@ describe('runBrowserBridge', () => {
 
   it('reports a bridge error, a closed window and a timeout, closing the window each time', async () => {
     const oxy = new OxyServices({ baseURL: 'http://test.invalid' });
-    const join = jest.spyOn(oxy, 'joinBrowserDevice');
+    const join = jest.spyOn(oxy.devices, 'joinBrowser');
 
     let popup = fakePopup();
     let result = runBrowserBridge({ popup, bridgeOrigin: AUTH, oxyServices: oxy, clientId: 'c', redirectUri: APP });
@@ -155,7 +155,7 @@ describe('runBrowserBridge', () => {
 
   it('a failed join is a failed bridge, never a thrown error', async () => {
     const oxy = new OxyServices({ baseURL: 'http://test.invalid' });
-    jest.spyOn(oxy, 'joinBrowserDevice').mockRejectedValue(new Error('invalid_grant'));
+    jest.spyOn(oxy.devices, 'joinBrowser').mockRejectedValue(new Error('invalid_grant'));
     const popup = fakePopup();
     const result = runBrowserBridge({ popup, bridgeOrigin: AUTH, oxyServices: oxy, clientId: 'c', redirectUri: APP });
     const state = (await navigated(popup)).searchParams.get('state');

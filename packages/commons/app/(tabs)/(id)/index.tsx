@@ -104,7 +104,7 @@ export default function IdScreen() {
     };
   }, [getPublicKey]);
 
-  const userId = user?.id ?? oxyServices?.getCurrentUserId() ?? null;
+  const userId = user?.id ?? oxyServices?.session.userId ?? null;
   const did = useMemo(() => (userId ? buildUserDid(userId) : null), [userId]);
 
   // The Oxy ID QR payload (DID-only). Requires an authenticated session; guarded
@@ -112,7 +112,7 @@ export default function IdScreen() {
   const qrPayload = useMemo(() => {
     if (!oxyServices) return null;
     try {
-      return oxyServices.getMyIdPayload();
+      return oxyServices.civic.idPayload();
     } catch {
       return null;
     }

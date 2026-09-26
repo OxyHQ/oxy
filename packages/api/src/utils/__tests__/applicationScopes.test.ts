@@ -96,22 +96,6 @@ describe('scope classification helpers', () => {
     expect(isPrivilegedScope('signals:write')).toBe(true);
   });
 
-  /**
-   * `accounts:provision` mints accounts under, and grants membership to, users
-   * OTHER THAN the caller — an application acting for someone it names, with no
-   * bearer of theirs involved. That is authority beyond the app's own tenant, so
-   * it must never become self-grantable by an ordinary app owner.
-   *
-   * Deliberately argued from what the scope DOES, not from it being the only way
-   * to create a channel: a user creating one under their own account with their
-   * own bearer needs no scope at all, and pinning the rationale to that would
-   * make this comment false the moment that route changes.
-   */
-  it('recognises accounts:provision as a valid privileged scope', () => {
-    expect(isValidApplicationScope('accounts:provision')).toBe(true);
-    expect(isPrivilegedScope('accounts:provision')).toBe(true);
-  });
-
   it('treats a plain read scope as valid but not privileged', () => {
     expect(isValidApplicationScope('files:read')).toBe(true);
     expect(isPrivilegedScope('files:read')).toBe(false);

@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { toast } from '@oxy.so/bloom/toast';
@@ -16,6 +17,8 @@ import { useSettingToggles } from '../hooks/useSettingToggle';
 import type { BlockedUser, RestrictedUser } from '@oxy.so/core';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useOxy } from '../context/OxyContext';
+import { usePrivacySettings } from '../hooks/queries/useAccountQueries';
+import { queryKeys } from '../hooks/queries/queryKeys';
 
 interface PrivacySettings {
     isPrivateAccount: boolean;
@@ -72,83 +75,64 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
 
     useSurfaceHeader({ title: t('privacySettings.title') || 'Privacy Settings' });
     const bloomTheme = useTheme();
-    const [isLoading, setIsLoading] = useState(true);
-    const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
-    const [restrictedUsers, setRestrictedUsers] = useState<RestrictedUser[]>([]);
-    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+    const queryClient = useQueryClient();
 
     // Use the existing useSettingToggles hook for toggle management
     const { values: settings, toggle, savingKeys, setValues } = useSettingToggles<PrivacySettings>({
         initialValues: DEFAULT_PRIVACY_SETTINGS,
         onSave: async (key, value) => {
             if (!user?.id || !oxyServices) return;
-            await oxyServices.updatePrivacySettings({ [key]: value }, user.id);
+            await oxyServices.privacy.updateSettings({ [key]: value }, user.id);
         },
         errorMessage: t('privacySettings.updateError') || 'Failed to update privacy setting',
     });
 
     const isSaving = savingKeys.size > 0;
 
-    // Load settings
+    // Settings and the block/restrict lists come from React Query, keyed on the
+    // active account — switching accounts reads that account's lists.
+    const settingsQuery = usePrivacySettings(user?.id);
+    const isLoading = Boolean(user?.id) && settingsQuery.isPending;
     useEffect(() => {
-        const loadSettings = async () => {
-            try {
-                setIsLoading(true);
-                if (user?.id && oxyServices) {
-                    const privacySettings = await oxyServices.getPrivacySettings(user.id);
-                    if (privacySettings) {
-                        setValues(privacySettings);
-                    }
-                }
-            } catch (error) {
-                if (__DEV__) {
-                    console.error('Failed to load privacy settings:', error);
-                }
-                toast.error(t('privacySettings.loadError') || 'Failed to load privacy settings');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        loadSettings();
-    }, [user?.id, oxyServices, t, setValues]);
-
-    // Load blocked and restricted users
-    // biome-ignore lint/correctness/useExhaustiveDependencies: reload when active account switches
+        if (settingsQuery.data) setValues(settingsQuery.data);
+    }, [settingsQuery.data, setValues]);
     useEffect(() => {
-        const loadUsers = async () => {
-            if (!oxyServices) return;
-            try {
-                setIsLoadingUsers(true);
-                const [blocked, restricted] = await Promise.all([
-                    oxyServices.getBlockedUsers(),
-                    oxyServices.getRestrictedUsers(),
-                ]);
-                setBlockedUsers(blocked);
-                setRestrictedUsers(restricted);
-            } catch (error) {
-                if (__DEV__) {
-                    console.error('Failed to load blocked/restricted users:', error);
-                }
-            } finally {
-                setIsLoadingUsers(false);
-            }
-        };
+        if (settingsQuery.error) {
+            toast.error(t('privacySettings.loadError') || 'Failed to load privacy settings');
+        }
+    }, [settingsQuery.error, t]);
 
-        loadUsers();
-        // Re-load when the active account changes so the block/restrict lists
-        // reflect the account currently switched into (they resolve from the
-        // active session, which IS that account).
-    }, [oxyServices, user?.id]);
+    const listsKey = useMemo(() => queryKeys.privacy.lists(user?.id), [user?.id]);
+    const listsQuery = useQuery({
+        queryKey: listsKey,
+        enabled: Boolean(oxyServices),
+        queryFn: async () => {
+            const [blocked, restricted] = await Promise.all([
+                oxyServices.privacy.blocked(),
+                oxyServices.privacy.restricted(),
+            ]);
+            return { blocked, restricted };
+        },
+    });
+    const blockedUsers: BlockedUser[] = listsQuery.data?.blocked ?? [];
+    const restrictedUsers: RestrictedUser[] = listsQuery.data?.restricted ?? [];
+    const isLoadingUsers = listsQuery.isPending;
+
+    const removeFromLists = useCallback((userId: string, list: 'blocked' | 'restricted') => {
+        queryClient.setQueryData<{ blocked: BlockedUser[]; restricted: RestrictedUser[] }>(listsKey, (prev) => {
+            if (!prev) return prev;
+            if (list === 'blocked') {
+                return { ...prev, blocked: prev.blocked.filter((u) => (typeof u.blockedId === 'string' ? u.blockedId : u.blockedId._id) !== userId) };
+            }
+            return { ...prev, restricted: prev.restricted.filter((u) => (typeof u.restrictedId === 'string' ? u.restrictedId : u.restrictedId._id) !== userId) };
+        });
+    }, [queryClient, listsKey]);
 
     const handleUnblock = useCallback(async (userId: string) => {
         if (!oxyServices) return;
         try {
-            await oxyServices.unblockUser(userId);
-            setBlockedUsers(prev => prev.filter(u => {
-                const id = typeof u.blockedId === 'string' ? u.blockedId : u.blockedId._id;
-                return id !== userId;
-            }));
+            await oxyServices.privacy.unblock(userId);
+            removeFromLists(userId, 'blocked');
             toast.success(t('privacySettings.userUnblocked') || 'User unblocked');
         } catch (error) {
             if (__DEV__) {
@@ -156,16 +140,13 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
             }
             toast.error(t('privacySettings.unblockError') || 'Failed to unblock user');
         }
-    }, [oxyServices, t]);
+    }, [oxyServices, t, removeFromLists]);
 
     const handleUnrestrict = useCallback(async (userId: string) => {
         if (!oxyServices) return;
         try {
-            await oxyServices.unrestrictUser(userId);
-            setRestrictedUsers(prev => prev.filter(u => {
-                const id = typeof u.restrictedId === 'string' ? u.restrictedId : u.restrictedId._id;
-                return id !== userId;
-            }));
+            await oxyServices.privacy.unrestrict(userId);
+            removeFromLists(userId, 'restricted');
             toast.success(t('privacySettings.userUnrestricted') || 'User unrestricted');
         } catch (error) {
             if (__DEV__) {
@@ -173,7 +154,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
             }
             toast.error(t('privacySettings.unrestrictError') || 'Failed to unrestrict user');
         }
-    }, [oxyServices, t]);
+    }, [oxyServices, t, removeFromLists]);
 
     // Helper to extract user info from blocked/restricted objects.
     const extractUserInfo = useCallback((
@@ -359,7 +340,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                         ) : (
                             blockedUsers.map((blocked) => {
                                 const { userId, displayName, avatar } = extractUserInfo(blocked, 'blockedId');
-                                const avatarUri = avatar && oxyServices ? oxyServices.getFileDownloadUrl(avatar, 'thumb') : undefined;
+                                const avatarUri = avatar && oxyServices ? oxyServices.assets.publicUrl(avatar, 'thumb') : undefined;
                                 return (
                                     <SettingsListItem
                                         key={userId}
@@ -392,7 +373,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                         ) : (
                             restrictedUsers.map((restricted) => {
                                 const { userId, displayName, avatar } = extractUserInfo(restricted, 'restrictedId');
-                                const avatarUri = avatar && oxyServices ? oxyServices.getFileDownloadUrl(avatar, 'thumb') : undefined;
+                                const avatarUri = avatar && oxyServices ? oxyServices.assets.publicUrl(avatar, 'thumb') : undefined;
                                 return (
                                     <SettingsListItem
                                         key={userId}

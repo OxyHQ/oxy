@@ -22,7 +22,7 @@
 import { mock } from "bun:test"
 import { getCommonsApprovalBlockingReason } from "../../../core/src/utils/commonsApproval"
 import { getNormalizedUserHandle } from "../../../core/src/utils/userHandle"
-import { translate } from "../../../core/src/i18n"
+import { getLocalesVersion, subscribeLocales, translate } from "../../../core/src/i18n"
 import { selectCommonsDelivery } from "../../../core/src/utils/commonsDelivery"
 import { createWebAuthStateStore } from "../../../core/src/session/authStateStore"
 
@@ -30,9 +30,15 @@ mock.module("@oxy.so/core", () => ({
     getNormalizedUserHandle,
     getCommonsApprovalBlockingReason,
     translate,
+    // The translation hook re-renders when a lazily loaded dictionary lands.
+    subscribeLocales,
+    getLocalesVersion,
     // The shared "one primary delivery route" decision the OAuth-bound Commons
     // lane (`lib/commons-oauth-request.ts`) reuses rather than re-deciding.
     selectCommonsDelivery,
+}))
+
+mock.module("@oxy.so/core/session", () => ({
     // The bridge page's credential store — the SAME one this origin's provider
     // uses (`src/bridge.ts`, ADR 0029 D2).
     createWebAuthStateStore,

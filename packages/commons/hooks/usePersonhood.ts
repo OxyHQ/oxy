@@ -1,9 +1,9 @@
 /**
  * React Query wrappers around a user's proof-of-personhood status (Fase 3).
  *
- * `oxyServices.getPersonhood(userId)` returns the public, recomputable
+ * `oxyServices.civic.personhood(userId)` returns the public, recomputable
  * personhood snapshot (`{ score, isRealPerson, vouchCount, realLifeCount,
- * biometricBound, sybilPenalty, breakdown }`); `getMyPersonhood()` is the same
+ * biometricBound, sybilPenalty, breakdown }`); `civic.personhood()` is the same
  * read for the authenticated user. Both are wrapped here so the personhood
  * status screen and the scanned-card badge get the same offline-first behaviour
  * as `useCivicCard` / `useCivicReputation`: a previously-resolved snapshot is
@@ -47,7 +47,7 @@ export function usePersonhood(
       if (!userId) {
         throw new Error('No user id to resolve personhood for');
       }
-      return oxyServices.getPersonhood(userId);
+      return oxyServices.civic.personhood(userId);
     },
     enabled: Boolean(oxyServices) && Boolean(userId),
     staleTime: PERSONHOOD_STALE_TIME_MS,
@@ -58,13 +58,13 @@ export function usePersonhood(
 /**
  * Query the CURRENT user's personhood status (the "Proof of personhood" screen).
  *
- * Resolves through the dedicated `getMyPersonhood()` SDK method (which derives
+ * Resolves through the dedicated `civic.personhood()` SDK method (which derives
  * the subject id from the session) and keys the result by the current user id so
  * it shares the cache with `usePersonhood(myId)`.
  */
 export function useMyPersonhood(): UseQueryResult<PersonhoodStatusResult> {
   const { user, oxyServices } = useOxy();
-  const userId = user?.id ?? oxyServices?.getCurrentUserId() ?? null;
+  const userId = user?.id ?? oxyServices?.session.userId ?? null;
 
   return useQuery<PersonhoodStatusResult>({
     queryKey: personhoodQueryKey(userId),
@@ -72,7 +72,7 @@ export function useMyPersonhood(): UseQueryResult<PersonhoodStatusResult> {
       if (!oxyServices) {
         throw new Error('OxyServices not initialized');
       }
-      return oxyServices.getMyPersonhood();
+      return oxyServices.civic.personhood();
     },
     enabled: Boolean(oxyServices) && Boolean(userId),
     staleTime: PERSONHOOD_STALE_TIME_MS,

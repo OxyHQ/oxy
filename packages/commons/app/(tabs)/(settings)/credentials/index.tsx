@@ -46,7 +46,7 @@ function formatMs(ms: number | undefined): string {
 /**
  * "My credentials" — the verifiable credentials the current user holds.
  *
- * Reads the holder list via `listMyCredentials()` (offline-first, like the other
+ * Reads the holder list via `civic.credentials.list()` (offline-first, like the other
  * civic surfaces). Each credential is a flat, hairline-separated row: the
  * specific type, a preview of the signed claims, a compact issuer reference + the
  * issued date, and a status pill (active / revoked / expired). Tapping a row

@@ -200,7 +200,7 @@ evidence that it is deployed (§4.1).
 | Account kind vocabulary (`personal`/`organization`/`project`/`bot`/`channel`) | Oxy | OxyHQServices `packages/contracts/src/accountGraph.ts:35` | exists |
 | Account membership and roles (`account_members`) | Oxy | OxyHQServices `packages/api/src/db/schema/accountMembers.ts:68` | exists |
 | Effective-access resolution (caller → effective account role) | Oxy | OxyHQServices `packages/api/src/services/account.service.ts:724` | exists |
-| Account graph client surface | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.accounts.ts` | exists |
+| Account graph client surface | Oxy | OxyHQServices `packages/core/src/api/accounts.ts` | exists |
 | `applications` (`owner_account_id`) | Oxy | OxyHQServices `packages/api/src/db/schema/applications.ts:172` | exists |
 | Application access derived from owning account, no per-app member table | Oxy | OxyHQServices `packages/api/src/routes/applications.ts:72-79` | exists |
 | `application_credentials` (public key, secret hash, rotation grace, lineage) | Oxy | OxyHQServices `packages/api/src/db/schema/applicationCredentials.ts:55,71,87,102` | exists |
@@ -273,8 +273,8 @@ appears beside `application_credentials`.
 | `POST /auth/service-token` (client credentials → 1h service JWT) | Oxy | OxyHQServices `packages/api/src/routes/auth.ts:3663` | exists |
 | Service-token claims: `appId`, `appName`, `credentialId`, `scopes`, `environment` | Oxy | OxyHQServices `packages/api/src/routes/auth.ts:3663-3673` | exists |
 | Service-token claims: `ownerAccountId`, effective scopes envelope | Oxy | OxyHQServices `packages/api/src/routes/auth.ts:3688` (`ownerAccountId`), `:3680-3681` (scopes intersected into the claim) | exists |
-| Delegated end-user header `X-Oxy-User-Id` | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.auth.ts:734`, `OxyServices.utility.ts:514` | exists |
-| Service-token verification (signature required) | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.utility.ts` | exists |
+| Delegated end-user header `X-Oxy-User-Id` | Oxy | OxyHQServices `packages/core/src/server/OxyServer.ts` (`serviceRequest` `actAs`), `server/middleware.ts` | exists |
+| Service-token verification (signature required) | Oxy | OxyHQServices `packages/core/src/server/middleware.ts` | exists |
 | Shared-secret vs asymmetric/JWKS cross-repo verification decision | Oxy | OxyHQServices `docs/adr/0012-service-token-signing-key-model.md` | exists and is DONE: asymmetric signing with a published JWKS, accepted 2026-08-16; production has signed EdDSA since 2026-09-17, and HS256 issuance and verification were removed on 2026-09-25 (#877) |
 | `APPLICATION_SCOPES` vocabulary | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts:61` | exists |
 | `chat:completions`, `models:read` scopes | Oxy | dropped by `packages/api/drizzle/0031_inference_scope_family.sql`, which rewrote every stored row to a successor | removed — **not aliased**, deliberately: neither name was ever read by any middleware, route or service, so an alias would have been a second way to spell a no-op (`packages/api/src/utils/applicationScopes.ts:41-46`) |
@@ -783,8 +783,8 @@ workstreams 0–12 may block on it.
 |---|---|---|---|
 | `@oxy.so/core` client SDK | Oxy | OxyHQServices `packages/core` | exists |
 | Typed inference methods on `@oxy.so/core` | Oxy | OxyHQServices `packages/core/src/inference/OxyInferenceClient.ts` | catalogue reads, `respond()`, `getGeneration()` and typed `stream()` are merged; #1145 published the streaming client in `@oxy.so/core@23.1.0`. Package publication is not evidence that the live Kaana route is enabled |
-| Machine-credential lifetime and rotation-grace options on the SDK | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.accounts.ts` | exists — `createAppCredential({expiresInSeconds})` and `rotateAppCredential(…, {graceSeconds})`; the API accepted both since epic §2.3, the SDK could not send either |
-| TypeScript SDK surface accepting both Oxy auth and OpenAI-style keys | Oxy | OxyHQServices `packages/core/src/inference/OxyInferenceClient.ts`, `packages/core/src/mixins/OxyServices.inference.ts` | exists — one client, one `credential` that is a static `oxy_sk_*` string or a function returning an Oxy bearer. `oxyServices.inference()` binds the session lane; the mixin declares no request of its own, so there is one spelling of each call. `packages/api/src/schemas/__tests__/sdkRequestCompatibility.test.ts` fails the build if the request type and the edge schema drift |
+| Machine-credential lifetime and rotation-grace options on the SDK | Oxy | OxyHQServices `packages/core/src/api/apps.ts` (`apps.credentials.*`) | exists — `createAppCredential({expiresInSeconds})` and `rotateAppCredential(…, {graceSeconds})`; the API accepted both since epic §2.3, the SDK could not send either |
+| TypeScript SDK surface accepting both Oxy auth and OpenAI-style keys | Oxy | OxyHQServices `packages/core/src/inference/OxyInferenceClient.ts`, `packages/core/src/inference/index.ts` | exists — one client, one `credential` that is a static `oxy_sk_*` string or a function returning an Oxy bearer. `createInferenceClient(oxy)` (`@oxy.so/core/inference`) binds the session lane; it declares no request of its own, so there is one spelling of each call. `packages/api/src/schemas/__tests__/sdkRequestCompatibility.test.ts` fails the build if the request type and the edge schema drift |
 | Official Python SDK or generated client | Oxy | new repo | deliberately not started; the HTTP surface is usable with a stock OpenAI client when its live Kaana rollout gate is enabled. Reasoning in `docs/inference/sdk.md` |
 | `docs/SERVICE_TOKENS.md` (native service-token flow) | Oxy | OxyHQServices `docs/SERVICE_TOKENS.md` | exists |
 | Console authentication page (documents `oxy_dk_*` as the public client id, and names the two mechanisms that do authenticate) | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/authentication.tsx` | exists — corrected in epic §2.1; the bearer-secret framing it used to carry is gone |

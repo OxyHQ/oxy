@@ -13,9 +13,8 @@ export interface SessionValidationResult {
   session: CachedSession;
   /**
    * The authenticated account, as `userService.readAccountDocument` builds it —
-   * the SAME serializer `GET /users/me/data` and `PUT /users/resolve` return,
-   * so `req.user` and those responses can never describe the same account
-   * differently.
+   * the SAME serializer `PUT /users/resolve` returns, so `req.user` and that
+   * response can never describe the same account differently.
    *
    * It carries `_id` (the account id) beside `id`, which is the documented
    * contract (`@oxy.so/contracts` `resolveUserId` = `user.id ?? user._id`). See

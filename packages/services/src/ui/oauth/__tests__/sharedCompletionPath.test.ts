@@ -42,12 +42,12 @@ function makeContext(mode: 'popup' | 'redirect'): WebOAuthTransportContext & {
   const exchangeOAuthCode = jest.fn();
   return {
     mode,
-    oxyServices: { exchangeOAuthCode } as unknown as OxyServices,
+    oxyServices: { auth: { oauth: { exchangeCode: exchangeOAuthCode } } } as unknown as OxyServices,
     clientId: CLIENT_ID,
     authorizeBaseUrl: `${IDP_ORIGIN}/authorize`,
     identityBound: false,
     commitSession: jest.fn().mockResolvedValue(undefined),
-    exchangeOAuthCode,
+    auth: { oauth: { exchangeCode: exchangeOAuthCode } },
   };
 }
 
@@ -97,12 +97,12 @@ describe('shared OAuth completion path', () => {
     // Nothing was persisted, so there is nothing for this lane to clean up.
     expect(input.cleanup).toBeUndefined();
     // The transport never exchanges the code itself.
-    expect(context.exchangeOAuthCode).not.toHaveBeenCalled();
+    expect(context.auth.oauth.exchangeCode).not.toHaveBeenCalled();
   });
 
   it('the redirect return leg completes through completeOAuthCode with the persisted handshake', async () => {
     const exchangeOAuthCode = jest.fn();
-    const oxyServices = { exchangeOAuthCode } as unknown as OxyServices;
+    const oxyServices = { auth: { oauth: { exchangeCode: exchangeOAuthCode } } } as unknown as OxyServices;
     sessionStorage.setItem(OXY_OAUTH_STATE_STORAGE_KEY, 'state-from-storage');
     sessionStorage.setItem(OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY, 'verifier-from-storage');
     window.history.replaceState({}, '', '/feed?code=code-2&state=state-from-storage');
@@ -139,7 +139,7 @@ describe('shared OAuth completion path', () => {
 
     await expect(
       tryCompleteOAuthReturn({
-        oxyServices: { exchangeOAuthCode: jest.fn() } as unknown as OxyServices,
+        oxyServices: { auth: { oauth: { exchangeCode: jest.fn() } } } as unknown as OxyServices,
         clientId: CLIENT_ID,
         commitSession: jest.fn().mockResolvedValue(undefined),
       }),
@@ -151,7 +151,7 @@ describe('shared OAuth completion path', () => {
 
     await expect(
       tryCompleteOAuthReturn({
-        oxyServices: { exchangeOAuthCode: jest.fn() } as unknown as OxyServices,
+        oxyServices: { auth: { oauth: { exchangeCode: jest.fn() } } } as unknown as OxyServices,
         clientId: null,
         commitSession: jest.fn().mockResolvedValue(undefined),
       }),
@@ -164,7 +164,7 @@ describe('shared OAuth completion path', () => {
 
     await expect(
       tryCompleteOAuthReturn({
-        oxyServices: { exchangeOAuthCode: jest.fn() } as unknown as OxyServices,
+        oxyServices: { auth: { oauth: { exchangeCode: jest.fn() } } } as unknown as OxyServices,
         clientId: CLIENT_ID,
         commitSession: jest.fn().mockResolvedValue(undefined),
       }),

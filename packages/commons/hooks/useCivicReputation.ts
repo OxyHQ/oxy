@@ -47,7 +47,7 @@ export function useCivicReputation(
       if (!oxyServices) {
         throw new Error('OxyServices not initialized');
       }
-      return oxyServices.getMyReputationBalance();
+      return oxyServices.reputation.balance();
     },
     enabled: Boolean(oxyServices) && Boolean(userId),
     staleTime: BALANCE_STALE_TIME_MS,

@@ -12,7 +12,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { useTranslation } from '@/lib/i18n';
 import type { AccountNode } from '@oxy.so/core';
-import { getAccountDisplayName, getNormalizedUserHandle, canSwitchIntoAccount } from '@oxy.so/core';
+import { getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
+import { canSwitchIntoAccount } from '@oxy.so/core/session';
 import { useAccountRowBuilder } from '@/components/managed-accounts/account-row';
 import { useManagedAccountGroups } from '@/hooks/managed-accounts/useManagedAccountGroups';
 
@@ -109,7 +110,7 @@ export default function ManagedAccountsScreen() {
           onPress: async () => {
             try {
               setArchivingId(node.accountId);
-              await oxyServices.archiveAccount(node.accountId);
+              await oxyServices.accounts.archive(node.accountId);
               await refreshAccounts();
             } catch (error) {
               console.error('Failed to archive account', error);

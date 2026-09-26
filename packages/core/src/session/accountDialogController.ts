@@ -20,8 +20,8 @@
  *     account` pair) and the two removals an account id cannot name —
  *     `signOutContext` and `signOutPrincipal`;
  *   - the "Sign in with Oxy" device flow (same-device shared-keychain via
- *     `oxyServices.signInWithSharedIdentity`, else the cross-device QR handoff
- *     via `startCommonsSignIn` → poll → `claimSessionByToken`);
+ *     `oxy.auth.signInWithSharedIdentity`, else the cross-device QR handoff
+ *     via `oxy.auth.commons.start` → poll → `oxy.auth.claimSession`);
  *   - AUTOMATIC delivery selection for that flow (issue #691): the user presses
  *     ONE primary action and the controller — not the user — picks how the
  *     request reaches their Commons identity, by gathering the facts
@@ -59,7 +59,7 @@ import { extractErrorStatus } from '../utils/errorUtils';
 import type { SessionClient } from './SessionClient';
 import { getSocketIO, type MinimalSocket, type SocketIOFactory } from './socketLoader';
 import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
-import type { CommonsSignInHandle } from '../mixins/OxyServices.auth';
+import type { CommonsSignInHandle } from '../api/auth';
 import {
   pushTargetsFromDelivery,
   selectCommonsDelivery,
@@ -606,9 +606,9 @@ export class AccountDialogController {
     // has returned; `ensureActiveToken` plants it async later), so the
     // device-state subscription alone cannot observe the signed-out → signed-in
     // edge. Observe the SDK-canonical readiness signal directly — a change to
-    // `oxyServices.getAccessToken()`, the `hasAccessToken` term of
+    // `oxy.session.accessToken`, the `hasAccessToken` term of
     // `OxyContext.canUsePrivateApi`.
-    this.unsubscribeTokens = this.oxyServices.onTokensChanged(() => {
+    this.unsubscribeTokens = this.oxyServices.session.onChange(() => {
       this.reconcileAuth();
     });
     // Initial projection is device-only. `refresh()` fetches the graph IFF a
@@ -652,7 +652,7 @@ export class AccountDialogController {
    * Whether a PRIVATE endpoint may be called right now. Mirrors the
    * `hasAccessToken` term of `OxyContext.canUsePrivateApi`
    * (`authResolved && isAuthenticated && tokenReady && hasAccessToken`, where
-   * `hasAccessToken = Boolean(oxyServices.getAccessToken())`): a planted bearer
+   * `hasAccessToken = Boolean(oxy.session.accessToken)`): a planted bearer
    * is the only term that decides whether a request carries auth — the other
    * three are provider render-lifecycle gates with no headless equivalent.
    *
@@ -663,7 +663,7 @@ export class AccountDialogController {
    * on this.
    */
   private isAuthenticated(): boolean {
-    return Boolean(this.oxyServices.getAccessToken());
+    return Boolean(this.oxyServices.session.accessToken);
   }
 
   /**
@@ -1030,7 +1030,7 @@ export class AccountDialogController {
     try {
       // Minted WITHOUT planting the bearer: `completeSignIn` installs it only if
       // this attempt is still the current one when the mint returns.
-      const session = await this.oxyServices.signInWithSharedIdentity({ plantTokens: false });
+      const session = await this.oxyServices.auth.signInWithSharedIdentity({ plantTokens: false });
       if (!this.isCurrentAttempt(attempt)) return;
       if (session) {
         await this.completeSignIn(attempt, session, session.user);
@@ -1132,7 +1132,7 @@ export class AccountDialogController {
     this.setSignIn({ ...IDLE_SIGN_IN_FACTS, phase: 'starting' });
     let handle: CommonsSignInHandle;
     try {
-      handle = await this.oxyServices.startCommonsSignIn({ clientId: this.clientId });
+      handle = await this.oxyServices.auth.commons.start({ clientId: this.clientId });
     } catch (error) {
       if (!this.isCurrentAttempt(attempt)) return null;
       this.failSignIn(requestFailureReason(error), errorMessage(error));
@@ -1241,7 +1241,7 @@ export class AccountDialogController {
     if (this.platform === 'mobile' && commonsAvailable) return 0;
     if (!this.isAuthenticated()) return 0;
     try {
-      const result = await this.oxyServices.deliverCommonsSignIn(authorizeCode);
+      const result = await this.oxyServices.auth.commons.deliver(authorizeCode);
       // `delivered: false` with `targets > 0` is a transport failure, not a
       // reachable install — the shared helper owns that rule so the surface
       // can never park a user on "check your phone" for a push that failed.
@@ -1350,7 +1350,7 @@ export class AccountDialogController {
    */
   private async withdrawRequest(authorizeCode: string): Promise<void> {
     try {
-      await this.oxyServices.denyCommonsSignIn(authorizeCode);
+      await this.oxyServices.auth.commons.deny(authorizeCode);
     } catch (error) {
       logger.debug(
         '[AccountDialogController] request withdrawal failed',
@@ -1390,7 +1390,7 @@ export class AccountDialogController {
         return;
       }
       try {
-        const status = await this.oxyServices.pollCommonsSignIn(sessionToken);
+        const status = await this.oxyServices.auth.commons.poll(sessionToken);
         if (this.signInToken !== sessionToken) return; // cancelled mid-request
         // Delivery PROGRESS first: it is reported alongside every status, and
         // recording it before the terminal branches means a poll that also
@@ -1457,7 +1457,7 @@ export class AccountDialogController {
     try {
       // Claimed WITHOUT planting the bearer — `completeSignIn` installs it only
       // if the user is still waiting for this attempt when the claim returns.
-      claimed = await this.oxyServices.claimSessionByToken(sessionToken, { plantTokens: false });
+      claimed = await this.oxyServices.auth.claimSession(sessionToken, { plantTokens: false });
     } catch (error) {
       if (!this.isCurrentAttempt(attempt)) return;
       this.failSignIn('claim-failed', errorMessage(error));
@@ -1525,14 +1525,14 @@ export class AccountDialogController {
     user: MinimalUserData,
   ): Promise<void> {
     if (!this.isCurrentAttempt(attempt)) return;
-    const previousToken = this.oxyServices.getAccessToken();
+    const previousToken = this.oxyServices.session.accessToken;
     try {
-      if (session.accessToken) this.oxyServices.setTokens(session.accessToken);
+      if (session.accessToken) this.oxyServices.session.setAccessToken(session.accessToken);
       await this.commitAuthorizedSession(session, user);
     } catch (error) {
-      if (session.accessToken && this.oxyServices.getAccessToken() === session.accessToken) {
-        if (previousToken) this.oxyServices.setTokens(previousToken);
-        else this.oxyServices.clearTokens();
+      if (session.accessToken && this.oxyServices.session.accessToken === session.accessToken) {
+        if (previousToken) this.oxyServices.session.setAccessToken(previousToken);
+        else this.oxyServices.session.clear();
       }
       throw error;
     }
@@ -1606,7 +1606,7 @@ export class AccountDialogController {
     if (!socketFactory || this.signInToken !== sessionToken) return;
     let socket: MinimalSocket;
     try {
-      socket = socketFactory(`${this.oxyServices.getBaseURL()}${AUTH_SESSION_NAMESPACE}`, {
+      socket = socketFactory(`${this.oxyServices.baseURL}${AUTH_SESSION_NAMESPACE}`, {
         transports: ['websocket'],
         autoConnect: true,
         reconnection: true,

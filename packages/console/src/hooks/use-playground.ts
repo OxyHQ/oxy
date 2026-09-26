@@ -7,7 +7,7 @@ import config from '@/lib/config';
 // workstream 4), and the one thing that makes them different from every other
 // hook in this Console.
 //
-// **These do NOT go through `oxyServices.makeRequest`.** That client attaches
+// **These do NOT go through `oxyServices.request`.** That client attaches
 // the signed-in user's device-first session bearer, and the edge does not accept
 // one: it authenticates an `oxy_sk_…` machine credential or a verified service
 // token and nothing else (ADR 0010). A session bearer is not a principal of this

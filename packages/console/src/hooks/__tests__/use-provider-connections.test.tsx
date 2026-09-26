@@ -9,7 +9,7 @@ const makeRequest = vi.fn()
 
 vi.mock('@oxy.so/services', () => ({
   useAuth: () => ({
-    oxyServices: { makeRequest },
+    oxyServices: { request: makeRequest },
     isAuthenticated: true,
     isReady: true,
   }),

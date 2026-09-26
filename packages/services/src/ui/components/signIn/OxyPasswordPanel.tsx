@@ -66,7 +66,7 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
         return password === repeat ? null : t('signInSecurity.password.mismatch');
       }}
       onSubmit={async (reauth) => {
-        await oxyServices.setPassword({ newPassword: password, reauth, revokeOtherSessions: signOutOthers });
+        await oxyServices.auth.password.set({ newPassword: password, reauth, revokeOtherSessions: signOutOthers });
         void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
         toast.success(t('signInSecurity.password.saved'));
         onDone?.();

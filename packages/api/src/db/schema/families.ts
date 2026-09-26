@@ -23,7 +23,7 @@
  * feature never touches — exactly the "shared subscriptions/billing" and
  * unrelated-account-surface exposure this pass is scoped to NOT build, and
  * closing it back down would mean auditing and hardening every generic account
- * route (`/accounts/:id`, `/accounts/:id/children`, `/applications`,
+ * route (`/accounts/:id`, `/accounts/:id/tree`, `/applications`,
  * `/accounts/:id/billing*`, …) to refuse `kind === 'family'` — a wide-blast-radius
  * change against a mature surface for a feature that only needs membership.
  *

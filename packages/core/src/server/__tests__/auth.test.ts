@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { OxyServices } from '../../OxyServices';
+import type { OxyServer } from '../OxyServer';
 import {
   createOxyAuthMiddleware,
   getOxyUserId,
@@ -60,18 +60,20 @@ describe('@oxy.so/core/server auth helpers', () => {
 
   it('can resolve and require auth as one middleware', () => {
     const oxy = {
-      auth: jest.fn(() => (req: OxyAuthRequest, _res: Response, next: NextFunction) => {
-        req.user = { id: 'resolved-user' };
-        next();
-      }),
-    } as unknown as OxyServices;
+      middleware: {
+        auth: jest.fn(() => (req: OxyAuthRequest, _res: Response, next: NextFunction) => {
+          req.user = { id: 'resolved-user' };
+          next();
+        }),
+      },
+    } as unknown as OxyServer;
     const req = {} as OxyAuthRequest;
     const res = makeResponse();
     const next = makeNext();
 
     createOxyAuthMiddleware(oxy)(req, res, next);
 
-    expect(oxy.auth).toHaveBeenCalledWith({ optional: true });
+    expect(oxy.middleware.auth).toHaveBeenCalledWith({ optional: true });
     expect(req.userId).toBe('resolved-user');
     expect(next).toHaveBeenCalledTimes(1);
   });

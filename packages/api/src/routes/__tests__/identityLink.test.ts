@@ -44,7 +44,7 @@ jest.mock('../../services/accountEmail.mail', () => ({
 }));
 jest.mock('../../config/email.config', () => ({ SMTP_RELAYS: [{ name: 'test-relay' }] }));
 
-import { signIdentityProof } from '@oxy.so/core';
+import { signIdentityProof } from '@oxy.so/core/crypto';
 import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { emailVerifications } from '../../db/schema/emailVerifications';

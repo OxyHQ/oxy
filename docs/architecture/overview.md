@@ -159,7 +159,7 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     Note over App,SDK: device-first cold boot restored a session (see auth docs)
-    App->>SDK: oxyServices.getProfileByUsername("nate")
+    App->>SDK: oxyServices.users.byUsername("nate")
     SDK->>SDK: HttpService attaches Bearer access token
     SDK->>API: GET /profiles/username/nate
     Note over API: createOptionalOxyAuth / requireOxyAuth resolves req.userId<br/>createOxyRateLimit keys per-user

@@ -183,7 +183,7 @@ export async function runBrowserBridge(options: RunBrowserBridgeOptions): Promis
     if (verdict.kind !== 'code') return { ok: false, reason: verdict.kind };
 
     try {
-      const joined = await oxyServices.joinBrowserDevice({
+      const joined = await oxyServices.devices.joinBrowser({
         code: verdict.code,
         codeVerifier: pkce.codeVerifier,
         clientId,

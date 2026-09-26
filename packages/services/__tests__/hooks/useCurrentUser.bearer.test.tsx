@@ -42,14 +42,13 @@ const SESSION_B = 'sess-b';
 let bearerAccountId = ACCOUNT_A;
 
 const makeServices = (): MockOxyServices => ({
-  getCurrentUser: jest.fn(async (): Promise<User> => ({
+  users: { me: jest.fn(async (): Promise<User> => ({
     id: bearerAccountId,
     username: bearerAccountId,
     name: { displayName: bearerAccountId },
-  } as User)),
-  getUserBySession: jest.fn(async (): Promise<User> => {
+  } as User)), bySession: jest.fn(async (): Promise<User> => {
     throw new Error('getUserBySession must not be called by useCurrentUser');
-  }),
+  }) },
 });
 
 let mockState: MockOxyState = {
@@ -88,8 +87,8 @@ describe('useCurrentUser hydrates from the bearer, never a session id', () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockState.oxyServices.getCurrentUser).toHaveBeenCalledTimes(1);
-    expect(mockState.oxyServices.getUserBySession).not.toHaveBeenCalled();
+    expect(mockState.oxyServices.users.me).toHaveBeenCalledTimes(1);
+    expect(mockState.oxyServices.users.bySession).not.toHaveBeenCalled();
     expect(result.current.data?.id).toBe(ACCOUNT_A);
   });
 
@@ -113,7 +112,7 @@ describe('useCurrentUser hydrates from the bearer, never a session id', () => {
 
     await waitFor(() => expect(result.current.data?.id).toBe(ACCOUNT_B));
     // Two fetches (one per account-scoped key), still zero session-id fetches.
-    expect(mockState.oxyServices.getCurrentUser).toHaveBeenCalledTimes(2);
-    expect(mockState.oxyServices.getUserBySession).not.toHaveBeenCalled();
+    expect(mockState.oxyServices.users.me).toHaveBeenCalledTimes(2);
+    expect(mockState.oxyServices.users.bySession).not.toHaveBeenCalled();
   });
 });

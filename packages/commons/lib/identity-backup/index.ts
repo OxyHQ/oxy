@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo';
-import { KeyManager, type IdentityDeviceBackupStore } from '@oxy.so/core';
+import { KeyManager, type IdentityDeviceBackupStore } from '@oxy.so/core/crypto';
 
 /**
  * The identity's device backup in Android Block Store (OxyHQ/oxy#1388).

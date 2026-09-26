@@ -47,7 +47,7 @@ function formatMs(ms: number | undefined): string {
  *
  * The credential body (type, claims, issuer, dates, status) is read from the
  * cached "my credentials" list and kept fresh by the verify / revoke results.
- * "Verify" calls `verifyCredential(recordId)` server-side and surfaces an
+ * "Verify" calls `civic.credentials.verify(recordId)` server-side and surfaces an
  * explicit VALID / UNTRUSTED verdict with a friendly reason. When the current
  * user is the ORIGINAL issuer of an active credential, a biometric-gated
  * "Revoke" action is offered — the server is authoritative on who may revoke.
