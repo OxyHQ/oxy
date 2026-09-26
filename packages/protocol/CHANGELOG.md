@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.1.2
+
+### Changed
+
+- Published against `@oxy.so/contracts` 2.x: 1.1.1 still required `^1.4.0`,
+  so every app on contracts 2 installed a second, nested contracts 1.x.
+
 ## 0.2.1
 
 ### Changed
