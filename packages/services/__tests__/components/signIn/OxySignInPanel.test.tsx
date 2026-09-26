@@ -176,6 +176,8 @@ import {
   OxySignInPanel,
 } from '../../../src/ui/components/signIn/OxySignInPanel';
 // eslint-disable-next-line import/first
+import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
+// eslint-disable-next-line import/first
 import { InlineCommonsQr } from '../../../src/ui/components/signIn/InlineCommonsQr';
 
 const onSignedIn = jest.fn();
@@ -196,6 +198,7 @@ const reachCheckEmail = async (identifier = 'ada@example.com') => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  clearSignInFlows(controller);
   listeners = [];
   snapshot = makeSnapshot();
   isWebBrowserMock.mockReturnValue(true);
@@ -461,6 +464,72 @@ describe('"Check your email" — the code or the link', () => {
 
     await waitFor(() => expect(alertText()).toBe('We sent several emails already. Wait a few minutes and try again.'));
     expect(screen.queryByTestId('signin-code')).toBeNull();
+  });
+});
+
+describe('in the dialog, the step outlives a remount of the screen', () => {
+  // Bloom's responsive surface renders a bottom sheet below `md` and a centered
+  // card from `md`: crossing the breakpoint remounts the screen inside. The
+  // person must stay on their step — the e2e found them back at "Sign in" with
+  // their emailed code already spent.
+  it('keeps "Two-step verification" and its challenge across a remount', async () => {
+    oxyServices.confirmEmailSignIn.mockResolvedValueOnce(CHALLENGE);
+    const first = renderPanel({ host: 'dialog' });
+    await reachCheckEmail('ada');
+    type('signin-code', '123456');
+    await screen.findByTestId('signin-second-factor');
+    first.unmount();
+
+    renderPanel({ host: 'dialog' });
+    expect(screen.getByText('Two-step verification')).toBeTruthy();
+    type('signin-second-factor', '654321');
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    expect(oxyServices.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: '654321' });
+  });
+
+  it('keeps "Check your email", its request (the link poll resumes) and the resend cooldown', async () => {
+    jest.useFakeTimers();
+    try {
+      const first = renderPanel({ host: 'dialog' });
+      await reachCheckEmail('ada');
+      first.unmount();
+
+      renderPanel({ host: 'dialog' });
+      expect(screen.getByText('If an account matches ada, we sent it a code and a sign-in link.')).toBeTruthy();
+      expect((screen.getByTestId('signin-resend') as HTMLButtonElement).disabled).toBe(true);
+      oxyServices.collectEmailSignIn.mockResolvedValueOnce(SESSION);
+      await act(async () => {
+        jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS);
+      });
+      expect(oxyServices.collectEmailSignIn).toHaveBeenCalledWith({ requestId: REQUEST.requestId, requestSecret: REQUEST.requestSecret });
+      expect(onSignedIn).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('starts over once the dialog closed, and after a sign-in', async () => {
+    const first = renderPanel({ host: 'dialog' });
+    await reachCheckEmail('ada');
+    first.unmount();
+    clearSignInFlows(controller); // what `OxyContext` does when the dialog closes
+    const second = renderPanel({ host: 'dialog' });
+    expect(screen.getByTestId('signin-identifier')).toBeTruthy();
+    await reachCheckEmail('ada');
+    type('signin-code', '123456');
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    second.unmount();
+
+    renderPanel({ host: 'dialog' });
+    expect(screen.getByTestId('signin-identifier')).toBeTruthy();
+  });
+
+  it('a page of its own does not keep it', async () => {
+    const first = renderPanel({ host: 'page' });
+    await reachCheckEmail('ada');
+    first.unmount();
+    renderPanel({ host: 'page' });
+    expect(screen.getByTestId('signin-identifier')).toBeTruthy();
   });
 });
 

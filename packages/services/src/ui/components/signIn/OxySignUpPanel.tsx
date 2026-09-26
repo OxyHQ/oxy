@@ -12,7 +12,7 @@
  */
 
 import type React from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -24,6 +24,7 @@ import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { isWebBrowser } from '../../utils/isWebBrowser';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthTerms } from './OxyAuthScreen';
+import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
 import {
   AccountFlowAction,
   AccountFlowField,
@@ -44,18 +45,37 @@ export interface OxySignUpPanelProps {
   onSignedIn: () => void;
   /** "Already have an account? Sign in". */
   onSignIn: () => void;
+  /**
+   * `dialog` — inside the account dialog, where the step outlives a remount of
+   * this screen (`signInFlowStore`). `page` — a page of its own.
+   */
+  host?: 'dialog' | 'page';
 }
 
-export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSignIn }) => {
+/** What the dialog keeps of this screen across a remount. */
+interface SavedSignUpFlow {
+  step: Step;
+  username: string;
+  email: string;
+}
+const SIGN_UP_FLOW_KEY = 'signup';
+
+export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSignIn, host = 'page' }) => {
   const theme = useTheme();
   const { t } = useI18n();
   const { oxyServices, handleWebSession, accountDialogController } = useOxy();
   const snapshot = useAccountDialogSnapshot(accountDialogController);
-  const [step, setStep] = useState<Step>({ name: 'username' });
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const flowOwner = host === 'dialog' ? accountDialogController : null;
+  const [saved] = useState(() => readSignInFlow<SavedSignUpFlow>(flowOwner, SIGN_UP_FLOW_KEY));
+  const [step, setStep] = useState<Step>(saved?.step ?? { name: 'username' });
+  const [username, setUsername] = useState(saved?.username ?? '');
+  const [email, setEmail] = useState(saved?.email ?? '');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    writeSignInFlow(flowOwner, SIGN_UP_FLOW_KEY, { step, username, email } satisfies SavedSignUpFlow);
+  }, [flowOwner, step, username, email]);
 
   const run = (work: () => Promise<void>) => {
     if (pending) return;
@@ -102,6 +122,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
     try {
       const session = await oxyServices.signUp({ username: username.trim(), email, emailTicket: ticket });
       await handleWebSession(session);
+      writeSignInFlow(flowOwner, SIGN_UP_FLOW_KEY, undefined);
     } catch (reason) {
       if (errorCode(reason) === SIGN_IN_ERROR_CODES.usernameTaken) {
         setStep({ name: 'username' });

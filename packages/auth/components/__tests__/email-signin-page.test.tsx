@@ -27,7 +27,10 @@ mock.module("@oxy.so/services", () =>
     }),
 )
 
-const { EmailSignInPage, readLinkToken } = await import("@/src/pages/email-signin")
+const toastError = mock((_message: string) => undefined)
+mock.module("@oxy.so/bloom/toast", () => ({ toast: Object.assign(() => undefined, { error: toastError, success: () => undefined }) }))
+
+const { EmailSignInPage, readLinkToken, takeLinkToken } = await import("@/src/pages/email-signin")
 const { LoginPage } = await import("@/src/pages/login")
 
 function render(element: React.ReactElement, path: string): { container: HTMLDivElement; unmount: () => void } {
@@ -71,6 +74,15 @@ describe("readLinkToken", () => {
         expect(readLinkToken("#t=")).toBeNull()
         expect(readLinkToken("")).toBeNull()
         expect(readLinkToken("#x=1")).toBeNull()
+    })
+})
+
+describe("takeLinkToken", () => {
+    test("strips the fragment in the same call that reads it", () => {
+        window.history.replaceState(null, "", "/email-signin?x=1#t=SECRET")
+        expect(takeLinkToken()).toBe("SECRET")
+        expect(window.location.hash).toBe("")
+        expect(window.location.search).toBe("?x=1")
     })
 })
 
@@ -158,6 +170,22 @@ describe("LoginPage", () => {
             page.container.querySelector<HTMLButtonElement>('[data-testid="stub-signup-panel"]')?.click()
         })
         expect(has(page.container, "stub-signin-panel")).toBe(true)
+        page.unmount()
+    })
+
+    test("a known `?error=` code is told as fixed copy", async () => {
+        toastError.mockClear()
+        const page = render(<LoginPage />, "/login?error=session_expired")
+        await flush()
+        expect(toastError).toHaveBeenCalledWith("Your session expired. Please sign in again.")
+        page.unmount()
+    })
+
+    test("any other `?error=` text is ignored, never shown", async () => {
+        toastError.mockClear()
+        const page = render(<LoginPage />, "/login?error=Your%20account%20is%20locked%2C%20call%20555-0100")
+        await flush()
+        expect(toastError).not.toHaveBeenCalled()
         page.unmount()
     })
 

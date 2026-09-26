@@ -52,6 +52,11 @@ const es: LocaleDict = {
       switchFailed: 'No se pudo seleccionar esa cuenta. Vuelve a iniciar sesión para continuar.',
     },
   },
+  login: {
+    errors: {
+      sessionExpired: 'Tu sesión ha caducado. Vuelve a iniciar sesión.',
+    },
+  },
   authorize: {
     title: 'Continuar a {{app}}',
     cancel: 'Cancelar',

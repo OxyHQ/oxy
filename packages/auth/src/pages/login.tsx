@@ -1,8 +1,10 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "@oxy.so/bloom/toast"
 import { OxySignInPanel, OxySignUpPanel } from "@oxy.so/services"
 import { postLoginRedirectFrom } from "@/lib/auth-utils"
+import { useTranslation } from "@/lib/i18n/use-translation"
+import { loginErrorKey } from "@/lib/login-errors"
 
 /**
  * `/login` — the SDK's own sign-in screen, the one every Oxy app's account
@@ -13,15 +15,15 @@ import { postLoginRedirectFrom } from "@/lib/auth-utils"
 export function LoginPage() {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
+    const { t } = useTranslation()
     const [mode, setMode] = useState<"signin" | "signup">(searchParams.get("screen") === "signup" ? "signup" : "signin")
 
-    // A failure a previous hop reported (`?error=`), told once.
-    const error = searchParams.get("error")
-    const errorShown = useRef(false)
-    if (error && !errorShown.current) {
-        errorShown.current = true
-        queueMicrotask(() => toast.error(error))
-    }
+    // A failure a previous hop reported (`?error=<code>`), told once — only a
+    // known code, as fixed copy; anything else in the query is ignored.
+    const errorKey = loginErrorKey(searchParams.get("error"))
+    useEffect(() => {
+        if (errorKey) toast.error(t(errorKey))
+    }, [errorKey, t])
 
     const onSignedIn = useCallback(() => navigate(postLoginRedirectFrom(searchParams)), [navigate, searchParams])
 

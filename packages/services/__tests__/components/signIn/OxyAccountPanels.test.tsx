@@ -51,10 +51,11 @@ const logout = jest.fn(async () => undefined);
 let user: { id: string; username: string; publicKey?: string } | null = { id: 'user-1', username: 'ada' };
 let methods: SignInMethods = { hasEmail: true, hasPassword: false, totpEnabled: false, backupCodesRemaining: 0 };
 let snapshot = { commonsAvailability: 'unknown' };
+const dialogController = {};
 
 jest.mock('../../../src/ui/context/OxyContext', () => ({
   __esModule: true,
-  useOxy: () => ({ oxyServices, handleWebSession, logout, user, accountDialogController: null }),
+  useOxy: () => ({ oxyServices, handleWebSession, logout, user, accountDialogController: dialogController }),
   useOptionalOxy: () => null,
 }));
 
@@ -98,6 +99,8 @@ jest.mock('../../../src/ui/hooks/useI18n', () => {
 
 // eslint-disable-next-line import/first
 import { OxySignUpPanel } from '../../../src/ui/components/signIn/OxySignUpPanel';
+// eslint-disable-next-line import/first
+import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
 // eslint-disable-next-line import/first
 import { OxyDeleteAccountPanel } from '../../../src/ui/components/signIn/OxyDeleteAccountPanel';
 // eslint-disable-next-line import/first
@@ -220,6 +223,26 @@ describe('creating an account', () => {
     render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={onSignIn} />);
     press('back-to-sign-in');
     expect(onSignIn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('creating an account in the dialog', () => {
+  it('keeps its step across a remount of the screen, and not on a page', async () => {
+    clearSignInFlows(dialogController);
+    const first = render(<OxySignUpPanel host="dialog" onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    type('signup-username', 'ada');
+    press('signup-username-continue');
+    await screen.findByTestId('signup-email');
+    type('signup-email', 'ada@example.com');
+    first.unmount();
+
+    const second = render(<OxySignUpPanel host="dialog" onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    expect((screen.getByTestId('signup-email') as HTMLInputElement).value).toBe('ada@example.com');
+    second.unmount();
+
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    expect(screen.getByTestId('signup-username')).toBeTruthy();
+    clearSignInFlows(dialogController);
   });
 });
 

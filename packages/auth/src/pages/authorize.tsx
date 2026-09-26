@@ -13,6 +13,7 @@ import { OxyAccountPicker, OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader, O
 import { Button } from "@oxy.so/bloom/button";
 import { CommonsOAuthLane } from "@/components/commons-oauth-request";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { LOGIN_ERROR_SESSION_EXPIRED } from "@/lib/login-errors";
 import {
   sessionStatusSchema,
   safeParse,
@@ -625,7 +626,7 @@ function AuthorizeRequest() {
           resource: resource || undefined,
           response_type: responseType || undefined,
           response_mode: responseMode || undefined,
-          error: "Session expired. Please sign in again.",
+          error: LOGIN_ERROR_SESSION_EXPIRED,
         })
       );
       return;
@@ -872,7 +873,7 @@ function AuthorizeRequest() {
             resource: resource || undefined,
             response_type: responseType || undefined,
             response_mode: responseMode || undefined,
-            error: "Session expired. Please sign in again.",
+            error: LOGIN_ERROR_SESSION_EXPIRED,
           })
         );
         return;

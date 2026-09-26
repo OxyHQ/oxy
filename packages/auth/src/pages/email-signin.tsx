@@ -17,6 +17,15 @@ export function readLinkToken(hash: string): string | null {
     return token && token.length > 0 ? token : null
 }
 
+/** Read the link's token and strip the fragment from the current history entry. */
+export function takeLinkToken(): string | null {
+    const token = readLinkToken(window.location.hash)
+    if (window.location.hash) {
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`)
+    }
+    return token
+}
+
 /**
  * `/email-signin` — where the sign-in email's link lands.
  *
@@ -27,21 +36,16 @@ export function readLinkToken(hash: string): string | null {
  * session. Anywhere else it says to open the link where the sign-in started, or
  * type the code.
  *
- * The token is taken out of the address bar before anything else, so it is not
- * left in history.
+ * The token is taken out of the address bar synchronously, as it is read, so
+ * it is never left in history.
  */
 export function EmailSignInPage() {
     const { t } = useTranslation()
     const { oxyServices, isAuthResolved } = useOxy()
-    // Read once, on the first render, before the fragment is stripped.
-    const [token] = useState(() => readLinkToken(window.location.hash))
+    // Read once and taken out of the address bar in the same step, before
+    // anything renders or runs with it in history.
+    const [token] = useState(takeLinkToken)
     const [outcome, setOutcome] = useState<LinkOutcome>(token ? "working" : "invalid")
-
-    useEffect(() => {
-        if (window.location.hash) {
-            window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`)
-        }
-    }, [])
 
     // The device proof is this origin's persisted device, which the provider
     // exposes once its boot has run.

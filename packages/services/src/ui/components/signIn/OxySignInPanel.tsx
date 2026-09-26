@@ -63,6 +63,7 @@ import {
   isRateLimited,
   retryAfterSeconds,
 } from './accountFlowParts';
+import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
 import { resolveSignInMethods } from './signInMethods';
 
 /** Bloom `AuthCard`'s split card width, which the account dialog grows to for it. */
@@ -71,6 +72,17 @@ const SPLIT_WIDTH = 880;
 export const EMAIL_SIGNIN_POLL_MS = 2000;
 /** How long after an email "Send a new email" waits. */
 export const EMAIL_RESEND_COOLDOWN_SECONDS = 30;
+
+/** What the dialog keeps of this screen across a remount (`signInFlowStore`). */
+interface SavedSignInFlow {
+  step: Step;
+  identifier: string;
+  showForm: boolean;
+  useBackupCode: boolean;
+  /** When "Send a new email" may be pressed again (ms). */
+  resendUntil: number;
+}
+const SIGN_IN_FLOW_KEY = 'signin';
 
 type Step =
   | { name: 'start' }
@@ -115,18 +127,35 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     commonsAvailability: snapshot.commonsAvailability,
   });
 
-  const [showForm, setShowForm] = useState(Boolean(loginHint));
-  const [step, setStep] = useState<Step>({ name: 'start' });
-  const [identifier, setIdentifier] = useState(loginHint ?? '');
+  // In the dialog the step outlives a remount of this screen (the responsive
+  // surface swaps its tree at `md`): it is restored from, and saved to, the
+  // flow store the dialog's controller owns.
+  const flowOwner = host === 'dialog' ? controller : null;
+  const [saved] = useState(() => readSignInFlow<SavedSignInFlow>(flowOwner, SIGN_IN_FLOW_KEY));
+  const [showForm, setShowForm] = useState(saved?.showForm ?? Boolean(loginHint));
+  const [step, setStep] = useState<Step>(saved?.step ?? { name: 'start' });
+  const [identifier, setIdentifier] = useState(saved?.identifier ?? loginHint ?? '');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [secondFactorCode, setSecondFactorCode] = useState('');
-  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [useBackupCode, setUseBackupCode] = useState(saved?.useBackupCode ?? false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [rateLimitSeconds, setRateLimitSeconds] = useState(0);
-  const [resendSeconds, setResendSeconds] = useState(0);
+  const [resendSeconds, setResendSeconds] = useState(() =>
+    saved ? Math.max(0, Math.ceil((saved.resendUntil - Date.now()) / 1000)) : 0,
+  );
+
+  useEffect(() => {
+    writeSignInFlow(flowOwner, SIGN_IN_FLOW_KEY, {
+      step,
+      identifier,
+      showForm,
+      useBackupCode,
+      resendUntil: Date.now() + resendSeconds * 1000,
+    } satisfies SavedSignInFlow);
+  }, [flowOwner, step, identifier, showForm, useBackupCode, resendSeconds]);
   const blocked = pending || rateLimitSeconds > 0;
 
   // The countdown after a 429: one tick a second until the person may retry.
@@ -188,6 +217,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         return;
       }
       finishingRef.current = true;
+      writeSignInFlow(flowOwner, SIGN_IN_FLOW_KEY, undefined);
       try {
         await handleWebSession(result as LoginResult);
       } catch (reason) {
@@ -196,7 +226,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       }
       onSignedIn();
     },
-    [handleWebSession, onSignedIn],
+    [handleWebSession, onSignedIn, flowOwner],
   );
 
   /** Send the sign-in email and show "Check your email". */

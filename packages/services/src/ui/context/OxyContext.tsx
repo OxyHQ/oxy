@@ -99,6 +99,7 @@ import { DEFAULT_SESSION_VALIDITY_MS } from './oxyContextHelpers';
 // never dereferenced at module scope here.
 import { useFollow } from '../hooks/useFollow';
 import { commitDeviceSetAndResolve } from './commitSessionFlow';
+import { clearSignInFlows } from '../components/signIn/signInFlowStore';
 import { useOxyAccountGraph } from './useOxyAccountGraph';
 
 export type { LogoutResult, OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
@@ -1025,6 +1026,13 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // accurate regardless of what opened or dismissed the dialog.
   useEffect(() => {
     notifyAccountDialogVisibility(accountDialogOpen);
+  }, [accountDialogOpen]);
+
+  // A closed dialog forgets the sign-in or sign-up step it was on: the next
+  // open starts over. (While it is open the step survives the surface's
+  // breakpoint remount — `signInFlowStore`.)
+  useEffect(() => {
+    if (!accountDialogOpen) clearSignInFlows(accountDialogControllerRef.current);
   }, [accountDialogOpen]);
 
   // ── Cold boot ────────────────────────────────────────────────────────────

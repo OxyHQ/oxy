@@ -438,7 +438,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   }
 
   if (view === 'signup') {
-    return <OxySignUpPanel onSignedIn={() => onComplete?.()} onSignIn={() => controller.setView('signin')} />;
+    return <OxySignUpPanel host="dialog" onSignedIn={() => onComplete?.()} onSignIn={() => controller.setView('signin')} />;
   }
 
   return (

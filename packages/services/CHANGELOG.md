@@ -31,6 +31,9 @@ of 4): no passkey, and no auth.oxy.so window except the browser bridge.
   key (and on the web), and lists Password, Authenticator app and Link Commons
   for it.
 - The request view's "Having trouble?" no longer offers a passkey.
+- In the account dialog the sign-in and sign-up step survives the surface's
+  breakpoint remount (bottom sheet below `md`, centered card from `md`): it is
+  kept per dialog in memory while the dialog is open and dropped when it closes.
 
 ### Added
 
