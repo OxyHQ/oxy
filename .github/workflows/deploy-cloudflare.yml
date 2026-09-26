@@ -7,16 +7,10 @@
 # call it makes. A Worker declines its default hostname outright with
 # `workers_dev = false`, which is why the two static apps have moved.
 #
-# `auth` HAS NOT MOVED, and not by omission. It is the only app here with a
-# Cloudflare Pages Functions DIRECTORY — `packages/auth/functions/hub/*`, the
-# browser DeviceSession hub — and `functions/` has no Worker equivalent that a
-# config change can reach: Pages compiles that directory into routes itself,
-# while a Worker needs a `main` script that dispatches `/hub/*` and falls
-# through to the asset binding for everything else. The logic is already
-# portable (`packages/auth/hub/handlers.ts` depends on nothing Worker-specific
-# and is covered by `bun test`), so the move is possible — but it is a rewrite
-# of the routing layer of the IdP that has no staging environment, and it does
-# not belong in the same change as two static asset deploys.
+# `auth` HAS NOT MOVED yet. It is the only app here with a Cloudflare Pages
+# Functions directory — `packages/auth/functions/_middleware.ts`, the edge
+# activity middleware — which a Worker would have to run from a `main` script in
+# front of the asset binding. That move is its own change.
 name: Deploy Frontends to Cloudflare
 
 on:
@@ -30,7 +24,6 @@ jobs:
     outputs:
       accounts: ${{ steps.filter.outputs.accounts }}
       auth: ${{ steps.filter.outputs.auth }}
-      id: ${{ steps.filter.outputs.id }}
       console: ${{ steps.filter.outputs.console }}
     steps:
       - uses: actions/checkout@v7
@@ -54,11 +47,6 @@ jobs:
               - 'packages/core/**'
               - 'packages/protocol/**'
               - 'packages/services/**'
-              - 'packages/contracts/**'
-            id:
-              - 'packages/id/**'
-              - 'packages/core/**'
-              - 'packages/protocol/**'
               - 'packages/contracts/**'
             console:
               - 'packages/console/**'
@@ -89,10 +77,8 @@ jobs:
       # fresh releases and blocks a deterministic deploy.
       - run: bun install --frozen-lockfile --minimum-release-age=0
       # Build the Vite SPA into packages/auth/dist. The IdP is static apart from
-      # ONE Pages Functions directory: `packages/auth/functions/hub/*`, the
-      # browser DeviceSession hub (issue #937 Phase 5, ADR 0003). The former
-      # `/api/device-accounts` function deleted in the 2c cutover stays deleted —
-      # the chooser is served by the device-first SDK.
+      # its Pages Functions directory, which holds only the edge activity
+      # middleware (`packages/auth/functions/_middleware.ts`).
       #
       # `wrangler pages deploy` compiles `./functions` from the WORKING DIRECTORY,
       # which the deploy step below sets to `packages/auth`. It must stay a
@@ -217,42 +203,6 @@ jobs:
           smoke:csp
           'CSP smoke'
           'accounts.oxy.so is serving a CSP that blocks its own inline script'
-
-  # `id.oxy.so` — the web identity carrier. A Worker like accounts (see
-  # packages/id/wrangler.toml); the header policy lives in the Worker itself and
-  # the smoke gate below checks the LIVE host still serves it.
-  deploy-id:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.id == 'true' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: main
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24.x'
-      - run: bun install --frozen-lockfile --minimum-release-age=0
-      - run: bun x turbo run build --filter=id
-      # `bunx wrangler@4` directly — see the accounts job for why never the action.
-      - name: Deploy the Worker
-        working-directory: packages/id
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: bunx wrangler@4 deploy
-      - name: Post-deploy header smoke gate
-        working-directory: packages/id
-        env:
-          SMOKE_TARGET: https://id.oxy.so
-        run: >
-          "$GITHUB_WORKSPACE/.github/scripts/retry-smoke.sh"
-          smoke:headers
-          'Header smoke'
-          'id.oxy.so is not serving the identity-origin header policy'
 
   deploy-console:
     needs: detect-changes

@@ -22,18 +22,15 @@
  */
 
 import type React from 'react';
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
-import type { AccountDialogSnapshot } from '@oxy.so/core';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import type { BaseScreenProps } from '../types/navigation';
 import LogoText from './logo/LogoText';
 import OxyAuthChooser from './OxyAuthChooser';
-import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from '../hooks/accountDialogSnapshot';
-
-type Translate = ReturnType<typeof useI18n>['t'];
+import { useAccountDialogSnapshot } from '../hooks/accountDialogSnapshot';
 
 /**
  * The account MENU's nav bar carries the Oxy wordmark instead of a title — the
@@ -60,23 +57,9 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
   const { accountDialogController: controller, closeAccountDialog } = useOxy();
   const { t } = useI18n();
 
-  // A lightweight, header-only binding to the same controller `OxyAuthChooser`
-  // binds independently — cheap, and the established pattern here (
-  // `useDeviceSwitcher` also binds to this controller on its own).
-  const subscribe = useCallback(
-    (listener: () => void) => (controller ? controller.subscribe(listener) : () => undefined),
-    [controller],
-  );
-  const getSnapshot = useCallback(
-    () => (controller ? controller.getSnapshot() : EMPTY_ACCOUNT_DIALOG_SNAPSHOT),
-    [controller],
-  );
-  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const snapshot = useAccountDialogSnapshot(controller);
 
   const { view } = snapshot;
-  // Names the entry view "Add another account" rather than "Sign in" when
-  // somebody is already signed in on this device.
-  const hasSignedInAccounts = (snapshot.directory?.principals.length ?? 0) > 0;
   // Where back leads is the CONTROLLER's answer (`snapshot.backView`), never a
   // table here: a host-side "back = accounts" assumed a signed-in origin and
   // opened the account menu for nobody on a signed-out Back from sign-up.
@@ -91,18 +74,15 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
   // `closeAccountDialog` so the pop + state teardown stay in one place. Opened
   // cold (detached) it is the root frame → `canGoBack` is false → no back.
   const backsToHost = !showBack && (canGoBack?.() ?? false);
-  // The account MENU is branded, not titled: its nav bar carries the Oxy
-  // wordmark and no large title. The current account is named by the HERO block
-  // `OxyAuthChooser` renders under it (email + large avatar + greeting), never
-  // by the bar. Every OTHER view keeps the SHARED Dialog nav header the rest of
-  // the SDK uses — a large in-content title/subtitle that collapses into the bar
-  // on scroll — because their copy is informative.
-  const copy = view === 'accounts' ? null : headerCopy(view, hasSignedInAccounts, t);
+  // The sign-in and sign-up screens carry their own header — the Oxy mark and
+  // the large title auth.oxy.so shows — so the bar holds only the way back.
+  // The account MENU is branded with the wordmark (the hero under it names the
+  // account); the active request is titled, route-agnostically, because Oxy
+  // picks how it travels (issue #691).
 
   useSurfaceHeader({
-    titleContent: copy ? undefined : NAV_LOGO,
-    title: copy?.title,
-    subtitle: copy?.subtitle ?? undefined,
+    titleContent: view === 'accounts' ? NAV_LOGO : undefined,
+    title: view === 'qr' ? t('accountSwitcher.signInWithOxy') : undefined,
     onBack: showBack ? goBack : backsToHost ? closeAccountDialog : undefined,
   });
 
@@ -117,45 +97,6 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// Copy + helpers
-// ---------------------------------------------------------------------------
-
-function headerCopy(
-  view: Exclude<AccountDialogSnapshot['view'], 'accounts'>,
-  hasSignedInAccounts: boolean,
-  t: Translate,
-): { title: string; subtitle: string | null } {
-  switch (view) {
-    // The ACTIVE REQUEST. Its header is deliberately route-AGNOSTIC: Oxy picks
-    // the delivery route (QR here, a push to the user's phone, or opening
-    // Commons on this device — issue #691), so naming one of them in the bar
-    // would contradict the other two. The route-specific status line lives in
-    // the body, derived from `signIn.progress`, and is the only thing that
-    // describes HOW the request is travelling.
-    case 'qr':
-      return {
-        title: t('accountSwitcher.signInWithOxy') || 'Sign in with Oxy',
-        subtitle: null,
-      };
-    case 'signup':
-      return {
-        title: t('signup.title') || 'Create your account',
-        subtitle: t('signup.subtitle') || 'One identity for the whole ecosystem.',
-      };
-    default:
-      return hasSignedInAccounts
-        ? {
-            title: t('signin.addAccountTitle') || 'Add another account',
-            subtitle: t('signin.addAccountSubtitle') || 'Sign in with another account.',
-          }
-        : {
-            title: t('signin.title') || 'Sign in',
-            subtitle: t('signin.subtitle') || 'One identity for the whole ecosystem.',
-          };
-  }
-}
-
 /**
  * The screen gutter. In the Dialog's nav-header mode the surface adds NO content
  * padding of its own — the large title and each screen own theirs — so this must
@@ -167,7 +108,7 @@ const SCREEN_MARGIN = 20;
 const styles = StyleSheet.create({
   bodyContent: {
     paddingTop: 4,
-    paddingBottom: 4,
+    paddingBottom: 20,
     paddingHorizontal: SCREEN_MARGIN,
   },
 });

@@ -22,7 +22,9 @@
  *   - SPA renders blank / build totally broken   → `/`, `/login`, `/signup`, `/authorize` lose the SPA root marker.
  *   - `/authorize` not routed at all             → a PKCE-bound authorize URL stops answering 200 with the SPA shell.
  *   - `/device` not served                        → the link `codea login` prints stops answering 200 with the SPA shell.
+ *   - the account pages not served                → `/signup`, `/recover`, `/delete-account` and `/link-commons` lose the SPA shell.
  *   - FedCM manifest NOT removed                  → `/.well-known/web-identity` still serves the FedCM config JSON.
+ *   - the browser bridge not served              → `/bridge` answers the SPA shell (or nothing) instead of its own tiny page.
  *
  * What it CANNOT catch, despite an earlier comment here claiming otherwise: a
  * client-side render failure such as #784. See {@link checkAuthorizeWithPkce}.
@@ -163,6 +165,31 @@ async function checkDeviceApproval(hostBase: string): Promise<void> {
 }
 
 /**
+ * `/bridge` is its OWN page (`bridge.html`, ADR 0029 D2) — a few KB with no
+ * React, which every Oxy app opens from its first sign-in press to join the
+ * browser's device. If the host answered the SPA shell here instead, the window
+ * would boot the whole IdP and never answer. A curl runs no JavaScript, so this
+ * proves the page is served, not that it answers; `lib/__tests__/bridge.test.ts`
+ * covers the answer.
+ */
+async function checkBridgePage(hostBase: string): Promise<void> {
+  const out = await probe(`${hostBase}/bridge`, { headers: { Accept: 'text/html' } });
+  if (out.error) {
+    record('bridge page', false, `request failed: ${out.error}`);
+    return;
+  }
+  if (out.status !== 200) {
+    record('bridge page', false, `expected 200, got ${out.status}`);
+    return;
+  }
+  if (out.body.includes(SPA_ROOT_MARKER) || !/\/assets\/bridge-[^"]+\.js/.test(out.body)) {
+    record('bridge page', false, 'served the SPA shell, not bridge.html');
+    return;
+  }
+  record('bridge page', true, '200 + its own entry, not the SPA');
+}
+
+/**
  * The FedCM manifest MUST be GONE. `GET /.well-known/web-identity` no longer has
  * a handler, so it falls through to the SPA (or 404) — anything EXCEPT a valid
  * `200 application/json` FedCM config with `provider_urls` is a pass. A regression
@@ -207,11 +234,19 @@ async function checkSecurityHeaders(hostBase: string): Promise<void> {
   if (out.headers.get('x-frame-options')?.toUpperCase() !== 'DENY') {
     missing.push('X-Frame-Options: DENY');
   }
+  // The rest of the holder policy (ADR 0028 D2): this origin opens roots.
+  if (!csp.includes("form-action 'none'")) missing.push("form-action 'none'");
+  if (out.headers.get('referrer-policy') !== 'no-referrer') missing.push('Referrer-Policy: no-referrer');
+  if (!out.headers.get('permissions-policy')?.includes('publickey-credentials-get=(self)')) {
+    missing.push('Permissions-Policy with passkeys for this origin only');
+  }
+  // The third-party OAuth popup reports back to its opener; COOP would sever it.
+  if (out.headers.get('cross-origin-opener-policy')) missing.push('NO Cross-Origin-Opener-Policy');
   if (missing.length > 0) {
     record('security headers', false, `missing: ${missing.join('; ')}`);
     return;
   }
-  record('security headers', true, 'strict CSP (no beacon or analytics hosts) + X-Frame-Options present');
+  record('security headers', true, 'strict CSP (no beacon or analytics hosts), X-Frame-Options and the holder policy present');
 }
 
 async function run(): Promise<void> {
@@ -220,8 +255,12 @@ async function run(): Promise<void> {
   await checkSpaPage(PRIMARY_TARGET, '/login');
   await checkSpaPage(PRIMARY_TARGET, '/signup');
   await checkSpaPage(PRIMARY_TARGET, '/authorize');
+  await checkSpaPage(PRIMARY_TARGET, '/recover');
+  await checkSpaPage(PRIMARY_TARGET, '/delete-account');
+  await checkSpaPage(PRIMARY_TARGET, '/link-commons');
   await checkAuthorizeWithPkce(PRIMARY_TARGET);
   await checkDeviceApproval(PRIMARY_TARGET);
+  await checkBridgePage(PRIMARY_TARGET);
   await checkWebIdentityGone(PRIMARY_TARGET);
   await checkSecurityHeaders(PRIMARY_TARGET);
 

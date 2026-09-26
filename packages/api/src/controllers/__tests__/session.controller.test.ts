@@ -287,6 +287,7 @@ describe('register', () => {
   }
 
   it('creates the account, its identity auth method and a welcome notification', async () => {
+    // An email in the body is ignored: a Commons account has none (ADR 0029 D3).
     const body = registerBody({ username: username(), email: `${username()}@example.com` });
     const res = captureRes();
 
@@ -298,7 +299,7 @@ describe('register', () => {
 
     const stored = await storedUser(userId as string);
     expect(stored.username).toBe(body.username);
-    expect(stored.email).toBe(body.email);
+    expect(stored.email).toBeNull();
 
     // The auth method is the account's PROVENANCE and used to be an embedded
     // array, so a row without it was unrepresentable. It is a child table now,
@@ -352,12 +353,11 @@ describe('register', () => {
     );
   });
 
-  it('rejects a duplicate identity, email and username', async () => {
+  it('rejects a duplicate identity and username', async () => {
     const key = publicKey();
     const name = username();
-    const email = `${name}@example.com`;
     await SessionController.register(
-      request({ body: registerBody({ publicKey: key, username: name, email }) }),
+      request({ body: registerBody({ publicKey: key, username: name }) }),
       asResponse(captureRes())
     );
 
@@ -368,14 +368,6 @@ describe('register', () => {
     );
     expect(dupIdentity.statusCode).toBe(409);
     expect(dupIdentity.body).toEqual({ message: 'Identity already registered' });
-
-    const dupEmail = captureRes();
-    await SessionController.register(
-      request({ body: registerBody({ email }) }),
-      asResponse(dupEmail)
-    );
-    expect(dupEmail.statusCode).toBe(409);
-    expect(dupEmail.body).toEqual({ message: 'Email already registered' });
 
     const dupUsername = captureRes();
     await SessionController.register(

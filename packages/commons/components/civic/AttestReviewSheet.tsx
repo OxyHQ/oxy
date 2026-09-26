@@ -1,17 +1,18 @@
 import React, { useEffect, useMemo } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
+import { Badge } from '@oxy.so/bloom/badge';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, Image, StyleSheet, ActivityIndicator } from 'react-native';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
 import type { PublicCard, CardTrustTier, RealLifeAttestationResult } from '@oxy.so/contracts';
 import { trustTierLabel } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
-import { CenteredState } from '@/components/ui/centered-state';
-import { CivicBadge } from '@/components/civic/CivicBadge';
-import { getTrustTierMeta } from '@/lib/civic/card-presentation';
+import { bloomToneFor, getTrustTierMeta } from '@/lib/civic/card-presentation';
 import type { AttestErrorCode } from '@/lib/civic/civic-errors';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 import { useTranslation } from '@/lib/i18n';
+import { STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
 /** The confirm-lane statuses this sheet renders (a subset of AttestFlowStatus). */
 export type AttestReviewStatus = 'reviewing' | 'submitting' | 'done' | 'error';
@@ -34,12 +35,12 @@ interface AttestReviewSheetProps {
   onClose: () => void;
 }
 
-const TIER_ICON: Record<CardTrustTier, MaterialCommunityIconName> = {
-  restricted: 'alert-octagon-outline',
-  new: 'account-outline',
-  trusted: 'shield-check-outline',
-  high_trust: 'shield-star-outline',
-  verified: 'check-decagram',
+const TIER_ICON: Record<CardTrustTier, IconName> = {
+  restricted: 'alertStrong',
+  new: 'person',
+  trusted: 'shieldCheck',
+  high_trust: 'shieldStar',
+  verified: 'verified',
 };
 
 /**
@@ -78,9 +79,9 @@ export function AttestReviewSheet({
       return (
         <View style={styles.stateBlock}>
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.stateBody, { color: colors.textSecondary }]}>
+          <Text style={[styles.stateBody, { color: colors.textSecondary }]}>
             {t('civic.attest.review.submitting')}
-          </ThemedText>
+          </Text>
         </View>
       );
     }
@@ -88,13 +89,13 @@ export function AttestReviewSheet({
     if (status === 'done' && result) {
       return (
         <View style={styles.stateBlock}>
-          <MaterialCommunityIcons name="check-decagram" size={64} color={colors.success} />
-          <ThemedText style={[styles.stateTitle, { color: colors.text }]}>
+          <Icons.verified size='3xl' fill={colors.success} />
+          <Text style={[styles.stateTitle, { color: colors.text }]}>
             {t('civic.attest.confirm.done.title')}
-          </ThemedText>
-          <ThemedText style={[styles.stateBody, { color: colors.textSecondary }]}>
+          </Text>
+          <Text style={[styles.stateBody, { color: colors.textSecondary }]}>
             {t('civic.attest.confirm.done.body', { name: card?.name ?? '', points: result.points })}
-          </ThemedText>
+          </Text>
         </View>
       );
     }
@@ -102,13 +103,13 @@ export function AttestReviewSheet({
     if (status === 'error') {
       return (
         <View style={styles.stateBlock}>
-          <MaterialCommunityIcons name="alert-circle-outline" size={64} color={colors.error} />
-          <ThemedText style={[styles.stateTitle, { color: colors.text }]}>
+          <Icons.alert size='3xl' fill={colors.error} />
+          <Text style={[styles.stateTitle, { color: colors.text }]}>
             {t('civic.attest.confirm.error.title')}
-          </ThemedText>
-          <ThemedText style={[styles.stateBody, { color: colors.textSecondary }]}>
+          </Text>
+          <Text style={[styles.stateBody, { color: colors.textSecondary }]}>
             {t(`civic.attest.error.${errorCode ?? 'generic'}`)}
-          </ThemedText>
+          </Text>
         </View>
       );
     }
@@ -116,10 +117,11 @@ export function AttestReviewSheet({
     // reviewing
     if (subjectFailed) {
       return (
-        <CenteredState
-          icon="account-alert-outline"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.attest.review.unresolvedTitle')}
-          body={t('civic.attest.review.unresolvedBody')}
+          description={t('civic.attest.review.unresolvedBody')}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -128,18 +130,18 @@ export function AttestReviewSheet({
       return (
         <View style={styles.stateBlock}>
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.stateBody, { color: colors.textSecondary }]}>
+          <Text style={[styles.stateBody, { color: colors.textSecondary }]}>
             {t('civic.attest.review.resolving')}
-          </ThemedText>
+          </Text>
         </View>
       );
     }
 
     return (
       <View style={styles.reviewBlock}>
-        <ThemedText style={[styles.heading, { color: colors.text }]}>
+        <Text style={[styles.heading, { color: colors.text }]}>
           {t('civic.attest.review.title')}
-        </ThemedText>
+        </Text>
 
         {/* A's DNI: avatar + name + handle + trust tier */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -147,34 +149,42 @@ export function AttestReviewSheet({
             <Image source={{ uri: card.avatarUrl }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.tint }]}>
-              <ThemedText style={styles.avatarInitial}>{initial}</ThemedText>
+              <Text style={styles.avatarInitial}>{initial}</Text>
             </View>
           )}
-          <View style={styles.cardText}>
-            <ThemedText style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+          <View className="flex-1 gap-space-4">
+            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
               {card.name}
-            </ThemedText>
+            </Text>
             {card.username ? (
-              <ThemedText style={[styles.handle, { color: colors.textSecondary }]} numberOfLines={1}>
+              <Text style={[styles.handle, { color: colors.textSecondary }]} numberOfLines={1}>
                 @{card.username}
-              </ThemedText>
+              </Text>
             ) : null}
-            <View style={styles.badges}>
-              <CivicBadge
-                tone={getTrustTierMeta(card.trustTier).tone}
-                icon={TIER_ICON[card.trustTier]}
-                label={trustTierLabel(locale, card.trustTier)}
+            <View className="flex-row flex-wrap gap-space-8 mt-space-2">
+              <Badge
+                appearance="subtle"
+                tone={bloomToneFor(getTrustTierMeta(card.trustTier).tone)}
+                size="label-small"
+                icon={Icons[TIER_ICON[card.trustTier]]}
+                content={trustTierLabel(locale, card.trustTier)}
               />
               {!verified && (
-                <CivicBadge tone="caution" icon="shield-alert-outline" label={t('civic.attest.review.unverified')} />
+                <Badge
+                  appearance="subtle"
+                  tone="warning"
+                  size="label-small"
+                  icon={Icons.shield}
+                  content={t('civic.attest.review.unverified')}
+                />
               )}
             </View>
           </View>
         </View>
 
-        <ThemedText style={[styles.caution, { color: colors.textSecondary }]}>
+        <Text style={[styles.caution, { color: colors.textSecondary }]}>
           {t('civic.attest.review.caution')}
-        </ThemedText>
+        </Text>
 
       </View>
     );
@@ -270,22 +280,12 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
   },
-  cardText: {
-    flex: 1,
-    gap: 4,
-  },
   name: {
     fontSize: 18,
     fontWeight: '600',
   },
   handle: {
     fontSize: 14,
-  },
-  badges: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 2,
   },
   caution: {
     fontSize: 13,

@@ -9,6 +9,7 @@ import {
   __resetNotificationAdapter,
   installForegroundNotificationHandler,
 } from '@/__mocks__/oxy-services';
+import { OXY_SYSTEM_NOTIFICATION_PUSH_TYPE } from '@oxy.so/contracts';
 import { COMMONS_AUTH_REQUEST_PUSH_TYPE } from '@/lib/notifications/auth-request-push';
 import { useForegroundNotificationHandler } from '@/hooks/notifications/useForegroundNotificationHandler';
 import { useAuthRequestNotifications } from '@/hooks/notifications/useAuthRequestNotifications';
@@ -65,6 +66,16 @@ describe('foreground notification presentation', () => {
     expect(__getForegroundDecision()(pushPayload('oxycommons://approve?v=1&code=fg-1'))).toBe(
       'show',
     );
+  });
+
+  it('shows a system notification push (an Oxy service telling you about your account)', async () => {
+    renderHook(() => useForegroundNotificationHandler());
+    await waitFor(() => expect(installForegroundNotificationHandler).toHaveBeenCalled());
+
+    expect(
+      __getForegroundDecision()({ type: OXY_SYSTEM_NOTIFICATION_PUSH_TYPE, notificationId: 'n-fg-1' }),
+    ).toBe('show');
+    expect(__getForegroundDecision()({ type: OXY_SYSTEM_NOTIFICATION_PUSH_TYPE })).toBe('suppress');
   });
 
   it.each([

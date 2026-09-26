@@ -27,7 +27,6 @@ the five distinct meanings of "sign out":
 | Area | Page | State |
 |---|---|---|
 | Device session, device-first transport | [device-session.md](./device-session.md) | shipped |
-| The browser hub at `auth.oxy.so` | [../SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § The browser hub | built, unverified, not deployed |
 | Principals, contexts, the directory | [principals-and-account-contexts.md](./principals-and-account-contexts.md) | shipped |
 | Tokens and credentials (v2 claims) | [tokens-and-credentials.md](./tokens-and-credentials.md) | shipped |
 | Third-party integration | [integration-guide.md](./integration-guide.md) | shipped |
@@ -42,7 +41,7 @@ these before proposing a change to the model:
 
 - [ADR 0001 — a device holds principals, and principals hold account contexts](../adr/0001-multi-principal-device-model.md)
 - [ADR 0002 — one globally active context, activated through one endpoint](../adr/0002-global-account-context.md)
-- [ADR 0003 — `auth.oxy.so` becomes the browser's first-party DeviceSession hub](../adr/0003-browser-device-session-hub.md)
+- [ADR 0003 — the browser DeviceSession hub](../adr/0003-browser-device-session-hub.md) (superseded: never deployed, deleted)
 - [ADR 0004 — one headless `OxyRuntime` behind one public `OxyProvider`](../adr/0004-single-oxy-runtime-provider.md)
 - [ADR 0024 — one Oxy account: `auth.oxy.so` is the web entry, the root lives in user-controlled holders](../adr/0024-one-oxy-account-root-holders.md)
 
@@ -51,39 +50,16 @@ these before proposing a change to the model:
 Stated here rather than left for a reader to infer from silence. Each is an
 accepted gap with a named reason, not an oversight:
 
-- **The personal root still lives on an internal holder host (`id.oxy.so`), not
-  in `auth.oxy.so`** ([ADR 0024](../adr/0024-one-oxy-account-root-holders.md) D1).
-  Accounts are created with their root, sign-in never unlocks it, recovery needs
-  only the root, and no copy names the host — but moving the holder into
-  `auth.oxy.so` waits on the holder gate (release manifest, dependency review,
-  no full SDK graph on that origin). Inventory, invariants and open items:
-  [holders-and-recovery.md](../identity/holders-and-recovery.md).
+- **Web accounts are a username, a passkey and a recovery email**
+  ([ADR 0029](../adr/0029-one-oxy-session.md) D3, changing 0024 D3–D6 and D9):
+  there is no web identity carrier. They are created, recovered (a code to the
+  recovery email, then a new passkey) and deleted (with the passkey) on
+  `auth.oxy.so`, the one origin that asserts Oxy passkeys (RP ID `oxy.so`).
+  Commons is the self-custody way. The accepted differences of `auth.oxy.so`
+  from a minimal host — the full SDK graph, `style-src 'unsafe-inline'` for
+  react-native-web, no release manifest yet — are listed in ADR 0028.
+  Inventory, invariants and open items: [holders-and-recovery.md](../identity/holders-and-recovery.md).
 
-- **ADR 0003's browser hub is BUILT and WIRED, but UNVERIFIED, NOT DEPLOYED, and
-  OFF BY DEFAULT.** The server layer
-  (`POST /session/browser-hub/{establish,resolve,rotate,revoke}`), the
-  `__Host-oxy-device` cookie, the edge layer
-  (`POST /hub/{session,claim,activate,authorize,rotate,revoke}` in
-  `packages/auth/functions/hub/`) and the IdP page that drives them
-  (`src/pages/hub-authorize.tsx`) all exist and are covered by tests — see
-  [SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § The browser hub.
-
-  **`VITE_OXY_BROWSER_HUB` defaults OFF.** With it off, `auth.oxy.so` behaves
-  byte-for-byte as it always has: the SDK's per-origin `{deviceId,
-  deviceSecret}`, the normal cold boot, `/authorize` served by the ordinary page,
-  and not one `/hub/*` request. **Flipping that flag ON is the
-  browser-verification gate**, and it is the gate because nothing below the flag
-  can be checked without a browser: Chrome, Safari and Firefox, private/incognito
-  windows, and third-party cookies blocked. Nobody removes the flag on reasoning
-  or on the strength of these tests, which cannot see a cookie jar.
-
-  Still NOT done even with the flag on: the establishment lane is
-  Commons-approval only, so a password or passkey sign-in on the IdP does not
-  establish a hub session; revocation is reachable only by signing the whole
-  device out, with no "this browser" surface in Accounts/Commons; and the handle
-  rides four columns on `device_sessions` rather than the `device_credentials`
-  table the target model describes. **Relying-party origins remain zero-cookie in
-  both flag states.**
 - **The native shared DeviceSession credential is BUILT and UNVERIFIED ON A
   DEVICE.** A sibling official app's `deviceId` + `deviceSecret` now lives in a
   dedicated cross-app slot — its own `keychainService` inside the approved access

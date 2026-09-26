@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 import type { Request } from 'express';
-import { and, asc, eq, gt, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import type {
   AccountKind,
   DeviceAccountContext,
@@ -12,13 +12,14 @@ import type {
   SessionAccount,
 } from '@oxy.so/contracts';
 import {
-  BROWSER_HUB_HANDLE_TTL_MS,
   deviceDirectorySchema,
   isOperatorSwitchTargetKind,
 } from '@oxy.so/contracts';
 import { isUniqueViolation } from '@oxy.so/db';
+import { v7 as uuidv7 } from 'uuid';
 import { getDb, type Database } from '../config/postgres';
 import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
+import { deviceCredentials } from '../db/schema/deviceCredentials';
 import { devicePrincipals } from '../db/schema/devicePrincipals';
 import { deviceSessions } from '../db/schema/deviceSessions';
 import { sessions } from '../db/schema/sessions';
@@ -35,11 +36,20 @@ const DEVICE_SECRET_BYTES = 32;
 /** Lifetime of a provisioned background credential (30 days). */
 const BACKGROUND_CREDENTIAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /**
- * Grace window during which the just-superseded `deviceSecret` is still accepted
- * after a rotation, so a multi-tab race presenting the previous secret is not
- * locked out (rotation-in-use — mirrors the refresh-family single-use-with-grace).
+ * The most holder credentials one device keeps (ADR 0029 D2).
+ *
+ * Every sign-in on a holder ADDS one and nothing rotates, so without a ceiling
+ * a browser that signs in again and again would accumulate rows for holders
+ * long gone. Far above any real count of official web origins plus native app
+ * groups on one browser; the rows evicted past it are the least recently used.
  */
-const DEVICE_SECRET_GRACE_MS = 60_000;
+const MAX_DEVICE_CREDENTIALS = 32;
+/**
+ * How stale `device_credentials.last_used_at` may get before a mint rewrites
+ * it. The column only orders the eviction above, so an hour is exact enough,
+ * and it keeps the mint — every app's hot path — from writing on every call.
+ */
+const CREDENTIAL_TOUCH_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
  * Anything that can run a query — the pool handle or an open transaction.
@@ -223,9 +233,6 @@ interface DeviceSessionRow {
   id: string;
   deviceId: string;
   activeAccountId: string | null;
-  secretHash: string | null;
-  prevSecretHash: string | null;
-  prevSecretExpiresAt: Date | null;
   backgroundSecretHash: string | null;
   backgroundSecretAccountId: string | null;
   backgroundSecretExpiresAt: Date | null;
@@ -359,9 +366,6 @@ class DeviceSessionService {
         deviceId: deviceSessions.deviceId,
         activeAccountId: deviceSessions.activeAccountId,
         activeContextId: deviceSessions.activeContextId,
-        secretHash: deviceSessions.secretHash,
-        prevSecretHash: deviceSessions.prevSecretHash,
-        prevSecretExpiresAt: deviceSessions.prevSecretExpiresAt,
         backgroundSecretHash: deviceSessions.backgroundSecretHash,
         backgroundSecretAccountId: deviceSessions.backgroundSecretAccountId,
         backgroundSecretExpiresAt: deviceSessions.backgroundSecretExpiresAt,
@@ -434,9 +438,6 @@ class DeviceSessionService {
       id: device.id,
       deviceId: device.deviceId,
       activeAccountId: device.activeAccountId,
-      secretHash: device.secretHash,
-      prevSecretHash: device.prevSecretHash,
-      prevSecretExpiresAt: device.prevSecretExpiresAt,
       backgroundSecretHash: device.backgroundSecretHash,
       backgroundSecretAccountId: device.backgroundSecretAccountId,
       backgroundSecretExpiresAt: device.backgroundSecretExpiresAt,
@@ -929,28 +930,14 @@ class DeviceSessionService {
       'all' in target ||
       (boundBackgroundAccountId !== null && removingIds.has(boundBackgroundAccountId));
 
-    // Every signout revokes the device's shared `deviceSecret`. The credential is
-    // not account-scoped, so retaining it after removing one account would let
-    // that signed-out account mint a token for whichever account remains active.
-    //
-    // Cleared to NULL, never `''`. Mongo used `$unset`; the Postgres analogue of
-    // "absent" is NULL. An empty string is a VALUE — it would collide on
-    // `device_sessions_secret_hash_key` across devices, and `getStateBySecret`
-    // guards on a non-empty hash, so `''` would also read as "no secret" while
-    // occupying the unique slot.
-    //
-    // The browser hub handle goes with signout-ALL for the same reason and on
-    // the same terms (ADR 0003: "revoked with the DeviceSession"). Leaving it
-    // behind would let a retained `__Host-oxy-device` cookie keep resolving a
-    // device whose accounts were all just signed out — and since that handle is
-    // what a later official origin joins through, the sign-out would appear to
-    // have worked while the next app silently rejoined. Single-account signout
-    // leaves it alone: the browser's other accounts still legitimately use it.
+    // The holders' `device_credentials` are NOT revoked here: ADR 0029 D2 makes
+    // the browser's DeviceSession shared by every official web app on it, so a
+    // credential proves "this browser", not "this account". Removing one account
+    // removes it for every holder at once (the contexts below), and each holder
+    // keeps minting for whichever accounts remain — Google's model. The
+    // credentials go when the device ends with nobody signed in, inside the
+    // transaction below, and always on signout-ALL.
     const clearedSecrets = {
-      secretHash: null,
-      prevSecretHash: null,
-      prevSecretExpiresAt: null,
-      ...('all' in target ? this.clearedHubHandleFields() : {}),
       ...(shouldClearBackground ? this.clearedBackgroundCredentialFields() : {}),
     };
 
@@ -981,6 +968,11 @@ class DeviceSessionService {
           ...clearedSecrets,
         })
         .where(eq(deviceSessions.id, current.id));
+      if ('all' in target) {
+        await this.revokeHolderCredentials(tx, current.id);
+      } else {
+        await this.revokeHolderCredentialsIfSignedOut(tx, current.id);
+      }
       return this.load(tx, deviceId);
     });
     if (!updated) {
@@ -1562,6 +1554,7 @@ class DeviceSessionService {
         revision: sql`${deviceSessions.revision} + 1`,
       })
       .where(eq(deviceSessions.id, device.id));
+    await this.revokeHolderCredentialsIfSignedOut(tx, device.id);
   }
 
   /**
@@ -1710,6 +1703,7 @@ class DeviceSessionService {
           revision: sql`${deviceSessions.revision} + 1`,
         })
         .where(eq(deviceSessions.id, current.id));
+      await this.revokeHolderCredentialsIfSignedOut(tx, current.id);
       return this.load(tx, deviceId);
     });
     if (!updated) {
@@ -1769,105 +1763,161 @@ class DeviceSessionService {
   }
 
   /**
-   * Issue (rotating) the `deviceSecret` bound to a device (zero-cookie
-   * transport). Mints a fresh 256-bit secret, stores only its `sha256` in
-   * `secret_hash`, and — when a prior secret existed — moves that prior hash into
-   * `prev_secret_hash` with a short `prev_secret_expires_at` grace so a concurrent
-   * tab presenting the just-superseded secret is not locked out (rotation-in-use).
+   * Issue a NEW holder credential (`deviceSecret`) for a device (zero-cookie
+   * transport). Mints a fresh 256-bit secret and stores only its `sha256` as a
+   * `device_credentials` row.
    *
-   * The WRITE is a single conditional `update`; the grace window (not a lock)
-   * is the multi-tab concurrency mitigation — mirroring the refresh family. The
-   * raw secret is returned to the caller EXACTLY ONCE and is NEVER logged.
+   * It ADDS, never rotates (ADR 0029 D2). Every official web app that joins
+   * the browser's DeviceSession through `/oauth/token`, `auth.oxy.so` itself and
+   * each native app group are separate holders on separate storage; a rotation
+   * of one shared value locked every earlier holder out a minute after the next
+   * one joined. Each holder's credential now lives until the device ends with
+   * nobody signed in, sign-out-all, or eviction past
+   * {@link MAX_DEVICE_CREDENTIALS} (least recently used first).
    *
-   * Returns null when no `device_sessions` row exists for `deviceId` (or it
-   * vanished between read and write): a secret is only ever bound to a real
-   * device row, never to a phantom device (no upsert).
+   * The device row is locked for the insert and the eviction, so two
+   * concurrent sign-ins cannot both count under the ceiling and so a concurrent
+   * sign-out cannot interleave. The raw secret is returned to the caller EXACTLY
+   * ONCE and is NEVER logged.
+   *
+   * Returns null when no `device_sessions` row exists for `deviceId`: a secret
+   * is only ever bound to a real device row, never to a phantom device.
    */
   async issueDeviceSecret(deviceId: string): Promise<string | null> {
-    const db = getDb();
-    // Two concurrent rotations (multi-tab mint, parallel sign-ins) must not
-    // clobber each other: last-writer-wins would drop the first writer's fresh
-    // secret entirely (neither current nor prev). Compare-and-swap on the
-    // secretHash we read; on a lost race, re-read once and rotate on top of the
-    // winner — the winner's secret then sits in the grace slot, so BOTH clients
-    // end up holding a mintable secret.
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const [current] = await db
-        .select({ secretHash: deviceSessions.secretHash })
+    const rawSecret = base64UrlEncode(crypto.randomBytes(DEVICE_SECRET_BYTES));
+    const secretHash = sha256Hex(rawSecret);
+
+    const issued = await getDb().transaction(async (tx) => {
+      const [device] = await tx
+        .select({ id: deviceSessions.id })
         .from(deviceSessions)
         .where(eq(deviceSessions.deviceId, deviceId))
-        .limit(1);
-      if (!current) return null;
+        .for('update');
+      if (!device) return false;
 
-      const rawSecret = base64UrlEncode(crypto.randomBytes(DEVICE_SECRET_BYTES));
-      const secretHash = sha256Hex(rawSecret);
+      await tx.insert(deviceCredentials).values({ deviceSessionId: device.id, secretHash });
 
-      const set: {
-        secretHash: string;
-        prevSecretHash?: string;
-        prevSecretExpiresAt?: Date;
-      } = { secretHash };
-      if (current.secretHash) {
-        set.prevSecretHash = current.secretHash;
-        set.prevSecretExpiresAt = new Date(Date.now() + DEVICE_SECRET_GRACE_MS);
-      }
-
-      // The CAS guard. `isNull` is the exact analogue of Mongo's
-      // `{ secretHash: { $exists: false } }` for a device that has never been
-      // bound — Mongo used `default: undefined` there ONLY because a sparse
-      // unique index collides on nulls, which Postgres does not do. Comparing
-      // against `''` instead would match nothing and silently never bind a
-      // first secret.
-      const updated = await db
-        .update(deviceSessions)
-        .set(set)
+      const kept = tx
+        .select({ id: deviceCredentials.id })
+        .from(deviceCredentials)
+        .where(eq(deviceCredentials.deviceSessionId, device.id))
+        .orderBy(
+          desc(deviceCredentials.lastUsedAt),
+          desc(deviceCredentials.createdAt),
+          desc(deviceCredentials.id),
+        )
+        .limit(MAX_DEVICE_CREDENTIALS);
+      await tx
+        .delete(deviceCredentials)
         .where(
           and(
-            eq(deviceSessions.deviceId, deviceId),
-            current.secretHash
-              ? eq(deviceSessions.secretHash, current.secretHash)
-              : isNull(deviceSessions.secretHash),
+            eq(deviceCredentials.deviceSessionId, device.id),
+            notInArray(deviceCredentials.id, kept),
           ),
-        )
-        .returning({ id: deviceSessions.id });
-      if (updated.length > 0) return rawSecret;
-    }
-    return null;
+        );
+      return true;
+    });
+    return issued ? rawSecret : null;
   }
 
   /**
-   * Resolve the `DeviceSessionState` bound to a raw `deviceSecret`. The secret is
-   * hashed and matched — constant-time — against the device's current
-   * `secret_hash` OR, within the grace window, its `prev_secret_hash`. Returns
-   * null when the device is unknown, carries no secret, or the secret does not
-   * match (possession of the deviceId alone reveals nothing).
+   * A new, EMPTY DeviceSession with a server-chosen `deviceId` and one holder
+   * credential — the browser's device, created by auth.oxy.so the first time
+   * the bridge runs there without a credential of its own (ADR 0029 D2). Every
+   * official app that joins through the bridge, and every sign-in that proves
+   * this device, lands on it.
+   *
+   * The id is never the caller's: a device id a client could choose is a device
+   * somebody else might already hold.
+   */
+  async registerDevice(): Promise<{ deviceId: string; deviceSecret: string }> {
+    const deviceId = uuidv7();
+    await this.ensureDeviceRecord(getDb(), deviceId);
+    const deviceSecret = await this.issueDeviceSecret(deviceId);
+    if (!deviceSecret) {
+      throw new Error(`device_sessions row for "${deviceId}" vanished after insert`);
+    }
+    return { deviceId, deviceSecret };
+  }
+
+  /**
+   * Resolve the `DeviceSessionState` a raw `deviceSecret` proves. The secret is
+   * hashed and looked up among the device's holder credentials — ANY live one
+   * proves the device. Returns null when the device is unknown, carries no such
+   * credential, or the secret matches another device's (possession of the
+   * deviceId alone reveals nothing).
+   *
+   * The lookup is by hash on `device_credentials_secret_hash_key`: the hash of a
+   * 256-bit random value leaks nothing usable through the index's timing.
+   *
+   * NEVER rotates. The mint echoes the presented secret back, so every holder of
+   * a device can mint concurrently without invalidating another.
    */
   async getStateBySecret(deviceId: string, rawSecret: string): Promise<DeviceSessionState | null> {
     if (typeof deviceId !== 'string' || deviceId.length === 0) return null;
     if (typeof rawSecret !== 'string' || rawSecret.length === 0) return null;
 
-    const doc = await this.load(getDb(), deviceId);
-    if (!doc) return null;
+    const db = getDb();
+    const [credential] = await db
+      .select({ id: deviceCredentials.id, lastUsedAt: deviceCredentials.lastUsedAt })
+      .from(deviceCredentials)
+      .innerJoin(deviceSessions, eq(deviceCredentials.deviceSessionId, deviceSessions.id))
+      .where(
+        and(
+          eq(deviceCredentials.secretHash, sha256Hex(rawSecret)),
+          eq(deviceSessions.deviceId, deviceId),
+        ),
+      )
+      .limit(1);
+    if (!credential) return null;
 
-    const hash = sha256Hex(rawSecret);
-    // Constant-time throughout — never `!==` on secret material.
-    if (
-      typeof doc.secretHash === 'string' &&
-      doc.secretHash.length > 0 &&
-      timingSafeStringEqual(hash, doc.secretHash)
-    ) {
-      return projectState(doc);
+    if (Date.now() - credential.lastUsedAt.getTime() > CREDENTIAL_TOUCH_INTERVAL_MS) {
+      try {
+        await db
+          .update(deviceCredentials)
+          .set({ lastUsedAt: new Date() })
+          .where(eq(deviceCredentials.id, credential.id));
+      } catch (error) {
+        // Only the eviction order depends on it; the mint must not fail for it.
+        logger.warn('deviceSession.getStateBySecret: touch failed', { error });
+      }
     }
-    if (
-      typeof doc.prevSecretHash === 'string' &&
-      doc.prevSecretHash.length > 0 &&
-      doc.prevSecretExpiresAt instanceof Date &&
-      doc.prevSecretExpiresAt.getTime() > Date.now() &&
-      timingSafeStringEqual(hash, doc.prevSecretHash)
-    ) {
-      return projectState(doc);
-    }
-    return null;
+
+    const doc = await this.load(db, deviceId);
+    return doc ? projectState(doc) : null;
+  }
+
+  /** Delete every holder credential of a device (sign-out-all). */
+  private async revokeHolderCredentials(tx: Queryable, deviceSessionId: string): Promise<void> {
+    await tx.delete(deviceCredentials).where(eq(deviceCredentials.deviceSessionId, deviceSessionId));
+  }
+
+  /**
+   * Delete every holder credential of a device that has just ended with NOBODY
+   * signed in — no live context bound to a session, which is exactly what makes
+   * `DeviceSessionState.accounts` empty.
+   *
+   * While any account remains the credentials survive: the browser is still
+   * signed in to it in every app (ADR 0029 D2). Once none does, a credential
+   * would only keep minting `no_active_session` and keep a device-scoped socket
+   * open for a browser with nothing on it, so every holder is signed out at
+   * once and a later sign-in issues fresh ones.
+   */
+  private async revokeHolderCredentialsIfSignedOut(tx: Queryable, deviceSessionId: string): Promise<void> {
+    const [signedIn] = await tx
+      .select({ id: deviceAccountContexts.id })
+      .from(deviceAccountContexts)
+      .innerJoin(devicePrincipals, eq(deviceAccountContexts.principalId, devicePrincipals.id))
+      .where(
+        and(
+          eq(deviceAccountContexts.deviceSessionId, deviceSessionId),
+          isNull(deviceAccountContexts.revokedAt),
+          isNull(devicePrincipals.revokedAt),
+          isNotNull(deviceAccountContexts.sessionId),
+        ),
+      )
+      .limit(1);
+    if (!signedIn) await this.revokeHolderCredentials(tx, deviceSessionId);
   }
 
   /**
@@ -1950,152 +2000,6 @@ class DeviceSessionService {
       accessToken: token.accessToken,
       expiresAt: token.expiresAt,
       accountId: boundAccountId,
-    };
-  }
-
-  // =========================================================================
-  // The browser hub handle (issue #937 Phase 5, ADR 0003)
-  // =========================================================================
-
-  /**
-   * Issue (or replace) the browser hub handle for one device, returning the raw
-   * value exactly ONCE.
-   *
-   * The caller is the IdP's own edge layer, acting for a browser that has just
-   * authenticated at `auth.oxy.so`; the route gates it on a first-party bearer
-   * whose `deviceId` names this row. Only `sha256(handle)` is stored, so this
-   * value cannot be recovered afterwards from anywhere but the cookie jar it is
-   * about to be written into.
-   *
-   * Replacing an existing handle keeps the previous hash alive for
-   * {@link DEVICE_SECRET_GRACE_MS} — a browser's tabs share one cookie jar, so a
-   * request already in flight from a sibling tab still carries the old value and
-   * must not be treated as a forged one. Returns null when the device is
-   * unknown, which is the only failure: whether the device currently has a live
-   * account is a question for `resolve`, not for issuance.
-   */
-  async issueHubHandle(deviceId: string): Promise<{ handle: string; expiresAt: string } | null> {
-    if (typeof deviceId !== 'string' || deviceId.length === 0) return null;
-
-    const [current] = await getDb()
-      .select({ hubSecretHash: deviceSessions.hubSecretHash })
-      .from(deviceSessions)
-      .where(eq(deviceSessions.deviceId, deviceId))
-      .limit(1);
-    if (!current) return null;
-
-    const handle = base64UrlEncode(crypto.randomBytes(DEVICE_SECRET_BYTES));
-    const expiresAt = new Date(Date.now() + BROWSER_HUB_HANDLE_TTL_MS);
-
-    const updated = await getDb()
-      .update(deviceSessions)
-      .set({
-        hubSecretHash: sha256Hex(handle),
-        hubSecretExpiresAt: expiresAt,
-        // Only carry a PREVIOUS hash forward when there was one. Writing the
-        // grace columns unconditionally would arm a window around NULL, and
-        // `resolveHubDeviceId` guards on a non-empty hash for exactly that
-        // reason — but arming it is still a lie about what happened.
-        ...(current.hubSecretHash
-          ? {
-              hubPrevSecretHash: current.hubSecretHash,
-              hubPrevSecretExpiresAt: new Date(Date.now() + DEVICE_SECRET_GRACE_MS),
-            }
-          : {}),
-      })
-      .where(eq(deviceSessions.deviceId, deviceId))
-      .returning({ id: deviceSessions.id });
-    if (updated.length === 0) return null;
-
-    return { handle, expiresAt: expiresAt.toISOString() };
-  }
-
-  /**
-   * The `deviceId` a raw hub handle addresses, or null.
-   *
-   * The ONLY credential here looked up BY its hash rather than verified after
-   * the row was found by `device_id`: the cookie carries the handle and nothing
-   * else, so the hash is the sole address. That is why the live column is UNIQUE
-   * and the previous one is indexed.
-   *
-   * There is no constant-time comparison and none is meaningful. A timing-safe
-   * compare defends a LOW-entropy secret against an attacker who can measure the
-   * prefix they got right; the input here is 256 bits from `crypto.randomBytes`,
-   * and what performs the comparison is a btree index inside Postgres, whose
-   * timing this process does not control in the first place. The control against
-   * guessing is the entropy, which is why the issuer's byte count is the number
-   * that matters.
-   *
-   * An EXPIRED handle resolves to null while its row stays untouched: expiry is
-   * a read-side verdict, so a clock that was wrong for an hour does not
-   * permanently destroy a live browser session.
-   */
-  async resolveHubDeviceId(rawHandle: string): Promise<string | null> {
-    if (typeof rawHandle !== 'string' || rawHandle.length === 0) return null;
-
-    const hash = sha256Hex(rawHandle);
-    const now = new Date();
-    const [row] = await getDb()
-      .select({
-        deviceId: deviceSessions.deviceId,
-        hubSecretHash: deviceSessions.hubSecretHash,
-        hubSecretExpiresAt: deviceSessions.hubSecretExpiresAt,
-      })
-      .from(deviceSessions)
-      .where(
-        or(
-          eq(deviceSessions.hubSecretHash, hash),
-          and(
-            eq(deviceSessions.hubPrevSecretHash, hash),
-            gt(deviceSessions.hubPrevSecretExpiresAt, now),
-          ),
-        ),
-      )
-      .limit(1);
-    if (!row) return null;
-
-    // The TTL is carried by the live handle's column and applies to the grace
-    // window too: a handle superseded five seconds before its own expiry does
-    // not get a fresh minute of life out of the rotation.
-    if (!(row.hubSecretExpiresAt instanceof Date) || row.hubSecretExpiresAt.getTime() <= now.getTime()) {
-      return null;
-    }
-    return row.deviceId;
-  }
-
-  /**
-   * Revoke the hub handle a raw value addresses. Idempotent: a handle that
-   * resolves to nothing reports `false` and changes nothing.
-   *
-   * This is "sign out of `auth.oxy.so`", NOT "sign out this device". The device
-   * session, its principals and every other app on it are untouched — revoking
-   * the browser's whole device session is `POST /session/device/signout` with
-   * `{ all: true }`, which clears these columns as part of the same sweep.
-   */
-  async revokeHubHandle(rawHandle: string): Promise<boolean> {
-    const deviceId = await this.resolveHubDeviceId(rawHandle);
-    if (!deviceId) return false;
-
-    const updated = await getDb()
-      .update(deviceSessions)
-      .set(this.clearedHubHandleFields())
-      .where(eq(deviceSessions.deviceId, deviceId))
-      .returning({ id: deviceSessions.id });
-    return updated.length > 0;
-  }
-
-  /** The hub-handle quadruple, cleared. NULL is "absent"; `''` is a value. */
-  private clearedHubHandleFields(): {
-    hubSecretHash: null;
-    hubPrevSecretHash: null;
-    hubPrevSecretExpiresAt: null;
-    hubSecretExpiresAt: null;
-  } {
-    return {
-      hubSecretHash: null,
-      hubPrevSecretHash: null,
-      hubPrevSecretExpiresAt: null,
-      hubSecretExpiresAt: null,
     };
   }
 

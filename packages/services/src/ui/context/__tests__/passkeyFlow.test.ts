@@ -12,7 +12,8 @@
 import type { LoginSessionResult } from '@oxy.so/contracts';
 import {
   runPasskeyLogin,
-    runPasskeyAdd,
+  runPasskeyAdd,
+  runPasskeyRegisterSignIn,
   PASSKEY_UNSUPPORTED_MESSAGE,
   type RunPasskeyLoginDeps,
   type RunPasskeyAddDeps,
@@ -177,5 +178,62 @@ describe('runPasskeyAdd', () => {
     await expect(runPasskeyAdd(deps)).rejects.toThrow(PASSKEY_UNSUPPORTED_MESSAGE);
     expect(deps.getRegisterOptions).not.toHaveBeenCalled();
     expect(deps.onLinked).not.toHaveBeenCalled();
+  });
+});
+
+describe('runPasskeyRegisterSignIn', () => {
+  it('runs options → ceremony → verify → commit, and commits the session it minted', async () => {
+    const order: string[] = [];
+    const commit = jest.fn(async (result: LoginSessionResult) => {
+      order.push('commit');
+      expect(result).toBe(sessionResult);
+    });
+    await runPasskeyRegisterSignIn({
+      isSupported: () => true,
+      getRegisterOptions: async () => {
+        order.push('register-options');
+        return { challenge: 'c' };
+      },
+      runCeremony: async (options) => {
+        order.push('ceremony');
+        expect(options).toEqual({ challenge: 'c' });
+        return { id: 'cred' };
+      },
+      registerVerify: async (response) => {
+        order.push('verify');
+        expect(response).toEqual({ id: 'cred' });
+        return sessionResult;
+      },
+      commit,
+    });
+    expect(order).toEqual(['register-options', 'ceremony', 'verify', 'commit']);
+  });
+
+  it('refuses a verify that linked instead of signing in', async () => {
+    const commit = jest.fn();
+    await expect(
+      runPasskeyRegisterSignIn({
+        isSupported: () => true,
+        getRegisterOptions: async () => ({}),
+        runCeremony: async () => ({}),
+        registerVerify: async () => linkResult,
+        commit,
+      }),
+    ).rejects.toThrow('without signing in');
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('fails before any ceremony where passkeys are unsupported', async () => {
+    const getRegisterOptions = jest.fn();
+    await expect(
+      runPasskeyRegisterSignIn({
+        isSupported: () => false,
+        getRegisterOptions,
+        runCeremony: jest.fn(),
+        registerVerify: jest.fn(),
+        commit: jest.fn(),
+      }),
+    ).rejects.toThrow(PASSKEY_UNSUPPORTED_MESSAGE);
+    expect(getRegisterOptions).not.toHaveBeenCalled();
   });
 });

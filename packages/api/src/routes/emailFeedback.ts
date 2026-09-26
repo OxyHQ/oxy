@@ -43,12 +43,10 @@ const BREVO_WEBHOOK_SECRET = getEnvVar('BREVO_WEBHOOK_SECRET', '');
 /**
  * Refuse anything arriving with a cookie.
  *
- * Neither SNS nor Brevo sends one. A request that does is a browser acting on
- * somebody's ambient session — which is exactly the shape CSRF describes, and
- * this router cannot use the normal `csrfProtection` because a webhook has no
- * token to present. Rejecting cookie-bearing requests outright is the stronger
- * statement anyway: this endpoint is not reachable with a user's credentials at
- * all, so there is no session for a cross-site request to ride.
+ * Neither SNS nor Brevo sends one. A request that does is a browser, which is
+ * the shape CSRF describes. Rejecting cookie-bearing requests outright keeps
+ * this endpoint out of reach of a user's credentials, so there is no session
+ * for a cross-site request to ride even if the API ever sets a cookie again.
  */
 function rejectCookieAuthenticatedRequests(req: Request, res: Response, next: NextFunction): void {
   if (req.headers.cookie) {

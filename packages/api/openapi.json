@@ -39,12 +39,6 @@
         "type": "http",
         "scheme": "Capability",
         "description": "Short-lived, signed and audience-bound authority for one exact actor, account, resource and tool. Send as `Authorization: Capability <ticket>`. It is accepted only by routes whose app catalog exposes that tool and is re-authorized immediately before execution so revocation takes effect."
-      },
-      "csrfToken": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-CSRF-Token",
-        "description": "Required for state-changing requests against CSRF-protected routes. Obtain a token from any GET response (set via the `XSRF-TOKEN` cookie) and echo it on subsequent POST/PUT/PATCH/DELETE calls. Only enforced when cookies are present."
       }
     },
     "schemas": {
@@ -3034,7 +3028,11 @@
                         "chains:read",
                         "acting-as:offline",
                         "accounts:act-as-session",
-                        "podcasts:write"
+                        "podcasts:write",
+                        "linked-accounts:read",
+                        "files:user-media:write",
+                        "federation:identities:resolve",
+                        "federation:instance-fetch"
                       ]
                     }
                   }
@@ -3306,7 +3304,11 @@
                         "chains:read",
                         "acting-as:offline",
                         "accounts:act-as-session",
-                        "podcasts:write"
+                        "podcasts:write",
+                        "linked-accounts:read",
+                        "files:user-media:write",
+                        "federation:identities:resolve",
+                        "federation:instance-fetch"
                       ]
                     }
                   },
@@ -3669,7 +3671,11 @@
                         "chains:read",
                         "acting-as:offline",
                         "accounts:act-as-session",
-                        "podcasts:write"
+                        "podcasts:write",
+                        "linked-accounts:read",
+                        "files:user-media:write",
+                        "federation:identities:resolve",
+                        "federation:instance-fetch"
                       ]
                     }
                   },
@@ -5237,6 +5243,13 @@
                             "type": "string",
                             "format": "date-time",
                             "description": "When the adaptive HLS ladder for this asset finished transcoding. ABSENT when there is none — transcoding is asynchronous and per-rendition failures are swallowed, so a video may never get one. Consumers must treat absence as \"no adaptive stream\" and play the progressive original: the `?variant=hls_master` URL is derivable from the id, and building it without this field is what made players fail on a 403 and fall back, once per video per play.\n"
+                          },
+                          "ownerUserId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "The owning Oxy user (null for a system-owned file). Present ONLY for Oxy's own applications (internal-tier service tokens), so a first-party service can check an attached asset belongs to the acting user.\n"
                           }
                         }
                       }
@@ -5649,7 +5662,7 @@
           "Files"
         ],
         "summary": "Stream-upload durable media into a normal public file owned by an",
-        "description": "existing local Oxy user. Used by Mention MCP intent-media when the\n      caller authenticates with an MCP JWT (no Oxy session bearer).",
+        "description": "existing local Oxy user. Used by Mention MCP intent-media when the\n      caller authenticates with an MCP JWT (no Oxy session bearer).\n        files:write together with federation:write",
         "parameters": [],
         "responses": {
           "200": {
@@ -6596,61 +6609,6 @@
         "operationId": "postAuthChallenge"
       }
     },
-    "/auth/check-email/{email}": {
-      "get": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Check email availability",
-        "description": "Check whether an email address is available for registration.",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "email",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "email"
-            },
-            "example": "user@example.com"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Availability check result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "available": {
-                      "type": "boolean"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid email format",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "operationId": "getAuthCheckEmailEmail"
-      }
-    },
     "/auth/check-publickey/{publicKey}": {
       "get": {
         "tags": [
@@ -6838,7 +6796,7 @@
           "Authentication"
         ],
         "summary": "Link a root (`publicKey`) to a personal account that has NONE — first link only",
-        "description": "(ADR 0024 D8).\n\n- An account whose root is this key: idempotent with a root proof, and heals a\n  missing `identity` method row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless account: a root proof (`link_identity`, one-use challenge) AND a\n  fresh assertion by one of the account's existing passkeys over the same\n  challenge. A bearer plus a key generated a moment ago is not authority.",
+        "description": "(ADR 0024 D8). Both factors in one request; linking Commons from another device\nrelays them through `routes/identityLink.ts`. Either way `linkRootToAccount`.\n\n- An account whose root is this key: idempotent with a root proof, and heals a\n  missing `identity` method row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless (passkey) account: a root proof (`link_identity`, one-use\n  challenge) AND a fresh assertion by one of the account's existing passkeys,\n  made on auth.oxy.so, over the same challenge. A bearer plus a key generated a\n  moment ago is not authority. The first link deletes the recovery email\n  (ADR 0029 D3).",
         "parameters": [],
         "responses": {
           "200": {
@@ -16833,6 +16791,190 @@
         "operationId": "postFederationIdentitiesResolve"
       }
     },
+    "/federation/instance-fetch/sign": {
+      "post": {
+        "tags": [
+          "Federation"
+        ],
+        "summary": "Oxy's instance actor signs ONE ActivityPub GET of `url` for the calling",
+        "description": "service, which then sends the returned `Host`/`Date`/`Signature` on that GET\nitself. The service holds no key and Oxy fetches nothing. See\n`services/federation/instanceFetchSignature.ts` for why it is the instance\nactor and what bounds it: GET only (Oxy composes the signing string), the\ninstance key only, public https URLs only.\n\n - `federation:instance-fetch` scope     → 403\n - body schema (`{ url }`, strict)       → 400 (validate)\n - not https / credentials / not public  → 400 `details.reason`",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/federation.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postFederationInstanceFetchSign"
+      }
+    },
+    "/federation/move": {
+      "post": {
+        "tags": [
+          "Federation"
+        ],
+        "summary": "Called by the app whose inbox received the Move (Mention), after the engine's",
+        "description": "shape check (`parseInboundMove`). Requires `federation:write`. The target must\nbe a local actor on Oxy's own domain or one the calling application is\nregistered for. Oxy then verifies, itself, that the target has linked the old\naccount as an alias and that a FRESH fetch of the old actor names the target\nas `movedTo` — see `services/federationMove.service.ts` for what is applied.\n\nIdempotent on `activityId`: a replay answers 200 with `replayed: true` and\nthe first application's counts. Refusals: 400 invalid target, 404 unknown\nlocal account, 422 no alias / `movedTo` mismatch, 502 old actor unreachable.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/federation.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "oldActorUri": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "targetActorUri": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "activityId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "oldActorUri",
+                  "targetActorUri",
+                  "activityId"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postFederationMove"
+      }
+    },
     "/federation/public-key/{username}": {
       "get": {
         "tags": [
@@ -17350,6 +17492,584 @@
         "operationId": "getIdentityHeadUserId"
       }
     },
+    "/identity/link": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/link",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "postIdentityLink"
+      }
+    },
+    "/identity/link/{linkId}": {
+      "get": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "GET /identity/link/{linkId}",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getIdentityLinkLinkId"
+      },
+      "delete": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "DELETE /identity/link/{linkId}",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "deleteIdentityLinkLinkId"
+      }
+    },
+    "/identity/link/{linkId}/complete": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/link/{linkId}/complete",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "assertion": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]+$",
+                        "minLength": 16,
+                        "maxLength": 1024
+                      },
+                      "rawId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2048
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "public-key"
+                        ]
+                      },
+                      "response": {
+                        "type": "object",
+                        "properties": {
+                          "clientDataJSON": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          },
+                          "authenticatorData": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          },
+                          "signature": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          },
+                          "userHandle": {
+                            "type": "string",
+                            "maxLength": 2048
+                          }
+                        },
+                        "required": [
+                          "clientDataJSON",
+                          "authenticatorData",
+                          "signature"
+                        ]
+                      },
+                      "clientExtensionResults": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      "authenticatorAttachment": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "rawId",
+                      "type",
+                      "response"
+                    ]
+                  }
+                },
+                "required": [
+                  "assertion"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityLinkLinkIdComplete"
+      }
+    },
+    "/identity/link/{linkId}/options": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/link/{linkId}/options",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challenge": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "challenge"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityLinkLinkIdOptions"
+      }
+    },
+    "/identity/link/{linkId}/proof": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /identity/link/{linkId}/proof",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicKey": {
+                    "type": "string",
+                    "pattern": "^04[0-9a-f]{128}$"
+                  },
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "v": {
+                        "type": "number",
+                        "enum": [
+                          2
+                        ]
+                      },
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    },
+                    "required": [
+                      "v",
+                      "challenge",
+                      "expiresAt",
+                      "signature"
+                    ]
+                  }
+                },
+                "required": [
+                  "publicKey",
+                  "proof"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityLinkLinkIdProof"
+      }
+    },
     "/identity/log/{userId}": {
       "get": {
         "tags": [
@@ -17416,646 +18136,6 @@
           {}
         ],
         "operationId": "getIdentityLogUserId"
-      }
-    },
-    "/identity/move": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "POST /identity/move",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityMove.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityMove.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "initiatorCommitment": {
-                    "type": "string",
-                    "pattern": "^[0-9a-f]{64}$"
-                  }
-                },
-                "required": [
-                  "initiatorCommitment"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityMove"
-      }
-    },
-    "/identity/move/{moveId}": {
-      "get": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "GET /identity/move/{moveId}",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityMove.ts` to fill in summary, description, request/response examples.",
-        "parameters": [
-          {
-            "name": "moveId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityMove.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "operationId": "getIdentityMoveMoveId"
-      },
-      "delete": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "DELETE /identity/move/{moveId}",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityMove.ts` to fill in summary, description, request/response examples.",
-        "parameters": [
-          {
-            "name": "moveId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityMove.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "deleteIdentityMoveMoveId"
-      }
-    },
-    "/identity/move/{moveId}/join": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "POST /identity/move/{moveId}/join",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityMove.ts` to fill in summary, description, request/response examples.",
-        "parameters": [
-          {
-            "name": "moveId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityMove.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "responderEphemeralPublicKey": {
-                    "type": "string",
-                    "pattern": "^04[0-9a-f]{128}$"
-                  }
-                },
-                "required": [
-                  "responderEphemeralPublicKey"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityMoveMoveIdJoin"
-      }
-    },
-    "/identity/move/{moveId}/receipt": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "root signature over the move, both keys and the digest of the relayed",
-        "description": "ciphertext. Verified against the move's key AND the account's current key;\ncompleting clears the ciphertext.",
-        "parameters": [
-          {
-            "name": "moveId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityMove.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "signature": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 512
-                  }
-                },
-                "required": [
-                  "signature"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityMoveMoveIdReceipt"
-      }
-    },
-    "/identity/move/{moveId}/reveal": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "must open the commitment published at creation, and only once Commons joined.",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityMove.ts` to fill in summary, description, request/response examples.",
-        "parameters": [
-          {
-            "name": "moveId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityMove.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "initiatorEphemeralPublicKey": {
-                    "type": "string",
-                    "pattern": "^04[0-9a-f]{128}$"
-                  },
-                  "commitmentNonce": {
-                    "type": "string",
-                    "pattern": "^[0-9a-f]{64}$"
-                  }
-                },
-                "required": [
-                  "initiatorEphemeralPublicKey",
-                  "commitmentNonce"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityMoveMoveIdReveal"
-      }
-    },
-    "/identity/move/{moveId}/seal": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "device, authorized by a one-use root proof over the move and the exact sealed",
-        "description": "bytes. Nothing is sealed before the key it was sealed with is public.",
-        "parameters": [
-          {
-            "name": "moveId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityMove.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "nonce": {
-                    "type": "string",
-                    "pattern": "^[0-9a-f]{48}$"
-                  },
-                  "ciphertext": {
-                    "type": "string",
-                    "pattern": "^(?:[0-9a-f]{64}|[0-9a-f]{72}|[0-9a-f]{80}|[0-9a-f]{88}|[0-9a-f]{96})$"
-                  },
-                  "proof": {
-                    "type": "object",
-                    "properties": {
-                      "v": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "challenge": {
-                        "type": "string",
-                        "pattern": "^[0-9a-f]{64}$"
-                      },
-                      "expiresAt": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      },
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      }
-                    },
-                    "required": [
-                      "v",
-                      "challenge",
-                      "expiresAt",
-                      "signature"
-                    ]
-                  }
-                },
-                "required": [
-                  "nonce",
-                  "ciphertext",
-                  "proof"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityMoveMoveIdSeal"
       }
     },
     "/identity/proof-challenge": {
@@ -18126,16 +18206,7 @@
                   "action": {
                     "type": "string",
                     "enum": [
-                      "web_envelope_establish",
-                      "web_envelope_put",
-                      "web_envelope_phrase_confirmed",
-                      "web_envelope_recovery_verified",
-                      "web_envelope_delete",
-                      "link_identity",
-                      "enroll_identity",
-                      "recover_account_start",
-                      "recover_account_complete",
-                      "identity_move_seal"
+                      "link_identity"
                     ]
                   }
                 },
@@ -18476,347 +18547,6 @@
         "operationId": "getIdentityRecordsUserIdTypeVerify"
       }
     },
-    "/identity/recovery/challenge": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "POST /identity/recovery/challenge",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityRecovery.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityRecovery.ts`, naming a Zod schema the file imports."
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "operationId": "postIdentityRecoveryChallenge"
-      }
-    },
-    "/identity/recovery/complete": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "and a session, in one transaction.",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityRecovery.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityRecovery.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "ticket": {
-                    "type": "string",
-                    "pattern": "^[0-9a-f]{64}$"
-                  },
-                  "response": {
-                    "type": "object",
-                    "additionalProperties": {}
-                  },
-                  "envelope": {
-                    "type": "object",
-                    "properties": {
-                      "version": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "algorithm": {
-                        "type": "string",
-                        "enum": [
-                          "xchacha20poly1305"
-                        ]
-                      },
-                      "publicKey": {
-                        "type": "string",
-                        "pattern": "^04[0-9a-f]{128}$"
-                      },
-                      "secretKind": {
-                        "type": "string",
-                        "enum": [
-                          "mnemonic-entropy",
-                          "raw-private-key"
-                        ]
-                      },
-                      "secretNonce": {
-                        "type": "string",
-                        "pattern": "^[0-9a-fA-F]{48}$"
-                      },
-                      "sealedSecret": {
-                        "type": "string",
-                        "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
-                      },
-                      "wraps": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "credentialId": {
-                              "type": "string",
-                              "pattern": "^[A-Za-z0-9_-]+$",
-                              "minLength": 16,
-                              "maxLength": 1024
-                            },
-                            "nonce": {
-                              "type": "string",
-                              "pattern": "^[0-9a-fA-F]{48}$"
-                            },
-                            "wrappedKey": {
-                              "type": "string",
-                              "pattern": "^[0-9a-fA-F]{96}$"
-                            },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "rpId": {
-                              "type": "string",
-                              "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                              "minLength": 1,
-                              "maxLength": 253
-                            },
-                            "verifiedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            }
-                          },
-                          "required": [
-                            "credentialId",
-                            "nonce",
-                            "wrappedKey",
-                            "createdAt",
-                            "rpId"
-                          ]
-                        },
-                        "minItems": 1,
-                        "maxItems": 10
-                      }
-                    },
-                    "required": [
-                      "version",
-                      "algorithm",
-                      "publicKey",
-                      "secretKind",
-                      "secretNonce",
-                      "sealedSecret",
-                      "wraps"
-                    ]
-                  },
-                  "proof": {
-                    "type": "object",
-                    "properties": {
-                      "v": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "challenge": {
-                        "type": "string",
-                        "pattern": "^[0-9a-f]{64}$"
-                      },
-                      "expiresAt": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      },
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      }
-                    },
-                    "required": [
-                      "v",
-                      "challenge",
-                      "expiresAt",
-                      "signature"
-                    ]
-                  },
-                  "deviceName": {
-                    "type": "string",
-                    "maxLength": 100
-                  },
-                  "deviceFingerprint": {
-                    "type": "string",
-                    "maxLength": 512
-                  }
-                },
-                "required": [
-                  "ticket",
-                  "response",
-                  "envelope",
-                  "proof"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityRecoveryComplete"
-      }
-    },
-    "/identity/recovery/start": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "The signature is checked before anything is read, so a request without the",
-        "description": "root learns nothing, and a failed proof and an unused root answer identically.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityRecovery.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "publicKey": {
-                    "type": "string",
-                    "pattern": "^04[0-9a-f]{128}$"
-                  },
-                  "proof": {
-                    "type": "object",
-                    "properties": {
-                      "v": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "challenge": {
-                        "type": "string",
-                        "pattern": "^[0-9a-f]{64}$"
-                      },
-                      "expiresAt": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      },
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      }
-                    },
-                    "required": [
-                      "v",
-                      "challenge",
-                      "expiresAt",
-                      "signature"
-                    ]
-                  }
-                },
-                "required": [
-                  "publicKey",
-                  "proof"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityRecoveryStart"
-      }
-    },
     "/identity/root-status": {
       "get": {
         "tags": [
@@ -18856,850 +18586,6 @@
           }
         ],
         "operationId": "getIdentityRootStatus"
-      }
-    },
-    "/identity/web-envelope": {
-      "get": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "GET /identity/web-envelope",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityWebEnvelope.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "getIdentityWebEnvelope"
-      },
-      "put": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "Replacing keeps the readiness facts: re-wrapping the same root does not",
-        "description": "un-save the recovery material.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "envelope": {
-                    "type": "object",
-                    "properties": {
-                      "version": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "algorithm": {
-                        "type": "string",
-                        "enum": [
-                          "xchacha20poly1305"
-                        ]
-                      },
-                      "publicKey": {
-                        "type": "string",
-                        "pattern": "^04[0-9a-f]{128}$"
-                      },
-                      "secretKind": {
-                        "type": "string",
-                        "enum": [
-                          "mnemonic-entropy",
-                          "raw-private-key"
-                        ]
-                      },
-                      "secretNonce": {
-                        "type": "string",
-                        "pattern": "^[0-9a-fA-F]{48}$"
-                      },
-                      "sealedSecret": {
-                        "type": "string",
-                        "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
-                      },
-                      "wraps": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "credentialId": {
-                              "type": "string",
-                              "pattern": "^[A-Za-z0-9_-]+$",
-                              "minLength": 16,
-                              "maxLength": 1024
-                            },
-                            "nonce": {
-                              "type": "string",
-                              "pattern": "^[0-9a-fA-F]{48}$"
-                            },
-                            "wrappedKey": {
-                              "type": "string",
-                              "pattern": "^[0-9a-fA-F]{96}$"
-                            },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "rpId": {
-                              "type": "string",
-                              "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                              "minLength": 1,
-                              "maxLength": 253
-                            },
-                            "verifiedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            }
-                          },
-                          "required": [
-                            "credentialId",
-                            "nonce",
-                            "wrappedKey",
-                            "createdAt",
-                            "rpId"
-                          ]
-                        },
-                        "minItems": 1,
-                        "maxItems": 10
-                      }
-                    },
-                    "required": [
-                      "version",
-                      "algorithm",
-                      "publicKey",
-                      "secretKind",
-                      "secretNonce",
-                      "sealedSecret",
-                      "wraps"
-                    ]
-                  },
-                  "proof": {
-                    "type": "object",
-                    "properties": {
-                      "v": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "challenge": {
-                        "type": "string",
-                        "pattern": "^[0-9a-f]{64}$"
-                      },
-                      "expiresAt": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      },
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      }
-                    },
-                    "required": [
-                      "v",
-                      "challenge",
-                      "expiresAt",
-                      "signature"
-                    ]
-                  },
-                  "expectedRevision": {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                },
-                "required": [
-                  "envelope",
-                  "proof",
-                  "expectedRevision"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "putIdentityWebEnvelope"
-      },
-      "delete": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "\"keep only in Commons\"). Idempotent. The root itself is untouched: it lives on",
-        "description": "wherever else it is held. Removing this row does not erase copies that were\nexported, synced or cached before.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "proof": {
-                    "type": "object",
-                    "properties": {
-                      "v": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "challenge": {
-                        "type": "string",
-                        "pattern": "^[0-9a-f]{64}$"
-                      },
-                      "expiresAt": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      },
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      }
-                    },
-                    "required": [
-                      "v",
-                      "challenge",
-                      "expiresAt",
-                      "signature"
-                    ]
-                  },
-                  "expectedRevision": {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                },
-                "required": [
-                  "proof",
-                  "expectedRevision"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "deleteIdentityWebEnvelope"
-      }
-    },
-    "/identity/web-envelope/establish": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "its first one: link the key and store the envelope in one transaction, so there",
-        "description": "is never a committed link without a holder.\n\nBesides the root proof, a fresh assertion by one of the account's existing\npasskeys over the same challenge is required — a bearer is not a fresh factor.\nAn account whose root is already linked may add a web holder for THAT root\nonly when it has none; an account with a DIFFERENT root is refused.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "envelope": {
-                    "type": "object",
-                    "properties": {
-                      "version": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "algorithm": {
-                        "type": "string",
-                        "enum": [
-                          "xchacha20poly1305"
-                        ]
-                      },
-                      "publicKey": {
-                        "type": "string",
-                        "pattern": "^04[0-9a-f]{128}$"
-                      },
-                      "secretKind": {
-                        "type": "string",
-                        "enum": [
-                          "mnemonic-entropy",
-                          "raw-private-key"
-                        ]
-                      },
-                      "secretNonce": {
-                        "type": "string",
-                        "pattern": "^[0-9a-fA-F]{48}$"
-                      },
-                      "sealedSecret": {
-                        "type": "string",
-                        "pattern": "^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{72}|[0-9a-fA-F]{80}|[0-9a-fA-F]{88}|[0-9a-fA-F]{96})$"
-                      },
-                      "wraps": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "credentialId": {
-                              "type": "string",
-                              "pattern": "^[A-Za-z0-9_-]+$",
-                              "minLength": 16,
-                              "maxLength": 1024
-                            },
-                            "nonce": {
-                              "type": "string",
-                              "pattern": "^[0-9a-fA-F]{48}$"
-                            },
-                            "wrappedKey": {
-                              "type": "string",
-                              "pattern": "^[0-9a-fA-F]{96}$"
-                            },
-                            "createdAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            },
-                            "rpId": {
-                              "type": "string",
-                              "pattern": "^(localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$",
-                              "minLength": 1,
-                              "maxLength": 253
-                            },
-                            "verifiedAt": {
-                              "type": "string",
-                              "format": "date-time"
-                            }
-                          },
-                          "required": [
-                            "credentialId",
-                            "nonce",
-                            "wrappedKey",
-                            "createdAt",
-                            "rpId"
-                          ]
-                        },
-                        "minItems": 1,
-                        "maxItems": 10
-                      }
-                    },
-                    "required": [
-                      "version",
-                      "algorithm",
-                      "publicKey",
-                      "secretKind",
-                      "secretNonce",
-                      "sealedSecret",
-                      "wraps"
-                    ]
-                  },
-                  "proof": {
-                    "type": "object",
-                    "properties": {
-                      "v": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "challenge": {
-                        "type": "string",
-                        "pattern": "^[0-9a-f]{64}$"
-                      },
-                      "expiresAt": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      },
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      }
-                    },
-                    "required": [
-                      "v",
-                      "challenge",
-                      "expiresAt",
-                      "signature"
-                    ]
-                  },
-                  "assertion": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "pattern": "^[A-Za-z0-9_-]+$",
-                        "minLength": 16,
-                        "maxLength": 1024
-                      },
-                      "rawId": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 2048
-                      },
-                      "type": {
-                        "type": "string",
-                        "enum": [
-                          "public-key"
-                        ]
-                      },
-                      "response": {
-                        "type": "object",
-                        "properties": {
-                          "clientDataJSON": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 8192
-                          },
-                          "authenticatorData": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 8192
-                          },
-                          "signature": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 2048
-                          },
-                          "userHandle": {
-                            "type": "string",
-                            "maxLength": 2048
-                          }
-                        },
-                        "required": [
-                          "clientDataJSON",
-                          "authenticatorData",
-                          "signature"
-                        ]
-                      },
-                      "clientExtensionResults": {
-                        "type": "object",
-                        "additionalProperties": {}
-                      },
-                      "authenticatorAttachment": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "rawId",
-                      "type",
-                      "response"
-                    ]
-                  }
-                },
-                "required": [
-                  "envelope",
-                  "proof",
-                  "assertion"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityWebEnvelopeEstablish"
-      }
-    },
-    "/identity/web-envelope/phrase-confirmed": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "POST /identity/web-envelope/phrase-confirmed",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityWebEnvelope.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "proof": {
-                    "type": "object",
-                    "properties": {
-                      "v": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "challenge": {
-                        "type": "string",
-                        "pattern": "^[0-9a-f]{64}$"
-                      },
-                      "expiresAt": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      },
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      }
-                    },
-                    "required": [
-                      "v",
-                      "challenge",
-                      "expiresAt",
-                      "signature"
-                    ]
-                  },
-                  "expectedRevision": {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                },
-                "required": [
-                  "proof",
-                  "expectedRevision"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityWebEnvelopePhraseConfirmed"
-      }
-    },
-    "/identity/web-envelope/recovery-verified": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "POST /identity/web-envelope/recovery-verified",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityWebEnvelope.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityWebEnvelope.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "proof": {
-                    "type": "object",
-                    "properties": {
-                      "v": {
-                        "type": "number",
-                        "enum": [
-                          2
-                        ]
-                      },
-                      "challenge": {
-                        "type": "string",
-                        "pattern": "^[0-9a-f]{64}$"
-                      },
-                      "expiresAt": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      },
-                      "signature": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      }
-                    },
-                    "required": [
-                      "v",
-                      "challenge",
-                      "expiresAt",
-                      "signature"
-                    ]
-                  },
-                  "expectedRevision": {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                },
-                "required": [
-                  "proof",
-                  "expectedRevision"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityWebEnvelopeRecoveryVerified"
       }
     },
     "/inference/admin/catalogue/blocklist": {
@@ -27933,6 +26819,513 @@
         "operationId": "getInferenceRoutingPoliciesPolicyIdVersionsPolicyVersion"
       }
     },
+    "/linked-accounts": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "GET /linked-accounts",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getLinkedAccounts"
+      }
+    },
+    "/linked-accounts/atproto/client-metadata.json": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "GET /linked-accounts/atproto/client-metadata.json",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getLinkedAccountsAtprotoClientMetadataJson"
+      }
+    },
+    "/linked-accounts/by-user/{userId}": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "GET /linked-accounts/by-user/{userId}",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "getLinkedAccountsByUserUserId"
+      }
+    },
+    "/linked-accounts/complete": {
+      "post": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "POST /linked-accounts/complete",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postLinkedAccountsComplete"
+      }
+    },
+    "/linked-accounts/{id}": {
+      "delete": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "DELETE /linked-accounts/{id}",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "deleteLinkedAccountsId"
+      }
+    },
+    "/linked-accounts/{network}/callback": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "GET /linked-accounts/{network}/callback",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "network",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "activitypub",
+                "atproto"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getLinkedAccountsNetworkCallback"
+      }
+    },
+    "/linked-accounts/{network}/start": {
+      "post": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "POST /linked-accounts/{network}/start",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/linkedAccounts.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "network",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "activitypub",
+                "atproto"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/linkedAccounts.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "instance": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 320
+                  },
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 320
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "returnTo": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "clientId",
+                  "returnTo"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postLinkedAccountsNetworkStart"
+      }
+    },
     "/location-search/cache": {
       "delete": {
         "tags": [
@@ -30957,6 +30350,9 @@
                     "type": "string"
                   },
                   "message": {
+                    "type": "string"
+                  },
+                  "url": {
                     "type": "string"
                   },
                   "data": {
@@ -34004,6 +33400,193 @@
         "operationId": "getSessionDeviceDirectory"
       }
     },
+    "/session/device/join": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Join the browser's device with a bridge code.",
+        "description": "Called by the app's own origin, no bearer. Redeems a bridge code with the PKCE verifier only the app holds: unused,\nunexpired, issued to this application for this exact redirect URI. Returns a\nNEW holder credential for the browser's device; the app then mints through\n`POST /session/device/token` like every other holder. A browser caller must\nbe the redirect URI's own origin.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/sessionDevice.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "codeVerifier": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9._~-]+$",
+                    "minLength": 43,
+                    "maxLength": 128
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "redirectUri": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "code",
+                  "codeVerifier",
+                  "clientId",
+                  "redirectUri"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postSessionDeviceJoin"
+      }
+    },
+    "/session/device/join-code": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Mint a one-use code for an official app to join the browser's device.",
+        "description": "auth.oxy.so only (the bridge window). Proves auth.oxy.so's device with one of its holder secrets and mints a\none-use, ~60 s code for an OFFICIAL application, bound to one of its exact\nregistered redirect URIs and to the app's PKCE S256 challenge. A wrong secret\ncounts toward the same per-device lockout as the mint.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/sessionDevice.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "deviceSecret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "redirectUri": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048
+                  },
+                  "codeChallenge": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "codeChallengeMethod": {
+                    "type": "string",
+                    "enum": [
+                      "S256"
+                    ]
+                  }
+                },
+                "required": [
+                  "deviceId",
+                  "deviceSecret",
+                  "clientId",
+                  "redirectUri",
+                  "codeChallenge",
+                  "codeChallengeMethod"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postSessionDeviceJoinCode"
+      }
+    },
     "/session/device/logout-all/{sessionId}": {
       "post": {
         "tags": [
@@ -34082,6 +33665,45 @@
         "operationId": "putSessionDeviceNameSessionId"
       }
     },
+    "/session/device/register": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Register the browser's device (auth.oxy.so only).",
+        "description": "No bearer, no body. A new, EMPTY DeviceSession with a server-chosen id and one holder credential.\nThe bridge calls it when auth.oxy.so holds no credential, or its credential\nanswers `invalid_device_secret` (the device ended with nobody signed in).",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/sessionDevice.ts`, naming a Zod schema the file imports."
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "postSessionDeviceRegister"
+      }
+    },
     "/session/device/sessions/{sessionId}": {
       "get": {
         "tags": [
@@ -34126,7 +33748,7 @@
           "Sessions"
         ],
         "summary": "The four `/signout` shapes, and why they are four.",
-        "description": "`docs/auth/principals-and-account-contexts.md` states five distinct meanings\nof \"sign out\"; conflating any two of them is a bug. This route serves\nmeanings 2, 3 and 4:\n\n - `{ contextId }`   — remove ONE `principal → account` pair. Never the\n                       account across the device: the same organization\n                       reached through a second person is a different\n                       session, a different audit actor and a different\n                       revocation path, and it stays.\n - `{ principalId }` — remove ONE PERSON and every context they reach, and\n                       NOBODY ELSE'S — including when another principal\n                       independently operates the same account.\n - `{ accountId }`   — the FLAT compatibility meaning: that account, however\n                       it is reached, plus the operator cascade. Unchanged.\n - `{ all: true }`   — the whole device, credentials included. Unchanged.\n\nThe first two elect a replacement active context in the documented order\n(same principal's personal, then another of that principal's, then the next\nprincipal's personal, then none).",
+        "description": "`docs/auth/principals-and-account-contexts.md` states five distinct meanings\nof \"sign out\"; conflating any two of them is a bug. This route serves\nmeanings 2, 3 and 4:\n\n - `{ contextId }`   — remove ONE `principal → account` pair. Never the\n                       account across the device: the same organization\n                       reached through a second person is a different\n                       session, a different audit actor and a different\n                       revocation path, and it stays.\n - `{ principalId }` — remove ONE PERSON and every context they reach, and\n                       NOBODY ELSE'S — including when another principal\n                       independently operates the same account.\n - `{ accountId }`   — the FLAT compatibility meaning: that account, however\n                       it is reached, plus the operator cascade. Unchanged.\n - `{ all: true }`   — the whole device, every holder's credential included.\n\nThe device is the browser's ONE shared DeviceSession (ADR 0029 D2), so every\nremoval applies to every official app on it at once: the `session_state`\nbroadcast below reaches them all. Holder credentials survive while any\naccount remains, and are all revoked when none does.\n\nThe first two elect a replacement active context in the documented order\n(same principal's personal, then another of that principal's, then the next\nprincipal's personal, then none).",
         "parameters": [],
         "responses": {
           "200": {
@@ -34249,7 +33871,7 @@
           "Sessions"
         ],
         "summary": "PUBLIC by design and mounted ABOVE the router-wide",
-        "description": "`requireSameSiteOrigin, authMiddleware` below: it carries NO bearer and NO\ncookies. The client presents the `deviceId` it stored first-party plus the\nopaque `deviceSecret`; possession of the secret IS the ownership proof, so the\nmint can be initiated from any registered cross-apex origin over normal CORS.\n\nOn a valid secret it mints a short access token for the device's active\naccount. The successful response carries the same secret back as\n`nextDeviceSecret`: the secret is a stable device credential, so several\nofficial apps/origins sharing one device can refresh concurrently without\ninvalidating one another. A dead/absent active session returns\n`no_active_session` WITHOUT changing the credential — the client must\nre-authenticate and keeps its still-valid secret. Per-device lockout + rate\nlimiting blunt online secret-guessing.\n\nAn optional `accountId` PINS the mint to one account of that device instead of\nwhichever one is currently active. It exists for identity-bound clients\n(Commons), whose authenticated user is fixed by a local cryptographic key and\nmust not follow an account switch made by another app sharing the same\n`DeviceSession`. A pinned mint is READ-ONLY with respect to device state: it\nnever writes `activeAccountId`, never bumps `revision` and never broadcasts —\nthe returned `state` therefore still reports the device's TRUE active account.\nRotation is unchanged. A pin that names an account which is not on the device,\nor whose session is dead, answers `account_not_on_device` without rotating.",
+        "description": "`requireSameSiteOrigin, authMiddleware` below: it carries NO bearer and NO\ncookies. The client presents the `deviceId` it stored first-party plus the\nopaque `deviceSecret`; possession of the secret IS the ownership proof, so the\nmint can be initiated from any registered cross-apex origin over normal CORS.\n\nOn a valid secret it mints a short access token for the device's active\naccount. The successful response carries the same secret back as\n`nextDeviceSecret`: each holder (`auth.oxy.so`, every official web app that\njoined the browser's device, a native app group) has its own stable\ncredential for the ONE shared DeviceSession (ADR 0029 D2), so they refresh\nconcurrently without invalidating one another. A dead/absent active session returns\n`no_active_session` WITHOUT changing the credential — the client must\nre-authenticate and keeps its still-valid secret. Per-device lockout + rate\nlimiting blunt online secret-guessing.\n\nAn optional `accountId` PINS the mint to one account of that device instead of\nwhichever one is currently active. It exists for identity-bound clients\n(Commons), whose authenticated user is fixed by a local cryptographic key and\nmust not follow an account switch made by another app sharing the same\n`DeviceSession`. A pinned mint is READ-ONLY with respect to device state: it\nnever writes `activeAccountId`, never bumps `revision` and never broadcasts —\nthe returned `state` therefore still reports the device's TRUE active account.\nA pin that names an account which is not on the device, or whose session is\ndead, answers `account_not_on_device`; the credential stays valid.",
         "parameters": [],
         "responses": {
           "200": {
@@ -35365,11 +34987,6 @@
                     "description": "An account of kind `bot` carries one further rule the pattern cannot express: its username must END IN `bot`, compared without regard to case, so `aliabot`, `alia-bot` and `AliaBot` all qualify. Every other kind is held to the pattern alone.",
                     "example": "alice"
                   },
-                  "email": {
-                    "type": "string",
-                    "format": "email",
-                    "example": "alice@placeholder.example"
-                  },
                   "name": {
                     "type": "object",
                     "properties": {
@@ -35450,7 +35067,7 @@
           "Users"
         ],
         "summary": "Permanently delete the current account",
-        "description": "Hard-delete the authenticated user's account. To prove identity at the time of deletion the client signs `delete:{publicKey}:{timestamp}` with the local secp256k1 private key (see `KeyManager.sign` in `@oxy.so/core`). The signature is rejected if it is older than 5 minutes, if the confirmation text does not match the account's username, or if the account has no associated public key.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user.\n",
+        "description": "Hard-delete the authenticated user's account. The person proves it is them at the time of deletion with the account's own factor: an account with a Commons key signs `delete:{publicKey}:{timestamp}` with it (see `KeyManager.sign` in `@oxy.so/core`), rejected if older than 5 minutes; a passkey account sends an `assertion` by one of its passkeys, made on auth.oxy.so over the challenge of `POST /users/me/delete/options`. Either way the confirmation text must match the account's username.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user, and records an `account.deleted` event that tells every relying application to erase what it holds for this account (pushed as a signed webhook and served from `/internal/account-events`; see docs/identity/account-events.md).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -35458,11 +35075,13 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "signature",
-                  "timestamp",
                   "confirmText"
                 ],
                 "properties": {
+                  "assertion": {
+                    "type": "object",
+                    "description": "A passkey account's WebAuthn assertion over the `POST /users/me/delete/options` challenge."
+                  },
                   "signature": {
                     "type": "string",
                     "description": "Hex-encoded secp256k1 signature over `delete:{publicKey}:{timestamp}`.",
@@ -35801,6 +35420,47 @@
           }
         ],
         "operationId": "getUsersMeData"
+      }
+    },
+    "/users/me/delete/options": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "passkey account: its own passkeys, user verification required, and a",
+        "description": "challenge bound to it that `DELETE /users/me` spends. An account with a\nCommons key deletes with that key instead.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/users.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "postUsersMeDeleteOptions"
       }
     },
     "/users/me/export": {

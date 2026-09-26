@@ -26,7 +26,8 @@ import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
 import { eq } from 'drizzle-orm';
 
-const OXY_ORIGIN = 'https://accounts.oxy.so';
+/** auth.oxy.so: the one origin that creates and recovers accounts (ADR 0029). */
+const AUTH_ORIGIN = 'https://auth.oxy.so';
 
 // ---- controllable mock state ----------------------------------------------
 /** The bearer the route resolves; null = unauthenticated (signup lane). */
@@ -36,6 +37,8 @@ let currentChallenge = '';
 /** The credential id the mocked verifier reports for this ceremony. */
 let currentCredentialId = '';
 let mockRegisterUserVerified = true;
+/** The origin the signed clientData reports. */
+let mockClientOrigin = AUTH_ORIGIN;
 
 const mockGenerateRegistration = jest.fn();
 const mockVerifyRegistration = jest.fn();
@@ -53,7 +56,7 @@ jest.mock('@simplewebauthn/server', () => ({
 }));
 
 jest.mock('@simplewebauthn/server/helpers', () => ({
-  decodeClientDataJSON: () => ({ origin: OXY_ORIGIN, challenge: currentChallenge, type: 'webauthn.create' }),
+  decodeClientDataJSON: () => ({ origin: mockClientOrigin, challenge: currentChallenge, type: 'webauthn.create' }),
   isoUint8Array: { fromUTF8String: (s: string) => new TextEncoder().encode(s) },
 }));
 
@@ -94,16 +97,15 @@ jest.mock('../../utils/userCache', () => ({
 // socket emitter from `server.ts`; loading that module would boot the app.
 jest.mock('../../server', () => ({ __esModule: true, emitSessionUpdate: jest.fn() }));
 
+import { createHash } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { getWebauthnRpId } from '../../config/env';
+import { emailVerifications } from '../../db/schema/emailVerifications';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import { webauthnChallenges } from '../../db/schema/webauthnChallenges';
 import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
 import webauthnRouter from '../webauthn';
-import { identityWebEnvelopes } from '../../db/schema/identityWebEnvelopes';
-import { deriveIdentityFromPrivateKey, digestIdentityPayload, generateWebIdentity, sealWebIdentity, signIdentityProof, type OpenedWebIdentity } from '@oxy.so/core';
-import { IDENTITY_PROOF_AUDIENCE } from '@oxy.so/contracts';
+import { hashEmail } from '../../utils/contactHash';
 import { randomBytes } from 'node:crypto';
 
 interface JsonResponse {
@@ -157,12 +159,48 @@ function freshCredentialId(): string {
 }
 
 /** A real `users` row — every `user_id` in this suite carries a foreign key. */
-async function account(username?: string, kind: 'personal' | 'organization' = 'personal'): Promise<string> {
+async function account(
+  username?: string,
+  kind: 'personal' | 'organization' = 'personal',
+  extra: { email?: string; publicKey?: string } = {},
+): Promise<string> {
   const [row] = await getDb()
     .insert(users)
-    .values({ ...(username === undefined ? {} : { username }), kind })
+    .values({ ...(username === undefined ? {} : { username }), kind, ...extra })
     .returning({ id: users.id });
   return row.id;
+}
+
+function freshEmail(): string {
+  return `${randomUUID()}@example.com`;
+}
+
+/**
+ * A CONFIRMED verification and its live ticket, written the way
+ * `POST /auth/email/verify/confirm` leaves them.
+ */
+async function confirmedTicket(purpose: 'signup' | 'recovery', email: string, userId: string | null = null): Promise<string> {
+  const ticket = randomBytes(32).toString('base64url');
+  await getDb().insert(emailVerifications).values({
+    purpose,
+    emailHash: hashEmail(email),
+    userId,
+    codeHash: 'ab'.repeat(32),
+    attempts: 1,
+    confirmedAt: new Date(),
+    ticketHash: createHash('sha256').update(ticket).digest('hex'),
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+  });
+  return ticket;
+}
+
+async function storedTicket(ticket: string) {
+  const [row] = await getDb()
+    .select()
+    .from(emailVerifications)
+    .where(eq(emailVerifications.ticketHash, createHash('sha256').update(ticket).digest('hex')))
+    .limit(1);
+  return row;
 }
 
 /** The stored challenge row, read straight from Postgres. */
@@ -196,7 +234,7 @@ async function storedAuthMethods(userId: string) {
 /** The stored account for a username, matched the way the route matches it. */
 async function storedUserByUsername(username: string) {
   const [row] = await getDb()
-    .select({ id: users.id, username: users.username })
+    .select({ id: users.id, username: users.username, email: users.email, publicKey: users.publicKey })
     .from(users)
     .where(eq(users.username, username))
     .limit(1);
@@ -219,42 +257,10 @@ function realChallenge(): string {
   return randomBytes(32).toString('base64url');
 }
 
-async function enrollment(
-  identity: OpenedWebIdentity,
-  username: string,
-  overrides: { credentialId?: string; challenge?: string; rpId?: string; subject?: string; extraWrap?: boolean } = {},
-) {
-  const credentialId = overrides.credentialId ?? currentCredentialId;
-  const { envelope: sealed, dataKey } = sealWebIdentity(
-    identity,
-    { prfOutput: new Uint8Array(32).fill(4), credentialId, rpId: overrides.rpId ?? getWebauthnRpId() },
-    new Date(),
-    { version: 2 },
-  );
-  let envelope = sealed;
-  if (overrides.extraWrap) {
-    const { addWrap } = await import('@oxy.so/core');
-    envelope = addWrap(envelope, dataKey, { prfOutput: new Uint8Array(32).fill(5), credentialId: 'credential-extra-aaaaaaaa', rpId: getWebauthnRpId() });
-  }
-  dataKey.fill(0);
-  const proof = await signIdentityProof(identity, {
-    action: 'enroll_identity',
-    subject: overrides.subject ?? `username:${username}`,
-    actor: `credential:${credentialId}`,
-    rootPublicKey: identity.publicKey,
-    payloadDigest: digestIdentityPayload({ envelope }),
-    expectedRevision: null,
-    audience: IDENTITY_PROOF_AUDIENCE,
-    challenge: Buffer.from(overrides.challenge ?? currentChallenge, 'base64url').toString('hex'),
-    expiresAt: Date.now() + 4 * 60 * 1000,
-  });
-  return { envelope, proof };
-}
-
-
-/** A sign-up body WITH its root, for the current ceremony. */
+/** A sign-up body for the current ceremony: the username, and its confirmed recovery email. */
 async function signupBody(username: string, extras: Record<string, unknown> = {}) {
-  return { username, response: registrationResponse(), identity: await enrollment(generateWebIdentity(), username), ...extras };
+  const email = freshEmail();
+  return { username, email, emailTicket: await confirmedTicket('signup', email), response: registrationResponse(), ...extras };
 }
 
 let server: http.Server;
@@ -280,6 +286,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockBearerUserId = null;
   mockRegisterUserVerified = true;
+  mockClientOrigin = AUTH_ORIGIN;
   currentChallenge = realChallenge();
   currentCredentialId = freshCredentialId();
 
@@ -444,24 +451,37 @@ describe('POST /webauthn/register/options', () => {
 });
 
 describe('POST /webauthn/register/verify — signup branch', () => {
-  it('refuses a sign-up without its root, before spending the challenge (ADR 0024 D4)', async () => {
+  it('refuses a sign-up without a confirmed recovery email, before spending the challenge (ADR 0029 D3)', async () => {
     const username = freshUsername();
     await request(server, 'POST', '/webauthn/register/options', { username });
 
     const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
 
     expect(res.status).toBe(400);
-    expect((res.body as { error?: string }).error).toBe('IDENTITY_ENROLLMENT_REQUIRED');
+    expect((res.body as { error?: string }).error).toBe('EMAIL_TICKET_REQUIRED');
     expect(await storedUserByUsername(username)).toBeUndefined();
     expect((await storedChallenge(currentChallenge)).used).toBe(false);
     expect(mockVerifyRegistration).not.toHaveBeenCalled();
+  });
+
+  it('refuses a sign-up ceremony from any origin but auth.oxy.so', async () => {
+    mockClientOrigin = 'https://accounts.oxy.so';
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username));
+
+    expect(res.status).toBe(400);
+    expect(await storedUserByUsername(username)).toBeUndefined();
+    expect((await storedChallenge(currentChallenge)).used).toBe(false);
   });
 
   it('creates account + credential + webauthn auth method in one go and returns the AuthSuccess mint shape', async () => {
     const username = freshUsername();
     await request(server, 'POST', '/webauthn/register/options', { username });
 
-    const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username, { deviceName: 'My Laptop' }));
+    const body = await signupBody(username, { deviceName: 'My Laptop' });
+    const res = await request(server, 'POST', '/webauthn/register/verify', body);
 
     expect(res.status).toBe(200);
     // Byte-identical shape to POST /auth/verify: buildSessionAuthResponse + deviceSecret.
@@ -472,6 +492,11 @@ describe('POST /webauthn/register/verify — signup branch', () => {
     const created = await storedUserByUsername(username);
     expect(created).toBeDefined();
     expect(res.body.user).toMatchObject({ id: created.id, username });
+    // A passkey account: its confirmed recovery email, and no key.
+    expect(created.email).toBe(body.email);
+    expect(created.publicKey).toBeNull();
+    // The email's ticket is spent with the account.
+    expect((await storedTicket(body.emailTicket)).usedAt).toBeInstanceOf(Date);
 
     // The credential row carries the ceremony's real values.
     const credential = await storedCredential(currentCredentialId);
@@ -488,7 +513,7 @@ describe('POST /webauthn/register/verify — signup branch', () => {
 
     // The auth method is a ROW in the child table, not an array entry.
     const methods = await storedAuthMethods(created.id);
-    expect(methods.map((m) => m.type).sort()).toEqual(['identity', 'webauthn']);
+    expect(methods.map((m) => m.type)).toEqual(['webauthn']);
     const passkeyMethod = methods.find((m) => m.type === 'webauthn');
     expect(passkeyMethod?.methodCredentialId).toBe(currentCredentialId);
     expect(passkeyMethod?.methodName).toBe('My Laptop');
@@ -508,6 +533,70 @@ describe('POST /webauthn/register/verify — signup branch', () => {
     // Possession-only credentials are accepted — UV is not required at verify.
     const verifyArg = mockVerifyRegistration.mock.calls[0][0] as { requireUserVerification: boolean };
     expect(verifyArg.requireUserVerification).toBe(false);
+  });
+
+  it('creates NOTHING with a ticket confirmed for another email', async () => {
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+    const body = await signupBody(username);
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', { ...body, email: freshEmail() });
+
+    expect(res.status).toBe(401);
+    expect((res.body as { error?: string }).error).toBe('EMAIL_TICKET_INVALID');
+    expect(await storedUserByUsername(username)).toBeUndefined();
+    expect(await storedCredential(currentCredentialId)).toBeUndefined();
+    // The ticket stays spendable by its own email.
+    expect((await storedTicket(body.emailTicket)).usedAt).toBeNull();
+  });
+
+  it('creates NOTHING with a recovery ticket in place of a sign-up one', async () => {
+    const username = freshUsername();
+    const email = freshEmail();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', {
+      username,
+      email,
+      emailTicket: await confirmedTicket('recovery', email),
+      response: registrationResponse(),
+    });
+
+    expect(res.status).toBe(401);
+    expect(await storedUserByUsername(username)).toBeUndefined();
+  });
+
+  it('spends a sign-up ticket once: a second account cannot be made with it', async () => {
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+    const body = await signupBody(username);
+    expect((await request(server, 'POST', '/webauthn/register/verify', body)).status).toBe(200);
+
+    currentChallenge = realChallenge();
+    currentCredentialId = freshCredentialId();
+    const second = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username: second });
+    const res = await request(server, 'POST', '/webauthn/register/verify', {
+      ...body,
+      username: second,
+      response: registrationResponse(),
+    });
+
+    expect(res.status).toBe(401);
+    expect(await storedUserByUsername(second)).toBeUndefined();
+  });
+
+  it('answers 409 for an email another account took meanwhile, and leaves the ticket unspent', async () => {
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+    const body = await signupBody(username);
+    await account(freshUsername(), 'personal', { email: body.email.toUpperCase() });
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', body);
+
+    expect(res.status).toBe(409);
+    expect(await storedUserByUsername(username)).toBeUndefined();
+    expect((await storedTicket(body.emailTicket)).usedAt).toBeNull();
   });
 
   it('defaults the credential name when the client sends none', async () => {
@@ -616,10 +705,12 @@ describe('POST /webauthn/register/verify — signup branch', () => {
     // Mint a challenge bound to an account…
     const userId = await account(freshUsername());
     mockBearerUserId = userId;
+    mockClientOrigin = 'https://accounts.oxy.so';
     await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
 
     // …then try to spend it on the unauthenticated signup lane.
     mockBearerUserId = null;
+    mockClientOrigin = AUTH_ORIGIN;
     const username = freshUsername();
     const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username));
 
@@ -658,6 +749,7 @@ describe('POST /webauthn/register/verify — linking branch', () => {
   it('links the passkey to the bearer account (credential row + auth-method row + cache invalidate)', async () => {
     const userId = await account(freshUsername());
     mockBearerUserId = userId;
+    mockClientOrigin = 'https://accounts.oxy.so';
     await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
 
     const res = await request(
@@ -743,77 +835,122 @@ describe('POST /webauthn/register/verify — linking branch', () => {
   });
 });
 
-describe('POST /webauthn/register/verify — sign-up WITH its root (ADR 0024 D4)', () => {
-
-  it('creates the account, passkey, root, both auth methods and the envelope together', async () => {
+describe('recovery: a new passkey for the account a recovery code was confirmed for (ADR 0029 D3)', () => {
+  async function recoverable() {
+    const email = freshEmail();
     const username = freshUsername();
-    const identity = generateWebIdentity();
-    await request(server, 'POST', '/webauthn/register/options', { username });
+    const userId = await account(username, 'personal', { email });
+    return { userId, username, email, ticket: await confirmedTicket('recovery', email, userId) };
+  }
 
-    const identityBody = await enrollment(identity, username);
-    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse(), identity: identityBody });
+  it('options: binds the challenge to the account and excludes its passkeys, without spending the ticket', async () => {
+    const { userId, username, ticket } = await recoverable();
+    const oldCredentialId = freshCredentialId();
+    await getDb().insert(webauthnCredentials).values({
+      userId,
+      credentialID: oldCredentialId,
+      credentialPublicKey: Buffer.from([9]),
+      counter: 0,
+      deviceType: 'multiDevice',
+      backedUp: true,
+      userVerified: true,
+      name: 'Lost phone',
+    });
+
+    const res = await request(server, 'POST', '/webauthn/register/options', { recoveryTicket: ticket });
 
     expect(res.status).toBe(200);
-    const created = await storedUserByUsername(username);
-    const [row] = await getDb().select({ publicKey: users.publicKey }).from(users).where(eq(users.id, created.id));
-    expect(row.publicKey).toBe(identity.publicKey);
-    const methods = await storedAuthMethods(created.id);
-    expect(methods.map((m) => m.type).sort()).toEqual(['identity', 'webauthn']);
-    const [envelope] = await getDb().select().from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, created.id));
-    expect(envelope).toMatchObject({ publicKey: identity.publicKey, version: 2, secretKind: 'mnemonic-entropy', revision: 1, phraseConfirmedAt: null });
-    expect(envelope.wraps.map((w) => w.credentialId)).toEqual([currentCredentialId]);
+    const options = mockGenerateRegistration.mock.calls[0][0] as { userName: string; excludeCredentials: { id: string }[] };
+    expect(options.userName).toBe(username);
+    expect(options.excludeCredentials.map((credential) => credential.id)).toEqual([oldCredentialId]);
+    expect((await storedChallenge(currentChallenge)).userId).toBe(userId);
+    expect((await storedTicket(ticket)).usedAt).toBeNull();
   });
 
-  it('keeps a raw-key root a raw-key root', async () => {
-    const username = freshUsername();
-    const identity = deriveIdentityFromPrivateKey(randomBytes(32).toString('hex'));
-    await request(server, 'POST', '/webauthn/register/options', { username });
-    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse(), identity: await enrollment(identity, username) });
-    expect(res.status).toBe(200);
-    const created = await storedUserByUsername(username);
-    const [envelope] = await getDb().select({ secretKind: identityWebEnvelopes.secretKind }).from(identityWebEnvelopes).where(eq(identityWebEnvelopes.userId, created.id));
-    expect(envelope.secretKind).toBe('raw-private-key');
-  });
-
-  it.each([
-    ['sealed for a different passkey', { credentialId: 'credential-someone-else-aa' }],
-    ['carrying a second wrap', { extraWrap: true }],
-    ['sealed for another passkey domain', { rpId: 'evil.example' }],
-  ])('creates NOTHING for an envelope %s', async (_label, overrides) => {
-    const username = freshUsername();
-    await request(server, 'POST', '/webauthn/register/options', { username });
-    const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username,
-      response: registrationResponse(),
-      identity: await enrollment(generateWebIdentity(), username, overrides),
-    });
-    expect(res.status).toBe(400);
-    expect(await storedUserByUsername(username)).toBeUndefined();
-  });
-
-  it.each([
-    ['another ceremony’s challenge', { challenge: randomBytes(32).toString('base64url') }],
-    ['another username', { subject: 'username:someoneelse' }],
-  ])('creates NOTHING when the root proof names %s', async (_label, overrides) => {
-    const username = freshUsername();
-    await request(server, 'POST', '/webauthn/register/options', { username });
-    const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username,
-      response: registrationResponse(),
-      identity: await enrollment(generateWebIdentity(), username, overrides),
-    });
+  it('options: refuses an unknown ticket', async () => {
+    const res = await request(server, 'POST', '/webauthn/register/options', { recoveryTicket: randomBytes(32).toString('base64url') });
     expect(res.status).toBe(401);
-    expect(await storedUserByUsername(username)).toBeUndefined();
+    expect(await storedChallenge(currentChallenge)).toBeUndefined();
   });
 
-  it('creates NOTHING for a root already linked to another account', async () => {
-    const identity = generateWebIdentity();
-    await getDb().insert(users).values({ publicKey: identity.publicKey });
-    const username = freshUsername();
-    await request(server, 'POST', '/webauthn/register/options', { username });
-    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse(), identity: await enrollment(identity, username) });
-    expect(res.status).toBe(409);
-    expect(await storedUserByUsername(username)).toBeUndefined();
+  it('verify: adds the passkey, spends the ticket and signs in', async () => {
+    const { userId, username, ticket } = await recoverable();
+    await request(server, 'POST', '/webauthn/register/options', { recoveryTicket: ticket });
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', {
+      recoveryTicket: ticket,
+      deviceName: 'New laptop',
+      response: registrationResponse(),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({ id: userId, username });
+    expect(res.body.accessToken).toBe('access-token-1');
+    const credential = await storedCredential(currentCredentialId);
+    expect(credential.userId).toBe(userId);
+    expect(credential.name).toBe('New laptop');
+    expect((await storedAuthMethods(userId)).map((method) => method.type)).toEqual(['webauthn']);
+    expect((await storedTicket(ticket)).usedAt).toBeInstanceOf(Date);
+    expect(mockInvalidate).toHaveBeenCalledWith(userId);
+  });
+
+  it('verify: a spent ticket recovers nothing a second time', async () => {
+    const { ticket } = await recoverable();
+    await request(server, 'POST', '/webauthn/register/options', { recoveryTicket: ticket });
+    const first = await request(server, 'POST', '/webauthn/register/verify', { recoveryTicket: ticket, response: registrationResponse() });
+    expect(first.status).toBe(200);
+
+    currentChallenge = realChallenge();
+    currentCredentialId = freshCredentialId();
+    const res = await request(server, 'POST', '/webauthn/register/verify', { recoveryTicket: ticket, response: registrationResponse() });
+
+    expect(res.status).toBe(401);
     expect(await storedCredential(currentCredentialId)).toBeUndefined();
+  });
+
+  it('verify: refuses a challenge minted for another account', async () => {
+    const victim = await recoverable();
+    const other = await recoverable();
+    await request(server, 'POST', '/webauthn/register/options', { recoveryTicket: other.ticket });
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', { recoveryTicket: victim.ticket, response: registrationResponse() });
+
+    expect(res.status).toBe(401);
+    expect(await storedCredential(currentCredentialId)).toBeUndefined();
+    expect((await storedTicket(victim.ticket)).usedAt).toBeNull();
+  });
+
+  it('verify: an account that linked Commons meanwhile recovers in Commons, not here', async () => {
+    const { userId, ticket } = await recoverable();
+    await request(server, 'POST', '/webauthn/register/options', { recoveryTicket: ticket });
+    await getDb().update(users).set({ publicKey: `04${'a'.repeat(128)}` }).where(eq(users.id, userId));
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', { recoveryTicket: ticket, response: registrationResponse() });
+
+    expect(res.status).toBe(401);
+    expect(await storedCredential(currentCredentialId)).toBeUndefined();
+    expect(mockCreateSession).not.toHaveBeenCalled();
+  });
+
+  it('verify: a deleted account kept for its records is not recovered', async () => {
+    const { userId, ticket } = await recoverable();
+    await request(server, 'POST', '/webauthn/register/options', { recoveryTicket: ticket });
+    await getDb().update(users).set({ accountStatus: 'archived' }).where(eq(users.id, userId));
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', { recoveryTicket: ticket, response: registrationResponse() });
+
+    expect(res.status).toBe(401);
+    expect(await storedCredential(currentCredentialId)).toBeUndefined();
+  });
+
+  it('verify: refuses a recovery ceremony from any origin but auth.oxy.so', async () => {
+    const { ticket } = await recoverable();
+    await request(server, 'POST', '/webauthn/register/options', { recoveryTicket: ticket });
+    mockClientOrigin = 'https://mention.oxy.so';
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', { recoveryTicket: ticket, response: registrationResponse() });
+
+    expect(res.status).toBe(400);
+    expect((await storedTicket(ticket)).usedAt).toBeNull();
   });
 });

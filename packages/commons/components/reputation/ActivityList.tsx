@@ -1,10 +1,12 @@
 import React from 'react';
+import { Icons } from '@/constants/icons';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
-import { CenteredState } from '@/components/ui/centered-state';
 import { ActivityRow } from '@/components/reputation/ActivityRow';
 import type { ReputationTransaction } from '@oxy.so/contracts';
 import { useTranslation } from '@/lib/i18n';
+import { LoadingState, STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
 interface ActivityListProps {
   transactions: ReputationTransaction[] | undefined;
@@ -24,17 +26,25 @@ export function ActivityList({ transactions, isLoading, isError }: ActivityListP
   const { t } = useTranslation();
 
   if (isLoading && !transactions) {
-    return <CenteredState loading body={t('civic.reputation.activity.loading')} />;
+    return <LoadingState description={t('civic.reputation.activity.loading')} />;
   }
 
   if (isError && !transactions) {
     return (
-      <CenteredState icon="cloud-alert" body={t('civic.reputation.activity.error')} />
+      <EmptyState
+        icon={Icons.alert}
+        description={t('civic.reputation.activity.error')}
+        minHeight={STATE_MIN_HEIGHT}
+      />
     );
   }
 
   if (!transactions || transactions.length === 0) {
-    return <CenteredState icon="history" body={t('civic.reputation.activity.empty')} />;
+    return <EmptyState
+             icon={Icons.history}
+             description={t('civic.reputation.activity.empty')}
+             minHeight={STATE_MIN_HEIGHT}
+           />;
   }
 
   return (

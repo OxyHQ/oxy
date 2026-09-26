@@ -86,7 +86,12 @@ export async function issueWorkloadChallenge(): Promise<{ nonce: string; expires
  */
 async function spendChallenge(nonce: string): Promise<boolean> {
   const redis = getRedisClient();
-  if (!redis) return false;
+  if (!redis) {
+    // Not the caller's fault: this task has no challenge store, so every
+    // exchange it serves is refused. Loud, because it looks like a bad nonce.
+    logger.error('[WorkloadIdentity] no challenge store on this task; refusing the exchange');
+    return false;
+  }
   const spent = await redis.getdel(`${CHALLENGE_PREFIX}${nonce}`);
   return spent !== null;
 }
@@ -111,6 +116,14 @@ export async function exchangeWorkloadAttestation(input: {
   nonce: string;
 }): Promise<WorkloadTokenGrant> {
   if (!(await spendChallenge(input.nonce))) {
+    // Logged like every other refusal: an unlogged 401 here cost an incident
+    // its diagnosis (2026-09-25, Mention's MCP refused for 28 minutes with no
+    // trace on this side). The nonce itself is never logged.
+    logger.warn('[WorkloadIdentity] attestation refused', {
+      provider: input.provider,
+      reason: 'unknown_challenge',
+      nonceLength: typeof input.nonce === 'string' ? input.nonce.length : 0,
+    });
     throw new WorkloadIdentityError(401, 'unknown_challenge', 'That challenge is unknown or already used.');
   }
 

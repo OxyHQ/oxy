@@ -1,22 +1,21 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
 @import "nativewind/theme";
 @import "@oxy.so/bloom/design-tokens/theme.css";
 
 /*
  * The IdP renders @oxy.so/services className screens (OxyProvider,
- * OxyConsentScreen, OxyAccountDialog, AccountChooser) and their Bloom UI on
+ * OxyConsentScreen, OxyAccountDialog, the sign-in screens) and their Bloom UI on
  * web. Tailwind v4 only scans the app's own tree by default, so the LAYOUT
- * utilities those workspace packages emit (flex-1, flex-row, items-center,
- * gap-*, arbitrary [Npx] values, absolute, z-*) would never be generated and
- * the screens render unstyled. Scope the scan to just those two packages'
- * built lib — never all of node_modules. Paths are relative to THIS file
- * (packages/auth/app/) → repo-root node_modules.
+ * utilities those packages emit (flex-row, the `md:` split, gap-*, arbitrary
+ * [Npx] values) would never be generated and the screens render unstyled.
+ * Scope the scan to just those two packages' built lib — never all of
+ * node_modules. Paths are relative to THIS file (packages/auth/app/). Services
+ * is the workspace sibling: bun links it under this package's own
+ * node_modules, never the repo root's, so a root path scans nothing.
  */
-@source "../../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
+@source "../../services/lib/**/*.{js,jsx}";
 @source "../../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
 
 @custom-variant dark (&:is(.dark *));
@@ -84,67 +83,6 @@
 }
 
 /*
- * ─── Morph interactions ───────────────────────────────────────────────
- * Shapes morph to communicate interaction states and add delight.
- */
-
-[data-slot="button"] {
-  transition:
-    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
-    background-color 0.15s ease,
-    box-shadow 0.2s ease,
-    opacity 0.15s ease;
-}
-
-[data-slot="button"]:active:not(:disabled) {
-  transform: scale(0.96);
-  transition-duration: 0.1s;
-}
-
-[data-slot="button"]:disabled {
-  animation: morph-breathe 2s ease-in-out infinite;
-}
-
-@keyframes morph-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.5; }
-  50% { transform: scale(0.98); opacity: 0.4; }
-}
-
-[data-slot="input"],
-[data-slot="password-input"] input {
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.25s ease;
-}
-
-.auth-loading-morph {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  background: var(--primary);
-  animation: morph-blob 1.8s ease-in-out infinite;
-}
-
-@keyframes morph-blob {
-  0%, 100% {
-    border-radius: 50%;
-    transform: scale(1) rotate(0deg);
-  }
-  25% {
-    border-radius: 42% 58% 62% 38% / 44% 52% 48% 56%;
-    transform: scale(1.05) rotate(10deg);
-  }
-  50% {
-    border-radius: 56% 44% 38% 62% / 58% 42% 58% 42%;
-    transform: scale(0.95) rotate(-5deg);
-  }
-  75% {
-    border-radius: 38% 62% 56% 44% / 48% 56% 44% 52%;
-    transform: scale(1.03) rotate(8deg);
-  }
-}
-
-/*
  * ─── Page/step transitions ────────────────────────────────────────────
  */
 
@@ -174,22 +112,5 @@
   .auth-step-forward,
   .auth-step-back {
     animation: none;
-  }
-
-  [data-slot="button"] {
-    transition: none;
-  }
-
-  [data-slot="button"]:disabled {
-    animation: none;
-  }
-
-  [data-slot="button"]:active:not(:disabled) {
-    transform: none;
-  }
-
-  .auth-loading-morph {
-    animation: none;
-    border-radius: 50%;
   }
 }

@@ -28,7 +28,7 @@ import './crypto/polyfill';
 // ---------------------------------------------------------------------------
 export { OxyServices, AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError, ServiceAssetMetadataError } from './OxyServices';
 export { OXY_CLOUD_URL, oxyClient } from './OxyServices';
-export type { LinkedHttpClient } from './OxyServices.base';
+export type { DeviceCredentialProvider, LinkedHttpClient } from './OxyServices.base';
 // Auth-refresh handler surface — consumed by `@oxy.so/services`'s OxyContext to
 // install an in-session access-token refresh handler on the owner HttpService
 // (the linked-client refresh path delegates back to it).
@@ -85,6 +85,13 @@ export type {
     RegisterPushTokenInput,
 } from './mixins/OxyServices.notifications';
 export type { ServiceApp, ServiceActingAsVerification, OxyAuthRefusal } from './mixins/OxyServices.utility';
+export type {
+  OxyAccountEvent,
+  OxyAccountEventFeedItem,
+  OxyAccountEventFeedPage,
+  VerifyAccountEventOptions,
+} from './mixins/OxyServices.utility';
+export { OxyAccountEventError, OXY_ACCOUNT_DELETED_EVENT_URI } from './mixins/OxyServices.utility';
 export type {
     ContactDiscoveryMatch,
     ContactDiscoveryResponse,
@@ -320,6 +327,7 @@ export {
     updateIdentityMarker,
 } from './crypto/identityMarker';
 export type { IdentityMarker } from './crypto/identityMarker';
+export type { IdentityDeviceBackupStore } from './crypto/deviceBackup';
 export { SignatureService } from './crypto/signatureService';
 export type { SignedMessage, AuthChallenge } from './crypto/signatureService';
 export { RecoveryPhraseService } from './crypto/recoveryPhrase';
@@ -336,55 +344,11 @@ export {
 export type { AeadResult } from './crypto/aead';
 export { deriveSharedSecret } from './crypto/ecdh';
 
-// Web identity holder — the same root as Commons, sealed under a passkey's PRF
-// output; identity proofs; transfer to Commons (docs/adr/0024-one-oxy-account-root-holders.md)
-export {
-    WEB_IDENTITY_PRF_INPUT,
-    WebIdentityUnlockError,
-    WEB_IDENTITY_PRF_OUTPUT_LENGTH,
-    addWrap,
-    deriveIdentityFromMnemonic,
-    deriveIdentityFromPrivateKey,
-    deriveIdentityFromRecoveryMaterial,
-    deriveKeyEncryptionKey,
-    generateDataKey,
-    generateWebIdentity,
-    isUsablePrfOutput,
-    markWrapVerified,
-    normalizeMnemonic,
-    openWebIdentity,
-    parseRecoveryMaterial,
-    removeWrap,
-    sealWebIdentity,
-    unlockWebIdentity,
-    unwrapDataKey,
-    wipeBytes,
-    wipeOpenedIdentity,
-} from './crypto/webIdentityCarrier';
-export type {
-    OpenedMnemonicIdentity,
-    OpenedRawKeyIdentity,
-    OpenedWebIdentity,
-    WebIdentityRecoveryMaterial,
-    WebIdentityUnlockFailure,
-    WrapInput,
-} from './crypto/webIdentityCarrier';
+// Identity proofs — the one signed format for operations on a personal root
+// (docs/adr/0024-one-oxy-account-root-holders.md D7)
 export { digestIdentityPayload, signIdentityProof } from './crypto/identityProof';
-export {
-    buildMoveQrPayload,
-    createMoveCommitment,
-    deriveMoveKey,
-    deriveMoveSas,
-    digestMoveCiphertext,
-    generateMoveEphemeralKeyPair,
-    openMovedIdentity,
-    parseMoveQrPayload,
-    sealIdentityForMove,
-    signMoveReceipt,
-    verifyMoveCommitment,
-    verifyMoveReceipt,
-} from './crypto/identityMove';
-export type { MoveReceiptClaims } from './crypto/identityMove';
+// Linking Commons to a passkey account: the code both screens compare (ADR 0029 D3)
+export { deriveIdentityLinkCode } from './crypto/identityLink';
 
 // ---------------------------------------------------------------------------
 // Devices
@@ -403,6 +367,8 @@ export type {
     User,
     LoginResponse,
     Notification,
+    NotificationActor,
+    NotificationPage,
     Wallet,
     Transaction,
     BlockedUser,
@@ -674,7 +640,7 @@ export type { QuickAccount, DisplayNameUserShape } from './utils/accountUtils';
 // `*.oxy.so`).
 // ---------------------------------------------------------------------------
 export { registrableApex } from './utils/registrableApex';
-export { CENTRAL_IDP_APEX, IDENTITY_WEB_ORIGIN } from './utils/authWebUrl';
+export { AUTH_WEB_ORIGIN, CENTRAL_IDP_APEX } from './utils/authWebUrl';
 
 // WebAuthn relying-party origin guard (client side). Mirrors the server's
 // `isOxyApexOrigin` so consumers can decide whether to offer passkey UI on the
@@ -714,7 +680,7 @@ export {
     persistOAuthReturnPath,
     consumeOAuthReturnPath,
 } from './utils/oauthPkce';
-export type { PkcePair, BuildOAuthAuthorizeUrlParams } from './utils/oauthPkce';
+export type { PkcePair, BuildOAuthAuthorizeUrlParams, OxyAuthScreen } from './utils/oauthPkce';
 
 export {
     isLoopbackOrigin,
@@ -818,7 +784,7 @@ export type {
     AccountDialogSnapshot,
     AccountDialogView,
     CommonsAvailability,
-    PopupWindowHandle,
+    ContextChoiceOutcome,
     SignInFailureReason,
     SignInFlowPhase,
     SignInFlowState,
@@ -846,7 +812,7 @@ export type {
 
 // The shared NATIVE DeviceSession credential — how several official apps on one
 // device end up on ONE `DeviceSession` and therefore one active context. It is an
-// ordinary rotatable/revocable `deviceId` + `deviceSecret`, deliberately NOT the
+// ordinary revocable `deviceId` + `deviceSecret`, deliberately NOT the
 // Commons private identity key: an app that only needs a session must never be
 // handed the key that signs identity approvals.
 export {

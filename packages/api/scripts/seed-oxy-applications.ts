@@ -77,6 +77,11 @@ import {
 import type { ApplicationScope } from '../src/utils/applicationScopes';
 import { logger } from '../src/utils/logger';
 
+/** Matches the Console's webhook-secret mint (`routes/applications.ts`). */
+function newWebhookSecret(): string {
+  return crypto.randomBytes(24).toString('hex');
+}
+
 // ── Mirror routes/applications.ts credential generation EXACTLY ──────────────
 const CREDENTIAL_PUBLIC_KEY_PREFIX = 'oxy_dk_';
 const PUBLIC_KEY_RANDOM_BYTES = 24;
@@ -332,6 +337,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       {
         description: spec.description,
         websiteUrl: spec.websiteUrl,
+        webhookUrl: spec.webhookUrl,
         type: spec.type,
         ownerAccountId,
         redirectUris: spec.redirectUris,
@@ -351,6 +357,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
             name: spec.name,
             createdByUserId: oxyId,
             ...plan.desired,
+            webhookSecret: plan.desired.webhookUrl ? newWebhookSecret() : null,
           })
           .returning();
         application = created;
@@ -359,10 +366,15 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       appsUpdated += 1;
       if (!dryRun && application) {
         const mutable = { ...readSeedApplicationState(application) };
-        applySeedApplicationPlan(mutable, plan);
+        const written = applySeedApplicationPlan(mutable, plan);
+        // Same invariant as the Console's PATCH: a changed webhook URL gets a
+        // fresh secret, so a secret never outlives the endpoint it was for.
+        const webhookSecret = written.includes('webhookUrl')
+          ? { webhookSecret: mutable.webhookUrl ? newWebhookSecret() : null }
+          : {};
         const [updated] = await getDb()
           .update(applications)
-          .set(mutable)
+          .set({ ...mutable, ...webhookSecret })
           .where(eq(applications.id, application.id))
           .returning();
         application = updated;

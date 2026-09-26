@@ -115,7 +115,7 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
                 </TouchableOpacity>
             );
         },
-        [oxyServices, currentUserId, handleEntryPress, locale],
+        [oxyServices, currentUserId, handleEntryPress, locale, t],
     );
 
     const keyExtractor = useCallback(

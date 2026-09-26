@@ -57,11 +57,11 @@ describe('EXPOSED_HEADERS', () => {
   it('has exactly the entries reviewed here, so neither a deletion nor an addition passes', () => {
     // VACUITY FLOOR. A membership test alone is satisfied by an EMPTY list, and
     // an empty `Access-Control-Expose-Headers` is precisely the silent breakage
-    // this file exists to catch. Nine pre-existing entries + the edge's fourteen.
-    expect(EXPOSED_HEADERS).toHaveLength(9 + EDGE_RESPONSE_HEADERS.length);
+    // this file exists to catch. Eight pre-existing entries + the edge's fourteen.
+    expect(EXPOSED_HEADERS).toHaveLength(8 + EDGE_RESPONSE_HEADERS.length);
   });
 
-  it('never exposes a header carrying credentials or CSRF state to a third-party origin', () => {
+  it('never exposes a header carrying credentials to a third-party origin', () => {
     // The non-credentialed lane still receives this list, so an authentication
     // header appearing here would be readable by any registered third-party app.
     const exposed = new Set<string>(EXPOSED_HEADERS);
@@ -84,9 +84,9 @@ describe('ALLOWED_HEADERS', () => {
   });
 
   it('has exactly the entries reviewed here', () => {
-    // VACUITY FLOOR, as above: seventeen pre-existing entries plus the three
+    // VACUITY FLOOR, as above: fifteen pre-existing entries plus the three
     // explicitly reviewed headers above.
-    expect(ALLOWED_HEADERS).toHaveLength(20);
+    expect(ALLOWED_HEADERS).toHaveLength(18);
   });
 });
 

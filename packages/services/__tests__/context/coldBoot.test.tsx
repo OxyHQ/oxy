@@ -91,12 +91,14 @@ function buildStub(overrides: Record<string, unknown> = {}) {
         // The device-secret mint runs through the client's single-flight; a plain
         // passthrough is enough for these (non-concurrent) integration paths.
         runSingleFlightDeviceSecretMint: (mint: () => Promise<unknown>) => mint(),
+        getSessionEpoch: () => 0,
       },
       getBaseURL: () => API_BASE_URL,
       getSessionBaseUrl: () => API_BASE_URL,
       getAccessToken: () => currentToken,
       getAccessTokenExpiry: () => null,
       onTokensChanged: () => () => undefined,
+      setDeviceCredentialProvider: () => () => undefined,
       setTokens: (token: string) => { currentToken = token; },
       clearTokens: () => { currentToken = null; },
       clearCache: jest.fn(),

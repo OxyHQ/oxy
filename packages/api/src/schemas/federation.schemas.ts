@@ -190,6 +190,40 @@ export type PublicKeyParams = z.infer<typeof publicKeyParamsSchema>;
 export type PublicKeyQuery = z.infer<typeof publicKeyQuerySchema>;
 export type SignRequestBody = z.infer<typeof signRequestSchema>;
 export type FederationFollowBody = z.infer<typeof federationFollowSchema>;
+/**
+ * POST /federation/move
+ *
+ * An inbound ActivityPub `Move` the relaying app received and shape-checked
+ * (signed by `oldActorUri`, which is its actor and object). Oxy verifies the
+ * alias and the old actor's `movedTo` itself; see `services/federationMove.service.ts`.
+ */
+const httpsUri = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2048)
+  .refine((value) => {
+    try {
+      return new URL(value).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }, 'must be an absolute https URI');
+
+export const federationMoveSchema = z
+  .object({
+    oldActorUri: httpsUri,
+    targetActorUri: httpsUri,
+    activityId: z.string().trim().min(1).max(2048),
+  })
+  .strict()
+  .refine((value) => value.oldActorUri !== value.targetActorUri, {
+    message: 'targetActorUri must differ from oldActorUri',
+    path: ['targetActorUri'],
+  });
+
+export type FederationMoveBody = z.infer<typeof federationMoveSchema>;
+
 export type FederationActorGoneBody = z.infer<typeof federationActorGoneSchema>;
 export type FederationActorDeleteBody = z.infer<typeof federationActorDeleteSchema>;
 export type FederationDomainPurgeBody = z.infer<typeof federationDomainPurgeSchema>;

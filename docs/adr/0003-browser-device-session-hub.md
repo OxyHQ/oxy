@@ -1,6 +1,14 @@
 # ADR 0003 — `auth.oxy.so` becomes the browser's first-party DeviceSession hub
 
-- Status: accepted
+> **Superseded (2026-09-26).** The hub was built behind `VITE_OXY_BROWSER_HUB` but never
+> deployed, and it is deleted as a clean cut: the `__Host-oxy-device` cookie, the
+> `/session/browser-hub/*` routes, the `/hub/*` Pages Functions, the IdP hub page and the
+> `device_sessions.hub_*` columns (migration `0108_drop_browser_hub_handle`).
+> `auth.oxy.so` persists its session like every other origin, so no origin holds a
+> cookie. Sharing one browser session across Oxy web apps is left to a later ADR.
+> The body below is the historical record.
+
+- Status: superseded (2026-09-26): the hub was never deployed and is deleted; no origin holds a cookie
 - Date: 2026-08-10
 - Issue: #937
 - Amends: the zero-cookie posture recorded in `AGENTS.md` and

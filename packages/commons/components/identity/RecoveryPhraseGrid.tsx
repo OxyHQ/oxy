@@ -34,7 +34,7 @@ export function RecoveryPhraseGrid({ words, textColor }: RecoveryPhraseGridProps
   );
 
   return (
-    <View style={styles.wordList}>
+    <View className="flex-row flex-wrap justify-between">
       {wordItems.map(({ index, word }) => (
         <View
           key={index}
@@ -52,11 +52,6 @@ export function RecoveryPhraseGrid({ words, textColor }: RecoveryPhraseGridProps
 }
 
 const styles = StyleSheet.create({
-  wordList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
   wordRow: {
     width: '48%',
     flexDirection: 'row',

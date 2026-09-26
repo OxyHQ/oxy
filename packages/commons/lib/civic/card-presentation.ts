@@ -6,17 +6,44 @@
  * plus the i18n key suffix a screen uses to look up the label. Keeping the
  * mapping pure (no React, no colours) lets the trust badge, the personhood row,
  * and the VERIFIED/UNVERIFIED indicator share one source of truth and be unit
- * tested without rendering — the component layer maps a `CivicTone` to a Bloom
- * colour via `useColors()`.
+ * tested without rendering — {@link bloomToneFor} maps a `CivicTone` onto
+ * Bloom's own tone axis at the render site.
  */
 
 import type { CardTrustTier, PersonhoodStatus } from '@oxy.so/contracts';
 
 /**
- * Semantic tone a civic value renders with. The component maps this to a real
- * colour (e.g. `positive → success`, `danger → error`) at the call site.
+ * Semantic tone a civic value renders with.
+ *
+ * It stays the CIVIC vocabulary rather than Bloom's: a reputation verdict is
+ * `positive` or `caution` in the domain's terms, and the screens that read
+ * these mappers should not have to know which of Bloom's eight tones that is.
+ * {@link bloomToneFor} is the one place the translation happens.
  */
 export type CivicTone = 'positive' | 'neutral' | 'caution' | 'danger';
+
+/**
+ * A civic tone as one of Bloom's.
+ *
+ * This is all that remained of `components/civic/CivicBadge.tsx`, a 91-line
+ * bordered pill with its own `${accent}1A` fill, its own hairline, its own two
+ * type sizes and its own icon slot — every one of which is what
+ * `@oxy.so/bloom/badge` draws, from the same theme, in the same register as the
+ * rest of the app. The component is gone; the mapping is data, so it lives with
+ * the other pure mappers.
+ */
+export function bloomToneFor(tone: CivicTone): 'success' | 'warning' | 'danger' | 'neutral' {
+  switch (tone) {
+    case 'positive':
+      return 'success';
+    case 'caution':
+      return 'warning';
+    case 'danger':
+      return 'danger';
+    case 'neutral':
+      return 'neutral';
+  }
+}
 
 /** Trust-tier presentation: tone + the `civic.trustTier.*` i18n key suffix. */
 export interface TrustTierMeta {

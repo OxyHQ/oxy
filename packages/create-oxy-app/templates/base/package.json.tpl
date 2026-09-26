@@ -22,10 +22,16 @@
   },
   "overrides": {
     "@oxy.so/core": "{{v.oxyCore}}",
-    "@oxy.so/bloom": "{{v.oxyBloom}}"
+    "@oxy.so/bloom": "{{v.oxyBloom}}",
+    "lightningcss": "{{v.lightningcss}}",
+    "lightningcss-linux-x64-gnu": "{{v.lightningcss}}",
+    "lightningcss-linux-x64-musl": "{{v.lightningcss}}"
   },
   "resolutions": {
     "@oxy.so/core": "{{v.oxyCore}}",
-    "@oxy.so/bloom": "{{v.oxyBloom}}"
+    "@oxy.so/bloom": "{{v.oxyBloom}}",
+    "lightningcss": "{{v.lightningcss}}",
+    "lightningcss-linux-x64-gnu": "{{v.lightningcss}}",
+    "lightningcss-linux-x64-musl": "{{v.lightningcss}}"
   }
 }

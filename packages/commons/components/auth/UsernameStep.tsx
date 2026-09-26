@@ -10,7 +10,10 @@ import {
 import LottieView from 'lottie-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  KeyboardAwareScrollViewWrapper,
+} from '@/components/ui';
 import { useUsernameValidation } from '@/hooks/auth/useUsernameValidation';
 import { stripDisallowedUsernameCharacters } from '@oxy.so/contracts';
 import type { OxyServices } from '@oxy.so/core';
@@ -193,7 +196,7 @@ export function UsernameStep({
         contentContainerStyle={styles.stepContainer}
         bottomOffset={belowInputHeight + KEYBOARD_CLEARANCE}
       >
-        <View style={styles.animationContainer}>
+        <View className="items-center mb-space-24">
           <TouchableOpacity
             onPress={handleAnimationPress}
             activeOpacity={0.8}
@@ -219,7 +222,7 @@ export function UsernameStep({
             : t('auth.usernameStep.subtitle')}
         </Text>
 
-        <View style={styles.inputWrapper}>
+        <View className="mt-space-24 mb-space-8">
           <TextInput
             style={[styles.usernameInput, {
               color: textColor,
@@ -262,37 +265,16 @@ export function UsernameStep({
             </Text>
           )}
 
-          <Button
-            variant="primary"
-            onPress={handleContinue}
-            disabled={(!canContinue && !isOffline) || isUpdating || isConfirming}
-            loading={isUpdating || isConfirming}
-            style={styles.primaryButton}
-          >
-            {isUpdating ? t('auth.usernameStep.saving') : isConfirming ? t('auth.usernameStep.confirming') : t('auth.usernameStep.confirm')}
-          </Button>
+          <Button appearance="solid" tone="accent" onPress={handleContinue} disabled={(!canContinue && !isOffline) || isUpdating || isConfirming} loading={isUpdating || isConfirming} className="mt-space-32">{isUpdating ? t('auth.usernameStep.saving') : isConfirming ? t('auth.usernameStep.confirming') : t('auth.usernameStep.confirm')}</Button>
         </View>
 
         {/* Only show skip button if offline and onSkip is provided (for offline fallback) */}
         {isOffline && onSkip && (
-          <Button
-            variant="ghost"
-            onPress={onSkip}
-            style={styles.skipButton}
-            disabled={isUpdating}
-          >
-            {t('auth.usernameStep.skip')}
-          </Button>
+          <Button appearance="subtle" onPress={onSkip} className="mt-space-12" disabled={isUpdating}>{t('auth.usernameStep.skip')}</Button>
         )}
 
         {!isOffline && (
-          <Button
-            variant="ghost"
-            onPress={learnMoreDialog.open}
-            disabled={isUpdating}
-          >
-            {t('auth.usernameStep.learnMore')}
-          </Button>
+          <Button appearance="subtle" onPress={learnMoreDialog.open} disabled={isUpdating}>{t('auth.usernameStep.learnMore')}</Button>
         )}
       </KeyboardAwareScrollViewWrapper>
 
@@ -303,9 +285,9 @@ export function UsernameStep({
         label={t('learnMoreUsernames.introTitle')}
         actions={[{ label: t('common.close'), color: 'cancel' }]}
       >
-        <View style={styles.learnMoreSections}>
+        <View className="gap-space-20 pb-space-20">
           {LEARN_MORE_SECTION_IDS.map((id) => (
-            <View key={id} style={styles.learnMoreSection}>
+            <View key={id} className="gap-space-4">
               <Text style={[styles.learnMoreSectionTitle, { color: colors.text }]}>
                 {t(`learnMoreUsernames.sections.${id}.title`)}
               </Text>
@@ -335,10 +317,6 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     justifyContent: 'center',
   },
-  animationContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
   lottieAnimation: {
     width: 150,
     height: 150,
@@ -355,10 +333,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 22,
     textAlign: 'center',
-  },
-  inputWrapper: {
-    marginTop: 24,
-    marginBottom: 8,
   },
   usernameInput: {
     borderWidth: 1,
@@ -383,16 +357,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
-  },
-  primaryButton: {
-    marginTop: 32,
-  },
-  skipButton: {
-    marginTop: 12,
-  },
-  learnMoreSections: {
-    gap: 20,
-    paddingBottom: 20,
   },
   learnMoreSection: {
     gap: 4,

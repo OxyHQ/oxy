@@ -107,7 +107,9 @@ export interface OxyRuntime {
   /**
    * Project the client's current device state onto the snapshot. Idempotent and
    * revision-guarded: a projection whose profile fetch was overtaken by a
-   * fresher state discards itself rather than publishing a stale subject.
+   * fresher state discards itself rather than publishing a stale subject. It is
+   * also teardown-guarded: one started before {@link clearSession} publishes
+   * nothing, whatever `SessionClient` still holds.
    */
   reconcileFromClient(): Promise<void>;
 
@@ -166,7 +168,10 @@ export interface OxyRuntime {
   mergeSessions(incoming: ClientSession[], options?: { merge?: boolean; preserveSessionIds?: string[] }): void;
   setActiveSessionId(sessionId: string | null): void;
 
-  /** Local teardown: drop the session projection without touching the server. */
+  /**
+   * Local teardown: drop the session projection without touching the server.
+   * Every projection already in flight is abandoned.
+   */
   clearSession(): void;
 }
 
@@ -268,6 +273,14 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
   let dirty = false;
   /** The subject as it stood when the OUTERMOST transition opened. */
   let subjectAtEntry: string | null = null;
+  /**
+   * Bumped by every local teardown. A projection captures it before its first
+   * await and discards itself if it moved: the revision guard alone cannot see
+   * a sign-out, because a local teardown (the token-null lane, a `logoutAll`
+   * whose device call already failed) leaves `SessionClient` holding the SAME
+   * state, at the same revision, that the projection was started for.
+   */
+  let sessionGeneration = 0;
 
   function buildSnapshot(): OxyRuntimeSnapshot {
     const activeContext = resolveActiveContext(facts.directory);
@@ -401,6 +414,7 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     // profile fetch if a fresher state has landed — last-writer-wins, so two
     // overlapping projections can never publish in the wrong order.
     const capturedRevision = state.revision;
+    const capturedGeneration = sessionGeneration;
     // Resolve the pin BEFORE the fetch (memoised: one storage + keychain read
     // per boot) so the first pass over a freshly applied state is already bound.
     // Deferring it would let a sibling app's switch render once as this
@@ -412,6 +426,12 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
       users = ids.length > 0 ? await oxyServices.getUsersByIds(ids) : [];
     } catch (fetchError) {
       logger('Failed to resolve account profiles during the device projection', fetchError);
+      return;
+    }
+    if (capturedGeneration !== sessionGeneration) {
+      // Signed out while the profiles were in flight. Committing now would put
+      // the account back on a device with no bearer — the "Hi <old user>"
+      // greeting to a signed-out visitor.
       return;
     }
     const latest = sessionClient.getState();
@@ -608,6 +628,7 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     },
 
     clearSession() {
+      sessionGeneration += 1;
       transition(() => {
         setSessions(EMPTY_SESSIONS);
         setActiveSessionIdFact(null);

@@ -57,6 +57,73 @@ export interface ServiceActingAsVerification {
   scopes: string[];
 }
 
+/** The SET `events` member Oxy uses for an account deletion. */
+export const OXY_ACCOUNT_DELETED_EVENT_URI = 'https://oxy.so/events/account.deleted';
+
+/**
+ * A verified account event from Oxy (OxyHQ/Mention#1169): a person deleted
+ * their Oxy account and every relying application must erase what it holds
+ * for them. Returned by `verifyAccountEvent` only after the signature, `typ`,
+ * issuer and audience all check out.
+ */
+export interface OxyAccountEvent {
+  /** The event id (`jti`). Stable across webhook retries and the pull feed: dedupe on it. */
+  eventId: string;
+  type: 'account.deleted';
+  /** The deleted Oxy account. */
+  userId: string;
+  /**
+   * The account's handle at deletion time, for relying parties that address
+   * the person by handle (an ActivityPub actor URI). `null` when the account had
+   * none, or when the token predates the field.
+   */
+  username: string | null;
+  /** ISO-8601 time the deletion committed. */
+  occurredAt: string;
+  /** `true` when Oxy archived the row to keep financial records. Erase either way. */
+  retained: boolean;
+  /** The application the event was addressed to (`aud`). */
+  applicationId: string;
+  /** Seconds since the epoch the token was issued at (`iat`). */
+  issuedAt: number;
+}
+
+/** One entry of the account-event pull feed (`GET /account-events`). */
+export interface OxyAccountEventFeedItem {
+  eventId: string;
+  type: 'account.deleted';
+  userId: string;
+  username: string | null;
+  occurredAt: string;
+  retained: boolean;
+  /** The same signed token the webhook carries. Verify it with `verifyAccountEvent`. */
+  token: string;
+}
+
+export interface OxyAccountEventFeedPage {
+  events: OxyAccountEventFeedItem[];
+  /** Pass back as `after` to continue; unchanged when the page is empty. */
+  nextCursor: string | null;
+}
+
+export interface VerifyAccountEventOptions {
+  /**
+   * The application id the token must be addressed to. Defaults to the `appId`
+   * of this client's configured service credential.
+   */
+  audience?: string;
+  /** Defaults to `/.well-known/jwks.json` on this client's API origin. */
+  jwksUrl?: string;
+}
+
+/** Why an account event token was refused. `message` never contains the token. */
+export class OxyAccountEventError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OxyAccountEventError';
+  }
+}
+
 /**
  * Service app metadata attached to requests authenticated with service tokens.
  *
@@ -318,6 +385,147 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
         });
         return null;
       }
+    }
+
+    /**
+     * Verify an account event token from Oxy — the body of an account-event
+     * webhook, or an entry's `token` from `listAccountEvents` — and return the
+     * event. Throws {@link OxyAccountEventError} unless the token is an
+     * EdDSA-signed `secevent+jwt` from Oxy's published key set, issued by
+     * `oxy-auth`, addressed to this application, carrying exactly one known
+     * event. A service token (`typ: JWT`) is refused here, as this token is
+     * refused as a service token.
+     *
+     * Node only (it needs `node:crypto`). The caller must still be idempotent on
+     * `eventId`: Oxy delivers at least once, by push and by pull.
+     */
+    async verifyAccountEvent(
+      token: string,
+      options: VerifyAccountEventOptions = {},
+    ): Promise<OxyAccountEvent> {
+      if (typeof token !== 'string' || token.length === 0 || token.length > 16 * 1024) {
+        throw new OxyAccountEventError('Account event token is missing or oversized');
+      }
+      const parts = token.split('.');
+      if (parts.length !== 3 || parts.some((part) => part.length === 0)) {
+        throw new OxyAccountEventError('Account event token is not a compact JWS');
+      }
+      const [headerB64, payloadB64, signatureB64] = parts as [string, string, string];
+      let header: Record<string, unknown>;
+      let payload: Record<string, unknown>;
+      try {
+        header = parseJsonSegment(headerB64);
+        payload = parseJsonSegment(payloadB64);
+      } catch {
+        throw new OxyAccountEventError('Account event token is malformed');
+      }
+      if (
+        Object.keys(header).length !== 3
+        || header.alg !== 'EdDSA'
+        || header.typ !== 'secevent+jwt'
+        || typeof header.kid !== 'string'
+        || !/^[A-Za-z0-9._-]{1,128}$/.test(header.kid)
+      ) {
+        throw new OxyAccountEventError('Account event token header is not supported');
+      }
+
+      const nodeCrypto = await loadNodeCrypto();
+      let jwk: ServiceTokenPublicJwk;
+      try {
+        jwk = await resolveServiceTokenPublicKey(
+          header.kid,
+          options.jwksUrl ?? new URL('/.well-known/jwks.json', this.getBaseURL()).toString(),
+          this._serviceTokenJwksCache,
+        );
+      } catch (error) {
+        throw new OxyAccountEventError(
+          error instanceof Error ? error.message.replace('Service token', 'Account event') : 'Signing key is unavailable',
+        );
+      }
+      const signature = Buffer.from(signatureB64, 'base64url');
+      if (signature.toString('base64url') !== signatureB64 || signature.length !== 64) {
+        throw new OxyAccountEventError('Account event token signature is malformed');
+      }
+      let verified = false;
+      try {
+        const publicKey = nodeCrypto.createPublicKey({ key: jwk as unknown as JsonWebKey, format: 'jwk' });
+        verified = nodeCrypto.verify(null, Buffer.from(`${headerB64}.${payloadB64}`), publicKey, signature);
+      } catch {
+        verified = false;
+      }
+      if (!verified) throw new OxyAccountEventError('Account event token signature is invalid');
+
+      if (payload.iss !== OXY_JWT_ISSUER) {
+        throw new OxyAccountEventError('Account event token issuer is not Oxy');
+      }
+      const audience = options.audience ?? await this._configuredServiceAppId();
+      if (typeof payload.aud !== 'string' || payload.aud !== audience) {
+        throw new OxyAccountEventError('Account event token is addressed to another application');
+      }
+      if (typeof payload.jti !== 'string' || payload.jti.length === 0 || payload.jti.length > 128) {
+        throw new OxyAccountEventError('Account event token has no event id');
+      }
+      if (typeof payload.iat !== 'number' || !Number.isFinite(payload.iat)) {
+        throw new OxyAccountEventError('Account event token has no issue time');
+      }
+      const events = payload.events;
+      if (typeof events !== 'object' || events === null || Array.isArray(events)) {
+        throw new OxyAccountEventError('Account event token carries no events');
+      }
+      const entries = Object.entries(events as Record<string, unknown>);
+      const deleted = (events as Record<string, unknown>)[OXY_ACCOUNT_DELETED_EVENT_URI];
+      if (entries.length !== 1 || typeof deleted !== 'object' || deleted === null || Array.isArray(deleted)) {
+        throw new OxyAccountEventError('Account event token carries an unknown event');
+      }
+      const body = deleted as Record<string, unknown>;
+      if (typeof body.userId !== 'string' || body.userId.length === 0 || body.userId.length > 128) {
+        throw new OxyAccountEventError('Account event names no account');
+      }
+      if (typeof body.occurredAt !== 'string' || Number.isNaN(Date.parse(body.occurredAt))) {
+        throw new OxyAccountEventError('Account event has no occurrence time');
+      }
+      if (body.username !== undefined && body.username !== null && typeof body.username !== 'string') {
+        throw new OxyAccountEventError('Account event username is malformed');
+      }
+      return {
+        eventId: payload.jti,
+        type: 'account.deleted',
+        userId: body.userId,
+        username: typeof body.username === 'string' ? body.username : null,
+        occurredAt: body.occurredAt,
+        retained: body.retained === true,
+        applicationId: payload.aud,
+        issuedAt: payload.iat,
+      };
+    }
+
+    /**
+     * One page of account events addressed to this application, oldest first,
+     * from Oxy's pull feed — the reconciliation path behind the webhook. Needs
+     * the service credential (`configureServiceAuth`). Verify each entry's
+     * `token` with {@link verifyAccountEvent} before acting on it.
+     */
+    async listAccountEvents(
+      options: { after?: string; limit?: number } = {},
+    ): Promise<OxyAccountEventFeedPage> {
+      const serviceToken = await (this as unknown as OxyAuthInstance).getServiceToken();
+      const query: Record<string, string> = {};
+      if (options.after) query.after = options.after;
+      if (options.limit !== undefined) query.limit = String(options.limit);
+      return this.makeRequest<OxyAccountEventFeedPage>('GET', '/account-events', query, {
+        cache: false,
+        headers: { Authorization: `Bearer ${serviceToken}` },
+      });
+    }
+
+    /** @internal The `appId` claim of this client's own service token. */
+    async _configuredServiceAppId(): Promise<string> {
+      const serviceToken = await (this as unknown as OxyAuthInstance).getServiceToken();
+      const appId = jwtDecode<JwtPayload>(serviceToken).appId;
+      if (typeof appId !== 'string' || appId.length === 0) {
+        throw new OxyAccountEventError('No audience given and the service credential names no application');
+      }
+      return appId;
     }
 
     /**

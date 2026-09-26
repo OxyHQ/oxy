@@ -199,9 +199,20 @@ function base64Url(value: string | Uint8Array): string {
   return Buffer.from(value).toString('base64url');
 }
 
-export function signServiceTokenEd25519(payload: Record<string, unknown>): string {
+/**
+ * The JOSE `typ` of a token Oxy signs with this key. Distinct values keep one
+ * kind of token from being accepted as another: a service token is `JWT`, and a
+ * Security Event Token announcing an account event is `secevent+jwt` (RFC 8417
+ * section 2.3), which service-token verifiers refuse and vice versa.
+ */
+export type OxySignedTokenType = 'JWT' | 'secevent+jwt';
+
+export function signServiceTokenEd25519(
+  payload: Record<string, unknown>,
+  typ: OxySignedTokenType = 'JWT',
+): string {
   const config = serviceTokenSigningConfig();
-  const header = { alg: 'EdDSA', typ: 'JWT', kid: config.keyId } as const;
+  const header = { alg: 'EdDSA', typ, kid: config.keyId } as const;
   const signingInput = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(payload))}`;
   return `${signingInput}.${base64Url(signBytes(null, Buffer.from(signingInput), config.privateKey))}`;
 }

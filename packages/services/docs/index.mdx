@@ -93,7 +93,7 @@ Screen modules are loaded on demand via `screenLoaders` in `ui/navigation/routes
 - `<Avatar />` — image + initials fallback + verified badge
 - `<OxyLogo />` / `<LogoIcon />` / `<LogoText />` — Bloom-themed brand marks
 - `<ActiveAccountBanner />` — subtle cue showing which account is active when switched into a non-personal account
-- `<FollowButton />` — toggleable follow state with optimistic update
+- `<FollowButton />` — toggleable follow state with optimistic update. Pass `username` so a screen reader hears "Following @nate" rather than a bare "Following"; the accessible name follows the state either way
 
 ## Common patterns
 

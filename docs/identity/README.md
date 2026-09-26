@@ -6,8 +6,8 @@
 > engine is in `@oxy.so/api`; the crypto + SDK surface is in `@oxy.so/core`; wire
 > types are in `@oxy.so/contracts`.
 >
-> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
-> [External identities and aliases](external-identities.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
+> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Identity device backup](device-backup.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
+> [External identities and aliases](external-identities.md) · [Linked accounts](linked-accounts.md) · [Account events (deletion → relying parties)](account-events.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
 
 ---
 
@@ -205,7 +205,7 @@ fragment).
 
 - `POST /auth/link` — first link of a root only (ADR 0024 D8): a root proof,
   plus a fresh passkey assertion for a keyless account. Clients reach it through
-  the holder flow on `id.oxy.so` (web) or Commons (native), not an SDK method.
+  the holder flow on `auth.oxy.so` (web) or Commons (native), not an SDK method.
 - `removePasskey(credentialId)` → `DELETE /auth/link/webauthn/:id`; refuses to
   drop the last web holder wrap.
 - A root is never unlinked; it is replaced only by `rotateKey()`.

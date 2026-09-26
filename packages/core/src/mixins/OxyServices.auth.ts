@@ -8,8 +8,17 @@ import type {
   UserNameResponse,
   LoginResult,
   CommonsDenyReason,
+  DeviceProof,
 } from '@oxy.so/contracts';
-import { loginResultSchema, safeParseContract, type IdentityProof, type WebIdentityEnvelope } from '@oxy.so/contracts';
+import {
+  emailVerificationConfirmResponseSchema,
+  emailVerificationStartResponseSchema,
+  loginResultSchema,
+  safeParseContract,
+  type EmailVerificationConfirmResponse,
+  type EmailVerificationStartRequest,
+  type EmailVerificationStartResponse,
+} from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../models/session';
 import type { OxyServicesBase } from '../OxyServices.base';
 import type { PublicApplication } from './OxyServices.connectedApps';
@@ -1058,7 +1067,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      */
     async claimSessionByToken(
       sessionToken: string,
-      options: { deviceFingerprint?: string; plantTokens?: boolean } = {}
+      options: { deviceFingerprint?: string; plantTokens?: boolean; device?: DeviceProof | null } = {}
     ): Promise<{
       accessToken: string;
       sessionId: string;
@@ -1068,6 +1077,9 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
       deviceSecret?: string;
     }> {
       try {
+        // The device this client holds, so an official app's claim joins it
+        // (ADR 0029 D2). `null` opts out explicitly.
+        const device = options.device === undefined ? await this.readDeviceProof() : options.device;
         const res = await this.makeRequest<{
           accessToken: string;
           sessionId: string;
@@ -1081,6 +1093,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
           {
             sessionToken,
             ...(options.deviceFingerprint ? { deviceFingerprint: options.deviceFingerprint } : {}),
+            ...(device ? { device } : {}),
           },
           // Body-authenticated device-flow claim (no bearer) — skip the preflight.
           { cache: false, retry: false, skipAuth: true }
@@ -1692,12 +1705,43 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
     }
 
     /**
-     * Check email availability
+     * Send a 6-digit code to an email (ADR 0029 D3): the recovery email of a
+     * new passkey account (`purpose: 'signup'`), or — named by username or
+     * email — the recovery email of an account being recovered
+     * (`purpose: 'recovery'`). The answer is the same whether or not an
+     * account exists; nothing is revealed about who has one.
      */
-    async checkEmailAvailability(email: string): Promise<{ available: boolean; message: string }> {
+    async startEmailVerification(request: EmailVerificationStartRequest): Promise<EmailVerificationStartResponse> {
       try {
-        // Public availability lookup (pre-session) — skip the bearer preflight.
-        return await this.makeRequest('GET', `/auth/check-email/${email}`, undefined, { cache: false, skipAuth: true });
+        const res = await this.makeRequest<unknown>('POST', '/auth/email/verify/start', request, {
+          cache: false,
+          skipAuth: true,
+        });
+        const parsed = safeParseContract(emailVerificationStartResponseSchema, res);
+        if (!parsed) throw new Error('auth/email/verify/start returned an unexpected response shape');
+        return parsed;
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Confirm the code {@link startEmailVerification} sent. Resolves to a
+     * short-lived one-use ticket: a sign-up passes it (with the email) to
+     * {@link webauthnRegisterVerify}; a recovery passes it as `recoveryTicket`
+     * to {@link webauthnRegisterOptions} and {@link webauthnRegisterVerify}.
+     */
+    async confirmEmailVerification(verificationId: string, code: string): Promise<EmailVerificationConfirmResponse> {
+      try {
+        const res = await this.makeRequest<unknown>(
+          'POST',
+          '/auth/email/verify/confirm',
+          { verificationId, code },
+          { cache: false, skipAuth: true },
+        );
+        const parsed = safeParseContract(emailVerificationConfirmResponseSchema, res);
+        if (!parsed) throw new Error('auth/email/verify/confirm returned an unexpected response shape');
+        return parsed;
       } catch (error) {
         throw this.handleError(error);
       }
@@ -1708,19 +1752,24 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      * `PublicKeyCredentialCreationOptions` the browser's `navigator.credentials
      * .create()` (or `@simplewebauthn/browser`'s `startRegistration`) needs.
      *
-     * With a bearer token planted this links a passkey to the signed-in account
-     * (`username` ignored); without one it is a prospective signup and `username`
-     * is the desired handle. The returned options are OPAQUE — Oxy does not own
-     * their shape (the browser / `@simplewebauthn` does), so they pass through
-     * as `unknown` for the caller to hand straight to the ceremony.
+     * With a bearer token planted this adds a passkey to the signed-in account.
+     * Without one, `username` is a prospective sign-up's handle, and
+     * `recoveryTicket` a recovery's new passkey for the account it names. The
+     * returned options are OPAQUE — Oxy does not own their shape (the browser /
+     * `@simplewebauthn` does), so they pass through as `unknown` for the caller
+     * to hand straight to the ceremony.
      */
-    async webauthnRegisterOptions(username?: string): Promise<unknown> {
+    async webauthnRegisterOptions(request: { username?: string; recoveryTicket?: string } = {}): Promise<unknown> {
+      const signedOut = request.username !== undefined || request.recoveryTicket !== undefined;
       try {
         return await this.makeRequest<unknown>(
           'POST',
           '/auth/webauthn/register/options',
-          { ...(username !== undefined ? { username } : {}) },
-          { cache: false, ...(username !== undefined ? { skipAuth: true } : {}) },
+          {
+            ...(request.username !== undefined ? { username: request.username } : {}),
+            ...(request.recoveryTicket !== undefined ? { recoveryTicket: request.recoveryTicket } : {}),
+          },
+          { cache: false, ...(signedOut ? { skipAuth: true } : {}) },
         );
       } catch (error) {
         throw this.handleError(error);
@@ -1732,10 +1781,12 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      * browser `RegistrationResponseJSON` (`response`) alongside the Oxy envelope
      * (desired `username` for signup + the device-session naming fields).
      *
-     * Two server branches, disambiguated by the response shape:
-     *  - **Signup** (no bearer): the account is created and a session minted —
-     *    the response carries `sessionId`, is the SAME {@link LoginResult}
-     *    contract as `POST /auth/verify`, and its access token is planted here.
+     * Server branches, disambiguated by the response shape:
+     *  - **Sign-up** (no bearer; `username`, `email`, `emailTicket`) and
+     *    **recovery** (no bearer; `recoveryTicket`): the account is created, or
+     *    gains the passkey, and a session is minted — the response carries
+     *    `sessionId`, is the SAME {@link LoginResult} contract as
+     *    `POST /auth/verify`, and its access token is planted here.
      *  - **Link** (bearer present): the passkey is attached to the signed-in
      *    account and the server returns `{ success, message }` with no session,
      *    which is returned verbatim (no token planting).
@@ -1744,22 +1795,30 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
       response: unknown,
       envelope: {
         username?: string;
+        /** Sign-up: the recovery email, confirmed with `emailTicket`. */
+        email?: string;
+        emailTicket?: string;
+        /** Recovery: the ticket {@link confirmEmailVerification} returned. */
+        recoveryTicket?: string;
         deviceName?: string;
         deviceFingerprint?: string;
-        /**
-         * Sign-up only: the root created on the holder before this call, sealed
-         * under the passkey being registered, plus its `enroll_identity` proof
-         * (ADR 0024 D4). The account is created WITH it or not at all.
-         */
-        identity?: { envelope: WebIdentityEnvelope; proof: IdentityProof };
+        /** The device the new session joins; defaults to the one this client holds. */
+        device?: DeviceProof | null;
       } = {},
     ): Promise<{ success: true; message: string } | LoginResult> {
       try {
+        // Only sign-up and recovery mint a session; a link never does.
+        const mintsSession = envelope.username !== undefined || envelope.recoveryTicket !== undefined;
+        const { device: explicitDevice, ...rest } = envelope;
+        const device = explicitDevice === undefined && mintsSession ? await this.readDeviceProof() : explicitDevice;
         const res = await this.makeRequest<unknown>(
           'POST',
           '/auth/webauthn/register/verify',
-          { response, ...envelope },
-          { cache: false, ...(envelope.username !== undefined ? { skipAuth: true } : {}) },
+          { response, ...rest, ...(device ? { device } : {}) },
+          {
+            cache: false,
+            ...(envelope.username !== undefined || envelope.recoveryTicket !== undefined ? { skipAuth: true } : {}),
+          },
         );
         if (res && typeof res === 'object') {
           const record = res as Record<string, unknown>;
@@ -1820,13 +1879,16 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      */
     async webauthnLoginVerify(
       response: unknown,
-      envelope: { deviceName?: string; deviceFingerprint?: string } = {},
+      envelope: { deviceName?: string; deviceFingerprint?: string; device?: DeviceProof | null } = {},
     ): Promise<LoginResult> {
       try {
+        // The device this client holds, so the session joins it (ADR 0029 D2).
+        const { device: explicitDevice, ...rest } = envelope;
+        const device = explicitDevice === undefined ? await this.readDeviceProof() : explicitDevice;
         const res = await this.makeRequest<unknown>(
           'POST',
           '/auth/webauthn/login/verify',
-          { response, ...envelope },
+          { response, ...rest, ...(device ? { device } : {}) },
           // Pre-session login ceremony — skip the bearer preflight.
           { cache: false, skipAuth: true },
         );

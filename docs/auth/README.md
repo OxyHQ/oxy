@@ -25,9 +25,9 @@ It does **not** own account management: every `/settings/*` path permanently red
 
 Session authority and transport live entirely in `api.oxy.so`: `deviceId` + `deviceSecret` persisted first-party by the client, minted/refreshed via `POST /session/device/token` (no bearer, no cookies — possession of the secret is the proof). The server-side model is `DeviceSession` (`/session/device/*` + the `session_state` socket event) — see [device-session.md](./device-session.md). There is no refresh-token family. FedCM and the legacy silent/cross-domain restore machinery were deleted from the IdP and the SDK.
 
-One cookie exists on this origin and nowhere else: `__Host-oxy-device`, the browser hub handle (issue #937 Phase 5, [ADR 0003](../adr/0003-browser-device-session-hub.md)). Its server and edge layers are built; **no code on this page's app calls them yet**, so nothing described below has changed. Relying-party origins remain zero-cookie. See [SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § The browser hub.
+This origin sets no cookie, like every other Oxy origin: it persists its own `{deviceId, deviceSecret}` in `localStorage`. The browser hub cookie of [ADR 0003](../adr/0003-browser-device-session-hub.md) was never deployed and is deleted.
 
-The multi-person evolution of that model — principals, account contexts, one globally active context, and the browser DeviceSession hub this IdP is becoming — is specified in [principals-and-account-contexts.md](./principals-and-account-contexts.md) and the records under [`docs/adr/`](../adr/). Where the two disagree, the ADRs describe the target and this page describes what is deployed.
+The multi-person evolution of that model — principals, account contexts, and one globally active context — is specified in [principals-and-account-contexts.md](./principals-and-account-contexts.md) and the records under [`docs/adr/`](../adr/). Where the two disagree, the ADRs describe the target and this page describes what is deployed.
 
 ## Provider mount — `OxyProvider`, device-first like every app
 
@@ -62,10 +62,10 @@ The provider runs the SAME device-first cold boot every Oxy app runs (restore th
 The chooser ("Choose an account to continue") uses the SAME device-first SDK chain every Oxy app uses — there is NO server-side feed, NO `oxy_device` cookie, and NO Pages Function anymore (all deleted in the 2c cutover):
 
 1. `useDeviceSwitcher()` (from `@oxy.so/services`) reads the server's device directory (ADR 0002) — every principal on this device and the contexts each may act as — through the same `buildSwitcherRows` projection the SDK's own switcher renders.
-2. `components/account-chooser.tsx` renders those rows on `/login` and `/authorize`, grouped by person: the same organization reachable through two people is two rows, and the operator is named once anybody holds more than one account.
+2. The SDK's `OxyAccountPicker` renders those rows on `/login` (inside `OxySignInPanel`), `/authorize`, `/device` and `/mcp/link`, grouped by person: the same organization reachable through two people is two rows, and the operator is named once anybody holds more than one account.
 3. Selecting the active context continues immediately; selecting any other calls `activateContext(contextId)` — the pair, never an account id — which re-plants the active bearer, then proceeds. A refusal (including a context id the server has since healed away) falls back to `/login?login_hint=…` for explicit re-auth.
 
-The app's own pages (login, signup, authorize, recover) are a static Vite SPA with history-fallback — no dynamic routes and no advanced-mode worker. The one Pages Functions *directory* on this origin is `functions/hub/*`, the browser hub, which serves no page and which none of the routes above calls.
+The app's own pages (login, signup, authorize, device, MCP link) are a static Vite SPA with history-fallback — no dynamic routes and no advanced-mode worker. The only Pages Function on this origin is the root `functions/_middleware.ts`, which records edge activity and serves no page.
 
 ## API endpoints the IdP calls
 
@@ -81,7 +81,6 @@ All against `api.oxy.so` (`VITE_OXY_API_URL` in dev):
 | `GET /auth/oauth/client/:clientId` | Resolve the requesting Application (public identity) |
 | `GET /auth/oauth/consent` | Consent decision for the signed-in user |
 | `POST /auth/oauth/authorize` | Mint the single-use authorization code |
-| `GET /csrf-token` | CSRF for cookie-credentialed writes |
 
 The code→token exchange (`POST /auth/oauth/token`, RFC 6749 §4.1.3) happens on the RP side, never on the IdP — see [integration-guide.md](./integration-guide.md).
 

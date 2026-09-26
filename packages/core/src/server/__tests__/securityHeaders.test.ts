@@ -211,6 +211,30 @@ describe('@oxy.so/core/server buildOxyPagesHeaders on a sensitive origin (ADR 00
     expect(sensitive).toContain('https://api.oxy.so');
     expect(sensitive).toContain("frame-ancestors 'none'");
   });
+
+  it('sends no-transform so the edge never injects the beacon, and only there', () => {
+    expect(buildOxyPagesHeaders({ sensitive: true })).toContain(
+      'Cache-Control: public, max-age=0, must-revalidate, no-transform',
+    );
+    expect(buildOxyPagesHeaders()).not.toContain('Cache-Control');
+  });
+
+  it('serves the rest of the holder policy there, and only there (ADR 0028)', () => {
+    const sensitive = buildOxyPagesHeaders({ sensitive: true });
+    const normal = buildOxyPagesHeaders();
+
+    expect(sensitive).toContain("base-uri 'none'");
+    expect(sensitive).toContain("form-action 'none'");
+    expect(sensitive).toContain('Referrer-Policy: no-referrer');
+    expect(sensitive).toContain('Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)');
+    expect(sensitive).toContain('Cross-Origin-Resource-Policy: same-origin');
+    // The third-party OAuth popup reports back to its opener: COOP would sever it.
+    expect(sensitive).not.toContain('Cross-Origin-Opener-Policy');
+
+    expect(normal).toContain('Referrer-Policy: strict-origin-when-cross-origin');
+    expect(normal).not.toContain('Permissions-Policy');
+    expect(normal).not.toContain("base-uri 'none'");
+  });
 });
 
 describe('@oxy.so/core/server extractInlineScripts', () => {

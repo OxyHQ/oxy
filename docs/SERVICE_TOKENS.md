@@ -259,7 +259,7 @@ the endpoint is not an oracle for which users or applications exist.
   production it signs with a per-process ephemeral key. See
   [ADR 0012](adr/0012-service-token-signing-key-model.md).
 - Secrets stored as sha256 hashes; timing-safe comparison on exchange
-- Service tokens bypass CSRF (bearer-only, not vulnerable)
+- Bearer-only, so not exposed to CSRF (the API has no ambient credential)
 - Expiration checked locally (no DB round-trip)
 - Per-scope authorisation via `oxy.requireScope('files:write')` after `serviceAuth()`
 

@@ -29,7 +29,10 @@ import { externalIdentityInstagramPins, externalIdentityMetaProofs } from './ext
  * the type rather than keeping a second copy that could drift from it.
  */
 
-import { identityMoves } from './identityMoves';
+import { accountEvents } from './accountEvents';
+import { identityLinkRequests } from './identityLinkRequests';
+import { mastodonAppRegistrations } from './userLinkedAccounts';
+import { federatedAccountMoves } from './federatedAccountMoves';
 import { inferenceCatalogueBlocklist } from './inferenceCatalogueSync';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { DeferredForeignKey } from '@oxy.so/db/assert';
@@ -106,10 +109,16 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  { table: accountEvents, column: accountEvents.userId,
+    reason: 'The DELETED account the event announces. Its `users` row is gone (or archived) by the time relying parties read this, which is the point of the event; a foreign key could only CASCADE the announcement away with the account or RESTRICT the deletion. Swept after `ACCOUNT_EVENT_RETENTION_SECONDS`.' },
   { table: inferenceCatalogueBlocklist, column: inferenceCatalogueBlocklist.modelId,
     reason: 'A model LINE, `<publisher>/<model>`, not a row id — same kind of value as `inference_route_switch_events.requested_model_id`. A block must be able to name a line before the sync has ever written it, and survive the line being retired; `inference_models.model_id` is GENERATED and carries no unique constraint to target. Grammar is enforced by `MODEL_ID_CHECK_PATTERN`.' },
-  { table: identityMoves, column: identityMoves.moveId,
-    reason: 'Random 128-bit capability minted by the move relay itself and carried in the QR; the public handle of this row, not a reference to any other row.' },
+  { table: federatedAccountMoves, column: federatedAccountMoves.activityId,
+    reason: 'The ActivityPub `id` of a remote Move activity (an IRI on the moving server), kept as the idempotency key; not an Oxy row reference.' },
+  { table: mastodonAppRegistrations, column: mastodonAppRegistrations.clientId,
+    reason: "Oxy's OAuth `client_id` AT A REMOTE Mastodon-API instance, issued by that instance's `POST /api/v1/apps`; a foreign system's identifier, not an Oxy row reference." },
+  { table: identityLinkRequests, column: identityLinkRequests.linkId,
+    reason: 'Random 128-bit capability minted by the Commons link relay itself and carried in the QR; the public handle of this row, not a reference to any other row.' },
   { table: externalIdentityMetaProofs, column: externalIdentityMetaProofs.instagramGraphId,
     reason: 'Instagram first-party profile graph-ID namespace, retained with source hashes and parser provenance; distinct from Instagram pk, Threads web pk and ActivityPub actor URI, not an Oxy row reference.' },
   { table: externalIdentityInstagramPins, column: externalIdentityInstagramPins.instagramGraphId,

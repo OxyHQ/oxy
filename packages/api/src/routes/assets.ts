@@ -42,6 +42,7 @@ import { getDb } from '../config/postgres';
 import { users } from '../db/schema';
 import { resolveFileMediaMetadata } from '../utils/fileMediaMetadata';
 import { singleQueryValue } from '../utils/queryString';
+import type { ApplicationScope } from '../utils/applicationScopes';
 
 interface AuthenticatedRequest extends express.Request {
   user?: {
@@ -593,6 +594,9 @@ const CACHE_DELETE_MAX_PER_MINUTE = 240;
 /** See {@link assetServiceLookupLimiter} for how this ceiling was chosen. */
 const SERVICE_LOOKUP_MAX_PER_MINUTE = 600;
 
+/** The narrow staff-granted scope for `POST /service/user-media`. */
+const USER_MEDIA_WRITE_SCOPE: ApplicationScope = 'files:user-media:write';
+
 function requireServiceScope(req: ServiceAuthRequest, scope: string): void {
   const scopes = req.serviceApp?.scopes ?? [];
   if (!scopes.includes(scope)) {
@@ -844,19 +848,26 @@ router.post(
  * @desc Stream-upload durable media into a normal public file owned by an
  *       existing local Oxy user. Used by Mention MCP intent-media when the
  *       caller authenticates with an MCP JWT (no Oxy session bearer).
- * @access Privileged service token only (requires files:write and federation:write)
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
  */
 router.post(
   '/service/user-media',
   serviceAuthMiddleware,
   cacheUploadLimiter,
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
-    requireServiceScope(req, 'files:write');
     // Attributing a public file to a user is cross-tenant act-as authority, not
-    // ordinary application-owned file access. Require a staff-granted scope in
-    // addition to files:write so self-grantable service credentials cannot pick
-    // an arbitrary local user via x-owner-user-id.
-    requireServiceScope(req, 'federation:write');
+    // ordinary application-owned file access, so it always needs a
+    // staff-granted scope. Two grants carry it:
+    //  - `files:user-media:write` — exactly this authority and nothing else
+    //    (Oxy Move imports a user's media with it);
+    //  - `files:write` + `federation:write` — the original pair, kept unchanged
+    //    for Mention's MCP intent-media.
+    // `files:write` alone is self-grantable and never enough.
+    if (!(req.serviceApp?.scopes ?? []).includes(USER_MEDIA_WRITE_SCOPE)) {
+      requireServiceScope(req, 'files:write');
+      requireServiceScope(req, 'federation:write');
+    }
 
     const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
     if (!ownerUserId) {
@@ -1049,6 +1060,13 @@ router.delete(
  *                           URL is derivable from the id, and building it without
  *                           this field is what made players fail on a 403 and
  *                           fall back, once per video per play.
+ *                       ownerUserId:
+ *                         type: [string, "null"]
+ *                         description: >
+ *                           The owning Oxy user (null for a system-owned file).
+ *                           Present ONLY for Oxy's own applications (internal-tier
+ *                           service tokens), so a first-party service can check an
+ *                           attached asset belongs to the acting user.
  *       400:
  *         description: Validation failed (empty array or more than 100 ids).
  *       401:
@@ -1083,6 +1101,14 @@ router.post(
     // discovered that by failing: a 403 on the manifest, a playback error, and a
     // fallback to the progressive original, once per video per play. Measured in
     // Mention on a Pixel 10 Pro. A consumer that can ask stops guessing.
+    // `ownerUserId` is the one exception to "no owner ids", and it is granted
+    // only to Oxy's OWN applications (`tier: 'internal'`, i.e. trusted
+    // first-party). A first-party service that is handed an asset id by a user
+    // (Mention ingesting a post from Oxy Move) must be able to check the asset is
+    // that user's, or any caller could attach anyone's file. `files:read` is
+    // self-grantable, so for an external app the owner stays hidden: it would
+    // turn every guessable file id into an "whose is this?" oracle.
+    const revealOwner = req.serviceApp?.tier === 'internal';
     const data = files
       .filter((file) => file.status !== 'deleted')
       .map((file) => {
@@ -1106,6 +1132,7 @@ router.post(
           ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),
           ...(media.orientation !== undefined ? { orientation: media.orientation } : {}),
           ...(media.aspectRatio !== undefined ? { aspectRatio: media.aspectRatio } : {}),
+          ...(revealOwner ? { ownerUserId: file.ownerUserId ?? null } : {}),
         };
       });
 

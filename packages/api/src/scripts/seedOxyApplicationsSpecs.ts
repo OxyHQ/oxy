@@ -45,6 +45,12 @@ export interface SeedAppSpec {
   legacyNames?: string[];
   description: string;
   websiteUrl?: string;
+  /**
+   * Where Oxy pushes account events (`account.deleted`) for this application
+   * (docs/identity/account-events.md). Set when declared; a webhook the spec
+   * does not declare is left as the Console set it.
+   */
+  webhookUrl?: string;
   type: SeedAppType;
   redirectUris: string[];
   /**
@@ -307,6 +313,12 @@ export const HOMIIO_APPLICATION_ID = '6a2f851751b784a86fd0e922';
 export const MENTION_APPLICATION_ID = '6a2f851751b784a86fd0e916';
 
 /**
+ * Oxy Move (move.oxy.so) — the first-party migrator. A new identity, so the
+ * seed mints it with this exact id rather than by name.
+ */
+export const OXY_MOVE_APPLICATION_ID = '4bac8f1baed68fd02d65d592';
+
+/**
  * The official Oxy ecosystem apps that integrate Oxy auth.
  * `name` is the idempotency key (with createdByUserId=oxyId) — DO NOT rename
  * casually, a rename creates a new Application rather than updating one.
@@ -362,21 +374,12 @@ export const SEED_APPS: SeedAppSpec[] = [
     description: 'Official Oxy authentication app and third-party OAuth Identity Provider.',
     websiteUrl: 'https://auth.oxy.so',
     type: 'first_party',
-    // The auth app is the third-party OAuth IdP, but it now ALSO consumes
-    // Sign-in-with-Oxy as its own Relying Party, so it registers its own
-    // origin as the redirect surface.
+    // The auth app is the third-party OAuth IdP and the one origin where web
+    // accounts are created, recovered and deleted and passkeys asserted
+    // (routes that accept NO origin but this one, ADR 0029), and it consumes
+    // Sign-in-with-Oxy as its own Relying Party, so it registers its own origin
+    // as the redirect surface.
     redirectUris: ['https://auth.oxy.so'],
-  },
-  {
-    name: 'Oxy Identity',
-    description:
-      'The web identity carrier (id.oxy.so): keeps an account\'s self-custody identity sealed under the person\'s passkey. Oxy never holds it.',
-    websiteUrl: 'https://id.oxy.so',
-    type: 'first_party',
-    // Trusted first-party origin: it calls the API with a bearer (passkey
-    // sign-in, the sealed web envelope, account deletion). The envelope routes
-    // additionally accept NO origin but this one (`IDENTITY_WEB_ORIGIN`).
-    redirectUris: ['https://id.oxy.so'],
   },
   // ── Ecosystem first-party apps ──
   {
@@ -384,6 +387,9 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Mention',
     description: 'Official Oxy social media app with fediverse support.',
     websiteUrl: 'https://mention.earth',
+    // Mention erases a deleted Oxy account's data on this push (OxyHQ/Mention#1169),
+    // and reconciles from GET /account-events when it misses one.
+    webhookUrl: 'https://api.mention.earth/webhooks/oxy/account-events',
     type: 'first_party',
     redirectUris: ['https://mention.earth'],
     // Mention federates: its service credential signs HTTP-Signatures and
@@ -582,6 +588,43 @@ export const SEED_APPS: SeedAppSpec[] = [
     type: 'internal',
     redirectUris: [],
     scopes: ['user:read'],
+  },
+  {
+    id: OXY_MOVE_APPLICATION_ID,
+    name: 'Oxy Move',
+    description:
+      'Bring your account to Oxy: connect Mastodon, Bluesky and more, and your profile, follows and posts come with you.',
+    websiteUrl: 'https://move.oxy.so',
+    // `first_party` makes it trusted (`isTrustedApplication`), which is what
+    // mints its service tokens with `tier: 'internal'`.
+    type: 'first_party',
+    // The apex origin and native scheme for sign-in, plus the two EXACT return
+    // URIs of the linked-accounts flow: `isAllowedRedirectUri` matches exactly
+    // (only a bare `https://host/` is folded to its origin), so `…/linked`
+    // must be registered on its own for `returnTo` to be accepted.
+    redirectUris: ['https://move.oxy.so', 'oxymove://', 'https://move.oxy.so/linked', 'oxymove://linked'],
+    // `linked-accounts:read` reads which external accounts a user proved they
+    // own (the import source). `files:user-media:write` uploads imported media
+    // as files OWNED BY that user (`POST /assets/service/user-media`) without
+    // `federation:write`; `files:write` covers Move's own files.
+    // `federation:identities:resolve` maps the accounts a user followed
+    // elsewhere to Oxy user ids (`/federation/identities/lookup|resolve`)
+    // without `federation:write`'s signing authority. `notifications:write`
+    // tells the user the migration finished (`system` notification).
+    // `federation:instance-fetch` has Oxy's instance actor sign Move's GETs of
+    // a Mastodon outbox or `following` when the instance runs authorized fetch
+    // (`POST /federation/instance-fetch/sign`): GET only, the instance key only,
+    // so Move holds no key and can speak as nobody. The privileged ones are why
+    // this is a staff-run seed and not a self-service registration.
+    scopes: [
+      'user:read',
+      'linked-accounts:read',
+      'files:write',
+      'files:user-media:write',
+      'federation:identities:resolve',
+      'notifications:write',
+      'federation:instance-fetch',
+    ],
   },
   {
     id: NILO_APPLICATION_ID,

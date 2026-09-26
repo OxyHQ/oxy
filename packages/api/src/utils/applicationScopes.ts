@@ -156,6 +156,14 @@
  *   consuming app's resource server needs has to exist here or it can never
  *   reach a token. A per-application scope namespace would be the better
  *   long-run answer; until one exists, a resource scope lands here.
+ * - `linked-accounts:read` permits a service credential to read the external
+ *   accounts ANY Oxy user has proven they own
+ *   (`GET /linked-accounts/by-user/:userId`). PRIVILEGED — see
+ *   {@link PRIVILEGED_APPLICATION_SCOPES}.
+ * - `federation:instance-fetch` permits a service credential to have Oxy's
+ *   INSTANCE actor (`https://<federation domain>/ap/users/instance`) sign one
+ *   ActivityPub GET (`POST /federation/instance-fetch/sign`). PRIVILEGED — see
+ *   {@link PRIVILEGED_APPLICATION_SCOPES}.
  */
 export const APPLICATION_SCOPES = [
   'files:read',
@@ -203,6 +211,10 @@ export const APPLICATION_SCOPES = [
   'acting-as:offline',
   'accounts:act-as-session',
   'podcasts:write',
+  'linked-accounts:read',
+  'files:user-media:write',
+  'federation:identities:resolve',
+  'federation:instance-fetch',
 ] as const;
 
 export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
@@ -304,6 +316,48 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   is a decision and not an omission — the reasoning is recorded on that
  *   constant, because the question it asks is answered on a different lane.
  *
+ * - `linked-accounts:read` reads, for an arbitrary user, which Mastodon and
+ *   Bluesky accounts that person has proven they own. That is cross-tenant
+ *   identity data a self-granting owner could otherwise harvest to correlate
+ *   pseudonymous accounts with Oxy accounts, so only staff grant it — to the
+ *   first-party migration service (Oxy Move) that imports from those accounts.
+ *   It is deliberately NOT consent-required: it is read off a SERVICE TOKEN on
+ *   a lane that never meets the OAuth consent screen, and the user's decision
+ *   is the act of linking itself, revocable per account with
+ *   `DELETE /linked-accounts/:id`.
+ * - `files:user-media:write` uploads a durable public file OWNED BY an arbitrary
+ *   local user (`POST /assets/service/user-media`, `x-owner-user-id`). That is
+ *   act-as authority over another person's file space, so it is staff-only. It
+ *   exists so the migration service (Oxy Move) can import a user's media
+ *   without holding `federation:write`, which would also let it sign
+ *   ActivityPub requests as anyone. It is NOT a widening of `files:write`
+ *   (own-tenant files): neither implies the other.
+ * - `federation:identities:resolve` maps remote accounts to Oxy user ids
+ *   (`POST /federation/identities/lookup`, `POST /federation/identities/resolve`)
+ *   WITHOUT the rest of `federation:write` — no HTTP-Signature signing as a user,
+ *   no follow/actor mutation, no domain purge. `lookup` only reads the registry.
+ *   `resolve` is not read-only: on a miss it fetches the remote actor through
+ *   Oxy's signed, DNS-pinned client, verifies it, and creates or refreshes the
+ *   FEDERATED shadow user and its registry rows — the same thing a public
+ *   profile lookup of an unknown handle already triggers. That write is Oxy's
+ *   own identity authority acting on source-verified data, never caller-supplied
+ *   profile fields, which is why it is acceptable here. Privileged because a
+ *   self-granting owner could otherwise drive unbounded remote fetches and
+ *   shadow-user creation.
+ * - `federation:instance-fetch` has Oxy's instance actor sign a GET for the
+ *   caller, so a first-party service can read an instance in authorized-fetch
+ *   ("secure") mode without holding a key. It is the smallest signing authority
+ *   there is, and it is NOT a slice of `federation:write`'s: Oxy builds the
+ *   signing string itself from a URL (never a caller-supplied string), the
+ *   method is always GET, the key is always the instance actor's (never a
+ *   person's), and the URL must be public https. A GET signed by the instance
+ *   actor proves only "this request comes from the Oxy server", which unlocks
+ *   PUBLIC content on an instance that has not blocked Oxy — the instance actor
+ *   follows nobody, so nothing followers-only is reachable with it. Privileged
+ *   anyway, because every signature spends Oxy's reputation as a fetcher: a
+ *   remote admin who sees abusive reads from `instance@oxy.so` blocks all of
+ *   Oxy, not the app that made them.
+ *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
  * over its OWN resources (files, models, webhooks, public user reads) or over
  * the subject user's own content under that user's explicit grant
@@ -331,6 +385,10 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'capability-tickets:issue',
   'capability-audit:write',
   'capability-events:publish',
+  'linked-accounts:read',
+  'files:user-media:write',
+  'federation:identities:resolve',
+  'federation:instance-fetch',
 ] as const satisfies readonly ApplicationScope[];
 
 /**

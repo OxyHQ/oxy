@@ -79,7 +79,7 @@ function makeOxy(overrides: {
     setTokens,
     mintFromDeviceSecret,
     signInWithSharedIdentity,
-    httpService: { runSingleFlightDeviceSecretMint: makeMintSingleFlight() },
+    httpService: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
   } as unknown as OxyServices;
   return { oxy, setTokens, mintFromDeviceSecret, signInWithSharedIdentity };
 }

@@ -35,6 +35,8 @@ const SOURCE_EXTENSIONS = ['.ts', '.tsx'];
  * — do not delete the check.
  */
 const MIN_FILES_SCANNED = 20;
+// Five: `getNormalizedUserHandle`, `getCommonsApprovalBlockingReason`,
+// `selectCommonsDelivery`, `translate` and the bridge's `createWebAuthStateStore`.
 const MIN_VALUE_IMPORTS = 5;
 
 /** Every `.ts`/`.tsx` file under the app source roots, excluding test folders. */

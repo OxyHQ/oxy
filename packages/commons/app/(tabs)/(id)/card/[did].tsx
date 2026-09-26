@@ -1,30 +1,28 @@
 import React, { useCallback, useMemo } from 'react';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
+import { Badge } from '@oxy.so/bloom/badge';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { fullWidthControl } from '@/constants/styles';
+import { Button } from '@oxy.so/bloom/button';
+import { AppIcon, Icons } from '@/constants/icons';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import {
   Screen,
   StackHeader,
   Section,
   GroupedList,
   ListRow,
-  PrimaryButton,
-  SecondaryButton,
-  CenteredState,
+  LoadingState,
+  STATE_MIN_HEIGHT,
 } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { usePersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { userIdFromDid } from '@/lib/civic/did';
 import { trustTierLabel } from '@oxy.so/core';
-import {
-  getVerificationMeta,
-  getTrustTierMeta,
-  getPersonhoodMeta,
-} from '@/lib/civic/card-presentation';
+import { bloomToneFor, getPersonhoodMeta, getTrustTierMeta, getVerificationMeta } from '@/lib/civic/card-presentation';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -77,31 +75,33 @@ export default function ScannedCardScreen() {
     // The DID could not be parsed into a user id — not a valid Oxy ID.
     if (!userId) {
       return (
-        <CenteredState
-          icon="qrcode-remove"
+        <EmptyState
+          icon={Icons.closeCircle}
           title={t('civic.card.error.invalidTitle')}
-          body={t('civic.card.error.invalidBody')}
+          description={t('civic.card.error.invalidBody')}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     // First resolve with nothing cached yet.
     if (cardQuery.isPending && !card) {
-      return <CenteredState loading body={t('civic.card.loading')} />;
+      return <LoadingState description={t('civic.card.loading')} />;
     }
 
     // Failed to resolve and we have no cached card to fall back to.
     if (cardQuery.isError && !card) {
       return (
-        <CenteredState
-          icon="cloud-alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.card.error.title')}
-          body={t('civic.card.error.body')}
-          action={
-            <View style={styles.action}>
-              <PrimaryButton label={t('common.retry')} onPress={() => cardQuery.refetch()} fullWidth={false} />
+          description={t('civic.card.error.body')}
+          footer={
+            <View className="items-center mt-space-4">
+              <Button appearance="solid" tone="accent" size="lg" onPress={() => cardQuery.refetch()}>{t('common.retry')}</Button>
             </View>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -115,24 +115,31 @@ export default function ScannedCardScreen() {
     return (
       <>
         {/* Trust verdict — the load-bearing indicator. */}
-        <View style={styles.verdict}>
-          <CivicBadge
-            emphasis
-            tone={verification.tone}
-            icon={verified ? 'check-decagram' : 'alert-decagram'}
-            label={t(`civic.card.${verification.labelKey}`)}
+        <View className="gap-space-12 items-start">
+          <Badge
+            appearance="subtle"
+            tone={bloomToneFor(verification.tone)}
+            size="label-medium"
+            icon={Icons[verified ? 'verified' : 'alertStrong']}
+            content={t(`civic.card.${verification.labelKey}`)}
           />
-          <ThemedText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
+          <BloomText style={[styles.verdictDesc, { color: colors.textSecondary }]}>
             {t(`civic.card.${verification.labelKey}Desc`)}
-          </ThemedText>
+          </BloomText>
           {!isOnline && (
-            <CivicBadge tone="neutral" icon="cloud-off-outline" label={t('civic.card.offline')} />
+            <Badge
+              appearance="subtle"
+              tone="neutral"
+              size="label-small"
+              icon={Icons.offline}
+              content={t('civic.card.offline')}
+            />
           )}
         </View>
 
         {/* Identity */}
-        <View style={styles.identity}>
-          <View style={styles.identityRow}>
+        <View className="gap-space-12">
+          <View className="flex-row items-center gap-space-16">
             {card.avatarUrl ? (
               <Image source={{ uri: card.avatarUrl }} style={styles.avatar} resizeMode="cover" />
             ) : (
@@ -142,59 +149,55 @@ export default function ScannedCardScreen() {
                 </Text>
               </View>
             )}
-            <View style={styles.identityText}>
-              <ThemedText style={styles.name} numberOfLines={2}>
+            <View className="flex-1">
+              <BloomText style={styles.name} numberOfLines={2}>
                 {card.name}
-              </ThemedText>
+              </BloomText>
               {card.username && (
-                <ThemedText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
+                <BloomText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
                   @{card.username}
-                </ThemedText>
+                </BloomText>
               )}
             </View>
           </View>
 
-          <View style={styles.badgeRow}>
-            <CivicBadge tone={trust.tone} icon="shield-check" label={trustTierLabel(locale, trust.labelKey)} />
-            <CivicBadge
-              tone={personhoodMeta.tone}
-              icon="account-check-outline"
-              label={t(`civic.personhood.${personhoodMeta.labelKey}`)}
+          <View className="flex-row flex-wrap gap-space-8">
+            <Badge
+              appearance="subtle"
+              tone={bloomToneFor(trust.tone)}
+              size="label-small"
+              icon={Icons.shieldCheck}
+              content={trustTierLabel(locale, trust.labelKey)}
+            />
+            <Badge
+              appearance="subtle"
+              tone={bloomToneFor(personhoodMeta.tone)}
+              size="label-small"
+              icon={Icons.vouched}
+              content={t(`civic.personhood.${personhoodMeta.labelKey}`)}
             />
           </View>
 
           {/* Precise proof-of-personhood status (from getPersonhood). */}
           {personhood && (
             <View style={styles.personhoodLine}>
-              <MaterialCommunityIcons
-                name={personhood.isRealPerson ? 'account-check' : 'account-clock-outline'}
-                size={16}
-                color={personhood.isRealPerson ? colors.success : colors.warning}
-              />
-              <ThemedText style={[styles.personhoodLineText, { color: colors.textSecondary }]}>
+              <AppIcon name={personhood.isRealPerson ? 'vouched' : 'pending'} size='sm' fill={personhood.isRealPerson ? colors.success : colors.warning} />
+              <BloomText style={[styles.personhoodLineText, { color: colors.textSecondary }]}>
                 {personhood.isRealPerson
                   ? t('civic.vouch.statusLine.verified')
                   : t('civic.vouch.statusLine.building', {
                       pct: Math.max(0, Math.min(100, Math.round(personhood.score * 100))),
                     })}
-              </ThemedText>
+              </BloomText>
             </View>
           )}
         </View>
 
         {/* Vouch + issue-credential CTAs — only for a card whose signature verified. */}
         {verified && (
-          <View style={styles.ctas}>
-            <PrimaryButton
-              icon="account-multiple-check-outline"
-              label={t('civic.vouch.cta')}
-              onPress={handleVouch}
-            />
-            <SecondaryButton
-              icon="certificate-outline"
-              label={t('civic.credentials.issue.cardCta')}
-              onPress={handleIssueCredential}
-            />
+          <View className="gap-space-12">
+            <Button appearance="solid" tone="accent" size="lg" icon={Icons.vouched} onPress={handleVouch} style={fullWidthControl}>{t('civic.vouch.cta')}</Button>
+            <Button appearance="outline" tone="accent" size="lg" icon={Icons.credential} onPress={handleIssueCredential} style={fullWidthControl}>{t('civic.credentials.issue.cardCta')}</Button>
           </View>
         )}
 
@@ -202,7 +205,7 @@ export default function ScannedCardScreen() {
           <Section title={t('civic.card.verifiedDomains')}>
             <GroupedList>
               {card.verifiedDomains.map((domain) => (
-                <ListRow key={domain} icon="web-check" iconColor={colors.success} title={domain} />
+                <ListRow key={domain} icon="web" iconColor={colors.success} title={domain} />
               ))}
             </GroupedList>
           </Section>
@@ -214,7 +217,7 @@ export default function ScannedCardScreen() {
               {card.credentialBadges.map((badge) => (
                 <ListRow
                   key={badge}
-                  icon="certificate-outline"
+                  icon="credential"
                   iconColor={colors.identityIconPublicKey}
                   title={badge}
                 />
@@ -224,9 +227,9 @@ export default function ScannedCardScreen() {
         )}
 
         <Section title={t('civic.card.didLabel')}>
-          <ThemedText style={[styles.didValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
+          <BloomText style={[styles.didValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
             {card.did}
-          </ThemedText>
+          </BloomText>
         </Section>
       </>
     );
@@ -245,10 +248,6 @@ export default function ScannedCardScreen() {
 }
 
 const styles = StyleSheet.create({
-  action: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
   verdict: {
     gap: 12,
     alignItems: 'flex-start',
@@ -256,14 +255,6 @@ const styles = StyleSheet.create({
   verdictDesc: {
     fontSize: 14,
     lineHeight: 20,
-  },
-  identity: {
-    gap: 12,
-  },
-  identityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
   },
   avatar: {
     width: 64,
@@ -278,9 +269,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '600',
   },
-  identityText: {
-    flex: 1,
-  },
   name: {
     fontSize: 22,
     fontWeight: '700',
@@ -290,11 +278,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginTop: 2,
   },
-  badgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
   personhoodLine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -302,9 +285,6 @@ const styles = StyleSheet.create({
   },
   personhoodLineText: {
     fontSize: 13,
-  },
-  ctas: {
-    gap: 12,
   },
   didValue: {
     fontSize: 13,

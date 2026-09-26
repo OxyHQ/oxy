@@ -5,8 +5,7 @@
  */
 
 import type React from 'react';
-import { useState } from 'react';
-import { Pressable, View } from 'react-native-css/components';
+import { Pressable, View } from 'react-native';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
@@ -17,34 +16,6 @@ import { resolveAccentHex, toPreset, type Theme } from './types';
 
 /** Diameter of a row avatar (the sign-in view's account rows). */
 const ROW_AVATAR_SIZE = 40;
-
-type HoverPressableProps = Omit<React.ComponentProps<typeof Pressable>, 'className'> & {
-  baseClassName: string;
-  hoverClassName: string;
-};
-
-/**
- * A `Pressable` that appends a hover-tint NativeWind token while pointer-hovered.
- * The Metro web pipeline here does NOT emit NativeWind `hover:` variants, so hover
- * is driven by RN's cross-platform `onHoverIn`/`onHoverOut` (they fire only on web
- * via react-native-web; a no-op on native) toggling a plain background token —
- * the tint stays a NativeWind class, only the trigger is JS.
- */
-export const HoverPressable: React.FC<HoverPressableProps> = ({
-  baseClassName,
-  hoverClassName,
-  ...rest
-}) => {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <Pressable
-      {...rest}
-      className={hovered ? `${baseClassName} ${hoverClassName}` : baseClassName}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-    />
-  );
-};
 
 /**
  * A SUBORDINATE action: a small centred text link, never a button.
@@ -73,15 +44,6 @@ export const SubtleLink: React.FC<{
   </Pressable>
 );
 
-/** A labelled hairline separating two blocks ("or"). */
-export const Dividerish: React.FC<{ theme: Theme; label: string }> = ({ theme, label }) => (
-  <View style={styles.dividerRow}>
-    <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
-    <Text style={[styles.dividerText, { color: theme.colors.textSecondary }]}>{label}</Text>
-    <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
-  </View>
-);
-
 /**
  * A `principal acting as account` row on the sign-in entry — "continue as one of
  * these" rather than a choice of authentication METHOD, which is why it stays
@@ -96,19 +58,31 @@ export const Dividerish: React.FC<{ theme: Theme; label: string }> = ({ theme, l
  * directory), not from the theme and not from whoever is signed in. This surface
  * is where a device holding two people is most visible, and it is reached while
  * signed out — so there is no "current user" whose colour could stand in.
+ *
+ * `continueAsLabel` is the signed-out form. The device can list an identity
+ * (and even mark it active) while this app holds no session, so a check there
+ * would claim a sign-in that has not happened. Given a label, the row never
+ * reads as current: its first line is "Continue as @handle", the account's
+ * name moves to the second line, and it ends in a chevron like any other row.
  */
 export const AccountRow: React.FC<{
   context: SwitcherContextRow;
   /** The person this account is reached through, when that is not obvious. */
   operatedBy: string | null;
+  /** Signed out: the row's "Continue as @handle" line. `null` when signed in. */
+  continueAsLabel?: string | null;
   theme: Theme;
   activating: boolean;
   disabled: boolean;
   onPress: () => void;
-}> = ({ context, operatedBy, theme, activating, disabled, onPress }) => {
+}> = ({ context, operatedBy, continueAsLabel = null, theme, activating, disabled, onPress }) => {
   const accent = resolveAccentHex(context.color, theme.colors.primary);
   const rowDisabled = disabled || !context.canActivate;
-  const secondary = operatedBy ?? (context.handle ? `@${context.handle}` : null);
+  const current = continueAsLabel === null && context.isActive;
+  const primary = continueAsLabel ?? context.displayName;
+  const secondary =
+    operatedBy ??
+    (continueAsLabel !== null ? context.displayName : context.handle ? `@${context.handle}` : null);
 
   return (
     <BloomColorScope colorPreset={toPreset(context.color)} asChild>
@@ -116,7 +90,7 @@ export const AccountRow: React.FC<{
         style={[
           styles.accountRow,
           {
-            borderColor: context.isActive ? accent : theme.colors.border,
+            borderColor: current ? accent : theme.colors.border,
             backgroundColor: theme.colors.card,
           },
           rowDisabled && !activating ? styles.rowDisabled : null,
@@ -124,10 +98,10 @@ export const AccountRow: React.FC<{
         onPress={onPress}
         disabled={rowDisabled}
         accessibilityRole="button"
-        accessibilityState={{ selected: context.isActive, disabled: rowDisabled }}
-        accessibilityLabel={context.displayName}
+        accessibilityState={{ selected: current, disabled: rowDisabled }}
+        accessibilityLabel={primary}
       >
-        <View style={[styles.avatarRing, { borderColor: context.isActive ? accent : 'transparent' }]}>
+        <View style={[styles.avatarRing, { borderColor: current ? accent : 'transparent' }]}>
           <Avatar
             source={context.avatarUrl ?? undefined}
             variant="thumb"
@@ -137,7 +111,7 @@ export const AccountRow: React.FC<{
         </View>
         <View style={styles.rowMeta}>
           <Text style={[styles.rowName, { color: theme.colors.text }]} numberOfLines={1}>
-            {context.displayName}
+            {primary}
           </Text>
           {secondary ? (
             <Text style={[styles.rowHandle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
@@ -147,7 +121,7 @@ export const AccountRow: React.FC<{
         </View>
         {activating ? (
           <MaterialCommunityIcons name="loading" size={20} color={accent} />
-        ) : context.isActive ? (
+        ) : current ? (
           <MaterialCommunityIcons name="check-circle" size={20} color={accent} />
         ) : (
           <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textSecondary} />

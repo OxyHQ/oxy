@@ -9,7 +9,8 @@ import {
   useState,
 } from 'react';
 import { Linking, Platform } from 'react-native';
-import { OxyServices, oxyClient } from '@oxy.so/core';
+import { DeviceManager, OxyServices, oxyClient, type OxyAuthScreen } from '@oxy.so/core';
+import type { LoginSessionResult } from '@oxy.so/contracts';
 import type {
   User,
   SessionLoginResponse,
@@ -20,6 +21,7 @@ import type {
 } from '@oxy.so/core';
 import {
   KeyManager,
+  refreshDeviceSecretArm,
   establishIdentitySession,
   installAuthRefreshHandler,
   startTokenRefreshScheduler,
@@ -31,12 +33,13 @@ import {
   notifyAccountDialogVisibility,
 } from '../navigation/accountDialogManager';
 import { redirectToAuthorize } from '../components/oauthNavigation';
-import { openPasskeyHubPopup } from '../components/passkeyHubPopup';
 import {
   startWebOAuthSignIn,
   type StartWebOAuthSignInOptions,
 } from '../oauth/browserAuthTransport';
 import type { WebOAuthSignInResult } from '../oauth/types';
+import { openBridgeWindow, resolveBridgeOrigin, runBrowserBridge } from '../oauth/browserBridge';
+import { trackDeviceCredential, type CredentialTrackingAuthStateStore } from '../session/deviceCredentialTracker';
 import {
   requestOAuthConsent,
   type OAuthConsentResult,
@@ -45,7 +48,8 @@ import {
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { resolveDeliveryPlatform } from '../utils/deliveryPlatform';
 import { runProviderColdBoot } from '../boot/runProviderColdBoot';
-import { loadPersistedDeviceCredential } from '../utils/deviceCredential';
+import { hasPersistedSessionCredential, loadPersistedDeviceCredential } from '../utils/deviceCredential';
+import { createTokenLossRecovery } from '../session/tokenLossRecovery';
 import { bindAuthStoreToRuntime } from '../stores/authStore';
 import { useLanguageManagement } from '../hooks/useLanguageManagement';
 import { useSessionManagement } from '../hooks/useSessionManagement';
@@ -148,7 +152,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   sessionMode = 'account',
   webAuthMode = 'popup',
   backgroundSession = false,
-  deviceCredentialStorage = 'persistent',
   platformStorage,
   onAuthStateChange,
   onError,
@@ -169,19 +172,13 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
 
   // The device-first persisted auth-state store (per-origin device credential on
   // web; SecureStore session blob on native). Built ONCE per provider mount.
-  //
-  // `deviceCredentialStorage` is mount-time configuration for the same reason
-  // `sessionMode` is: it decides where the durable credential lives, and letting
-  // it change mid-flight would mean a session that started ephemeral could begin
-  // writing one.
-  const authStoreRef = useRef<AuthStateStore | null>(null);
+  // Tracked, so a sign-in press can tell SYNCHRONOUSLY whether this origin
+  // holds a device credential (the browser bridge must open inside the press).
+  const authStoreRef = useRef<CredentialTrackingAuthStateStore | null>(null);
   if (!authStoreRef.current) {
-    authStoreRef.current = createPlatformAuthStateStore({
-      sessionMode,
-      storage: deviceCredentialStorage,
-    });
+    authStoreRef.current = trackDeviceCredential(createPlatformAuthStateStore({ sessionMode }));
   }
-  const authStore = authStoreRef.current;
+  const authStore: AuthStateStore = authStoreRef.current;
 
   // Identity-bound session binding (`sessionMode: 'identity'`) — the platform pin
   // store plus the memoised pinned account id every lane below binds to. Built
@@ -543,14 +540,52 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   });
 
 
-  // Token-change side effects: an invalidated bearer (HttpService clears tokens
-  // on an unrecoverable 401 and emits `null`) must locally sign out an
-  // authenticated user so `isAuthenticated` never lingers true with no token.
-  // The persisted store is NOT cleared here — the refresh handler already
-  // cleared it if the family was revoked; a transient null leaves it intact so a
-  // later reload can still restore.
+  // Token-change side effects. HttpService clears the bearer and emits `null`
+  // when a request draws a 401 its refresh could not answer — which happens on a
+  // transient failure (network, a cooling-down or rate-limited mint) as well as
+  // on a real revocation. A signed-in user is therefore NOT signed out on the
+  // spot: `tokenLossRecovery` keeps the session while the durable device
+  // credential survives and re-mints it, the way a relaunch would, and signs out
+  // only once the refresh handler has dropped that credential on a definitive
+  // server verdict (OxyHQ/Mention#1140). Until a token is back, `tokenReady` is
+  // false, so private queries wait instead of 401-ing.
   const clearingInvalidTokenRef = useRef(false);
   useEffect(() => {
+    const signOutLocally = async (): Promise<void> => {
+      if (clearingInvalidTokenRef.current) {
+        return;
+      }
+      clearingInvalidTokenRef.current = true;
+      try {
+        await clearSessionStateRef.current();
+      } catch (clearError) {
+        logger('Failed to clear invalidated auth session', clearError);
+      } finally {
+        clearingInvalidTokenRef.current = false;
+        if (runtime.getSnapshot().authResolved) {
+          runtime.setTokenReady(true);
+        }
+      }
+    };
+    const recovery = createTokenLossRecovery({
+      remint: () => oxyServices.httpService.refreshAccessToken('preflight'),
+      hasDeviceCredential: () => hasPersistedSessionCredential(authStore),
+      hasKeyedRecovery: async () => {
+        if (Platform.OS === 'web') {
+          return false;
+        }
+        try {
+          // The same keys the refresh handler's second arm signs with: the
+          // identity-bound client's own key, or the cross-app shared identity.
+          return identity ? await KeyManager.hasIdentity() : await KeyManager.hasSharedIdentity();
+        } catch {
+          return false;
+        }
+      },
+      isSignedIn: () => runtime.getSnapshot().account !== null,
+      hasToken: () => Boolean(oxyServices.getAccessToken()),
+      signOutLocally,
+    });
     const handleTokenChange = (accessToken: string | null) => {
       runtime.setHasAccessToken(Boolean(accessToken));
       if (accessToken) {
@@ -562,20 +597,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       }
       if (runtime.getSnapshot().account !== null) {
         runtime.setTokenReady(false);
-        if (clearingInvalidTokenRef.current) {
-          return;
-        }
-        clearingInvalidTokenRef.current = true;
-        clearSessionStateRef.current()
-          .catch((clearError) => {
-            logger('Failed to clear invalidated auth session', clearError);
-          })
-          .finally(() => {
-            clearingInvalidTokenRef.current = false;
-            if (runtime.getSnapshot().authResolved) {
-              runtime.setTokenReady(true);
-            }
-          });
+        recovery.start();
         return;
       }
       if (runtime.getSnapshot().authResolved) {
@@ -583,8 +605,12 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       }
     };
     handleTokenChange(oxyServices.getAccessToken());
-    return oxyServices.onTokensChanged(handleTokenChange);
-  }, [logger, oxyServices, runtime, sessionClient]);
+    const unsubscribe = oxyServices.onTokensChanged(handleTokenChange);
+    return () => {
+      unsubscribe();
+      recovery.dispose();
+    };
+  }, [logger, oxyServices, runtime, sessionClient, authStore, identity]);
 
   // Unified in-session refresh (SDK-owned; every RP inherits it). Installs the
   // ONE core refresh handler (re-mint from the persisted zero-cookie device
@@ -700,7 +726,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // Public `handleWebSession`: commit a session from the QR device flow. It is a
   // deliberate sign-in on THIS device, so it activates the account.
   const handleWebSession = useCallback(
-    async (session: SessionLoginResponse): Promise<void> => {
+    async (session: SessionLoginResponse | LoginSessionResult): Promise<void> => {
       if (!session?.user || !session?.sessionId || !session.accessToken) {
         throw new Error('Session response did not include a usable session');
       }
@@ -762,6 +788,20 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         options,
       ),
     [webAuthMode, oxyServices, clientId, authorizeBaseUrl, isIdentityBound, user?.id],
+  );
+
+  // What only auth.oxy.so can do for an Oxy app on the web — assert the
+  // `oxy.so` passkey, create or recover a passkey account — runs in its window
+  // over the app, for that one step. A blocked window falls back to the same
+  // page in this tab.
+  const continueOnAuth = useCallback(
+    (screen: OxyAuthScreen): Promise<WebOAuthSignInResult> =>
+      startWebOAuthSignInForContext({
+        redirectUri: authRedirectUri ?? globalThis.location?.origin ?? '',
+        transport: 'popup',
+        screen,
+      }),
+    [startWebOAuthSignInForContext, authRedirectUri],
   );
 
   // ── Unified account dialog ─────────────────────────────────────────────────
@@ -833,11 +873,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       // controller short-circuits, so `redirectToAuthorize` never runs for the
       // `oxycommons://` payload.
       canOpenApp: isWebBrowser() ? undefined : (url) => Linking.canOpenURL(url),
-      // Web-only: lets `startPasskeyHubSignIn` open the auth.oxy.so passkey hub
-      // popup (b2) for a non-Oxy origin. `undefined` on native — there is no
-      // popup concept there, and off-origin passkey sign-in isn't reachable
-      // (Commons owns the native flow).
-      openPopup: isWebBrowser() ? openPasskeyHubPopup : undefined,
       // Which surface a sign-in starts from — a FACT only this consumer can
       // supply (headless core never touches a platform global). It decides
       // whether automatic delivery may take the same-device Commons deep link;
@@ -846,6 +881,85 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     });
   }
   const accountDialogController = accountDialogControllerRef.current;
+
+  // Every sign-in on the web PROVES the device this origin holds (ADR 0029 D2):
+  // the QR claim and the passkey sign-ins send it, so the account lands on the
+  // browser's shared device and every Oxy app holding it sees it at once.
+  // Native is untouched: its apps already share a device through the keychain.
+  useEffect(() => {
+    if (!isWebBrowser()) return undefined;
+    return oxyServices.setDeviceCredentialProvider(() => loadPersistedDeviceCredential(authStore));
+  }, [oxyServices, authStore]);
+
+  // ── The browser bridge (ADR 0029 D2) ──────────────────────────────────────
+  // The first time a person presses sign-in in this app on the web and it holds
+  // no device credential, open auth.oxy.so/bridge FROM THE PRESS: it hands this
+  // app a one-use code to join the browser's device and closes at once. Then
+  // restore through the ordinary mint — signed in already if the browser is,
+  // otherwise the dialog's sign-in carries the device proof. Never on page load,
+  // never on auth.oxy.so itself, never identity-bound; a blocked window only
+  // means this app signs in on a device of its own.
+  const bridgeInFlightRef = useRef(false);
+  const closeAccountDialogRef = useRef<() => void>(() => undefined);
+  const startBrowserBridge = useCallback((): void => {
+    if (isIdentityBound || !clientId || !isWebBrowser() || bridgeInFlightRef.current) return;
+    if (authStoreRef.current?.heldDeviceCredential() !== null) return;
+    const bridgeOrigin = resolveBridgeOrigin(authorizeBaseUrl);
+    const pageOrigin = globalThis.location?.origin;
+    if (!bridgeOrigin || !pageOrigin || pageOrigin === bridgeOrigin) return;
+    const popup = openBridgeWindow();
+    if (!popup) return;
+    bridgeInFlightRef.current = true;
+    void (async () => {
+      const joined = await runBrowserBridge({
+        popup,
+        bridgeOrigin,
+        oxyServices,
+        clientId,
+        redirectUri: authRedirectUri ?? pageOrigin,
+      });
+      if (!joined.ok) return;
+      // A sign-in that finished while the bridge ran keeps its own credential.
+      if ((await loadPersistedDeviceCredential(authStore)) !== null) return;
+      const credential = { deviceId: joined.deviceId, deviceSecret: joined.deviceSecret };
+      await authStore.save({ sessionId: '', userId: '', ...credential });
+      sessionClientHost.setDeviceCredential(credential);
+      const minted = await refreshDeviceSecretArm({ oxy: oxyServices, store: authStore });
+      if (minted.status === 'invalid-secret') {
+        await authStore.clear();
+        sessionClientHost.setDeviceCredential(null);
+        return;
+      }
+      if (minted.status !== 'ok') return;
+      // The browser is already signed in: this app follows, and the dialog it
+      // opened for a sign-in has nothing left to do.
+      await commitSessionRef.current(
+        {
+          sessionId: minted.sessionId,
+          accessToken: minted.token,
+          userId: minted.userId,
+          deviceState: minted.state,
+        },
+        { activate: false },
+      );
+      closeAccountDialogRef.current();
+    })()
+      .catch((bridgeError) => {
+        logger('The browser bridge failed', bridgeError);
+      })
+      .finally(() => {
+        bridgeInFlightRef.current = false;
+      });
+  }, [
+    isIdentityBound,
+    clientId,
+    authorizeBaseUrl,
+    authRedirectUri,
+    oxyServices,
+    authStore,
+    sessionClientHost,
+    logger,
+  ]);
 
   const openAccountDialog = useCallback((view?: AccountDialogView): void => {
     if (isIdentityBound) {
@@ -860,6 +974,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       return;
     }
     const nextView = view ?? 'accounts';
+    // Synchronously, while the press is still being handled.
+    startBrowserBridge();
     accountDialogControllerRef.current?.setView(nextView);
 
     // Its own detached surface is already open → just re-point the view above.
@@ -902,12 +1018,15 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       }
     });
     setAccountDialogOpen(true);
-  }, [isIdentityBound]);
+  }, [isIdentityBound, startBrowserBridge]);
 
   const closeAccountDialog = useCallback((): void => {
     accountDialogControllerRef.current?.cancelSignIn();
     dismissAccountDialogSurface();
   }, [dismissAccountDialogSurface]);
+  useEffect(() => {
+    closeAccountDialogRef.current = closeAccountDialog;
+  }, [closeAccountDialog]);
 
   // Start driving the dialog on mount; tear it down on unmount.
   useEffect(() => {
@@ -953,7 +1072,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         username: opts?.username,
         deviceId: persisted?.deviceId,
         deviceName: opts?.deviceName,
-        deviceFingerprint: opts?.deviceFingerprint,
+        // The same shape every other sign-in path sends; the server only reads it
+        // to place a device that has no persisted id yet.
+        deviceFingerprint: opts?.deviceFingerprint ?? JSON.stringify(DeviceManager.getDeviceFingerprint()),
       });
     },
     [oxyServices, authStore, commitSession],
@@ -1254,6 +1375,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       revokeSuspiciousSignIn,
       handleWebSession,
       startWebOAuthSignIn: startWebOAuthSignInForContext,
+      continueOnAuth,
       requestOAuthConsent: requestOAuthConsentForContext,
       logout,
       logoutAll,
@@ -1311,6 +1433,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       revokeSuspiciousSignIn,
       handleWebSession,
       startWebOAuthSignInForContext,
+      continueOnAuth,
       requestOAuthConsentForContext,
       logout,
       logoutAll,

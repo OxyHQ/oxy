@@ -1,10 +1,14 @@
 import React, { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColors } from '@/hooks/useColors';
-import { Screen, StackHeader, ImportantBanner } from '@/components/ui';
+import {
+  Screen,
+  StackHeader,
+  ImportantBanner,
+} from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
 
@@ -48,20 +52,20 @@ export default function RotateKeyEntryScreen() {
       </View>
 
       <View style={styles.gutter}>
-        <ImportantBanner title={t('rotateKey.warningTitle')} icon="alert-octagon">
+        <ImportantBanner title={t('rotateKey.warningTitle')}>
           {t('rotateKey.warning')}
         </ImportantBanner>
       </View>
 
       <SettingsListGroup title={t('rotateKey.pathSection')}>
         <SettingsListItem
-          icon={<MaterialCommunityIcons name="cellphone-key" size={22} color={colors.text} />}
+          icon={<Icons.device size='md' fill={colors.text} />}
           title={t('rotateKey.pathDevice')}
           description={t('rotateKey.pathDeviceSubtitle')}
           onPress={handleDevice}
         />
         <SettingsListItem
-          icon={<MaterialCommunityIcons name="key-remove" size={22} color={colors.text} />}
+          icon={<Icons.key size='md' fill={colors.text} />}
           title={t('rotateKey.pathPhrase')}
           description={t('rotateKey.pathPhraseSubtitle')}
           onPress={handlePhrase}

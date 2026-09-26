@@ -45,7 +45,7 @@ function makeOxy(overrides: OxyOverrides = {}): { oxy: OxyServices; setTokens: j
         throw new Error('mintFromDeviceSecret not stubbed');
       }),
     // The device-secret-mint step runs through the client's single-flight.
-    httpService: { runSingleFlightDeviceSecretMint: makeMintSingleFlight() },
+    httpService: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
   } as unknown as OxyServices;
   return { oxy, setTokens };
 }

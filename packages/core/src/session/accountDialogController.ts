@@ -36,12 +36,6 @@
  *   - `commonsAvailability` — whether Commons is installed on this device
  *     (native only, via the injected `canOpenApp` probe), so the QR view can
  *     offer a "Get Commons" fallback instead of a same-device dead end.
- *   - `startPasskeyHubSignIn` — on a non-Oxy web origin (where a WebAuthn
- *     ceremony can't run locally, the RP-ID is bound to oxy.so), open a popup
- *     at the auth.oxy.so passkey hub instead, scoped to the SAME device-flow
- *     session `showQr` creates, and complete it via the SAME poll/socket/claim
- *     engine. Falls back to `showQr`'s plain QR rendering if the popup is
- *     blocked.
  *
  * Sign-in is passkey (WebAuthn) or the Commons QR / shared-keychain handoff —
  * password, social login, and 2FA were removed ecosystem-wide. Account
@@ -62,7 +56,6 @@ import type { SessionLoginResponse, MinimalUserData } from '../models/session';
 import type { User } from '../models/interfaces';
 import { logger } from '../logger';
 import { extractErrorStatus } from '../utils/errorUtils';
-import { IDENTITY_WEB_ORIGIN } from '../utils/authWebUrl';
 import type { SessionClient } from './SessionClient';
 import { getSocketIO, type MinimalSocket, type SocketIOFactory } from './socketLoader';
 import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
@@ -143,8 +136,6 @@ export type SignInProgress =
  * WHY a sign-in attempt ended in `'error'` — a machine-readable reason the UI
  * turns into localized copy (the controller ships no user-facing prose).
  *
- *  - `'cancelled'` — the USER walked away (closed the passkey hub popup). A
- *    voluntary outcome, not a failure to report.
  *  - `'denied'` — the approver declined the request in Commons.
  *  - `'expired'` — the request outlived its server-authoritative expiry.
  *  - `'network'` — Oxy could not be reached (no response, timeout).
@@ -154,7 +145,6 @@ export type SignInProgress =
  *  - `'unknown'` — anything else; the raw message stays on `error` for logs.
  */
 export type SignInFailureReason =
-  | 'cancelled'
   | 'denied'
   | 'expired'
   | 'network'
@@ -162,20 +152,6 @@ export type SignInFailureReason =
   | 'unsupported-flow'
   | 'claim-failed'
   | 'unknown';
-
-/**
- * Minimal structural handle over a popup `Window` — just enough for the
- * cross-origin passkey hub flow ({@link AccountDialogController.startPasskeyHubSignIn}):
- * navigate it once the device-flow session's `authorizeCode` is known, detect
- * the user closing it early (`closed`), and close it programmatically on
- * completion/failure. Satisfied directly by `window.open()`'s return value on
- * web; native has no popup concept and never injects an opener.
- */
-export interface PopupWindowHandle {
-  readonly closed: boolean;
-  close(): void;
-  location: { href: string };
-}
 
 /**
  * State of the "Sign in with Oxy" (shared-key / QR) device flow.
@@ -254,6 +230,14 @@ export interface SignInFlowState {
    * attempt failing with the same message is).
    */
   attempt: number;
+  /**
+   * `true` when this attempt is the sign-in entry's EMBEDDED QR
+   * ({@link AccountDialogController.startInlineQr}): a request the surface
+   * started on its own, not one the person asked for. Its failures (an expired
+   * code, above all) belong to that QR, which renews itself, and are not news
+   * to report.
+   */
+  inline: boolean;
 }
 
 /**
@@ -261,10 +245,10 @@ export interface SignInFlowState {
  * values the controller derives. Every mutation of the flow goes through this
  * shape, which is what makes `progress` (and `attempt`) impossible to set by hand.
  */
-type SignInFlowFacts = Omit<SignInFlowState, 'progress' | 'attempt'>;
+type SignInFlowFacts = Omit<SignInFlowState, 'progress' | 'attempt' | 'inline'>;
 
 /** How the current sign-in attempt was started — what "Try again" repeats. */
-type SignInMethod = 'oxy' | 'qr' | 'passkey-hub';
+type SignInMethod = 'oxy' | 'qr' | 'inline-qr';
 
 /**
  * Derive the surface-facing progress from the flow's real facts. Pure, total,
@@ -311,6 +295,16 @@ export interface AccountDialogSnapshot {
    */
   backView: AccountDialogView | null;
   /**
+   * Whether THIS client is signed in: a bearer is planted.
+   *
+   * Not the same question as "does the directory list anyone". The directory is
+   * the DEVICE's, and a device can go on listing a shared identity (Commons, or a
+   * sibling app) after this app signed out. A host names its sign-in entry, and
+   * whether a listed account reads as the current one, from this — never from
+   * the directory's size.
+   */
+  hasSession: boolean;
+  /**
    * The server-authoritative device directory — principals and the contexts
    * each may act as (ADR 0002) — or `null` before the first read.
    *
@@ -336,6 +330,21 @@ export interface AccountDialogSnapshot {
   /** Whether Commons is installed on this device. See {@link CommonsAvailability}. */
   commonsAvailability: CommonsAvailability;
 }
+
+/**
+ * What {@link AccountDialogController.chooseContext} did with a chosen row.
+ *
+ * - `'current'` — the row is already the active account; nothing to do.
+ * - `'switched'` — the switch to the row happened (signed in; or signed out,
+ *   after the silent sign-in landed on a different pair and the chosen one was
+ *   then activated).
+ * - `'signing-in'` — signed out: the row started "Continue with Oxy", and the
+ *   sign-in flow (its own view, its own completion) owns what happens next —
+ *   including closing the dialog, through `onSignedIn`.
+ * - `'failed'` — the switch was attempted and failed (the reason is `error`).
+ * - `'busy'` — another device mutation is in flight; the press was dropped.
+ */
+export type ContextChoiceOutcome = 'current' | 'switched' | 'signing-in' | 'failed' | 'busy';
 
 /** Construction options for {@link AccountDialogController}. */
 export interface AccountDialogControllerOptions {
@@ -398,28 +407,6 @@ export interface AccountDialogControllerOptions {
    */
   canOpenApp?: (url: string) => Promise<boolean>;
   /**
-   * Open a new, empty popup window SYNCHRONOUSLY (before any `await`) so the
-   * browser attributes it to the click gesture that triggered it, returning a
-   * handle to navigate once the device-flow session is known — or `null` if
-   * the popup was blocked. Injected by the provider (web only:
-   * `window.open('', ...)`; absent on native, where the hub-popup flow does
-   * not apply). Used by {@link AccountDialogController.startPasskeyHubSignIn}.
-   */
-  openPopup?: () => PopupWindowHandle | null;
-  /**
-   * Origin of the web identity carrier (default `IDENTITY_WEB_ORIGIN`,
-   * `https://id.oxy.so`) — where a passkey sign-in or sign-up runs
-   * and the account's identity is kept sealed under the passkey. The popup opens
-   * `<identityOrigin>/continue?code=…`. Overridable for local/staging testing.
-   */
-  identityOrigin?: string;
-  /**
-   * @deprecated Alias of {@link identityOrigin}, kept for existing
-   * configuration. The popup used to open `auth.oxy.so/hub-passkey`; it now opens
-   * the identity origin's `/continue`, so a value here must be that origin.
-   */
-  hubBaseUrl?: string;
-  /**
    * Which surface the sign-in is initiated from — a FACT supplied by the
    * consumer, because only the consumer can classify its own environment
    * (native → `'mobile'`; web → `'mobile'` for a mobile browser, `'desktop'`
@@ -472,8 +459,8 @@ const IDLE_SIGN_IN_FACTS: SignInFlowFacts = {
 const COMPLETED_SIGN_IN_FACTS: SignInFlowFacts = { ...IDLE_SIGN_IN_FACTS, phase: 'completed' };
 
 /** The full flow state for `facts`, stamped with the attempt it belongs to. */
-function buildSignIn(facts: SignInFlowFacts, attempt: number): SignInFlowState {
-  return { ...facts, progress: deriveSignInProgress(facts), attempt };
+function buildSignIn(facts: SignInFlowFacts, attempt: number, inline: boolean): SignInFlowState {
+  return { ...facts, progress: deriveSignInProgress(facts), attempt, inline };
 }
 
 function errorMessage(error: unknown): string {
@@ -504,8 +491,6 @@ export class AccountDialogController {
   private readonly openUrl?: (url: string) => void;
   private readonly canOpenApp?: (url: string) => Promise<boolean>;
   private readonly socketFactory?: SocketIOFactory;
-  private readonly openPopup?: () => PopupWindowHandle | null;
-  private readonly identityOrigin: string;
   private readonly platform: CommonsDeliveryPlatform;
 
   private readonly listeners = new Set<SnapshotListener>();
@@ -523,7 +508,7 @@ export class AccountDialogController {
    * alongside the three flags above.
    */
   private exclusiveMutationInFlight = false;
-  private signIn: SignInFlowState = buildSignIn(IDLE_SIGN_IN_FACTS, 0);
+  private signIn: SignInFlowState = buildSignIn(IDLE_SIGN_IN_FACTS, 0, false);
   private commonsAvailability: CommonsAvailability = 'unknown';
 
   // --- Sign-in device-flow bookkeeping ---
@@ -553,10 +538,6 @@ export class AccountDialogController {
    * ABANDONED request never blocks the next request's first poll.
    */
   private pollInFlightToken: string | null = null;
-  /** The popup opened by {@link startPasskeyHubSignIn}, or `null`. */
-  private activePopup: PopupWindowHandle | null = null;
-  /** Watches {@link activePopup}'s `closed` state; see {@link watchPopup}. */
-  private popupWatchTimer: ReturnType<typeof setInterval> | null = null;
 
   // --- Store plumbing ---
   private unsubscribeSession: (() => void) | null = null;
@@ -577,8 +558,6 @@ export class AccountDialogController {
     this.openUrl = options.openUrl;
     this.canOpenApp = options.canOpenApp;
     this.socketFactory = options.socketFactory;
-    this.openPopup = options.openPopup;
-    this.identityOrigin = options.identityOrigin ?? options.hubBaseUrl ?? IDENTITY_WEB_ORIGIN;
     this.platform = options.platform ?? 'unknown';
     this.snapshot = this.computeSnapshot();
   }
@@ -661,7 +640,6 @@ export class AccountDialogController {
     }
     this.clearPollTimer();
     this.closeAuthSessionSocket();
-    this.closeActivePopup();
     this.signInToken = null;
     this.listeners.clear();
   }
@@ -729,12 +707,12 @@ export class AccountDialogController {
     const view = this.resolveView(requested);
     if (this.view === view) return;
     this.view = view;
-    // A `'completed'` flow owns no timers, socket, popup, or token — it is only
+    // A `'completed'` flow owns no timers, socket, or token — it is only
     // the terminal "Identity confirmed" the finished surface showed. Moving to
     // another view is a NEW intention, so drop it; otherwise a later `add()`
     // would open on the previous sign-in's terminal state.
     if (this.signIn.phase === 'completed') {
-      this.signIn = buildSignIn(IDLE_SIGN_IN_FACTS, this.signInAttempt);
+      this.signIn = this.stampSignIn(IDLE_SIGN_IN_FACTS);
     }
     this.emit();
   }
@@ -878,6 +856,45 @@ export class AccountDialogController {
       },
       () => this.sessionClient.activateContext(contextId),
     );
+  }
+
+  /**
+   * A device account row was chosen — the one entry point for "use this
+   * account", whether or not anybody is signed in here.
+   *
+   * Signed in, it is a switch: the active row is already the answer
+   * (`'current'`), any other row is {@link activateContext}.
+   *
+   * Signed out, it is NOT a switch. The row is on the list because the DEVICE
+   * still holds that identity (Commons' shared identity, or a sibling app's
+   * session), not because this app does, so there is no bearer to activate a
+   * context with — and the active-row short-circuit used to read that stale
+   * "active" as "already signed in" and close the sheet on a signed-out app
+   * (OxyHQ/oxy#1375 item 20). Choosing the row is "Continue as @handle": the
+   * same {@link signInWithOxy} path as the "Continue with Oxy" button, which
+   * mints silently from the shared identity and otherwise falls back to the
+   * request. When that silent mint lands on a different pair from the one
+   * chosen (a device holding more than one person, or an organization row), the
+   * chosen row is then activated under the new bearer, so the press ends where
+   * it pointed.
+   */
+  async chooseContext(contextId: string): Promise<ContextChoiceOutcome> {
+    if (this.isDeviceMutationInFlight()) return 'busy';
+    if (this.hasSession()) {
+      if (contextId === this.snapshot.activeContext?.contextId) return 'current';
+      return (await this.activateContext(contextId)) ? 'switched' : 'failed';
+    }
+    await this.signInWithOxy();
+    // Only a sign-in that finished here (the silent shared-identity mint) can be
+    // steered to the chosen row; a request still waiting on approval belongs to
+    // whoever approves it.
+    if (this.signIn.phase !== 'completed' || !this.hasSession()) return 'signing-in';
+    const directory = this.sessionClient.getDirectory();
+    const offered = directory?.principals.some((principal) =>
+      principal.contexts.some((context) => context.id === contextId),
+    );
+    if (!offered || resolveActiveContext(directory)?.contextId === contextId) return 'signing-in';
+    return (await this.activateContext(contextId)) ? 'switched' : 'signing-in';
   }
 
   /**
@@ -1041,80 +1058,33 @@ export class AccountDialogController {
   }
 
   /**
-   * Start a NEW attempt the same way the last one was started — "Try again"
-   * repeats the user's choice rather than silently switching method. A failed
-   * passkey-hub attempt reopens the hub popup; a failed "Sign in with Oxy"
-   * retries that; an explicit QR request shows the QR.
+   * The sign-in entry's EMBEDDED QR: a request whose only route is the QR,
+   * started without leaving the current view.
    *
-   * Call it straight from the press handler: the hub route opens its popup
-   * synchronously, before this method's first `await`, so the browser still
-   * attributes it to the click.
+   * Unlike {@link showQr} it runs no delivery selection. The surface starts it
+   * by itself, on mount, so it must not push to the person's phone or open
+   * Commons — nobody asked for either. Any other sign-in the person then
+   * chooses supersedes it (and withdraws its request) like any new attempt.
    */
-  retrySignIn(): Promise<void> {
-    switch (this.signInMethod) {
-      case 'passkey-hub':
-        return this.startPasskeyHubSignIn();
-      case 'qr':
-        return this.showQr();
-      default:
-        return this.signInWithOxy();
-    }
+  async startInlineQr(): Promise<void> {
+    const attempt = this.beginSignInAttempt('inline-qr');
+    await this.startDeviceFlowSession(attempt, { deliver: false });
   }
 
   /**
-   * Web-only: sign in (or create an account) with a passkey at the web identity
-   * carrier. The ceremony runs on `id.oxy.so`, never on the calling origin, for
-   * two reasons: a credential minted with `WEBAUTHN_RP_ID=oxy.so` can only be
-   * asserted from `oxy.so`/a subdomain/loopback (a browser-enforced boundary),
-   * and only the identity origin may unseal or create the account's identity
-   * (one identity, two carriers). Opens a popup at `<identityOrigin>/continue`,
-   * scoped to the SAME device-flow
-   * session {@link showQr} would create (same `authorizeCode`/`sessionToken`
-   * pair), and let the SAME poll/socket/claim engine complete it once the hub
-   * authorizes the session (`POST /auth/session/authorize-code/:authorizeCode`,
-   * bearer-authed, server-side — this method never sees or transmits the
-   * secret `sessionToken`).
-   *
-   * The popup MUST be opened synchronously, before any `await`, or the
-   * browser's popup blocker loses the click-gesture attribution and silently
-   * blocks it — so {@link openPopup} is invoked as the very first step, before
-   * the device-flow session (which needs an async call) even exists. If the
-   * popup is blocked (or no `openPopup` was injected), this falls back to
-   * `showQr`'s plain QR rendering — no dead end.
+   * Start a NEW attempt the same way the last one was started — "Try again"
+   * repeats the user's choice rather than silently switching method: a failed
+   * "Sign in with Oxy" retries that; an explicit QR request shows the QR.
    */
-  async startPasskeyHubSignIn(): Promise<void> {
-    const attempt = this.beginSignInAttempt('passkey-hub');
-    this.setView('qr');
-    const popup = this.openPopup?.() ?? null;
-    if (!popup) {
-      await this.startDeviceFlowSession(attempt, { deliver: true });
-      return;
+  retrySignIn(): Promise<void> {
+    switch (this.signInMethod) {
+      case 'qr':
+        return this.showQr();
+      case 'inline-qr':
+        return this.startInlineQr();
+      default:
+        return this.signInWithOxy();
     }
-    // Owned by the attempt from the moment it exists, so cancelling while the
-    // session is still being created closes it instead of leaving a blank
-    // window behind.
-    this.activePopup = popup;
-    // The hub popup IS the primary surface here, chosen explicitly by the user —
-    // so this flow does NOT run automatic Commons delivery (ringing the user's
-    // phone because they asked for a passkey would be exactly the "menu of
-    // methods" the one-primary-action rule forbids). The underlying request is
-    // the same `AuthSession`, and its Commons route stays the QR the view
-    // renders beneath the popup.
-    const handle = await this.startDeviceFlowSession(attempt, { deliver: false });
-    // `null` means the attempt failed (its teardown closed the popup) or was
-    // abandoned (the cancel closed it).
-    if (!handle) return;
-    // The user may have closed the popup during the async session creation
-    // above, before any watcher was attached to catch it — guard rather than
-    // navigate a dead window (browsers vary on whether that throws).
-    if (popup.closed) {
-      const pendingCode = this.signIn.authorizeCode;
-      this.failSignIn('cancelled', 'Sign-in was cancelled.');
-      if (pendingCode) void this.withdrawRequest(pendingCode);
-      return;
-    }
-    popup.location.href = `${this.identityOrigin}/continue?code=${encodeURIComponent(handle.authorizeCode)}`;
-    this.watchPopup(popup);
   }
 
   /**
@@ -1134,9 +1104,9 @@ export class AccountDialogController {
   }
 
   /**
-   * Shared device-flow session creation for both {@link showQr} (renders the
-   * QR) and {@link startPasskeyHubSignIn} (also opens the hub popup) — the
-   * same `startCommonsSignIn` → poll/socket wiring either way. Returns the
+   * Shared device-flow session creation for {@link signInWithOxy},
+   * {@link showQr} and {@link startInlineQr} — the same `startCommonsSignIn` →
+   * poll/socket wiring every time. Returns the
    * handle on success (already reflected in `signIn`), or `null` when the
    * attempt failed (already set as `signIn.failure`) or was abandoned while the
    * request was being created.
@@ -1147,8 +1117,8 @@ export class AccountDialogController {
    *   request, a socket, and a poll behind it.
    * @param opts.deliver - Whether to run automatic Commons delivery selection
    *   ({@link resolveDeliveryRoute}). `true` for the normal one-primary-action
-   *   entry; `false` when the caller already owns the primary surface (the
-   *   passkey hub popup), where the request's Commons route is simply the QR.
+   *   entry; `false` for the embedded QR, which the screen starts by itself,
+   *   where the request's Commons route is simply the QR.
    */
   private async startDeviceFlowSession(
     attempt: number,
@@ -1191,9 +1161,9 @@ export class AccountDialogController {
     void this.openAuthSessionSocket(handle.sessionToken);
     this.scheduleNextPoll(handle.sessionToken);
     if (opts.deliver) {
-      // Non-blocking on purpose: the QR/authorizeCode are already renderable
-      // and the popup caller can navigate immediately, while the route (a
-      // local probe plus at most one delivery round-trip) resolves behind it.
+      // Non-blocking on purpose: the QR/authorizeCode are already renderable,
+      // while the route (a local probe plus at most one delivery round-trip)
+      // resolves behind it.
       void this.resolveDeliveryRoute(handle);
     }
     return handle;
@@ -1308,49 +1278,6 @@ export class AccountDialogController {
   }
 
   /**
-   * Poll {@link PopupWindowHandle.closed} so a user who dismisses the hub
-   * popup without completing sign-in gets prompt feedback (there is no DOM
-   * event for a cross-origin popup closing — polling is the only mechanism).
-   * Cleared by {@link closeActivePopup}, which every sign-in exit path already
-   * calls.
-   */
-  private watchPopup(popup: PopupWindowHandle): void {
-    this.clearPopupWatchTimer();
-    this.popupWatchTimer = setInterval(() => {
-      if (!popup.closed) return;
-      this.clearPopupWatchTimer();
-      if (this.signIn.phase === 'starting' || this.signIn.phase === 'waiting') {
-        // Closing the surface cancels the REQUEST too, not just this listener.
-        const pendingCode = this.signIn.authorizeCode;
-        this.failSignIn('cancelled', 'Sign-in was cancelled.');
-        if (pendingCode) {
-          void this.withdrawRequest(pendingCode);
-        }
-      }
-    }, 1000);
-  }
-
-  private clearPopupWatchTimer(): void {
-    if (this.popupWatchTimer !== null) {
-      clearInterval(this.popupWatchTimer);
-      this.popupWatchTimer = null;
-    }
-  }
-
-  /** Tear down the popup watch timer and close the popup, if any. Idempotent. */
-  private closeActivePopup(): void {
-    this.clearPopupWatchTimer();
-    const popup = this.activePopup;
-    this.activePopup = null;
-    if (!popup || popup.closed) return;
-    try {
-      popup.close();
-    } catch (error) {
-      logger.debug('[AccountDialogController] popup close failed', { component: 'AccountDialogController' }, error);
-    }
-  }
-
-  /**
    * Resolve whether Commons is installed on this device via the injected
    * `canOpenApp` probe, updating {@link commonsAvailability} as durable,
    * observable snapshot state. Native only — a no-op when `canOpenApp` was
@@ -1382,7 +1309,7 @@ export class AccountDialogController {
   }
 
   /**
-   * Tear down the active sign-in device flow (timers + socket + popup + token),
+   * Tear down the active sign-in device flow (timers + socket + token),
    * WITHDRAW the request server-side, and reset to idle.
    *
    * Cancellation has to converge in both directions: the surface closing must
@@ -1406,7 +1333,6 @@ export class AccountDialogController {
         : null;
     this.clearPollTimer();
     this.closeAuthSessionSocket();
-    this.closeActivePopup();
     this.signInToken = null;
     if (this.signIn.phase !== 'idle') {
       this.setSignIn(IDLE_SIGN_IN_FACTS);
@@ -1614,10 +1540,9 @@ export class AccountDialogController {
       this.signInToken = null;
       this.clearPollTimer();
       this.closeAuthSessionSocket();
-      this.closeActivePopup();
-      // Terminal SUCCESS, not idle: the surface gets one honest frame to show
+        // Terminal SUCCESS, not idle: the surface gets one honest frame to show
       // "Identity confirmed" before it closes. Cleared on the next view change.
-      this.signIn = buildSignIn(COMPLETED_SIGN_IN_FACTS, this.signInAttempt);
+      this.signIn = this.stampSignIn(COMPLETED_SIGN_IN_FACTS);
       this.view = 'accounts';
       this.emit();
     }
@@ -1648,7 +1573,6 @@ export class AccountDialogController {
   private failSignIn(failure: SignInFailureReason, message: string): void {
     this.clearPollTimer();
     this.closeAuthSessionSocket();
-    this.closeActivePopup();
     this.signInToken = null;
     this.setSignIn({ ...IDLE_SIGN_IN_FACTS, phase: 'error', error: message, failure });
   }
@@ -1738,8 +1662,13 @@ export class AccountDialogController {
    * to advance without a fact behind it.
    */
   private setSignIn(facts: SignInFlowFacts): void {
-    this.signIn = buildSignIn(facts, this.signInAttempt);
+    this.signIn = this.stampSignIn(facts);
     this.emit();
+  }
+
+  /** `facts` as the current attempt's state. */
+  private stampSignIn(facts: SignInFlowFacts): SignInFlowState {
+    return buildSignIn(facts, this.signInAttempt, this.signInMethod === 'inline-qr');
   }
 
   /** Update a subset of the device-flow facts, re-deriving `progress`. */
@@ -1780,6 +1709,7 @@ export class AccountDialogController {
     return {
       view,
       backView: backViewOf(view, hasSession),
+      hasSession,
       directory,
       activeContext: resolveActiveContext(directory),
       loading: this.loading,

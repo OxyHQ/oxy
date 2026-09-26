@@ -2,15 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import type { SwitcherContextRow } from "@oxy.so/core";
 import { getNormalizedUserHandle } from "@oxy.so/core";
-import { useDeviceSwitcher, useOxy } from "@oxy.so/services";
+import { OxyAccountPicker, OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader, useDeviceSwitcher, useOxy } from "@oxy.so/services";
 
 import { Button } from "@oxy.so/bloom/button";
-import {
-  AuthFormHeader,
-  AuthFormLayout,
-  LoadingSpinner,
-} from "@/components/auth-form-layout";
-import { AccountChooser } from "@/components/account-chooser";
 import { buildApiUrl, buildRelativeUrl } from "@/lib/oxy-api-client";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { mcpLinkIntentFromBody, type McpLinkIntent } from "@/lib/schemas";
@@ -171,12 +165,12 @@ export function McpLinkPage() {
 
   if (!intent) {
     return (
-      <AuthFormLayout>
-        <AuthFormHeader
+      <OxyAuthScreen>
+        <OxyAuthScreenHeader
           title={t("mcpLink.noRequestTitle")}
           description={t("mcpLink.noRequestDesc")}
         />
-      </AuthFormLayout>
+      </OxyAuthScreen>
     );
   }
 
@@ -195,26 +189,26 @@ export function McpLinkPage() {
 
   if (linked) {
     return (
-      <AuthFormLayout>
-        <AuthFormHeader
+      <OxyAuthScreen>
+        <OxyAuthScreenHeader
           title={t("mcpLink.connectedTitle")}
           description={t("mcpLink.connectedDesc", {
             handle: handle ?? t("mcpLink.thisAccount"),
             client: request?.clientName ?? t("mcpLink.theAssistant"),
           })}
         />
-      </AuthFormLayout>
+      </OxyAuthScreen>
     );
   }
 
-  if (loading || directoryLoading) return <LoadingSpinner />;
+  if (loading || directoryLoading) return <OxyAuthLoading />;
 
   // Additive front screen, same rule as the consent page: more than one context
   // on this device means the person chooses which account joins before they are
   // asked to approve anything.
   if (!chooserDismissed && activeContext !== null && contextCount > 1 && request) {
     return (
-      <AccountChooser
+      <OxyAccountPicker
         principals={principals}
         appName={request.clientName}
         onSelectContext={handleChooseContext}
@@ -230,10 +224,10 @@ export function McpLinkPage() {
   }
 
   return (
-    <AuthFormLayout>
+    <OxyAuthScreen>
       {request ? (
         <div className="flex w-full flex-col gap-space-16">
-          <AuthFormHeader
+          <OxyAuthScreenHeader
             title={t("mcpLink.title", { client: request.clientName })}
             description={t("mcpLink.subtitle", {
               handle: handle ?? t("mcpLink.thisAccount"),
@@ -260,13 +254,13 @@ export function McpLinkPage() {
             </div>
           )}
           <div className="flex flex-col gap-space-8">
-            <Button size="lg" onClick={() => void handleApprove()} disabled={submitting}>
+            <Button size="lg" onPress={() => void handleApprove()} disabled={submitting}>
               {t("mcpLink.approve")}
             </Button>
             <Button
               size="lg"
               variant="ghost"
-              onClick={() =>
+              onPress={() =>
                 window.location.assign(
                   buildRelativeUrl("/login", { mcp_link_intent: intent })
                 )
@@ -279,7 +273,7 @@ export function McpLinkPage() {
         </div>
       ) : (
         <>
-          <AuthFormHeader
+          <OxyAuthScreenHeader
             title={t("mcpLink.unavailableTitle")}
             description={t("mcpLink.unavailableDesc")}
           />
@@ -290,7 +284,7 @@ export function McpLinkPage() {
           )}
         </>
       )}
-    </AuthFormLayout>
+    </OxyAuthScreen>
   );
 }
 

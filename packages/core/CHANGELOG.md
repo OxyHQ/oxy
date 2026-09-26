@@ -2,7 +2,7 @@
 
 ## 2.0.0
 
-Includes everything in 1.9.0.
+Includes everything in 1.19.0.
 
 ### Removed
 
@@ -13,8 +13,268 @@ Includes everything in 1.9.0.
   `/.well-known/jwks.json`, and the algorithm is pinned, never read from the
   token. The `SERVICE_TOKEN_NOT_CONFIGURED` (403) refusal is gone with it; an
   HS256, `none` or other header is `INVALID_SERVICE_TOKEN` (401) without any
-  JWKS fetch. Production has signed only EdDSA since 2026-09-17 and no consumer
-  passed the option (ADR 0012, #877).
+  JWKS fetch. Production has signed only EdDSA since 2026-09-17 (ADR 0012,
+  #877). Peable passes `jwtSecret` to `serviceAuth()`/`auth()` today: it keeps
+  verifying EdDSA tokens on core 1.x, and must drop the option when it moves to
+  core 2.
+
+## 1.19.0
+
+One browser, one session: the browser bridge (ADR 0029 D2).
+
+### Added
+
+- `registerBrowserDevice()`, `requestDeviceJoinCode(request)` and
+  `joinBrowserDevice(request)` — `POST /session/device/{register,join-code,join}`,
+  bearer-less and validated against the contracts. auth.oxy.so's bridge page
+  registers or proves the browser's device and hands an official app a one-use,
+  PKCE-bound code; the app redeems it for its own holder credential.
+- `setDeviceCredentialProvider(provider)` and `readDeviceProof()`: tell a client
+  how to read the device credential it holds, and `claimSessionByToken`,
+  `webauthnLoginVerify` and `webauthnRegisterVerify` (sign-up, recovery) send it
+  as `device`, so the new session is created on that device. An explicit
+  `device: null` opts out. Type `DeviceCredentialProvider`.
+
+### Changed
+
+- The in-session re-mint on the web KEEPS a device credential that answers
+  `no_active_session` (it drops only the session fields) instead of clearing the
+  store: a joined, signed-out app stays a holder of the browser's device and never
+  needs the bridge again. `invalid_device_secret` still clears it.
+
+## 1.18.0
+
+Web accounts are a username, a passkey and a recovery email (ADR 0029 D3). The
+web identity carrier is deleted: Commons is the one place a key lives.
+
+### Added
+
+- `startEmailVerification({ purpose: 'signup', email } | { purpose: 'recovery', identifier })`
+  and `confirmEmailVerification(verificationId, code)`: a 6-digit code to a
+  recovery email, and the one-use ticket it confirms into.
+- `webauthnRegisterOptions({ username?, recoveryTicket? })` (was a bare
+  `username`) and `webauthnRegisterVerify`'s `email`, `emailTicket` and
+  `recoveryTicket`: a sign-up is created with its confirmed recovery email, and
+  a recovery registers a new passkey for the account its ticket names.
+- `getAccountDeletionOptions()` and `deleteAccountWithPasskey(confirmText, assertion)`:
+  a passkey account is deleted with an assertion by one of its passkeys.
+- Linking Commons to a passkey account from two devices:
+  `createIdentityLink()`, `getIdentityLink(linkId)`,
+  `getIdentityLinkAssertionOptions(linkId, challenge)`,
+  `completeIdentityLink(linkId, assertion)`, `cancelIdentityLink(linkId)` for
+  auth.oxy.so, and `signIdentityLink(linkId, challenge)` for Commons (signs the
+  `link_identity` proof with this device's key, native only).
+  `deriveIdentityLinkCode(linkId, publicKey)`: the 6-digit code both devices
+  show.
+- Locale keys in all 11 locales: `signup.username.*`, `signup.email.*`,
+  `signup.passkey.*`, `signup.commonsInstead`, `emailCode.*`, `recover.*`
+  (replaced), `deleteAccount.passkey.*`, `linkCommons.*`. `signup.webSubtitle` and
+  `deleteAccount.handoff.elsewhereMessage` say what a web account is now.
+
+### Removed
+
+- The web identity carrier (`crypto/webIdentityCarrier.ts`): `sealWebIdentity`,
+  `openWebIdentity`, `unlockWebIdentity`, `addWrap`, `removeWrap`,
+  `markWrapVerified`, `unwrapDataKey`, `deriveKeyEncryptionKey`,
+  `generateDataKey`, `generateWebIdentity`, `deriveIdentityFromMnemonic`,
+  `deriveIdentityFromPrivateKey`, `deriveIdentityFromRecoveryMaterial`,
+  `parseRecoveryMaterial`, `normalizeMnemonic`, `isUsablePrfOutput`,
+  `wipeBytes`, `wipeOpenedIdentity`, `WEB_IDENTITY_PRF_INPUT`,
+  `WEB_IDENTITY_PRF_OUTPUT_LENGTH`, `WebIdentityUnlockError` and their types.
+- The move to Commons (`crypto/identityMove.ts`): `buildMoveQrPayload`,
+  `parseMoveQrPayload`, `createMoveCommitment`, `verifyMoveCommitment`,
+  `deriveMoveKey`, `deriveMoveSas`, `digestMoveCiphertext`,
+  `generateMoveEphemeralKeyPair`, `sealIdentityForMove`, `openMovedIdentity`,
+  `signMoveReceipt`, `verifyMoveReceipt`, `MoveReceiptClaims`.
+- `checkEmailAvailability`: nothing says whether an email is an account's.
+- The `accountMenu.identity` locale key.
+
+## 1.16.0
+
+No identity popups (ADR 0028 D1b).
+
+### Added
+
+- `buildOAuthAuthorizeUrl({ screen })` and `OxyAuthScreen` (`signin`, `signup`,
+  `recover`): the IdP screen a person with no session there lands on, for an
+  Oxy app that sends them to auth.oxy.so in the same tab.
+- `signin.recoverLink` in all 11 locales.
+
+### Removed
+
+- `AccountDialogController.startPasskeyHubSignIn`, the `openPopup` and
+  `authOrigin` options, and `PopupWindowHandle`: the account dialog never opens
+  a window. What only auth.oxy.so can do happens there, in the same tab.
+- The `'cancelled'` `SignInFailureReason`, which only a closed popup produced.
+
+## 1.15.0
+
+The web identity carrier is `auth.oxy.so`; `id.oxy.so` is gone (ADR 0028).
+
+### Added
+
+- `AUTH_WEB_ORIGIN` (`https://auth.oxy.so`): the IdP's origin, which is also
+  the web identity carrier. `OXY_AUTHORIZE_URL` is built from it.
+- `buildOxyPagesHeaders({ sensitive: true })` serves the whole holder policy:
+  `base-uri` and `form-action 'none'`, `Referrer-Policy: no-referrer`, a
+  `Permissions-Policy` allowing passkeys for the origin only with every other
+  powerful feature off, and `Cross-Origin-Resource-Policy: same-origin`. Never
+  COOP: the identity window reports back to its opener.
+
+### Changed
+
+- The account dialog's passkey window opens `<authOrigin>/continue?user_code=…`
+  (was `id.oxy.so/continue?code=…`). The parameter is `user_code` because the
+  IdP's own `OxyProvider` cold boot consumes a `?code=` as an OAuth return.
+
+### Removed
+
+- `IDENTITY_WEB_ORIGIN`; use `AUTH_WEB_ORIGIN`.
+- The controller's `identityOrigin` option; it is `authOrigin`.
+
+## 1.14.0
+
+### Added
+
+- `AccountDialogController.startInlineQr()`: the sign-in screen's embedded
+  Commons QR — a request whose only route is the QR, started without leaving
+  the current view. It runs no delivery selection (no push to a phone, no
+  Commons opened): the screen starts it by itself, so nobody asked for either.
+  Any sign-in the person then chooses supersedes it and withdraws its request;
+  `retrySignIn()` repeats it.
+- `SignInFlowState.inline`: `true` while the attempt is that embedded QR, so a
+  host does not report its failures (an expired code is renewed, not news).
+- Sign-in copy for the shared sign-in screen in all 11 locales:
+  `signin.orContinueWith`, `signin.subtitleToApp`, `signin.noAccount`,
+  `signin.createAccount`, `signin.qr.*`, `signin.methods.passkey`,
+  `signin.terms.*`, `signin.chooser.subtitleToApp`,
+  `signin.errors.{rateLimited,passkeyCancelled,passkeyFailed}`,
+  `signup.webSubtitle`. `signin.title`/`subtitle`/`addAccountTitle` and
+  `signin.username.placeholder` now read as auth.oxy.so always did.
+
+### Removed
+
+- The `hubBaseUrl` controller option, the deprecated alias of
+  `identityOrigin` from when the passkey popup opened `auth.oxy.so/hub-passkey`.
+  Nothing passed it; pass `identityOrigin`.
+- 102 dictionary keys no surface reads any more, in every locale — the password,
+  2FA and email sign-up copy, and the old account switcher's and sign-in
+  entry's (`accountSwitcher.passkeyHint`, `continueWithPasskey`,
+  `otherDeviceCommons`, `signin.or`, …).
+
+## 1.13.0
+
+### Added
+
+- `verifyAccountEvent(token, { audience?, jwksUrl? })`: verifies an account
+  event from Oxy — the body of an account-event webhook, or an entry of the
+  pull feed — and returns `{ eventId, type: 'account.deleted', userId,
+  username, occurredAt, retained, applicationId, issuedAt }`. The token is a
+  Security Event Token (`typ: secevent+jwt`) signed with Oxy's Ed25519 service
+  key and checked against the same public JWKS as service tokens; the audience
+  defaults to the `appId` of the configured service credential. A service
+  token is refused as an event and vice versa. `username` is the handle at
+  deletion time, `null` when absent (including tokens that predate the field).
+  Refusals throw `OxyAccountEventError` (OxyHQ/Mention#1169).
+- `listAccountEvents({ after?, limit? })`: one page of the calling
+  application's account events from `GET /account-events`, the reconciliation
+  path behind the webhook.
+
+## 1.12.1
+
+### Fixed
+
+- `getUsersByIds` sent an attested backend (ADR 0026: an ECS task with no key
+  pair) down the anonymous user path, because it asked only whether a key pair
+  was configured. Every chunk then went out with no bearer, was charged to the
+  shared NAT address's per-IP budget and paid its 500ms slow-down penalty:
+  measured from Mention's task, 520ms per chunk against 20ms with the service
+  token, which put Mention's 1.5s author-hydration deadline out of reach on
+  every cache miss. A host that can attest now takes the service path.
+
+## 1.12.0
+
+### Added
+
+- `AccountDialogController.chooseContext(contextId)`: the one entry point for
+  a chosen device-account row. Signed in it is a switch (`'current'` for the
+  active row, else `activateContext`). Signed out it is "Continue as
+  @handle": the same `signInWithOxy()` path as the "Continue with Oxy" button
+  (silent through the shared identity, else the request), and when the silent
+  mint lands on a different pair from the chosen row, that row is activated
+  under the new bearer. Resolves a `ContextChoiceOutcome`.
+- `AccountDialogSnapshot.hasSession`: whether this client holds a bearer. The
+  device directory can keep listing a shared identity (Commons') after the app
+  signed out, so hosts must not infer "signed in" from its size.
+
+### Fixed
+
+- Signed out on a device that still lists a shared identity, choosing that
+  account signed nobody in: hosts treated the directory's "active" row as
+  already signed in and closed the sheet (OxyHQ/oxy#1375 item 20).
+
+## 1.11.0
+
+Requires `@oxy.so/contracts` 1.5.0.
+
+### Added
+
+- Linked accounts mixin: `startLinkedAccount(network, options)`,
+  `completeLinkedAccount(code)` (the `link_code` the callback hands
+  `returnTo`; only the user who started the flow can complete it),
+  `listLinkedAccounts()`, `revokeLinkedAccount(id)`, and the service read
+  `getLinkedAccountsForUser(userId)` (privileged `linked-accounts:read`).
+- `User.alsoKnownAs`, as `GET /profiles/username/:username` returns it.
+- `Notification` gains `type`, `title`, `url`, `entityType` and `entityId`;
+  `createNotification` accepts a `CreateOxyNotificationRequest`.
+- `ServiceAssetMetadata.ownerUserId`, present only for Oxy's own
+  (`tier: 'internal'`) applications.
+- The identity device backup (OxyHQ/oxy#1388). `KeyManager.setDeviceBackupStore()`
+  registers a store that keeps the identity outside the app's keystore (Commons
+  registers Android Block Store). Every identity write refreshes it, the
+  verified recovery phrase rides along, every `deleteIdentity` clears it, and
+  `KeyManager.ensureDeviceBackup()` backfills or repairs it. Type:
+  `IdentityDeviceBackupStore`.
+- `attemptIdentityRecovery` gains a third rung, `device-backup`, the only copy
+  that survives a wipe of the shared-UID Android Keystore. With a store
+  registered it also restores an `absent` identity (the app's own data was
+  cleared) instead of reporting `not-lost`. Without a store nothing changes.
+
+## 1.10.0
+
+### Fixed
+
+- A sign-out outranks a token refresh already in flight. `OxyServices.clearTokens()`
+  now ends the local session (`HttpService.endSession()`): a re-mint that started
+  before it — the device-secret arm, the native shared-keychain arm, or the
+  handler's own plant — plants nothing, and the native shared-keychain arm does
+  not run again until a token is planted. Before, a refresh that outlived the
+  sign-out put the bearer back, and on native a 401 after sign-out re-signed the
+  user in with the shared keychain. The device-secret arm still persists the
+  rotated secret when the store kept the credential it presented, never refills a
+  store the sign-out cleared, and still mints later from a credential the store
+  holds (a sign-in made in another tab).
+
+### Added
+
+- `HttpService.endSession()`, `HttpService.getSessionEpoch()` and
+  `HttpService.hasSessionEnded()`.
+- `DeviceSecretMintOutcome` `session-ended`: the mint succeeded after the session
+  was ended, and nothing was planted.
+
+## 1.9.1
+
+### Fixed
+
+- A refresh that returns the SAME still-valid access token (the device mint
+  hands back the stored token until it expires) no longer counts as a reason
+  to ask again. The request-time preflight sends that token until `exp`, and
+  the proactive scheduler waits until just past `exp`
+  (`REMINT_AFTER_EXPIRY_MS`) instead of re-minting at its 1s floor. Before,
+  every token's last minute cost ~30 mints, tripped the 30/min limit, and the
+  429 cooldown outlived the token, so the next request 401'd and the app signed
+  out (OxyHQ/Mention#1140). New: `HttpService.isAwaitingCurrentTokenExpiry()`.
+- The scheduler no longer re-arms when the same token is planted again.
 
 ## 1.9.0
 

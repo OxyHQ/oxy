@@ -160,6 +160,14 @@ const BANNED_NAME_PATTERNS = [
 const DECLARED_FREE_SHAPED_COLUMNS = [
   // ---- external account identity evidence ------------------------------------
   { table: 'external_identities', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings, each at most 2048 characters; no actor document, biography, inference request or response' },
+  {
+    table: 'linked_account_oauth_challenges',
+    column: 'providerState',
+    holds:
+      "the atproto OAuth client library's per-flow state for one linking attempt: authorization "
+      + 'server issuer, client auth method, PKCE verifier and ephemeral DPoP JWK. No token, no '
+      + 'request body; wiped when the challenge is spent and the row lives at most ten minutes',
+  },
   { table: 'external_identity_actors', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings for this transport, each at most 2048 characters; no source payload or inference content' },
   // ---- OTA updates ------------------------------------------------------------
   { table: 'app_updates', column: 'extra', holds: 'the Expo manifest `extra` block, embedded verbatim in the signed manifest' },
@@ -236,7 +244,7 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
 
   // ---- identity ---------------------------------------------------------------
   { table: 'signed_records', column: 'envelope', holds: 'a signed identity record envelope, verbatim' },
-  { table: 'identity_web_envelopes', column: 'wraps', holds: 'contract-validated array of 1-10 passkey wraps of one data key: base64url credential id, 24-byte nonce hex, 48-byte ciphertext hex, ISO timestamp; ciphertext the server cannot open, never a request or response' },
+  { table: 'identity_link_requests', column: 'proof', holds: "the `link_identity` root proof Commons posted, as `identityProofSchema` validated it: `{ v, challenge, expiresAt, signature }` — a signature over fixed claims, never a request or response" },
   { table: 'verifiable_credentials', column: 'claims', holds: 'the claims of a verifiable credential' },
   { table: 'webauthn_credentials', column: 'credentialPublicKey', holds: 'the COSE public key of a passkey — a public key, and the only `bytea` in the schema' },
 

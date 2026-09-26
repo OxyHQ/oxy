@@ -51,6 +51,7 @@ jest.mock('../../utils/logger', () => ({
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { userFollows } from '../../db/schema/userFollows';
+import { userLinkedAccounts } from '../../db/schema/userLinkedAccounts';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import { federationService } from '../../services/federation.service';
@@ -224,6 +225,8 @@ describe('GET /profiles/username/:username — wire shape', () => {
       fediverseSharing: true,
       externalIdentities: [],
       redirectedUserIds: [],
+      // Linked-account aliases (`docs/identity/linked-accounts.md`); none here.
+      alsoKnownAs: [],
       _count: { followers: 1, following: 1 },
     });
     expect(safeParseContract(userResponseSchema, res.body.data)).not.toBeNull();
@@ -325,6 +328,22 @@ describe('GET /profiles/username/:username — case-insensitive resolution', () 
     // The STORED spelling is returned verbatim — the index is on `lower(...)`,
     // the value is not normalized.
     expect(res.body.data?.username).toBe(stored);
+  });
+});
+
+describe('GET /profiles/username/:username — alsoKnownAs', () => {
+  it('lists the live ActivityPub links and nothing else', async () => {
+    const username = handle('aliased');
+    const id = await account({ username });
+    const key = `${username}@mastodon.example`;
+    await getDb().insert(userLinkedAccounts).values([
+      { userId: id, network: 'activitypub', accountKey: key, actorUri: `https://mastodon.example/users/${username}`, handle: `@${key}`, host: 'mastodon.example', verifiedAt: new Date() },
+      { userId: id, network: 'activitypub', accountKey: `old-${key}`, actorUri: 'https://mastodon.example/users/old', handle: '@old', host: 'mastodon.example', verifiedAt: new Date(), revokedAt: new Date() },
+      { userId: id, network: 'atproto', accountKey: `did:plc:${username}`, actorUri: `did:plc:${username}`, handle: 'x.bsky.social', host: 'pds.example', verifiedAt: new Date() },
+    ]);
+    const res = await lookup(username);
+    expect(res.status).toBe(200);
+    expect(res.body.data.alsoKnownAs).toEqual([`https://mastodon.example/users/${username}`]);
   });
 });
 

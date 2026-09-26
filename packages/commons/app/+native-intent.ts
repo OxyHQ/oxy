@@ -1,4 +1,5 @@
 import { parseIdPayload } from '@oxy.so/core';
+import { parseIdentityLinkQrPayload } from '@oxy.so/contracts';
 
 /**
  * Cold-start deep-link normalizer — expo-router's sanctioned `+native-intent`
@@ -29,7 +30,20 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
   if (did) {
     return `/card/${encodeURIComponent(did)}`;
   }
+  // A link QR scanned with the system camera (ADR 0029 D3): the same
+  // confirmation the in-app scanner opens.
+  const link = parseIdentityLinkQrPayload(`oxycommons://${stripScheme(path)}`);
+  if (link) {
+    return `/link-account/confirm?id=${link.linkId}&c=${link.challenge}`;
+  }
   return path;
+}
+
+function stripScheme(path: string): string {
+  return path
+    .trim()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+    .replace(/^\/+/, '');
 }
 
 /**
@@ -46,10 +60,7 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
  * not-found screen rather than crashing).
  */
 function cardDidFromSystemPath(path: string): string | null {
-  const stripped = path
-    .trim()
-    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
-    .replace(/^\/+/, '');
+  const stripped = stripScheme(path);
   if (stripped.length === 0) {
     return null;
   }

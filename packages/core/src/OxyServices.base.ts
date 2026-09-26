@@ -8,6 +8,14 @@ import type { OxyConfig as OxyConfigBase, ApiError, User } from './models/interf
 import { handleHttpError } from './utils/errorUtils';
 import { HttpService, type AuthRefreshReason, type RequestOptions } from './HttpService';
 import { OxyAuthenticationError, OxyAuthenticationTimeoutError } from './OxyServices.errors';
+import type { DeviceProof } from '@oxy.so/contracts';
+
+/**
+ * Reads the device credential this client holds, if any — `{ deviceId,
+ * deviceSecret }` from the provider's auth store. See
+ * {@link OxyServicesBase.setDeviceCredentialProvider}.
+ */
+export type DeviceCredentialProvider = () => Promise<DeviceProof | null> | DeviceProof | null;
 
 export interface OxyConfig extends OxyConfigBase {
   cloudURL?: string;
@@ -212,10 +220,12 @@ export class OxyServicesBase {
   }
 
   /**
-   * Clear stored authentication tokens
+   * Clear stored authentication tokens and end the local session: a re-mint
+   * already in flight plants nothing, and no new one runs until a token is set
+   * again (see `HttpService.endSession`).
    */
   public clearTokens(): void {
-    this.httpService.clearTokens();
+    this.httpService.endSession();
     this._cachedUserId = undefined;
     this._cachedAccessToken = null;
   }
@@ -235,6 +245,46 @@ export class OxyServicesBase {
    */
   public onTokensChanged(listener: (accessToken: string | null) => void): () => void {
     return this.httpService.addTokenChangeListener(listener);
+  }
+
+  /** @internal */ _deviceCredentialProvider: DeviceCredentialProvider | null = null;
+
+  /**
+   * Tell this client how to read the device credential it holds, so a sign-in
+   * can PROVE the device (ADR 0029 D2). `claimSessionByToken`,
+   * `webauthnLoginVerify` and `webauthnRegisterVerify` (sign-up, recovery) then
+   * send it as `device`, and the server puts the new session on that device —
+   * the browser's shared one, which every Oxy app holding it sees at once.
+   *
+   * `@oxy.so/services`' `OxyProvider` wires this from its auth store; nothing
+   * else needs to. Returns a disposer that clears it (only if still installed).
+   */
+  public setDeviceCredentialProvider(provider: DeviceCredentialProvider | null): () => void {
+    this._deviceCredentialProvider = provider;
+    return () => {
+      if (this._deviceCredentialProvider === provider) {
+        this._deviceCredentialProvider = null;
+      }
+    };
+  }
+
+  /**
+   * The device proof a sign-in should carry, or null. Never throws: a store that
+   * cannot be read only means the sign-in gets its own device, as it would
+   * without a provider.
+   */
+  public async readDeviceProof(): Promise<DeviceProof | null> {
+    const provider = this._deviceCredentialProvider;
+    if (!provider) return null;
+    try {
+      const proof = await provider();
+      if (proof && typeof proof.deviceId === 'string' && proof.deviceId && typeof proof.deviceSecret === 'string' && proof.deviceSecret) {
+        return { deviceId: proof.deviceId, deviceSecret: proof.deviceSecret };
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   /** @internal */ _cachedUserId: string | null | undefined = undefined;

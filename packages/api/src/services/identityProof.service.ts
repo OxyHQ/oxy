@@ -27,21 +27,8 @@ import { users } from '../db/schema/users';
 import { ApiError } from '../utils/error';
 import SignatureService from './signature.service';
 
-/** Actions a challenge may only be minted for while the account HAS a root. */
-const ROOT_REQUIRED: ReadonlySet<IdentityProofAction> = new Set([
-  'web_envelope_put',
-  'web_envelope_phrase_confirmed',
-  'web_envelope_recovery_verified',
-  'web_envelope_delete',
-  'identity_move_seal',
-]);
-
-/** Actions minted by `POST /identity/proof-challenge`. Enrollment and recovery have their own challenges. */
-export const BEARER_PROOF_ACTIONS: ReadonlySet<IdentityProofAction> = new Set([
-  ...ROOT_REQUIRED,
-  'web_envelope_establish',
-  'link_identity',
-]);
+/** Actions minted by `POST /identity/proof-challenge`. */
+export const BEARER_PROOF_ACTIONS: ReadonlySet<IdentityProofAction> = new Set(['link_identity']);
 
 export function sha256Hex(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -84,9 +71,6 @@ export async function mintIdentityProofChallenge(
   if (account.kind !== 'personal') {
     throw new ApiError(403, 'Only a personal account has a root', IDENTITY_ERROR_CODES.notPersonal);
   }
-  if (ROOT_REQUIRED.has(action) && !account.publicKey) {
-    throw new ApiError(400, 'This account has no root', IDENTITY_ERROR_CODES.noRoot);
-  }
   const challenge = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(now.getTime() + IDENTITY_PROOF_CHALLENGE_TTL_MS);
   await getDb().insert(identityProofChallenges).values({
@@ -97,48 +81,6 @@ export async function mintIdentityProofChallenge(
     expiresAt,
   });
   return { challenge, expiresAt: expiresAt.getTime(), audience: IDENTITY_PROOF_AUDIENCE };
-}
-
-/** The claims of a proof whose challenge is spent elsewhere (a WebAuthn registration or recovery challenge). */
-export interface ProofSignatureInput {
-  subject: string;
-  actor: string;
-  action: IdentityProofAction;
-  rootPublicKey: string;
-  payloadDigest: string | null;
-  expectedRevision: number | null;
-  proof: IdentityProof;
-}
-
-/**
- * Check only the signature and expiry of a proof. For flows whose challenge is a
- * one-use row of their OWN (passkey registration, signed-out recovery), which the
- * caller burns in the same transaction.
- */
-export function verifyIdentityProofSignature(input: ProofSignatureInput, now: Date = new Date()): void {
-  const { proof } = input;
-  if (proof.expiresAt <= now.getTime() || proof.expiresAt > now.getTime() + IDENTITY_PROOF_CHALLENGE_TTL_MS + 60_000) {
-    throw proofInvalid('The identity proof expired — please try again');
-  }
-  let message: string;
-  try {
-    message = buildIdentityProofMessage({
-      action: input.action,
-      subject: input.subject,
-      actor: input.actor,
-      rootPublicKey: input.rootPublicKey,
-      payloadDigest: input.payloadDigest,
-      expectedRevision: input.expectedRevision,
-      audience: IDENTITY_PROOF_AUDIENCE,
-      challenge: proof.challenge,
-      expiresAt: proof.expiresAt,
-    });
-  } catch {
-    throw proofInvalid();
-  }
-  if (!SignatureService.verifySignature(message, proof.signature, input.rootPublicKey)) {
-    throw proofInvalid('Invalid identity signature');
-  }
 }
 
 export interface VerifyIdentityProofInput {

@@ -35,7 +35,7 @@ All tasks run `assign_public_ip=true` so there is no NAT gateway in the path.
 | Project | Kind | Hostnames |
 |---------|------|-----------|
 | `oxy-accounts` | Worker | accounts.oxy.so |
-| `oxy-auth` | Pages | auth.oxy.so (third-party OAuth authorize/consent IdP — a Vite SPA plus the `functions/hub/*` Pages Functions directory that backs the browser DeviceSession hub) |
+| `oxy-auth` | Pages | auth.oxy.so (third-party OAuth authorize/consent IdP — a Vite SPA plus the root `functions/_middleware.ts` edge-activity middleware) |
 | `oxy-console` | Worker | console.oxy.so |
 
 `accounts` and `console` are Workers rather than Pages projects because a Pages project always serves `<project>.pages.dev` and Cloudflare offers no way to disable it, putting a second copy of the app on a hostname that is in no CORS allowlist. `workers_dev = false` in each app's `wrangler.toml` leaves the real hostname as the only way in. `auth` stays on Pages until its Pages Functions directory is ported to a Worker `main` script.

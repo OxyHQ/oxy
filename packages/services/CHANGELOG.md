@@ -2,18 +2,299 @@
 
 ## Unreleased
 
+### Changed
+
+- The `@oxy.so/core` peer range admits core 2 (`^1.19.0 || ^2.0.0`). Core 2.0.0
+  only removes the server-side `jwtSecret` option, which this package never
+  used.
+
+## [6.3.0] - 2026-09-26
+
+### Added
+
+- One browser, one session (ADR 0029 D2): the first time a person opens the
+  account dialog on the web in an app that holds no device credential, the
+  provider opens `auth.oxy.so/bridge` from that press — a window as small as the
+  browser allows that joins the app to the browser's device and closes at once.
+  If the browser is already signed in, the app is signed in and the dialog
+  closes; otherwise the dialog's sign-in carries the device proof, so the
+  account is shared with every Oxy app in that browser. Never on page load, on
+  auth.oxy.so itself or with `sessionMode: 'identity'`; a blocked window only
+  means the app signs in on its own device, as before. Native is unchanged.
+- `OxyProvider` wires `OxyServices.setDeviceCredentialProvider` from its store
+  on the web, so every sign-in proves the device this origin holds.
+
+### Changed
+
+- Requires `@oxy.so/core` ^1.19.0.
+- A lost-token recovery waits only on a credential that still names an account:
+  a web credential kept after `no_active_session` (core 1.19.0) can mint again
+  once someone signs in, but cannot bring back a session that ended, so the app
+  signs out locally as before.
+
+## [6.2.0] - 2026-09-26
+
+### Changed
+
+- Sign-in happens in the account dialog again (ADR 0029 D1, amended): on the
+  web it is the split card — the Commons QR on the right ("Continue with Oxy"
+  below `md`), the passkey and "Create account" on the left — and only the
+  passkey and account creation open auth.oxy.so's window, for that one step.
+  6.0's dialog, which moved the whole screen into that window, is gone.
+
+### Added
+
+- `useSurfaceFrameWidth` and `OxyAuthSplit`'s `bare` are back: the dialog grows
+  to the 880 split card.
+
+## [6.1.0] - 2026-09-26
+
+Requires `@oxy.so/core` `^1.18.0`.
+
+**Web accounts are a username, a passkey and a recovery email** (ADR 0029 D3):
+no web identity, no web recovery phrase.
+
+### Added
+
+- `OxyCreateAccountPanel` (username → recovery email → its code → passkey),
+  `OxyRecoverAccountPanel` (username or email → the code sent to the recovery
+  email → a new passkey) and `OxyDeleteAccountPanel` (typed username → a
+  passkey assertion): auth.oxy.so's `/signup`, `/recover` and
+  `/delete-account`, built from the sign-in shell.
+- `OxyLinkCommonsPanel`: auth.oxy.so's `/link-commons` — a QR Commons scans
+  and signs, the code both devices show, then the passkey. The account
+  becomes self-custodied and its recovery email is deleted.
+- `useOxy().handleWebSession` takes a `LoginSessionResult` too (a passkey
+  registration's session).
+
+### Changed
+
+- "Delete account" on the web opens `auth.oxy.so/delete-account`; the native
+  handoff's "elsewhere" copy points there for a passkey account.
+
 ### Removed
 
+- The account menu's "Your identity" row (`onOpenIdentity`): there is no web
+  identity to open.
+- Editing the email in `EditProfileScreen` / `EditProfileFieldScreen`: the
+  recovery email is not a profile field.
+
+## [6.0.0] - 2026-09-26
+
+**Web sign-in in auth.oxy.so's window** (ADR 0029 D1). On the web, an app's
+account dialog shows "Continue with Oxy" and "Create account", and both open
+auth.oxy.so in a window over the app, like "Sign in with Google": the QR, the
+username and the passkey are there, on every domain alike. No code picks a
+route by domain any more.
+
+### Changed
+
+- `useOxy().continueOnAuth(screen)` opens auth.oxy.so's window
+  (`transport: 'popup'`) instead of leaving the tab; a blocked window still
+  falls back to the tab. `startWebOAuthSignIn`'s `transport` takes `'popup'`
+  as well as `'redirect'`, and passes `screen` in both.
+- `OxySignInPanel`: the username, passkey and QR run only on a page
+  (`host="page"`, auth.oxy.so). In the dialog on the web it is "Continue with
+  Oxy", which reports `onSignedIn` once the window signs the app in.
+  `onRecover` has no default: recovery is on auth.oxy.so.
+- `OxySignUpPanel` takes `onCreateOnWeb`, the web's one action.
+
+### Removed
+
+- The passkey ceremony inside an app's dialog on `*.oxy.so`, and the
+  `isOxyRpOrigin` route choice (`PasskeyRoute`).
+- The dialog's 880 split (`useSurfaceFrameWidth`) and `OxyAuthSplit`'s `bare`.
+
+- `OxyProvider`'s `deviceCredentialStorage` prop and the `'ephemeral'` auth
+  store. Its one caller was auth.oxy.so with the browser hub on; the hub is
+  deleted, and every origin persists its device credential.
+- The dead hub-sync lane: `maybeSyncHubAfterCommit` and
+  `legacyRedirectLanes` (`allowsAutomaticIdpRedirect`), which nothing called.
+
+## [5.1.0] - 2026-09-26
+
+Requires `@oxy.so/bloom` `^4.26.0`, and includes 4.0.7's fixes (the
+`FollowButton` accessible name, OxyHQ/oxy#1375 item 22).
+
+Requires `@oxy.so/core` `^1.16.0`.
+
+**No identity popups** (ADR 0028 D1b). What only auth.oxy.so can do — create an
+account with its root, recover it, assert an `oxy.so` passkey from another
+domain — happens there, in the same tab, and the person comes back signed in.
+
+### Added
+
+- `useOxy().continueOnAuth(screen)`: go to auth.oxy.so for `signup`, `recover`
+  or `signin`, and come back signed in, through the ordinary authorization-code
+  redirect. `startWebOAuthSignIn` takes `transport: 'redirect'` and `screen`.
+- The sign-in screen's "Lost your passkey? Recover your account" link
+  (`OxySignInPanel`'s `onRecover`; on the web it defaults to
+  `continueOnAuth('recover')`).
+
+### Changed
+
+- "Create account" in the dialog goes straight to auth.oxy.so/signup on the
+  web; the passkey off an `oxy.so` origin is asserted on auth.oxy.so. Neither
+  opens a window.
+
+### Removed
+
+- The passkey popup (`passkeyHubPopup`), and `OxySignUpPanel`'s `host` and
+  `onSignedIn` props, which only its popup flow used.
+
+## [5.0.1] - 2026-09-26
+
+Requires `@oxy.so/core` `^1.15.0`.
+
+### Changed
+
+- The web identity carrier is `auth.oxy.so` (ADR 0028). The account menu's
+  identity row, web account deletion and the deletion hand-off copy point at
+  `auth.oxy.so/identity`; the passkey window is `auth.oxy.so/continue`.
+
+### Removed
+
+- `OxyAuthChooser`'s `autoStartSignIn` prop, which had no effect.
+
+## [5.0.0] - 2026-09-26
+
+Requires `@oxy.so/core` `^1.14.0`.
+
+**One sign-in screen.** The account dialog and auth.oxy.so now render the same
+screens, from this package: `OxySignInPanel` (sign-in), `OxySignUpPanel`
+(account creation) and `OxyAccountPicker` ("Choose an account"), on a shared
+shell (`OxyAuthScreen`, `OxyAuthScreenHeader`, `OxyAuthLoading`,
+`OxyAuthTerms`). auth.oxy.so mounts them as a page (`host="page"`); the dialog
+mounts them in place.
+
+### Added
+
+- The sign-in screen: the device's accounts first, then the Oxy mark and a
+  large title, the Commons way in, the username with its Continue, "or
+  continue with" a passkey, and "Create account". On the
+  web from `md` it is Bloom `AuthCard`'s split card — the form on the left, the
+  embedded Commons QR over a photo carousel on the right — and the account
+  dialog grows to 880 for it; below `md`, and on native, "Continue with Oxy"
+  takes the QR's place ("Get Commons" on a native device without Commons).
+  Continue is a username-first passkey sign-in, which also takes a hardware
+  security key with no resident credential; the passkey button is the
+  discoverable ceremony, with nothing to type. Both run on the page on an
+  `oxy.so` origin and in the identity window everywhere else on the web;
+  native has none. Layout is NativeWind `className`.
+- `useSurfaceFrameWidth(maxWidth)`: a surface screen's say in its dialog's
+  width, for a screen whose views differ in width.
+- `useOxy().signInWithPasskey` sends the device fingerprint every other
+  sign-in path sends when the caller passes none.
+
+### Changed
+
+- **Breaking:** `react-native-css` is a required peer. The root barrel already
+  imported it statically (`ProfileButton`); the optional flag only hid that.
+- The sign-in entry is no longer one "Continue with Oxy" button with its
+  alternatives behind "Having trouble?": every method is on the screen. The
+  active request (`qr` view) keeps its disclosure.
+- "Create account" in the dialog opens the account-creation screen, whose
+  one action opens the identity window, instead of opening the window at once.
+
+### Removed
+
+- **Breaking:** the `OxyAuthChooser` export. The dialog renders it; a page of
+  its own mounts `OxySignInPanel` / `OxySignUpPanel` / `OxyAccountPicker`.
+- The old sign-in entry and sign-up views (`SignInEntryView`, `SignUpView`)
+  and their dead styles.
 - **Breaking:** `useOxy().registerWithPasskey`. An Oxy account is created WITH
   its self-custody root in the account dialog's creation flow
   (`openAccountDialog('signup')`), never by a local passkey ceremony (ADR 0024
   D4). No ecosystem app called it; `auth.oxy.so` opens the canonical flow.
 
-### Changed
+## [4.0.7] - 2026-09-26
 
-- The `@oxy.so/core` peer range admits core 2 (`^1.9.0 || ^2.0.0`). Core 2.0.0
-  only removes the server-side `jwtSecret` option, which this package never
-  used.
+Requires `@oxy.so/bloom` `^4.26.0` (the `FollowButton` accessible-name override).
+
+### Fixed
+
+- `FollowButton` showed "Following" while a screen reader still heard
+  "Follow": Bloom named it by its idle label and left the state to the pressed
+  flag, which TalkBack reads as "selected" (OxyHQ/oxy#1375 item 22). The name
+  now follows the state in every case: "Checking whether you follow @nate"
+  while the status loads, "Follow @nate", and "Following @nate" with the hint
+  "Unfollows @nate". While a follow or unfollow is in flight it keeps the state
+  it shows and drops the hint. The new optional `username` prop supplies the
+  handle; without it the name is "Follow" / "Following". The "Follow all" mode
+  names its state the same way, with the account count in the hint.
+- `FollowTargetButton` is named by the state it shows ("Following",
+  "Requested", "Off here") instead of its idle verb.
+
+## [4.0.6] - 2026-09-26
+
+Requires `@oxy.so/core` `^1.12.0`. The new copy is English until the next core
+release carries its `deleteAccount.handoff.*` strings (en-US, es-ES).
+
+### Fixed
+
+- "Delete account" in an app whose identity key Oxy Commons keeps on the same
+  device no longer fails with "No identity found on this device". Before
+  anything is deleted, the screen checks whether this app holds the key: if it
+  does, its own confirmation runs as before; if Commons is installed, it offers
+  to open Commons' delete-account screen (`oxycommons://delete-account`);
+  otherwise it explains where the account can be deleted (Oxy Commons, Settings
+  > Delete account, on the device that holds the identity, or `id.oxy.so` in a
+  browser that holds it). None of those paths calls the deletion API. An
+  unreadable keystore is reported, never treated as "the key is elsewhere"
+  (OxyHQ/Mention#1169).
+- A failed deletion's message was error-coloured text on an error-tinted box,
+  which read as an empty red rectangle. It is Bloom's error `Admonition` now:
+  theme text colour on the theme background with an error border
+  (OxyHQ/Mention#1169).
+
+## [4.0.5] - 2026-09-25
+
+Requires `@oxy.so/core` `^1.12.0`.
+
+### Fixed
+
+- Signed out, tapping the device account listed on the sign-in sheet (the
+  Commons shared identity) closed the sheet and left the app signed out. It
+  now signs in exactly as "Continue with Oxy" does, through
+  `AccountDialogController.chooseContext` (OxyHQ/oxy#1375 item 20).
+- Signed out, the sheet no longer reads "Add Another Account — Sign in with
+  another account", and the listed account no longer carries a check as if it
+  were signed in. The title is "Sign in" whenever this app holds no session,
+  whatever the device directory lists, and each row reads "Continue as
+  @handle" with the account's name beneath (OxyHQ/oxy#1375 item 21).
+- Android: `OxyIdentityStore` no longer deletes the androidx master key
+  (`_androidx_security_master_key_`) when its keyset cannot be rebuilt. That key
+  is one Keystore entry for the whole `so.oxy.shared` UID, so deleting it made
+  every other Oxy app's encrypted prefs unreadable. Every store now opens with
+  `RecoveryPolicy.RebuildFileOnly`; `RegenerateSharedMasterKey` is removed
+  (OxyHQ/oxy#1388).
+
+## [4.0.4] - 2026-09-25
+
+### Fixed
+
+- A signed-out app no longer gets its account back. A device projection whose
+  profile fetch was in flight when the session was cleared locally (a token
+  refresh firing just before sign-out) finished afterwards and republished the
+  account — so a signed-out visitor was greeted by the previous user's name.
+  `OxyRuntime.clearSession()` now abandons every projection already in flight.
+  With `@oxy.so/core` 1.10.0, the refresh that triggered it cannot plant a bearer
+  after the sign-out either.
+
+## [4.0.3] - 2026-09-25
+
+Requires `@oxy.so/core` `^1.9.1`.
+
+### Fixed
+
+- A signed-in app is no longer signed out when its access token is cleared by
+  a transient failure (a 401 whose refresh was rate limited, cooling down or
+  offline). While the durable device credential survives, the provider keeps
+  the user, pauses private queries and re-mints with backoff, the way a
+  relaunch does. It signs out once the refresh handler drops the credential on
+  a definitive verdict (`invalid_device_secret`, `no_active_session`), or after
+  a bounded retry through the shared identity / identity key
+  (OxyHQ/Mention#1140). Recovery decisions log at `warn`.
 
 ## [4.0.2] - 2026-09-25
 

@@ -9,7 +9,6 @@ import usersRouter from "./routes/users";
 import notificationsRouter from "./routes/notifications.routes";
 import sessionRouter from "./routes/session";
 import sessionDeviceRouter from "./routes/sessionDevice";
-import browserHubRouter from "./routes/browserHub";
 import dotenv from "dotenv";
 import searchRoutes from "./routes/search";
 import { rateLimiter, serviceCredentialLimiter, authRateLimiter, userRateLimiter, federationServiceLimiter, bruteForceProtection, securityHeaders } from "./middleware/security";
@@ -30,6 +29,7 @@ import cdnRoutes from './routes/cdn';
 import storageRoutes from './routes/storage';
 import applicationRoutes from './routes/applications';
 import internalRoutes from './routes/internal';
+import accountEventRoutes from './routes/accountEvents';
 import accountRoutes from './routes/accounts';
 import familyRoutes from './routes/families';
 import capabilityRoutes from './routes/capabilities';
@@ -83,10 +83,10 @@ import appSignalsRouter from './routes/appSignals';
 import identityRoutes from './routes/identity';
 import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
-import identityWebEnvelopeRoutes from './routes/identityWebEnvelope';
-import identityMoveRoutes from './routes/identityMove';
+import linkedAccountsRoutes from './routes/linkedAccounts';
+import { aliasesForUser } from './services/linkedAccounts/linkedAccounts.service';
 import identityProofRoutes from './routes/identityProof';
-import identityRecoveryRoutes from './routes/identityRecovery';
+import identityLinkRoutes from './routes/identityLink';
 import civicRoutes from './routes/civic';
 import nodeRoutes from './routes/nodes';
 import { sweepValidations } from './services/civic/validator.service';
@@ -124,6 +124,10 @@ import {
   stopFollowOutboxWorker,
 } from './services/followOutbox.worker';
 import {
+  startAccountEventWebhookWorker,
+  stopAccountEventWebhookWorker,
+} from './services/accountEventWebhook.worker';
+import {
   startNormalizedEventOutboxWorker,
   stopNormalizedEventOutboxWorker,
 } from './services/normalizedAppEventOutbox.worker';
@@ -147,8 +151,6 @@ import { logger } from './utils/logger';
 import type { Response } from 'express';
 import { authMiddleware, type AuthRequest } from './middleware/auth';
 import { requireStaff } from './middleware/requireStaff';
-import cookieParser from 'cookie-parser';
-import { csrfProtection, getCsrfToken } from './middleware/csrf';
 import { createCorsMiddleware, SOCKET_IO_CORS_CONFIG } from './config/cors';
 import { refreshOriginRegistry } from './config/dynamicOriginRegistry';
 import { reconcileOfficialRedirectUris } from './config/reconcileOfficialRedirectUris';
@@ -208,9 +210,6 @@ app.all(inboxMcpHttpService.mcpPath, (request, response) => {
 
 // Compress responses (gzip/brotli)
 app.use(compression());
-
-// Cookie parser middleware (before CSRF and body parsing)
-app.use(cookieParser());
 
 // Some routes need their raw request body before the global JSON/urlencoded
 // parsers run. The `/api/` prefix-strip middleware runs AFTER body parsing, so
@@ -492,6 +491,7 @@ async function gracefulShutdown(signal: string) {
   await stopPlatformInfrastructure();
   stopFollowOutboxWorker();
   stopNormalizedEventOutboxWorker();
+  stopAccountEventWebhookWorker();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
   await stopTransparencyCheckpointJobs();
@@ -661,8 +661,12 @@ app.use(rateLimiter);
 app.use(serviceCredentialLimiter);
 app.use(bruteForceProtection);
 
-// CSRF token endpoint (must be before CSRF protection)
-app.get('/csrf-token', getCsrfToken);
+// No route below is CSRF-protected, because none has to be. The API sets no
+// cookie and accepts no ambient credential: every write authenticates with an
+// explicit `Authorization` header, or with a secret or signature inside the
+// request, and a browser attaches none of these to a cross-site request on its
+// own (issue #1044). Adding a cookie credential would bring the threat back, and
+// the defence with it.
 
 // API Routes
 // Apply stricter rate limiting to auth routes
@@ -671,39 +675,32 @@ app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
 app.use("/auth", authRateLimiter, authRoutes);
 app.use('/auth/resources', authRateLimiter, resourceIntrospectionRoutes);
 app.use('/v1/products', productCatalogueRoutes);
-app.use("/auth", userRateLimiter, csrfProtection, authLinkingRoutes); // Auth linking (requires auth)
+app.use("/auth", userRateLimiter, authLinkingRoutes); // Auth linking (requires auth)
 app.use("/assets", assetRoutes);
 // Public CDN origin for cloud.oxy.so/<id> (CloudFront OriginPath = /cdn). No
-// auth, no CSRF — serves ONLY public CDN-backed assets via 302; 404 otherwise.
+// auth — serves ONLY public CDN-backed assets via 302; 404 otherwise.
 app.use("/cdn", cdnRoutes);
 // Oxy Updates (self-hosted expo-updates). The PUBLIC manifest endpoint has NO
-// auth and NO CSRF — devices fetch it with only expo-updates headers — so it is
-// mounted here, before the CSRF group, with its own limiter. The admin router
-// (bearer/service-token authenticated writes, no CSRF) shares the /updates/v1
+// auth — devices fetch it with only expo-updates headers — so it is mounted
+// here with its own limiter. The admin router (bearer/service-token
+// authenticated writes) shares the /updates/v1
 // base; Express falls through to it for any path the manifest router does not
 // own. `/updates/v1` is namespaced strictly under `/updates` so it never clashes
 // with the bare `/v1` alia-compat mount below.
 app.use("/updates/v1", updatesManifestRoutes);
 app.use("/updates/v1", updatesAdminRoutes);
-app.use("/storage", userRateLimiter, csrfProtection, storageRoutes);
+app.use("/storage", userRateLimiter, storageRoutes);
 app.use("/search", searchRoutes);
-app.use("/profiles", csrfProtection, profilesRouter);
+app.use("/profiles", profilesRouter);
 // Mount the user app-data KV store BEFORE the generic /users mount so the
 // `/users/me/app-data/:namespace[/:key]` paths are owned by their dedicated
 // router. Mounting after /users would still work in practice (no route inside
 // `usersRouter` matches `/me/app-data/...`) but the explicit ordering makes
 // the routing topology unambiguous.
-app.use("/users/me/app-data", userRateLimiter, csrfProtection, userDataRouter);
-app.use("/users", userRateLimiter, csrfProtection, usersRouter); // Per-user rate limiting for authenticated routes
+app.use("/users/me/app-data", userRateLimiter, userDataRouter);
+app.use("/users", userRateLimiter, usersRouter); // Per-user rate limiting for authenticated routes
 app.use("/session/device", userRateLimiter, sessionDeviceRouter);
-// The browser DeviceSession hub (issue #937 Phase 5). Mounted BEFORE `/session`
-// so its own router owns the prefix, and deliberately OUTSIDE `csrfProtection`:
-// three of its four endpoints carry no bearer and no cookie — the raw hub
-// handle in the body is the credential — and the fourth is bearer-gated with
-// its own same-site origin guard. An app-local CSRF token would be a token the
-// only legitimate caller (the IdP edge, a server) can never hold.
-app.use("/session/browser-hub", userRateLimiter, browserHubRouter);
-app.use("/session", userRateLimiter, csrfProtection, sessionRouter);
+app.use("/session", userRateLimiter, sessionRouter);
 // `authMiddleware` FIRST, not after `userRateLimiter`: `userRateLimiter`'s
 // keyGenerator/skip both read `(req as AuthRequest).user`, which privacyRoutes'
 // own internal `router.use(authMiddleware)` does not set until AFTER this
@@ -716,44 +713,52 @@ app.use("/session", userRateLimiter, csrfProtection, sessionRouter);
 // because Mention fans every signed-in user's privacy-list read through one
 // shared backend NAT egress IP and the general 1000/15min budget has no
 // per-account attribution to fall back on once it is shared like that.
-app.use("/privacy", authMiddleware, userRateLimiter, csrfProtection, privacyRoutes);
+app.use("/privacy", authMiddleware, userRateLimiter, privacyRoutes);
 app.use("/analytics", userRateLimiter, authMiddleware, analyticsRoutes);
-app.use('/payments', userRateLimiter, csrfProtection, paymentRoutes);
-app.use('/notifications', userRateLimiter, csrfProtection, notificationsRouter);
+app.use('/payments', userRateLimiter, paymentRoutes);
+app.use('/notifications', userRateLimiter, notificationsRouter);
 // Mounted BEFORE `/reputation` so the more specific prefix wins: the parent
 // router applies `authMiddleware` to everything after its own public reads, and
 // the bridge's service-credential routes must not pass through it.
-app.use('/reputation/moderation', csrfProtection, moderationReputationRoutes);
-app.use('/reputation', csrfProtection, reputationRoutes);
-app.use('/wallet', userRateLimiter, csrfProtection, walletRoutes);
+app.use('/reputation/moderation', moderationReputationRoutes);
+app.use('/reputation', reputationRoutes);
+app.use('/wallet', userRateLimiter, walletRoutes);
 // The app store. Mounted bare because the router serves both a public
-// storefront and authenticated writes, so auth and CSRF are declared per route
+// storefront and authenticated writes, so auth is declared per route
 // inside it — a blanket middleware here would lock the storefront or leave the
 // reviews open.
 app.use('/store', storeRoutes);
 app.use('/location-search', locationSearchRoutes);
-app.use('/applications', csrfProtection, applicationRoutes);
+app.use('/applications', applicationRoutes);
 // Service-to-service only. The router gates ITSELF on a valid service token AND
 // a platform-trusted calling application (`routes/internal.ts`), so the mount
 // adds no middleware of its own — putting the gate in the router means an
 // endpoint added there cannot be mounted past it.
 //
-// No `csrfProtection`: CSRF defends ambient credentials a browser attaches by
-// itself, and this router accepts only a bearer service token, which a browser
-// never sends on its own. No `userRateLimiter` either — that limiter keys on a
+// No `userRateLimiter` — that limiter keys on a
 // user session this router has none of; its limiter keys on the calling
 // application instead.
 app.use('/internal', internalRoutes);
+// Account events (OxyHQ/Mention#1169): the pull feed each relying application
+// reconciles erasures from. Service tokens only, scoped to the caller's own
+// events, limited per calling application inside the router.
+app.use('/account-events', accountEventRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
-app.use('/accounts', csrfProtection, accountRoutes);
+app.use('/accounts', accountRoutes);
 // Oxy Family membership (organizer + member personal accounts). Per-route
 // rate limiters (rl:families:*) live inside the router, same as `/accounts`.
-app.use('/families', csrfProtection, familyRoutes);
-app.use('/capabilities', userRateLimiter, csrfProtection, capabilityRoutes);
-app.use('/devices', userRateLimiter, csrfProtection, devicesRouter);
-app.use('/security', userRateLimiter, csrfProtection, securityRoutes);
-app.use('/subscription', userRateLimiter, csrfProtection, subscriptionRoutes);
+app.use('/families', familyRoutes);
+app.use('/capabilities', userRateLimiter, capabilityRoutes);
+app.use('/devices', userRateLimiter, devicesRouter);
+app.use('/security', userRateLimiter, securityRoutes);
+// Linked external accounts (Mastodon-API, Bluesky) proven by OAuth. The router
+// owns its auth per route: user session for start/list/revoke, a service token
+// with `linked-accounts:read` for `/by-user/:userId`, and NONE for the OAuth
+// callback, which the spent challenge row authenticates (a top-level redirect
+// from the other network carries no Oxy bearer). Its own limiters live inside.
+app.use('/linked-accounts', userRateLimiter, linkedAccountsRoutes);
+app.use('/subscription', userRateLimiter, subscriptionRoutes);
 app.use('/email/proxy', emailProxyRoutes); // public, no auth — must be before /email
 app.use('/email/inbound', emailInboundRoutes); // Cloudflare Email Routing webhook — must be before /email
 // Bounce/complaint ingestion from SES (SNS) and Brevo. Unauthenticated by
@@ -761,7 +766,7 @@ app.use('/email/inbound', emailInboundRoutes); // Cloudflare Email Routing webho
 // authenticates itself: an SNS signature, or a shared secret. Must be before
 // /email, which requires a session.
 app.use('/email/feedback', feedbackRateLimit, emailFeedbackRoutes);
-app.use('/email', userRateLimiter, csrfProtection, emailRoutes);
+app.use('/email', userRateLimiter, emailRoutes);
 // The public inference edge (issue #972 workstream 4, ADR 0010). Mounted at
 // `/v1` BEFORE `/v1/models`, so it owns `/v1/responses`,
 // `/v1/chat/completions` and `/v1/generations/:id`. It carries no
@@ -773,7 +778,7 @@ app.use('/v1', inferenceEdgeRoutes);
 // `GET /models` can never diverge — one selectability predicate, one audience
 // rule, one code path.
 app.use('/v1/models', inferenceCatalogueRoutes);
-app.use('/credits', userRateLimiter, csrfProtection, creditsRoutes);
+app.use('/credits', userRateLimiter, creditsRoutes);
 // Account-scoped billing (issue #972, sections 7.1/7.4/7.5). Mounted BEFORE
 // `/billing`, or Express hands `accounts` and `cost-centers` to the
 // personal-billing router as ordinary paths and every route below 404s. The
@@ -822,47 +827,37 @@ app.use('/v2/me', userRateLimiter, meFollowsRouter);
 // from `/v2/follows` because it is authorized on the application's ownership of
 // a namespace rather than on the user's own graph.
 app.use('/v2/follow-targets', userRateLimiter, followRegistryV2Routes);
-app.use('/contacts', userRateLimiter, csrfProtection, contactsRouter);
-// Service-token-only cross-app signal ingest (endorsements + interests). No
-// csrfProtection — Bearer-authenticated service writes are exempt (no ambient
-// cookie credentials), per the bearer-write CSRF rule.
+app.use('/contacts', userRateLimiter, contactsRouter);
+// Service-token-only cross-app signal ingest (endorsements + interests).
 app.use('/app-signals', appSignalsRouter);
 // Encrypted off-device identity backup (b3 Feature 1). Mixed private (bearer
 // upsert/status/delete) + public (restore-by-locator) routes; each gates its own
-// auth, so no csrfProtection (bearer-write CSRF rule + public GET). Mounted
+// auth. Mounted
 // BEFORE `/identity` so the more specific `/identity/backup` prefix wins.
 app.use('/identity/backup', identityBackupRoutes);
-// Sealed web copy of an identity (one identity, two carriers). Bearer +
-// identity-key proof on every write and restricted to the identity origin; no
-// ambient cookie credentials, so no csrfProtection (bearer-write CSRF rule).
-// Mounted BEFORE `/identity` so its specific prefix wins.
+// Linking Commons to a passkey account from two devices (ADR 0029 D3): a relay
+// for the root proof Commons signs and the passkey auth.oxy.so asserts. Before
+// `/identity`.
+app.use('/identity/link', identityLinkRoutes);
 // One-use challenges for root proofs (ADR 0024 D7) and root readiness metadata.
 // Bearer only; a challenge authorizes nothing until a root signs it, and the
 // status carries no ciphertext. Two exact paths, before `/identity`.
 app.use('/identity', identityProofRoutes);
-// Signed-out recovery from a root proof alone (ADR 0024 D5). Holder origin only,
-// no bearer and no cookies, so no csrfProtection. Before `/identity`.
-app.use('/identity/recovery', identityRecoveryRoutes);
-app.use('/identity/web-envelope', identityWebEnvelopeRoutes);
-// Moving a web identity into Commons: E2E relay (two ephemeral keys + opaque
-// ciphertext), bearer + identity-key proof on the web's writes, identity-key
-// receipt from Commons. No ambient cookies, so no csrfProtection. Before `/identity`.
-app.use('/identity/move', identityMoveRoutes);
 // Self-sovereign identity layer: signed records + verified-domain badges.
 // Mixed public/private routes (each gates its own auth); writes are
-// Bearer-authenticated, so no csrfProtection (bearer-write CSRF rule).
+// Bearer-authenticated.
 app.use('/identity', identityRoutes);
 // Civic / Commons layer: public signed DNI card (more routes in Fase 2/3).
-// Public read (each route gates its own auth); no csrfProtection (public GET).
+// Public read (each route gates its own auth).
 // App-authored chain writes: a SERVICE credential appending to a person's chain
-// on behalf of an Oxy app. Service-token authenticated (no ambient cookie, so no
-// csrfProtection). Deliberately NOT under /identity — that router binds a record's
-// subject to the authenticated user, which is the opposite of what this does.
+// on behalf of an Oxy app. Service-token authenticated. Deliberately NOT under
+// /identity — that router binds a record's subject to the authenticated user,
+// which is the opposite of what this does.
 app.use('/chains', chainsRoutes);
 app.use('/civic', civicRoutes);
 // User nodes (F5a decentralization): the caller's node status + revoke. Bearer-
-// authenticated (each route gates its own auth); no csrfProtection (bearer-write
-// rule). Node registration itself flows through POST /identity/records.
+// authenticated (each route gates its own auth). Node registration itself
+// flows through POST /identity/records.
 app.use('/nodes', nodeRoutes);
 
 // ActivityPub endpoints — serves actor profiles and public keys for federation.
@@ -888,6 +883,7 @@ const AP_DOMAIN = process.env.FEDERATION_DOMAIN || 'oxy.so';
 async function findFederatableUserByUsername(username: string) {
   const [row] = await getDb()
     .select({
+      id: users.id,
       username: users.username,
       nameFirst: users.nameFirst,
       nameLast: users.nameLast,
@@ -953,6 +949,7 @@ app.get('/ap/users/:username', async (req: any, res: Response) => {
       bio: user.bio,
       description: user.description,
       kind: user.kind,
+      alsoKnownAs: await aliasesForUser(user.id),
     });
     if (!actor) return res.status(500).json({ error: 'Failed to build actor' });
 
@@ -1055,13 +1052,13 @@ app.get('/.well-known/webfinger', async (req: any, res: Response) => {
 app.use('/federation', federationServiceLimiter, federationRoutes);
 
 // Self-sovereign DID documents (did:web). Public, cacheable, CORS-open, no
-// auth/CSRF — served at the API root beside the WebFinger/ActivityPub handlers
+// auth — served at the API root beside the WebFinger/ActivityPub handlers
 // (the apex proxy must forward `/u/*/did.json` + `/.well-known/did.json`).
 app.use('/', didRoutes);
 
 // Transparency log — signed checkpoints over every subject's chain head, plus
 // the inclusion proofs that let anyone audit their own history WITHOUT trusting
-// this server. Public, cacheable, CORS-open, no auth/CSRF (an audit trail nobody
+// this server. Public, cacheable, CORS-open, no auth (an audit trail nobody
 // can read is not an audit trail); own rate-limit prefix inside the router.
 app.use('/transparency', transparencyRoutes);
 
@@ -1370,6 +1367,9 @@ export async function bootstrap(
   // events accumulate regardless, so switching the loop on later loses nothing.
   startFollowOutboxWorker();
   startNormalizedEventOutboxWorker();
+  // Tell relying parties about account deletions (OxyHQ/Mention#1169). ON by
+  // default: see `startAccountEventWebhookWorker`.
+  startAccountEventWebhookWorker();
 
   // Start background jobs: durable BullMQ scheduling when REDIS_URL is set,
   // otherwise the in-process cron fallback. Never throws.

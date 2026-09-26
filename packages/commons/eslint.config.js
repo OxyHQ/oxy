@@ -8,10 +8,10 @@ module.exports = defineConfig([
     ignores: ['dist/*'],
   },
   {
-    // Icon-font glyphs go through `components/icons/*`, which hides them from
-    // assistive technology (TalkBack otherwise reads the private-use code point).
+    // Every glyph is a Bloom SVG from `@/constants/icons`. An icon font ships
+    // its whole TTF for one glyph, and TalkBack reads its private-use code point.
     files: ['**/*.{ts,tsx,js,jsx}'],
-    ignores: ['components/icons/**', '__mocks__/**'],
+    ignores: ['__mocks__/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -20,7 +20,7 @@ module.exports = defineConfig([
             {
               group: ['@expo/vector-icons', '@expo/vector-icons/*'],
               message:
-                'Import the icon family from @/components/icons/* — it hides the glyph from screen readers.',
+                'Draw glyphs from @/constants/icons (Bloom SVGs), not an icon font.',
             },
           ],
         },

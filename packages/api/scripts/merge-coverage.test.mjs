@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { mergeCoverage } from './merge-coverage.mjs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+import { assertNoExtraShards, mergeCoverage } from './merge-coverage.mjs';
 
 function fileCoverage(path, statementHits = [1, 0]) {
   return {
@@ -62,6 +65,7 @@ function fixture({ hits = [[1, 0], [0, 1], [0, 0]], floors = {} } = {}) {
 
   return {
     root,
+    shardCount: hits.length,
     inputFiles,
     outputDir: join(root, 'merged'),
     floorConfigPath,
@@ -79,6 +83,62 @@ test('fails when one of the three shard reports is missing', () => {
     assert.throws(() => mergeCoverage(value), /Coverage shard 3 is missing/);
   } finally {
     cleanup(value);
+  }
+});
+
+test('fails when fewer reports arrive than the suite was sharded into', () => {
+  const value = fixture();
+  try {
+    assert.throws(
+      () => mergeCoverage({ ...value, inputFiles: value.inputFiles.slice(0, 2) }),
+      /Expected exactly 3 shard coverage reports/,
+    );
+  } finally {
+    cleanup(value);
+  }
+});
+
+test('refuses to infer the shard count', () => {
+  const value = fixture();
+  try {
+    for (const shardCount of [undefined, 0, 2.5, '3']) {
+      assert.throws(() => mergeCoverage({ ...value, shardCount }), /Shard count must be a positive integer/);
+    }
+  } finally {
+    cleanup(value);
+  }
+});
+
+test('merges any declared number of shards, as the CI matrix produces', () => {
+  const value = fixture({
+    hits: [[1, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 1]],
+    floors: { statements: 100, branches: 100, functions: 100, lines: 100 },
+  });
+  try {
+    assert.equal(value.shardCount, 6);
+    assert.equal(mergeCoverage(value).summary.statements.pct, 100);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test('fails when a shard directory exists beyond the declared count', () => {
+  const value = fixture({ hits: [[1, 0], [0, 1], [0, 0], [0, 0]] });
+  try {
+    assert.doesNotThrow(() => assertNoExtraShards(value.root, 4));
+    assert.throws(() => assertNoExtraShards(value.root, 3), /Found shard-4 beyond the declared 3 shard/);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test('the CLI requires --shards', () => {
+  const script = fileURLToPath(new URL('./merge-coverage.mjs', import.meta.url));
+  for (const args of [[], ['--shards=0'], ['--shards=six']]) {
+    assert.throws(
+      () => execFileSync(process.execPath, [script, ...args], { stdio: 'pipe' }),
+      (error) => error.status === 1 && /--shards/.test(String(error.stderr)),
+    );
   }
 });
 

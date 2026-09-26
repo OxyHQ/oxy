@@ -1,15 +1,12 @@
-import { commonsDenyReasonSchema, usernameSchema } from '@oxy.so/contracts';
+import { commonsDenyReasonSchema, deviceProofSchema, usernameSchema } from '@oxy.so/contracts';
 import { z } from 'zod';
 import { ATTESTATION_PROVIDERS } from '../services/workloadAttestation.service';
-
-const deviceIdField = z.string().trim().min(1).max(128).optional();
 
 // POST /auth/register (public key)
 export const registerPublicKeySchema = z.object({
   publicKey: z.string().trim().min(1),
   signature: z.string().trim().min(1),
   timestamp: z.number(),
-  email: z.string().trim().email().optional(),
   username: usernameSchema.optional(),
   // Optional and unenforced for now — see the comment at the check site in
   // `SessionController.register` for why and what flips it to required.
@@ -43,11 +40,6 @@ export const verifyChallengeSchema = z.object({
  */
 export const checkUsernameParams = z.object({
   username: usernameSchema,
-});
-
-// GET /auth/check-email/:email
-export const checkEmailParams = z.object({
-  email: z.string().trim().email(),
 });
 
 // GET /auth/check-publickey/:publicKey
@@ -155,6 +147,10 @@ export const authSessionClaimSchema = z.object({
   // we record it on the new session so the device list shows the
   // correct device, not the authorizer's.
   deviceFingerprint: z.string().trim().max(512).optional(),
+  // Proof of the browser's device (ADR 0029 D2): an official app that joined it
+  // through the bridge claims onto THAT device, so every app holding it sees
+  // the account. An invalid proof is ignored — the claim keeps its own device.
+  device: deviceProofSchema.optional(),
 });
 
 // POST /auth/service-token

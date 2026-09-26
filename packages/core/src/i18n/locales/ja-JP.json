@@ -1,53 +1,48 @@
 {
   "signin": {
     "title": "サインイン",
-    "subtitle": "続けるにはサインインしてください",
+    "subtitle": "Oxy アカウントを使用",
     "addAccountTitle": "別のアカウントを追加",
     "addAccountSubtitle": "別のアカウントでサインイン",
     "username": {
       "label": "ユーザー名",
-      "placeholder": "ユーザー名を入力",
-      "helper": "3-30文字、英数字のみ",
-      "required": "ユーザー名を入力してください。",
-      "minLength": "ユーザー名は3文字以上である必要があります。"
-    },
-    "password": {
-      "label": "パスワード",
-      "placeholder": "パスワードを入力",
-      "required": "パスワードを入力してください。",
-      "hint": "サインインするにはパスワードを入力してください"
+      "placeholder": "yourname",
+      "required": "ユーザー名を入力してください。"
     },
     "actions": {
       "continue": "続ける",
-      "back": "戻る",
-      "signIn": "サインイン",
-      "verify": "確認",
-      "openAccountSwitcher": "別のアカウントに切り替え",
-      "openAccountSwitcherSubtitle": "{{count}}個の他のアカウントが利用可能",
-      "openAccountSwitcherSubtitle_singular": "1個の他のアカウントが利用可能",
-      "openAccountSwitcherSubtitle_zero": "保存されたアカウントを確認",
-      "manageAccounts": "保存されたアカウントを管理",
-      "manageAccountsSubtitle": "セッションを確認、削除、またはサインアウト",
-      "loadingOtherAccounts": "他のアカウントを読み込み中…",
-      "switchAccountFailed": "アカウントを切り替えられませんでした。もう一度お試しください。"
+      "back": "戻る"
     },
-    "forgotPrompt": "パスワードをお忘れですか？",
-    "security": {
-      "dataSecure": "データは暗号化され、安全です"
-    },
-    "currentlySignedInAs": "現在サインイン中：",
-    "alreadySignedInWith": "既にサインイン中：",
-    "alreadySignedIn": "既にサインイン済み",
-    "alreadySignedInMessage": "このアカウントは既にサインインしています。このアカウントで続けますか？",
-    "continueWithAccount": "続ける",
-    "currentAccount": "現在",
-    "or": "または",
-    "viewAllAccounts": "さらに{{count}}件を表示",
     "createAccountLink": "Oxyは初めてですか？アカウントを作成",
     "status": {
-      "accountSwitched": "{{name}}を使用中",
       "signingIn": "サインインしています…"
-    }
+    },
+    "subtitleToApp": "{{app}} に進む",
+    "orContinueWith": "または次で続行",
+    "qr": {
+      "caption": "Commons でスキャンしてサインイン",
+      "renew": "新しいコードを表示"
+    },
+    "methods": {
+      "passkey": "パスキーでサインイン"
+    },
+    "errors": {
+      "rateLimited": "試行回数が多すぎます。{{seconds}} 秒後にもう一度お試しください。",
+      "passkeyCancelled": "パスキーの確認を閉じました。準備ができたらもう一度お試しください。",
+      "passkeyFailed": "パスキーを完了できませんでした。もう一度お試しください。"
+    },
+    "chooser": {
+      "subtitleToApp": "{{app}} に進む"
+    },
+    "terms": {
+      "before": "続行すると、次に同意したことになります:",
+      "termsLink": "利用規約",
+      "and": "および",
+      "privacyLink": "プライバシーポリシー"
+    },
+    "noAccount": "アカウントをお持ちでない場合",
+    "createAccount": "アカウントを作成",
+    "recoverLink": "パスキーをなくしましたか？アカウントを復元"
   },
   "signup": {
     "title": "アカウントを作成",
@@ -55,56 +50,28 @@
     "createInCommons": "Commonsであなたのアイデンティティを作成",
     "createAccount": "アカウントを作成",
     "backToSignInLink": "すでにアカウントをお持ちですか？サインイン",
-    "welcome": {
-      "title": "Oxyへようこそ！",
-      "subtitle": "数ステップでアカウントを作成",
-      "haveAccount": "既にアカウントをお持ちですか？",
-      "signInCta": "サインイン"
-    },
-    "identity": {
-      "title": "あなたは誰ですか？",
-      "subtitle": "ユーザー名を選択し、メールアドレスを入力してください"
-    },
+    "webSubtitle": "パスワードは不要です。デバイスがパスキーを作成し、なくした場合は復旧用メールで戻れます。",
     "username": {
-      "helper": "3-30文字、英数字のみ",
-      "required": "ユーザー名を入力してください",
-      "minLength": "ユーザー名は3文字以上である必要があります"
+      "label": "ユーザー名",
+      "placeholder": "yourname",
+      "required": "ユーザー名を選んでください。",
+      "taken": "そのユーザー名は使われています。"
     },
     "email": {
-      "required": "メールアドレスを入力してください",
-      "invalid": "有効なメールアドレスを入力してください",
-      "helper": "メールアドレスを共有することはありません"
+      "title": "復旧用メール",
+      "subtitle": "パスキーをなくしたとき、戻るためのコードをここに送ります。それ以外には使いません。",
+      "label": "メール",
+      "placeholder": "you@example.com",
+      "invalid": "有効なメールアドレスを入力してください。"
     },
-    "security": {
-      "title": "アカウントを保護",
-      "subtitle": "アカウントを保護するための強力なパスワードを作成"
+    "passkey": {
+      "title": "パスキーを作成",
+      "subtitle": "指紋、顔、画面ロックでサインインします。覚えることは何もありません。",
+      "action": "パスキーを作成"
     },
-    "password": {
-      "helper": "8文字以上",
-      "required": "パスワードを入力してください",
-      "minLength": "パスワードは8文字以上である必要があります",
-      "confirmRequired": "パスワードを確認してください",
-      "mismatch": "パスワードが一致しません",
-      "confirmHint": "確認のため、パスワードを再入力してください"
-    },
-    "summary": {
-      "title": "もうすぐ完了です！",
-      "subtitle": "情報を確認してアカウントを作成",
-      "sectionTitle": "アカウント情報",
-      "fields": {
-        "username": "ユーザー名",
-        "email": "メール",
-        "password": "パスワード"
-      },
-      "notSet": "未設定",
-      "securityTip": "より強力なセキュリティのため、アカウント作成後、アカウント設定から生体認証を有効にしてください。",
-      "legalReminder": "アカウントを作成することで、利用規約とプライバシーポリシーに同意したことになります。"
-    }
+    "commonsInstead": "自分の鍵を持ちたいですか？ Commons を使う"
   },
   "accountSwitcher": {
-    "sections": {
-      "yourAccounts": "あなたのアカウント"
-    },
     "loading": "アカウントを読み込み中...",
     "qrHeadline": "Oxy IDでサインイン",
     "signInWithOxy": "Oxyでサインイン",
@@ -136,10 +103,7 @@
       "claimFailed": "サインインは承認されましたが、完了できませんでした。もう一度お試しください。",
       "generic": "サインインできませんでした。もう一度お試しください。"
     },
-    "linkOpenFailed": "リンクを開けませんでした。もう一度お試しください。",
-    "continueWithPasskey": "続ける",
-    "passkeyHint": "指紋、顔、またはデバイスのPINを使います。",
-    "otherDeviceCommons": "別のデバイスのアカウントですか？Commonsでスキャン"
+    "linkOpenFailed": "リンクを開けませんでした。もう一度お試しください。"
   },
   "common": {
     "actions": {
@@ -280,7 +244,63 @@
     "help": "ヘルプとフィードバック",
     "signOut": "サインアウト",
     "privacy": "プライバシーポリシー",
-    "terms": "利用規約",
-    "identity": "あなたのアイデンティティ"
+    "terms": "利用規約"
+  },
+  "recover": {
+    "title": "アカウントを復旧",
+    "subtitle": "ユーザー名か復旧用メールを入力してください。アカウントの復旧用メールにコードを送ります。",
+    "identifier": {
+      "label": "ユーザー名またはメール",
+      "placeholder": "yourname",
+      "required": "ユーザー名かメールを入力してください。"
+    },
+    "commonsNote": "Commons を使うアカウントですか？ Commons で復旧フレーズを使って復旧してください。",
+    "passkey": {
+      "title": "新しいパスキーを追加",
+      "subtitle": "@{{username}} 用。なくしたパスキーは後でアカウントのセキュリティ設定から削除できます。",
+      "action": "パスキーを作成"
+    },
+    "backToSignIn": "サインインに戻る"
+  },
+  "emailCode": {
+    "title": "メールを確認",
+    "sentTo": "{{email}} に6桁のコードを送りました。",
+    "sentIfAccount": "このアカウントに復旧用メールがあれば、6桁のコードを送りました。",
+    "label": "コード",
+    "resend": "新しいコードを送る",
+    "resent": "新しいコードを送りました。",
+    "changeEmail": "別のメールを使う",
+    "errors": {
+      "codeInvalid": "コードが正しくないか、有効期限が切れています。",
+      "tooManyAttempts": "間違ったコードが多すぎます。新しいコードを請求してください。",
+      "expired": "時間がかかりすぎました。最初からやり直してください。",
+      "unavailable": "現在 Oxy はメールを送信できません。後でもう一度お試しください。",
+      "rateLimited": "コードが多すぎます。後でもう一度お試しください。"
+    }
+  },
+  "deleteAccount": {
+    "passkey": {
+      "subtitle": "パスキーで確認してください。@{{username}} とそのすべてが完全に削除されます。",
+      "action": "パスキーで削除",
+      "done": "アカウントを削除しました。",
+      "closeWindow": "このウィンドウは閉じてかまいません。",
+      "commons": "このアカウントは Commons を使っています。Oxy Commons の 設定 > アカウントを削除 から、その鍵で削除してください。"
+    }
+  },
+  "linkCommons": {
+    "title": "Commons をリンク",
+    "subtitle": "自分の鍵を持ちましょう。Commons をリンクすると、このアカウントはあなただけのものになります。復旧用メールは削除され、Commons の復旧フレーズで戻れるようになります。",
+    "scan": "スマートフォンで Commons を開き、「Web に Oxy アカウントがあります」を選んで、このコードをスキャンしてください。",
+    "waiting": "Commons を待っています…",
+    "compareTitle": "コードを確認",
+    "compare": "Commons に同じコードが表示されます。違う場合はキャンセルしてください。",
+    "confirm": "はい、Commons をリンク",
+    "cancel": "キャンセル",
+    "doneTitle": "Commons をリンクしました",
+    "done": "このアカウントは自己管理になりました。復旧用メールは削除されました。Commons の復旧フレーズで戻れます。",
+    "already": "このアカウントはすでに Commons を使っています。",
+    "expired": "このコードは期限切れです。",
+    "renew": "新しいコードを表示",
+    "failed": "Commons をリンクできませんでした。もう一度お試しください。"
   }
 }

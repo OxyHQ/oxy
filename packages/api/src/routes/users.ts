@@ -36,12 +36,14 @@ import { UsersController } from '../controllers/users.controller';
 import { resolveUserIdToObjectId, isAccountIdFormat } from '../utils/validation';
 import userCache from '../utils/userCache';
 import SignatureService from '../services/signature.service';
+import { accountPasskeyAssertionOptions, verifyAccountPasskeyAssertion } from '../services/accountPasskeyAssertion.service';
 import { emailService } from '../services/email.service';
 import {
   archiveAccountForRetention,
   beginAccountClosure,
   describeAccountFinancialHolds,
 } from '../services/accountFinancialHolds.service';
+import { recordAccountDeletedEvent, type RecordedAccountEvent } from '../services/accountEvents.service';
 import { validate } from '../middleware/validate';
 import {
   optionalUserOrServiceAuth,
@@ -52,6 +54,7 @@ import {
   searchUsersBodySchema,
   verifyRequestSchema,
   deleteAccountSchema,
+  type DeleteAccountBody,
   dataExportQuerySchema,
   identityExportQuerySchema,
   updatePrivacyBodySchema,
@@ -345,10 +348,6 @@ router.get(
  *                   without regard to case, so `aliabot`, `alia-bot` and `AliaBot`
  *                   all qualify. Every other kind is held to the pattern alone.
  *                 example: alice
- *               email:
- *                 type: string
- *                 format: email
- *                 example: alice@placeholder.example
  *               name:
  *                 type: object
  *                 properties:
@@ -442,12 +441,6 @@ router.put(
     } catch (error) {
       // Handle known errors from service layer
       if (error instanceof Error) {
-        if (error.message === 'Email already exists') {
-          throw new ConflictError('Email already exists', {
-            field: 'email',
-            value: req.body.email,
-          });
-        }
         if (error.message === 'Username already exists') {
           throw new ConflictError('Username already exists', {
             field: 'username',
@@ -1395,15 +1388,20 @@ router.get(
  *       - Users
  *     summary: Permanently delete the current account
  *     description: >
- *       Hard-delete the authenticated user's account. To prove identity at
- *       the time of deletion the client signs `delete:{publicKey}:{timestamp}`
- *       with the local secp256k1 private key (see `KeyManager.sign` in
- *       `@oxy.so/core`). The signature is rejected if it is older than 5
- *       minutes, if the confirmation text does not match the account's
- *       username, or if the account has no associated public key.
+ *       Hard-delete the authenticated user's account. The person proves it
+ *       is them at the time of deletion with the account's own factor: an
+ *       account with a Commons key signs `delete:{publicKey}:{timestamp}`
+ *       with it (see `KeyManager.sign` in `@oxy.so/core`), rejected if older
+ *       than 5 minutes; a passkey account sends an `assertion` by one of its
+ *       passkeys, made on auth.oxy.so over the challenge of
+ *       `POST /users/me/delete/options`. Either way the confirmation text
+ *       must match the account's username.
  *
  *       Successful deletion removes all mailboxes, messages, and S3
- *       attachments owned by the user.
+ *       attachments owned by the user, and records an `account.deleted`
+ *       event that tells every relying application to erase what it holds
+ *       for this account (pushed as a signed webhook and served from
+ *       `/internal/account-events`; see docs/identity/account-events.md).
  *     requestBody:
  *       required: true
  *       content:
@@ -1411,10 +1409,11 @@ router.get(
  *           schema:
  *             type: object
  *             required:
- *               - signature
- *               - timestamp
  *               - confirmText
  *             properties:
+ *               assertion:
+ *                 type: object
+ *                 description: A passkey account's WebAuthn assertion over the `POST /users/me/delete/options` challenge.
  *               signature:
  *                 type: string
  *                 description: Hex-encoded secp256k1 signature over `delete:{publicKey}:{timestamp}`.
@@ -1457,6 +1456,35 @@ router.get(
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+/**
+ * POST /users/me/delete/options — WebAuthn request options for deleting a
+ * passkey account: its own passkeys, user verification required, and a
+ * challenge bound to it that `DELETE /users/me` spends. An account with a
+ * Commons key deletes with that key instead.
+ */
+router.post(
+  '/me/delete/options',
+  authMiddleware,
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedError('Authentication required');
+    }
+    const [user] = await getDb()
+      .select({ publicKey: users.publicKey })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+    if (user.publicKey) {
+      throw new BadRequestError('This account is deleted with its Commons key');
+    }
+    res.json(await accountPasskeyAssertionOptions(userId));
+  })
+);
+
 router.delete(
   '/me',
   authMiddleware,
@@ -1467,15 +1495,7 @@ router.delete(
       throw new UnauthorizedError('Authentication required');
     }
 
-    const { signature, timestamp, confirmText } = req.body;
-    
-    if (!signature || !timestamp) {
-      throw new BadRequestError('Signature and timestamp are required to delete account');
-    }
-
-    if (!confirmText) {
-      throw new BadRequestError('Confirmation text is required');
-    }
+    const { signature, timestamp, assertion, confirmText } = req.body as DeleteAccountBody;
 
     const [user] = await getDb()
       .select({ publicKey: users.publicKey, username: users.username })
@@ -1486,27 +1506,34 @@ router.delete(
       throw new NotFoundError('User not found');
     }
 
-    // Verify user has a publicKey for signature verification
-    if (!user.publicKey) {
-      throw new BadRequestError('Account does not have an identity key for signature verification');
-    }
-
-    // Verify signature using SignatureService
-    const message = `delete:${user.publicKey}:${timestamp}`;
-    const isValidSignature = SignatureService.verifySignature(message, signature, user.publicKey);
-    
-    // Check timestamp is recent (within 5 minutes), allowing modest client clock skew
-    if (!SignatureService.isTimestampFresh(timestamp)) {
-      throw new BadRequestError('Signature has expired. Please try again.');
-    }
-    
-    if (!isValidSignature) {
-      throw new UnauthorizedError('Invalid signature');
-    }
-
-    // Verify confirmation text matches username
+    // Before any factor is spent: a mistyped confirmation costs nothing.
     if (confirmText !== user.username) {
       throw new BadRequestError('Confirmation text does not match username');
+    }
+
+    if (user.publicKey) {
+      // A Commons account: the deletion is signed with its key.
+      if (!signature || !timestamp) {
+        throw new BadRequestError('Signature and timestamp are required to delete account');
+      }
+      const message = `delete:${user.publicKey}:${timestamp}`;
+      const isValidSignature = SignatureService.verifySignature(message, signature, user.publicKey);
+
+      // Check timestamp is recent (within 5 minutes), allowing modest client clock skew
+      if (!SignatureService.isTimestampFresh(timestamp)) {
+        throw new BadRequestError('Signature has expired. Please try again.');
+      }
+
+      if (!isValidSignature) {
+        throw new UnauthorizedError('Invalid signature');
+      }
+    } else {
+      // A passkey account (ADR 0029 D3): a fresh assertion by one of its
+      // passkeys, on auth.oxy.so, over a challenge minted for this account.
+      if (!assertion) {
+        throw new BadRequestError('Confirm the deletion with your passkey');
+      }
+      await verifyAccountPasskeyAssertion(userId, assertion);
     }
 
     /*
@@ -1613,7 +1640,20 @@ router.delete(
        * to section 12's deletion/export work rather than to the financial-holds
        * question. The boundary is stated rather than inferred.
        */
-      await archiveAccountForRetention(userId);
+      // The `account.deleted` event commits with the archive, never without
+      // it: every relying party holding this person's data is told to erase
+      // (OxyHQ/Mention#1169). The archive keeps financial records, not the
+      // person's data anywhere else.
+      let archivedEvent: RecordedAccountEvent | undefined;
+      await archiveAccountForRetention(userId, {
+        withinTransaction: async (tx) => {
+          archivedEvent = await recordAccountDeletedEvent(tx, {
+            userId,
+            username: user.username ?? null,
+            retained: true,
+          });
+        },
+      });
       userCache.invalidate(userId);
       await graphCache.invalidate(userId);
 
@@ -1621,6 +1661,8 @@ router.delete(
         userId,
         username: user.username,
         retainedRecords: holds.retainedRecords,
+        accountEventId: archivedEvent?.eventId,
+        accountEventRecipients: archivedEvent?.recipients,
       });
 
       sendSuccess(res, {
@@ -1638,12 +1680,30 @@ router.delete(
     // removed by its own foreign key; the graph purge above ran first because it
     // is what invalidates each counterparty's cached graph by name — a cascade
     // tells nobody whose graph just changed.
-    await getDb().delete(users).where(eq(users.id, userId));
+    //
+    // The `account.deleted` event for relying parties is recorded in the SAME
+    // transaction, and before the row goes: its recipients are read from the
+    // account's grants and sessions, which cascade with it. So the event exists
+    // exactly when the deletion committed (OxyHQ/Mention#1169).
+    const deletedEvent = await getDb().transaction(async (tx) => {
+      const recorded = await recordAccountDeletedEvent(tx, {
+        userId,
+        username: user.username ?? null,
+        retained: false,
+      });
+      await tx.delete(users).where(eq(users.id, userId));
+      return recorded;
+    });
 
     userCache.invalidate(userId);
     await graphCache.invalidate(userId);
 
-    logger.info('Account deleted', { userId, username: user.username });
+    logger.info('Account deleted', {
+      userId,
+      username: user.username,
+      accountEventId: deletedEvent.eventId,
+      accountEventRecipients: deletedEvent.recipients,
+    });
 
     sendSuccess(res, {
       message: 'Account deleted successfully',

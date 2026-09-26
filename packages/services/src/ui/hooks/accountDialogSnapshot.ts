@@ -1,4 +1,5 @@
-import type { AccountDialogSnapshot } from '@oxy.so/core';
+import { useCallback, useSyncExternalStore } from 'react';
+import type { AccountDialogController, AccountDialogSnapshot } from '@oxy.so/core';
 
 /**
  * The snapshot `useSyncExternalStore` reads before a controller exists.
@@ -15,6 +16,7 @@ import type { AccountDialogSnapshot } from '@oxy.so/core';
 export const EMPTY_ACCOUNT_DIALOG_SNAPSHOT: AccountDialogSnapshot = {
   view: 'accounts',
   backView: null,
+  hasSession: false,
   directory: null,
   activeContext: null,
   activatingContextId: null,
@@ -35,6 +37,24 @@ export const EMPTY_ACCOUNT_DIALOG_SNAPSHOT: AccountDialogSnapshot = {
     openedAt: null,
     progress: 'idle',
     attempt: 0,
+    inline: false,
   },
   commonsAvailability: 'unknown',
 };
+
+/**
+ * Bind a surface to `controller`'s snapshot (the inert one while there is no
+ * controller). `getSnapshot` returns a stable reference between changes, so
+ * it is `useSyncExternalStore`-safe.
+ */
+export function useAccountDialogSnapshot(controller: AccountDialogController | null): AccountDialogSnapshot {
+  const subscribe = useCallback(
+    (listener: () => void) => (controller ? controller.subscribe(listener) : () => undefined),
+    [controller],
+  );
+  const getSnapshot = useCallback(
+    () => (controller ? controller.getSnapshot() : EMPTY_ACCOUNT_DIALOG_SNAPSHOT),
+    [controller],
+  );
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}

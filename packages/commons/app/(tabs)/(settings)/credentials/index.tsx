@@ -1,12 +1,22 @@
 import React, { useCallback } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
+import { Icons } from '@/constants/icons';
+import { bloomToneFor } from '@/lib/civic/card-presentation';
+import { Badge } from '@oxy.so/bloom/badge';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { VerifiableCredentialResponse, CredentialStatus } from '@oxy.so/contracts';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
-import { Screen, StackHeader, Section, GroupedList, CenteredState, SessionGate } from '@/components/ui';
-import { CivicBadge } from '@/components/civic/CivicBadge';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import {
+  Screen,
+  StackHeader,
+  GroupedList,
+  SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
+} from '@/components/ui';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import { useMyCredentials } from '@/hooks/useCredentials';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import {
@@ -19,13 +29,13 @@ import { userIdFromDid } from '@/lib/civic/did';
 import { formatDate } from '@/utils/date-utils';
 import { shortenKey } from '@/utils/shorten-key';
 import { useTranslation } from '@/lib/i18n';
-import type { MaterialCommunityIconName } from '@/types/icons';
+import type { IconName } from '@/constants/icons';
 
 /** Icon per credential status (active = sealed, revoked = struck out, expired = lapsed). */
-const STATUS_ICON: Record<CredentialStatus, MaterialCommunityIconName> = {
-  active: 'certificate-outline',
-  revoked: 'close-octagon-outline',
-  expired: 'clock-alert-outline',
+const STATUS_ICON: Record<CredentialStatus, IconName> = {
+  active: 'credential',
+  revoked: 'closeCircle',
+  expired: 'expired',
 };
 
 /** Format an epoch-ms timestamp to a short readable date (or empty). */
@@ -69,46 +79,54 @@ export default function CredentialsScreen() {
 
   const renderBody = () => {
     if (query.isPending && !credentials) {
-      return <CenteredState loading body={t('civic.credentials.loading')} />;
+      return <LoadingState description={t('civic.credentials.loading')} />;
     }
 
     if (query.isError && !credentials) {
       return (
-        <CenteredState
-          icon="cloud-alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.credentials.error.title')}
-          body={t('civic.credentials.error.body')}
-          action={
+          description={t('civic.credentials.error.body')}
+          footer={
             <TouchableOpacity
               style={[styles.retry, { backgroundColor: colors.tint }]}
               onPress={() => query.refetch()}
               accessibilityRole="button"
             >
-              <ThemedText style={styles.retryText}>{t('common.retry')}</ThemedText>
+              <Text style={styles.retryText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     if (!credentials || credentials.length === 0) {
       return (
-        <CenteredState
-          icon="certificate-outline"
+        <EmptyState
+          icon={Icons.credential}
           title={t('civic.credentials.empty.title')}
-          body={t('civic.credentials.empty.body')}
+          description={t('civic.credentials.empty.body')}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
 
     return (
       <>
-        <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           {t('civic.credentials.subtitle')}
-        </ThemedText>
+        </Text>
 
         {!isOnline && (
-          <CivicBadge tone="neutral" icon="cloud-off-outline" label={t('civic.credentials.offline')} />
+          <Badge
+            appearance="subtle"
+            tone="neutral"
+            size="label-small"
+            icon={Icons.offline}
+            content={t('civic.credentials.offline')}
+          />
         )}
 
         <GroupedList>
@@ -150,7 +168,10 @@ interface CredentialRowProps {
 }
 
 function CredentialRow({ credential, colors, t, onPress }: CredentialRowProps) {
-  const handlePressIn = useHapticPress();
+  const haptics = useHaptics();
+  // Wrapped, not passed directly: Bloom's `useHaptics()` takes a STRENGTH,
+  // and `onPressIn` would hand it the gesture event as that argument.
+  const handlePressIn = useCallback(() => haptics(), [haptics]);
   const primary = primaryCredentialType(credential.types);
   const typeLabel = primary ? humanizeTypeTag(primary) : t('civic.credentials.detail.title');
   const statusMeta = getCredentialStatusMeta(credential.status);
@@ -165,32 +186,34 @@ function CredentialRow({ credential, colors, t, onPress }: CredentialRowProps) {
 
   return (
     <TouchableOpacity onPress={onPress} onPressIn={handlePressIn} accessibilityRole="button" activeOpacity={0.6}>
-      <View style={styles.row}>
+      <View className="py-space-16 gap-space-8">
         <View style={styles.rowHeader}>
-          <ThemedText style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
+          <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
             {typeLabel}
-          </ThemedText>
-          <CivicBadge
-            tone={statusMeta.tone}
-            icon={STATUS_ICON[credential.status]}
-            label={t(`civic.credentials.status.${statusMeta.labelKey}`)}
+          </Text>
+          <Badge
+            appearance="subtle"
+            tone={bloomToneFor(statusMeta.tone)}
+            size="label-small"
+            icon={Icons[STATUS_ICON[credential.status]]}
+            content={t(`civic.credentials.status.${statusMeta.labelKey}`)}
           />
         </View>
 
         {preview.length > 0 && (
-          <ThemedText style={[styles.rowPreview, { color: colors.textSecondary }]} numberOfLines={2}>
+          <Text style={[styles.rowPreview, { color: colors.textSecondary }]} numberOfLines={2}>
             {preview}
-          </ThemedText>
+          </Text>
         )}
 
         <View style={styles.rowMeta}>
-          <ThemedText style={[styles.rowMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
+          <Text style={[styles.rowMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
             {t('civic.credentials.issuedBy', { issuer: issuerRef })}
-          </ThemedText>
+          </Text>
           {issuedOn.length > 0 && (
-            <ThemedText style={[styles.rowMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
+            <Text style={[styles.rowMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
               {t('civic.credentials.issuedOn', { date: issuedOn })}
-            </ThemedText>
+            </Text>
           )}
         </View>
       </View>

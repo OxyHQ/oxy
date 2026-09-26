@@ -15,17 +15,17 @@
  * responsibility each:
  *
  *  - `accounts` → `AccountsMenuView` — the signed-in Oxy account menu.
- *  - `add` / `signin` → `SignInEntryView` — ONE primary action, "Continue with
- *    Oxy" (issue #691, Phase 5). On WEB this view is transient: the flow
- *    auto-starts the instant the view is reached, because the request surface
- *    (a QR on an unknown desktop, "Check Commons on your phone" where Oxy could
- *    deliver) IS the primary route there, never something behind a second tap.
+ *  - `add` / `signin` → `OxySignInPanel` — THE sign-in screen, the one
+ *    auth.oxy.so renders too: the device's accounts, then the Commons way in
+ *    (the embedded QR, or "Continue with Oxy"), then the passkey (on the web
+ *    in an app, auth.oxy.so's window for that one step).
  *  - `qr` → `SignInRequestView` — the ACTIVE REQUEST: the controller-bound
  *    wiring over the shared, presentational `OxySignInRequestSurface` (the same
  *    component the auth.oxy.so IdP mounts from its OAuth-bound request). It maps
  *    `snapshot.signIn` onto that surface's props; alternatives stay behind
  *    "Having trouble?" until the chosen route reports `routeFailed`.
- *  - `signup` → `SignUpView` — account creation, Commons-first.
+ *  - `signup` → `OxySignUpPanel` — account creation: auth.oxy.so's window on
+ *    the web, Commons on native.
  *
  * Per-account color re-theming uses Bloom's `APP_COLOR_PRESETS` + `BloomColorScope`
  * (same visual language auth.oxy.so uses). Base theming is `useTheme()` + a
@@ -39,7 +39,7 @@ import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { IDENTITY_WEB_ORIGIN, getNormalizedUserHandle, type User } from '@oxy.so/core';
+import { getNormalizedUserHandle, type OxyAuthScreen, type User } from '@oxy.so/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../context/OxyContext';
 import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';
@@ -52,9 +52,7 @@ import { isWebBrowser } from '../utils/isWebBrowser';
 import { getCommonsAcquisitionUrl } from '../utils/commonsStoreLinks';
 import { useAccountStorageUsage } from '../hooks/queries/useServicesQueries';
 import AccountsMenuView from './authChooser/AccountsMenuView';
-import SignInEntryView from './authChooser/SignInEntryView';
 import SignInRequestView from './authChooser/SignInRequestView';
-import SignUpView from './authChooser/SignUpView';
 import { signInFailureMessage } from './authChooser/signInFailureMessage';
 import {
   resolveAccentHex,
@@ -66,9 +64,9 @@ import {
   type SignInAlternatives,
 } from './authChooser/types';
 import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from '../hooks/accountDialogSnapshot';
+import { OxySignInPanel } from './signIn/OxySignInPanel';
+import { OxySignUpPanel } from './signIn/OxySignUpPanel';
 
-/** Commons' own identity-creation deep link (mirrors the `approve`/`attest`/`card` intents). */
-const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
 /**
  * "Accounts by Oxy" management app — the canonical home for account settings,
  * data export, and storage management. The account-menu rows deep-link into it
@@ -90,12 +88,6 @@ const toastedFailureAttempt = new WeakMap<object, number>();
 export interface OxyAuthChooserProps {
   /** Called after a completed switch, sign-in, or sign-up. */
   onComplete?: () => void;
-  /**
-   * @deprecated No effect. The web sign-in entry no longer auto-starts a
-   * device-flow request: its primary action opens the identity origin
-   * (`id.oxy.so`) in a popup, which a browser only allows from a user gesture.
-   */
-  autoStartSignIn?: boolean;
 }
 
 /**
@@ -111,6 +103,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
     logout,
     openAvatarPicker,
     user,
+    continueOnAuth,
   } = useOxy();
   const theme = useTheme();
   const { t } = useI18n();
@@ -120,12 +113,22 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   // so the two switchers cannot drift.
   const { principals } = useDeviceSwitcher();
 
-  // Web sign-in and sign-up run at the identity origin (`id.oxy.so`), never
-  // on this page, whatever this page's origin: that is where the passkey
-  // ceremony can run for any app AND where the account's identity is created
-  // and kept sealed under the passkey (one identity, two carriers). Native has
-  // no passkey path: Commons owns identity there ('none').
+  // Sign-in happens in this dialog. On the web the passkey and account
+  // creation open auth.oxy.so's window for that one step (`continueOnAuth`):
+  // the passkey belongs to that origin. Native has no passkey path: Commons
+  // owns identity there ('none').
   const passkeyMode = useMemo<PasskeyMode>(() => (isWebBrowser() ? 'hub' : 'none'), []);
+
+  /** auth.oxy.so's window; this surface closes once it signs the app in. */
+  const openOnOxy = useCallback(
+    (screen: OxyAuthScreen) => {
+      void continueOnAuth(screen).then((result) => {
+        if (result.status === 'signed-in') onComplete?.();
+        else if (result.status === 'failed') toast.error(t('signin.errors.failed'));
+      });
+    },
+    [continueOnAuth, onComplete, t],
+  );
 
   // Bind the headless controller. `getSnapshot` returns a stable reference
   // between changes, so it is `useSyncExternalStore`-safe. Guard the no-provider
@@ -140,7 +143,8 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
       if (!controller) return () => undefined;
       const maybeToastSignInError = () => {
         const { signIn } = controller.getSnapshot();
-        if (signIn.phase !== 'error') return;
+        // The embedded QR's failures are its own to handle (it renews itself).
+        if (signIn.phase !== 'error' || signIn.inline) return;
         if (toastedFailureAttempt.get(controller) === signIn.attempt) return;
         toastedFailureAttempt.set(controller, signIn.attempt);
         const message = signInFailureMessage(signIn.failure, t);
@@ -169,30 +173,40 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   const handleActivate = useCallback(
     async (contextId: string) => {
       if (!controller) return;
-      // Another switch or removal is already changing this device: the press is
-      // dropped, not queued — and it is not a failure to report.
-      if (controller.isDeviceMutationInFlight()) return;
-      // Already live: activating it again bumps nothing server-side, so treat
-      // the press as "yes, this one" and close.
-      if (contextId === controller.getSnapshot().activeContext?.contextId) {
-        onComplete?.();
-        return;
+      // The controller decides what choosing a row MEANS. Signed in it is a
+      // switch; signed out it is "Continue as @handle" — the same sign-in
+      // "Continue with Oxy" runs. The signed-out case is why this is not a
+      // host-side "already active → close": the device can list an identity
+      // (Commons') as active while THIS app holds no session, and closing on it
+      // left the app signed out behind a sheet that looked done (#1375 item 20).
+      const outcome = await controller.chooseContext(contextId).catch(() => 'failed' as const);
+      switch (outcome) {
+        // Another switch or removal is already changing this device: the press
+        // is dropped, not queued — and it is not a failure to report.
+        case 'busy':
+          return;
+        // The sign-in flow owns the rest: its own view while it runs, and the
+        // dialog's close (through `onSignedIn`) when it completes.
+        case 'signing-in':
+          return;
+        // Already live: activating it again bumps nothing server-side, so treat
+        // the press as "yes, this one" and close.
+        case 'current':
+          onComplete?.();
+          return;
+        // The controller's own verdict on the SWITCH — never `snapshot.error`,
+        // which the directory re-read after a successful switch can also set.
+        case 'failed':
+          toast.error(t('accountSwitcher.toasts.activateFailed'));
+          return;
+        case 'switched':
+          // The subject changed, so every account-scoped query is now about
+          // somebody else. The runtime resets its own caches between the bearer
+          // commit and the notify; this drops the Query cache the same way.
+          queryClient.invalidateQueries();
+          onComplete?.();
+          return;
       }
-      // The controller's own verdict on the SWITCH — never `snapshot.error`,
-      // which the directory re-read after a successful switch can also set.
-      // Reading that as "the switch failed" left the dialog open on a false
-      // error with the previous account's queries still cached.
-      const switched = await controller.activateContext(contextId).catch(() => false);
-      if (!switched) {
-        toast.error(t('accountSwitcher.toasts.activateFailed'));
-        return;
-      }
-      // The subject changed, so every account-scoped query is now about
-      // somebody else. The runtime resets its own caches between the bearer
-      // commit and the notify; this drops the Query cache the same way the
-      // account switch did.
-      queryClient.invalidateQueries();
-      onComplete?.();
     },
     [controller, onComplete, queryClient, t],
   );
@@ -353,18 +367,14 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   const alternatives = useMemo<SignInAlternatives>(
     () => ({
       passkeyAvailable: passkeyMode !== 'none',
-      // Called straight from the press: the popup opens before any await.
-      onSignInWithPasskey: () => void controller?.startPasskeyHubSignIn(),
+      // auth.oxy.so asserts the passkey, in its window.
+      onSignInWithPasskey: () => openOnOxy('signin'),
       onShowQr: () => void controller?.showQr(),
       onGetCommons: () => openExternal(getCommonsAcquisitionUrl(Platform.OS)),
-      // Web: the identity origin creates the account and its identity in the
-      // same window a sign-in uses. Native: Commons creates the identity.
-      onCreateAccount: () => {
-        if (passkeyMode === 'hub') void controller?.startPasskeyHubSignIn();
-        else controller?.startSignup();
-      },
+      // Web: the account is made on auth.oxy.so. Native: Commons makes it.
+      onCreateAccount: () => (passkeyMode === 'hub' ? openOnOxy('signup') : controller?.startSignup()),
     }),
-    [passkeyMode, controller, openExternal],
+    [passkeyMode, controller, openExternal, openOnOxy],
   );
 
   // Real storage usage for the account menu's "Oxy storage" block. Disabled
@@ -410,7 +420,6 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
       onSignOut: () => {
         void handleSignOut();
       },
-      onOpenIdentity: passkeyMode === 'hub' ? () => openUrl(`${IDENTITY_WEB_ORIGIN}/`) : undefined,
       customItems: (consumerHooks?.menuItems ?? []).map((item) => ({
         ...item,
         onPress: () => {
@@ -419,7 +428,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
         },
       })),
     };
-  }, [consumerHooks, onComplete, showBottomSheet, handleSignOut, openExternal, passkeyMode]);
+  }, [consumerHooks, onComplete, showBottomSheet, handleSignOut, openExternal]);
 
   if (!controller) {
     return null;
@@ -452,29 +461,14 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   }
 
   if (view === 'signup') {
-    return (
-      <SignUpView
-        snapshot={snapshot}
-        theme={theme}
-        t={t}
-        passkeyMode={passkeyMode}
-        onOpenHub={() => void controller.startPasskeyHubSignIn()}
-        onCreateIdentityInCommons={() => openExternal(COMMONS_CREATE_IDENTITY_URL)}
-        onGetCommons={alternatives.onGetCommons}
-        onBackToSignIn={() => controller.setView('signin')}
-      />
-    );
+    return <OxySignUpPanel onSignIn={() => controller.setView('signin')} onCreateOnWeb={() => openOnOxy('signup')} />;
   }
 
   return (
-    <SignInEntryView
-      snapshot={snapshot}
-      principals={principals}
-      theme={theme}
-      t={t}
-      handlers={handlers}
-      onContinueWithOxy={() => void controller.signInWithOxy()}
-      alternatives={alternatives}
+    <OxySignInPanel
+      host="dialog"
+      onSignedIn={() => onComplete?.()}
+      onCreateAccount={alternatives.onCreateAccount}
     />
   );
 };

@@ -214,7 +214,7 @@ class DynamicOriginRegistry {
     // Loopback dev origins ALWAYS get the credentialed lane, and win over the
     // third-party lane below: a localhost origin that a third-party app happens
     // to register as a redirectUri must still be able to send credentialed
-    // requests (SDK `credentials:'include'` fetch of `/csrf-token`).
+    // requests.
     if (this.trustedOrigins.has(origin) || isLoopbackOrigin(origin)) {
       return { allow: true, credentials: true };
     }

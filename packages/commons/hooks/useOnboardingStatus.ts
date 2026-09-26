@@ -2,7 +2,6 @@ import { useEffect, useMemo } from 'react';
 import type { Href } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyManager } from '@oxy.so/core';
 import type { IdentityStatus } from '@oxy.so/core';
 import {
   getOnboardingCompleteFromStorage,
@@ -10,6 +9,7 @@ import {
   persistOnboardingComplete,
   type OnboardingFlow,
 } from './identity/identityStore';
+import { readIdentityVerdictWithSilentRestore } from './identity/silentRestore';
 
 export type OnboardingStatus =
   | 'checking'
@@ -123,7 +123,10 @@ class IdentityProbeUnavailableError extends Error {
  *      cached verdict                                    → 'unavailable'
  *      (locked keystore → neutral retry UI, NEVER welcome/create)
  *   4. verdict 'lost' (marker present, keys gone)        → 'recovery'
- *      (corruption/keystore death → recovery ladder, NEVER welcome/create)
+ *      (corruption/keystore death → recovery ladder, NEVER welcome/create).
+ *      The probe first restores silently from any phrase-free copy (see
+ *      `readIdentityVerdictWithSilentRestore`), so 'recovery' — and 'none'
+ *      below — are reached only when no such copy exists.
  *   5. verdict 'absent' (no keys, no marker)             → 'none'
  *      (a genuine fresh device — the ONLY path to welcome/create)
  *   6. verdict 'present'                                 → milestone ? 'complete'
@@ -157,7 +160,10 @@ export function useOnboardingStatus(): OnboardingState {
   const identityQuery = useQuery({
     queryKey: ONBOARDING_IDENTITY_QUERY_KEY,
     queryFn: async (): Promise<IdentityVerdict> => {
-      const verdict = await KeyManager.getIdentityStatus();
+      // Keys gone? Restore them silently from a phrase-free copy first (the
+      // device backup survives a wipe of the shared-UID Keystore); only when
+      // nothing can be restored does `lost`/`absent` reach routing.
+      const verdict = await readIdentityVerdictWithSilentRestore();
       if (verdict.state === 'unavailable') {
         // Never let a storage failure become cached data — throw so React Query
         // retries and, only when there is no prior verdict to fall back on,

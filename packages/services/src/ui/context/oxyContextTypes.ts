@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode } from '@oxy.so/core';
+import type { LoginSessionResult } from '@oxy.so/contracts';
+import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, AccountDialogController, AccountDialogView, ApiError, SessionClient, SessionMode, OxyAuthScreen } from '@oxy.so/core';
 import type { UseFollowHook } from '../hooks/useFollow.types';
 import type { useLanguageManagement } from '../hooks/useLanguageManagement';
 import type { RouteName } from '../navigation/routes';
@@ -104,7 +105,12 @@ export interface OxyContextState {
   removePasskey: (credentialId: string) => Promise<void>;
 
   revokeSuspiciousSignIn: () => Promise<void>;
-  handleWebSession: (session: SessionLoginResponse) => Promise<void>;
+  /**
+   * Commit a session a first-party sign-in minted on THIS origin — an OAuth
+   * code exchange, or a passkey registration on auth.oxy.so (sign-up,
+   * recovery) — as the active one.
+   */
+  handleWebSession: (session: SessionLoginResponse | LoginSessionResult) => Promise<void>;
 
   /**
    * Run a WEB third-party OAuth sign-in (authorization code + PKCE) end to end
@@ -123,6 +129,14 @@ export interface OxyContextState {
    * resolve to `{ status: 'unsupported' }`.
    */
   startWebOAuthSignIn: (options: StartWebOAuthSignInOptions) => Promise<WebOAuthSignInResult>;
+
+  /**
+   * The passkey sign-in (`signin`), account creation (`signup`) or recovery
+   * (`recover`) in auth.oxy.so's window over the app — the one step the
+   * account dialog cannot run itself, since the passkey belongs to `oxy.so`.
+   * Web only; call it from the press, so the window opens with the gesture.
+   */
+  continueOnAuth: (screen: OxyAuthScreen) => Promise<WebOAuthSignInResult>;
 
   /**
    * Ask the already-authenticated user for explicit OAuth consent to exact
@@ -219,14 +233,6 @@ export interface OxyRuntimeProviderProps {
    * @default false
    */
   backgroundSession?: boolean;
-  /**
-   * Whether this origin/app persists the durable device credential at all. See
-   * `OxyProviderProps.deviceCredentialStorage` for the full rule and the one
-   * caller of `'ephemeral'`.
-   *
-   * @default 'persistent'
-   */
-  deviceCredentialStorage?: 'persistent' | 'ephemeral';
   onAuthStateChange?: (user: User | null) => void;
   onError?: (error: ApiError) => void;
   /** Storage instance owned by the public provider; internal composition seam. */

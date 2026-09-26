@@ -1,12 +1,13 @@
 import React, { useCallback } from 'react';
+import { Icons } from '@/constants/icons';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { LoadingState, STATE_MIN_HEIGHT } from './loading-state';
 import { Redirect } from 'expo-router';
 import { useOxy, useOnlineStatus } from '@oxy.so/services';
 import { logger } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus';
 import { useSyncIdentity } from '@/hooks/identity/useSyncIdentity';
-import { CenteredState } from './centered-state';
-import { PrimaryButton } from './action-button';
 
 interface SessionGateProps {
   /** The session-dependent content, rendered only once a live session is up. */
@@ -62,23 +63,25 @@ export function SessionGate({ children }: SessionGateProps) {
     });
   }, [syncIdentity]);
 
-  // Cold boot still resolving → bounded neutral spinner.
-  if (!isAuthResolved) {
-    return <CenteredState loading body={t('civic.sessionGate.connecting')} />;
+  // A live session is up → the private content.
+  if (isAuthResolved && user) {
+    return <>{children}</>;
   }
 
-  // A live session is up → the private content.
-  if (user) {
-    return <>{children}</>;
+  // Still connecting: the cold boot is resolving, the onboarding probe has not
+  // answered yet (never redirect on that transient window), or a manual
+  // reconnect is in flight while online.
+  const connecting =
+    !isAuthResolved ||
+    (identityPresent ? online && identitySyncState.isSyncing : status === 'checking');
+  if (connecting) {
+    return <LoadingState description={t('civic.sessionGate.connecting')} />;
   }
 
   // No session. Defensive: if the local identity is somehow absent (impossible
   // past the root onboarding gate), route to onboarding rather than spin — never
-  // a sign-in prompt. Never redirect on the transient probe-resolving window.
+  // a sign-in prompt.
   if (!identityPresent) {
-    if (status === 'checking') {
-      return <CenteredState loading body={t('civic.sessionGate.connecting')} />;
-    }
     return <Redirect href="/(auth)" />;
   }
 
@@ -86,27 +89,24 @@ export function SessionGate({ children }: SessionGateProps) {
   // offline→online edge, so there is no action to offer.
   if (!online) {
     return (
-      <CenteredState
-        icon="cloud-off-outline"
+      <EmptyState
+        icon={Icons.offline}
         title={t('civic.sessionGate.offline.title')}
-        body={t('civic.sessionGate.offline.body')}
+        description={t('civic.sessionGate.offline.body')}
+        minHeight={STATE_MIN_HEIGHT}
       />
     );
-  }
-
-  // A manual reconnect is in flight.
-  if (identitySyncState.isSyncing) {
-    return <CenteredState loading body={t('civic.sessionGate.connecting')} />;
   }
 
   // Online, the cold boot concluded, and it did NOT produce a session — that is
   // a definitive verdict, not a pending one, so say it and offer the retry.
   return (
-    <CenteredState
-      icon="wifi-alert"
+    <EmptyState
+      icon={Icons.offline}
       title={t('civic.sessionGate.error.title')}
-      body={t('civic.sessionGate.error.body')}
-      action={<PrimaryButton label={t('common.retry')} onPress={handleRetry} fullWidth={false} />}
+      description={t('civic.sessionGate.error.body')}
+      action={{ label: t('common.retry'), onPress: handleRetry }}
+      minHeight={STATE_MIN_HEIGHT}
     />
   );
 }

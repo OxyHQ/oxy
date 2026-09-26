@@ -3,7 +3,10 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  KeyboardAwareScrollViewWrapper,
+} from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
 
@@ -27,10 +30,10 @@ interface ImportPhraseStepProps {
    */
   onImportPrivateKey?: () => void;
   /**
-   * Optional handler for moving an identity kept on the web (`id.oxy.so`) onto
-   * this device by scanning the code the web shows.
+   * Optional handler for "I have an Oxy account on the web": link that
+   * passkey account to this phone by scanning auth.oxy.so/link-commons.
    */
-  onMoveFromWeb?: () => void;
+  onLinkWebAccount?: () => void;
   backgroundColor: string;
   textColor: string;
 }
@@ -47,7 +50,7 @@ export function ImportPhraseStep({
   isLoading,
   onRestoreFromBackup,
   onImportPrivateKey,
-  onMoveFromWeb,
+  onLinkWebAccount,
   backgroundColor,
   textColor,
 }: ImportPhraseStepProps) {
@@ -75,53 +78,21 @@ export function ImportPhraseStep({
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button
-          variant="primary"
-          onPress={onImport}
-          disabled={isLoading}
-          loading={isLoading}
-          style={styles.primaryButton}
-        >
-          {t('auth.importStep.import')}
-        </Button>
+        <Button appearance="solid" tone="accent" onPress={onImport} disabled={isLoading} loading={isLoading} className="mt-space-32">{t('auth.importStep.import')}</Button>
 
-        {onMoveFromWeb && (
-          <Button
-            variant="ghost"
-            onPress={onMoveFromWeb}
-            disabled={isLoading}
-          >
-            {t('identityMove.entry')}
-          </Button>
+        {onLinkWebAccount && (
+          <Button appearance="subtle" onPress={onLinkWebAccount} disabled={isLoading}>{t('linkAccount.entry')}</Button>
         )}
 
         {onRestoreFromBackup && (
-          <Button
-            variant="ghost"
-            onPress={onRestoreFromBackup}
-            disabled={isLoading}
-          >
-            {t('restoreBackup.entry')}
-          </Button>
+          <Button appearance="subtle" onPress={onRestoreFromBackup} disabled={isLoading}>{t('restoreBackup.entry')}</Button>
         )}
 
         {onImportPrivateKey && (
-          <Button
-            variant="ghost"
-            onPress={onImportPrivateKey}
-            disabled={isLoading}
-          >
-            {t('importPrivateKey.entry')}
-          </Button>
+          <Button appearance="subtle" onPress={onImportPrivateKey} disabled={isLoading}>{t('importPrivateKey.entry')}</Button>
         )}
 
-        <Button
-          variant="ghost"
-          onPress={() => router.push('/(auth)/create-identity')}
-          disabled={isLoading}
-        >
-          {t('auth.importStep.createInstead')}
-        </Button>
+        <Button appearance="subtle" onPress={() => router.push('/(auth)/create-identity')} disabled={isLoading}>{t('auth.importStep.createInstead')}</Button>
       </KeyboardAwareScrollViewWrapper>
     </View>
   );
@@ -152,9 +123,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 22,
     textAlign: 'center',
-  },
-  primaryButton: {
-    marginTop: 32,
   },
   errorText: {
     fontSize: 14,

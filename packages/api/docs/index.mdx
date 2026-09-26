@@ -115,7 +115,9 @@ Default limits are generous, but a few sensitive routes are tightened:
 |-------|-------|
 | `/auth/login`, `/auth/signup` | 10 / minute / IP |
 | `/auth/challenge`, `/auth/verify` (public-key auth) | 10 and 5 / minute / IP |
-| `/auth/check-username`, `/auth/lookup`, `/auth/check-email`, `/auth/check-publickey` | 10 / minute / IP |
+| `/auth/check-username`, `/auth/lookup`, `/auth/check-publickey` | 10 / minute / IP |
+| `/auth/email/verify/start` (auth.oxy.so only) | 20 / hour / hashed IP, 5 codes / hour / hashed email |
+| `/auth/email/verify/confirm` (auth.oxy.so only) | 60 / hour / hashed IP, 5 wrong codes / verification |
 | `/auth/service-token` | 10 / 5 minutes / IP |
 | `/contacts/discover` | 5 / minute / user |
 
@@ -123,7 +125,7 @@ Throttled requests return `429` with a `Retry-After` header.
 
 ## CSRF
 
-State-changing routes mounted with `csrfProtection` require an `X-CSRF-Token` header. Fetch a token from any GET response (set via the `XSRF-TOKEN` cookie) and echo it on subsequent POST/PUT/PATCH/DELETE calls. Enforced only when cookies are present, so bearer-token-only clients are unaffected.
+No endpoint requires a CSRF token. The API sets no cookies and accepts no ambient credential: every write authenticates with an explicit `Authorization` header (`Bearer` or `Capability`), or with a signature or secret carried in the request itself. A browser never attaches either of these to a cross-site request on its own.
 
 ## Versioning
 

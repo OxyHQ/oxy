@@ -125,8 +125,6 @@ function writeReview(account: string | null, slug = 'some-app'): Promise<HttpRes
   const headers: Record<string, string | number> = {
     'content-type': 'application/json',
     'content-length': Buffer.byteLength(body),
-    // Bearer, so `csrfProtection` passes through — CSRF guards ambient cookie
-    // credentials, and this file is about the limiter, not about CSRF.
     Authorization: 'Bearer t',
   };
   if (account !== null) {

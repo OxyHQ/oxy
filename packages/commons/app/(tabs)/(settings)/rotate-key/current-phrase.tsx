@@ -3,7 +3,11 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { RecoveryPhraseService } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
-import { Button, KeyboardAwareScrollViewWrapper, StackHeader } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  KeyboardAwareScrollViewWrapper,
+  StackHeader,
+} from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
@@ -52,7 +56,7 @@ export default function RotateKeyCurrentPhraseScreen() {
   }, [phraseWords, currentPhraseRef, router, t]);
 
   return (
-    <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
       <StackHeader
         title={t('rotateKey.currentPhrase.title')}
         subtitle={t('rotateKey.currentPhrase.subtitle')}
@@ -68,7 +72,7 @@ export default function RotateKeyCurrentPhraseScreen() {
 
       {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-      <Button variant="primary" onPress={handleContinue} style={styles.primaryButton}>
+      <Button appearance="solid" tone="accent" onPress={handleContinue} className="mt-space-8">
         {t('rotateKey.currentPhrase.continue')}
       </Button>
     </KeyboardAwareScrollViewWrapper>
@@ -84,8 +88,5 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 13,
     textAlign: 'center',
-  },
-  primaryButton: {
-    marginTop: 8,
   },
 });

@@ -166,12 +166,14 @@ function buildStub(overrides: Record<string, unknown> = {}) {
       setAuthRefreshHandler: jest.fn(),
       refreshAccessToken: jest.fn(async () => null),
       runSingleFlightDeviceSecretMint: (mint: () => Promise<unknown>) => mint(),
+      getSessionEpoch: () => 0,
     },
     getBaseURL: () => API_BASE_URL,
     getSessionBaseUrl: () => API_BASE_URL,
     getAccessToken: () => currentToken,
     getAccessTokenExpiry: () => null,
     onTokensChanged: () => () => undefined,
+    setDeviceCredentialProvider: () => () => undefined,
     setTokens: (token: string) => {
       currentToken = token;
     },

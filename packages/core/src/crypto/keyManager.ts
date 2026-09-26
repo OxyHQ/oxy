@@ -26,6 +26,13 @@ import {
   updateIdentityMarker,
   writeIdentityMarker,
 } from './identityMarker';
+import {
+  DEVICE_BACKUP_VERSION,
+  type DeviceBackupRecord,
+  type IdentityDeviceBackupStore,
+  parseDeviceBackup,
+  serializeDeviceBackup,
+} from './deviceBackup';
 
 /**
  * Options for expo-secure-store calls made by KeyManager.
@@ -138,9 +145,13 @@ export type IdentityStatus =
  * which independent, `key_v1`-surviving source restored the identity. On failure
  * `reason` distinguishes "wasn't lost", "no surviving source", "a source held a
  * DIFFERENT account" (never silently switched), and "storage unavailable".
+ *
+ * `device-backup` is the copy held outside this app's keystore (Android Block
+ * Store in Commons, see {@link KeyManager.setDeviceBackupStore}); it is the only
+ * source that survives a wipe of the whole shared-UID keystore.
  */
 export type IdentityRecoveryResult =
-  | { recovered: true; source: 'backup' | 'shared'; publicKey: string }
+  | { recovered: true; source: 'backup' | 'shared' | 'device-backup'; publicKey: string }
   | { recovered: false; reason: 'not-lost' | 'no-sources' | 'mismatch' | 'unavailable' };
 
 /**
@@ -392,6 +403,27 @@ export class KeyManager {
    */
   private static slotMigrationPromise: Promise<SlotMigrationResult> | null = null;
   private static slotMigrationResult: SlotMigrationResult | null = null;
+
+  /**
+   * The keystore-independent device backup, registered by the app that owns the
+   * identity (Commons). `null` in every other app, which makes every device
+   * backup path a no-op there. See `./deviceBackup`.
+   */
+  private static deviceBackupStore: IdentityDeviceBackupStore | null = null;
+
+  /**
+   * Register (or, with `null`, unregister) where the identity's device backup is
+   * kept. Call once at startup, before the first identity read, ONLY from the
+   * app that holds the self-custody identity: the backup is a full copy of the
+   * private key, and it belongs to exactly one app.
+   *
+   * From then on every create, import, rotation and restore refreshes the
+   * backup, a forced delete clears it, and {@link attemptIdentityRecovery}
+   * restores from it when the keystore copies are gone.
+   */
+  static setDeviceBackupStore(store: IdentityDeviceBackupStore | null): void {
+    KeyManager.deviceBackupStore = store;
+  }
 
   /**
    * Invalidate cached identity state
@@ -1524,6 +1556,149 @@ export class KeyManager {
     // persist (a subsequent healthy read re-backfills it). Rollback paths above
     // return before reaching here, so they never touch the marker.
     await KeyManager._syncMarkerAfterPersist(canonicalPublic, origin);
+
+    // Mirror the durable identity into the keystore-independent device backup,
+    // so a wipe of this UID's keystore can be undone without the phrase. Every
+    // identity change (create, import, rotation, restore) flows through here.
+    // Best-effort like the marker: `ensureDeviceBackup` retries on next launch.
+    await KeyManager._writeDeviceBackup(canonicalPrivate, canonicalPublic);
+  }
+
+  /**
+   * Write the device backup for `(privateKey, publicKey)`, keeping the phrase an
+   * existing record already carries for the SAME identity. `mnemonic` replaces
+   * it, and must already be verified against `publicKey` by the caller.
+   * Best-effort: never throws, returns whether the store now holds this pair.
+   *
+   * @internal
+   */
+  private static async _writeDeviceBackup(
+    privateKey: string,
+    publicKey: string,
+    mnemonic?: string,
+  ): Promise<boolean> {
+    const store = KeyManager.deviceBackupStore;
+    if (!store) {
+      return false;
+    }
+    try {
+      let existing: DeviceBackupRecord | null = null;
+      try {
+        existing = parseDeviceBackup(await store.read());
+      } catch {
+        existing = null;
+      }
+      const sameIdentity = existing?.publicKey === publicKey;
+      const keptMnemonic = mnemonic ?? (sameIdentity ? existing?.mnemonic : undefined);
+      if (sameIdentity && existing?.privateKey === privateKey && existing?.mnemonic === keptMnemonic) {
+        return true; // Already current; do not churn the store.
+      }
+      await store.write(
+        serializeDeviceBackup({
+          version: DEVICE_BACKUP_VERSION,
+          privateKey,
+          publicKey,
+          mnemonic: keptMnemonic,
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+      return true;
+    } catch (error) {
+      logger.warn(
+        `Failed to write the identity device backup (${store.name}); retried on next launch`,
+        { component: 'KeyManager' },
+        error,
+      );
+      return false;
+    }
+  }
+
+  /** Remove the device backup. Best-effort: never throws. @internal */
+  private static async _clearDeviceBackup(): Promise<void> {
+    const store = KeyManager.deviceBackupStore;
+    if (!store) {
+      return;
+    }
+    try {
+      await store.clear();
+    } catch (error) {
+      logger.warn(`Failed to clear the identity device backup (${store.name})`, { component: 'KeyManager' }, error);
+    }
+  }
+
+  /** True when `phrase` is a valid BIP-39 phrase that derives `publicKey`. @internal */
+  private static async _phraseDerivesPublicKey(phrase: string, publicKey: string): Promise<boolean> {
+    try {
+      // Imported lazily: `./recoveryPhrase` imports this module, and the phrase
+      // derivation is frozen there, so it is reused rather than copied.
+      const { RecoveryPhraseService } = await import('./recoveryPhrase');
+      const derived = await RecoveryPhraseService.derivePublicKeyFromPhrase(phrase);
+      return derived.toLowerCase() === publicKey.toLowerCase();
+    } catch {
+      return false;
+    }
+  }
+
+  /** The primary pair when it reads back healthy, else `null`. Never throws. @internal */
+  private static async _readHealthyPrimary(): Promise<{ privateKey: string; publicKey: string } | null> {
+    try {
+      const direct = await KeyManager._readPrimaryDirect();
+      if (KeyManager._isHealthyPair(direct.privateKey, direct.publicKey) && direct.privateKey && direct.publicKey) {
+        return {
+          privateKey: KeyManager.canonicalPrivateKey(direct.privateKey),
+          publicKey: direct.publicKey.toLowerCase(),
+        };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Make sure the device backup holds the identity on this device, writing it
+   * when it is missing or stale. Commons calls this once per launch once the
+   * identity reads back healthy: it backfills identities created before the
+   * device backup existed, and repairs a backup whose last write failed (a
+   * failed write after a key rotation would otherwise leave the OLD key there).
+   *
+   * Carries the stored recovery phrase along only when it provably derives the
+   * current key. Resolves `true` when the backup is current, `false` when there
+   * is no store, no healthy identity, or the write failed. Never throws.
+   */
+  static async ensureDeviceBackup(): Promise<boolean> {
+    if (isWebPlatform() || !KeyManager.deviceBackupStore) {
+      return false;
+    }
+    const primary = await KeyManager._readHealthyPrimary();
+    if (!primary) {
+      return false;
+    }
+    let existing: DeviceBackupRecord | null = null;
+    try {
+      existing = parseDeviceBackup(await KeyManager.deviceBackupStore.read());
+    } catch {
+      existing = null;
+    }
+    const pairCurrent =
+      existing?.publicKey === primary.publicKey && existing?.privateKey === primary.privateKey;
+    if (pairCurrent && existing?.mnemonic) {
+      return true; // The common launch: one read, no write, no phrase derivation.
+    }
+
+    let mnemonic: string | undefined;
+    try {
+      const stored = await KeyManager.getRecoveryMnemonic();
+      if (stored && (await KeyManager._phraseDerivesPublicKey(stored, primary.publicKey))) {
+        mnemonic = stored;
+      }
+    } catch {
+      mnemonic = undefined;
+    }
+    if (pairCurrent && !mnemonic) {
+      return true;
+    }
+    return KeyManager._writeDeviceBackup(primary.privateKey, primary.publicKey, mnemonic);
   }
 
   /**
@@ -1866,6 +2041,16 @@ export class KeyManager {
       }
       throw new IdentityUnavailableError('Failed to persist recovery mnemonic.', error);
     }
+
+    // The phrase slot above dies with the keystore too, so the device backup
+    // carries the phrase as well — but only one that derives the identity on
+    // this device. Best-effort: never fails the store.
+    if (KeyManager.deviceBackupStore) {
+      const primary = await KeyManager._readHealthyPrimary();
+      if (primary && (await KeyManager._phraseDerivesPublicKey(mnemonic, primary.publicKey))) {
+        await KeyManager._writeDeviceBackup(primary.privateKey, primary.publicKey, mnemonic.trim().toLowerCase());
+      }
+    }
   }
 
   /**
@@ -2165,6 +2350,11 @@ export class KeyManager {
       await KeyManager._clearSharedSlot(store);
     }
 
+    // The device backup goes on EVERY delete, forced or not: it is restored
+    // silently, so leaving it would bring a deleted identity back on the next
+    // launch. Best-effort, like the other recovery sources.
+    await KeyManager._clearDeviceBackup();
+
     // Clear the marker AFTER key deletion succeeds — a marker must never outlive
     // its identity (a leftover marker would route a truly-absent device to
     // `recovery` instead of `welcome`).
@@ -2416,19 +2606,29 @@ export class KeyManager {
   }
 
   /**
-   * Recovery ladder — restore a `lost` identity from an independent,
-   * `key_v1`-surviving source WITHOUT the user re-entering their recovery phrase.
+   * Recovery ladder — restore an identity whose keys are gone from an
+   * independent source WITHOUT the user re-entering their recovery phrase.
    *
-   * Gated on {@link getIdentityStatus} being `lost` (marker present, keys empty):
-   *   - `present` / `absent` → `not-lost` (nothing to recover / nothing lost)
-   *   - `unavailable`        → `unavailable` (keychain locked; retry later)
-   *
-   * Rungs, tried in order, each fully validated (well-formed + derive-match +
-   * `publicKey === marker.publicKey`, so a source holding a DIFFERENT account is
-   * SKIPPED, never restored):
-   *   1. the v2 backup slot (independent keychain key from the primary), then
+   * For a `lost` verdict (marker present, keys empty) the rungs are tried in
+   * order, each fully validated (well-formed + derive-match + `publicKey ===
+   * marker.publicKey`, so a source holding a DIFFERENT account is SKIPPED, never
+   * restored):
+   *   1. the v2 backup slot (independent keychain key from the primary),
    *   2. the cross-app shared slot (Android bridge `getShared` / iOS keychain
-   *      group) — the copy that survives a primary+backup `key_v1` death.
+   *      group) — the copy that survives a primary+backup `key_v1` death,
+   *   3. the device backup ({@link setDeviceBackupStore}; Android Block Store in
+   *      Commons) — the only copy that survives a wipe of the whole shared-UID
+   *      Android Keystore, which takes rungs 1 and 2 with it (oxy#1388).
+   *
+   * For an `absent` verdict (no keys AND no marker: this app's own data was
+   * cleared, or it was reinstalled) only rung 3 applies: a device backup there
+   * means an identity lived on this device and was never deleted (every delete
+   * clears the backup), so it is restored instead of letting onboarding create a
+   * new identity over it. Without a registered store the result stays
+   * `not-lost`, exactly as before.
+   *
+   * `present` → `not-lost`; `unavailable` (keychain locked) → `unavailable`.
+   * Everything here is on-device: no network, so it works offline.
    *
    * On success it re-persists via {@link _persistIdentityAtomic} (origin
    * `'restore'`) and invalidates the cache so routing re-reads `present`. When no
@@ -2440,11 +2640,23 @@ export class KeyManager {
     }
 
     const status = await KeyManager.getIdentityStatus({ bypassCache: true });
-    if (status.state === 'present' || status.state === 'absent') {
+    if (status.state === 'present') {
       return { recovered: false, reason: 'not-lost' };
     }
     if (status.state === 'unavailable') {
       return { recovered: false, reason: 'unavailable' };
+    }
+    if (status.state === 'absent') {
+      if (!KeyManager.deviceBackupStore) {
+        return { recovered: false, reason: 'not-lost' };
+      }
+      const candidate = await KeyManager._readDeviceBackupCandidate();
+      if (!candidate) {
+        return { recovered: false, reason: 'not-lost' };
+      }
+      return (await KeyManager._commitDeviceBackupRecovery(candidate))
+        ? { recovered: true, source: 'device-backup', publicKey: candidate.publicKey }
+        : { recovered: false, reason: 'no-sources' };
     }
 
     // status.state === 'lost'
@@ -2475,9 +2687,62 @@ export class KeyManager {
       }
     }
 
+    // Rung 3: device backup, outside this UID's keystore.
+    const deviceCandidate = await KeyManager._readDeviceBackupCandidate();
+    if (deviceCandidate) {
+      if (deviceCandidate.publicKey === expectedPublic) {
+        if (await KeyManager._commitDeviceBackupRecovery(deviceCandidate)) {
+          return { recovered: true, source: 'device-backup', publicKey: deviceCandidate.publicKey };
+        }
+      } else {
+        sawMismatch = true;
+      }
+    }
+
     // A source existed but identified a DIFFERENT account — never silently
     // switched. Report `mismatch` so the UI can require explicit confirmation.
     return { recovered: false, reason: sawMismatch ? 'mismatch' : 'no-sources' };
+  }
+
+  /** Read the device backup as a healthy, canonical candidate, or null. Never throws. @internal */
+  private static async _readDeviceBackupCandidate(): Promise<DeviceBackupRecord | null> {
+    const store = KeyManager.deviceBackupStore;
+    if (!store) {
+      return null;
+    }
+    try {
+      const record = parseDeviceBackup(await store.read());
+      if (!record || !KeyManager._isHealthyPair(record.privateKey, record.publicKey)) {
+        return null;
+      }
+      return {
+        ...record,
+        privateKey: KeyManager.canonicalPrivateKey(record.privateKey),
+        publicKey: record.publicKey.toLowerCase(),
+      };
+    } catch (error) {
+      logger.warn(`Recovery: failed to read the device backup (${store.name})`, { component: 'KeyManager' }, error);
+      return null;
+    }
+  }
+
+  /**
+   * Persist a device-backup candidate, then put its phrase back in the
+   * re-reveal slot (which died with the keystore) when it derives the key.
+   * @internal
+   */
+  private static async _commitDeviceBackupRecovery(record: DeviceBackupRecord): Promise<boolean> {
+    if (!(await KeyManager._commitRecovery(record.privateKey, record.publicKey))) {
+      return false;
+    }
+    if (record.mnemonic && (await KeyManager._phraseDerivesPublicKey(record.mnemonic, record.publicKey))) {
+      try {
+        await KeyManager.storeRecoveryMnemonic(record.mnemonic);
+      } catch (error) {
+        logger.warn('Recovery: restored the identity but not its phrase slot', { component: 'KeyManager' }, error);
+      }
+    }
+    return true;
   }
 
   /** Read the active-layout backup slot as a healthy candidate, or null. @internal */

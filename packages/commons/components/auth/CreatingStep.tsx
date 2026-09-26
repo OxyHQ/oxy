@@ -92,7 +92,7 @@ export function CreatingStep({ progress, backgroundColor, textColor, isSyncing, 
   if (error) {
     return (
       <View style={[styles.container, { backgroundColor }]}>
-        <View style={styles.centeredContainer}>
+        <View className="flex-1 justify-center items-center p-space-20">
           <Text style={[styles.creatingTitle, { color: textColor }]}>
             {t('auth.creating.errorTitle')}
           </Text>
@@ -115,7 +115,7 @@ export function CreatingStep({ progress, backgroundColor, textColor, isSyncing, 
 
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      <View style={styles.centeredContainer}>
+      <View className="flex-1 justify-center items-center p-space-20">
         <LottieView
           source={hedgehogAnimation}
           autoPlay
@@ -164,12 +164,6 @@ export function CreatingStep({ progress, backgroundColor, textColor, isSyncing, 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  centeredContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
   },
   lottieAnimation: {
     width: 120,

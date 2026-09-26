@@ -44,7 +44,7 @@
 
 import { eq, sql } from 'drizzle-orm';
 import { executeRows } from '@oxy.so/db';
-import { getDb } from '../config/postgres';
+import { getDb, type Transaction } from '../config/postgres';
 import { LIVE_PRODUCT_PLAN_STATUSES } from '@oxy.so/contracts';
 import { inferenceProviderConnections } from '../db/schema/inferenceProviderConnections';
 import { users } from '../db/schema/users';
@@ -273,7 +273,11 @@ function quoteIdentifier(identifier: string): string {
  * inference would be the kind of scope creep that is discovered later as data
  * loss. The boundary is stated rather than implied.
  */
-async function establishAccountClosureFence(accountId: string, archive: boolean): Promise<void> {
+async function establishAccountClosureFence(
+  accountId: string,
+  archive: boolean,
+  withinTransaction?: (tx: Transaction) => Promise<void>,
+): Promise<void> {
   await getDb().transaction(async (tx) => {
     // Provider-connection creation takes this same row lock before it commits
     // metadata. Whichever operation locks first therefore decides the outcome:
@@ -314,6 +318,8 @@ async function establishAccountClosureFence(accountId: string, archive: boolean)
         .set({ accountStatus: 'archived' })
         .where(eq(users.id, account.id));
     }
+
+    if (withinTransaction) await withinTransaction(tx);
   });
 }
 
@@ -323,6 +329,15 @@ export async function beginAccountClosure(accountId: string): Promise<void> {
 }
 
 /** Fence and archive atomically for retained or managed-account closure. */
-export async function archiveAccountForRetention(accountId: string): Promise<void> {
-  await establishAccountClosureFence(accountId, true);
+export async function archiveAccountForRetention(
+  accountId: string,
+  options: {
+    /**
+     * Work that must commit if and only if the archive does — the self-delete
+     * path records its `account.deleted` event here (OxyHQ/Mention#1169).
+     */
+    withinTransaction?: (tx: Transaction) => Promise<void>;
+  } = {},
+): Promise<void> {
+  await establishAccountClosureFence(accountId, true, options.withinTransaction);
 }

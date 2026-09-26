@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect } from 'react';
+import { AppIcon, Icons } from '@/constants/icons';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, ScrollView, StyleSheet, Linking, Platform, BackHandler } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
 import { useColors } from '@/hooks/useColors';
-import { CenteredState } from '@/components/ui/centered-state';
 import { useTranslation } from '@/lib/i18n';
 import { useCommonsApproval } from '@/hooks/commons-signin/useCommonsApproval';
 import { ApprovalRequest } from '@/components/commons-signin/approval-request';
 import { resolveApprovedAction } from '@/lib/commons-signin/approval-return';
 import { ErrorFallback } from '@/components/error-fallback';
 import { getDisplayNameOrNull } from '@/utils/date-utils';
+import { LoadingState, STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
 /** How long the success confirmation lingers before we return / close. */
 const APPROVED_RETURN_DELAY_MS = 1000;
@@ -133,15 +135,14 @@ export default function ApproveSignInScreen() {
     const approved = state === 'approved';
     content = (
       <View className="px-5 py-2">
-        <CenteredState
-          icon={approved ? 'check-circle-outline' : 'shield-off-outline'}
-          iconColor={approved ? colors.success : colors.textSecondary}
+        <EmptyState
+          illustration={<AppIcon name={approved ? 'checkCircle' : 'blocked'} size="3xl" fill={approved ? colors.success : colors.textSecondary} />}
           title={
             approved
               ? t('signInApproval.approve.approvedTitle')
               : t('signInApproval.approve.deniedTitle')
           }
-          body={
+          description={
             approved
               ? t('signInApproval.approve.approvedBody')
               : // Honest about what was actually recorded: a `not_me` denial is
@@ -153,6 +154,7 @@ export default function ApproveSignInScreen() {
                     : 'signInApproval.approve.deniedBody',
                 )
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       </View>
     );
@@ -161,15 +163,15 @@ export default function ApproveSignInScreen() {
     // --- Error state ---
     content = (
       <View className="px-5 py-2">
-        <CenteredState
-          icon="alert-circle-outline"
-          iconColor={colors.error}
+        <EmptyState
+          illustration={<Icons.alert size="3xl" fill={colors.error} />}
           title={t('signInApproval.approve.errorTitle')}
-          body={
+          description={
             code
               ? (errorMessage ?? t('signInApproval.approve.errorBody'))
               : t('signInApproval.approve.noCode')
           }
+          minHeight={STATE_MIN_HEIGHT}
         />
       </View>
     );
@@ -189,7 +191,7 @@ export default function ApproveSignInScreen() {
     // --- Loading ---
     content = (
       <View className="px-5 py-2">
-        <CenteredState loading body={t('signInApproval.approve.loading')} />
+        <LoadingState description={t('signInApproval.approve.loading')} />
       </View>
     );
   } else {

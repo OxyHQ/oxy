@@ -13,6 +13,11 @@
  * the cold boot / re-mint handler own persistence and `setTokens`, so the same
  * primitive can be reused from either without double-planting.
  *
+ * `registerBrowserDevice`, `requestDeviceJoinCode` and `joinBrowserDevice` are
+ * the browser bridge (ADR 0029 D2): auth.oxy.so's bridge page registers or
+ * proves the browser's device and hands an official app a one-use code, which
+ * the app redeems for its own holder credential on that device.
+ *
  * `provisionBackgroundCredential` is the mixin's second, adjacent call: it hands
  * native background code (no JS runtime) its own non-rotating credential so that
  * code never has to mint from — and therefore never rotates — the device secret
@@ -20,9 +25,17 @@
  */
 import {
   deviceBackgroundCredentialResponseSchema,
+  deviceJoinCodeResponseSchema,
+  deviceJoinResponseSchema,
+  deviceRegisterResponseSchema,
   deviceTokenMintResponseSchema,
   safeParseContract,
   type DeviceBackgroundCredentialResponse,
+  type DeviceJoinCodeRequest,
+  type DeviceJoinCodeResponse,
+  type DeviceJoinRequest,
+  type DeviceJoinResponse,
+  type DeviceRegisterResponse,
   type DeviceTokenMintResponse,
 } from '@oxy.so/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
@@ -62,6 +75,34 @@ function isAccountNotOnDevice(error: unknown): boolean {
     return false;
   }
   return typeof message === 'string' && message.includes('account_not_on_device');
+}
+
+/**
+ * The bridge calls share their transport rules with the mint: no bearer
+ * (`skipAuth`, so a 401 surfaces directly), one attempt, and never parked
+ * behind the request queue.
+ */
+async function bridgeRequest<T>(
+  client: OxyServicesBase,
+  url: string,
+  body: object,
+  schema: Parameters<typeof safeParseContract<T>>[0],
+): Promise<T> {
+  try {
+    const res = await client.makeRequest<unknown>('POST', url, body, {
+      cache: false,
+      skipAuth: true,
+      retry: false,
+      bypassQueue: true,
+    });
+    const parsed = safeParseContract(schema, res);
+    if (!parsed) {
+      throw new Error(`${url.slice(1)} returned an unexpected response shape`);
+    }
+    return parsed;
+  } catch (error) {
+    throw client.handleError(error);
+  }
 }
 
 export function OxyServicesDeviceBootMixin<T extends typeof OxyServicesBase>(Base: T) {
@@ -128,6 +169,38 @@ export function OxyServicesDeviceBootMixin<T extends typeof OxyServicesBase>(Bas
         }
         throw normalized;
       }
+    }
+
+    /**
+     * `POST /session/device/register` — auth.oxy.so only. A new, empty browser
+     * device with a server-chosen id and auth.oxy.so's holder credential. No
+     * bearer: this runs before anyone is signed in.
+     *
+     * @throws if the response does not match {@link deviceRegisterResponseSchema}.
+     */
+    async registerBrowserDevice(): Promise<DeviceRegisterResponse> {
+      return bridgeRequest(this, '/session/device/register', {}, deviceRegisterResponseSchema);
+    }
+
+    /**
+     * `POST /session/device/join-code` — auth.oxy.so only (the bridge page).
+     * Proves the device with its holder secret and returns a one-use, ~60 s
+     * code for an OFFICIAL app, bound to its exact registered redirect URI and
+     * its PKCE S256 challenge. A rejected secret surfaces as a 401 whose message
+     * carries `invalid_device_secret`.
+     */
+    async requestDeviceJoinCode(request: DeviceJoinCodeRequest): Promise<DeviceJoinCodeResponse> {
+      return bridgeRequest(this, '/session/device/join-code', request, deviceJoinCodeResponseSchema);
+    }
+
+    /**
+     * `POST /session/device/join` — the app's own origin. Redeems the bridge's
+     * code with the PKCE verifier this app holds, and returns this app's own
+     * holder credential for the browser's device. Persist it, then mint through
+     * {@link mintFromDeviceSecret} like any other holder.
+     */
+    async joinBrowserDevice(request: DeviceJoinRequest): Promise<DeviceJoinResponse> {
+      return bridgeRequest(this, '/session/device/join', request, deviceJoinResponseSchema);
     }
 
     /**

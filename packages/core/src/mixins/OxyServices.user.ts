@@ -1,9 +1,11 @@
 /**
  * User Management Methods Mixin
  */
+import type { CreateOxyNotificationRequest } from '@oxy.so/contracts';
 import type {
   User,
   Notification,
+  NotificationPage,
   NotificationPreferences,
   UserPreferences,
   SearchProfilesResponse,
@@ -153,6 +155,14 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
      */
     declare _serviceApiKey: string | null;
     declare _serviceApiSecret: string | null;
+
+    /**
+     * Whether this process can mint a service token by attesting what it is
+     * (ADR 0026), defined on the auth mixin. A host with no key pair that CAN
+     * attest is a first-party backend exactly like one with a key pair, and
+     * `getUsersByIds` must treat it as one.
+     */
+    declare _canUseWorkloadIdentity: () => Promise<boolean>;
 
     /**
      * Get profile by username.
@@ -463,17 +473,16 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
      * caller, and returns the SAME public `{ data: PublicUserProfile[] }`
      * payload (canonical `name.displayName` + `_count`) in every case — no
      * viewer-specific fields. This method picks the path automatically:
-     * - **Service-configured host (backend):** when `configureServiceAuth(apiKey,
-     *   apiSecret)` has been called, the chunk is fetched via `makeServiceRequest`
+     * - **Service host (backend):** when `configureServiceAuth(apiKey,
+     *   apiSecret)` has been called, OR the process can attest its workload
+     *   identity (ADR 0026 — an ECS task with no key pair), the chunk is fetched
+     *   via `makeServiceRequest`
      *   (attaches `Authorization: Bearer <serviceToken>`). This is the
      *   server-to-server feed/notification hydration path (e.g. Mention's
      *   `PostHydrationService`) and is unchanged.
      * - **Plain client (browser / React Native with a user session):** when no
      *   service credentials are configured, the chunk is fetched via
-     *   `makeRequest`, which attaches the configured user bearer. oxy-api's CSRF
-     *   middleware skips bearer-authenticated writes, and `makeRequest` only
-     *   fetches a CSRF token for cookie-only (no-bearer) state-changing requests,
-     *   so the user-bearer POST is sent without CSRF and succeeds. Previously
+     *   `makeRequest`, which attaches the configured user bearer. Previously
      *   this method always used the service path, so every client-side caller
      *   silently received `[]` because `getServiceToken()` had no credentials.
      *
@@ -502,10 +511,17 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
         chunks.push(uniqueIds.slice(i, i + USERS_BY_IDS_CHUNK_SIZE));
       }
 
-      // A backend that called configureServiceAuth() uses the bearer-service
-      // path; any other caller (browser / RN with a user session) uses the
-      // user-bearer path. See the method doc for why the user path is CSRF-safe.
-      const useServiceAuth = Boolean(this._serviceApiKey && this._serviceApiSecret);
+      // A backend uses the bearer-service path; any other caller (browser / RN
+      // with a user session) uses the user-bearer path. "A backend" means one
+      // that can get a service token at all — a key pair, OR a task role it can
+      // attest. Asking only about the key pair sent every attested backend down
+      // the user path with no bearer: an anonymous request, charged to the
+      // shared NAT address's per-IP budget and slowed by its 500ms penalty.
+      // Measured from Mention's task (2026-09-25): 520ms per anonymous chunk
+      // against 20ms with the service token, enough to put its 1.5s hydration
+      // deadline out of reach on every cache miss.
+      const useServiceAuth = Boolean(this._serviceApiKey && this._serviceApiSecret)
+        || await this._canUseWorkloadIdentity();
 
       // Run chunks concurrently; a single chunk failure must not sink the rest.
       const settled = await Promise.all(
@@ -739,6 +755,35 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
       }
     }
 
+
+    /**
+     * WebAuthn request options to delete a PASSKEY account (ADR 0029 D3): its own
+     * passkeys, user verification required, and a challenge bound to it. Opaque —
+     * hand them to the browser's authentication ceremony, on auth.oxy.so. An
+     * account with a Commons key deletes with {@link deleteAccount} instead.
+     */
+    async getAccountDeletionOptions(): Promise<unknown> {
+      try {
+        return await this.makeRequest<unknown>('POST', '/users/me/delete/options', undefined, { cache: false });
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Delete a PASSKEY account permanently, with an assertion by one of its
+     * passkeys over {@link getAccountDeletionOptions}' challenge.
+     *
+     * @param confirmText - Must equal the user's username (verified server-side)
+     * @param assertion - The ceremony's opaque `AuthenticationResponseJSON`
+     */
+    async deleteAccountWithPasskey(confirmText: string, assertion: unknown): Promise<{ message: string }> {
+      try {
+        return await this.makeRequest<{ message: string }>('DELETE', '/users/me', { confirmText, assertion }, { cache: false });
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
 
     /**
      * Invalidate every cached read a follow/unfollow write invalidates.
@@ -1077,11 +1122,13 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
     }
 
     /**
-     * Get notifications
+     * One page of the signed-in user's Oxy notifications, newest first
+     * (`GET /notifications`), with the unread count across all pages.
      */
-    async getNotifications(): Promise<Notification[]> {
+    async getNotifications(params: { page?: number; limit?: number } = {}): Promise<NotificationPage> {
+      const query = buildQueryParams({ page: params.page, limit: params.limit });
       return this.withAuthRetry(async () => {
-        return await this.makeRequest<Notification[]>('GET', '/notifications', undefined, {
+        return await this.makeRequest<NotificationPage>('GET', '/notifications', query, {
           cache: false, // Don't cache notifications - always get fresh data
         });
       }, 'getNotifications');
@@ -1092,32 +1139,45 @@ export function OxyServicesUserMixin<T extends typeof OxyServicesBase>(Base: T) 
      */
     async getUnreadCount(): Promise<number> {
       try {
-        const res = await this.makeRequest<{ count: number }>('GET', '/notifications/unread-count', undefined, {
+        const res = await this.makeRequest<{ unreadCount: number }>('GET', '/notifications/unread-count', undefined, {
           cache: false, // Don't cache unread count - always get fresh data
         });
-        return res.count;
+        return res.unreadCount;
       } catch (error) {
         throw this.handleError(error);
       }
     }
 
     /**
-     * Create notification
+     * Create a notification (`POST /notifications`; the API requires a service
+     * token whose application holds `notifications:write`). `type` is one of
+     * `OXY_NOTIFICATION_TYPES` from `@oxy.so/contracts` — `system` for a message
+     * from an Oxy service about the recipient's own account, with the recipient
+     * as actor and their profile as the entity.
      */
-    async createNotification(data: Partial<Notification>): Promise<Notification> {
+    async createNotification(data: CreateOxyNotificationRequest): Promise<Notification> {
       try {
-        return await this.makeRequest<Notification>('POST', '/notifications', data, { cache: false });
+        const res = await this.makeRequest<{ notification: Notification }>('POST', '/notifications', data, { cache: false });
+        return res.notification;
       } catch (error) {
         throw this.handleError(error);
       }
     }
 
     /**
-     * Mark notification as read
+     * Mark one of the signed-in user's notifications read and return it as
+     * stored. Scoped to the recipient server-side, so it is also the
+     * authoritative read of a notification by id: a foreign or unknown id 404s.
      */
-    async markNotificationAsRead(notificationId: string): Promise<void> {
+    async markNotificationAsRead(notificationId: string): Promise<Notification> {
       try {
-        await this.makeRequest('PUT', `/notifications/${notificationId}/read`, undefined, { cache: false });
+        const res = await this.makeRequest<{ notification: Notification }>(
+          'PUT',
+          `/notifications/${encodeURIComponent(notificationId)}/read`,
+          undefined,
+          { cache: false },
+        );
+        return res.notification;
       } catch (error) {
         throw this.handleError(error);
       }

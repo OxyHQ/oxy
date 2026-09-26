@@ -12,8 +12,41 @@
  */
 
 import { z } from 'zod';
-import { identityProofSchema } from './identityProof';
-import { webIdentityEnvelopeSchema } from './webIdentityCarrier';
+import { emailAddressSchema, emailTicketSchema } from './accountEmail';
+import { deviceProofSchema } from './deviceSession';
+
+/** A WebAuthn credential id, base64url as the browser reports it. */
+export const webauthnCredentialIdSchema = z
+  .string()
+  .trim()
+  .min(16)
+  .max(1024)
+  .regex(/^[A-Za-z0-9_-]+$/, 'credentialId must be base64url');
+
+/**
+ * A WebAuthn assertion by one of the account's EXISTING passkeys over a server
+ * challenge — the fresh use of the factor the account already has (linking
+ * Commons to a passkey account, deleting a passkey account). The API verifies
+ * it with `@simplewebauthn/server`; this only bounds its shape.
+ */
+export const webauthnAssertionResponseSchema = z
+  .object({
+    id: webauthnCredentialIdSchema,
+    rawId: z.string().min(1).max(2048),
+    type: z.literal('public-key'),
+    response: z
+      .object({
+        clientDataJSON: z.string().min(1).max(8192),
+        authenticatorData: z.string().min(1).max(8192),
+        signature: z.string().min(1).max(2048),
+        userHandle: z.string().max(2048).optional(),
+      })
+      .passthrough(),
+    clientExtensionResults: z.record(z.string(), z.unknown()).optional(),
+    authenticatorAttachment: z.string().optional(),
+  })
+  .passthrough();
+export type WebauthnAssertionResponse = z.infer<typeof webauthnAssertionResponseSchema>;
 
 /**
  * Device-session options shared by every first-party sign-in body
@@ -29,20 +62,29 @@ import { webIdentityEnvelopeSchema } from './webIdentityCarrier';
  * server-side and already authorized (the account-switch route threading the
  * operator's own central device id); they pass it to `createSession` directly
  * and never through a request body.
+ *
+ * `device` is different: it PROVES a device (its id and one of its holder
+ * secrets) rather than naming one, so the caller already holds that device's
+ * credential and the session added to it discloses nothing new (ADR 0029 D2).
+ * An invalid proof is ignored and the sign-in proceeds as without it.
  */
 const deviceSessionEnvelope = {
   deviceName: z.string().trim().min(1).max(120).optional(),
   deviceFingerprint: z.string().trim().min(1).max(256).optional(),
+  device: deviceProofSchema.optional(),
 } as const;
 
 /**
- * `POST /webauthn/register/options` — request registration options. With a bearer
- * token the caller links a passkey to their signed-in account and `username` is
- * ignored; without one it is a prospective signup and `username` is the desired
- * (not-yet-created) handle.
+ * `POST /webauthn/register/options` — request registration options. Three flows:
+ *
+ * - a bearer: the caller adds a passkey to their signed-in account;
+ * - `recoveryTicket` (no bearer): a new passkey for the account a recovery code
+ *   was confirmed for (`POST /auth/email/verify/confirm`, purpose `recovery`);
+ * - `username` (no bearer): a prospective sign-up; the handle is not created yet.
  */
 export const webauthnRegisterOptionsRequestSchema = z.object({
   username: z.string().trim().min(1).max(60).optional(),
+  recoveryTicket: emailTicketSchema.optional(),
 });
 export type WebauthnRegisterOptionsRequest = z.infer<typeof webauthnRegisterOptionsRequestSchema>;
 
@@ -60,23 +102,20 @@ export type WebauthnLoginOptionsRequest = z.infer<typeof webauthnLoginOptionsReq
 /**
  * `POST /webauthn/register/verify` — the outer envelope. The browser
  * `RegistrationResponseJSON` travels alongside these fields under `response` and
- * is validated by `@simplewebauthn/server`, not here. `username` is required only
- * for the prospective-signup branch (no bearer); the linking branch ignores it.
+ * is validated by `@simplewebauthn/server`, not here.
+ *
+ * - Sign-up (no bearer, ADR 0029 D3): `username`, the recovery `email` and the
+ *   `emailTicket` its code was confirmed with. The account is created with the
+ *   passkey and that verified email, and no key.
+ * - Recovery (no bearer): `recoveryTicket`; the passkey is added to its account
+ *   and a session minted.
+ * - A bearer: the passkey is added to the signed-in account.
  */
 export const webauthnRegisterVerifyRequestSchema = z.object({
   username: z.string().trim().min(1).max(60).optional(),
-  /**
-   * Sign-up only (ADR 0024 D4): the account's root, created on the holder BEFORE
-   * this request — sealed under the passkey being registered — and a root proof
-   * (`enroll_identity`) whose challenge is the registration challenge. The
-   * account, passkey, root and envelope are then created in one transaction.
-   */
-  identity: z
-    .object({
-      envelope: webIdentityEnvelopeSchema,
-      proof: identityProofSchema,
-    })
-    .optional(),
+  email: emailAddressSchema.optional(),
+  emailTicket: emailTicketSchema.optional(),
+  recoveryTicket: emailTicketSchema.optional(),
   ...deviceSessionEnvelope,
 });
 export type WebauthnRegisterVerifyRequest = z.infer<typeof webauthnRegisterVerifyRequestSchema>;

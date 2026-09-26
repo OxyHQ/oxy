@@ -16,6 +16,8 @@ import type { SurfaceHeaderContent } from '../../src/ui/hooks/useSurfaceHeader';
 const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnapshot => ({
   view: 'accounts',
   backView: null,
+  hasSession: false,
+  directory: null,
   accounts: [],
   activeAccountId: null,
   loading: false,
@@ -62,7 +64,11 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
 
 jest.mock('../../src/ui/hooks/useI18n', () => ({
   __esModule: true,
-  useI18n: () => ({ t: () => '', locale: 'en' }),
+  useI18n: () => ({
+    t: (key: string, vars?: Record<string, string | number>) =>
+      jest.requireActual('@oxy.so/core').translate('en-US', key, vars),
+    locale: 'en-US',
+  }),
 }));
 
 // Capture the header config the screen contributes to the Dialog nav header.
@@ -134,12 +140,16 @@ describe('OxyAccountDialogScreen — shared nav header', () => {
     expect(lastHeader()?.title).toBe('Sign in with Oxy');
   });
 
-  it('contributes the create-account title in the signup view', () => {
-    snapshot = makeSnapshot({ view: 'signup' });
-    render(<OxyAccountDialogScreen />);
+  it.each(['signin', 'add', 'signup'] as const)(
+    'leaves the %s bar untitled: the screen carries the Oxy mark and its own large title',
+    (view) => {
+      snapshot = makeSnapshot({ view });
+      render(<OxyAccountDialogScreen />);
 
-    expect(lastHeader()?.title).toBe('Create your account');
-  });
+      expect(lastHeader()?.title).toBeUndefined();
+      expect(lastHeader()?.titleContent).toBeUndefined();
+    },
+  );
 
   it('contributes a back handler in the qr view', () => {
     snapshot = makeSnapshot({ view: 'qr', backView: 'signin' });

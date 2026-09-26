@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 import { useColors } from '@/hooks/useColors';
 import { InterestTagsCanvas } from '@/components/auth/InterestTagsCanvas';
 import { Chip } from '@oxy.so/bloom/chip';

@@ -37,9 +37,10 @@ export type DeviceSessionSync = z.infer<typeof deviceSessionSyncSchema>;
 /**
  * Request body for `POST /session/device/token` — the client presents the
  * `deviceId` it stored first-party plus the opaque `deviceSecret`. NO bearer:
- * possession of the secret IS the proof of device ownership. The server matches
- * `sha256(deviceSecret)` against the device's stored `secretHash` (constant-time)
- * and mints a short access token for the device's active account.
+ * possession of the secret IS the proof of device ownership. The server looks
+ * `sha256(deviceSecret)` up among the device's holder credentials (one per app
+ * or origin that joined the shared DeviceSession) and mints a short access
+ * token for the device's active account.
  *
  * `accountId` pins the mint to ONE account of that device instead of whichever
  * account is currently active. It exists for identity-bound clients (Commons),
@@ -60,8 +61,8 @@ export const deviceTokenMintRequestSchema = z.object({
  * short access token for the active account, its expiry, the device secret the
  * client must persist (`nextDeviceSecret` — on mint this echoes the presented
  * secret unchanged so concurrent refreshes from multiple origins do not race),
- * and the projected device-session state. Sign-in rotates the secret via
- * `issueDeviceSecret`; mint does not.
+ * and the projected device-session state. Nothing rotates: each sign-in issues
+ * a NEW holder credential and leaves the others valid.
  */
 export const deviceTokenMintResponseSchema = z.object({
   accessToken: z.string(),
@@ -131,12 +132,11 @@ export type SessionAccountsChangedEvent = z.infer<typeof sessionAccountsChangedE
  * derived server-side from it) and consumed afterwards only by native
  * background code, which has no JS runtime to mint a token for itself.
  *
- * Deliberately a SEPARATE credential from the rotating `deviceSecret`: that one
- * rotates on every mint, so background code presenting it would become a second
- * writer of a value the JS runtime depends on, and background code killed
- * mid-rotation would silently sign the user out on the next cold start. Against
- * this credential background code is the sole writer, and it can never rotate
- * anything JS reads.
+ * Deliberately a SEPARATE credential from the holder `deviceSecret`: that one
+ * is device-wide and mints for whichever account is active, while this one is
+ * bound to ONE account and expires, so a widget worker never holds a
+ * credential that reaches every account on the device. Background code is its
+ * sole writer and never touches anything JS reads.
  *
  * The raw `secret` is returned exactly once, at provision time — never stored
  * retrievably, never logged, never re-read. A caller that loses it provisions
@@ -160,10 +160,10 @@ export const deviceBackgroundCredentialResponseSchema = z.object({
  * native background code with NO bearer and NO cookies: possession of the
  * background `secret` IS the proof, as it is for the device-secret mint.
  *
- * Unlike that mint this one NEVER rotates the presented secret (hence no
- * `next…` field to persist in the response), so background code interrupted
- * anywhere between request and response leaves the credential intact and
- * usable on its next run.
+ * Like that mint this one NEVER rotates the presented secret, and it carries
+ * no `next…` field at all, so background code interrupted anywhere between
+ * request and response leaves the credential intact and usable on its next
+ * run.
  */
 export const deviceBackgroundTokenRequestSchema = z.object({
   deviceId: z.string().min(1),
@@ -191,3 +191,75 @@ export type DeviceBackgroundCredentialResponse = z.infer<
 >;
 export type DeviceBackgroundTokenRequest = z.infer<typeof deviceBackgroundTokenRequestSchema>;
 export type DeviceBackgroundTokenResponse = z.infer<typeof deviceBackgroundTokenResponseSchema>;
+
+/* -------------------------------------------------------------------------- */
+/*  The browser bridge — joining the browser's DeviceSession (ADR 0029 D2)    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Proof that the caller holds a device: the `deviceId` it stored first-party and
+ * one of that device's holder secrets. Sent with `POST /session/device/join-code`
+ * and, optionally, with a sign-in (`POST /auth/session/claim`,
+ * `POST /auth/webauthn/login/verify`, `POST /auth/webauthn/register/verify`), where
+ * a valid proof puts the new session on THAT device so every app holding it sees
+ * the account. An invalid proof on a sign-in is ignored, never an error.
+ */
+export const deviceProofSchema = z.object({
+  deviceId: z.string().min(1).max(128),
+  deviceSecret: z.string().min(1).max(256),
+});
+
+/**
+ * `POST /session/device/register` — auth.oxy.so only. No body. A new, empty
+ * DeviceSession with a server-chosen `deviceId` and ONE holder credential for
+ * auth.oxy.so. The raw secret is returned exactly once.
+ */
+export const deviceRegisterResponseSchema = z.object({
+  deviceId: z.string().min(1),
+  deviceSecret: z.string().min(1),
+});
+
+/** PKCE S256 challenge: base64url of a SHA-256 digest (43 characters). */
+const pkceS256ChallengeSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+
+/**
+ * `POST /session/device/join-code` — auth.oxy.so only (the bridge window). Proves
+ * auth.oxy.so's device and asks for a one-use code an official app redeems to
+ * join it. The code is bound to the application (`clientId`), its exact
+ * registered `redirectUri` and the app's PKCE challenge, and lives about a
+ * minute.
+ */
+export const deviceJoinCodeRequestSchema = deviceProofSchema.extend({
+  clientId: z.string().min(1).max(256),
+  redirectUri: z.string().url().max(2048),
+  codeChallenge: pkceS256ChallengeSchema,
+  codeChallengeMethod: z.literal('S256'),
+});
+
+export const deviceJoinCodeResponseSchema = z.object({
+  code: z.string().min(1),
+  /** Seconds until the code expires. */
+  expiresIn: z.number().int().positive(),
+});
+
+/**
+ * `POST /session/device/join` — called by the app's own origin with the code the
+ * bridge window posted to it and the PKCE verifier only the app holds. Returns a
+ * NEW holder credential for the browser's device; the app then mints through the
+ * ordinary `POST /session/device/token`.
+ */
+export const deviceJoinRequestSchema = z.object({
+  code: z.string().min(1).max(256),
+  codeVerifier: z.string().min(43).max(128).regex(/^[A-Za-z0-9._~-]+$/),
+  clientId: z.string().min(1).max(256),
+  redirectUri: z.string().url().max(2048),
+});
+
+export const deviceJoinResponseSchema = deviceRegisterResponseSchema;
+
+export type DeviceProof = z.infer<typeof deviceProofSchema>;
+export type DeviceRegisterResponse = z.infer<typeof deviceRegisterResponseSchema>;
+export type DeviceJoinCodeRequest = z.infer<typeof deviceJoinCodeRequestSchema>;
+export type DeviceJoinCodeResponse = z.infer<typeof deviceJoinCodeResponseSchema>;
+export type DeviceJoinRequest = z.infer<typeof deviceJoinRequestSchema>;
+export type DeviceJoinResponse = z.infer<typeof deviceJoinResponseSchema>;

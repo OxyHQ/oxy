@@ -9,6 +9,7 @@ export const createNotificationSchema = z.object({
   entityType: z.string().trim().min(1),
   title: z.string().trim().optional(),
   message: z.string().trim().optional(),
+  url: z.string().trim().optional(),
   data: z.record(z.any()).optional(),
 });
 

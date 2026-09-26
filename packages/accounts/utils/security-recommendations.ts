@@ -4,8 +4,7 @@ import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 /** Stable identifier for each security recommendation the app can surface. */
 export type SecurityRecommendationId =
   | 'biometric'
-  | 'secure-account'
-  | 'recovery-phrase'
+  | 'link-commons'
   | 'old-sessions'
   | 'many-devices'
   | 'suspicious-activity';
@@ -25,9 +24,9 @@ export interface SecurityRecommendationInput {
   biometricEnabled: boolean;
   biometricLoading: boolean;
   /**
-   * The account's root readiness (`GET /identity/root-status`), or `undefined`
-   * while unknown. Oxy has no email or support recovery (ADR 0024): what gets an
-   * account back is its recovery phrase, so that is what is recommended.
+   * How the account is kept (`GET /identity/root-status`), or `undefined` while
+   * unknown. A passkey account is recommended to link Commons (ADR 0029 D3):
+   * its own key, and its recovery phrase in place of the recovery email.
    */
   rootStatus: IdentityRootStatus | undefined;
   sessions: ClientSession[] | undefined;
@@ -93,11 +92,9 @@ export function selectSecurityRecommendations(
     recommendations.push({ id: 'biometric', priority: 1 });
   }
 
-  // 2. No root yet, or a phrase that was never saved (high priority).
+  // 2. A passkey account can hold its own key (medium priority).
   if (input.rootStatus && !input.rootStatus.rootLinked) {
-    recommendations.push({ id: 'secure-account', priority: 1 });
-  } else if (input.rootStatus?.hasPhrase === true && !input.rootStatus.phraseConfirmedAt) {
-    recommendations.push({ id: 'recovery-phrase', priority: 1 });
+    recommendations.push({ id: 'link-commons', priority: 2 });
   }
 
   // 3. Old/inactive sessions (medium priority).

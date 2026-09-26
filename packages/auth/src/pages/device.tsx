@@ -2,14 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import type { CommonsApprovalInfo, SwitcherContextRow } from "@oxy.so/core";
 import { getCommonsApprovalBlockingReason } from "@oxy.so/core";
-import { OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxy.so/services";
+import { OxyAccountPicker, OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader, OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxy.so/services";
 
-import {
-  AuthFormHeader,
-  AuthFormLayout,
-  LoadingSpinner,
-} from "@/components/auth-form-layout";
-import { AccountChooser } from "@/components/account-chooser";
 import { buildAuthUrl, buildRelativeUrl, getAvatarUrl } from "@/lib/oxy-api-client";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
@@ -39,12 +33,10 @@ const CODE_PARAM = "user_code";
  * A client with no browser of its own — `codea login` in a terminal, over SSH,
  * inside a container — starts a Commons device sign-in and shows the person a
  * PUBLIC approval code. Until this page existed the only thing that could
- * approve that code was the native Commons app: both web pages that call
- * `POST /auth/session/authorize-code/:code` (`hub-passkey.tsx`, and
- * `id.oxy.so/continue`) are popups that refuse to render without
- * `window.opener`. Neither of them relays anything to that opener — the
- * approval lands server-side and the initiator finishes by polling — so a tab
- * opened from a link works just as well, and this is that tab.
+ * approve that code was the native Commons app. The approval lands
+ * server-side (`POST /auth/session/authorize-code/:code`) and the initiator
+ * finishes by polling, so an ordinary tab opened from a link works, and this
+ * is that tab.
  *
  * It renders the same `OxyConsentScreen` an MCP connector or an app sign-in
  * shows on `/authorize`, so the person sees one consent surface everywhere.
@@ -54,7 +46,7 @@ const CODE_PARAM = "user_code";
  * — it stays with the device, which is the only party that can claim the
  * session once it is approved.
  *
- * SECURITY — carried over from `hub-passkey.tsx`, not relaxed. A code is a
+ * SECURITY — not relaxed. A code is a
  * bearer-free handle anyone can mint for their own request, so a signed-in
  * victim who opens an attacker's link must not be able to approve it by
  * reflex (login-CSRF / session fixation). Approval is therefore always a
@@ -193,12 +185,12 @@ export function DevicePage() {
 
   if (!code) {
     return (
-      <AuthFormLayout>
-        <AuthFormHeader
+      <OxyAuthScreen>
+        <OxyAuthScreenHeader
           title={t("device.noRequestTitle")}
           description={t("device.noRequestDesc")}
         />
-      </AuthFormLayout>
+      </OxyAuthScreen>
     );
   }
 
@@ -206,36 +198,36 @@ export function DevicePage() {
 
   if (outcome === "approved") {
     return (
-      <AuthFormLayout>
-        <AuthFormHeader
+      <OxyAuthScreen>
+        <OxyAuthScreenHeader
           title={t("device.approvedTitle")}
           description={t("device.approvedDesc", { app: appName })}
         />
-      </AuthFormLayout>
+      </OxyAuthScreen>
     );
   }
 
   if (outcome === "denied") {
     return (
-      <AuthFormLayout>
-        <AuthFormHeader
+      <OxyAuthScreen>
+        <OxyAuthScreenHeader
           title={t("device.deniedTitle")}
           description={t("device.deniedDesc")}
         />
-      </AuthFormLayout>
+      </OxyAuthScreen>
     );
   }
 
   if (loadError) {
     return (
-      <AuthFormLayout>
-        <AuthFormHeader title={t("device.unavailableTitle")} description={loadError} />
-      </AuthFormLayout>
+      <OxyAuthScreen>
+        <OxyAuthScreenHeader title={t("device.unavailableTitle")} description={loadError} />
+      </OxyAuthScreen>
     );
   }
 
   if (!approval?.application || !isAuthResolved) {
-    return <LoadingSpinner />;
+    return <OxyAuthLoading />;
   }
 
   // No session on this device: sign in first, then come back to this exact
@@ -244,13 +236,13 @@ export function DevicePage() {
     return <Navigate to={loginUrl} replace />;
   }
 
-  if (directoryLoading) return <LoadingSpinner />;
+  if (directoryLoading) return <OxyAuthLoading />;
 
   // Same rule as `/authorize` and `/mcp/link`: with more than one account on
   // this device, the person picks which one signs in before approving anything.
   if (!chooserDismissed && activeContext !== null && contextCount > 1) {
     return (
-      <AccountChooser
+      <OxyAccountPicker
         principals={principals}
         appName={appName}
         onSelectContext={handleChooseContext}
@@ -264,7 +256,7 @@ export function DevicePage() {
   const application = approval.application;
 
   return (
-    <AuthFormLayout>
+    <OxyAuthScreen>
       <div className="flex w-full flex-col gap-space-12 rounded-radius-12 border border-border p-space-12 font-bodySmall text-bodySmall">
         <p className="text-muted-foreground">{t("device.codeHint")}</p>
         <code data-testid="device-code" className="break-all font-mono text-foreground">
@@ -315,7 +307,7 @@ export function DevicePage() {
           error={error}
         />
       </div>
-    </AuthFormLayout>
+    </OxyAuthScreen>
   );
 }
 

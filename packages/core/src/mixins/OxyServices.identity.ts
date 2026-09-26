@@ -23,8 +23,16 @@
  * on-device identity and throw on web (where `KeyManager.getPublicKey()` is
  * always `null`).
  */
+import {
+  IDENTITY_PROOF_ACTIONS,
+  identityLinkCreateResponseSchema,
+  identityLinkStateSchema,
+  safeParseContract,
+} from '@oxy.so/contracts';
 import type {
   AuthMethodsResponse,
+  IdentityLinkCreateResponse,
+  IdentityLinkState,
   IdentityRootStatus,
   DidDocument,
   DomainVerificationInstructions,
@@ -38,6 +46,8 @@ import type {
 import { signMessage } from '@oxy.so/protocol';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { KeyManager } from '../crypto/keyManager';
+import { deriveIdentityLinkCode } from '../crypto/identityLink';
+import { signIdentityProof } from '../crypto/identityProof';
 import { SignatureService } from '../crypto/signatureService';
 import { RecoveryPhraseService, type PendingIdentityResult } from '../crypto/recoveryPhrase';
 import { isWeb } from '../utils/platform';
@@ -219,15 +229,126 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     }
 
     /**
-     * The signed-in account's root readiness (ADR 0024 D5): whether a root is
-     * linked, how many passkeys can open the web holder, whether the root has a
-     * phrase and whether it is saved and was shown to recover it. Metadata only —
-     * nothing here can open the root — so any first-party surface may show a
-     * "save your recovery phrase" reminder from it.
+     * How the signed-in account is kept (ADR 0029 D3): whether Commons' root is
+     * linked (self-custody), or the recovery email of a passkey account. Any
+     * first-party surface may read it to recommend linking Commons.
      */
     async getIdentityRootStatus(): Promise<IdentityRootStatus> {
       try {
         return await this.makeRequest<IdentityRootStatus>('GET', '/identity/root-status', undefined, { cache: false });
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Open a request to link Commons to the signed-in passkey account (ADR 0029
+     * D3). auth.oxy.so shows its `qrPayload`; Commons scans it and signs with
+     * {@link signIdentityLink}.
+     */
+    async createIdentityLink(): Promise<IdentityLinkCreateResponse> {
+      try {
+        const res = await this.makeRequest<unknown>('POST', '/identity/link', undefined, { cache: false });
+        const parsed = safeParseContract(identityLinkCreateResponseSchema, res);
+        if (!parsed) throw new Error('identity/link returned an unexpected response shape');
+        return parsed;
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /** Where a link request stands. Both devices poll it; it needs no session. */
+    async getIdentityLink(linkId: string): Promise<IdentityLinkState> {
+      try {
+        const res = await this.makeRequest<unknown>('GET', `/identity/link/${encodeURIComponent(linkId)}`, undefined, {
+          cache: false,
+          skipAuth: true,
+        });
+        const parsed = safeParseContract(identityLinkStateSchema, res);
+        if (!parsed) throw new Error('identity/link returned an unexpected response shape');
+        return parsed;
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Commons' half: sign the scanned request's `link_identity` proof with THIS
+     * device's identity key and post it. NATIVE-ONLY (the key lives in native
+     * secure storage). Resolves to the key and the 6-digit code auth.oxy.so will
+     * show for it, for the person to compare.
+     */
+    async signIdentityLink(linkId: string, challenge: string): Promise<{ publicKey: string; code: string; username: string | null }> {
+      try {
+        const [privateKey, publicKey] = await Promise.all([KeyManager.getPrivateKey(), KeyManager.getPublicKey()]);
+        if (!privateKey || !publicKey) {
+          throw new Error('No identity on this device to link');
+        }
+        const root = publicKey.trim().toLowerCase();
+        const state = await this.getIdentityLink(linkId);
+        const proof = await signIdentityProof(
+          { privateKey, publicKey: root },
+          {
+            action: IDENTITY_PROOF_ACTIONS.link,
+            subject: state.userId,
+            actor: state.userId,
+            rootPublicKey: root,
+            payloadDigest: null,
+            expectedRevision: null,
+            audience: state.audience,
+            challenge,
+            expiresAt: state.expiresAt,
+          },
+        );
+        await this.makeRequest<unknown>(
+          'POST',
+          `/identity/link/${encodeURIComponent(linkId)}/proof`,
+          { publicKey: root, proof },
+          { cache: false, skipAuth: true },
+        );
+        return { publicKey: root, code: deriveIdentityLinkCode(linkId, root), username: state.username };
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /** WebAuthn request options over the account's passkeys, whose challenge is the link's. Opaque. */
+    async getIdentityLinkAssertionOptions(linkId: string, challenge: string): Promise<unknown> {
+      try {
+        return await this.makeRequest<unknown>(
+          'POST',
+          `/identity/link/${encodeURIComponent(linkId)}/options`,
+          { challenge },
+          { cache: false },
+        );
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * auth.oxy.so's half: the passkey assertion over the link's challenge. The
+     * account gains Commons' root and loses its recovery email.
+     */
+    async completeIdentityLink(linkId: string, assertion: unknown): Promise<{ success: true }> {
+      try {
+        const result = await this.makeRequest<{ success: true }>(
+          'POST',
+          `/identity/link/${encodeURIComponent(linkId)}/complete`,
+          { assertion },
+          { cache: false },
+        );
+        this._invalidateIdentityCaches(this.getCurrentUserId());
+        return result;
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /** Withdraw a link request that has not completed. */
+    async cancelIdentityLink(linkId: string): Promise<void> {
+      try {
+        await this.makeRequest<unknown>('DELETE', `/identity/link/${encodeURIComponent(linkId)}`, undefined, { cache: false });
       } catch (error) {
         throw this.handleError(error);
       }
@@ -239,9 +360,6 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
      * Passkeys are per-credential, so this targets a specific credential id.
      * The server refuses to remove the last remaining auth method (the account
      * would become inaccessible) and deletes the stored `WebauthnCredential`.
-     * A passkey that also opens the account's root on the web takes its wrap with
-     * it, and the ONLY such passkey is refused with
-     * `code: 'IDENTITY_LAST_WEB_HOLDER'` (ADR 0024 D6).
      *
      * @param credentialId - The passkey's public credential id
      *   (`AuthMethodEntry.credentialId`).

@@ -35,7 +35,7 @@ function baseInput(overrides: Partial<SecurityRecommendationInput> = {}): Securi
     canEnableBiometric: false,
     biometricEnabled: false,
     biometricLoading: false,
-    rootStatus: { rootLinked: true, webHolder: { passkeys: 1, verifiedPasskeys: 1 }, hasPhrase: true, phraseConfirmedAt: '2026-09-01T00:00:00.000Z', recoveryVerifiedAt: null },
+    rootStatus: { rootLinked: true, recoveryEmail: null },
     sessions: [],
     deviceCount: 0,
     securityActivities: [],
@@ -110,23 +110,11 @@ describe('selectSecurityRecommendations', () => {
     ).not.toContain('biometric');
   });
 
-  it('never recommends a recovery email: Oxy has no email recovery (ADR 0024)', () => {
-    const recs = selectSecurityRecommendations(baseInput(), NOW);
-    expect(recs.map((r) => r.id as string)).not.toContain('recovery-email');
-  });
-
-  it('recommends saving the recovery phrase only when the root has one and it is not saved', () => {
-    const unsaved = { rootLinked: true, webHolder: { passkeys: 1, verifiedPasskeys: 1 }, hasPhrase: true, phraseConfirmedAt: null, recoveryVerifiedAt: null };
-    expect(selectSecurityRecommendations(baseInput({ rootStatus: unsaved }), NOW).map((r) => r.id)).toContain('recovery-phrase');
-    expect(selectSecurityRecommendations(baseInput({ rootStatus: { ...unsaved, hasPhrase: false } }), NOW).map((r) => r.id)).not.toContain('recovery-phrase');
-    // Unknown status (still loading, or kept in Commons) is not a guess.
-    expect(selectSecurityRecommendations(baseInput({ rootStatus: undefined }), NOW).map((r) => r.id)).toEqual([]);
-    expect(selectSecurityRecommendations(baseInput({ rootStatus: { ...unsaved, webHolder: null, hasPhrase: null } }), NOW).map((r) => r.id)).toEqual([]);
-  });
-
-  it('recommends securing an account that has no root at all', () => {
-    const keyless = { rootLinked: false, webHolder: null, hasPhrase: null, phraseConfirmedAt: null, recoveryVerifiedAt: null };
-    expect(selectSecurityRecommendations(baseInput({ rootStatus: keyless }), NOW).map((r) => r.id)).toEqual(['secure-account']);
+  it('recommends linking Commons to a passkey account, and not on a guess (ADR 0029 D3)', () => {
+    const passkey = { rootLinked: false, recoveryEmail: 'ada@example.com' };
+    expect(selectSecurityRecommendations(baseInput({ rootStatus: passkey }), NOW).map((r) => r.id)).toEqual(['link-commons']);
+    expect(selectSecurityRecommendations(baseInput({ rootStatus: undefined }), NOW)).toEqual([]);
+    expect(selectSecurityRecommendations(baseInput({ rootStatus: { rootLinked: true, recoveryEmail: null } }), NOW)).toEqual([]);
   });
 
   it('carries the stale-session count on the old-sessions recommendation', () => {
@@ -172,7 +160,7 @@ describe('selectSecurityRecommendations', () => {
       baseInput({
         canEnableBiometric: true, // priority 1, pushed first
         biometricEnabled: false,
-        rootStatus: { rootLinked: false, webHolder: null, hasPhrase: null, phraseConfirmedAt: null, recoveryVerifiedAt: null }, // priority 1, pushed second
+        rootStatus: { rootLinked: false, recoveryEmail: 'ada@example.com' }, // priority 2, pushed before old sessions
         sessions: [session({ lastActive: daysAgo(STALE_SESSION_DAYS + 5) })], // priority 2
         deviceCount: MANY_DEVICES_THRESHOLD + 1, // priority 3
         securityActivities: [activity({ severity: 'critical' })], // priority 0, pushed last
@@ -183,10 +171,10 @@ describe('selectSecurityRecommendations', () => {
     expect(recs.map((r) => r.id)).toEqual([
       'suspicious-activity',
       'biometric',
-      'secure-account',
+      'link-commons',
       'old-sessions',
       'many-devices',
     ]);
-    expect(recs.map((r) => r.priority)).toEqual([0, 1, 1, 2, 3]);
+    expect(recs.map((r) => r.priority)).toEqual([0, 1, 2, 2, 3]);
   });
 });

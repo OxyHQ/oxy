@@ -54,7 +54,7 @@ export function IdQrBack({ payload, caption }: IdQrBackProps) {
       </View>
 
       {/* Verification zone. */}
-      <View style={styles.qrZone}>
+      <View className="flex-1 items-center justify-center gap-space-12">
         <View style={styles.qrFrameWrap}>
           <View style={styles.qrFrame}>
             <QRCode value={payload} size={QR_SIZE} color="#1C1C1E" backgroundColor="transparent" />
@@ -107,12 +107,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 1.2,
     color: '#6E6E73',
-  },
-  qrZone: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
   },
   qrFrameWrap: {
     width: QR_FRAME,

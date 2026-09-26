@@ -366,6 +366,20 @@ export interface OxyPagesHeadersOptions {
    * the app — is REMOVED from `script-src` and `connect-src`, so third-party
    * measurement cannot run there even when the zone has Web Analytics enabled.
    * A structural block in the policy the page is served with, not a build flag.
+   *
+   * It also sends `Cache-Control: no-transform`, which stops the edge from
+   * injecting the beacon at all — otherwise every page load logs a CSP
+   * violation for a script we never asked for. The rest of the value is Pages'
+   * own default, so caching is unchanged.
+   *
+   * And, because this origin is where a web account is created, recovered and
+   * deleted and every Oxy passkey is asserted (ADR 0028, ADR 0029) — the rest
+   * of the holder policy: no `<base>` and no form posts (`base-uri` /
+   * `form-action 'none'`), no Referer to anyone, passkeys for this origin only
+   * with every other powerful feature off (`Permissions-Policy`), and its
+   * responses readable by no other origin (`Cross-Origin-Resource-Policy`).
+   * Never `Cross-Origin-Opener-Policy`: the third-party OAuth popup reports
+   * its code to the app that opened it, and COOP severs `window.opener`.
    */
   sensitive?: boolean;
   /**
@@ -397,6 +411,21 @@ export interface OxyPagesHeadersOptions {
  * react-native-web's runtime stylesheet, and a style hash would silently switch
  * that off and render every Oxy web app unstyled.)
  */
+/** Passkeys for this origin itself; every other powerful feature off. */
+const SENSITIVE_PERMISSIONS_POLICY = [
+  'publickey-credentials-get=(self)',
+  'publickey-credentials-create=(self)',
+  'camera=()',
+  'microphone=()',
+  'geolocation=()',
+  'payment=()',
+  'usb=()',
+  'serial=()',
+  'hid=()',
+  'bluetooth=()',
+  'display-capture=()',
+].join(', ');
+
 export function buildOxyPagesHeaders(options: OxyPagesHeadersOptions = {}): string {
   const hashes = [
     ...new Set((options.html ?? []).flatMap(extractInlineScripts).map(inlineScriptCspHash)),
@@ -417,6 +446,8 @@ export function buildOxyPagesHeaders(options: OxyPagesHeadersOptions = {}): stri
     for (const name of ['script-src', 'connect-src']) {
       directives[name] = (directives[name] ?? []).filter((source) => !beacon.has(source));
     }
+    directives['base-uri'] = ["'none'"];
+    directives['form-action'] = ["'none'"];
   }
   const csp = formatOxyCspPolicy(directives);
   const lines = [
@@ -424,10 +455,15 @@ export function buildOxyPagesHeaders(options: OxyPagesHeadersOptions = {}): stri
     `  Content-Security-Policy: ${csp}`,
     '  X-Frame-Options: DENY',
     '  X-Content-Type-Options: nosniff',
-    '  Referrer-Policy: strict-origin-when-cross-origin',
+    `  Referrer-Policy: ${options.sensitive ? 'no-referrer' : 'strict-origin-when-cross-origin'}`,
   ];
   if (options.hsts !== false) {
     lines.push('  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
+  }
+  if (options.sensitive) {
+    lines.push('  Cache-Control: public, max-age=0, must-revalidate, no-transform');
+    lines.push(`  Permissions-Policy: ${SENSITIVE_PERMISSIONS_POLICY}`);
+    lines.push('  Cross-Origin-Resource-Policy: same-origin');
   }
   lines.push('');
   return lines.join('\n');

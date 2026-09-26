@@ -1,53 +1,48 @@
 {
   "signin": {
     "title": "Iniciar sessão",
-    "subtitle": "Inicie sessão para continuar",
+    "subtitle": "Usa a tua conta Oxy",
     "addAccountTitle": "Adicionar outra conta",
     "addAccountSubtitle": "Iniciar sessão com outra conta",
     "username": {
       "label": "Nome de utilizador",
-      "placeholder": "Introduza o seu nome de utilizador",
-      "helper": "3-30 caracteres, apenas letras e números",
-      "required": "Por favor, introduza o seu nome de utilizador.",
-      "minLength": "O nome de utilizador deve ter pelo menos 3 caracteres."
-    },
-    "password": {
-      "label": "Palavra-passe",
-      "placeholder": "Introduza a sua palavra-passe",
-      "required": "Por favor, introduza a sua palavra-passe.",
-      "hint": "Introduza a sua palavra-passe para iniciar sessão"
+      "placeholder": "oteunome",
+      "required": "Por favor, introduza o seu nome de utilizador."
     },
     "actions": {
       "continue": "Continuar",
-      "back": "Voltar",
-      "signIn": "Iniciar sessão",
-      "verify": "Verificar",
-      "openAccountSwitcher": "Mudar para outra conta",
-      "openAccountSwitcherSubtitle": "{{count}} outras contas disponíveis",
-      "openAccountSwitcherSubtitle_singular": "1 outra conta disponível",
-      "openAccountSwitcherSubtitle_zero": "Revise as suas contas guardadas",
-      "manageAccounts": "Gerir contas guardadas",
-      "manageAccountsSubtitle": "Rever sessões, remover ou terminar sessão",
-      "loadingOtherAccounts": "A carregar outras contas…",
-      "switchAccountFailed": "Não foi possível mudar de conta. Por favor, tente novamente."
+      "back": "Voltar"
     },
-    "forgotPrompt": "Esqueceu-se da palavra-passe?",
-    "security": {
-      "dataSecure": "Os seus dados estão encriptados e seguros"
-    },
-    "currentlySignedInAs": "Atualmente com sessão iniciada como",
-    "alreadySignedInWith": "Já tem sessão iniciada com",
-    "alreadySignedIn": "Já tem sessão iniciada",
-    "alreadySignedInMessage": "Esta conta já tem sessão iniciada. Continuar com esta conta?",
-    "continueWithAccount": "Continuar",
-    "currentAccount": "Atual",
-    "or": "ou",
-    "viewAllAccounts": "Ver mais {{count}}",
     "createAccountLink": "Novo no Oxy? Crie uma conta",
     "status": {
-      "accountSwitched": "Agora a usar {{name}}",
       "signingIn": "A iniciar sessão…"
-    }
+    },
+    "subtitleToApp": "para continuar para {{app}}",
+    "orContinueWith": "ou continua com",
+    "qr": {
+      "caption": "Lê com o Commons para entrar",
+      "renew": "Mostrar um código novo"
+    },
+    "methods": {
+      "passkey": "Entrar com uma chave de acesso"
+    },
+    "errors": {
+      "rateLimited": "Demasiadas tentativas. Tenta novamente dentro de {{seconds}} s.",
+      "passkeyCancelled": "Fechaste o pedido da chave de acesso. Tenta novamente quando quiseres.",
+      "passkeyFailed": "Não foi possível concluir a chave de acesso. Tenta novamente."
+    },
+    "chooser": {
+      "subtitleToApp": "para continuar para {{app}}"
+    },
+    "terms": {
+      "before": "Ao continuar, aceitas os nossos",
+      "termsLink": "Termos de serviço",
+      "and": "e a",
+      "privacyLink": "Política de privacidade"
+    },
+    "noAccount": "Não tens conta?",
+    "createAccount": "Criar conta",
+    "recoverLink": "Perdeste a chave de acesso? Recupera a tua conta"
   },
   "signup": {
     "title": "Crie a sua conta",
@@ -55,56 +50,28 @@
     "createInCommons": "Crie a sua identidade no Commons",
     "createAccount": "Criar conta",
     "backToSignInLink": "Já tem uma conta? Inicie sessão",
-    "welcome": {
-      "title": "Bem-vindo ao Oxy!",
-      "subtitle": "Crie a sua conta em poucos passos",
-      "haveAccount": "Já tem uma conta?",
-      "signInCta": "Iniciar sessão"
-    },
-    "identity": {
-      "title": "Quem é?",
-      "subtitle": "Escolha o seu nome de utilizador e introduza o seu email"
-    },
+    "webSubtitle": "Sem palavra-passe: o teu dispositivo cria uma passkey e um email de recuperação devolve-te o acesso se a perderes.",
     "username": {
-      "helper": "3-30 caracteres, apenas letras e números",
-      "required": "Por favor, introduza um nome de utilizador",
-      "minLength": "O nome de utilizador deve ter pelo menos 3 caracteres"
+      "label": "Nome de utilizador",
+      "placeholder": "oteunome",
+      "required": "Escolhe um nome de utilizador.",
+      "taken": "Esse nome de utilizador já está em uso."
     },
     "email": {
-      "required": "Por favor, introduza um endereço de email",
-      "invalid": "Por favor, introduza um endereço de email válido",
-      "helper": "Nunca partilharemos o seu email"
+      "title": "O teu email de recuperação",
+      "subtitle": "Se perderes a passkey, enviamos-te aqui um código para voltares a entrar. Não é usado para mais nada.",
+      "label": "Email",
+      "placeholder": "tu@exemplo.pt",
+      "invalid": "Escreve um email válido."
     },
-    "security": {
-      "title": "Proteja a sua conta",
-      "subtitle": "Crie uma palavra-passe forte para proteger a sua conta"
+    "passkey": {
+      "title": "Cria a tua passkey",
+      "subtitle": "É com ela que inicias sessão: impressão digital, rosto ou bloqueio do ecrã. Nada para memorizar.",
+      "action": "Criar passkey"
     },
-    "password": {
-      "helper": "Pelo menos 8 caracteres",
-      "required": "Por favor, introduza uma palavra-passe",
-      "minLength": "A palavra-passe deve ter pelo menos 8 caracteres",
-      "confirmRequired": "Por favor, confirme a sua palavra-passe",
-      "mismatch": "As palavras-passe não coincidem",
-      "confirmHint": "Reintroduza a sua palavra-passe para confirmar"
-    },
-    "summary": {
-      "title": "Quase lá!",
-      "subtitle": "Revise as suas informações e crie a sua conta",
-      "sectionTitle": "Informações da conta",
-      "fields": {
-        "username": "Nome de utilizador",
-        "email": "Email",
-        "password": "Palavra-passe"
-      },
-      "notSet": "Não definido",
-      "securityTip": "Para maior segurança, ative a autenticação biométrica nas Definições da conta após criar a sua conta.",
-      "legalReminder": "Ao criar uma conta, concorda com os nossos Termos de Serviço e Política de Privacidade."
-    }
+    "commonsInstead": "Queres guardar a tua própria chave? Usa o Commons"
   },
   "accountSwitcher": {
-    "sections": {
-      "yourAccounts": "As suas contas"
-    },
     "loading": "A carregar contas...",
     "qrHeadline": "Inicie sessão com a sua identidade Oxy",
     "signInWithOxy": "Iniciar sessão com Oxy",
@@ -136,10 +103,7 @@
       "claimFailed": "O início de sessão foi aprovado, mas não conseguimos concluí-lo. Tente novamente.",
       "generic": "Não foi possível iniciar sessão. Tente novamente."
     },
-    "linkOpenFailed": "Não foi possível abrir a ligação. Tente novamente.",
-    "continueWithPasskey": "Continuar",
-    "passkeyHint": "Use a impressão digital, o rosto ou o PIN do dispositivo.",
-    "otherDeviceCommons": "Conta noutro dispositivo? Digitalize com o Commons"
+    "linkOpenFailed": "Não foi possível abrir a ligação. Tente novamente."
   },
   "common": {
     "actions": {
@@ -280,7 +244,63 @@
     "help": "Ajuda e feedback",
     "signOut": "Terminar sessão",
     "privacy": "Política de privacidade",
-    "terms": "Termos de serviço",
-    "identity": "A sua identidade"
+    "terms": "Termos de serviço"
+  },
+  "recover": {
+    "title": "Recupera a tua conta",
+    "subtitle": "Escreve o teu nome de utilizador ou o email de recuperação. Enviamos um código para o email de recuperação da conta.",
+    "identifier": {
+      "label": "Utilizador ou email",
+      "placeholder": "oteunome",
+      "required": "Escreve o teu utilizador ou email."
+    },
+    "commonsNote": "A tua conta usa o Commons? Recupera-a no Commons com a tua frase de recuperação.",
+    "passkey": {
+      "title": "Adiciona uma nova passkey",
+      "subtitle": "Para @{{username}}. Remove as passkeys perdidas mais tarde nas definições de segurança da conta.",
+      "action": "Criar passkey"
+    },
+    "backToSignIn": "Voltar a iniciar sessão"
+  },
+  "emailCode": {
+    "title": "Vê o teu email",
+    "sentTo": "Enviámos um código de 6 dígitos para {{email}}.",
+    "sentIfAccount": "Se esta conta tiver um email de recuperação, enviámos-lhe um código de 6 dígitos.",
+    "label": "Código",
+    "resend": "Enviar um novo código",
+    "resent": "Enviámos um novo código.",
+    "changeEmail": "Usar outro email",
+    "errors": {
+      "codeInvalid": "Esse código não está certo ou expirou.",
+      "tooManyAttempts": "Demasiados códigos errados. Pede um novo.",
+      "expired": "Passou demasiado tempo. Recomeça.",
+      "unavailable": "O Oxy não consegue enviar emails agora. Tenta mais tarde.",
+      "rateLimited": "Demasiados códigos. Tenta mais tarde."
+    }
+  },
+  "deleteAccount": {
+    "passkey": {
+      "subtitle": "Confirma com a tua passkey. @{{username}} e tudo o que contém são eliminados para sempre.",
+      "action": "Eliminar com passkey",
+      "done": "A tua conta foi eliminada.",
+      "closeWindow": "Podes fechar esta janela.",
+      "commons": "Esta conta usa o Commons: elimina-a no Oxy Commons, Definições > Eliminar conta, com a sua chave."
+    }
+  },
+  "linkCommons": {
+    "title": "Associar o Commons",
+    "subtitle": "Guarda a tua própria chave: associa o Commons e esta conta passa a ser só tua. O email de recuperação é eliminado e a tua frase de recuperação no Commons é como voltas a entrar.",
+    "scan": "No telemóvel, abre o Commons, escolhe «Tenho uma conta Oxy na web» e digitaliza este código.",
+    "waiting": "À espera do Commons…",
+    "compareTitle": "Verifica o código",
+    "compare": "O Commons mostra o mesmo código. Se não mostrar, cancela.",
+    "confirm": "Sim, associar o Commons",
+    "cancel": "Cancelar",
+    "doneTitle": "O Commons está associado",
+    "done": "Esta conta passou a ser de autocustódia. O email de recuperação foi eliminado: a tua frase de recuperação no Commons é como voltas a entrar.",
+    "already": "Esta conta já usa o Commons.",
+    "expired": "Este código expirou.",
+    "renew": "Mostrar um novo código",
+    "failed": "Não foi possível associar o Commons. Tenta de novo."
   }
 }

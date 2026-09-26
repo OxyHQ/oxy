@@ -1030,27 +1030,6 @@
     "overwriteConfirm": "Replace and restore",
     "cancel": "Cancel"
   },
-  "identityMove": {
-    "entry": "Add from the Oxy website",
-    "scanTitle": "Scan the code on the web",
-    "scanInstructions": "On your computer, open your Oxy identity, choose “Add my identity to the Commons app”, and point the camera at the code.",
-    "permissionBody": "Allow camera access to scan the code shown on the Oxy website.",
-    "grantPermission": "Allow camera",
-    "invalidCode": "That isn’t an Oxy identity code. On your computer, choose “Add my identity to the Commons app” and scan the code shown there.",
-    "scanAgain": "Scan again",
-    "joining": "Connecting…",
-    "compareTitle": "Check the code",
-    "compareBody": "Your computer shows a code too. Confirm there that it is exactly this one — only then is your identity sent to this phone.",
-    "waiting": "Waiting for you to confirm on your computer…",
-    "importing": "Saving your identity on this phone…",
-    "unavailable": "This code can no longer be used. Start again on the web.",
-    "tampered": "The move could not be verified, so nothing was saved. Start again on the web.",
-    "ended": "The move was cancelled or expired. Nothing was saved.",
-    "failed": "We couldn't save your identity on this phone. Start again on the web.",
-    "identityAlreadyExists": "A different identity already exists on this phone. Remove it from Settings first, then move.",
-    "receiptFailed": "Your identity is saved on this phone, but we couldn't tell the website yet. Check your connection and try again.",
-    "retry": "Try again"
-  },
   "importPrivateKey": {
     "entry": "Import with private key",
     "title": "Import with private key",
@@ -1077,6 +1056,16 @@
     "encryptedTitle": "Encrypted backup",
     "encryptedSubtitle": "Save a recoverable copy of your keys off-device",
     "encryptedUnavailable": "Not available — needs a recovery phrase"
+  },
+  "deviceBackupWarning": {
+    "title": "This identity isn't backed up on this device",
+    "body": "This device can't keep an automatic backup of your identity. On Android it needs Google Play services. If storage is cleared for Commons or any other Oxy app, your identity is erased from this device, and only your recovery phrase can bring it back. Write your phrase down now, and set up an encrypted backup.",
+    "bodyNoPhrase": "This device can't keep an automatic backup of your identity. On Android it needs Google Play services. If storage is cleared for Commons or any other Oxy app, your identity is erased from this device. It was imported from a private key and has no recovery phrase, so rotate to a key with one.",
+    "revealPhrase": "Write down your recovery phrase",
+    "encryptedBackup": "Set up an encrypted backup",
+    "rotate": "Rotate to a key with a recovery phrase",
+    "notNow": "Not now",
+    "confirm": "I've saved my recovery phrase"
   },
   "rotateKey": {
     "settingsEntry": "Rotate your key",
@@ -1214,6 +1203,12 @@
     "channel": {
       "name": "Sign-in requests",
       "description": "Alerts when another device asks to sign in as you"
+    }
+  },
+  "accountNotifications": {
+    "channel": {
+      "name": "Account updates",
+      "description": "Messages from Oxy about your account, like a finished move"
     }
   },
   "civic": {
@@ -1889,5 +1884,27 @@
     "startOverConfirmBody": "This permanently erases the protected identity on this device. Without your 12-word recovery phrase, your account will be unrecoverable.",
     "startOverConfirmCta": "Erase and start over",
     "startOverFailed": "We couldn't clear the identity from this device. Unlock it and try again."
+  },
+  "linkAccount": {
+    "entry": "I have an Oxy account on the web",
+    "introTitle": "Link your Oxy account",
+    "introBody": "On a computer or another phone, sign in at auth.oxy.so/link-commons. It shows a code to scan here. Commons then keeps your account's key, and your recovery phrase replaces its recovery email.",
+    "scanAction": "Scan the code",
+    "scanTitle": "Scan the code on auth.oxy.so",
+    "permissionBody": "Commons needs the camera to scan the code auth.oxy.so shows.",
+    "grantPermission": "Allow camera",
+    "scanInstructions": "Point the camera at the code on auth.oxy.so/link-commons.",
+    "invalidCode": "That isn't a link code from auth.oxy.so.",
+    "scanAgain": "Scan again",
+    "loading": "Loading…",
+    "confirmTitle": "Link @{{username}}?",
+    "confirmBody": "Commons creates a key for this account and keeps it on this phone. The account's recovery email is deleted, and the recovery phrase Commons shows you next is how you get back in.",
+    "confirmAction": "Link this account",
+    "codeTitle": "Check the code",
+    "codeBody": "auth.oxy.so shows this same code. If it does, confirm there with your passkey.",
+    "waiting": "Waiting for auth.oxy.so…",
+    "expired": "The link was cancelled or expired. Start again on auth.oxy.so.",
+    "alreadyLinked": "This account already uses Commons.",
+    "failed": "Couldn't link this account. Try again."
   }
 }

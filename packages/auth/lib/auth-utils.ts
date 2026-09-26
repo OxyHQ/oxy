@@ -88,3 +88,48 @@ function pathWithQuery(pathname: string, params: Record<string, string | undefin
     const search = query.toString()
     return search ? `${pathname}?${search}` : pathname
 }
+
+/** The query keys that describe the request a sign-in continues to. */
+const REQUEST_QUERY_KEYS = [
+    "token",
+    "redirect_uri",
+    "state",
+    "client_id",
+    "code_challenge",
+    "code_challenge_method",
+    "scope",
+    "resource",
+    "response_type",
+    "response_mode",
+    "mcp_link_intent",
+    "user_code",
+] as const
+
+/**
+ * `pathname` carrying the request `search` describes, so moving between
+ * `/login` and `/signup` never loses what the person came to finish.
+ */
+export function withRequestQuery(pathname: string, search: URLSearchParams): string {
+    const params: Record<string, string | undefined> = {}
+    for (const key of REQUEST_QUERY_KEYS) params[key] = search.get(key) ?? undefined
+    return pathWithQuery(pathname, params)
+}
+
+/** Where a sign-in on `/login` or `/signup` continues to, read off that page's query. */
+export function postLoginRedirectFrom(search: URLSearchParams): string {
+    const get = (key: string) => search.get(key) ?? undefined
+    return buildPostLoginRedirect({
+        sessionToken: get("token"),
+        redirectUri: get("redirect_uri"),
+        state: get("state"),
+        clientId: get("client_id"),
+        codeChallenge: get("code_challenge"),
+        codeChallengeMethod: get("code_challenge_method"),
+        scope: get("scope"),
+        resource: get("resource"),
+        responseType: get("response_type"),
+        responseMode: get("response_mode"),
+        mcpLinkIntent: get("mcp_link_intent"),
+        userCode: get("user_code"),
+    })
+}

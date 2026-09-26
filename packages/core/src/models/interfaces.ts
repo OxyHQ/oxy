@@ -4,6 +4,8 @@ import type {
   UserNameResponse,
   UserRelationship,
   ThemePreference,
+  OxyNotificationEntityType,
+  OxyNotificationType,
 } from '@oxy.so/contracts';
 
 export interface OxyConfig {
@@ -115,6 +117,13 @@ export interface User {
    * lists, profile search) — the two are separate fields on the User document.
    */
   description?: string;
+  /**
+   * ActivityPub actor URIs this account is also known as — its live,
+   * OAuth-proven linked Mastodon-API accounts. Emitted by
+   * `GET /profiles/username/:username`; a relying app passes it to the shared
+   * actor builder (`@oxy.so/federation`) so its actor publishes it.
+   */
+  alsoKnownAs?: string[];
   phone?: string;
   address?: string;
   /** Legacy free-text birthday, kept for backward compatibility. Prefer `dateOfBirth`. */
@@ -260,10 +269,57 @@ export interface LoginResponse {
   message?: string;
 }
 
+/**
+ * The actor of a notification as `GET /notifications` populates it — the raw
+ * stored name, not a composed display name.
+ */
+export interface NotificationActor {
+  _id: string;
+  username?: string;
+  name?: { first: string; last: string };
+  avatar?: string;
+}
+
+/**
+ * One Oxy notification exactly as the API serializes it
+ * (`packages/api/src/controllers/notification.controller.ts`). `_id` — not
+ * `id` — is the key every notification endpoint addresses it by.
+ */
 export interface Notification {
-  id: string;
-  message: string;
-  // Add other notification fields as needed
+  _id: string;
+  recipientId: string;
+  /** Populated on a list read; the bare id on a create or a mark-read. */
+  actorId: string | NotificationActor;
+  /** One of `OXY_NOTIFICATION_TYPES` (`@oxy.so/contracts`). */
+  type: OxyNotificationType;
+  /**
+   * What `entityId` names: `post` | `reply` | `profile`, or `app` — an opaque id
+   * in the notifying application's namespace (`system` notifications only).
+   */
+  entityType: OxyNotificationEntityType;
+  entityId: string;
+  /**
+   * `system` notifications only: the text an Oxy service sent about the
+   * recipient's own account. Render these instead of composing a sentence from
+   * actor + entity.
+   */
+  title?: string;
+  message?: string;
+  /** `system` notifications only: an optional deep link (https or the sending app's scheme). */
+  url?: string;
+  read: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One page of `GET /notifications`, newest first. */
+export interface NotificationPage {
+  notifications: Notification[];
+  /** Unread notifications across ALL pages. */
+  unreadCount: number;
+  hasMore: boolean;
+  page: number;
+  limit: number;
 }
 
 export interface Wallet {
@@ -666,6 +722,13 @@ export interface ServiceAssetMetadata {
    * play. Treat absence as "no adaptive stream, play the progressive original".
    */
   hlsReadyAt?: string;
+  /**
+   * The Oxy user who owns the file (`null` for a system-owned file such as the
+   * federated media cache). PRESENT ONLY for Oxy's own applications (service
+   * tokens with `tier: 'internal'`), so a first-party service can check that an
+   * asset a user attached is really that user's. Absent for every other caller.
+   */
+  ownerUserId?: string | null;
 }
 
 /**

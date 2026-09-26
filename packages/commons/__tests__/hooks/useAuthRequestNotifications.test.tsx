@@ -6,7 +6,6 @@ import {
   __notificationUnsubscribe,
   __resetNotificationAdapter,
   subscribeToNotificationResponses,
-  takeLaunchNotificationData,
 } from '@/__mocks__/oxy-services';
 import { COMMONS_AUTH_REQUEST_PUSH_TYPE } from '@/lib/notifications/auth-request-push';
 import {
@@ -111,33 +110,23 @@ describe('useAuthRequestNotifications', () => {
 });
 
 describe('coldLaunchApprovalCode', () => {
-  beforeEach(() => {
-    __resetNotificationAdapter();
+  it('resolves the code carried by the launching notification', () => {
+    expect(coldLaunchApprovalCode(pushPayload('oxycommons://approve?v=1&code=cold-1'))).toBe('cold-1');
   });
 
-  it('resolves the code carried by the launching notification', async () => {
-    takeLaunchNotificationData.mockResolvedValue(
-      pushPayload('oxycommons://approve?v=1&code=cold-1'),
-    );
+  it('claims the code so the warm listener cannot route the same tap twice', () => {
+    const launch = pushPayload('oxycommons://approve?code=cold-2');
 
-    await expect(coldLaunchApprovalCode()).resolves.toBe('cold-1');
-  });
-
-  it('claims the code so the warm listener cannot route the same tap twice', async () => {
-    takeLaunchNotificationData.mockResolvedValue(pushPayload('oxycommons://approve?code=cold-2'));
-
-    await expect(coldLaunchApprovalCode()).resolves.toBe('cold-2');
+    expect(coldLaunchApprovalCode(launch)).toBe('cold-2');
     // A second reader of the SAME launching tap gets nothing.
-    await expect(coldLaunchApprovalCode()).resolves.toBeNull();
+    expect(coldLaunchApprovalCode(launch)).toBeNull();
   });
 
-  it('resolves null when nothing launched the app', async () => {
-    await expect(coldLaunchApprovalCode()).resolves.toBeNull();
+  it('resolves null when nothing launched the app', () => {
+    expect(coldLaunchApprovalCode(null)).toBeNull();
   });
 
-  it('resolves null for an unparseable launching payload', async () => {
-    takeLaunchNotificationData.mockResolvedValue(pushPayload('evil://approve?code=cold-3'));
-
-    await expect(coldLaunchApprovalCode()).resolves.toBeNull();
+  it('resolves null for an unparseable launching payload', () => {
+    expect(coldLaunchApprovalCode(pushPayload('evil://approve?code=cold-3'))).toBeNull();
   });
 });

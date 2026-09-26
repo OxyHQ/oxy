@@ -24,19 +24,11 @@ describe('DomainColors', () => {
   });
 
   it('most domain colours differ between light and dark variants', () => {
-    // A handful of brand colours (avatar background, contrast50) intentionally
-    // share values across modes. We assert that the *majority* of tokens differ
-    // so that a stray copy-paste of the light object into the dark slot would
-    // immediately fail.
+    // A stray copy-paste of the light object into the dark slot must fail.
     const lightEntries = Object.entries(DomainColors.light) as [DomainColorKey, string][];
     const sameCount = lightEntries.filter(
       ([key, value]) => value === DomainColors.dark[key],
     ).length;
     expect(sameCount).toBeLessThan(lightEntries.length / 2);
-  });
-
-  it('exposes the sidebar background key on both modes', () => {
-    expect(typeof DomainColors.light.sidebarBackground).toBe('string');
-    expect(typeof DomainColors.dark.sidebarBackground).toBe('string');
   });
 });

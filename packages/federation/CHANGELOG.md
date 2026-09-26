@@ -6,6 +6,30 @@
   2.0.0 only removes the server-side `jwtSecret` option, which this package
   never used.
 
+## 2.1.1
+
+### Changed
+
+- `@oxy.so/contracts` admits `^2.0.0`: 2.0 removes only the browser-hub
+  schemas, which this package never imported.
+
+## 2.1.0
+
+### Added
+
+- Actor aliases: `createLocalActorBuilder`, the actor router and the
+  `Update(Person)` rebroadcast accept `alsoKnownAs` (`ActorRouteUser`,
+  `DeliveryActorProfile`, `BuildLocalActorParams`) and publish it after
+  `publicKey` when non-empty — de-duplicated, absolute `https:` URIs only.
+  `normalizeAlsoKnownAs` exposes that rule. An actor without aliases emits no
+  `alsoKnownAs` key.
+- `AP_CONTEXT` declares `alsoKnownAs` (`as:alsoKnownAs`, typed `@id`), as
+  Mastodon does; a strict JSON-LD consumer otherwise drops the aliases.
+- Inbound `Move`: `InboundDispatcherConfig.onMove(move: InboundMove)` receives
+  a Move only when its `actor` and `object` are both the verified signer and
+  its `target` is a different absolute `https:` URI. Without a handler a Move
+  is logged and dropped, as before.
+
 ## 2.0.0
 
 ### Breaking: an unreadable collection count is unknown, not `0`

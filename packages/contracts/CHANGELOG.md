@@ -1,5 +1,110 @@
 # Changelog: `@oxy.so/contracts`
 
+## 2.3.0
+
+The browser bridge (ADR 0029 D2).
+
+### Added
+
+- `deviceProofSchema` (`{ deviceId, deviceSecret }`),
+  `deviceRegisterResponseSchema`, `deviceJoinCodeRequestSchema` (PKCE S256
+  only), `deviceJoinCodeResponseSchema`, `deviceJoinRequestSchema` (an RFC 7636
+  verifier), `deviceJoinResponseSchema` and their types.
+- `webauthnLoginVerifyRequestSchema.device` and
+  `webauthnRegisterVerifyRequestSchema.device`: an optional proof of the device
+  the new session joins.
+
+## 2.2.0
+
+Web accounts are a username, a passkey and a recovery email (ADR 0029 D3).
+
+### Added
+
+- `accountEmail`: the recovery email of a passkey account (ADR 0029 D3) —
+  `emailVerificationStartRequestSchema` (`signup` with `email`, `recovery` with
+  `identifier`), `emailVerificationConfirmRequestSchema` (6 digits),
+  their response schemas, `emailAddressSchema` (trimmed, lowercase),
+  `emailTicketSchema`, `EMAIL_CODE_LENGTH`, `EMAIL_CODE_TTL_MS`,
+  `EMAIL_CODE_MAX_ATTEMPTS`, `EMAIL_TICKET_TTL_MS`,
+  `EMAIL_VERIFICATION_PURPOSES` and `EMAIL_VERIFICATION_ERROR_CODES`.
+- `webauthnRegisterOptionsRequestSchema.recoveryTicket`;
+  `webauthnRegisterVerifyRequestSchema.email`, `.emailTicket` and
+  `.recoveryTicket`.
+- `webauthnCredentialIdSchema` and `webauthnAssertionResponseSchema` (with
+  `WebauthnAssertionResponse`) now live in `webauthn`.
+- `identityLink`: linking Commons to a passkey account from two devices —
+  `IDENTITY_LINK_STATUSES`, `IDENTITY_LINK_QR_PREFIX`,
+  `buildIdentityLinkQrPayload` / `parseIdentityLinkQrPayload`
+  (`oxycommons://link?id=…&c=…`), `identityLinkIdSchema`,
+  `identityLinkCreateResponseSchema`, `identityLinkStateSchema`,
+  `identityLinkProofRequestSchema`, `identityLinkOptionsRequestSchema`,
+  `identityLinkCompleteRequestSchema` and their types.
+
+### Changed
+
+- `IdentityRootStatus` is `{ rootLinked, recoveryEmail }`.
+- `IDENTITY_PROOF_ACTIONS` is `{ link: 'link_identity' }`: the only root proof
+  left is linking Commons to a passkey account.
+
+### Removed
+
+- The web identity carrier and its move: `webIdentityCarrier`
+  (`WEB_IDENTITY_ENVELOPE_VERSION`, every `webIdentity*` schema and type),
+  `identityRecovery` (`IDENTITY_RECOVERY_TTL_MS`, `identityRecovery*`) and
+  `identityMove` (`IDENTITY_MOVE_*`, `identityMove*`, `buildMove*`).
+- `webauthnRegisterVerifyRequestSchema.identity` (the sign-up enrollment).
+- The proof actions `web_envelope_*`, `enroll_identity`,
+  `recover_account_start`, `recover_account_complete`, `identity_move_seal`, and
+  the error codes `IDENTITY_ENVELOPE_REVISION_CONFLICT`, `IDENTITY_NO_ROOT`,
+  `IDENTITY_LAST_WEB_HOLDER`, `IDENTITY_ENROLLMENT_REQUIRED`,
+  `IDENTITY_ENROLLMENT_INVALID`, `IDENTITY_RECOVERY_FAILED`.
+
+## 2.1.0
+
+### Added
+
+- `federationInstanceFetch`: `instanceFetchSignRequestSchema` (`{ url }`,
+  strict — no signing string, no method) and `instanceFetchSignResponseSchema`
+  (`{ keyId, headers: { Host, Date, Signature } }`) for
+  `POST /federation/instance-fetch/sign`, where Oxy's instance actor signs one
+  ActivityPub GET for a service holding `federation:instance-fetch`.
+  `INSTANCE_FETCH_MAX_URL_LENGTH` (2048).
+- `linkedAccounts`: `LINKED_ACCOUNT_START_ERROR_REASONS` —
+  `instance_invalid | instance_unreachable | handle_unresolvable |
+  provider_rejected | provider_unavailable` — with
+  `linkedAccountStartErrorReasonSchema` and
+  `linkedAccountStartErrorDetailsSchema` (`{ reason }`): the `details` of a
+  400 from `POST /linked-accounts/:network/start`, so a client can tell "check
+  what you typed" from "the other network refused Oxy".
+
+## 2.0.0
+
+### Removed
+
+- `browserHub`: `BROWSER_HUB_COOKIE_NAME`, `BROWSER_HUB_COOKIE_ATTRIBUTES`,
+  `BROWSER_HUB_HANDLE_TTL_MS` and every `browserHub*` / `hub*` schema and type.
+  The browser DeviceSession hub was never deployed and is deleted (ADR 0003
+  superseded); no origin holds a cookie.
+
+## 1.5.0
+
+### Added
+
+- `linkedAccounts`: the wire contract of `/linked-accounts` —
+  `LINKED_ACCOUNT_NETWORKS` (`activitypub | atproto`),
+  `startLinkedAccountRequestSchema` (`clientId` and `returnTo` required) /
+  `startLinkedAccountResponseSchema`, `completeLinkedAccountRequestSchema`
+  (`{ code }`) / `completeLinkedAccountResponseSchema`,
+  `linkedAccountSchema`, `linkedAccountListResponseSchema`, the service read's
+  `serviceLinkedAccountSchema` / `serviceLinkedAccountListResponseSchema`
+  (adds `federatedUserId`), and `LINKED_ACCOUNT_CALLBACK_ERRORS`. Every
+  response schema is strict and has no field a third-party token could occupy.
+- `notifications`: `OXY_NOTIFICATION_TYPES` (gains `system`),
+  `OXY_NOTIFICATION_ENTITY_TYPES` (gains `app`, valid only for `system`), and
+  `createOxyNotificationRequestSchema`. A `system` notification requires
+  `title` and `message`, may carry a `url`, and names the recipient as its
+  actor; `url` and `entityType: 'app'` are refused on every other type.
+
 ## 1.4.0
 
 ### Added

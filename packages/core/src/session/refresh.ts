@@ -63,6 +63,21 @@ const MIN_SCHEDULE_DELAY_MS = 1_000;
 const MIN_FAILURE_BACKOFF_MS = 5_000;
 const MAX_FAILURE_BACKOFF_MS = 5 * 60_000;
 
+/**
+ * How long past `exp` to re-mint when a successful refresh handed back a token
+ * that is STILL inside the lead window.
+ *
+ * The device mint returns the session's stored access token until that token
+ * has actually expired, so asking again before `exp` only returns the same
+ * token. Re-arming from expiry in that state computed a negative delay, hit the
+ * {@link MIN_SCHEDULE_DELAY_MS} floor and re-minted once a second for the last
+ * minute of every token — 30+ mints, the server's whole per-minute budget, and
+ * the 429 that followed straddled the real expiry. Waiting until just past
+ * `exp` asks exactly once more, when the server will rotate. The margin covers
+ * the server's strict `exp < now` comparison and a little clock skew.
+ */
+export const REMINT_AFTER_EXPIRY_MS = 2_000;
+
 export interface RefreshDeps {
   oxy: OxyServices;
   store: AuthStateStore;
@@ -99,6 +114,11 @@ export interface RefreshDeps {
  *    The device secret is FINE — it is the identity binding that went stale, so
  *    the caller must re-establish from the local key, never drop the credential.
  *  - `transient` — network / 5xx; keep the secret, a later attempt can succeed.
+ *  - `session-ended` — the mint succeeded, but the local session was ended
+ *    (`HttpService.endSession`, i.e. a sign-out) while it was in flight. Nothing
+ *    is planted. The rotated secret is persisted only if the store still holds
+ *    the credential that was presented — a store the sign-out cleared stays
+ *    clear.
  *  - `persist-failed` — the mint succeeded but `nextDeviceSecret` could NOT be
  *    durably persisted. The token is deliberately NOT planted: advertising a
  *    healthy session on a secret that will not survive a reload is exactly the
@@ -111,6 +131,7 @@ export type DeviceSecretMintOutcome =
   | { status: 'no-session' }
   | { status: 'account-not-on-device' }
   | { status: 'transient' }
+  | { status: 'session-ended' }
   | { status: 'persist-failed' };
 
 /**
@@ -144,6 +165,7 @@ export async function refreshDeviceSecretArm(deps: {
   const { oxy, store } = deps;
   const pin = deps.pin ?? null;
   return oxy.httpService.runSingleFlightDeviceSecretMint(async () => {
+    const epoch = oxy.httpService.getSessionEpoch();
     const persisted = await store.load();
     if (!persisted?.deviceId || !persisted?.deviceSecret) {
       return { status: 'no-secret' };
@@ -207,11 +229,25 @@ export async function refreshDeviceSecretArm(deps: {
       expiresAt: mint.expiresAt,
       ...(bound ? { sessionId: bound.sessionId, userId: bound.accountId } : {}),
     };
+    if (oxy.httpService.getSessionEpoch() !== epoch) {
+      // Signed out while minting. A store that still holds the presented
+      // secret takes the server's `nextDeviceSecret` (the token-null lane keeps
+      // the store so a reload can restore); a store the sign-out cleared must
+      // NOT be refilled. Either way, plant nothing.
+      const current = await store.load();
+      if (current?.deviceId === persisted.deviceId && current.deviceSecret === persisted.deviceSecret) {
+        await store.save(next);
+      }
+      return { status: 'session-ended' };
+    }
     // Persist nextDeviceSecret (read-back-verified) BEFORE planting the token.
     // A failed durable persist must NOT plant.
     const persistedOk = await store.save(next);
     if (!persistedOk) {
       return { status: 'persist-failed' };
+    }
+    if (oxy.httpService.getSessionEpoch() !== epoch) {
+      return { status: 'session-ended' };
     }
     oxy.setTokens(mint.accessToken);
     return {
@@ -251,6 +287,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
   const identity = deps.identity ?? null;
   // The shared keychain is never an identity-bound client's recovery path.
   const allowSharedKeyFallback = identity ? false : (deps.allowSharedKeyFallback ?? isNative());
+  const epoch = oxy.httpService.getSessionEpoch();
   // Resolved per call: a re-established identity session can move the pin, and a
   // replaced/removed local key clears it (in which case arm 1 must NOT mint —
   // an unpinned mint would adopt whatever account the device switched to).
@@ -263,6 +300,8 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
   switch (arm1.status) {
     case 'ok':
       return arm1.token;
+    case 'session-ended':
+      return null;
     case 'transient':
       logger.debug(
         'Persisted deviceSecret mint failed (transient) — keeping store',
@@ -285,12 +324,18 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
       // 401: secret diverged or no live session. When a key-based arm 2 can still
       // recover (native shared key, or an identity-bound client's own primary
       // key) drop ONLY the secret and keep the deviceId; otherwise (web) the
-      // session is over — clear the store.
+      // session is over.
       const persisted = await store.load();
       if (allowSharedKeyFallback || identity) {
         if (persisted) {
           await store.save({ ...persisted, deviceSecret: undefined });
         }
+      } else if (arm1.status === 'no-session' && persisted?.deviceId && persisted.deviceSecret) {
+        // Web, a credential the server still recognises: this origin stays a
+        // holder of the browser's device (ADR 0029 D2) — the next sign-in in any
+        // app lands on it, and this app follows without opening the bridge
+        // again. Only the session fields go.
+        await store.save({ sessionId: '', userId: '', deviceId: persisted.deviceId, deviceSecret: persisted.deviceSecret });
       } else {
         await store.clear();
       }
@@ -312,10 +357,18 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
     return recoverIdentitySession(oxy, store, identity);
   }
 
-  if (allowSharedKeyFallback) {
+  // Never after a sign-out: the shared keychain holds an identity KEY, not a
+  // session, and using it here would sign the user straight back in.
+  if (allowSharedKeyFallback && !oxy.httpService.hasSessionEnded()) {
     try {
-      const session = await oxy.signInWithSharedIdentity();
+      // Planted here, not by the sign-in: a sign-out that lands while the
+      // challenge round-trips must win, or the shared keychain signs the user
+      // straight back in.
+      const session = await oxy.signInWithSharedIdentity({ plantTokens: false });
       if (session?.accessToken) {
+        if (oxy.httpService.getSessionEpoch() !== epoch) {
+          return null;
+        }
         // Repopulate the fast device-secret lane from the shared-key re-mint.
         if (session.deviceId && session.deviceSecret) {
           await store.save({
@@ -327,6 +380,10 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
             expiresAt: session.expiresAt,
           });
         }
+        if (oxy.httpService.getSessionEpoch() !== epoch) {
+          return null;
+        }
+        oxy.setTokens(session.accessToken);
         return session.accessToken;
       }
     } catch (error) {
@@ -447,13 +504,27 @@ export function startTokenRefreshScheduler(oxy: OxyServices): TokenRefreshSchedu
     if (expSeconds === null) {
       return;
     }
-    armTimer(expSeconds * 1000 - Date.now() - TOKEN_REFRESH_LEAD_MS);
+    const untilExpiryMs = expSeconds * 1000 - Date.now();
+    // The server already answered this token's refresh with this very token:
+    // asking again before `exp` only gets it back again. Ask just after expiry,
+    // when the server rotates (see REMINT_AFTER_EXPIRY_MS).
+    if (untilExpiryMs > 0 && oxy.httpService.isAwaitingCurrentTokenExpiry?.()) {
+      armTimer(untilExpiryMs + REMINT_AFTER_EXPIRY_MS);
+      return;
+    }
+    armTimer(untilExpiryMs - TOKEN_REFRESH_LEAD_MS);
   };
 
   const runRefresh = (): void => {
     // Clear any pending timer up front so an out-of-band trigger (focus) plus
     // a fired timer can never double-run.
     clearTimer();
+    // Another lane (a request-time preflight) already asked, and the server
+    // answered with this same token: re-arm for just past expiry instead.
+    if (oxy.httpService.isAwaitingCurrentTokenExpiry?.()) {
+      scheduleFromExpiry();
+      return;
+    }
     void oxy.httpService.refreshAccessToken('preflight')
       .then((token) => Boolean(token))
       .catch(() => false)
@@ -498,10 +569,16 @@ export function startTokenRefreshScheduler(oxy: OxyServices): TokenRefreshSchedu
     }
   };
 
-  const unsubscribeTokens = oxy.onTokensChanged(() => {
-    if (!disposed) {
-      schedule();
+  // Re-arm only on a token that actually CHANGED. The mint plants the token it
+  // returns even when that is the token already held, and treating the repeat
+  // as new re-armed from an in-lead-window expiry, i.e. at the 1s floor.
+  let lastSeenToken = oxy.getAccessToken();
+  const unsubscribeTokens = oxy.onTokensChanged((token) => {
+    if (disposed || token === lastSeenToken) {
+      return;
     }
+    lastSeenToken = token;
+    schedule();
   });
 
   let removeFocusListener: (() => void) | null = null;

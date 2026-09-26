@@ -13,6 +13,12 @@
 ## Then in packages/api/.env:
 ##   DATABASE_URL=postgres://oxy:oxy@127.0.0.1:5432/oxy_dev
 ##
+## Sign-up and recovery send a code by email (ADR 0029 D3). Locally, Mailpit
+## catches that mail instead of sending it:
+##   docker compose -f docker-compose.dev.yml up -d mailpit
+##   SMTP_RELAY_HOST=127.0.0.1 and SMTP_RELAY_PORT=1025 in packages/api/.env
+##   read it at http://127.0.0.1:8025
+##
 ## SWITCHING FROM postgres:17-alpine: the image change alone does not add PostGIS
 ## to an EXISTING data volume — `postgis` ships as files under
 ## `/usr/share/postgresql/…/extension`, and the running server only gains them by
@@ -55,6 +61,16 @@ services:
       start_period: 10s
     volumes:
       - postgres-data:/var/lib/postgresql/data
+
+  mailpit:
+    # A local SMTP sink with a web inbox: the relay the API sends codes through
+    # in development. Nothing it receives leaves the machine.
+    image: axllent/mailpit:v1.31
+    container_name: oxy-mailpit-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
 volumes:
   postgres-data:

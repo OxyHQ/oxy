@@ -8,6 +8,7 @@
 
 import type {
   CommonsDenyReason,
+  DeviceProof,
   OauthAuthorizeCodeResponse,
   OauthConsentDecision,
 } from '@oxy.so/contracts';
@@ -18,7 +19,6 @@ import {
 import express from 'express';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { SessionController } from '../controllers/session.controller';
 import { publicColumns } from '@oxy.so/db/assert';
@@ -43,7 +43,7 @@ import {
 } from '../utils/applicationScopes';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
-import { authMiddleware, rejectQueryToken, type AuthRequest } from '../middleware/auth';
+import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { serviceTokenMintRateLimitKey } from '../utils/serviceRateLimitKey';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
@@ -62,9 +62,11 @@ import SignatureService from '../services/signature.service';
 import { emitAuthSessionUpdate, emitAuthSessionProgress } from '../utils/authSessionSocket';
 import { broadcastSessionAccountsChanged } from '../utils/socket';
 import webauthnRouter from './webauthn';
+import accountEmailRouter from './accountEmail';
 import { validate } from '../middleware/validate';
 import sessionService from '../services/session.service';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
+import { resolveProvenDeviceId } from '../services/deviceJoin.service';
 import { formatUserResponse } from '../utils/userTransform';
 import { issueAuthCode, exchangeAuthCode, AUTH_CODE_TTL_MS } from '../services/oauthCode.service';
 import {
@@ -92,7 +94,6 @@ import {
   challengeSchema,
   verifyChallengeSchema,
   checkUsernameParams,
-  checkEmailParams,
   checkPublicKeyParams,
   getUserByPublicKeyParams,
   authSessionCreateSchema,
@@ -110,7 +111,7 @@ import {
   oauthConsentQuerySchema,
   grantApplicationIdParams,
 } from '../schemas/auth.schemas';
-import { normaliseOrigin, isLoopbackOrigin } from '../utils/origin';
+import { isLoopbackOrigin } from '../utils/origin';
 import { deriveCoarseClientLabel, generateDeviceId } from '../utils/deviceUtils';
 import { serializePublicApplication } from '../utils/serializeApplication';
 import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
@@ -214,6 +215,14 @@ async function findActiveApplicationById(applicationId: string): Promise<Applica
  * same AuthSuccess shape as POST /auth/verify.
  */
 router.use('/webauthn', webauthnRouter);
+
+/**
+ * POST /auth/email/verify/start    - send a recovery email code (sign-up or recovery)
+ * POST /auth/email/verify/confirm  - the code → a one-use ticket for registration
+ *
+ * auth.oxy.so only; see `routes/accountEmail.ts` (ADR 0029 D3).
+ */
+router.use('/email', accountEmailRouter);
 
 // ============================================
 // Public Key Authentication Routes
@@ -569,68 +578,6 @@ router.get('/lookup/:username', checkLimiter, validate({ params: checkUsernamePa
       name: { first: user.nameFirst, last: user.nameLast },
       username: user.username,
     }),
-  });
-}));
-
-/**
- * @openapi
- * /auth/check-email/{email}:
- *   get:
- *     tags:
- *       - Authentication
- *     summary: Check email availability
- *     description: Check whether an email address is available for registration.
- *     parameters:
- *       - in: path
- *         name: email
- *         required: true
- *         schema:
- *           type: string
- *           format: email
- *         example: user@example.com
- *     responses:
- *       200:
- *         description: Availability check result
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 available:
- *                   type: boolean
- *                 message:
- *                   type: string
- *       400:
- *         description: Invalid email format
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       429:
- *         description: Rate limit exceeded
- */
-router.get('/check-email/:email', checkLimiter, validate({ params: checkEmailParams }), asyncHandler(async (req, res) => {
-  const { email } = req.params;
-  
-  if (!email || !email.includes('@')) {
-    throw new BadRequestError('Please provide a valid email address');
-  }
-
-  const normalizedEmail = email.trim().toLowerCase();
-  // Matched through `users_lower_email_key`, the `lower(btrim(email))` unique
-  // index — Mongoose's `lowercase: true` setter has no Postgres counterpart, so
-  // the normalization is re-applied on BOTH sides at the call site.
-  const [existingUser] = await getDb()
-    .select({ id: users.id })
-    .from(users)
-    .where(sql`lower(btrim(${users.email})) = lower(btrim(${normalizedEmail}))`)
-    .limit(1);
-
-  logger.debug('GET /auth/check-email', { email: normalizedEmail, available: !existingUser });
-
-  sendSuccess(res, {
-    available: !existingUser,
-    message: existingUser ? 'Email is already registered' : 'Email is available'
   });
 }));
 
@@ -1475,7 +1422,7 @@ router.post(
   authSessionClaimLimiter,
   validate({ body: authSessionClaimSchema }),
   asyncHandler(async (req, res) => {
-    const { sessionToken } = req.body as { sessionToken: string };
+    const { sessionToken, device } = req.body as { sessionToken: string; device?: DeviceProof };
 
     const outcome = await claimAuthSession({ sessionToken });
 
@@ -1518,13 +1465,13 @@ router.post(
     }
 
     // Pull the deviceId from the underlying Session for the response.
-    const [session] = await getDb()
-      .select({ deviceId: sessionsTable.deviceId, expiresAt: sessionsTable.expiresAt })
+    const [approvedSession] = await getDb()
+      .select({ deviceId: sessionsTable.deviceId, deviceName: sessionsTable.deviceName })
       .from(sessionsTable)
       .where(eq(sessionsTable.sessionId, authSession.authorizedSessionId))
       .limit(1);
 
-    if (!session) {
+    if (!approvedSession) {
       logger.error('[AuthSession] Underlying session disappeared between authorize and claim', new Error('session missing'), {
         sessionToken: sessionToken.substring(0, 8) + '...',
       });
@@ -1533,37 +1480,61 @@ router.post(
 
     const userData = formatUserResponse(user);
 
-    // Register the account on the fresh, claim-only device boundary created by
-    // the approval service, then mint its restore secret. `finalizeDeviceLogin`
-    // is best-effort, so an infrastructure failure still leaves the one-time
-    // access token usable without ever falling back to the approver's device.
+    // The approval minted the session on a fresh, claim-only device, because the
+    // requester must never choose a device whose restore secret it would then
+    // receive. A requester that PROVES a device already holds that device's
+    // credential, so the account joins it instead (ADR 0029 D2): the browser's
+    // shared device, which every official app on it then sees. Only an official
+    // application's claim does — a third party keeps its isolated device — and
+    // an invalid proof leaves the claim exactly as it was.
+    let session = { sessionId: authSession.authorizedSessionId, deviceId: approvedSession.deviceId };
+    if (device) {
+      const provenDeviceId = await resolveProvenDeviceId(device);
+      const app = provenDeviceId ? await findActiveApplicationById(authSession.applicationId) : null;
+      if (provenDeviceId && app && isTrustedApplication(app) && provenDeviceId !== session.deviceId) {
+        // A new session ON the proven device, and the approval's own retired:
+        // its tokens carry the claim-only device id, and a refresh keeps the id
+        // its token names, so moving the row would not move the session.
+        const joined = await sessionService.createSession(authSession.authorizedUserId, req, {
+          deviceName: approvedSession.deviceName ?? undefined,
+          deviceId: provenDeviceId,
+        });
+        await sessionService.deactivateSession(authSession.authorizedSessionId);
+        session = { sessionId: joined.sessionId, deviceId: joined.deviceId };
+      }
+    }
+
+    // Register the account on its device, then mint its restore secret.
+    // `finalizeDeviceLogin` is best-effort, so an infrastructure failure still
+    // leaves the one-time access token usable without ever falling back to the
+    // approver's device.
     const { deviceSecret } = await finalizeDeviceLogin({
-      session: { sessionId: authSession.authorizedSessionId, deviceId: session.deviceId },
+      session,
       userId: authSession.authorizedUserId,
     });
 
     // Finalization binds the session row to its device context. Mint only
     // afterwards so the credential returned to the claimant carries that
     // binding; a token read before finalization is rejected on first use.
-    const tokenResult = await sessionService.getAccessToken(authSession.authorizedSessionId);
+    const tokenResult = await sessionService.getAccessToken(session.sessionId);
     if (!tokenResult) {
       logger.error('[AuthSession] Could not resolve access token for claimed session', new Error('no access token'), {
         sessionToken: sessionToken.substring(0, 8) + '...',
-        sessionId: authSession.authorizedSessionId,
+        sessionId: session.sessionId,
       });
       throw new UnauthorizedError('invalid_grant');
     }
 
     logger.info('[AuthSession] Claim succeeded', {
       sessionToken: sessionToken.substring(0, 8) + '...',
-      sessionId: authSession.authorizedSessionId,
+      sessionId: session.sessionId,
       userId: authSession.authorizedUserId,
       applicationId: authSession.applicationId,
     });
 
     sendSuccess(res, {
       accessToken: tokenResult.accessToken,
-      sessionId: authSession.authorizedSessionId,
+      sessionId: session.sessionId,
       deviceId: session.deviceId,
       expiresAt: tokenResult.expiresAt.toISOString(),
       user: userData,
@@ -2686,10 +2657,8 @@ router.post(
       hasPkce: Boolean(codeChallenge),
     });
 
-    // Typed against the contract and parsed on the way out: this response now
-    // has TWO independently deployed consumers — the IdP SPA and, since the
-    // browser hub (issue #937 Phase 5), its edge layer — so the shape is a
-    // contract rather than an implementation detail of one page.
+    // Typed against the contract: the IdP SPA is an independently deployed
+    // consumer, so the shape is a contract rather than an implementation detail.
     const dto: OauthAuthorizeCodeResponse = {
       code: rawCode,
       state: state ?? null,
@@ -3323,23 +3292,22 @@ router.post(
     );
 
     // The credential is minted for BOTH lanes, but they are not the same device.
-    // A trusted app joins the browser's shared DeviceSession above; an untrusted
-    // one was given a derived per-(user, client) device, so the secret it gets
-    // back unlocks only its own isolated session and names a device no other
+    // A trusted app joins the browser's shared DeviceSession above (ADR 0029
+    // D2) and gets its OWN holder credential for it: `issueDeviceSecret` adds a
+    // `device_credentials` row, so joining never invalidates `auth.oxy.so`'s or
+    // an earlier app's credential, and every official app in the browser then
+    // follows the same accounts, switches and sign-outs. An untrusted one was
+    // given a derived per-(user, client) device, so the secret it gets back
+    // unlocks only its own isolated session and names a device no other
     // application shares.
     //
     // #937 asks for a third party to receive no DeviceSession credential at all.
-    // That is the right end state and it is NOT what this ships, deliberately:
-    // `exchangeOAuthCode` in `@oxy.so/core` hard-requires `deviceId` AND
-    // `deviceSecret` and throws without them, so omitting the pair here breaks
-    // every third-party "Sign in with Oxy" through the SDK — silently, since the
-    // throw is caught and reported as `exchange-failed`. Closing that needs a
-    // core change, a published release, and an announced cutover for external
-    // integrators pinned to older core, none of which belong in this PR.
-    //
-    // What the omission was protecting against is already closed by the lane
-    // split: before this change a third party joined the SHARED device and got
-    // ITS secret, which is the credential #937 calls global. It no longer can.
+    // `@oxy.so/core`'s `exchangeOAuthCode` already accepts a device-less grant,
+    // so omitting the pair is now only a server decision — but it is not taken
+    // here: a device-less session ends with its access token, and integrators on
+    // other clients have not been told. What the omission was protecting against
+    // is already closed by the lane split: a third party can no longer join the
+    // SHARED device, so its credential is not the one #937 calls global.
     const deviceExtras = await finalizeDeviceLogin({
       session: { sessionId: session.sessionId, deviceId: session.deviceId },
       userId,

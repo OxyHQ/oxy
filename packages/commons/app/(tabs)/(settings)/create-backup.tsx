@@ -1,12 +1,19 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { AppIcon } from '@/constants/icons';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
 import { useOxy } from '@oxy.so/services';
 import { KeyManager, RecoveryPhraseService } from '@oxy.so/core';
-import { alert, toast } from '@oxy.so/bloom';
+import { alert } from '@oxy.so/bloom/surfaces';
+import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
-import { Button, ImportantBanner, Callout, KeyboardAwareScrollViewWrapper, StackHeader } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  ImportantBanner,
+  KeyboardAwareScrollViewWrapper,
+  StackHeader,
+} from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
 import { authenticate } from '@/lib/biometricAuth';
@@ -184,7 +191,7 @@ export default function CreateBackupScreen() {
 
   if (identityStatus === 'checking') {
     return (
-      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
         <StackHeader
           title={t('backup.title')}
           onBack={() => router.back()}
@@ -197,15 +204,15 @@ export default function CreateBackupScreen() {
 
   if (identityStatus === 'unavailable') {
     return (
-      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
         <StackHeader
           title={t('backup.title')}
           subtitle={t('backup.unavailableSubtitle')}
           onBack={() => router.back()}
           backAccessibilityLabel={t('common.back')}
         />
-        <ImportantBanner iconSize={20}>{t('backup.identityUnavailable')}</ImportantBanner>
-        <Button variant="primary" onPress={() => router.back()}>
+        <ImportantBanner>{t('backup.identityUnavailable')}</ImportantBanner>
+        <Button appearance="solid" tone="accent" onPress={() => router.back()}>
           {t('backup.goBack')}
         </Button>
       </KeyboardAwareScrollViewWrapper>
@@ -214,25 +221,19 @@ export default function CreateBackupScreen() {
 
   if (identityStatus === 'missing') {
     return (
-      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
         <StackHeader
           title={t('backup.missingTitle')}
           subtitle={t('backup.missingSubtitle')}
           onBack={() => router.back()}
           backAccessibilityLabel={t('common.back')}
         />
-        <ImportantBanner iconSize={20}>{t('backup.missingBanner')}</ImportantBanner>
-        <View style={styles.buttonRow}>
-          <Button variant="secondary" onPress={() => router.back()} style={styles.buttonFlex}>
+        <ImportantBanner>{t('backup.missingBanner')}</ImportantBanner>
+        <View className="flex-row gap-space-12 mt-space-8">
+          <Button appearance="outline" tone="neutral" onPress={() => router.back()} className="flex-1">
             {t('backup.goBack')}
           </Button>
-          <Button
-            variant="primary"
-            onPress={() => router.replace('/(auth)/welcome')}
-            style={styles.buttonFlex}
-          >
-            {t('backup.setupIdentity')}
-          </Button>
+          <Button appearance="solid" tone="accent" onPress={() => router.replace('/(auth)/welcome')} className="flex-1">{t('backup.setupIdentity')}</Button>
         </View>
       </KeyboardAwareScrollViewWrapper>
     );
@@ -241,7 +242,7 @@ export default function CreateBackupScreen() {
   const backupExists = backupStatus?.exists === true;
 
   return (
-    <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
       <StackHeader
         title={t('backup.title')}
         subtitle={t('backup.subtitle')}
@@ -252,11 +253,7 @@ export default function CreateBackupScreen() {
       {/* Current backup status */}
       <View style={[styles.statusCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.statusRow}>
-          <MaterialCommunityIcons
-            name={backupExists ? 'cloud-check' : 'cloud-off-outline'}
-            size={22}
-            color={backupExists ? colors.success : colors.textSecondary}
-          />
+          <AppIcon name={backupExists ? 'checkCircle' : 'offline'} size='md' fill={backupExists ? colors.success : colors.textSecondary} />
           <Text style={[styles.statusTitle, { color: colors.text }]}>
             {backupExists ? t('backup.existsTrue') : t('backup.existsFalse')}
           </Text>
@@ -272,24 +269,16 @@ export default function CreateBackupScreen() {
           </Text>
         )}
         {backupExists && (
-          <Button
-            variant="ghost"
-            onPress={handleDelete}
-            loading={isDeleting}
-            disabled={isDeleting || isSubmitting}
-            style={styles.deleteButton}
-          >
-            {isDeleting ? t('backup.deleting') : t('backup.delete')}
-          </Button>
+          <Button appearance="subtle" onPress={handleDelete} loading={isDeleting} disabled={isDeleting || isSubmitting} className="mt-space-8 self-start">{isDeleting ? t('backup.deleting') : t('backup.delete')}</Button>
         )}
       </View>
 
-      <Callout icon="shield-lock-outline" tone="info">
+      <Admonition type="info">
         {t('backup.howItWorks')}
-      </Callout>
+      </Admonition>
 
       {/* Phrase re-prompt */}
-      <View style={styles.phraseSection}>
+      <View className="gap-space-8">
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {t('backup.enterPhraseTitle')}
         </Text>
@@ -306,19 +295,7 @@ export default function CreateBackupScreen() {
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button
-          variant="primary"
-          onPress={handleCreate}
-          loading={isSubmitting}
-          disabled={isSubmitting || isDeleting}
-          style={styles.primaryButton}
-        >
-          {isSubmitting
-            ? t('backup.creating')
-            : backupExists
-              ? t('backup.replace')
-              : t('backup.create')}
-        </Button>
+        <Button appearance="solid" tone="accent" onPress={handleCreate} loading={isSubmitting} disabled={isSubmitting || isDeleting} className="mt-space-16">{isSubmitting ? t('backup.creating') : backupExists ? t('backup.replace') : t('backup.create')}</Button>
       </View>
     </KeyboardAwareScrollViewWrapper>
   );
@@ -353,13 +330,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  deleteButton: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-  },
-  phraseSection: {
-    gap: 8,
-  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -372,16 +342,5 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 13,
     marginTop: 8,
-  },
-  primaryButton: {
-    marginTop: 16,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  buttonFlex: {
-    flex: 1,
   },
 });

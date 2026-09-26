@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isChildWindow, tryCloseChildWindow } from "@/lib/child-window";
 import { useSearchParams, Link, useNavigate, Navigate } from "react-router-dom";
 import type { PublicApplication, SwitcherContextRow } from "@oxy.so/core";
 import {
@@ -7,17 +8,9 @@ import {
   safeParseContract,
   type McpOAuthConsentContext,
 } from "@oxy.so/contracts";
-import { OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxy.so/services";
+import { OxyAccountPicker, OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader, OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxy.so/services";
 
 import { Button } from "@oxy.so/bloom/button";
-import {
-  AuthFormLayout,
-  AuthFormHeader,
-  LoadingSpinner,
-  isChildWindow,
-  tryCloseChildWindow,
-} from "@/components/auth-form-layout";
-import { AccountChooser } from "@/components/account-chooser";
 import { CommonsOAuthLane } from "@/components/commons-oauth-request";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import {
@@ -123,12 +116,12 @@ function parseRequestedScopes(
 function SilentPromptRefused() {
   const { t } = useTranslation();
   return (
-    <AuthFormLayout>
-      <AuthFormHeader
+    <OxyAuthScreen>
+      <OxyAuthScreenHeader
         title={t("authorize.silentUnsupportedTitle")}
         description={t("authorize.silentUnsupportedDesc")}
       />
-    </AuthFormLayout>
+    </OxyAuthScreen>
   );
 }
 
@@ -199,6 +192,10 @@ function AuthorizeRequest() {
   // request, not a guarantee — with no opener we still redirect (see
   // `lib/oauth-web-message.ts`).
   const responseMode = searchParams.get("response_mode");
+  // The IdP screen an Oxy app's window opens on (`screen=signin|signup|recover`)
+  // when this browser has no session here yet.
+  const screen = searchParams.get("screen");
+  const screenPath = screen === "signin" ? "/login" : screen === "signup" ? "/signup" : screen === "recover" ? "/recover" : null;
 
   // Device-first SDK: the signed-in user + active bearer + the device directory.
   // The bearer for the OAuth authorize call is ALWAYS the SDK's active-context
@@ -243,7 +240,7 @@ function AuthorizeRequest() {
   // single-account device still goes straight to consent for the active account.
   const [chooserDismissed, setChooserDismissed] = useState(false);
   // The accountId currently being switched-to. Shown as a per-row busy state in
-  // `<AccountChooser>` and disables sibling rows so the user can't fire a second
+  // `<OxyAccountPicker>` and disables sibling rows so the user can't fire a second
   // switch while one is in flight. Cleared on success (consent reveal) or on
   // failure (re-auth fallback).
   const [chooserPendingContextId, setChooserPendingContextId] = useState<
@@ -914,8 +911,8 @@ function AuthorizeRequest() {
   // leaving a dead consent screen (or a spinner) on screen.
   if (relayOutcome) {
     return (
-      <AuthFormLayout>
-        <AuthFormHeader
+      <OxyAuthScreen>
+        <OxyAuthScreenHeader
           title={
             relayOutcome === "approved"
               ? t("authorize.completeTitle")
@@ -925,41 +922,63 @@ function AuthorizeRequest() {
           }
           description={t("authorize.completeDesc")}
         />
-      </AuthFormLayout>
+      </OxyAuthScreen>
     );
   }
 
   if (loading || directoryLoading) {
-    return <LoadingSpinner />;
+    return <OxyAuthLoading />;
   }
 
   // Trusted / already-granted OAuth request: authorizing + redirecting without
   // ever showing the consent screen. Neutral backdrop while that completes.
   if (autoApproving) {
     return (
-      <AuthFormLayout>
-        <AuthFormHeader title={t("authorize.signingIn")} />
-        <LoadingSpinner />
-      </AuthFormLayout>
+      <OxyAuthScreen>
+        <OxyAuthScreenHeader title={t("authorize.signingIn")} />
+        <OxyAuthLoading />
+      </OxyAuthScreen>
     );
   }
 
   if (!token && !clientId) {
     return (
-      <AuthFormLayout>
-        <AuthFormHeader
+      <OxyAuthScreen>
+        <OxyAuthScreenHeader
           title={t("authorize.noRequestTitle")}
           description={t("authorize.noRequestDesc")}
         />
         <Button asChild size="lg">
           <Link to="/login">{t("authorize.goToSignIn")}</Link>
         </Button>
-      </AuthFormLayout>
+      </OxyAuthScreen>
     );
   }
 
   // No session on this device (cold boot has resolved and found none).
   if (isAuthResolved && !hasUsableBearer) {
+    // An app asked for a screen: straight to it, carrying the request, so the
+    // person lands back here — and on the app — once they are in.
+    if (screenPath) {
+      return (
+        <Navigate
+          to={buildRelativeUrl(screenPath, {
+            token: token || undefined,
+            redirect_uri: redirectUri || undefined,
+            state: state || undefined,
+            client_id: clientId || undefined,
+            code_challenge: codeChallenge || undefined,
+            code_challenge_method: codeChallengeMethod || undefined,
+            scope: scope || undefined,
+            resource: resource || undefined,
+            response_type: responseType || undefined,
+            response_mode: responseMode || undefined,
+          })}
+          replace
+        />
+      );
+    }
+
     // FIRST the additional lane (issue #691): when the request carries a full
     // PKCE binding, its application resolved cleanly, and the request is still
     // actionable, the authorization can be approved directly in Commons and
@@ -1056,7 +1075,7 @@ function AuthorizeRequest() {
     (isMcpOAuth || contextCount > 1)
   ) {
     return (
-      <AccountChooser
+      <OxyAccountPicker
         principals={principals}
         appName={application?.name}
         onSelectContext={handleChooseContext}
@@ -1068,12 +1087,12 @@ function AuthorizeRequest() {
   }
 
   return (
-    <AuthFormLayout>
+    <OxyAuthScreen>
       {/* Status messages for completed flows */}
       {effectiveStatus === "approved" ||
       effectiveStatus === "denied" ? (
         <>
-          <AuthFormHeader
+          <OxyAuthScreenHeader
             title={
               effectiveStatus === "approved"
                 ? t("authorize.completeTitle")
@@ -1126,7 +1145,7 @@ function AuthorizeRequest() {
            is no longer actionable (expired / cancelled / errored). Render the
            page's status view — message + error — never a consent surface. */
         <>
-          <AuthFormHeader
+          <OxyAuthScreenHeader
             title={t("authorize.requestTitle")}
             description={t("authorize.requestUnavailable")}
           />
@@ -1137,6 +1156,6 @@ function AuthorizeRequest() {
           )}
         </>
       )}
-    </AuthFormLayout>
+    </OxyAuthScreen>
   );
 }

@@ -14,7 +14,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
-    IDENTITY_WEB_ORIGIN,
+    AUTH_WEB_ORIGIN,
     getAccountDisplayName,
     getAccountFallbackHandle,
     getNormalizedUserHandle,
@@ -26,6 +26,7 @@ import type { BaseScreenProps } from '../types/navigation';
 import ProfileSummaryCard from '../components/ProfileSummaryCard';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { presentDeleteAccount } from '../components/modals/DeleteAccountModal';
+import { runAccountDeletionHandoff } from '../utils/accountDeletionHandoff';
 import { presentActionSheet } from '../components/surfaces/ActionSheetSurface';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
@@ -95,6 +96,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         openAvatarPicker,
         accounts,
         openAccountDialog,
+        hasIdentity,
     } = useOxy();
 
     const { data: userFromQuery, isLoading: userLoading } = useCurrentUser({
@@ -321,13 +323,25 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
             );
             return;
         }
-        // Web: deleting an account is signed with its identity key, which only
-        // the identity origin can unseal — the deletion happens there, never on
-        // this page.
+        // Web: a passkey account confirms its deletion with its passkey, which
+        // only auth.oxy.so asserts — the deletion happens there, never on this page.
         if (isWebBrowser()) {
-            await Linking.openURL(`${IDENTITY_WEB_ORIGIN}/`).catch(() => {
+            await Linking.openURL(`${AUTH_WEB_ORIGIN}/delete-account`).catch(() => {
                 toast.error(t('accountSwitcher.linkOpenFailed'));
             });
+            return;
+        }
+        // Native: the deletion is signed with the identity key. When this app
+        // does not hold it (Commons keeps it on this device, or it lives on
+        // another device), hand off to where it can be signed instead of
+        // failing inside the confirmation surface.
+        const route = await runAccountDeletionHandoff({
+            hasIdentity,
+            canOpenURL: (url) => Linking.canOpenURL(url),
+            openURL: (url) => Linking.openURL(url),
+            t,
+        });
+        if (route !== 'local') {
             return;
         }
         const deleted = await presentDeleteAccount({
@@ -339,7 +353,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
             await logout();
             onClose?.();
         }
-    }, [user, t, handleConfirmDelete, logout, onClose]);
+    }, [user, t, handleConfirmDelete, hasIdentity, logout, onClose]);
 
     if (!isAuthenticated) {
         return (

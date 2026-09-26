@@ -385,6 +385,10 @@ export const FollowTargetButton = memo(function FollowTargetButton({
       following={isFollowing}
       label={isFollowing ? text.idle : label}
       followingLabel={label}
+      // The visible text says Following / Requested / Off here, but Bloom
+      // names the button by its idle label in every state. Name it by the
+      // state it shows (OxyHQ/oxy#1375 item 22).
+      accessibilityLabel={label}
       size={size}
       disabled={disabled || isUnknown}
       loading={isPending || isUnknown}

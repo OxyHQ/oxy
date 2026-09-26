@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Text } from '@oxy.so/bloom/typography';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
-import MaterialCommunityIcons from '@/components/icons/MaterialCommunityIcons';
+import { Icons } from '@/constants/icons';
 import { useRouter } from 'expo-router';
 import { useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
@@ -16,9 +18,8 @@ import { buildUserDid } from '@oxy.so/core';
 import { Fab } from '@oxy.so/bloom/fab';
 import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { Screen, Section, Callout, useFabClearance } from '@/components/ui';
+import { Screen, Section, useFabClearance } from '@/components/ui';
 import { Ticket as OxyID } from '@/components/OxyID';
 import { FrontSide } from '@/components/OxyID/front-side';
 import { BackSide } from '@/components/OxyID/back-side';
@@ -26,7 +27,7 @@ import { IdQrBack } from '@/components/civic/IdQrBack';
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { CameraPermissionSheet } from '@/components/civic/CameraPermissionSheet';
 import { useIdentity } from '@/hooks/useIdentity';
-import { useAvatarUrl } from '@/hooks/useAvatarUrl';
+import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useAttestedEvent, type AttestedEventPayload } from '@/hooks/civic/useAttestedEvent';
 import { getDisplayNameOrNull } from '@/utils/date-utils';
@@ -85,7 +86,6 @@ export default function IdScreen() {
   // `getDisplayNameOrNull` answers `null` for intentional absence; card faces take
   // `displayName?: string` (`undefined`, not `null`).
   const displayName = getDisplayNameOrNull(user) ?? undefined;
-  const avatarUrl = useAvatarUrl(user);
 
   // The public key lives in local secure storage — load it directly so the card
   // renders without waiting on any network call.
@@ -191,11 +191,11 @@ export default function IdScreen() {
   const isNative = Platform.OS !== 'web';
 
   return (
-    <View style={styles.screen}>
+    <View className="flex-1">
       {/* Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
           centered hero and the DID/callout blocks are padded to align with it. */}
-      <Screen contentStyle={[styles.flush, { paddingBottom: fabClearance }]} gap={16}>
-        <View style={styles.hero}>
+      <Screen contentStyle={styles.flush} gap={16} bottomClearance={fabClearance}>
+        <View className="items-center gap-space-16 pt-space-8">
           <OxyID
             width={CARD_WIDTH}
             height={CARD_HEIGHT}
@@ -204,7 +204,7 @@ export default function IdScreen() {
               <FrontSide
                 displayName={displayName}
                 username={user?.username}
-                avatarUrl={avatarUrl}
+                avatarId={user?.avatar ?? undefined}
                 accountCreated={user?.createdAt}
                 publicKeyShort={publicKeyShort}
               />
@@ -220,22 +220,26 @@ export default function IdScreen() {
               qrPayload ? (
                 <IdQrBack payload={qrPayload} caption={t('civic.id.qrCaption')} />
               ) : (
-                <View style={styles.qrPlaceholder}>
-                  <ThemedText style={styles.qrPlaceholderText}>{t('civic.id.qrPending')}</ThemedText>
+                <View className="flex-1 items-center justify-center p-space-24">
+                  <Text style={styles.qrPlaceholderText}>{t('civic.id.qrPending')}</Text>
                 </View>
               )
             }
           />
           {attestedVisible && (
             <View style={[styles.attestedBadge, { backgroundColor: colors.card }]}>
-              <MaterialCommunityIcons name="check-decagram" size={18} color={colors.success} />
-              <ThemedText style={styles.attestedBadgeText}>{t('civic.attest.confirmed')}</ThemedText>
+              <Icons.verified size='sm' fill={colors.success} />
+              <Text style={styles.attestedBadgeText}>{t('civic.attest.confirmed')}</Text>
             </View>
           )}
-          <ThemedText style={[styles.flipHint, { color: colors.textSecondary }]}>
+          <Text style={[styles.flipHint, { color: colors.textSecondary }]}>
             {t('civic.id.flipHint')}
-          </ThemedText>
+          </Text>
         </View>
+
+        {/* Shown once after onboarding on devices where the identity has no
+            device backup (no Block Store, OxyHQ/oxy#1388); Settings keeps it. */}
+        <DeviceBackupWarning variant="prompt" />
 
         {/* Self-custody identity actions (native only). */}
         {isNative && (
@@ -244,13 +248,13 @@ export default function IdScreen() {
             footer={t('vault.home.yourIdentitySubtitle')}
           >
             <SettingsListItem
-              icon={<MaterialCommunityIcons name="shield-key" size={22} color={colors.text} />}
+              icon={<Icons.shield size='md' fill={colors.text} />}
               title={t('home.identity.selfCustody')}
               description={t('home.identity.selfCustodySubtitle')}
               onPress={handleAboutIdentity}
             />
             <SettingsListItem
-              icon={<MaterialCommunityIcons name="key-variant" size={22} color={colors.text} />}
+              icon={<Icons.key size='md' fill={colors.text} />}
               title={t('home.identity.publicKey')}
               description={t('home.identity.publicKeySubtitle')}
               onPress={handleAboutIdentity}
@@ -264,7 +268,7 @@ export default function IdScreen() {
           footer={t('civic.attest.section.subtitle')}
         >
           <SettingsListItem
-            icon={<MaterialCommunityIcons name="handshake-outline" size={22} color={colors.text} />}
+            icon={<Icons.handshake size='md' fill={colors.text} />}
             title={t('civic.attest.section.action')}
             description={t('civic.attest.section.actionSubtitle')}
             onPress={handleGetVerified}
@@ -274,18 +278,18 @@ export default function IdScreen() {
         {did && (
           <View style={styles.gutter}>
             <Section title={t('civic.id.didLabel')}>
-              <ThemedText style={[styles.didValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
+              <Text style={[styles.didValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
                 {did}
-              </ThemedText>
+              </Text>
             </Section>
           </View>
         )}
 
         {state === 'pending' && (
           <View style={styles.gutter}>
-            <Callout tone="warning" icon="clock-outline">
+            <Admonition type="warning">
               {t('civic.id.pendingNote')}
-            </Callout>
+            </Admonition>
           </View>
         )}
       </Screen>
@@ -305,7 +309,7 @@ export default function IdScreen() {
         offset={tabBarFootprint}
         onPress={handleScan}
         accessibilityLabel={t('civic.id.scanAction')}
-        icon={<MaterialCommunityIcons name="qrcode-scan" size={26} color={colors.primaryForeground} />}
+        icon={<Icons.scan size='lg' fill={colors.primaryForeground} />}
       />
 
       {qrSheetOpen && <AttestQrSheet onClose={() => setQrSheetOpen(false)} />}
@@ -322,16 +326,8 @@ export default function IdScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
   flush: { paddingHorizontal: 0 },
   gutter: { paddingHorizontal: 20 },
-  hero: {
-    alignItems: 'center',
-    gap: 16,
-    paddingTop: 8,
-  },
   qrPlaceholder: {
     flex: 1,
     alignItems: 'center',

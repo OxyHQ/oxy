@@ -26,9 +26,6 @@ jest.mock('@/components/ui', () => ({
   }) =>
     React.createElement('button', { onClick: onPress, disabled }, children),
 }));
-jest.mock('@/components/ui/centered-state', () => ({
-  CenteredState: () => null,
-}));
 jest.mock('expo-checkbox', () => ({
   Checkbox: () => null,
 }));

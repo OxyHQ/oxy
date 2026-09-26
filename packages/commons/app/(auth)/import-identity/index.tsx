@@ -51,9 +51,9 @@ export default function ImportIdentityPhraseScreen() {
     router.push('/(auth)/import-identity/private-key');
   }, [router, setAuthError]);
 
-  const handleMoveFromWeb = useCallback(() => {
+  const handleLinkWebAccount = useCallback(() => {
     setAuthError(null);
-    router.push('/(auth)/import-identity/scan');
+    router.push('/(auth)/link-account');
   }, [router, setAuthError]);
 
   const handleWordChange = useCallback((index: number, word: string) => {
@@ -137,7 +137,7 @@ export default function ImportIdentityPhraseScreen() {
       onImport={handleImport}
       onRestoreFromBackup={handleRestoreFromBackup}
       onImportPrivateKey={handleImportPrivateKey}
-      onMoveFromWeb={handleMoveFromWeb}
+      onLinkWebAccount={handleLinkWebAccount}
       error={error}
       isLoading={isLoading}
       backgroundColor={backgroundColor}

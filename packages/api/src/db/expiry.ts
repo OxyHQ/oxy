@@ -61,6 +61,7 @@
 
 import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
 import { AFFINITY_EVENT_SEEN_TTL_SECONDS } from '../utils/recommendationWeights';
+import { ACCOUNT_EVENT_RETENTION_SECONDS, accountEvents } from './schema/accountEvents';
 import { appAffinitySeenEvents } from './schema/appAffinitySeenEvents';
 import {
   CREDENTIAL_AUDIT_RETENTION_SECONDS,
@@ -70,13 +71,15 @@ import { authChallenges } from './schema/authChallenges';
 import { authCodes } from './schema/authCodes';
 import { authSessions } from './schema/authSessions';
 import { civicNonces } from './schema/civicNonces';
+import { deviceJoinCodes } from './schema/deviceJoinCodes';
 import {
   PROVIDER_CONNECTION_AUDIT_RETENTION_SECONDS,
   inferenceProviderConnectionAuditEvents,
 } from './schema/inferenceProviderConnectionAuditEvents';
-import { identityMoves } from './schema/identityMoves';
 import { identityProofChallenges } from './schema/identityProofChallenges';
-import { identityRecoveryAttempts } from './schema/identityRecoveryAttempts';
+import { emailVerifications } from './schema/emailVerifications';
+import { identityLinkRequests } from './schema/identityLinkRequests';
+import { linkedAccountOauthChallenges } from './schema/userLinkedAccounts';
 import { domainVerifications } from './schema/domainVerifications';
 import {
   mcpOauthAccessTokens,
@@ -110,8 +113,8 @@ import {
  * (that is the class-(A) rule above), so the ninety-day entries are indifferent
  * to anything under a day.
  *
- * What is not indifferent is `identity_moves` and `auth_sessions`, whose entries
- * keep an hour of grace so a late poll is told "expired" rather than "unknown".
+ * What is not indifferent is `auth_sessions` and `identity_link_requests`,
+ * whose entries keep an hour of grace so a late poll is told "expired" rather than "unknown".
  * Shortening this interval is therefore not a free "sweep more promptly"; it
  * spends that grace.
  *
@@ -163,6 +166,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'miss.',
   },
   {
+    table: deviceJoinCodes,
+    column: deviceJoinCodes.expiresAt,
+    retentionSeconds: 300,
+    reason:
+      'Same pad as `auth_codes`: a just-expired bridge code is still ' +
+      'recognised as a replay (`used_at` is set) rather than a miss. Every ' +
+      'redemption filters `expires_at` itself.',
+  },
+  {
     table: mcpOauthAuthorizationCodes,
     column: mcpOauthAuthorizationCodes.expiresAt,
     retentionSeconds: 300,
@@ -206,15 +218,6 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'expiry itself, so nothing depends on the sweep for correctness.',
   },
   {
-    table: identityMoves,
-    column: identityMoves.expiresAt,
-    retentionSeconds: 3600,
-    reason:
-      'Storage reclamation ONLY, an hour after the deadline so a late poll is ' +
-      'told "expired" rather than "unknown". Every read and transition in ' +
-      '`routes/identityMove.ts` filters on `expires_at` itself.',
-  },
-  {
     table: identityProofChallenges,
     column: identityProofChallenges.expiresAt,
     retentionSeconds: 0,
@@ -224,13 +227,35 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'unspendable at its deadline whether or not the sweep has run.',
   },
   {
-    table: identityRecoveryAttempts,
-    column: identityRecoveryAttempts.expiresAt,
+    table: identityLinkRequests,
+    column: identityLinkRequests.expiresAt,
     retentionSeconds: 3600,
     reason:
-      'Storage reclamation ONLY, an hour after the deadline. Every transition ' +
-      'in `routes/identityRecovery.ts` filters `expires_at` in the same UPDATE, ' +
-      'so an expired attempt is unspendable whether or not the sweep has run.',
+      'Storage reclamation ONLY, an hour after the deadline so a late poll is ' +
+      'told "expired" rather than "unknown". Every read and transition in ' +
+      '`services/identityLink.service.ts` filters on `expires_at` itself.',
+  },
+  {
+    table: emailVerifications,
+    column: emailVerifications.expiresAt,
+    retentionSeconds: 3600,
+    reason:
+      'Storage reclamation ONLY, an hour after the deadline. Confirming a code ' +
+      'and spending a ticket both filter `expires_at` in the same UPDATE, so an ' +
+      'expired row is unspendable whether or not the sweep has run; the hour ' +
+      'keeps the per-email send limit, which counts these rows, honest.',
+  },
+  {
+    table: linkedAccountOauthChallenges,
+    column: linkedAccountOauthChallenges.expiresAt,
+    retentionSeconds: 600,
+    reason:
+      'Storage reclamation ONLY, ten minutes after the deadline so a replayed ' +
+      'callback is still recognised as spent rather than as an unknown state. ' +
+      'The callback spends the row in one transaction filtering `used_at is null` ' +
+      'and `expires_at > now()`, and wipes the PKCE verifier and provider state ' +
+      'in the same UPDATE, so an expired challenge is unspendable whether or not ' +
+      'the sweep has run.',
   },
   {
     table: webauthnChallenges,
@@ -324,5 +349,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'in this registry: a receipt swept on a telemetry schedule is a destroyed ' +
       'financial record, and it would be silent. ' +
       '`db/__tests__/inferenceLedgerRetention.test.ts` fails if one is added.',
+  },
+  {
+    table: accountEvents,
+    column: accountEvents.createdAt,
+    retentionSeconds: ACCOUNT_EVENT_RETENTION_SECONDS,
+    reason:
+      'Thirty days of account-deletion announcements to relying parties, far ' +
+      'past the push retry window, so a party reconciling from the pull feed ' +
+      'cannot miss one. After that the deleted account id itself is dropped; ' +
+      'deliveries cascade with their event.',
   },
 ];

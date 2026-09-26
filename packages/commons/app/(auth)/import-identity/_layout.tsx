@@ -15,8 +15,6 @@ export default function ImportIdentityLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="restore-from-backup" />
       <Stack.Screen name="private-key" />
-      <Stack.Screen name="scan" />
-      <Stack.Screen name="move" />
       <Stack.Screen name="username" />
       <Stack.Screen name="notifications" />
     </Stack>

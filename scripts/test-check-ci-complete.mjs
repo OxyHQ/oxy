@@ -133,9 +133,9 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment) {
   expectVerdict(
     'a-failed-job-fails-the-gate',
     root,
-    needsFor(root, { 'core-test': 'failure' }),
+    needsFor(root, { 'packages-platform': 'failure' }),
     1,
-    '`core-test` failed.'
+    '`packages-platform` failed.'
   );
 }
 
@@ -157,14 +157,14 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment) {
   const root = createFixture();
   edit(root, 'a-conditional-job-may-skip', (yaml) =>
     yaml.replace(
-      '  ship-test:\n    name: Ship Tests\n',
-      "  ship-test:\n    name: Ship Tests\n    if: \"github.event_name == 'pull_request'\"\n"
+      '  packages-apps:\n    name: Package Tests (apps)\n',
+      "  packages-apps:\n    name: Package Tests (apps)\n    if: \"github.event_name == 'pull_request'\"\n"
     )
   );
   expectVerdict(
     'a-conditional-job-may-skip',
     root,
-    needsFor(root, { 'ship-test': 'skipped' }),
+    needsFor(root, { 'packages-apps': 'skipped' }),
     0,
     '1 skipped for a declared reason'
   );
@@ -177,9 +177,9 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment) {
   expectVerdict(
     'an-unexplained-skip-fails-the-gate',
     root,
-    needsFor(root, { 'ship-test': 'skipped' }),
+    needsFor(root, { 'packages-apps': 'skipped' }),
     1,
-    '`ship-test` was skipped, but it declares no `if:`'
+    '`packages-apps` was skipped, but it declares no `if:`'
   );
 }
 
@@ -190,17 +190,86 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment) {
   edit(root, 'a-skip-inherited-from-a-dependency', (yaml) =>
     yaml
       .replace(
-        '  ship-test:\n    name: Ship Tests\n',
-        "  ship-test:\n    name: Ship Tests\n    if: \"github.event_name == 'push'\"\n"
+        '  packages-apps:\n    name: Package Tests (apps)\n',
+        "  packages-apps:\n    name: Package Tests (apps)\n    if: \"github.event_name == 'push'\"\n"
       )
-      .replace('  node-test:\n    name: Node Tests\n', '  node-test:\n    name: Node Tests\n    needs: [ship-test]\n')
+      .replace(
+        '  packages-platform:\n    name: Package Tests (platform)\n',
+        '  packages-platform:\n    name: Package Tests (platform)\n    needs: [packages-apps]\n'
+      )
   );
   expectVerdict(
     'a-skip-inherited-from-a-dependency',
     root,
-    needsFor(root, { 'ship-test': 'skipped', 'node-test': 'skipped' }),
+    needsFor(root, { 'packages-apps': 'skipped', 'packages-platform': 'skipped' }),
     0,
     '2 skipped for a declared reason'
+  );
+}
+
+// ── The sharded API suite: matrix, merge, and one-off checks ───────────────
+{
+  // The API suite is a matrix job whose merge job needs it. One failing shard
+  // makes the whole matrix `failure`, and GitHub then skips the merge. The gate
+  // must name the shard failure — and must not ALSO blame the merge for a skip
+  // it had no say in.
+  const root = createFixture();
+  const needs = needsFor(root, { 'api-test': 'failure', 'api-coverage': 'skipped' });
+  expectVerdict('a-failed-shard-fails-the-gate', root, needs, 1, '`api-test` failed.');
+  let output = '';
+  try {
+    execFileSync('bun', [checkScript], {
+      cwd: root,
+      env: { ...process.env, NEEDS_JSON: JSON.stringify(needs) },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+  }
+  if (output.includes('`api-coverage` was skipped')) {
+    failures.push(`a-failed-shard-fails-the-gate: the merge's inherited skip was reported as its own fault.\n${output}`);
+  }
+}
+
+{
+  // A merge that skipped while every shard passed has no excuse: the floors
+  // were never enforced.
+  const root = createFixture();
+  expectVerdict(
+    'a-coverage-merge-skipped-without-cause-fails-the-gate',
+    root,
+    needsFor(root, { 'api-coverage': 'skipped' }),
+    1,
+    '`api-coverage` was skipped, but it declares no `if:`'
+  );
+}
+
+// ── Every job, one at a time ───────────────────────────────────────────────
+// The small suites run as grouped jobs (`guards`, `packages-platform`,
+// `packages-apps`), so each of those ids now carries a dozen suites: dropping
+// one from `needs:` would retire all of them at once. Every job is required on
+// its own — the list is read from the real workflow, not written here, so a job
+// added later is covered the day it lands — and the named ones must still be
+// in it, so a rename that quietly empties this loop goes red too.
+const REQUIRED_JOBS = ['guards', 'api-test', 'api-coverage', 'api-build', 'packages-platform', 'packages-apps'];
+const workflowJobs = Object.keys(Bun.YAML.parse(readFileSync(join(repoRoot, WORKFLOW), 'utf8'))?.jobs ?? {}).filter(
+  (id) => id !== GATE_JOB_ID
+);
+for (const job of REQUIRED_JOBS) {
+  if (!workflowJobs.includes(job)) {
+    failures.push(`every-job-is-required: \`${job}\` is not a job in ${WORKFLOW}; this list and the workflow disagree.`);
+  }
+}
+for (const job of workflowJobs) {
+  const root = createFixture();
+  edit(root, `${job}-must-be-a-dependency`, (yaml) => yaml.replace(`      - ${job}\n`, ''));
+  expectVerdict(
+    `${job}-must-be-a-dependency`,
+    root,
+    needsFor(root, { [job]: undefined }),
+    1,
+    `are not dependencies of \`ci-complete\`: ${job}`
   );
 }
 
@@ -209,7 +278,7 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment) {
   expectVerdict(
     'an-unrecognised-result-fails-the-gate',
     root,
-    needsFor(root, { 'auth-test': 'neutral' }),
+    needsFor(root, { 'packages-apps': 'neutral' }),
     1,
     'reported "neutral", which this gate does not recognise as a pass'
   );
@@ -222,8 +291,8 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment) {
   const root = createFixture();
   edit(root, 'a-job-missing-from-needs-fails-the-gate', (yaml) =>
     yaml.replace(
-      '  security-audit:\n',
-      '  brand-new-suite:\n    name: Brand New Suite\n    runs-on: ubuntu-latest\n    steps:\n      - run: exit 0\n\n  security-audit:\n'
+      '  guards:\n',
+      '  brand-new-suite:\n    name: Brand New Suite\n    runs-on: ubuntu-latest\n    steps:\n      - run: exit 0\n\n  guards:\n'
     )
   );
   expectVerdict(

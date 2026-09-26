@@ -1,11 +1,22 @@
 import { Router, type Response } from 'express';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { canonicalFederationHost } from '@oxy.so/federation';
-import { resolveExternalIdentityRequestSchema, resolveExternalIdentityResponseSchema, lookupExternalIdentitiesRequestSchema, lookupExternalIdentitiesResponseSchema } from '@oxy.so/contracts';
+import {
+  resolveExternalIdentityRequestSchema,
+  resolveExternalIdentityResponseSchema,
+  lookupExternalIdentitiesRequestSchema,
+  lookupExternalIdentitiesResponseSchema,
+  instanceFetchSignRequestSchema,
+  instanceFetchSignResponseSchema,
+  type InstanceFetchSignRequest,
+} from '@oxy.so/contracts';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
+import type { ApplicationScope } from '../utils/applicationScopes';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
-import { ForbiddenError, NotFoundError, ConflictError, BadRequestError } from '../utils/error';
+import { rateLimit } from '../middleware/rateLimiter';
+import { hashedIpKey } from '../utils/ipKey';
+import { ApiError, ForbiddenError, NotFoundError, ConflictError, BadRequestError, ServiceUnavailableError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
@@ -20,6 +31,8 @@ import {
 import { getEquivalentUserIds, getExternalIdentitiesForUser, resolveExternalIdentityUsers } from '../services/externalIdentityRegistry.service';
 import { externalIdentities, externalIdentityActors } from '../db/schema/externalIdentities';
 import { userService } from '../services/user.service';
+import { applyFederationMove, FederationMoveRefused } from '../services/federationMove.service';
+import { InstanceFetchRefused, InstanceKeyUnavailable, signInstanceFetch } from '../services/federation/instanceFetchSignature';
 import {
   DEFAULT_PURGE_LIMIT,
   purgeBlockedDomain,
@@ -33,6 +46,8 @@ import {
   federationActorGoneSchema,
   federationActorDeleteSchema,
   federationDomainPurgeSchema,
+  federationMoveSchema,
+  type FederationMoveBody,
   type PublicKeyParams,
   type PublicKeyQuery,
   type SignRequestBody,
@@ -46,8 +61,22 @@ const router = Router();
 
 const REQUIRED_SCOPE = 'federation:write';
 
+/**
+ * The identity routes also accept the narrow `federation:identities:resolve`
+ * (see `utils/applicationScopes.ts`): a service that only needs "which Oxy user
+ * is this remote account" (Oxy Move) must not hold signing authority.
+ */
+const IDENTITY_RESOLVE_SCOPE: ApplicationScope = 'federation:identities:resolve';
+
+function assertIdentityResolveScope(req: ServiceAuthRequest): void {
+  const scopes = req.serviceApp?.scopes ?? [];
+  if (!scopes.includes(REQUIRED_SCOPE) && !scopes.includes(IDENTITY_RESOLVE_SCOPE)) {
+    throw new ForbiddenError(`Missing required scope: ${REQUIRED_SCOPE} or ${IDENTITY_RESOLVE_SCOPE}`);
+  }
+}
+
 router.post('/identities/resolve', serviceAuthMiddleware, validate({ body: resolveExternalIdentityRequestSchema }), asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-  if (!req.serviceApp?.scopes.includes(REQUIRED_SCOPE)) throw new ForbiddenError('Missing required scope: federation:write');
+  assertIdentityResolveScope(req);
   const { actorUri, handle, transportAcct } = req.body ?? {};
   if ((typeof actorUri === 'string') === (typeof handle === 'string')
     || (actorUri !== undefined && (typeof actorUri !== 'string' || !actorUri || actorUri.length > 2048))
@@ -61,7 +90,7 @@ router.post('/identities/resolve', serviceAuthMiddleware, validate({ body: resol
 }));
 
 router.post('/identities/lookup', serviceAuthMiddleware, validate({ body: lookupExternalIdentitiesRequestSchema }), asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-  if (!req.serviceApp?.scopes.includes(REQUIRED_SCOPE)) throw new ForbiddenError('Missing required scope: federation:write');
+  assertIdentityResolveScope(req);
   const identifiers: unknown = req.body?.identifiers;
   if (!Array.isArray(identifiers) || identifiers.length > 100 || identifiers.length < 1
     || identifiers.some(value => typeof value !== 'string' || !value || value.length > 2048)) {
@@ -262,6 +291,71 @@ router.post(
       algorithm: 'rsa-sha256',
       signature,
     });
+  }),
+);
+
+/**
+ * The ONLY scope `POST /federation/instance-fetch/sign` accepts. Not
+ * `federation:write`: a holder of that signs through `/sign` with its own
+ * domain's keys and has no reason to borrow Oxy's instance actor, and letting
+ * it would make the smaller authority a side effect of the larger one.
+ */
+const INSTANCE_FETCH_SCOPE: ApplicationScope = 'federation:instance-fetch';
+
+/**
+ * One signature per remote GET. Oxy Move reads a Mastodon host at most once a
+ * second per worker, so this is headroom for several concurrent migrations,
+ * not a budget any single one approaches.
+ */
+const instanceFetchLimiter = rateLimit({
+  prefix: 'rl:federation:instance-fetch:',
+  windowMs: 60 * 1000,
+  max: 1200,
+  keyGenerator: (req) => (req as ServiceAuthRequest).serviceApp?.appId ?? hashedIpKey(req),
+});
+
+/**
+ * POST /federation/instance-fetch/sign
+ *
+ * Oxy's instance actor signs ONE ActivityPub GET of `url` for the calling
+ * service, which then sends the returned `Host`/`Date`/`Signature` on that GET
+ * itself. The service holds no key and Oxy fetches nothing. See
+ * `services/federation/instanceFetchSignature.ts` for why it is the instance
+ * actor and what bounds it: GET only (Oxy composes the signing string), the
+ * instance key only, public https URLs only.
+ *
+ *  - `federation:instance-fetch` scope     → 403
+ *  - body schema (`{ url }`, strict)       → 400 (validate)
+ *  - not https / credentials / not public  → 400 `details.reason`
+ */
+router.post(
+  '/instance-fetch/sign',
+  serviceAuthMiddleware,
+  instanceFetchLimiter,
+  validate({ body: instanceFetchSignRequestSchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
+    if (!(req.serviceApp?.scopes ?? []).includes(INSTANCE_FETCH_SCOPE)) {
+      throw new ForbiddenError(`Missing required scope: ${INSTANCE_FETCH_SCOPE}`);
+    }
+    const { url } = req.body as InstanceFetchSignRequest;
+    try {
+      const signed = await signInstanceFetch(url);
+      logger.debug('federation/instance-fetch: signed a GET', {
+        appId: req.serviceApp?.appId,
+        host: signed.headers.Host,
+      });
+      return sendSuccess(res, instanceFetchSignResponseSchema.parse(signed));
+    } catch (error) {
+      if (error instanceof InstanceFetchRefused) {
+        logger.warn('federation/instance-fetch: refused to sign', {
+          appId: req.serviceApp?.appId,
+          reason: error.reason,
+        });
+        throw new BadRequestError(error.message, { reason: error.reason });
+      }
+      if (error instanceof InstanceKeyUnavailable) throw new ServiceUnavailableError(error.message);
+      throw error;
+    }
   }),
 );
 
@@ -564,6 +658,46 @@ router.post(
     });
 
     return sendSuccess(res, result);
+  }),
+);
+
+/**
+ * POST /federation/move — apply an inbound ActivityPub `Move` to a local account.
+ *
+ * Called by the app whose inbox received the Move (Mention), after the engine's
+ * shape check (`parseInboundMove`). Requires `federation:write`. The target must
+ * be a local actor on Oxy's own domain or one the calling application is
+ * registered for. Oxy then verifies, itself, that the target has linked the old
+ * account as an alias and that a FRESH fetch of the old actor names the target
+ * as `movedTo` — see `services/federationMove.service.ts` for what is applied.
+ *
+ * Idempotent on `activityId`: a replay answers 200 with `replayed: true` and
+ * the first application's counts. Refusals: 400 invalid target, 404 unknown
+ * local account, 422 no alias / `movedTo` mismatch, 502 old actor unreachable.
+ */
+router.post(
+  '/move',
+  serviceAuthMiddleware,
+  validate({ body: federationMoveSchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
+    assertFederationScope(req);
+    const body = req.body as FederationMoveBody;
+    try {
+      const outcome = await applyFederationMove({
+        activityId: body.activityId,
+        oldActorUri: body.oldActorUri,
+        targetActorUri: body.targetActorUri,
+        requestedByApplicationId: req.serviceApp?.appId ?? null,
+        relayHosts: await getAllowedDomainsForRequest(req),
+      });
+      sendSuccess(res, outcome);
+    } catch (error) {
+      if (error instanceof FederationMoveRefused) {
+        logger.info('federation/move refused', { reason: error.reason, oldActorUri: body.oldActorUri, appId: req.serviceApp?.appId });
+        throw new ApiError(error.status, error.message, error.reason);
+      }
+      throw error;
+    }
   }),
 );
 

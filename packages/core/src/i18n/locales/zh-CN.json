@@ -1,53 +1,48 @@
 {
   "signin": {
     "title": "登录",
-    "subtitle": "登录以继续",
-    "addAccountTitle": "添加另一个账户",
+    "subtitle": "使用你的 Oxy 账号",
+    "addAccountTitle": "添加其他账号",
     "addAccountSubtitle": "使用另一个账户登录",
     "username": {
       "label": "用户名",
-      "placeholder": "输入您的用户名",
-      "helper": "3-30个字符，仅字母和数字",
-      "required": "请输入您的用户名。",
-      "minLength": "用户名必须至少包含3个字符。"
-    },
-    "password": {
-      "label": "密码",
-      "placeholder": "输入您的密码",
-      "required": "请输入您的密码。",
-      "hint": "输入您的密码以登录"
+      "placeholder": "yourname",
+      "required": "请输入您的用户名。"
     },
     "actions": {
       "continue": "继续",
-      "back": "返回",
-      "signIn": "登录",
-      "verify": "验证",
-      "openAccountSwitcher": "切换到另一个账户",
-      "openAccountSwitcherSubtitle": "{{count}}个其他账户可用",
-      "openAccountSwitcherSubtitle_singular": "1个其他账户可用",
-      "openAccountSwitcherSubtitle_zero": "查看您保存的账户",
-      "manageAccounts": "管理保存的账户",
-      "manageAccountsSubtitle": "查看会话、删除或登出",
-      "loadingOtherAccounts": "加载其他账户中…",
-      "switchAccountFailed": "无法切换账户。请重试。"
+      "back": "返回"
     },
-    "forgotPrompt": "忘记密码？",
-    "security": {
-      "dataSecure": "您的数据已加密且安全"
-    },
-    "currentlySignedInAs": "当前登录为",
-    "alreadySignedInWith": "已登录",
-    "alreadySignedIn": "已登录",
-    "alreadySignedInMessage": "此账户已登录。继续使用此账户？",
-    "continueWithAccount": "继续",
-    "currentAccount": "当前",
-    "or": "或",
-    "viewAllAccounts": "查看更多{{count}}个",
     "createAccountLink": "初次使用 Oxy？创建账户",
     "status": {
-      "accountSwitched": "正在使用{{name}}",
       "signingIn": "正在登录…"
-    }
+    },
+    "subtitleToApp": "以继续前往 {{app}}",
+    "orContinueWith": "或使用以下方式继续",
+    "qr": {
+      "caption": "使用 Commons 扫码登录",
+      "renew": "显示新的二维码"
+    },
+    "methods": {
+      "passkey": "使用通行密钥登录"
+    },
+    "errors": {
+      "rateLimited": "尝试次数过多。请在 {{seconds}} 秒后重试。",
+      "passkeyCancelled": "通行密钥提示已关闭。准备好后请重试。",
+      "passkeyFailed": "无法完成通行密钥验证。请重试。"
+    },
+    "chooser": {
+      "subtitleToApp": "以继续前往 {{app}}"
+    },
+    "terms": {
+      "before": "继续即表示你同意我们的",
+      "termsLink": "服务条款",
+      "and": "和",
+      "privacyLink": "隐私政策"
+    },
+    "noAccount": "还没有账号？",
+    "createAccount": "创建账号",
+    "recoverLink": "丢失了通行密钥？恢复你的账号"
   },
   "signup": {
     "title": "创建您的账户",
@@ -55,56 +50,28 @@
     "createInCommons": "在 Commons 中创建您的身份",
     "createAccount": "创建账户",
     "backToSignInLink": "已有账户？登录",
-    "welcome": {
-      "title": "欢迎使用Oxy！",
-      "subtitle": "只需几步即可创建您的账户",
-      "haveAccount": "已有账户？",
-      "signInCta": "登录"
-    },
-    "identity": {
-      "title": "您是谁？",
-      "subtitle": "选择您的用户名并输入您的电子邮件"
-    },
+    "webSubtitle": "无需密码：你的设备会创建一个通行密钥，丢失时可通过恢复邮箱重新进入。",
     "username": {
-      "helper": "3-30个字符，仅字母和数字",
-      "required": "请输入用户名",
-      "minLength": "用户名必须至少包含3个字符"
+      "label": "用户名",
+      "placeholder": "yourname",
+      "required": "请选择用户名。",
+      "taken": "该用户名已被占用。"
     },
     "email": {
-      "required": "请输入电子邮件地址",
-      "invalid": "请输入有效的电子邮件地址",
-      "helper": "我们绝不会分享您的电子邮件"
+      "title": "你的恢复邮箱",
+      "subtitle": "如果你丢失了通行密钥，我们会向这里发送验证码让你重新进入。它不作其他用途。",
+      "label": "邮箱",
+      "placeholder": "you@example.com",
+      "invalid": "请输入有效的邮箱地址。"
     },
-    "security": {
-      "title": "保护您的账户",
-      "subtitle": "创建强密码以保护您的账户"
+    "passkey": {
+      "title": "创建你的通行密钥",
+      "subtitle": "用指纹、面容或屏幕锁登录，无需记住任何东西。",
+      "action": "创建通行密钥"
     },
-    "password": {
-      "helper": "至少8个字符",
-      "required": "请输入密码",
-      "minLength": "密码必须至少包含8个字符",
-      "confirmRequired": "请确认您的密码",
-      "mismatch": "密码不匹配",
-      "confirmHint": "重新输入您的密码以确认"
-    },
-    "summary": {
-      "title": "快完成了！",
-      "subtitle": "查看您的信息并创建账户",
-      "sectionTitle": "账户信息",
-      "fields": {
-        "username": "用户名",
-        "email": "电子邮件",
-        "password": "密码"
-      },
-      "notSet": "未设置",
-      "securityTip": "为了更强的安全性，创建账户后，请在账户设置中启用生物识别身份验证。",
-      "legalReminder": "创建账户即表示您同意我们的服务条款和隐私政策。"
-    }
+    "commonsInstead": "想自己保管密钥？改用 Commons"
   },
   "accountSwitcher": {
-    "sections": {
-      "yourAccounts": "你的账户"
-    },
     "loading": "正在加载账户...",
     "qrHeadline": "使用您的 Oxy 身份登录",
     "signInWithOxy": "使用 Oxy 登录",
@@ -136,10 +103,7 @@
       "claimFailed": "登录已获批准，但未能完成。请重试。",
       "generic": "登录失败，请重试。"
     },
-    "linkOpenFailed": "无法打开链接，请重试。",
-    "continueWithPasskey": "继续",
-    "passkeyHint": "使用指纹、面容或设备 PIN 码。",
-    "otherDeviceCommons": "账号在其他设备上？用 Commons 扫码"
+    "linkOpenFailed": "无法打开链接，请重试。"
   },
   "common": {
     "actions": {
@@ -280,7 +244,63 @@
     "help": "帮助与反馈",
     "signOut": "退出登录",
     "privacy": "隐私政策",
-    "terms": "服务条款",
-    "identity": "你的身份"
+    "terms": "服务条款"
+  },
+  "recover": {
+    "title": "恢复你的账户",
+    "subtitle": "输入你的用户名或恢复邮箱。我们会向该账户的恢复邮箱发送验证码。",
+    "identifier": {
+      "label": "用户名或邮箱",
+      "placeholder": "yourname",
+      "required": "请输入用户名或邮箱。"
+    },
+    "commonsNote": "你的账户使用 Commons？请在 Commons 中用恢复短语恢复。",
+    "passkey": {
+      "title": "添加新的通行密钥",
+      "subtitle": "用于 @{{username}}。丢失的通行密钥可稍后在账户安全设置中移除。",
+      "action": "创建通行密钥"
+    },
+    "backToSignIn": "返回登录"
+  },
+  "emailCode": {
+    "title": "查看你的邮箱",
+    "sentTo": "我们已向 {{email}} 发送了 6 位验证码。",
+    "sentIfAccount": "如果该账户有恢复邮箱，我们已向其发送 6 位验证码。",
+    "label": "验证码",
+    "resend": "发送新验证码",
+    "resent": "我们已发送新验证码。",
+    "changeEmail": "使用其他邮箱",
+    "errors": {
+      "codeInvalid": "验证码不正确或已过期。",
+      "tooManyAttempts": "错误次数过多，请重新获取验证码。",
+      "expired": "耗时过长，请重新开始。",
+      "unavailable": "Oxy 暂时无法发送邮件，请稍后再试。",
+      "rateLimited": "验证码请求过多，请稍后再试。"
+    }
+  },
+  "deleteAccount": {
+    "passkey": {
+      "subtitle": "请用通行密钥确认。@{{username}} 及其中的一切将被永久删除。",
+      "action": "用通行密钥删除",
+      "done": "你的账户已删除。",
+      "closeWindow": "你可以关闭此窗口。",
+      "commons": "此账户使用 Commons：请在 Oxy Commons 的“设置 > 删除账户”中用其密钥删除。"
+    }
+  },
+  "linkCommons": {
+    "title": "关联 Commons",
+    "subtitle": "自己保管密钥：关联 Commons 后，此账户只属于你。它的恢复邮箱会被删除，今后用 Commons 中的恢复短语找回账户。",
+    "scan": "在手机上打开 Commons，选择“我在网页上有 Oxy 账户”，然后扫描此码。",
+    "waiting": "正在等待 Commons…",
+    "compareTitle": "核对代码",
+    "compare": "Commons 会显示相同的代码。如果不同，请取消。",
+    "confirm": "是的，关联 Commons",
+    "cancel": "取消",
+    "doneTitle": "Commons 已关联",
+    "done": "此账户现在由你自己保管。它的恢复邮箱已删除：今后用 Commons 中的恢复短语找回账户。",
+    "already": "此账户已在使用 Commons。",
+    "expired": "此代码已过期。",
+    "renew": "显示新代码",
+    "failed": "无法关联 Commons，请重试。"
   }
 }

@@ -1,15 +1,26 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
+import { Text } from '@oxy.so/bloom/typography';
+import { Icons } from '@/constants/icons';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { ActivityHeatmap } from '@oxy.so/bloom/activity-heatmap';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
-import { Screen, CenteredState, PrimaryButton, SessionGate } from '@/components/ui';
+import {
+  Screen,
+  SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
+} from '@/components/ui';
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { ReputationHeader } from '@/components/reputation/ReputationHeader';
 import { GetStartedCarousel, type CtaItem } from '@/components/reputation/GetStartedCarousel';
-import { SegmentedTabs, type SegmentedTabItem } from '@/components/reputation/SegmentedTabs';
 import { StandingSection } from '@/components/reputation/StandingSection';
 import { ActivityList } from '@/components/reputation/ActivityList';
 import { useCivicReputation, useReputationSources } from '@/hooks/useCivicReputation';
@@ -84,7 +95,7 @@ export default function ReputationScreen() {
     () => [
       {
         key: 'attest',
-        icon: 'handshake-outline',
+        icon: 'handshake',
         color: colors.success,
         title: t('civic.reputation.cta.attest.title'),
         description: t('civic.reputation.cta.attest.desc'),
@@ -92,7 +103,7 @@ export default function ReputationScreen() {
       },
       {
         key: 'validate',
-        icon: 'scale-balance',
+        icon: 'validation',
         color: colors.primary,
         title: t('civic.reputation.cta.validate.title'),
         description:
@@ -103,7 +114,7 @@ export default function ReputationScreen() {
       },
       {
         key: 'personhood',
-        icon: 'account-heart-outline',
+        icon: 'endorsed',
         color: colors.info,
         title: t('civic.reputation.cta.personhood.title'),
         description: t('civic.reputation.cta.personhood.desc'),
@@ -113,7 +124,7 @@ export default function ReputationScreen() {
     [colors, t, pendingValidations, handleAttest, handleOpenInbox, handlePersonhood],
   );
 
-  const tabItems: SegmentedTabItem<ReputationTab>[] = [
+  const tabItems: { key: ReputationTab; label: string }[] = [
     { key: 'overview', label: t('civic.reputation.tabs.overview') },
     { key: 'activity', label: t('civic.reputation.tabs.activity') },
   ];
@@ -128,22 +139,17 @@ export default function ReputationScreen() {
 
   const renderContent = () => {
     if (balanceQuery.isPending && !balance) {
-      return <CenteredState loading body={t('civic.reputation.loading')} />;
+      return <LoadingState description={t('civic.reputation.loading')} />;
     }
 
     if (balanceQuery.isError && !balance) {
       return (
-        <CenteredState
-          icon="cloud-alert"
+        <EmptyState
+          icon={Icons.alert}
           title={t('civic.reputation.error.title')}
-          body={t('civic.reputation.error.body')}
-          action={
-            <PrimaryButton
-              label={t('common.retry')}
-              onPress={() => balanceQuery.refetch()}
-              fullWidth={false}
-            />
-          }
+          description={t('civic.reputation.error.body')}
+          action={{ label: t('common.retry'), onPress: () => balanceQuery.refetch() }}
+          minHeight={STATE_MIN_HEIGHT}
         />
       );
     }
@@ -163,16 +169,31 @@ export default function ReputationScreen() {
           />
         )}
 
-        <SegmentedTabs items={tabItems} value={tab} onChange={setTab} />
+        {/* `type="tabs"`, not `"radio"`: these switch the panel below rather
+            than choosing a value to submit, and Bloom's own note on this family
+            is that the two look identical and ANNOUNCE differently — a tablist
+            against a radiogroup — so `type` is the decision, not the styling. */}
+        <SegmentedControl<ReputationTab>
+          type="tabs"
+          label={t('civic.reputation.tabs.overview')}
+          value={tab}
+          onValueChange={setTab}
+        >
+          {tabItems.map((item) => (
+            <SegmentedControlItem key={item.key} value={item.key}>
+              <SegmentedControlItemText>{item.label}</SegmentedControlItemText>
+            </SegmentedControlItem>
+          ))}
+        </SegmentedControl>
 
         {tab === 'overview' ? (
-          <View style={styles.overview}>
+          <View className="gap-space-20">
             <StandingSection balance={balance} sources={sources} isOffline={!isOnline} />
 
-            <View style={styles.heatmapSection}>
-              <ThemedText style={[styles.heatmapTitle, { color: colors.text }]}>
+            <View className="gap-space-12">
+              <Text style={[styles.heatmapTitle, { color: colors.text }]}>
                 {t('civic.reputation.activity.heatmapTitle')}
-              </ThemedText>
+              </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -187,9 +208,9 @@ export default function ReputationScreen() {
               </ScrollView>
             </View>
 
-            <ThemedText style={[styles.footnote, { color: colors.textSecondary }]}>
+            <Text style={[styles.footnote, { color: colors.textSecondary }]}>
               {t('civic.reputation.footnote')}
-            </ThemedText>
+            </Text>
           </View>
         ) : (
           <ActivityList
@@ -214,12 +235,6 @@ export default function ReputationScreen() {
 }
 
 const styles = StyleSheet.create({
-  overview: {
-    gap: 20,
-  },
-  heatmapSection: {
-    gap: 12,
-  },
   heatmapTitle: {
     fontSize: 18,
     fontWeight: '700',

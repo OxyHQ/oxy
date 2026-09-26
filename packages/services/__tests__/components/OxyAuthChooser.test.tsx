@@ -109,6 +109,7 @@ const IDLE_SIGN_IN: SignInFlowState = {
   progress: 'idle',
   failure: null,
   attempt: 0,
+  inline: false,
 };
 
 /**
@@ -123,6 +124,8 @@ const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnaps
   const directory = over?.directory ?? null;
   return {
     view: 'accounts',
+    backView: null,
+    hasSession: true,
     directory,
     // Derived here rather than hand-set, so a fixture can never claim an active
     // context the directory it ships does not hold.
@@ -166,7 +169,18 @@ let snapshot = makeSnapshot();
 const controller = {
   subscribe: jest.fn((_l: () => void) => () => undefined),
   getSnapshot: () => snapshot,
-  activateContext: jest.fn(async () => true),
+  activateContext: jest.fn(async (_contextId: string) => true),
+  // The controller's real rule, over this double's own parts, so the tests
+  // below drive the chooser through the same decisions the controller makes.
+  chooseContext: jest.fn(async (contextId: string) => {
+    if (controller.isDeviceMutationInFlight()) return 'busy' as const;
+    if (!snapshot.hasSession) {
+      await controller.signInWithOxy();
+      return 'signing-in' as const;
+    }
+    if (contextId === snapshot.activeContext?.contextId) return 'current' as const;
+    return (await controller.activateContext(contextId)) ? ('switched' as const) : ('failed' as const);
+  }),
   signOutContext: jest.fn(async () => true),
   signOutPrincipal: jest.fn(async () => true),
   add: jest.fn(),
@@ -179,12 +193,12 @@ const controller = {
     value: await operation(),
   })),
   signInWithOxy: jest.fn(),
-  startPasskeyHubSignIn: jest.fn(),
   setView: jest.fn(),
   cancelSignIn: jest.fn(),
 };
 
 const openAvatarPicker = jest.fn();
+const continueOnAuth = jest.fn(async (_screen: string) => ({ status: 'redirecting' as const }));
 const closeAccountDialog = jest.fn();
 const showBottomSheet = jest.fn();
 const logout = jest.fn(async (): Promise<{ status: 'signed-out' } | { status: 'failed'; error: unknown }> => ({
@@ -214,6 +228,7 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
     logout,
     logoutAll: jest.fn(async () => undefined),
     openAvatarPicker,
+    continueOnAuth,
     user: mockUser,
     oxyServices: { getFileDownloadUrl: (id: string) => `https://cdn/${id}` },
   }),
@@ -260,12 +275,6 @@ jest.mock('../../src/ui/utils/isWebBrowser', () => ({
   isWebBrowser: () => isWebBrowserMock(),
 }));
 
-const isOxyRpOriginMock = jest.fn(() => true);
-jest.mock('@oxy.so/core', () => {
-  const actual = jest.requireActual('@oxy.so/core');
-  return { __esModule: true, ...actual, isOxyRpOrigin: () => isOxyRpOriginMock() };
-});
-
 // eslint-disable-next-line import/first
 import OxyAuthChooser from '../../src/ui/components/OxyAuthChooser';
 // eslint-disable-next-line import/first
@@ -297,7 +306,6 @@ describe('OxyAuthChooser', () => {
     surfaces.confirm.mockReset();
     surfaces.confirm.mockResolvedValue(true);
     isWebBrowserMock.mockReturnValue(true);
-    isOxyRpOriginMock.mockReturnValue(true);
   });
 
   it('renders NOTHING without a controller (sessionMode: "identity" has no account dialog)', () => {
@@ -826,19 +834,7 @@ describe('OxyAuthChooser', () => {
       expect(toast.error).not.toHaveBeenCalled();
     });
 
-    it('offers the person’s identity on web — recovery phrase, recovery, deletion live at the identity origin', async () => {
-      const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
-      snapshot = makeSnapshot({ directory: soloDirectory() });
-      render(<OxyAuthChooser />);
-
-      fireEvent.click(screen.getByRole('button', { name: 'Your identity' }));
-
-      await waitFor(() => expect(openURL).toHaveBeenCalledWith('https://id.oxy.so/'));
-      openURL.mockRestore();
-    });
-
-    it('has no identity row on native, where Commons carries the identity', () => {
-      isWebBrowserMock.mockReturnValue(false);
+    it('has no identity row: a web account has no identity to open (ADR 0029 D3)', () => {
       snapshot = makeSnapshot({ directory: soloDirectory() });
       render(<OxyAuthChooser />);
       expect(screen.queryByRole('button', { name: 'Your identity' })).toBeNull();
@@ -856,162 +852,6 @@ describe('OxyAuthChooser', () => {
       );
       openURL.mockRestore();
     });
-  });
-
-  describe('sign-in entry on web — the identity origin', () => {
-    beforeEach(() => {
-      isWebBrowserMock.mockReturnValue(true);
-      snapshot = makeSnapshot({ view: 'signin' });
-    });
-
-    it('starts nothing on its own — a popup can only open from the press', () => {
-      render(<OxyAuthChooser />);
-      expect(controller.signInWithOxy).not.toHaveBeenCalled();
-      expect(controller.showQr).not.toHaveBeenCalled();
-      expect(controller.startPasskeyHubSignIn).not.toHaveBeenCalled();
-    });
-
-    it('leads with one passkey action, the way in for newcomers, and Commons one link away', () => {
-      render(<OxyAuthChooser />);
-
-      expect(screen.getByText('Use your fingerprint, face or device PIN.')).toBeTruthy();
-      expect(buttonLabels()).toEqual([
-        'Continue',
-        'New to Oxy? Create one',
-        'Account on another device? Scan with Commons',
-        'Having trouble?',
-      ]);
-    });
-
-    it('opens the identity origin from Continue — on any web origin, first-party or not', () => {
-      for (const firstParty of [true, false]) {
-        isOxyRpOriginMock.mockReturnValue(firstParty);
-        const { unmount } = render(<OxyAuthChooser />);
-        fireEvent.click(screen.getByTestId('continue-with-oxy'));
-        unmount();
-      }
-      expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(2);
-      expect(controller.signInWithOxy).not.toHaveBeenCalled();
-    });
-
-    it('creates an account in the same identity-origin window, not in this page', () => {
-      render(<OxyAuthChooser />);
-      fireEvent.click(screen.getByTestId('create-account-link'));
-      expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(1);
-      expect(controller.startSignup).not.toHaveBeenCalled();
-    });
-
-    it('keeps an account on another device one link away (Commons QR)', () => {
-      render(<OxyAuthChooser />);
-      fireEvent.click(screen.getByTestId('scan-qr-link'));
-      expect(controller.showQr).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('sign-in entry — one primary action', () => {
-    beforeEach(() => {
-      // Native: the entry stays button-driven (web auto-starts straight past it).
-      isWebBrowserMock.mockReturnValue(false);
-      isOxyRpOriginMock.mockReturnValue(false);
-      snapshot = makeSnapshot({ view: 'signin' });
-    });
-
-    /**
-     * Issue #961 — each row is drawn in ITS OWN account's accent.
-     *
-     * The scoped preset is the one observable a jsdom render has for this: the
-     * `react-native` stub drops `style`, so the accent hex on the ring, the
-     * border and the icon reaches no DOM node. `BloomColorScope` is also what
-     * carries the colour to everything INSIDE the row, so asserting it is not a
-     * proxy for the accent — it is the mechanism.
-     */
-    it('scopes each account row to its own colour, not to one ambient accent', () => {
-      snapshot = makeSnapshot({
-        view: 'signin',
-        directory: makeDirectory(
-          [
-            {
-              id: 'p-alice',
-              userId: 'a',
-              displayName: 'Alice',
-              contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice', color: 'purple' }],
-            },
-            {
-              id: 'p-bob',
-              userId: 'b',
-              displayName: 'Bob',
-              contexts: [{ id: 'ctx-bob', accountId: 'b', displayName: 'Bob', color: 'amber' }],
-            },
-          ],
-          null,
-        ),
-      });
-
-      const { container } = render(<OxyAuthChooser />);
-
-      const scoped = [...container.querySelectorAll('[data-color-preset]')].map((node) =>
-        node.getAttribute('data-color-preset'),
-      );
-      // Two people on one device, drawn in two accents. One shared value here —
-      // whatever it was — is the regression this test exists for.
-      expect(scoped).toEqual(['purple', 'amber']);
-    });
-
-    it('leaves a row with no colour on the ambient accent rather than inventing one', () => {
-      snapshot = makeSnapshot({
-        view: 'signin',
-        directory: soloDirectory(null),
-      });
-
-      const { container } = render(<OxyAuthChooser />);
-
-      // The row is there — and carries no scope at all, rather than being
-      // scoped to some stand-in. React omits an attribute whose value is
-      // `undefined`, so "no preset" is the ABSENCE of the attribute; the
-      // preceding case is the positive control that this query finds one when
-      // there is one to find.
-      expect(screen.getByLabelText('Alice').closest('[data-color-preset]')).toBeNull();
-      expect(container.querySelectorAll('[data-color-preset]')).toHaveLength(0);
-    });
-
-    it('renders exactly ONE primary action and no competing method buttons', () => {
-      render(<OxyAuthChooser />);
-
-      // The full inventory: the one primary CTA, the subordinate account-creation
-      // link, and the disclosure trigger. Nothing else — no "Scan QR", no
-      // "Use a passkey", no "Get Commons" as co-equal buttons.
-      expect(buttonLabels()).toEqual([
-        'Continue with Oxy',
-        'New to Oxy? Create one',
-        'Having trouble?',
-      ]);
-      expect(screen.queryByTestId('scan-qr-link')).toBeNull();
-      expect(screen.queryByTestId('passkey-signin-link')).toBeNull();
-      expect(screen.queryByTestId('get-commons-link')).toBeNull();
-    });
-
-    it('starts the flow — and lets Oxy pick the route — from that one action', () => {
-      render(<OxyAuthChooser />);
-      expect(controller.signInWithOxy).not.toHaveBeenCalled();
-
-      fireEvent.click(screen.getByTestId('continue-with-oxy'));
-
-      expect(controller.signInWithOxy).toHaveBeenCalledTimes(1);
-      // The chooser never picks a route itself.
-      expect(controller.showQr).not.toHaveBeenCalled();
-    });
-
-    it('reveals the alternatives only after "Having trouble?" is opened', () => {
-      render(<OxyAuthChooser />);
-
-      fireEvent.click(screen.getByRole('button', { name: 'Having trouble?' }));
-
-      expect(screen.getByTestId('scan-qr-link')).toBeTruthy();
-      expect(screen.getByTestId('get-commons-link')).toBeTruthy();
-      fireEvent.click(screen.getByTestId('scan-qr-link'));
-      expect(controller.showQr).toHaveBeenCalledTimes(1);
-    });
-
   });
 
   describe('active request — one surface per route', () => {
@@ -1128,19 +968,18 @@ describe('OxyAuthChooser', () => {
       expect(screen.getByTestId('get-commons-link')).toBeTruthy();
     });
 
-    it('routes the disclosed passkey link through the identity origin', () => {
+    it('sends the disclosed passkey link to auth.oxy.so, in this tab', () => {
       snapshot = requestSnapshot({ route: 'qr' });
       render(<OxyAuthChooser />);
 
       fireEvent.click(screen.getByRole('button', { name: 'Having trouble?' }));
       fireEvent.click(screen.getByTestId('passkey-signin-link'));
 
-      expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(1);
+      expect(continueOnAuth).toHaveBeenCalledWith('signin');
     });
 
     it('leads with "Get Commons" — the genuine primary route — when Commons is not installed', () => {
       isWebBrowserMock.mockReturnValue(false);
-      isOxyRpOriginMock.mockReturnValue(false);
       snapshot = requestSnapshot({ route: 'qr' }, { commonsAvailability: 'unavailable' });
       render(<OxyAuthChooser />);
 
@@ -1244,25 +1083,6 @@ describe('OxyAuthChooser', () => {
       );
     });
 
-    it('does not scold the user for closing the sign-in window themselves', () => {
-      snapshot = requestSnapshot({
-        phase: 'error',
-        authorizeCode: null,
-        qrPayload: null,
-        expiresAt: null,
-        error: 'Sign-in was cancelled.',
-        failure: 'cancelled',
-        attempt: freshAttempt(),
-        progress: 'idle',
-      });
-
-      render(<OxyAuthChooser />);
-
-      expect(toast.error).not.toHaveBeenCalled();
-      // The way forward is still offered.
-      expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-    });
-
     it('"Try again" repeats the attempt the user chose, rather than always showing a QR', () => {
       snapshot = requestSnapshot({
         phase: 'error',
@@ -1283,18 +1103,17 @@ describe('OxyAuthChooser', () => {
   });
 
   describe('signup view', () => {
-    it('on web, offers one action: create the account in the identity-origin window', () => {
+    it("on web, offers one action: create the account in auth.oxy.so's window", () => {
       snapshot = makeSnapshot({ view: 'signup' });
       render(<OxyAuthChooser />);
 
       expect(screen.queryByTestId('signup-username-input')).toBeNull();
       fireEvent.click(screen.getByTestId('signup-open-identity'));
-      expect(controller.startPasskeyHubSignIn).toHaveBeenCalledTimes(1);
+      expect(continueOnAuth).toHaveBeenCalledWith('signup');
     });
 
     it('offers Commons identity creation on native', () => {
       isWebBrowserMock.mockReturnValue(false);
-      isOxyRpOriginMock.mockReturnValue(false);
       snapshot = makeSnapshot({ view: 'signup' });
       render(<OxyAuthChooser />);
 

@@ -380,7 +380,7 @@ const followers = await oxyClient.getUserFollowers('user123');   // Get user fol
 const following = await oxyClient.getUserFollowing('user123');   // Get user following
 
 // Notifications
-const notifications = await oxyClient.getNotifications();        // Get notifications
+const { notifications } = await oxyClient.getNotifications();    // Get notifications
 const unreadCount = await oxyClient.getUnreadCount();            // Get unread count
 await oxyClient.markNotificationAsRead('notification123');       // Mark as read
 await oxyClient.markAllNotificationsAsRead();                    // Mark all as read
@@ -495,7 +495,7 @@ Oxy supports **public/private key cryptography** (ECDSA secp256k1) as the primar
 ### How it works (device-first)
 
 - **Cold boot is silent.** On mount, `OxyProvider` restores the ambient device session — the server-side `DeviceSession` records which accounts are signed in on this device and which one is active. No redirects, no browser identity APIs, no UI. See [device sessions](../../docs/auth/device-session.md).
-- **Interactive sign-in is a dialog.** `useAuth().signIn()` or `useOxy().openAccountDialog('signin')` opens the unified account dialog (Bloom Dialog — bottom sheet on phones, centered on desktop): existing device accounts above ONE primary "Continue with Oxy" action (issue #691, Phase 5) — Oxy automatically picks how the request reaches your Commons identity (same-device deep link → known-install push → QR); there is no password option in this dialog. Scan-QR, passkey-on-this-device, and "Get Commons" sit behind a collapsed "Having trouble?" disclosure.
+- **Interactive sign-in is a dialog.** `useAuth().signIn()` or `useOxy().openAccountDialog('signin')` opens the unified account dialog (Bloom Dialog — bottom sheet on phones, centered on desktop) on `OxySignInPanel`, THE sign-in screen — auth.oxy.so's `/login` renders the same one: the device's accounts, the Commons way in (the embedded QR in a split card on a wide web screen, "Continue with Oxy" elsewhere — Oxy picks how the request reaches your Commons identity), then the username (a username-first passkey, which also takes a hardware security key) or a passkey with nothing to type. There is no password option. A host of its own (a page) mounts `OxySignInPanel` / `OxySignUpPanel` / `OxyAccountPicker` directly.
 - **Cross-app sync.** Adding, switching, or signing out an account bumps the device-session revision and is pushed over the `session_state` socket event to every Oxy app on the device.
 
 ```tsx
