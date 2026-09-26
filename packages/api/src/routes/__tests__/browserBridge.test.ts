@@ -81,6 +81,7 @@ import { authSessions } from '../../db/schema/authSessions';
 import { deviceJoinCodes } from '../../db/schema/deviceJoinCodes';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import { rateLimit } from '../../middleware/rateLimiter';
 import deviceSessionService from '../../services/deviceSession.service';
 import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
@@ -222,7 +223,7 @@ beforeAll(async () => {
   app.use('/auth', authRouter);
   app.use('/session/device', sessionDeviceRouter);
   // The passkey ceremony itself is `webauthn.test.ts`'s; this is its session tail.
-  app.post('/test/passkey-mint', (req: Request, res: Response, next) => {
+  app.post('/test/passkey-mint', rateLimit({ prefix: 'rl:test:passkey-mint:', windowMs: 60_000, max: 100 }), (req: Request, res: Response, next) => {
     const { account, device } = req.body as { account: { id: string; username: string }; device?: unknown };
     mintWebauthnSession(req, res, { id: account.id, username: account.username, avatar: null }, {
       ...(device ? { device: device as { deviceId: string; deviceSecret: string } } : {}),
