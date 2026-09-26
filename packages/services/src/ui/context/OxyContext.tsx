@@ -784,15 +784,15 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     [webAuthMode, oxyServices, clientId, authorizeBaseUrl, isIdentityBound, user?.id],
   );
 
-  // What only auth.oxy.so can do — create an account with its root, recover it,
-  // or assert an `oxy.so` passkey from another origin — happens THERE, in this
-  // tab: the IdP's own screen, then back here signed in, through the same
-  // authorization-code return every redirect uses. Never a popup.
+  // On the web an Oxy app signs in and creates accounts in auth.oxy.so's
+  // window over the app, like "Sign in with Google": the passkey belongs to
+  // that origin, and the browser's session lives there, shared by every Oxy
+  // app. A blocked window falls back to the same page in this tab.
   const continueOnAuth = useCallback(
     (screen: OxyAuthScreen): Promise<WebOAuthSignInResult> =>
       startWebOAuthSignInForContext({
         redirectUri: authRedirectUri ?? globalThis.location?.origin ?? '',
-        transport: 'redirect',
+        transport: 'popup',
         screen,
       }),
     [startWebOAuthSignInForContext, authRedirectUri],

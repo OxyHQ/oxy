@@ -1,23 +1,21 @@
 /**
  * THE Oxy sign-in screen. The account dialog every Oxy app opens and the
- * auth.oxy.so IdP page third parties are sent to render this one component,
- * so what the person sees is the same wherever they sign in; only where it is
- * mounted differs (`host`).
+ * auth.oxy.so page render this one component; only where it is mounted
+ * differs (`host`).
  *
  *   picker   a returning device: "Choose an account", then "Use another account"
- *   entry    the header, the Commons way in, the username with its Continue,
- *            "or continue with" a passkey, and the way in for someone with no
- *            account. Continue is a username-first passkey sign-in: the
- *            server scopes the ceremony to that account's credentials, so it
- *            takes a platform passkey AND a hardware security key with no
- *            resident credential (a U2F key such as a Titan). The passkey
- *            button is the discoverable ceremony, with nothing to type. Off an
- *            `oxy.so` origin both run on auth.oxy.so, in this tab.
- *            On the web, from `md`, the screen is Bloom `AuthCard`'s split
- *            card and the Commons way in is the embedded QR over its photo
- *            carousel, in the right column; below `md`, and on native, it is
- *            "Continue with Oxy" at the top ("Get Commons" on a native device
- *            without Commons)
+ *   entry    the header, the Commons way in, and the way in for someone with no
+ *            account. On auth.oxy.so (`page`) also the username with its
+ *            Continue — a username-first passkey sign-in, which takes a
+ *            platform passkey AND a hardware security key with no resident
+ *            credential (a U2F key such as a Titan) — and "or continue with" the
+ *            discoverable passkey. From `md` that page is Bloom `AuthCard`'s
+ *            split card, with the embedded QR over its photo carousel in the
+ *            right column; below `md` it is "Continue with Oxy" at the top.
+ *            In an app's dialog on the web, "Continue with Oxy" opens that page
+ *            in a window over the app, like "Sign in with Google": the browser's
+ *            session lives on auth.oxy.so, so every Oxy app shares it. On
+ *            native it is "Continue with Oxy" ("Get Commons" without Commons).
  *
  * `signInMethods.ts` owns which blocks a platform gets.
  */
@@ -35,13 +33,12 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { TextField, TextFieldHint, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
-import { isOxyRpOrigin, type SwitcherContextRow } from '@oxy.so/core';
+import type { SwitcherContextRow } from '@oxy.so/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/OxyContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useDeviceSwitcher } from '../../hooks/useDeviceSwitcher';
 import { useI18n } from '../../hooks/useI18n';
-import { useSurfaceFrameWidth } from '../../hooks/useSurfaceFrameWidth';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { isWebBrowser } from '../../utils/isWebBrowser';
 import { SubtleLink } from '../authChooser/primitives';
@@ -52,19 +49,12 @@ import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthSplit, OxyAuthTerms } from '
 import { RATE_LIMIT_SECONDS, describePasskeyError, isRateLimited } from './passkeyError';
 import { resolveSignInMethods } from './signInMethods';
 
-/** Bloom `AuthCard`'s split card width, which the account dialog grows to for it. */
-const SPLIT_WIDTH = 880;
-
 export interface OxySignInPanelProps {
   /** This screen signed the origin in. */
   onSignedIn: () => void;
   /** "New to Oxy? Create one". */
   onCreateAccount: () => void;
-  /**
-   * "Lost your passkey? Recover your account". Default: on the web, recovery
-   * runs on auth.oxy.so, in this tab; on native there is none here (Commons
-   * recovers the identity).
-   */
+  /** "Lost your passkey? Recover your account" — auth.oxy.so's page only. */
   onRecover?: () => void;
   /** A handle to pre-fill, skipping the picker (a re-authentication). */
   loginHint?: string;
@@ -96,7 +86,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
 
   const methods = resolveSignInMethods({
     web: isWebBrowser(),
-    oxyRpOrigin: isOxyRpOrigin(),
+    host,
     commonsAvailability: snapshot.commonsAvailability,
   });
 
@@ -128,20 +118,22 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     if (host === 'page') openAccountDialog('qr');
   }, [host, openAccountDialog]);
 
-  // Both of these open a window or leave the page, so they run straight from
-  // the press, before any await.
+  // These open a window or leave the page, so they run straight from the
+  // press, before any await.
   const continueWithOxy = () => {
     void controller?.signInWithOxy();
     showRequest();
+  };
+  const signInOnOxy = () => {
+    void continueOnAuth('signin').then((result) => {
+      if (result.status === 'signed-in') onSignedIn();
+      else if (result.status === 'failed') toast.error(t('signin.errors.failed'));
+    });
   };
   const useAnotherDevice = () => {
     void controller?.showQr();
     showRequest();
   };
-  // Off an `oxy.so` origin the passkey is auth.oxy.so's to assert: there, in
-  // this tab, and back signed in.
-  const signInOnAuth = () => void continueOnAuth('signin');
-  const recover = onRecover ?? (isWebBrowser() ? () => void continueOnAuth('recover') : undefined);
   const getCommons = () => {
     Promise.resolve()
       .then(() => Linking.openURL(getCommonsAcquisitionUrl(Platform.OS)))
@@ -197,7 +189,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         return;
       case 'failed':
         // The pair could not be activated as it stands: sign in as it explicitly.
-        if (host === 'page' && context.handle && methods.passkey === 'direct') reauthenticate(context);
+        if (methods.passkey && context.handle) reauthenticate(context);
         else toast.error(t('accountSwitcher.toasts.activateFailed'));
         return;
       default:
@@ -206,12 +198,8 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   };
 
   const showsPicker = pickerAllowed && !showForm && principals.length > 0;
-  // The web entry is the split card from `md`. In the account dialog it grows
-  // the dialog to that card — the same screen auth.oxy.so shows, not a
-  // narrower cousin of it; below `md` the dialog is a bottom sheet, which a
-  // width does not touch.
+  // auth.oxy.so's page is the split card from `md`.
   const splits = methods.commons === 'qr';
-  useSurfaceFrameWidth(host === 'dialog' && !showsPicker && splits ? SPLIT_WIDTH : null);
 
   if (showsPicker) {
     return (
@@ -253,7 +241,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     </Text>
   );
   // One solid action per screen: the username's Continue when there is one.
-  const commonsAppearance = methods.passkey === 'direct' ? 'outline' : 'solid';
+  const commonsAppearance = methods.passkey ? 'outline' : 'solid';
 
   const continueWithOxyButton = (
     <Button
@@ -261,7 +249,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       tone={commonsAppearance === 'solid' ? 'action' : 'neutral'}
       size="lg"
       fullWidth
-      onPress={continueWithOxy}
+      onPress={methods.commons === 'window' ? signInOnOxy : continueWithOxy}
       testID="continue-with-oxy"
     >
       {t('accountSwitcher.continueWithOxy')}
@@ -275,7 +263,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       {/* Below `md` this screen is the phone a QR would be scanned with. */}
       {splits ? <CssView className="md:hidden">{continueWithOxyButton}</CssView> : null}
 
-      {methods.commons === 'continue' ? continueWithOxyButton : null}
+      {methods.commons === 'continue' || methods.commons === 'window' ? continueWithOxyButton : null}
       {methods.commons === 'get-commons' ? (
         <View style={styles.stack}>
           <Text style={[styles.note, { color: theme.colors.textSecondary }]}>{t('accountSwitcher.commonsNotInstalled')}</Text>
@@ -285,7 +273,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         </View>
       ) : null}
 
-      {methods.passkey === 'direct' ? (
+      {methods.passkey ? (
         <View style={styles.stack}>
           <View style={styles.field}>
             <TextFieldLabel nativeID="username-label">{t('signin.username.label')}</TextFieldLabel>
@@ -326,10 +314,24 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         </View>
       ) : null}
 
-      {/* The alternatives to the screen's primary way in, always under it. */}
-      <Divider>{t('signin.orContinueWith')}</Divider>
+      {/* The alternatives to the screen's primary way in, always under it. The
+          window an app opens on the web is where they all are. */}
+      {methods.commons === 'window' ? null : <Divider>{t('signin.orContinueWith')}</Divider>}
 
-      {methods.passkey === 'none' ? (
+      {methods.passkey ? (
+        <Button
+          appearance="outline"
+          tone="neutral"
+          size="lg"
+          fullWidth
+          leadingIcon={RiKey2Line}
+          disabled={blocked}
+          onPress={() => void runPasskey(undefined, t('signin.errors.failed'))}
+          testID="passkey-sign-in"
+        >
+          {t('signin.methods.passkey')}
+        </Button>
+      ) : methods.commons === 'window' ? null : (
         <Button
           appearance="outline"
           tone="neutral"
@@ -341,28 +343,11 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         >
           {t('accountSwitcher.scanQr')}
         </Button>
-      ) : (
-        <Button
-          appearance="outline"
-          tone="neutral"
-          size="lg"
-          fullWidth
-          leadingIcon={RiKey2Line}
-          disabled={methods.passkey === 'direct' && blocked}
-          onPress={
-            methods.passkey === 'direct'
-              ? () => void runPasskey(undefined, t('signin.errors.failed'))
-              : signInOnAuth
-          }
-          testID="passkey-sign-in"
-        >
-          {t('signin.methods.passkey')}
-        </Button>
       )}
 
-      {methods.passkey === 'direct' ? null : noAccount}
-      {recover ? (
-        <SubtleLink label={t('signin.recoverLink')} theme={theme} onPress={recover} testID="recover-link" />
+      {methods.passkey ? null : noAccount}
+      {onRecover ? (
+        <SubtleLink label={t('signin.recoverLink')} theme={theme} onPress={onRecover} testID="recover-link" />
       ) : null}
       <OxyAuthTerms />
     </OxyAuthScreen>
@@ -371,7 +356,6 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   if (!splits) return form;
   return (
     <OxyAuthSplit
-      bare={host === 'dialog'}
       aside={
         <>
           <AuthMediaCarousel slides={SIGN_IN_SLIDES} style={StyleSheet.absoluteFill} />

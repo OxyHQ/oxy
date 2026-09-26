@@ -153,6 +153,27 @@ describe('startWebOAuthSignIn', () => {
       expect(openSpy).toHaveBeenCalledTimes(1);
     });
 
+    // An Oxy app's account dialog asks for the window whatever the provider's
+    // `webAuthMode`, and for the IdP screen the person lands on.
+    it('opens the window for `transport: popup` even in redirect mode, with its screen', async () => {
+      const context = makeContext({ mode: 'redirect' });
+      const popup = fakePopup();
+      const openSpy = jest.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
+
+      const pending = startWebOAuthSignIn(context, { redirectUri: REDIRECT_URI, transport: 'popup', screen: 'signup' });
+      const authorizeUrl = await waitForAuthorizeUrl(popup);
+      expect(authorizeUrl.searchParams.get('screen')).toBe('signup');
+      expect(authorizeUrl.searchParams.get('response_mode')).toBe('web_message');
+      dispatchFromPopup(
+        { type: OXY_OAUTH_CODE_MESSAGE_TYPE, code: 'code-1', state: authorizeUrl.searchParams.get('state') },
+        popup,
+      );
+
+      await expect(pending).resolves.toEqual({ status: 'signed-in' });
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(mockRedirect).not.toHaveBeenCalled();
+    });
+
     it('falls back to a full-page redirect when the popup was blocked', async () => {
       const context = makeContext();
 

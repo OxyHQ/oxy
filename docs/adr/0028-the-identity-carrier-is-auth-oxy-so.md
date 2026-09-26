@@ -1,6 +1,6 @@
 # ADR 0028 — The web identity carrier is `auth.oxy.so`; `id.oxy.so` is gone
 
-- Status: accepted
+- Status: accepted; D1b changed by [ADR 0029](0029-one-oxy-session.md) (Oxy apps use auth.oxy.so's window on the web)
 - Date: 2026-09-26
 - Decided by: the owner (product direction), recorded here
 - Changes: ADR 0024 D1 (the internal holder host `id.oxy.so`, and the gate it

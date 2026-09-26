@@ -1,11 +1,10 @@
 /**
  * Account creation in the account dialog.
  *
- * An Oxy account is created WITH its self-custody root, or not at all (ADR
- * 0024 D4), and only auth.oxy.so may create one (ADR 0028): on the web the
- * one action takes the person to auth.oxy.so/signup in this tab, and back to
- * this app signed in as the new account. On native, Commons creates the
- * identity: straight in when it is installed, "Get Commons" otherwise.
+ * On the web the account is made on auth.oxy.so, in its window over the app
+ * (`onCreateOnWeb`), and this app is signed in as it. On native, Commons
+ * creates the identity: straight in when it is installed, "Get Commons"
+ * otherwise.
  */
 
 import type React from 'react';
@@ -29,12 +28,14 @@ const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
 export interface OxySignUpPanelProps {
   /** "Already have an account? Sign in". */
   onSignIn: () => void;
+  /** The web's one action: auth.oxy.so's sign-up, in its window. */
+  onCreateOnWeb: () => void;
 }
 
-export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignIn }) => {
+export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignIn, onCreateOnWeb }) => {
   const theme = useTheme();
   const { t } = useI18n();
-  const { accountDialogController: controller, continueOnAuth } = useOxy();
+  const { accountDialogController: controller } = useOxy();
   const snapshot = useAccountDialogSnapshot(controller);
   const web = isWebBrowser();
 
@@ -47,9 +48,6 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignIn }) => {
     [t],
   );
 
-  // The account is made on auth.oxy.so, in this tab, and this app is back
-  // signed in as it.
-  const createOnWeb = () => void continueOnAuth('signup');
   const commonsInstalled = snapshot.commonsAvailability === 'available';
 
   return (
@@ -62,7 +60,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignIn }) => {
           size="lg"
           fullWidth
           leadingIcon={RiKey2Line}
-          onPress={createOnWeb}
+          onPress={onCreateOnWeb}
           testID="signup-open-identity"
         >
           {t('signup.createAccount')}

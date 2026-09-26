@@ -192,8 +192,8 @@ function AuthorizeRequest() {
   // request, not a guarantee — with no opener we still redirect (see
   // `lib/oauth-web-message.ts`).
   const responseMode = searchParams.get("response_mode");
-  // The IdP screen an Oxy app sent the person to (`screen=signin|signup|recover`):
-  // what only this origin can do, in the same tab, then back to the app.
+  // The IdP screen an Oxy app's window opens on (`screen=signin|signup|recover`)
+  // when this browser has no session here yet.
   const screen = searchParams.get("screen");
   const screenPath = screen === "signin" ? "/login" : screen === "signup" ? "/signup" : screen === "recover" ? "/recover" : null;
 

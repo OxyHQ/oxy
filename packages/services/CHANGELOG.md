@@ -2,7 +2,29 @@
 
 ## [6.0.0] - 2026-09-26
 
+**Web sign-in in auth.oxy.so's window** (ADR 0029 D1). On the web, an app's
+account dialog shows "Continue with Oxy" and "Create account", and both open
+auth.oxy.so in a window over the app, like "Sign in with Google": the QR, the
+username and the passkey are there, on every domain alike. No code picks a
+route by domain any more.
+
+### Changed
+
+- `useOxy().continueOnAuth(screen)` opens auth.oxy.so's window
+  (`transport: 'popup'`) instead of leaving the tab; a blocked window still
+  falls back to the tab. `startWebOAuthSignIn`'s `transport` takes `'popup'`
+  as well as `'redirect'`, and passes `screen` in both.
+- `OxySignInPanel`: the username, passkey and QR run only on a page
+  (`host="page"`, auth.oxy.so). In the dialog on the web it is "Continue with
+  Oxy", which reports `onSignedIn` once the window signs the app in.
+  `onRecover` has no default: recovery is on auth.oxy.so.
+- `OxySignUpPanel` takes `onCreateOnWeb`, the web's one action.
+
 ### Removed
+
+- The passkey ceremony inside an app's dialog on `*.oxy.so`, and the
+  `isOxyRpOrigin` route choice (`PasskeyRoute`).
+- The dialog's 880 split (`useSurfaceFrameWidth`) and `OxyAuthSplit`'s `bare`.
 
 - `OxyProvider`'s `deviceCredentialStorage` prop and the `'ephemeral'` auth
   store. Its one caller was auth.oxy.so with the browser hub on; the hub is
