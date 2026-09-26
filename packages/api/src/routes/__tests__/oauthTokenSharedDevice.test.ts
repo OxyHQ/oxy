@@ -63,6 +63,7 @@ jest.mock('../../services/session.service', () => ({
 }));
 jest.mock('../../services/loginLockout.service', () => ({
   isLockedOut: jest.fn().mockResolvedValue({ locked: false, attempts: 0 }),
+  reserveAttempt: jest.fn().mockResolvedValue({ locked: false, attempts: 1 }),
   recordFailure: jest.fn().mockResolvedValue({ locked: false, attempts: 1 }),
   clearFailures: jest.fn().mockResolvedValue(undefined),
 }));

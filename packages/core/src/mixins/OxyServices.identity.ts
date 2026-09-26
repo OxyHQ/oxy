@@ -312,7 +312,11 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
       }
     }
 
-    /** WebAuthn request options over the account's passkeys, whose challenge is the link's. Opaque. */
+    /**
+     * @deprecated The API no longer confirms a link with a passkey (security
+     * review of #1421); this endpoint is gone. Use
+     * {@link completeIdentityLinkWithEmailCode}. Removed with passkeys.
+     */
     async getIdentityLinkAssertionOptions(linkId: string, challenge: string): Promise<unknown> {
       try {
         return await this.makeRequest<unknown>(
@@ -327,6 +331,9 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
     }
 
     /**
+     * @deprecated Refused by the API: a passkey no longer confirms a link. Use
+     * {@link completeIdentityLinkWithEmailCode}. Removed with passkeys.
+     *
      * auth.oxy.so's half: the passkey assertion over the link's challenge. The
      * account gains Commons' root and loses its recovery email.
      */
@@ -336,6 +343,30 @@ export function OxyServicesIdentityMixin<T extends typeof OxyServicesBase>(Base:
           'POST',
           `/identity/link/${encodeURIComponent(linkId)}/complete`,
           { assertion },
+          { cache: false },
+        );
+        this._invalidateIdentityCaches(this.getCurrentUserId());
+        return result;
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Complete a link with a code just sent to the account's email
+     * (`requestReauthEmailCode`) — plus its authenticator code when it has one.
+     * The account gains Commons' root and loses its email; every other session
+     * of the account is signed out.
+     */
+    async completeIdentityLinkWithEmailCode(
+      linkId: string,
+      reauth: { emailCode: { verificationId: string; code: string }; totpCode?: string },
+    ): Promise<{ success: true }> {
+      try {
+        const result = await this.makeRequest<{ success: true }>(
+          'POST',
+          `/identity/link/${encodeURIComponent(linkId)}/complete`,
+          { reauth },
           { cache: false },
         );
         this._invalidateIdentityCaches(this.getCurrentUserId());

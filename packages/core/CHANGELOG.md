@@ -1,5 +1,53 @@
 # Changelog — `@oxy.so/core`
 
+## 2.1.0
+
+Signing in without a passkey: an email code or link, an optional password, an
+optional authenticator app (TOTP), and sign-up with a confirmed email.
+
+### Added
+
+- `startEmailSignIn(identifier)`, `confirmEmailSignIn({ requestId,
+  requestSecret, code })`, `collectEmailSignIn({ requestId, requestSecret })`
+  and, for auth.oxy.so's link page, `approveEmailSignInLink(token)` —
+  `POST /auth/signin/email/{start,confirm,collect,link}`. One email carries a
+  6-digit code and a one-use link; the link approves only in the browser that
+  asked (it proves the same shared device), and only the caller holding the
+  `requestSecret` collects the session.
+- `signInWithPassword({ identifier, password })` and
+  `completeSecondFactor({ challengeId, code })` — `POST /auth/signin/password`
+  and `/auth/signin/second-factor`. When the account has an authenticator every
+  first factor resolves to `{ secondFactorRequired, challengeId, expiresAt }`
+  (no session, no token planted) and the second factor to the session.
+- `signUp({ username, email, emailTicket })` — `POST /auth/signup`, with the
+  ticket `confirmEmailVerification` returns for a `signup` code.
+- Every one of them attaches this client's device proof (`readDeviceProof`,
+  ADR 0029 D2) unless `device` is passed (`null` opts out), and plants the
+  access token of a session.
+- `getSignInMethods()`, `requestReauthEmailCode()`, `setPassword({ newPassword,
+  reauth, revokeOtherSessions? })`, `enrollTotp()`, `confirmTotp(code, reauth)`,
+  `disableTotp(reauth)`, `regenerateTotpBackupCodes(reauth)` — the signed-in
+  account's password and authenticator, each change confirmed by a fresh
+  `reauth` proof (the current password or an emailed code, plus the
+  authenticator's code once it is on).
+- `SecondFactorRequiredError` (`challengeId`, `expiresAt`): thrown by
+  `webauthnLoginVerify` and `webauthnRegisterVerify` (recovery) when the
+  account has an authenticator — a passkey is a first factor too; finish with
+  `completeSecondFactor`.
+- `requestReauthEmailCode(action)` names the one change the code confirms.
+
+### Deprecated
+
+- `getAccountDeletionOptions`, `deleteAccountWithPasskey`,
+  `getIdentityLinkAssertionOptions`, `completeIdentityLink` and adding a passkey
+  to a signed-in account (`webauthnRegisterOptions`/`webauthnRegisterVerify`
+  with a bearer): the API refuses them now (a stolen bearer could otherwise
+  plant a passkey and use it). Use `deleteAccountWithEmailCode` and
+  `completeIdentityLinkWithEmailCode`. They go with passkeys.
+- `deleteAccountWithEmailCode(confirmText, reauth)` and
+  `completeIdentityLinkWithEmailCode(linkId, reauth)`: deleting an account
+  without a key and linking Commons, confirmed by an emailed code instead of a
+  passkey.
 ## 2.0.0
 
 Includes everything in 1.19.0.

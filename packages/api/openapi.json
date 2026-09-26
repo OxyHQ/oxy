@@ -6796,7 +6796,7 @@
           "Authentication"
         ],
         "summary": "Link a root (`publicKey`) to a personal account that has NONE — first link only",
-        "description": "(ADR 0024 D8). Both factors in one request; linking Commons from another device\nrelays them through `routes/identityLink.ts`. Either way `linkRootToAccount`.\n\n- An account whose root is this key: idempotent with a root proof, and heals a\n  missing `identity` method row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless (passkey) account: a root proof (`link_identity`, one-use\n  challenge) AND a fresh assertion by one of the account's existing passkeys,\n  made on auth.oxy.so, over the same challenge. A bearer plus a key generated a\n  moment ago is not authority. The first link deletes the recovery email\n  (ADR 0029 D3).",
+        "description": "(ADR 0024 D8). Both factors in one request; linking Commons from another device\nrelays them through `routes/identityLink.ts`. Either way `linkRootToAccount`.\n\n- An account whose root is this key: idempotent with a root proof, and heals a\n  missing `identity` method row.\n- An account with a DIFFERENT root: 409. Replacing a root is\n  `POST /auth/rotate/*`, which needs the old root's proof too.\n- A keyless account: refused here. Its first link goes through\n  `routes/identityLink.ts`, confirmed by a code sent to its email (plus its\n  authenticator); a passkey assertion no longer confirms it, and a bearer\n  plus a key generated a moment ago is not authority.",
         "parameters": [],
         "responses": {
           "200": {
@@ -6968,7 +6968,7 @@
           "Authentication"
         ],
         "summary": "Unlink ONE passkey (by its public credential id) from the current account.",
-        "description": "Passkeys are per-credential, so this needs the specific id rather than the\ngeneric per-type unlink. Removes the `user_auth_methods` row AND the\n`webauthn_credentials` row, keeping at least one usable auth method overall.\n\nRegistered BEFORE `DELETE /link/:type` so the two-segment webauthn path is not\nshadowed by the single-segment `:type` route.",
+        "description": "Passkeys are per-credential, so this needs the specific id rather than the\ngeneric per-type unlink. Removes the `user_auth_methods` row AND the\n`webauthn_credentials` row, keeping at least one usable auth method overall.\nA third-party token is refused (`requireFirstPartyForChanges`).",
         "parameters": [
           {
             "name": "credentialID",
@@ -17776,179 +17776,46 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "assertion": {
+                  "reauth": {
                     "type": "object",
                     "properties": {
-                      "id": {
-                        "type": "string",
-                        "pattern": "^[A-Za-z0-9_-]+$",
-                        "minLength": 16,
-                        "maxLength": 1024
-                      },
-                      "rawId": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 2048
-                      },
-                      "type": {
-                        "type": "string",
-                        "enum": [
-                          "public-key"
-                        ]
-                      },
-                      "response": {
+                      "emailCode": {
                         "type": "object",
                         "properties": {
-                          "clientDataJSON": {
+                          "verificationId": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 8192
+                            "maxLength": 64
                           },
-                          "authenticatorData": {
+                          "code": {
                             "type": "string",
-                            "minLength": 1,
-                            "maxLength": 8192
-                          },
-                          "signature": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 2048
-                          },
-                          "userHandle": {
-                            "type": "string",
-                            "maxLength": 2048
+                            "pattern": "^\\d{6}$"
                           }
                         },
                         "required": [
-                          "clientDataJSON",
-                          "authenticatorData",
-                          "signature"
+                          "verificationId",
+                          "code"
                         ]
                       },
-                      "clientExtensionResults": {
-                        "type": "object",
-                        "additionalProperties": {}
-                      },
-                      "authenticatorAttachment": {
-                        "type": "string"
+                      "totpCode": {
+                        "type": "string",
+                        "minLength": 6,
+                        "maxLength": 16
                       }
                     },
                     "required": [
-                      "id",
-                      "rawId",
-                      "type",
-                      "response"
+                      "emailCode"
                     ]
                   }
                 },
                 "required": [
-                  "assertion"
+                  "reauth"
                 ]
               }
             }
           }
         },
         "operationId": "postIdentityLinkLinkIdComplete"
-      }
-    },
-    "/identity/link/{linkId}/options": {
-      "post": {
-        "tags": [
-          "Misc"
-        ],
-        "summary": "POST /identity/link/{linkId}/options",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/identityLink.ts` to fill in summary, description, request/response examples.",
-        "parameters": [
-          {
-            "name": "linkId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{32}$"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/identityLink.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "challenge": {
-                    "type": "string",
-                    "pattern": "^[0-9a-f]{64}$"
-                  }
-                },
-                "required": [
-                  "challenge"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postIdentityLinkLinkIdOptions"
       }
     },
     "/identity/link/{linkId}/proof": {
@@ -35067,7 +34934,7 @@
           "Users"
         ],
         "summary": "Permanently delete the current account",
-        "description": "Hard-delete the authenticated user's account. The person proves it is them at the time of deletion with the account's own factor: an account with a Commons key signs `delete:{publicKey}:{timestamp}` with it (see `KeyManager.sign` in `@oxy.so/core`), rejected if older than 5 minutes; a passkey account sends an `assertion` by one of its passkeys, made on auth.oxy.so over the challenge of `POST /users/me/delete/options`. Either way the confirmation text must match the account's username.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user, and records an `account.deleted` event that tells every relying application to erase what it holds for this account (pushed as a signed webhook and served from `/internal/account-events`; see docs/identity/account-events.md).\n",
+        "description": "Hard-delete the authenticated user's account. The person proves it is them at the time of deletion with the account's own factor: an account with a Commons key signs `delete:{publicKey}:{timestamp}` with it (see `KeyManager.sign` in `@oxy.so/core`), rejected if older than 5 minutes (plus `totpCode` if it has an authenticator); an account without a key sends `reauth` — the code `POST /users/me/reauth/email` (action `delete_account`) just sent to its email, plus its authenticator code when it has one. A passkey no longer confirms a deletion, and a third-party application's token is refused. Either way the confirmation text must match the account's username.\nSuccessful deletion removes all mailboxes, messages, and S3 attachments owned by the user, and records an `account.deleted` event that tells every relying application to erase what it holds for this account (pushed as a signed webhook and served from `/internal/account-events`; see docs/identity/account-events.md).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -35078,9 +34945,13 @@
                   "confirmText"
                 ],
                 "properties": {
-                  "assertion": {
+                  "reauth": {
                     "type": "object",
-                    "description": "A passkey account's WebAuthn assertion over the `POST /users/me/delete/options` challenge."
+                    "description": "An account without a key: the email code `POST /users/me/reauth/email` sent (emailCode.verificationId, emailCode.code), plus totpCode when the account has an authenticator."
+                  },
+                  "totpCode": {
+                    "type": "string",
+                    "description": "An account with a key and an authenticator — its code or a backup code."
                   },
                   "signature": {
                     "type": "string",
@@ -35420,47 +35291,6 @@
           }
         ],
         "operationId": "getUsersMeData"
-      }
-    },
-    "/users/me/delete/options": {
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "passkey account: its own passkeys, user verification required, and a",
-        "description": "challenge bound to it that `DELETE /users/me` spends. An account with a\nCommons key deletes with that key instead.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/users.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "postUsersMeDeleteOptions"
       }
     },
     "/users/me/export": {

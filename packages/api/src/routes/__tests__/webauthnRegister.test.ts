@@ -104,6 +104,7 @@ import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import { webauthnChallenges } from '../../db/schema/webauthnChallenges';
 import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
+import { userTotp } from '../../db/schema/userTotp';
 import webauthnRouter from '../webauthn';
 import { hashEmail } from '../../utils/contactHash';
 import { randomBytes } from 'node:crypto';
@@ -376,44 +377,16 @@ describe('POST /webauthn/register/options', () => {
     expect(res.status).toBe(400);
   });
 
-  it('linking branch: binds the challenge to the bearer and excludes their existing passkeys', async () => {
+  it('refuses to add a passkey to a signed-in account: any bearer (stolen, third-party or not) is refused', async () => {
     const userId = await account(freshUsername());
-    const existingCredentialId = freshCredentialId();
-    await getDb().insert(webauthnCredentials).values({
-      userId,
-      credentialID: existingCredentialId,
-      credentialPublicKey: Buffer.from([9, 9, 9]),
-      counter: 3,
-      transports: ['usb', 'nfc'],
-      deviceType: 'singleDevice',
-      backedUp: false,
-      userVerified: true,
-      name: 'Old Key',
-    });
     mockBearerUserId = userId;
 
-    const res = await request(
-      server,
-      'POST',
-      '/webauthn/register/options',
-      {},
-      { authorization: 'Bearer valid-token' },
-    );
+    const res = await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
 
-    expect(res.status).toBe(200);
-    const options = mockGenerateRegistration.mock.calls[0][0] as {
-      excludeCredentials: { id: string; transports?: string[] }[];
-    };
-    // Read back out of the real table, transports included.
-    expect(options.excludeCredentials).toEqual([
-      { id: existingCredentialId, transports: ['usb', 'nfc'] },
-    ]);
-
-    const stored = await storedChallenge(currentChallenge);
-    expect(stored.userId).toBe(userId);
-    expect(stored.used).toBe(false);
+    expect(res.status).toBe(403);
+    expect(mockGenerateRegistration).not.toHaveBeenCalled();
+    expect(await storedChallenge(currentChallenge)).toBeUndefined();
   });
-
   it('rejects linking a passkey to a managed account bearer', async () => {
     mockBearerUserId = await account(freshUsername(), 'organization');
 
@@ -701,28 +674,26 @@ describe('POST /webauthn/register/verify — signup branch', () => {
     expect(await storedCredential(currentCredentialId)).toBeUndefined();
   });
 
-  it('refuses a signup challenge that was minted for a LINKING flow', async () => {
-    // Mint a challenge bound to an account…
+  it('refuses a signup ceremony over a challenge bound to an account', async () => {
     const userId = await account(freshUsername());
-    mockBearerUserId = userId;
-    mockClientOrigin = 'https://accounts.oxy.so';
-    await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
-
-    // …then try to spend it on the unauthenticated signup lane.
-    mockBearerUserId = null;
-    mockClientOrigin = AUTH_ORIGIN;
+    await getDb().insert(webauthnChallenges).values({
+      challenge: currentChallenge,
+      type: 'registration',
+      userId,
+      expiresAt: new Date(Date.now() + 60_000),
+      used: false,
+    });
     const username = freshUsername();
     const res = await request(server, 'POST', '/webauthn/register/verify', await signupBody(username));
 
     expect(res.status).toBe(401);
     expect(await storedUserByUsername(username)).toBeUndefined();
-    // The linking challenge is untouched — it can still be spent by its own flow.
     expect((await storedChallenge(currentChallenge)).used).toBe(false);
   });
 });
 
-describe('POST /webauthn/register/verify — linking branch', () => {
-  it('rejects a managed account even if a linking challenge already exists', async () => {
+describe('POST /webauthn/register/verify — a bearer never adds a passkey (security review of #1421)', () => {
+  it('refuses a bearer even with an account-bound challenge in place — no credential is written', async () => {
     const managedId = await account(freshUsername(), 'organization');
     mockBearerUserId = managedId;
     await getDb().insert(webauthnChallenges).values({
@@ -746,93 +717,6 @@ describe('POST /webauthn/register/verify — linking branch', () => {
     expect(await storedAuthMethods(managedId)).toHaveLength(0);
   });
 
-  it('links the passkey to the bearer account (credential row + auth-method row + cache invalidate)', async () => {
-    const userId = await account(freshUsername());
-    mockBearerUserId = userId;
-    mockClientOrigin = 'https://accounts.oxy.so';
-    await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
-
-    const res = await request(
-      server,
-      'POST',
-      '/webauthn/register/verify',
-      { deviceName: 'YubiKey', response: registrationResponse() },
-      { authorization: 'Bearer valid-token' },
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-
-    const credential = await storedCredential(currentCredentialId);
-    expect(credential.userId).toBe(userId);
-    expect(credential.name).toBe('YubiKey');
-    // The linked credential records its enrollment assurance level.
-    expect(credential.userVerified).toBe(true);
-
-    const methods = await storedAuthMethods(userId);
-    expect(methods).toHaveLength(1);
-    expect(methods[0].type).toBe('webauthn');
-    expect(methods[0].methodCredentialId).toBe(currentCredentialId);
-
-    expect(mockInvalidate).toHaveBeenCalledWith(userId);
-    // Linking does NOT mint a new session.
-    expect(mockCreateSession).not.toHaveBeenCalled();
-  });
-
-  it('refuses a linking challenge minted for a DIFFERENT account (cross-account redirect)', async () => {
-    const victimId = await account(freshUsername());
-    const attackerId = await account(freshUsername());
-
-    // The challenge is minted for the victim…
-    mockBearerUserId = victimId;
-    await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
-
-    // …and presented by the attacker.
-    mockBearerUserId = attackerId;
-    const res = await request(
-      server,
-      'POST',
-      '/webauthn/register/verify',
-      { response: registrationResponse() },
-      { authorization: 'Bearer valid-token' },
-    );
-
-    expect(res.status).toBe(401);
-    expect(await storedCredential(currentCredentialId)).toBeUndefined();
-    expect(await storedAuthMethods(attackerId)).toHaveLength(0);
-    // The victim's challenge is still unspent.
-    expect((await storedChallenge(currentChallenge)).used).toBe(false);
-  });
-
-  it('rejects a duplicate passkey on link with 409 and writes no auth-method row', async () => {
-    const otherUserId = await account(freshUsername());
-    await getDb().insert(webauthnCredentials).values({
-      userId: otherUserId,
-      credentialID: currentCredentialId,
-      credentialPublicKey: Buffer.from([7]),
-      counter: 1,
-      deviceType: 'singleDevice',
-      backedUp: false,
-      userVerified: false,
-      name: 'Theirs',
-    });
-
-    const userId = await account(freshUsername());
-    mockBearerUserId = userId;
-    await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
-
-    const res = await request(
-      server,
-      'POST',
-      '/webauthn/register/verify',
-      { response: registrationResponse() },
-      { authorization: 'Bearer valid-token' },
-    );
-
-    expect(res.status).toBe(409);
-    expect(await storedAuthMethods(userId)).toHaveLength(0);
-    expect((await storedCredential(currentCredentialId)).userId).toBe(otherUserId);
-  });
 });
 
 describe('recovery: a new passkey for the account a recovery code was confirmed for (ADR 0029 D3)', () => {
@@ -892,6 +776,20 @@ describe('recovery: a new passkey for the account a recovery code was confirmed 
     expect((await storedAuthMethods(userId)).map((method) => method.type)).toEqual(['webauthn']);
     expect((await storedTicket(ticket)).usedAt).toBeInstanceOf(Date);
     expect(mockInvalidate).toHaveBeenCalledWith(userId);
+  });
+
+  it('verify: an account with an authenticator gets the second-factor challenge, never a session', async () => {
+    // (A ticket for such an account already needed the authenticator's code at
+    // confirm; this is the second, independent gate on the session itself.)
+    const { userId, ticket } = await recoverable();
+    await getDb().insert(userTotp).values({ userId, secretCiphertext: 'v1.x.x.x', enabledAt: new Date() });
+    await request(server, 'POST', '/webauthn/register/options', { recoveryTicket: ticket });
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', { recoveryTicket: ticket, response: registrationResponse() });
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body).sort()).toEqual(['challengeId', 'expiresAt', 'secondFactorRequired']);
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it('verify: a spent ticket recovers nothing a second time', async () => {

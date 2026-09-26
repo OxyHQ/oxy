@@ -177,6 +177,57 @@ export async function recordFailure(options: LockoutOptions): Promise<LockoutChe
 }
 
 /**
+ * Reserve ONE attempt atomically, BEFORE the credential is checked: the
+ * counter is incremented first (Redis `INCR`, or a synchronous in-memory
+ * increment), and the caller may verify only when the result is not
+ * `locked`. So N concurrent requests get at most `maxAttempts` verifications
+ * between them — `isLockedOut` followed by `recordFailure` lets them all
+ * through the check before any failure is counted.
+ *
+ * Every attempt counts, right or wrong; {@link clearFailures} resets the
+ * window after a success. `locked` means this attempt is over the cap.
+ */
+export async function reserveAttempt(options: LockoutOptions): Promise<LockoutCheck> {
+  const max = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+  const windowSeconds = options.windowSeconds ?? DEFAULT_WINDOW_SECONDS;
+  const key = buildKey(options.scope, options.identifier);
+
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      const pipeline = redis.pipeline();
+      pipeline.incr(key);
+      pipeline.expire(key, windowSeconds, 'NX');
+      pipeline.ttl(key);
+      const results = await pipeline.exec();
+      const [incrErr, incrValue] = results?.[0] ?? [new Error('Redis pipeline returned no results'), null];
+      if (incrErr) throw incrErr;
+      const count = typeof incrValue === 'number' ? incrValue : Number.parseInt(String(incrValue ?? '0'), 10);
+      const ttlValue = results?.[2]?.[1];
+      const ttl = typeof ttlValue === 'number' && ttlValue > 0 ? ttlValue : windowSeconds;
+      return count > max ? { locked: true, retryAfterSeconds: ttl, attempts: count } : { locked: false, attempts: count };
+    } catch (error) {
+      logger.warn('[LoginLockout] Redis reserve failed, falling back to memory', {
+        error: error instanceof Error ? error.message : String(error),
+        scope: options.scope,
+      });
+    }
+  }
+
+  // No `await` between the read and the write: atomic within this process.
+  const now = Date.now();
+  let bucket = inMemoryBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, resetAt: now + windowSeconds * 1000 };
+    inMemoryBuckets.set(key, bucket);
+  }
+  bucket.count += 1;
+  return bucket.count > max
+    ? { locked: true, retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000), attempts: bucket.count }
+    : { locked: false, attempts: bucket.count };
+}
+
+/**
  * Reset the failure counter after a successful authentication. Required so
  * a user who eventually authenticates correctly is not stuck behind a
  * lingering lockout window.

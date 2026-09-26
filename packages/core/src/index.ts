@@ -26,7 +26,7 @@ import './crypto/polyfill';
 // ---------------------------------------------------------------------------
 // API client
 // ---------------------------------------------------------------------------
-export { OxyServices, AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError, ServiceAssetMetadataError } from './OxyServices';
+export { OxyServices, AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError, SecondFactorRequiredError, ServiceAssetMetadataError } from './OxyServices';
 export { OXY_CLOUD_URL, oxyClient } from './OxyServices';
 export type { DeviceCredentialProvider, LinkedHttpClient } from './OxyServices.base';
 // Auth-refresh handler surface — consumed by `@oxy.so/services`'s OxyContext to

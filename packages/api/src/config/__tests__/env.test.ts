@@ -150,6 +150,12 @@ describe('validateRequiredEnvVars — DEVICE_ID_SALT (security review H1)', () =
       expect(warnCalls).not.toMatch(/development-only placeholder/);
     });
 
+    it('fails fast when DEVICE_ID_SALT is the development placeholder (sign-in keys derive from it)', () => {
+      process.env.DEVICE_ID_SALT = DEV_DEVICE_ID_SALT_DEFAULT;
+      expect(() => validateRequiredEnvVars()).toThrow(ConfigurationError);
+      expect(() => validateRequiredEnvVars()).toThrow(/placeholder is not allowed in production/);
+    });
+
     it('NEVER installs the dev placeholder in production', () => {
       expect(() => validateRequiredEnvVars()).toThrow();
       expect(process.env.DEVICE_ID_SALT).toBeUndefined();

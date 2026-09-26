@@ -6,8 +6,11 @@
  * two devices through a link request (`routes/identityLink.ts`):
  *
  * - a root proof (`link_identity`) by the key, spending its one-use challenge;
- * - for a keyless account, a fresh assertion by one of its own passkeys over
- *   the SAME challenge, from auth.oxy.so (a bearer is a session, not that proof).
+ * - for a keyless account, a fresh confirmation by the person, not only their
+ *   session: a code just sent to the account's email (plus its authenticator
+ *   code when it has one, `reauth.service.ts`). A passkey assertion no longer
+ *   confirms it (security review of #1421); it was: an assertion by one of its
+ *   own passkeys over the SAME challenge, from auth.oxy.so.
  *
  * The first link makes the account self-custodied: `users.public_key` and its
  * `identity` auth method are written, and the recovery email — with every
@@ -15,35 +18,35 @@
  *
  * A link request only relays: auth.oxy.so opens it (the challenge travels in
  * the QR, the row keeps its hash), Commons posts the signed proof with its key,
- * both devices show the code derived from that key, and auth.oxy.so completes
- * it with the passkey. First proof wins; nothing is linked until the passkey.
+ * both devices show the code derived from that key, and the account completes
+ * it with the email code (or the passkey). First proof wins; nothing is linked
+ * until that confirmation.
  */
 
 import crypto from 'node:crypto';
-import { and, count, eq, gt, inArray, sql } from 'drizzle-orm';
-import { generateAuthenticationOptions, type AuthenticatorTransportFuture } from '@simplewebauthn/server';
+import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import {
   IDENTITY_ERROR_CODES,
   IDENTITY_PROOF_ACTIONS,
   IDENTITY_PROOF_AUDIENCE,
   buildIdentityLinkQrPayload,
   buildIdentityProofMessage,
+  type EmailReauthProof,
   type IdentityLinkCreateResponse,
   type IdentityLinkState,
   type IdentityProof,
 } from '@oxy.so/contracts';
-import { getWebauthnRpId } from '../config/env';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { emailVerifications } from '../db/schema/emailVerifications';
+import { userPasswords } from '../db/schema/userPasswords';
+import { userTotp, userTotpBackupCodes } from '../db/schema/userTotp';
 import { identityLinkRequests } from '../db/schema/identityLinkRequests';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users } from '../db/schema/users';
-import { webauthnCredentials } from '../db/schema/webauthnCredentials';
 import { ApiError, BadRequestError, NotFoundError } from '../utils/error';
-import { isAuthWebOrigin } from '../utils/origin';
 import { mintIdentityProofChallenge, proofInvalid, sha256Hex, verifyIdentityProof } from './identityProof.service';
 import SignatureService from './signature.service';
-import { verifyFreshPasskeyAssertion } from './webauthnFreshAssertion.service';
+import { verifyEmailReauth } from './reauth.service';
 
 function publicKeyMatches(candidate: string) {
   return sql`lower(btrim(${users.publicKey})) = lower(btrim(${candidate}))`;
@@ -54,7 +57,7 @@ function linkedElsewhere(): ApiError {
 }
 
 function freshFactorRequired(): ApiError {
-  return new ApiError(401, 'Confirm with one of this account’s passkeys', IDENTITY_ERROR_CODES.freshFactorRequired);
+  return new ApiError(401, 'Confirm with a code sent to this account’s email', IDENTITY_ERROR_CODES.freshFactorRequired);
 }
 
 function linkGone(): NotFoundError {
@@ -66,8 +69,13 @@ export interface LinkRootInput {
   /** Lowercase, uncompressed. */
   publicKey: string;
   proof: IdentityProof;
-  /** Required for a keyless account: a fresh assertion over `proof.challenge`. */
-  assertion?: unknown;
+  /**
+   * A keyless account's confirmation: the email re-verification (plus the
+   * authenticator), ALREADY checked by the caller ({@link completeLinkRequest}
+   * runs `verifyEmailReauth` first). Only that caller sets it. A passkey
+   * assertion no longer confirms a link (security review of #1421).
+   */
+  emailReauthVerified?: true;
 }
 
 /**
@@ -94,16 +102,7 @@ export async function linkRootToAccount(tx: DatabaseOrTransaction, input: LinkRo
     throw new ApiError(409, 'This account already has an identity', IDENTITY_ERROR_CODES.rootAlreadyLinked);
   }
 
-  if (!current) {
-    if (!input.assertion) throw freshFactorRequired();
-    // Passkeys are asserted only on auth.oxy.so (ADR 0029 D1).
-    await verifyFreshPasskeyAssertion(tx, {
-      userId,
-      response: input.assertion,
-      challengeHex: proof.challenge,
-      allowOrigin: isAuthWebOrigin,
-    });
-  }
+  if (!current && !input.emailReauthVerified) throw freshFactorRequired();
   await verifyIdentityProof(tx, {
     userId,
     actor: userId,
@@ -122,6 +121,12 @@ export async function linkRootToAccount(tx: DatabaseOrTransaction, input: LinkRo
     // goes with the custodial way back in (ADR 0029 D3).
     await tx.update(users).set({ publicKey, email: null }).where(eq(users.id, userId));
     await tx.delete(emailVerifications).where(eq(emailVerifications.userId, userId));
+    // …and so does every other way in Oxy checked for it: a Commons account
+    // signs in with Commons, so its password and authenticator go too, in
+    // the same transaction.
+    await tx.delete(userPasswords).where(eq(userPasswords.userId, userId));
+    await tx.delete(userTotpBackupCodes).where(eq(userTotpBackupCodes.userId, userId));
+    await tx.delete(userTotp).where(eq(userTotp.userId, userId));
   }
 
   // The key on the account and its `user_auth_methods` row are ONE fact.
@@ -150,15 +155,16 @@ function liveRequest(linkId: string, statuses: readonly ('pending' | 'signed')[]
 /** Open a link request for a passkey account; earlier open ones are withdrawn. */
 export async function createLinkRequest(userId: string, now: Date = new Date()): Promise<IdentityLinkCreateResponse> {
   const db = getDb();
-  const [account] = await db.select({ publicKey: users.publicKey }).from(users).where(eq(users.id, userId)).limit(1);
+  const [account] = await db
+    .select({ publicKey: users.publicKey, email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
   if (account?.publicKey) {
     throw new ApiError(409, 'This account already has an identity', IDENTITY_ERROR_CODES.rootAlreadyLinked);
   }
-  const [passkeys] = await db
-    .select({ value: count() })
-    .from(webauthnCredentials)
-    .where(eq(webauthnCredentials.userId, userId));
-  if ((passkeys?.value ?? 0) === 0) throw freshFactorRequired();
+  // The link is confirmed with a code sent to the email, so the account needs one.
+  if (!account?.email) throw freshFactorRequired();
 
   // Kind and root are checked (again) by the mint.
   const minted = await mintIdentityProofChallenge(userId, IDENTITY_PROOF_ACTIONS.link, now);
@@ -274,33 +280,37 @@ async function ownedSignedRequest(db: DatabaseOrTransaction, linkId: string, use
   return { ...row, publicKey: row.publicKey, proof: row.proof };
 }
 
-/** WebAuthn request options over the account's passkeys whose challenge is the link's. */
-export async function linkAssertionOptions(linkId: string, userId: string, challenge: string, now: Date = new Date()): Promise<unknown> {
+/**
+ * The account's confirmation completes the link: the root, the method row, the
+ * email deleted — one transaction. An email confirmation is checked (and its
+ * code spent) first, against a request that is still the owner's and signed.
+ * Returns the email the account HAD, for the notice that it is gone.
+ */
+export async function completeLinkRequest(
+  linkId: string,
+  userId: string,
+  confirmation: { reauth: EmailReauthProof },
+  now: Date = new Date(),
+): Promise<{ formerEmail: string | null; username: string | null }> {
   const db = getDb();
-  const row = await ownedSignedRequest(db, linkId, userId, now);
-  if (sha256Hex(challenge) !== row.challengeHash) throw proofInvalid();
-  const credentials = await db
-    .select({ credentialID: webauthnCredentials.credentialID, transports: webauthnCredentials.transports })
-    .from(webauthnCredentials)
-    .where(eq(webauthnCredentials.userId, userId));
-  return generateAuthenticationOptions({
-    rpID: getWebauthnRpId(),
-    challenge: Buffer.from(challenge, 'hex'),
-    allowCredentials: credentials.map((credential) => ({
-      id: credential.credentialID,
-      transports: (credential.transports ?? undefined) as AuthenticatorTransportFuture[] | undefined,
-    })),
-    userVerification: 'required',
-  });
-}
-
-/** The passkey completes the link: the root, the method row, the email deleted — one transaction. */
-export async function completeLinkRequest(linkId: string, userId: string, assertion: unknown, now: Date = new Date()): Promise<void> {
-  await getDb().transaction(async (tx) => {
+  await ownedSignedRequest(db, linkId, userId, now);
+  await verifyEmailReauth(userId, confirmation.reauth, 'link_commons', now);
+  const [before] = await db
+    .select({ email: users.email, username: users.username })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  await db.transaction(async (tx) => {
     const row = await ownedSignedRequest(tx, linkId, userId, now, true);
-    await linkRootToAccount(tx, { userId, publicKey: row.publicKey, proof: row.proof, assertion });
+    await linkRootToAccount(tx, {
+      userId,
+      publicKey: row.publicKey,
+      proof: row.proof,
+      emailReauthVerified: true,
+    });
     await tx.update(identityLinkRequests).set({ status: 'completed' }).where(eq(identityLinkRequests.id, row.id));
   });
+  return { formerEmail: before?.email?.trim().toLowerCase() || null, username: before?.username ?? null };
 }
 
 /** Withdraw an open request of the owner's. */

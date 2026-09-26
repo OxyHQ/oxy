@@ -77,6 +77,10 @@ import {
 } from './inferenceModelGpaiDocumentation';
 import { messages } from './messages';
 import { sessions } from './sessions';
+import { emailSignInRequests } from './emailSignInRequests';
+import { signInSecondFactorChallenges } from './signInChallenges';
+import { userPasswords } from './userPasswords';
+import { userTotp, userTotpBackupCodes } from './userTotp';
 import { linkedAccountOauthChallenges, mastodonAppRegistrations } from './userLinkedAccounts';
 import { users } from './users';
 
@@ -322,6 +326,17 @@ export const LINKED_ACCOUNT_OAUTH_CHALLENGES_PROTECTED_COLUMNS = [
 export const MASTODON_APP_REGISTRATIONS_PROTECTED_COLUMNS = ['clientSecret'] as const;
 
 /**
+ * Sign-in secrets without a passkey (email code/link, password, authenticator).
+ * Every one is either a credential or what a credential is checked against;
+ * none is ever part of a response.
+ */
+export const USER_PASSWORDS_PROTECTED_COLUMNS = ['passwordHash'] as const;
+export const USER_TOTP_PROTECTED_COLUMNS = ['secretCiphertext'] as const;
+export const USER_TOTP_BACKUP_CODES_PROTECTED_COLUMNS = ['codeHash'] as const;
+export const EMAIL_SIGNIN_REQUESTS_PROTECTED_COLUMNS = ['requestSecretHash', 'linkTokenHash'] as const;
+export const SIGNIN_SECOND_FACTOR_CHALLENGES_PROTECTED_COLUMNS = ['challengeHash'] as const;
+
+/**
  * The registry, keyed by SQL table name. Declared `as const` and passed
  * straight through to `@oxy.so/db/assert`'s `publicColumns` at every call
  * site — that is what keeps the type-level guarantee (see that function's
@@ -340,6 +355,11 @@ export const PROTECTED_COLUMNS_BY_TABLE = {
   inference_model_gpai_documentation: INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS,
   linked_account_oauth_challenges: LINKED_ACCOUNT_OAUTH_CHALLENGES_PROTECTED_COLUMNS,
   mastodon_app_registrations: MASTODON_APP_REGISTRATIONS_PROTECTED_COLUMNS,
+  user_passwords: USER_PASSWORDS_PROTECTED_COLUMNS,
+  user_totp: USER_TOTP_PROTECTED_COLUMNS,
+  user_totp_backup_codes: USER_TOTP_BACKUP_CODES_PROTECTED_COLUMNS,
+  email_signin_requests: EMAIL_SIGNIN_REQUESTS_PROTECTED_COLUMNS,
+  signin_second_factor_challenges: SIGNIN_SECOND_FACTOR_CHALLENGES_PROTECTED_COLUMNS,
 } as const;
 
 /** A protected column, with the reason it is one. */
@@ -582,6 +602,46 @@ export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
       "The atproto client library's per-flow state, including its PKCE verifier " +
       'and the ephemeral DPoP private key the token exchange is bound to. Wiped ' +
       'when the challenge is spent.',
+  },
+  {
+    table: userPasswords,
+    column: userPasswords.passwordHash,
+    reason:
+      'The scrypt hash of the password. Salted and slow, and still an offline ' +
+      'guessing target for whoever reads it.',
+  },
+  {
+    table: userTotp,
+    column: userTotp.secretCiphertext,
+    reason:
+      "The authenticator's shared secret, encrypted. With the server key it " +
+      'generates every future second-factor code of the account.',
+  },
+  {
+    table: userTotpBackupCodes,
+    column: userTotpBackupCodes.codeHash,
+    reason:
+      'HMAC of a one-use backup code, which stands in for the authenticator. ' +
+      'The code space is small enough that the hash must stay server-side.',
+  },
+  {
+    table: emailSignInRequests,
+    column: emailSignInRequests.requestSecretHash,
+    reason:
+      'What the dialog that asked presents to collect the session. Only its ' +
+      'hash is stored, and it is never returned.',
+  },
+  {
+    table: emailSignInRequests,
+    column: emailSignInRequests.linkTokenHash,
+    reason: "Hash of the email link's one-use token. Never returned.",
+  },
+  {
+    table: signInSecondFactorChallenges,
+    column: signInSecondFactorChallenges.challengeHash,
+    reason:
+      'Hash of the second-factor challenge id a first factor issued. Never ' +
+      'returned after the first factor.',
   },
   {
     table: mastodonAppRegistrations,

@@ -15,6 +15,7 @@ import {
   emailVerificationStartResponseSchema,
   loginResultSchema,
   safeParseContract,
+  secondFactorRequiredSchema,
   type EmailVerificationConfirmResponse,
   type EmailVerificationStartRequest,
   type EmailVerificationStartResponse,
@@ -26,7 +27,7 @@ export {
   getCommonsApprovalBlockingReason,
   parseCommonsApprovalExpiresAt,
 } from '../utils/commonsApproval';
-import { OxyAuthenticationError } from '../OxyServices.errors';
+import { OxyAuthenticationError, SecondFactorRequiredError } from '../OxyServices.errors';
 import { KeyManager } from '../crypto/keyManager';
 import { solveRegistrationPow } from '../crypto/registrationPow';
 import { SignatureService } from '../crypto/signatureService';
@@ -1752,7 +1753,8 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      * `PublicKeyCredentialCreationOptions` the browser's `navigator.credentials
      * .create()` (or `@simplewebauthn/browser`'s `startRegistration`) needs.
      *
-     * With a bearer token planted this adds a passkey to the signed-in account.
+     * A passkey is never added to a signed-in account any more: the API refuses
+     * a request that carries a bearer (security review of #1421).
      * Without one, `username` is a prospective sign-up's handle, and
      * `recoveryTicket` a recovery's new passkey for the account it names. The
      * returned options are OPAQUE — Oxy does not own their shape (the browser /
@@ -1820,6 +1822,8 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
             ...(envelope.username !== undefined || envelope.recoveryTicket !== undefined ? { skipAuth: true } : {}),
           },
         );
+        const secondFactor = safeParseContract(secondFactorRequiredSchema, res);
+        if (secondFactor) throw new SecondFactorRequiredError(secondFactor);
         if (res && typeof res === 'object') {
           const record = res as Record<string, unknown>;
           // Signup branch: mints a session (LoginSessionResult, carries
@@ -1841,6 +1845,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         }
         throw new Error('auth/webauthn/register/verify returned an unexpected response shape');
       } catch (error) {
+        if (error instanceof SecondFactorRequiredError) throw error;
         throw this.handleError(error);
       }
     }
@@ -1892,6 +1897,8 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
           // Pre-session login ceremony — skip the bearer preflight.
           { cache: false, skipAuth: true },
         );
+        const secondFactor = safeParseContract(secondFactorRequiredSchema, res);
+        if (secondFactor) throw new SecondFactorRequiredError(secondFactor);
         const parsed = safeParseContract(loginResultSchema, res);
         if (!parsed) {
           throw new Error('auth/webauthn/login/verify returned an unexpected response shape');
@@ -1901,6 +1908,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         }
         return parsed;
       } catch (error) {
+        if (error instanceof SecondFactorRequiredError) throw error;
         throw this.handleError(error);
       }
     }

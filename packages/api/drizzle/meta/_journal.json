@@ -806,6 +806,13 @@
       "when": 1790418429503,
       "tag": "0115_device_join_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1790433959035,
+      "tag": "0116_email_password_signin",
+      "breakpoints": true
     }
   ]
 }

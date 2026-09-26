@@ -189,10 +189,20 @@ export class DeviceJoinService {
  * fail to sign in over the browser-sharing optimisation.
  */
 export async function resolveProvenDeviceId(proof: DeviceProof | undefined | null): Promise<string | null> {
+  return (await resolveProvenDevice(proof))?.deviceId ?? null;
+}
+
+/**
+ * The proven device's id and the accounts signed in on it, or null — same
+ * rules as {@link resolveProvenDeviceId}.
+ */
+export async function resolveProvenDevice(
+  proof: DeviceProof | undefined | null,
+): Promise<{ deviceId: string; accountIds: string[] } | null> {
   if (!proof) return null;
   try {
     const state = await deviceSessionService.getStateBySecret(proof.deviceId, proof.deviceSecret);
-    return state ? state.deviceId : null;
+    return state ? { deviceId: state.deviceId, accountIds: state.accounts.map((account) => account.accountId) } : null;
   } catch (error) {
     logger.warn('deviceJoin.resolveProvenDeviceId: proof check failed', { error });
     return null;

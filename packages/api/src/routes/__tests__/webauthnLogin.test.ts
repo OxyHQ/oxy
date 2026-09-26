@@ -97,6 +97,8 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import { webauthnChallenges } from '../../db/schema/webauthnChallenges';
 import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
+import { userTotp } from '../../db/schema/userTotp';
+import { signInSecondFactorChallenges } from '../../db/schema/signInChallenges';
 import webauthnRouter from '../webauthn';
 
 interface JsonResponse {
@@ -457,6 +459,25 @@ describe('POST /webauthn/login/verify', () => {
     // Possession-only assertions are accepted — UV is not required at verify.
     const verifyArg = mockVerifyAuthentication.mock.calls[0][0] as { requireUserVerification: boolean };
     expect(verifyArg.requireUserVerification).toBe(false);
+  });
+
+  it('answers the second-factor challenge, and mints nothing, for an account with an authenticator', async () => {
+    const { userId, username, credentialID } = await accountWithPasskey({ counter: 5 });
+    await getDb().insert(userTotp).values({ userId, secretCiphertext: 'v1.x.x.x', enabledAt: new Date() });
+    presentedCredentialId = credentialID;
+    await request(server, 'POST', '/webauthn/login/options', { username });
+
+    const res = await request(server, 'POST', '/webauthn/login/verify', { response: authenticationResponse() });
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body).sort()).toEqual(['challengeId', 'expiresAt', 'secondFactorRequired']);
+    expect(mockCreateSession).not.toHaveBeenCalled();
+    expect(mockFinalizeDeviceLogin).not.toHaveBeenCalled();
+    const [challenge] = await getDb()
+      .select({ userId: signInSecondFactorChallenges.userId })
+      .from(signInSecondFactorChallenges)
+      .where(eq(signInSecondFactorChallenges.userId, userId));
+    expect(challenge).toEqual({ userId });
   });
 
   it('feeds the verifier the STORED public key, counter and transports', async () => {

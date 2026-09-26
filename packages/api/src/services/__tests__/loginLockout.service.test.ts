@@ -16,6 +16,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import {
+  reserveAttempt,
   isLockedOut,
   recordFailure,
   clearFailures,
@@ -103,5 +104,16 @@ describe('loginLockout.service', () => {
 
     const after = await isLockedOut(opts);
     expect(after.locked).toBe(false);
+  });
+});
+
+describe('reserveAttempt', () => {
+  it('reserves atomically: of 50 concurrent attempts exactly five get through, then the window is reset by a success', async () => {
+    const options = { scope: 'reserve-test', identifier: `id-${Math.random()}` };
+    const results = await Promise.all(Array.from({ length: 50 }, () => reserveAttempt(options)));
+    expect(results.filter((result) => !result.locked)).toHaveLength(5);
+    expect(results.filter((result) => result.locked)).toHaveLength(45);
+    await clearFailures(options);
+    expect((await reserveAttempt(options)).locked).toBe(false);
   });
 });

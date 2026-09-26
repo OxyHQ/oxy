@@ -17,7 +17,14 @@
  */
 import { z } from 'zod';
 
-export const EMAIL_VERIFICATION_PURPOSES = ['signup', 'recovery'] as const;
+/**
+ * - `signup`, `recovery`: above.
+ * - `signin`: the code (and link) of an email sign-in (`POST /auth/signin/email/start`).
+ * - `reauth`: a signed-in person proving it is them before a sensitive step
+ *   (`POST /users/me/reauth/email`): a password, an authenticator, deleting the
+ *   account, linking Commons.
+ */
+export const EMAIL_VERIFICATION_PURPOSES = ['signup', 'recovery', 'signin', 'reauth'] as const;
 export type EmailVerificationPurpose = (typeof EMAIL_VERIFICATION_PURPOSES)[number];
 
 /** Digits in a code. */
@@ -71,6 +78,11 @@ export const emailVerificationConfirmRequestSchema = z
             .string()
             .trim()
             .regex(new RegExp(`^\\d{${EMAIL_CODE_LENGTH}}$`), `code must be ${EMAIL_CODE_LENGTH} digits`),
+        /**
+         * Recovery of an account with an authenticator: its code or a backup
+         * code. Without it the API answers `TOTP_REQUIRED` and spends nothing.
+         */
+        totpCode: z.string().trim().min(6).max(16).optional(),
     })
     .strict();
 export type EmailVerificationConfirmRequest = z.infer<typeof emailVerificationConfirmRequestSchema>;

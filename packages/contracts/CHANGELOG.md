@@ -1,5 +1,43 @@
 # Changelog: `@oxy.so/contracts`
 
+## 2.4.0
+
+Signing in without a passkey (email code or link, password, authenticator).
+
+### Added
+
+- `signIn.ts`: `emailSignInStartRequestSchema`/`ResponseSchema`,
+  `emailSignInConfirmRequestSchema`, `emailSignInCollectRequestSchema`,
+  `emailSignInLinkRequestSchema`/`ResponseSchema`, `emailSignInPendingSchema`,
+  `passwordSignInRequestSchema`, `secondFactorSignInRequestSchema`,
+  `secondFactorRequiredSchema`, `signUpRequestSchema`, `reauthProofSchema`,
+  `emailReauthProofSchema`, `passwordSetRequestSchema`, `signInMethodsSchema`,
+  `totpEnrollResponseSchema`, `totpConfirmRequestSchema`,
+  `totpReauthRequestSchema`, `totpBackupCodesResponseSchema`,
+  `isSecondFactorRequired`, `SIGN_IN_ERROR_CODES`, the constants
+  (`EMAIL_SIGNIN_LINK_TTL_MS`, `SIGNIN_SECOND_FACTOR_TTL_MS`,
+  `SIGNIN_SECOND_FACTOR_MAX_ATTEMPTS`, `PASSWORD_MIN_LENGTH`,
+  `PASSWORD_MAX_LENGTH`, `TOTP_DIGITS`, `TOTP_PERIOD_SECONDS`,
+  `TOTP_BACKUP_CODE_COUNT`) and their types.
+- `EMAIL_VERIFICATION_PURPOSES` gains `signin` and `reauth`.
+- `REAUTH_ACTIONS` and `reauthEmailStartRequestSchema` (`{ action }`): a
+  re-verification code confirms only the change it was asked for.
+- `emailVerificationConfirmRequestSchema.totpCode`: a recovery of an account
+  with an authenticator needs its code too.
+
+### Changed
+
+- `identityLinkCompleteRequestSchema` is `{ reauth }` only (an emailed code,
+  plus the authenticator's): a passkey assertion no longer confirms a link.
+- `emailSignInCodeSchema` / `normalizeEmailSignInCode`,
+  `EMAIL_SIGNIN_LONG_CODE_ALPHABET`, `EMAIL_SIGNIN_LONG_CODE_LENGTH`: a sign-in
+  code is 6 digits, or — for an account whose codes were guessed at too often
+  today — 10 characters of Crockford base32 without look-alikes
+  (`XXXXX-XXXXX`). UIs must accept both in one field; the start response is the
+  same either way.
+- `emailSignInStartResponseSchema.retryLater`: set only for a request that
+  proved a device the account is already on, when no email could be sent.
+
 ## 2.3.0
 
 The browser bridge (ADR 0029 D2).

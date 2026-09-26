@@ -63,6 +63,7 @@ import { emitAuthSessionUpdate, emitAuthSessionProgress } from '../utils/authSes
 import { broadcastSessionAccountsChanged } from '../utils/socket';
 import webauthnRouter from './webauthn';
 import accountEmailRouter from './accountEmail';
+import signInRouter from './signIn';
 import { validate } from '../middleware/validate';
 import sessionService from '../services/session.service';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
@@ -220,9 +221,18 @@ router.use('/webauthn', webauthnRouter);
  * POST /auth/email/verify/start    - send a recovery email code (sign-up or recovery)
  * POST /auth/email/verify/confirm  - the code → a one-use ticket for registration
  *
- * auth.oxy.so only; see `routes/accountEmail.ts` (ADR 0029 D3).
+ * Official Oxy apps and auth.oxy.so; see `routes/accountEmail.ts`.
  */
 router.use('/email', accountEmailRouter);
+
+/**
+ * Signing in and creating an account without a passkey (email code or link,
+ * password, authenticator):
+ * POST /auth/signin/email/{start,confirm,link,collect}, /auth/signin/password,
+ * /auth/signin/second-factor and /auth/signup. Official Oxy apps and
+ * auth.oxy.so only; see `routes/signIn.ts`.
+ */
+router.use(signInRouter);
 
 // ============================================
 // Public Key Authentication Routes

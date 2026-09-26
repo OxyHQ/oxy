@@ -21,6 +21,7 @@ import moderationReputationRoutes from './routes/moderationReputation.routes';
 import storeRoutes from './routes/store';
 import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
+import accountSecurityRoutes from './routes/accountSecurity';
 import resourceIntrospectionRoutes from './routes/resourceIntrospection';
 import productCatalogueRoutes from './routes/productCatalogue';
 import mcpOAuthRoutes, { mcpOAuthDiscoveryRouter } from './routes/mcpOAuth';
@@ -697,6 +698,10 @@ app.use("/profiles", profilesRouter);
 // router. Mounting after /users would still work in practice (no route inside
 // `usersRouter` matches `/me/app-data/...`) but the explicit ordering makes
 // the routing topology unambiguous.
+// Password and authenticator of the signed-in account (`routes/accountSecurity.ts`).
+// Its own per-account limiters; not behind `userRateLimiter`, which `/users`
+// below applies, so no request is counted twice.
+app.use("/users/me", accountSecurityRoutes);
 app.use("/users/me/app-data", userRateLimiter, userDataRouter);
 app.use("/users", userRateLimiter, usersRouter); // Per-user rate limiting for authenticated routes
 app.use("/session/device", userRateLimiter, sessionDeviceRouter);

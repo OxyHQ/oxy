@@ -30,9 +30,12 @@ let currentUserId = '';
 
 const mockInvalidate = jest.fn();
 
+let mockApplicationId: string | undefined;
+
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: unknown }, _res: unknown, next: () => void) => {
+  authMiddleware: (req: { user?: unknown; oxyToken?: { applicationId?: string } }, _res: unknown, next: () => void) => {
     req.user = { _id: currentUserId };
+    if (mockApplicationId) req.oxyToken = { applicationId: mockApplicationId };
     next();
   },
 }));
@@ -63,6 +66,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
+import { applications } from '../../db/schema/applications';
 import authLinkingRouter from '../authLinking';
 import SignatureService from '../../services/signature.service';
 import { buildDidDocument, buildUserDid, OXY_DID } from '../../services/did.service';
@@ -272,10 +276,10 @@ describe('first link only (ADR 0024 D8)', () => {
     mockVerifyAuthentication.mockResolvedValue({ verified: true, authenticationInfo: { newCounter: 0, userVerified: true } });
   });
 
-  it('links a keyless account’s first root with a root proof and a fresh passkey assertion', async () => {
+  it('refuses a keyless account’s first root with a root proof and a passkey assertion (security review of #1421)', async () => {
+    // A passkey no longer confirms a link: a stolen bearer could have planted
+    // it. A keyless account links through `/identity/link` with an emailed code.
     const identity = keyIdentity();
-    expect((await storedDidDocument(currentUserId)).controller).toEqual([OXY_DID]);
-
     const proof = await rootProof(identity, 'link_identity');
     const res = await request(server, 'POST', '/auth/link', {
       type: 'identity',
@@ -284,16 +288,13 @@ describe('first link only (ADR 0024 D8)', () => {
       assertion: assertionFor(await baselineCredentialId(), proof.challenge),
     });
 
-    expect(res.body).toMatchObject({ success: true });
-    expect(res.status).toBe(200);
-    expect((await storedUser(currentUserId)).publicKey).toBe(identity.publicKey);
-    expect((await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity')).toHaveLength(1);
-    expect(mockInvalidate).toHaveBeenCalledWith(currentUserId);
-    // Self-sovereign: controlled by the person, not co-controlled by Oxy.
-    expect((await storedDidDocument(currentUserId)).controller).toEqual([buildUserDid(currentUserId)]);
+    expect(res.status).toBe(401);
+    expect((await storedUser(currentUserId)).publicKey).toBeNull();
+    expect((await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity')).toHaveLength(0);
+    expect((await storedDidDocument(currentUserId)).controller).toEqual([OXY_DID]);
   });
 
-  it('makes the account self-custodied: the recovery email goes with the first link (ADR 0029 D3)', async () => {
+  it('keeps the email of a keyless account whose link it refuses', async () => {
     const email = `linked-${randomUUID()}@example.test`;
     await getDb().update(users).set({ email }).where(eq(users.id, currentUserId));
     const identity = keyIdentity();
@@ -306,9 +307,9 @@ describe('first link only (ADR 0024 D8)', () => {
       assertion: assertionFor(await baselineCredentialId(), proof.challenge),
     });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
     const [row] = await getDb().select({ email: users.email, publicKey: users.publicKey }).from(users).where(eq(users.id, currentUserId));
-    expect(row).toEqual({ email: null, publicKey: identity.publicKey });
+    expect(row).toEqual({ email, publicKey: null });
   });
 
   it('refuses a passkey asserted anywhere but auth.oxy.so', async () => {
@@ -334,24 +335,19 @@ describe('first link only (ADR 0024 D8)', () => {
     expect(mockInvalidate).not.toHaveBeenCalled();
   });
 
-  it('refuses an assertion made over a different challenge, and a replayed proof', async () => {
+  it('refuses any passkey assertion, over any challenge', async () => {
     const identity = keyIdentity();
     const proof = await rootProof(identity, 'link_identity');
-    const elsewhere = await request(server, 'POST', '/auth/link', {
-      type: 'identity',
-      publicKey: identity.publicKey,
-      proof,
-      assertion: assertionFor(await baselineCredentialId(), 'ff'.repeat(32)),
-    });
-    expect(elsewhere.status).toBe(401);
+    for (const challenge of ['ff'.repeat(32), proof.challenge]) {
+      const res = await request(server, 'POST', '/auth/link', {
+        type: 'identity',
+        publicKey: identity.publicKey,
+        proof,
+        assertion: assertionFor(await baselineCredentialId(), challenge),
+      });
+      expect(res.status).toBe(401);
+    }
     expect((await storedUser(currentUserId)).publicKey).toBeNull();
-
-    const body = { type: 'identity', publicKey: identity.publicKey, proof, assertion: assertionFor(await baselineCredentialId(), proof.challenge) };
-    expect((await request(server, 'POST', '/auth/link', body)).status).toBe(200);
-    const other = await account();
-    await addPasskey(other);
-    currentUserId = other;
-    expect((await request(server, 'POST', '/auth/link', body)).status).toBe(401);
   });
 
   it('never replaces an existing different root, whatever proofs come with the request', async () => {
@@ -405,7 +401,9 @@ describe('first link only (ADR 0024 D8)', () => {
       assertion: assertionFor(await baselineCredentialId(), proof.challenge),
     });
 
-    expect(res.status).toBe(409);
+    // Refused before the key is even looked at: a keyless account's first
+    // link is never made here (security review of #1421).
+    expect(res.status).toBe(401);
     expect((await storedUser(currentUserId)).publicKey).toBeNull();
     expect((await storedUser(other)).publicKey).toBe(taken.publicKey);
   });
@@ -422,6 +420,26 @@ describe('a root is never unlinked (ADR 0024 D8)', () => {
     expect((await storedUser(currentUserId)).publicKey).toBe(publicKey);
     expect((await storedAuthMethods(currentUserId)).some((m) => m.type === 'identity')).toBe(true);
     expect((await storedDidDocument(currentUserId)).controller).toEqual([buildUserDid(currentUserId)]);
+  });
+});
+
+describe("a third-party application's token", () => {
+  it('can remove no sign-in method and link no root, but still reads', async () => {
+    await addIdentity(currentUserId, generateSecp256k1KeyPair().publicKey.toLowerCase());
+    const credentialID = await addPasskey(currentUserId, 'Second');
+    const [app] = await getDb()
+      .insert(applications)
+      .values({ name: 'Third party', type: 'third_party', ownerAccountId: currentUserId, createdByUserId: currentUserId })
+      .returning({ id: applications.id });
+    mockApplicationId = app.id;
+    try {
+      expect((await request(server, 'DELETE', `/auth/link/webauthn/${credentialID}`)).status).toBe(403);
+      expect((await storedAuthMethods(currentUserId)).some((m) => m.methodCredentialId === credentialID)).toBe(true);
+      expect((await request(server, 'POST', '/auth/link', { type: 'identity', publicKey: '04'.padEnd(130, 'a') })).status).toBe(403);
+      expect((await request(server, 'GET', '/auth/methods')).status).toBe(200);
+    } finally {
+      mockApplicationId = undefined;
+    }
   });
 });
 

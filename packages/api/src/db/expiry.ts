@@ -78,6 +78,8 @@ import {
 } from './schema/inferenceProviderConnectionAuditEvents';
 import { identityProofChallenges } from './schema/identityProofChallenges';
 import { emailVerifications } from './schema/emailVerifications';
+import { emailSignInRequests } from './schema/emailSignInRequests';
+import { signInSecondFactorChallenges } from './schema/signInChallenges';
 import { identityLinkRequests } from './schema/identityLinkRequests';
 import { linkedAccountOauthChallenges } from './schema/userLinkedAccounts';
 import { domainVerifications } from './schema/domainVerifications';
@@ -244,6 +246,23 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'and spending a ticket both filter `expires_at` in the same UPDATE, so an ' +
       'expired row is unspendable whether or not the sweep has run; the hour ' +
       'keeps the per-email send limit, which counts these rows, honest.',
+  },
+  {
+    table: emailSignInRequests,
+    column: emailSignInRequests.expiresAt,
+    retentionSeconds: 300,
+    reason:
+      'Storage reclamation ONLY. Approving a link, confirming a code and ' +
+      'collecting a session all filter `expires_at` in the same statement that ' +
+      'spends the request, so an expired one is dead whether or not this runs.',
+  },
+  {
+    table: signInSecondFactorChallenges,
+    column: signInSecondFactorChallenges.expiresAt,
+    retentionSeconds: 300,
+    reason:
+      'Storage reclamation ONLY. The one conditional UPDATE that passes a ' +
+      'second-factor challenge filters `expires_at` and `used_at` itself.',
   },
   {
     table: linkedAccountOauthChallenges,

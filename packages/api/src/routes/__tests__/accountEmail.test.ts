@@ -9,6 +9,8 @@
  * driven.
  */
 
+process.env.DEVICE_ID_SALT = 'account-email-test-device-id-salt-0123456789';
+
 import express from 'express';
 import http from 'http';
 import { createHash, randomUUID } from 'node:crypto';
@@ -34,11 +36,13 @@ jest.mock('../../middleware/rateLimiter', () => ({
 
 import { emailTicketSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { resetOriginRegistryForTests, setOriginSnapshotForTests } from '../../config/dynamicOriginRegistry';
 import { emailVerifications } from '../../db/schema/emailVerifications';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import { EMAIL_SENDS_PER_HOUR } from '../../services/accountEmail.service';
 import { hashEmail } from '../../utils/contactHash';
+import { confirmTotp, enrollTotp, totpCodeAt } from '../../services/totp.service';
 import accountEmailRouter from '../accountEmail';
 
 const AUTH_ORIGIN = 'https://auth.oxy.so';
@@ -183,14 +187,17 @@ describe('sign-up', () => {
     expect(guess.status).toBe(401);
   });
 
-  it('limits the codes one address is sent per hour', async () => {
+  it('limits the codes one address is sent per hour — without ever saying so', async () => {
     const email = freshEmail();
     for (let send = 0; send < EMAIL_SENDS_PER_HOUR; send += 1) {
       await start({ purpose: 'signup', email });
     }
+    // Over budget: the same 200 and the same shape, a decoy, and no mail.
     const res = await post('/verify/start', { purpose: 'signup', email });
-    expect(res.status).toBe(429);
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body).sort()).toEqual(['expiresAt', 'verificationId']);
     expect(mockSendCode).toHaveBeenCalledTimes(EMAIL_SENDS_PER_HOUR);
+    expect((await storedVerification(res.body.verificationId as string)).userId).toBeNull();
   });
 });
 
@@ -213,6 +220,27 @@ describe('recovery', () => {
     const res = await post('/verify/confirm', { verificationId, code: sentCode(account.email) });
     expect(res.status).toBe(200);
     expect(res.body.username).toBe(account.username);
+  });
+
+  it('needs the authenticator code too when the account has one — the email alone never gets past it', async () => {
+    const account = await passkeyAccount();
+    const { secret } = await enrollTotp(account.id, 'x');
+    await confirmTotp(account.id, totpCodeAt(secret, new Date(Date.now() - 30_000)));
+    const { verificationId } = await start({ purpose: 'recovery', identifier: account.username });
+    const code = sentCode(account.email);
+
+    const without = await post('/verify/confirm', { verificationId, code });
+    expect(without.status).toBe(401);
+    expect(without.body.error).toBe('TOTP_REQUIRED');
+    expect((await storedVerification(verificationId)).confirmedAt).toBeNull();
+
+    const wrong = await post('/verify/confirm', { verificationId, code, totpCode: 'zzzzz-zzzzz' });
+    expect(wrong.status).toBe(401);
+    expect(wrong.body.error).toBe('SECOND_FACTOR_INVALID');
+
+    const right = await post('/verify/confirm', { verificationId, code, totpCode: totpCodeAt(secret, new Date()) });
+    expect(right.status).toBe(200);
+    expect(emailTicketSchema.safeParse(right.body.ticket).success).toBe(true);
   });
 
   it('answers the same, and sends nothing, for a name no account has', async () => {
@@ -253,13 +281,24 @@ describe('recovery', () => {
 });
 
 describe('the gate', () => {
-  it.each([
-    ['no browser origin', null],
-    ['another Oxy app', 'https://mention.oxy.so'],
-  ])('refuses %s: accounts are created and recovered on auth.oxy.so', async (_label, origin) => {
-    const res = await post('/verify/start', { purpose: 'signup', email: freshEmail() }, origin);
-    expect(res.status).toBe(403);
+  afterEach(() => resetOriginRegistryForTests());
+
+  it('refuses a site that is not an official Oxy app', async () => {
+    setOriginSnapshotForTests(['https://mention.earth'], ['https://third-party.example']);
+    for (const origin of ['https://third-party.example', 'https://evil.example']) {
+      const res = await post('/verify/start', { purpose: 'signup', email: freshEmail() }, origin);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('SIGNIN_ORIGIN_NOT_ALLOWED');
+    }
     expect(mockSendCode).not.toHaveBeenCalled();
+  });
+
+  it('accepts an official app, auth.oxy.so, and a native app (no browser origin)', async () => {
+    setOriginSnapshotForTests(['https://mention.earth'], []);
+    for (const origin of ['https://mention.earth', AUTH_ORIGIN, null]) {
+      const res = await post('/verify/start', { purpose: 'signup', email: freshEmail() }, origin);
+      expect(res.status).toBe(200);
+    }
   });
 
   it('answers 503 when this server cannot send mail, before anything is recorded', async () => {

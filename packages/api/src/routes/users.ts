@@ -23,6 +23,7 @@ import {
   type FollowGraphSort,
 } from '../types/user.types';
 import {
+  ApiError,
   NotFoundError,
   UnauthorizedError,
   ForbiddenError,
@@ -36,7 +37,9 @@ import { UsersController } from '../controllers/users.controller';
 import { resolveUserIdToObjectId, isAccountIdFormat } from '../utils/validation';
 import userCache from '../utils/userCache';
 import SignatureService from '../services/signature.service';
-import { accountPasskeyAssertionOptions, verifyAccountPasskeyAssertion } from '../services/accountPasskeyAssertion.service';
+import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
+import { isTotpEnabled, verifySecondFactor } from '../services/totp.service';
+import { verifyEmailReauth } from '../services/reauth.service';
 import { emailService } from '../services/email.service';
 import {
   archiveAccountForRetention,
@@ -65,7 +68,7 @@ import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { buildExportBundle } from '../services/identityExport.service';
-import { exportBundleSchema } from '@oxy.so/contracts';
+import { SIGN_IN_ERROR_CODES, exportBundleSchema } from '@oxy.so/contracts';
 import sessionService from '../services/session.service';
 import deviceSessionService from '../services/deviceSession.service';
 
@@ -1392,10 +1395,13 @@ router.get(
  *       is them at the time of deletion with the account's own factor: an
  *       account with a Commons key signs `delete:{publicKey}:{timestamp}`
  *       with it (see `KeyManager.sign` in `@oxy.so/core`), rejected if older
- *       than 5 minutes; a passkey account sends an `assertion` by one of its
- *       passkeys, made on auth.oxy.so over the challenge of
- *       `POST /users/me/delete/options`. Either way the confirmation text
- *       must match the account's username.
+ *       than 5 minutes (plus `totpCode` if it has an authenticator); an
+ *       account without a key sends `reauth` — the code
+ *       `POST /users/me/reauth/email` (action `delete_account`) just sent to
+ *       its email, plus its authenticator code when it has one. A passkey no
+ *       longer confirms a deletion, and a third-party application's token is
+ *       refused. Either way the confirmation text must match the account's
+ *       username.
  *
  *       Successful deletion removes all mailboxes, messages, and S3
  *       attachments owned by the user, and records an `account.deleted`
@@ -1411,9 +1417,12 @@ router.get(
  *             required:
  *               - confirmText
  *             properties:
- *               assertion:
+ *               reauth:
  *                 type: object
- *                 description: A passkey account's WebAuthn assertion over the `POST /users/me/delete/options` challenge.
+ *                 description: "An account without a key: the email code `POST /users/me/reauth/email` sent (emailCode.verificationId, emailCode.code), plus totpCode when the account has an authenticator."
+ *               totpCode:
+ *                 type: string
+ *                 description: An account with a key and an authenticator — its code or a backup code.
  *               signature:
  *                 type: string
  *                 description: Hex-encoded secp256k1 signature over `delete:{publicKey}:{timestamp}`.
@@ -1456,38 +1465,11 @@ router.get(
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-/**
- * POST /users/me/delete/options — WebAuthn request options for deleting a
- * passkey account: its own passkeys, user verification required, and a
- * challenge bound to it that `DELETE /users/me` spends. An account with a
- * Commons key deletes with that key instead.
- */
-router.post(
-  '/me/delete/options',
-  authMiddleware,
-  asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.user?.id;
-    if (!userId) {
-      throw new UnauthorizedError('Authentication required');
-    }
-    const [user] = await getDb()
-      .select({ publicKey: users.publicKey })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-    if (!user) {
-      throw new NotFoundError('User not found');
-    }
-    if (user.publicKey) {
-      throw new BadRequestError('This account is deleted with its Commons key');
-    }
-    res.json(await accountPasskeyAssertionOptions(userId));
-  })
-);
-
 router.delete(
   '/me',
   authMiddleware,
+  // A third-party application's token never deletes the account.
+  requireFirstPartyDeviceAccess,
   validate({ body: deleteAccountSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
@@ -1495,7 +1477,7 @@ router.delete(
       throw new UnauthorizedError('Authentication required');
     }
 
-    const { signature, timestamp, assertion, confirmText } = req.body as DeleteAccountBody;
+    const { signature, timestamp, reauth, totpCode, confirmText } = req.body as DeleteAccountBody;
 
     const [user] = await getDb()
       .select({ publicKey: users.publicKey, username: users.username })
@@ -1527,13 +1509,23 @@ router.delete(
       if (!isValidSignature) {
         throw new UnauthorizedError('Invalid signature');
       }
-    } else {
-      // A passkey account (ADR 0029 D3): a fresh assertion by one of its
-      // passkeys, on auth.oxy.so, over a challenge minted for this account.
-      if (!assertion) {
-        throw new BadRequestError('Confirm the deletion with your passkey');
+      // …and, if it ever has an authenticator, its code too.
+      if (await isTotpEnabled(userId)) {
+        if (!totpCode) {
+          throw new ApiError(401, 'Enter the code from your authenticator app too.', SIGN_IN_ERROR_CODES.totpRequired);
+        }
+        if (!(await verifySecondFactor(userId, totpCode))) {
+          throw new ApiError(401, 'That authenticator code is not right.', SIGN_IN_ERROR_CODES.secondFactorInvalid);
+        }
       }
-      await verifyAccountPasskeyAssertion(userId, assertion);
+    } else {
+      // An account without a key: a code just sent to its email for THIS
+      // deletion, plus its authenticator code when it has one
+      // (`reauth.service.ts`). A passkey no longer confirms a deletion.
+      if (!reauth) {
+        throw new BadRequestError('Confirm the deletion with a code sent to your email');
+      }
+      await verifyEmailReauth(userId, reauth, 'delete_account');
     }
 
     /*
