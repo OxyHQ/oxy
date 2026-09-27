@@ -848,6 +848,13 @@
       "when": 1790490694673,
       "tag": "0121_email_relay_message_id",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1790516399261,
+      "tag": "0122_federated_avatar_retry",
+      "breakpoints": true
     }
   ]
 }

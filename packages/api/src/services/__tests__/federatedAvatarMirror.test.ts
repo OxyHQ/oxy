@@ -64,7 +64,9 @@ type Fetched = { status: number; headers: Record<string, string>; finalUrl: stri
 function reply(status: number, headers: Record<string, string> = {}, body: string | Buffer = ''): Fetched {
   return { status, headers, finalUrl: 'https://final.example/', response: Readable.from([typeof body === 'string' ? Buffer.from(body) : body]) };
 }
-const image = () => reply(200, { 'content-type': 'image/jpeg' }, Buffer.from('jpeg-bytes'));
+/** Real JPEG magic bytes: the downloader decides by bytes, not by Content-Type. */
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('jpeg-body')]);
+const image = () => reply(200, { 'content-type': 'image/jpeg' }, JPEG);
 
 interface Routes { [url: string]: () => Fetched }
 function route(routes: Routes, graph?: { id: string; picture?: string } | { notBusiness: true }) {
@@ -167,12 +169,12 @@ describe('the federated avatar write boundary', () => {
     expect(isAvatarFileId('65f1c0ffee00000000000001')).toBe(true);
   });
 
-  it('keep_previous_mirror keeps a file id and clears any other value', async () => {
+  it('a failure keeps a file id and clears any other value', async () => {
     const kept = await seedUser('bsky.social', 'kept-mirror');
-    await persistFederatedAvatar(kept.id, 'keep_previous_mirror');
+    await persistFederatedAvatar(kept.id, { failed: 'http_5xx', permanent: false });
     expect((await avatarOf(kept.id)).avatar).toBe('kept-mirror');
     const legacy = await seedUser('bsky.social', 'https://cdn.bsky.app/img/avatar/plain/did:plc:x/y@jpeg');
-    await persistFederatedAvatar(legacy.id, 'keep_previous_mirror');
+    await persistFederatedAvatar(legacy.id, { failed: 'http_5xx', permanent: false });
     expect((await avatarOf(legacy.id)).avatar).toBeNull();
   });
 });

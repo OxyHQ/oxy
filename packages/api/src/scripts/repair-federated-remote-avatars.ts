@@ -27,6 +27,12 @@
  *     the script is idempotent. Each write invalidates the user cache, which
  *     broadcasts to consuming apps (Mention) when REDIS_URL is set.
  *
+ * Recovery mode (`--recover` / MODE=recover): for every federated user left
+ * WITHOUT an avatar by a failed mirror, re-fetch its source profile, take the
+ * CURRENT picture URL and mirror it, draining the durable retry queue with
+ * bounded concurrency (CONCURRENCY, default 4), the per-origin request gap and
+ * 429 backoff. Failures stay queued with backoff for the server's retry sweep.
+ *
  * Run (inside the oxy-api image, working dir /app):
  *   bun run packages/api/src/scripts/repair-federated-remote-avatars.ts            # dry run
  *   bun run packages/api/src/scripts/repair-federated-remote-avatars.ts --apply
@@ -48,6 +54,7 @@ import { users } from '../db/schema/users';
 import { federationService, isExpiredSignedAvatarUrl } from '../services/federation.service';
 import { AVATAR_FILE_ID_SQL_PATTERN, persistFederatedAvatar } from '../utils/federatedAvatar';
 import userCache from '../utils/userCache';
+import { queueRecoveryForAvatarlessFederatedUsers, runFederatedAvatarRetrySweep } from '../services/federation/avatarRetry';
 
 export interface RepairFederatedAvatarsResult {
   apply: boolean;
@@ -58,6 +65,8 @@ export interface RepairFederatedAvatarsResult {
   mirrored: number;
   mirroredFromGraph: number;
   cleared: number;
+  /** Cleared rows by `<failure>:<reason>[:<http status>]`; every one of them is owed a retry. */
+  byReason: Record<string, number>;
   /** Rows another writer changed between read and write; left as they are. */
   changedConcurrently: number;
   /** Resume cursor: the last user id visited. */
@@ -86,7 +95,7 @@ export async function repairFederatedRemoteAvatars(
   const log = opts.log ?? (() => undefined);
   const result: RepairFederatedAvatarsResult = {
     apply, scanned: 0, expiredSigned: 0, byHost: {}, mirrored: 0, mirroredFromGraph: 0,
-    cleared: 0, changedConcurrently: 0, after: opts.after ?? '',
+    cleared: 0, byReason: {}, changedConcurrently: 0, after: opts.after ?? '',
   };
 
   for (;;) {
@@ -115,7 +124,7 @@ export async function repairFederatedRemoteAvatars(
       // Only an https URL can be mirrored; any other value is simply cleared.
       const stored = remoteUrl.startsWith('https://')
         ? await federationService.mirrorFederatedAvatar(row.id, remoteUrl)
-        : { fileId: null, notModified: false, failure: 'permanent' as const, source: undefined };
+        : { fileId: null, notModified: false, failure: 'permanent' as const, reason: 'not_https' as const, source: undefined, etag: undefined, lastModified: undefined, httpStatus: undefined };
       const now = new Date();
       const written = stored.fileId
         ? await persistFederatedAvatar(row.id, { fileId: stored.fileId }, {
@@ -123,7 +132,10 @@ export async function repairFederatedRemoteAvatars(
           federationAvatarETag: stored.etag ?? null,
           federationAvatarLastModified: stored.lastModified ?? null,
         }, remoteUrl)
-        : await persistFederatedAvatar(row.id, 'keep_previous_mirror', { federationLastAvatarFetchedAt: now }, remoteUrl);
+        // A failure clears the URL AND owes a retry (the sweep re-derives the
+        // source picture), so a transient failure is never a lost avatar.
+        : await persistFederatedAvatar(row.id, { failed: stored.reason ?? 'unexpected', permanent: stored.failure === 'permanent' },
+          { federationLastAvatarFetchedAt: now }, remoteUrl);
 
       if (!written) {
         result.changedConcurrently += 1;
@@ -137,7 +149,9 @@ export async function repairFederatedRemoteAvatars(
         log(JSON.stringify({ userId: row.id, host, action: 'mirrored', source: stored.source }));
       } else {
         result.cleared += 1;
-        log(JSON.stringify({ userId: row.id, host, action: 'cleared', failure: stored.failure }));
+        const key = `${stored.failure ?? 'transient'}:${stored.reason ?? 'unexpected'}${stored.httpStatus ? `:${stored.httpStatus}` : ''}`;
+        result.byReason[key] = (result.byReason[key] ?? 0) + 1;
+        log(JSON.stringify({ userId: row.id, host, action: 'cleared_retry_owed', failure: stored.failure, reason: stored.reason, httpStatus: stored.httpStatus }));
       }
     }
   }
@@ -170,6 +184,25 @@ async function main(): Promise<void> {
     const broadcasting = apply ? await redisReady() : false;
     if (apply && !broadcasting) {
       print(JSON.stringify({ warning: 'redis_unavailable', effect: 'consumer caches expire by TTL instead of an immediate eviction' }));
+    }
+    if (argv.includes('--recover') || (process.env.MODE ?? '').trim() === 'recover') {
+      // Recovery: re-derive the CURRENT source picture of every federated user
+      // left without an avatar by a failed mirror, and mirror it. Dry run
+      // reports how many are owed; apply queues them all as due now and drains
+      // the retry sweep (bounded concurrency, per-origin gap, 429 backoff).
+      const owed = await queueRecoveryForAvatarlessFederatedUsers(apply);
+      print(JSON.stringify({ mode: 'recover', apply, owed }));
+      if (apply) {
+        const concurrency = Number.parseInt(process.env.CONCURRENCY ?? '', 10);
+        const summary = await runFederatedAvatarRetrySweep({
+          maxUsers: Number.MAX_SAFE_INTEGER,
+          batchSize: Number.isInteger(batchSize) && batchSize > 0 ? batchSize : 50,
+          concurrency: Number.isInteger(concurrency) && concurrency > 0 ? concurrency : 4,
+          log: print,
+        });
+        print(JSON.stringify({ summary: { mode: 'recover', owed, ...summary } }));
+      }
+      return;
     }
     const result = await repairFederatedRemoteAvatars({
       apply,
