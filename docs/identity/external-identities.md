@@ -127,6 +127,37 @@ token. Token errors (190) and throttles are logged as
 `Instagram Graph lookup failed` with the reason, HTTP status, Meta code and
 subcode.
 
+## Avatars
+
+A federated user's `users.avatar` is an Oxy Cloud file id or NULL, for every
+protocol (activitypub, atproto, instagram-graph). It is never a source picture
+URL, whatever the host. `utils/federatedAvatar.ts#persistFederatedAvatar` is the
+only writer after registration, and it refuses anything but a file id. Registration
+writes no avatar and clears any non-file-id value. `mirrorFederatedAvatar`
+downloads the source picture into Oxy storage. If a mirror fails, the previous
+file id is kept, or the column stays NULL so clients show the default avatar;
+the mirror is retried after the avatar throttle window. Signed Meta CDN URLs
+(`fbcdn.net`, `cdninstagram.com`) past their `oe` expiry are refused without a
+request.
+
+When an instagram.com picture fails permanently (expired, any 4xx) and the
+Instagram Graph fallback is enabled, Oxy mirrors a fresh Business Discovery
+`profile_picture_url` instead. This stays within that client's cache, cooldown
+and call budget. The fallback is refused when the Graph account is bound to
+another handle or contradicts the pinned first-party owner, and a personal
+account stays NULL. Serializers withhold any non-file-id value on a federated
+row. Oxy stores no federated banners; Mention mirrors them into
+`UserSettings.profileHeaderImage` as file ids.
+
+Rows written before this rule (`type = 'federated' and avatar is not null and
+avatar !~ '^[A-Za-z0-9_-]{1,128}$'`) are repaired by
+`packages/api/src/scripts/repair-federated-remote-avatars.ts` (dry run by
+default; `--apply` or `DRY_RUN=false` writes). In production, dispatch
+`.github/workflows/repair-federated-avatars.yml` from `main` with
+`dry_run=true`, read the summary, then dispatch `dry_run=false`. Writes are
+conditional on the URL the pass read, so a rerun is idempotent; `after` resumes
+from a summary's cursor.
+
 ## Existing data
 
 Deploy migrations 0083 and 0084 before switching application consumers. The
