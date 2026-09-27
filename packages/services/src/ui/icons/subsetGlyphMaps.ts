@@ -186,7 +186,6 @@ export const materialCommunityIconsGlyphMap = {
   "check-all": 983341,
   "check-circle": 984544,
   "chevron-down": 983360,
-  "chevron-right": 983362,
   "chevron-up": 983363,
   "chip": 984602,
   "circle-outline": 984934,

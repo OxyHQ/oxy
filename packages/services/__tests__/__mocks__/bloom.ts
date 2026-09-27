@@ -600,6 +600,8 @@ export function RiQrCodeLine() { return createElement("svg", { "data-icon": "qr"
 export function RiArrowLeftLine() { return createElement("svg", { "data-icon": "arrow-left" }); }
 export function RiUserAddLine() { return createElement("svg", { "data-icon": "user-add" }); }
 export function RiArrowRightSLine() { return createElement("svg", { "data-icon": "arrow-right" }); }
+export function RiCheckLine() { return createElement("svg", { "data-icon": "check" }); }
+export function RiLoader4Line() { return createElement("svg", { "data-icon": "loader" }); }
 export function RiCheckboxCircleLine() { return createElement("svg", { "data-icon": "checkbox-circle" }); }
 export function RiRefreshLine() { return createElement("svg", { "data-icon": "refresh" }); }
 export function RiLoginBoxLine() { return createElement("svg", { "data-testid": "login-icon" }); }
