@@ -131,6 +131,7 @@ import {
   startStorageDeletionWorker,
   stopStorageDeletionWorker,
 } from './services/accountStorageDeletion.worker';
+import { flushCdnInvalidations } from './services/cdnInvalidation';
 import {
   startNormalizedEventOutboxWorker,
   stopNormalizedEventOutboxWorker,
@@ -497,6 +498,7 @@ async function gracefulShutdown(signal: string) {
   stopNormalizedEventOutboxWorker();
   stopAccountEventWebhookWorker();
   stopStorageDeletionWorker();
+  await flushCdnInvalidations();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
   await stopTransparencyCheckpointJobs();

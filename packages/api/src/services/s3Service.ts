@@ -27,13 +27,20 @@ export interface UploadOptions extends S3UploadOptions {
   abortSignal?: AbortSignal;
 }
 
+/** Told about every successful object delete, so the CDN can forget the object too. */
+export interface DeletedObjectListener {
+  enqueueDeletedKey(key: string): void;
+}
+
 export class S3Service {
   private s3Client: S3Client;
   private bucketName: string;
   private endpointUrl?: string;
   private region: string;
+  private readonly deletedObjectListener?: DeletedObjectListener;
 
-  constructor(config: S3Config) {
+  constructor(config: S3Config, deletedObjectListener?: DeletedObjectListener) {
+    this.deletedObjectListener = deletedObjectListener;
     const clientConfig: any = {
       region: config.region,
       credentials: {
@@ -331,6 +338,10 @@ export class S3Service {
     } catch (error) {
       throw new Error(`Failed to delete file from S3: ${error}`);
     }
+    // After the delete succeeded, and outside its try: a public object is still
+    // cached at the CDN edge for up to a year, and every delete path in the API
+    // ends here. The listener is synchronous and never throws.
+    this.deletedObjectListener?.enqueueDeletedKey(key);
   }
 
   /**
@@ -664,8 +675,11 @@ export class S3Service {
 }
 
 // Export a factory function for easier configuration
-export function createS3Service(config: S3Config): S3Service {
-  return new S3Service(config);
+export function createS3Service(
+  config: S3Config,
+  deletedObjectListener?: DeletedObjectListener,
+): S3Service {
+  return new S3Service(config, deletedObjectListener);
 }
 
 // No additional type exports needed - interfaces are already exported 
