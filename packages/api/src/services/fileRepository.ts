@@ -28,9 +28,11 @@
  * order twice in a row.
  */
 
-import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
-import { getDb } from '../config/postgres';
+import { and, asc, count, desc, eq, exists, inArray, ne, or, sql } from 'drizzle-orm';
+import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { fileLinks, fileVariants, files, users } from '../db/schema';
+import { appListingScreenshots } from '../db/schema/appListingScreenshots';
+import { messageAttachments } from '../db/schema/messageAttachments';
 import type { FileLinkRecord, FileRecord, FileVariantRecord, NewFileVariant } from '../types/file.types';
 
 /** Columns a caller may set when creating a file row. */
@@ -71,13 +73,15 @@ export function isUniqueViolation(error: unknown): boolean {
 }
 
 /** Attach the child rows to a set of file rows, preserving the caller's order. */
-async function withChildren(rows: (typeof files.$inferSelect)[]): Promise<FileRecord[]> {
+async function withChildren(
+  rows: (typeof files.$inferSelect)[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<FileRecord[]> {
   if (rows.length === 0) {
     return [];
   }
 
   const ids = rows.map((row) => row.id);
-  const db = getDb();
   const [links, variants] = await Promise.all([
     db
       .select()
@@ -227,8 +231,8 @@ export async function findVariantTwin(
  * @throws when the content hash is already claimed by a live row — see
  *   {@link isUniqueViolation}, which the caller uses to fall back to a re-read.
  */
-export async function insertFile(values: NewFile): Promise<FileRecord> {
-  const [row] = await getDb().insert(files).values(values).returning();
+export async function insertFile(values: NewFile, db: DatabaseOrTransaction = getDb()): Promise<FileRecord> {
+  const [row] = await db.insert(files).values(values).returning();
   return { ...row, links: [], variants: [] };
 }
 
@@ -240,16 +244,10 @@ export async function updateFile(fileId: string, patch: FilePatch): Promise<File
 }
 
 /**
- * Tombstone a federation-owned file on behalf of the application that uploaded
- * it — the WHOLE authorization decision, taken in the one statement that writes.
+ * The scope half of the federated delete: the row is this application's
+ * federated media. Built as a predicate so the tombstone and the refusal
+ * classifier read the SAME definition.
  *
- * Every condition is part of the `UPDATE … WHERE`, not a read before it, so there
- * is no window in which the row can change hands between being checked and being
- * deleted (a check-then-write would let an ownership change land in the gap and
- * have the write act on a row that no longer qualifies). The row qualifies only
- * when it is:
- *
- *  - live (`status <> 'deleted'`; `trash` counts as live — it still holds bytes);
  *  - owned by an account whose `type` is `'federated'`, read from `users` in the
  *    same statement, so a local user's asset can never qualify. A non-null owner
  *    also means the row is not system-owned: `files_owner_exclusive_check` makes
@@ -259,36 +257,120 @@ export async function updateFile(fileId: string, patch: FilePatch): Promise<File
  *    a cache-purpose row keeps its own eviction route;
  *  - written by the federation upload path (`metadata.source = 'federation'`);
  *  - uploaded by THIS application (`metadata.serviceAppId = appId`). The upload
- *    route sets `serviceAppId` from the verified service token AFTER spreading the
- *    caller's `x-media-metadata`, so a caller cannot forge another app's id.
+ *    writes `source` and `serviceAppId` after the caller's metadata, from the
+ *    verified token, so neither can be forged.
+ */
+function federatedScopeFor(db: DatabaseOrTransaction, appId: string) {
+  const federatedOwners = db.select({ id: users.id }).from(users).where(eq(users.type, 'federated'));
+  return and(
+    eq(files.purpose, 'user'),
+    inArray(files.ownerUserId, federatedOwners),
+    sql`${files.metadata}->>'source' = 'federation'`,
+    sql`${files.metadata}->>'serviceAppId' = ${appId}`,
+  );
+}
+
+/**
+ * Somebody OTHER than the owner holds this asset — the one live row per content
+ * hash (`files_sha256_live_key`) is handed to whoever uploads the same bytes, so
+ * a local user can end up using a federated user's file id. Every reference the
+ * platform records:
  *
- * Returns the tombstoned row with its children, or `null` when nothing qualified
- * (absent, already deleted, or out of scope — the caller tells them apart).
+ *  - a `file_links` row created by anyone but the owner (a use in some app);
+ *  - a `message_attachments` row (an attachment in somebody's mailbox);
+ *  - an `app_listing_screenshots` row (a store listing picture).
+ *
+ * The last two are the same references `recordAccountStorageDeletion` refuses to
+ * purge. A reference held OUTSIDE Oxy (a Mention post that stored the id) is
+ * invisible here; the caller must reference-check its own.
+ */
+function heldByOthers(db: DatabaseOrTransaction) {
+  return or(
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(fileLinks)
+        .where(and(
+          eq(fileLinks.fileId, files.id),
+          sql`${fileLinks.createdBy} is distinct from ${files.ownerUserId}`,
+        )),
+    ),
+    exists(db.select({ one: sql`1` }).from(messageAttachments).where(eq(messageAttachments.fileId, files.id))),
+    exists(db.select({ one: sql`1` }).from(appListingScreenshots).where(eq(appListingScreenshots.fileId, files.id))),
+  );
+}
+
+/**
+ * Tombstone a federation-owned file on behalf of the application that uploaded
+ * it — the WHOLE authorization decision, taken in the one statement that writes.
+ *
+ * Every condition is part of the `UPDATE … WHERE`, not a read before it, so there
+ * is no window in which the row can change hands, or gain a reference, between
+ * being checked and being deleted. The row qualifies only when it is live
+ * (`status <> 'deleted'`; `trash` still holds bytes), in {@link federatedScopeFor},
+ * and not {@link heldByOthers}.
+ *
+ * Runs inside the caller's transaction, which also records the storage the row
+ * is owed (`recordFileStorageDeletion`), so a tombstone never exists without its
+ * purge being owed. Returns the tombstoned row with its children, or `null` when
+ * nothing qualified — {@link classifyFederatedDeleteRefusal} says why.
  */
 export async function tombstoneFederatedFileForApp(
+  tx: Transaction,
   fileId: string,
   appId: string,
 ): Promise<FileRecord | null> {
-  const federatedOwners = getDb()
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.type, 'federated'));
-
-  const rows = await getDb()
+  const rows = await tx
     .update(files)
     .set({ status: 'deleted' })
     .where(
       and(
         eq(files.id, fileId),
         ne(files.status, 'deleted'),
-        eq(files.purpose, 'user'),
-        inArray(files.ownerUserId, federatedOwners),
-        sql`${files.metadata}->>'source' = 'federation'`,
-        sql`${files.metadata}->>'serviceAppId' = ${appId}`,
+        federatedScopeFor(tx, appId),
+        sql`not (${heldByOthers(tx)})`,
       ),
     )
     .returning();
-  const [record] = await withChildren(rows);
+  const [record] = await withChildren(rows, tx);
+  return record ?? null;
+}
+
+/** Why {@link tombstoneFederatedFileForApp} tombstoned nothing. */
+export type FederatedDeleteRefusal = 'not_found' | 'in_use' | 'forbidden';
+
+export async function classifyFederatedDeleteRefusal(
+  fileId: string,
+  appId: string,
+): Promise<FederatedDeleteRefusal> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      status: files.status,
+      inScope: sql<boolean>`coalesce(${federatedScopeFor(db, appId)}, false)`,
+      held: sql<boolean>`coalesce(${heldByOthers(db)}, false)`,
+    })
+    .from(files)
+    .where(eq(files.id, fileId))
+    .limit(1);
+  if (!row || row.status === 'deleted') return 'not_found';
+  if (!row.inScope) return 'forbidden';
+  return row.held ? 'in_use' : 'forbidden';
+}
+
+/**
+ * Tombstone any live row — `deleteFile` and cache eviction. Conditional on the
+ * row still being live, so a second delete (or a delete racing another) finds
+ * nothing and owes nothing: purging a tombstone's keys again could remove the
+ * bytes of a NEWER live row that has since taken the same content hash.
+ */
+export async function tombstoneFile(tx: Transaction, fileId: string): Promise<FileRecord | null> {
+  const rows = await tx
+    .update(files)
+    .set({ status: 'deleted' })
+    .where(and(eq(files.id, fileId), ne(files.status, 'deleted')))
+    .returning();
+  const [record] = await withChildren(rows, tx);
   return record ?? null;
 }
 

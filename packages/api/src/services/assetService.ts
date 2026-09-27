@@ -9,6 +9,10 @@ import {
   isAllowedCacheMime,
 } from '../constants/federationCache';
 import { VariantService } from './variantService';
+import { getDb, type Transaction } from '../config/postgres';
+import { recordFileStorageDeletion } from './accountStorageDeletion.service';
+import { runStorageDeletionBatch } from './accountStorageDeletion.worker';
+import { withContentHashLock } from './contentHashLock';
 import { enqueueAssetVariantGeneration } from '../queue/assetVariants.queue';
 import {
   buildCdnUrl,
@@ -51,7 +55,9 @@ import {
   insertFileLink,
   isUniqueViolation,
   listFilesByOwner,
+  classifyFederatedDeleteRefusal,
   tombstoneFederatedFileForApp,
+  tombstoneFile,
   updateFile,
   updateVariantKey,
 } from './fileRepository';
@@ -115,10 +121,10 @@ function isSameFederatedUpload(file: FileRecord, options: StreamedMediaOptions):
 }
 
 /** Outcome of {@link AssetService.deleteFederatedMediaForApp} for one id. */
-export type FederatedMediaDeleteOutcome = 'deleted' | 'not_found' | 'forbidden';
+export type FederatedMediaDeleteOutcome = 'deleted' | 'not_found' | 'in_use' | 'forbidden';
 
-/** Parallel S3 DELETEs per batch when purging one rendition's HLS segments. */
-const HLS_SEGMENT_DELETE_CONCURRENCY = 25;
+/** Lease owner for ledger rows a delete drains inline (the worker has its own). */
+const STORAGE_DELETION_DRAIN_OWNER = `asset-delete:${process.pid}:${crypto.randomBytes(4).toString('hex')}`;
 
 const FEDERATION_REPAIR_MAX_BYTES = 10 * 1024 * 1024;
 const FEDERATION_REPAIR_MAX_REDIRECTS = 3;
@@ -670,7 +676,10 @@ export class AssetService {
       const ext = this.getExtensionFromMime(expectedMime);
       const storageKey = this.generateStorageKey(expectedSha256, expectedMime);
 
-      const file = await insertFile({
+      // Under the content-hash lock: a purge of a tombstone with these bytes
+      // either finished before this row exists or sees it and keeps the keys
+      // the client is about to PUT to.
+      const file = await withContentHashLock(expectedSha256, (tx) => insertFile({
         sha256: expectedSha256,
         size: expectedSize,
         mime: expectedMime,
@@ -678,7 +687,7 @@ export class AssetService {
         ownerUserId: userId,
         status: 'active',
         storageKey,
-      });
+      }, tx));
 
       // Generate pre-signed upload URL
       // Do not include metadata in the presigned URL signature; clients aren't required to send it
@@ -769,7 +778,9 @@ export class AssetService {
 
       let file: FileRecord;
       try {
-        file = await insertFile({
+        // Under the content-hash lock; the object is written after the row, so
+        // a purge either saw this row (and kept the key) or finished first.
+        file = await withContentHashLock(sha256, (tx) => insertFile({
           sha256,
           size,
           mime: mimeType,
@@ -780,7 +791,7 @@ export class AssetService {
           originalName: normalizeInlineText(originalName),
           visibility: resolvedVisibility,
           metadata: metadata ?? {},
-        });
+        }, tx));
       } catch (error) {
         if (isUniqueViolation(error)) {
           const racedFile = await this.findActiveFileBySha(sha256);
@@ -1066,8 +1077,6 @@ export class AssetService {
     // `public/` prefix (decided centrally by `generateStorageKey`).
     const ext = this.getExtensionFromMime(mimeType);
     const storageKey = this.generateStorageKey(sha256, mimeType, options.visibility);
-    await this.s3Service.copyFile(tempKey, storageKey);
-    await deleteTempKey('Failed to delete temp key after cache promotion');
 
     // `visibility: 'public'` is an app-level ACL meaning "served without a user
     // session via the presigned-redirect stream route (GET /:id/stream)". It is
@@ -1076,22 +1085,32 @@ export class AssetService {
     // public asset. We deliberately do not set `publicRead` on the upload —
     // making the raw S3 object public would let it be fetched/listed directly,
     // bypassing the stream route's access checks.
+    //
+    // The promotion and the insert run under the content-hash lock, TOGETHER:
+    // this path writes the object BEFORE its row exists, so a purge of a
+    // tombstone with the same bytes must not be able to check "no live row",
+    // then delete the key this copy just wrote (`contentHashLock.ts`).
     let file: FileRecord;
     try {
-      file = await insertFile({
-        sha256,
-        size,
-        mime: mimeType,
-        ext,
-        ...options.owner,
-        purpose: options.purpose,
-        status: 'active',
-        storageKey,
-        originalName: normalizeInlineText(originalName),
-        visibility: options.visibility,
-        metadata: options.metadata,
+      file = await withContentHashLock(sha256, async (tx) => {
+        await this.s3Service.copyFile(tempKey, storageKey);
+        return insertFile({
+          sha256,
+          size,
+          mime: mimeType,
+          ext,
+          ...options.owner,
+          purpose: options.purpose,
+          status: 'active',
+          storageKey,
+          originalName: normalizeInlineText(originalName),
+          visibility: options.visibility,
+          metadata: options.metadata,
+        }, tx);
       });
+      await deleteTempKey('Failed to delete temp key after cache promotion');
     } catch (error) {
+      await deleteTempKey('Failed to delete temp key after cache promotion');
       if (isUniqueViolation(error)) {
         const racedFile = await this.findActiveFileBySha(sha256);
         if (racedFile) {
@@ -1156,12 +1175,16 @@ export class AssetService {
   }
 
   /**
-   * Delete a cached-media asset created via {@link uploadCachedMediaStream}.
+   * Evict a cached-media asset created via {@link uploadCachedMediaStream}.
    *
    * Hard scoping: the asset MUST sit in the `__federation_media_cache__` system
    * namespace AND carry the cache purpose, otherwise the call is rejected so a
    * service token can never delete user-owned media. The boolean return
    * distinguishes "not found" from "found but out of scope".
+   *
+   * The storage goes through the same durable, shared-content-guarded purge as
+   * every other delete ({@link tombstoneAndOwePurge}), so a cached video's HLS
+   * segments (in its variant directory) go too.
    */
   async deleteCachedMedia(fileId: string): Promise<{ deleted: boolean; outOfScope: boolean }> {
     const file = await findFileById(fileId);
@@ -1183,17 +1206,10 @@ export class AssetService {
       return { deleted: false, outOfScope: true };
     }
 
-    await this.s3Service.deleteFile(file.storageKey);
-    for (const variant of file.variants) {
-      try {
-        await this.s3Service.deleteFile(variant.key);
-      } catch (error) {
-        logger.warn('Failed to delete cache variant', { variant: variant.key, error });
-      }
+    const tombstoned = await this.tombstoneAndOwePurge((tx) => tombstoneFile(tx, fileId), { awaitPurge: true });
+    if (!tombstoned) {
+      return { deleted: false, outOfScope: false };
     }
-
-    await updateFile(fileId, { status: 'deleted' });
-    fileCache.invalidate(fileId);
 
     logger.info('Cached media deleted', { fileId });
 
@@ -1787,6 +1803,13 @@ export class AssetService {
         throw new Error('File not found');
       }
 
+      // Already deleted: nothing is owed. Purging a tombstone's keys again could
+      // remove the bytes of a NEWER live row that has since taken the same
+      // content hash (and therefore the same keys).
+      if (file.status === 'deleted') {
+        return;
+      }
+
       // Authorization Check
       if (requestingUserId && file.ownerUserId !== requestingUserId) {
         throw new Error('Unauthorized: You do not own this file');
@@ -1798,13 +1821,14 @@ export class AssetService {
         throw new Error('Cannot delete file with active links. Use force=true to override.');
       }
 
-      await this.purgeStoredObjects(file);
-
-      await updateFile(fileId, { status: 'deleted' });
-      fileCache.invalidate(fileId);
+      const tombstoned = await this.tombstoneAndOwePurge((tx) => tombstoneFile(tx, fileId), { awaitPurge: true });
+      if (!tombstoned) {
+        // A concurrent delete got there first; it owns the purge.
+        return;
+      }
 
       // Notify linked apps that file was deleted
-      await this.notifyLinks({ ...file, status: 'deleted' }, 'deleted', { force });
+      await this.notifyLinks(tombstoned, 'deleted', { force });
 
       logger.info('File deleted permanently', {
         fileId,
@@ -1818,66 +1842,79 @@ export class AssetService {
   }
 
   /**
-   * Remove every S3 object a file record accounts for: the original, each
-   * variant, the HLS segments behind each rendition playlist, and any legacy
-   * backfilled `public/` copy of a non-public key.
+   * Tombstone a row and record the storage it is owed IN THE SAME TRANSACTION
+   * (`storage_object_deletions`, reason `file.deleted`), then work those ledger
+   * rows off. Every per-asset delete goes through here.
    *
-   * The original's delete THROWS (the caller must not report success while the
-   * bytes remain); variant and segment deletes are best-effort and logged, as
-   * they always were.
+   * - **Durable.** A tombstone never exists without its purge being owed; an S3
+   *   or network failure leaves the ledger rows pending and the storage-deletion
+   *   worker retries them with backoff until the objects are gone.
+   * - **Race-free.** The purge re-checks for a live row holding the same content
+   *   hash and deletes only under the content-hash lock, which every new live
+   *   row's insert also takes (`contentHashLock.ts`). A fresh upload of the same
+   *   bytes landing after the tombstone keeps its objects (`retained_shared`).
+   * - **Invalidated.** The purge deletes through `S3Service.deleteFile`, which
+   *   queues a CloudFront invalidation for every deleted public key.
    *
-   * HLS segments are not variant rows: `generateHLSStream` records one variant
-   * per rendition PLAYLIST and uploads its `.ts` segments beside it as
-   * `<playlist-stem>_segment_<type>_NNN.ts.ts`. Deleting the playlist alone left
-   * every segment — i.e. the whole video — in the bucket, so they are listed by
-   * that prefix and deleted too. The prefix is content-addressed by the file's
-   * `sha256`, and at most one live row holds a given hash, so nothing else can
-   * own a key under it.
+   * `awaitPurge: false` returns once the tombstone commits and drains in the
+   * background — for a caller whose request must not wait on hundreds of HLS
+   * segment deletes. Either way a failed drain is only logged: the worker owns it.
    */
-  private async purgeStoredObjects(file: FileRecord): Promise<void> {
-    await this.s3Service.deleteFile(file.storageKey);
-    await this.deleteBackfilledPublicCopy(file.storageKey);
+  private async tombstoneAndOwePurge(
+    tombstone: (tx: Transaction) => Promise<FileRecord | null>,
+    options: { awaitPurge: boolean },
+  ): Promise<FileRecord | null> {
+    const recorded = await getDb().transaction(async (tx) => {
+      const row = await tombstone(tx);
+      if (!row) return null;
+      const ledgerIds = await recordFileStorageDeletion(tx, row, row.variants.map((variant) => variant.key));
+      return { row, ledgerIds };
+    });
+    if (!recorded) return null;
 
-    for (const variant of file.variants) {
-      try {
-        await this.s3Service.deleteFile(variant.key);
-        await this.deleteBackfilledPublicCopy(variant.key);
-      } catch (error) {
-        logger.warn('Failed to delete variant', { variant: variant.key, error });
-      }
-      if (variant.type.startsWith('hls_') && variant.type !== 'hls_master') {
-        await this.purgeHlsSegments(variant.key);
-      }
+    fileCache.invalidate(recorded.row.id);
+
+    const drain = this.drainStorageDeletion(recorded.row.id, recorded.ledgerIds);
+    if (options.awaitPurge) {
+      await drain;
+    } else {
+      this.backgroundPurges.add(drain);
+      void drain.finally(() => this.backgroundPurges.delete(drain));
+    }
+    return recorded.row;
+  }
+
+  /** Purges started with `awaitPurge: false` and not yet finished. */
+  private readonly backgroundPurges = new Set<Promise<void>>();
+
+  /** Wait for every background purge started so far (tests; graceful shutdown). */
+  async settleStoragePurges(): Promise<void> {
+    while (this.backgroundPurges.size > 0) {
+      await Promise.allSettled([...this.backgroundPurges]);
     }
   }
 
-  /** Upper bound on list-then-delete rounds for one rendition's segments. */
-  private static readonly HLS_SEGMENT_PURGE_MAX_ROUNDS = 20;
-
-  private async purgeHlsSegments(playlistKey: string): Promise<void> {
-    if (!playlistKey.endsWith('.m3u8')) {
-      return;
-    }
-    const segmentPrefix = `${playlistKey.slice(0, -'.m3u8'.length)}_segment_`;
+  /** Work off the ledger rows a delete just recorded. Never throws: the worker owns what is left. */
+  private async drainStorageDeletion(fileId: string, ledgerIds: string[]): Promise<void> {
     try {
-      // `listFiles` returns one page (≤1000 keys); deleting what it returned
-      // and listing again walks the whole set without a continuation token.
-      for (let round = 0; round < AssetService.HLS_SEGMENT_PURGE_MAX_ROUNDS; round++) {
-        const page = await this.s3Service.listFiles(segmentPrefix);
-        const keys = page.map((entry) => entry.key).filter((key) => key.startsWith(segmentPrefix));
-        if (keys.length === 0) {
-          return;
-        }
-        for (let i = 0; i < keys.length; i += HLS_SEGMENT_DELETE_CONCURRENCY) {
-          await Promise.all(
-            keys.slice(i, i + HLS_SEGMENT_DELETE_CONCURRENCY).map((key) => this.s3Service.deleteFile(key)),
-          );
-        }
+      const result = await runStorageDeletionBatch({
+        ownerId: STORAGE_DELETION_DRAIN_OWNER,
+        ids: ledgerIds,
+        store: {
+          deleteObject: (key) => this.s3Service.deleteFile(key),
+          listKeys: async (prefix, maxKeys) =>
+            (await this.s3Service.listFiles(prefix, maxKeys)).map((item) => item.key),
+        },
+      });
+      if (result.failed > 0) {
+        logger.warn('Asset storage purge incomplete; the storage-deletion worker will retry', {
+          fileId,
+          ...result,
+        });
       }
-      logger.warn('HLS segment purge stopped at its round limit', { segmentPrefix });
     } catch (error) {
-      logger.warn('Failed to delete HLS segments', {
-        segmentPrefix,
+      logger.error('Asset storage purge failed to run; the storage-deletion worker will retry', {
+        fileId,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -1889,54 +1926,34 @@ export class AssetService {
    * the post the media belonged to.
    *
    * Authorization is ONE conditional write ({@link tombstoneFederatedFileForApp}):
-   * the row is tombstoned only if it is live, owned by a `federated` account,
-   * written by the federation upload path, and uploaded by `appId`. Only after
-   * that write succeeds are the S3 objects purged — so a row that fails any
-   * condition, or changes hands concurrently, never has its bytes touched.
+   * the row is tombstoned only if it is live, this application's federated
+   * media, and not held by anyone else (a link by another account, a mail
+   * attachment, a listing screenshot). The storage is then owed and purged
+   * through {@link tombstoneAndOwePurge} — never before the tombstone commits, so
+   * a row that fails any condition never has its bytes touched.
    *
-   * Idempotent: an unknown id and an already-deleted row both answer
-   * `not_found`, which callers treat as done. `forbidden` means the row exists,
-   * is live, and is not this application's federated media.
-   *
-   * The order is tombstone THEN purge. If the purge of the original throws, the
-   * row is already `deleted` (nothing serves it: every read path refuses
-   * non-active rows) and the error propagates so the caller sees a failure;
-   * the keys are logged for an operator. The opposite order could delete bytes
-   * of a row that then failed the authorization.
+   * Outcomes: `deleted` (tombstoned; purge owed and started), `not_found`
+   * (unknown or already deleted — done), `in_use` (somebody else holds it — kept;
+   * nothing to retry), `forbidden` (not this application's federated media).
    */
   async deleteFederatedMediaForApp(
     fileId: string,
     appId: string,
+    options: { awaitPurge?: boolean } = {},
   ): Promise<FederatedMediaDeleteOutcome> {
-    const tombstoned = await tombstoneFederatedFileForApp(fileId, appId);
+    const tombstoned = await this.tombstoneAndOwePurge(
+      (tx) => tombstoneFederatedFileForApp(tx, fileId, appId),
+      { awaitPurge: options.awaitPurge ?? false },
+    );
 
     if (!tombstoned) {
-      const current = await findFileById(fileId);
-      if (!current || current.status === 'deleted') {
-        return 'not_found';
+      const refusal = await classifyFederatedDeleteRefusal(fileId, appId);
+      if (refusal === 'forbidden') {
+        logger.warn('Refusing to delete asset via federated media delete: out of scope', { fileId, appId });
+      } else if (refusal === 'in_use') {
+        logger.info('Keeping federated media: another account still uses it', { fileId, appId });
       }
-      logger.warn('Refusing to delete asset via federated media delete: out of scope', {
-        fileId,
-        appId,
-        purpose: current.purpose,
-        systemOwner: current.systemOwner,
-        uploaderAppId:
-          typeof current.metadata?.serviceAppId === 'string' ? current.metadata.serviceAppId : null,
-      });
-      return 'forbidden';
-    }
-
-    fileCache.invalidate(fileId);
-
-    try {
-      await this.purgeStoredObjects(tombstoned);
-    } catch (error) {
-      logger.error('Federated media tombstoned but its original could not be deleted from storage', {
-        fileId,
-        storageKey: tombstoned.storageKey,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
+      return refusal;
     }
 
     await this.notifyLinks(tombstoned, 'deleted', { reason: 'federated_source_deleted' });

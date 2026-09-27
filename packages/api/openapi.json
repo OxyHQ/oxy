@@ -5211,8 +5211,8 @@
         "tags": [
           "Files"
         ],
-        "summary": "Batch form of `DELETE /service/federation/:id` for up to 50 ids (e.g.",
-        "description": "every media object and poster of one deleted federated post). Always\n      200; each distinct id gets its own `deleted` / `not_found` /\n      `forbidden` result, so one out-of-scope id never blocks the rest.",
+        "summary": "Batch form of `DELETE /service/federation/:id` for up to 20 ids (e.g.",
+        "description": "every media object and poster of one deleted federated post). Always\n      200; each distinct id gets its own `deleted` / `not_found` / `in_use` /\n      `forbidden` result, so one out-of-scope id never blocks the rest.",
         "parameters": [],
         "responses": {
           "200": {
@@ -5238,6 +5238,7 @@
                                 "enum": [
                                   "deleted",
                                   "not_found",
+                                  "in_use",
                                   "forbidden"
                                 ]
                               }
@@ -5332,7 +5333,7 @@
                       "maxLength": 128
                     },
                     "minItems": 1,
-                    "maxItems": 50
+                    "maxItems": 20
                   }
                 },
                 "required": [
@@ -5351,7 +5352,7 @@
           "Files"
         ],
         "summary": "Delete durable federated media (created by `POST /service/federation`)",
-        "description": "when its federated source is gone. Only a live asset owned by a\n      federated account AND uploaded by the calling application qualifies;\n      anything else is a 403 and is left untouched. The original, every\n      variant and HLS segment are removed from storage and the row is\n      tombstoned. Idempotent: an unknown or already-deleted id answers 200\n      with `result: \"not_found\"`.",
+        "description": "when its federated source is gone. Only a live asset owned by a\n      federated account AND uploaded by the calling application qualifies;\n      anything else is a 403 and is left untouched. The row is tombstoned and\n      its storage (original, variants, HLS segments) recorded as owed in the\n      same transaction, then purged in the background — durably, guarded\n      against a concurrent re-upload of the same bytes, with a CDN\n      invalidation. Idempotent: an unknown or already-deleted id answers 200\n      with `result: \"not_found\"`. An asset another account holds (content-\n      addressed dedup shares one row per hash) answers 200 `in_use` and is\n      kept.",
         "parameters": [
           {
             "name": "id",
@@ -5365,7 +5366,7 @@
         ],
         "responses": {
           "200": {
-            "description": "`deleted`, or `not_found` when there was nothing to delete.",
+            "description": "`deleted`, `not_found` (nothing to delete) or `in_use` (kept: another account holds it).",
             "content": {
               "application/json": {
                 "schema": {
@@ -5381,7 +5382,8 @@
                           "type": "string",
                           "enum": [
                             "deleted",
-                            "not_found"
+                            "not_found",
+                            "in_use"
                           ]
                         }
                       },

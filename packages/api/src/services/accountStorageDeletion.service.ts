@@ -97,6 +97,43 @@ export function storageTargetsForAsset(
  *
  * Idempotent: a target already recorded for this account is not recorded twice.
  */
+/**
+ * Record the storage ONE tombstoned asset is owed, inside the tombstone's own
+ * transaction, and return the ledger row ids so the caller can work them off
+ * immediately (the worker picks up anything that fails).
+ *
+ * A target recorded before — the same content deleted, re-uploaded and deleted
+ * again — is re-armed rather than skipped: the earlier row may be complete, and
+ * this deletion still owes the objects.
+ */
+export async function recordFileStorageDeletion(
+  tx: Transaction,
+  asset: { sha256: string; storageKey: string; ownerUserId: string | null; systemOwner: string | null },
+  variantKeys: readonly string[],
+): Promise<string[]> {
+  const accountId = asset.ownerUserId ?? `system:${asset.systemOwner ?? 'unknown'}`;
+  const targets = storageTargetsForAsset(asset, variantKeys);
+  const rows = await tx
+    .insert(storageObjectDeletions)
+    .values(targets.map((target) => ({ reason: 'file.deleted' as const, accountId, ...target })))
+    .onConflictDoUpdate({
+      target: [storageObjectDeletions.accountId, storageObjectDeletions.kind, storageObjectDeletions.target],
+      set: {
+        reason: 'file.deleted',
+        sha256: sql`excluded.sha256`,
+        attempts: 0,
+        nextAttemptAt: sql`now()`,
+        claimedAt: null,
+        claimedBy: null,
+        completedAt: null,
+        outcome: null,
+        lastError: null,
+      },
+    })
+    .returning({ id: storageObjectDeletions.id });
+  return rows.map((row) => row.id);
+}
+
 export async function recordAccountStorageDeletion(
   tx: Transaction,
   accountId: string,

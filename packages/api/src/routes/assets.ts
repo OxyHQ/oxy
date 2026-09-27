@@ -1082,12 +1082,16 @@ function auditFederatedDelete(
  * @desc Delete durable federated media (created by `POST /service/federation`)
  *       when its federated source is gone. Only a live asset owned by a
  *       federated account AND uploaded by the calling application qualifies;
- *       anything else is a 403 and is left untouched. The original, every
- *       variant and HLS segment are removed from storage and the row is
- *       tombstoned. Idempotent: an unknown or already-deleted id answers 200
- *       with `result: "not_found"`.
+ *       anything else is a 403 and is left untouched. The row is tombstoned and
+ *       its storage (original, variants, HLS segments) recorded as owed in the
+ *       same transaction, then purged in the background — durably, guarded
+ *       against a concurrent re-upload of the same bytes, with a CDN
+ *       invalidation. Idempotent: an unknown or already-deleted id answers 200
+ *       with `result: "not_found"`. An asset another account holds (content-
+ *       addressed dedup shares one row per hash) answers 200 `in_use` and is
+ *       kept.
  * @access Service token only (requires files:write and federation:write)
- * @response 200 federatedAssetDeleteResponse `deleted`, or `not_found` when there was nothing to delete.
+ * @response 200 federatedAssetDeleteResponse `deleted`, `not_found` (nothing to delete) or `in_use` (kept: another account holds it).
  * @response 403 Error Missing scope, or the asset is not this application's federated media.
  */
 router.delete(
@@ -1113,9 +1117,9 @@ router.delete(
 
 /**
  * @route POST /api/assets/service/federation/delete
- * @desc Batch form of `DELETE /service/federation/:id` for up to 50 ids (e.g.
+ * @desc Batch form of `DELETE /service/federation/:id` for up to 20 ids (e.g.
  *       every media object and poster of one deleted federated post). Always
- *       200; each distinct id gets its own `deleted` / `not_found` /
+ *       200; each distinct id gets its own `deleted` / `not_found` / `in_use` /
  *       `forbidden` result, so one out-of-scope id never blocks the rest.
  * @access Service token only (requires files:write and federation:write)
  * @response 200 federatedAssetBatchDeleteResponse One result per distinct id, in request order.
@@ -1130,10 +1134,11 @@ router.post(
     const appId = requireFederatedDeleteScopes(req);
     const { ids } = req.body as z.infer<typeof federatedAssetDeleteBodySchema>;
 
-    // Sequential on purpose: each id is a conditional write plus a handful of
-    // S3 deletes, and the batch cap keeps the total bounded. A failure (an S3
-    // outage) propagates as a 5xx; ids already processed stay processed, and a
-    // retry of the whole batch is safe because every step is idempotent.
+    // Sequential on purpose: each id is one short transaction (tombstone +
+    // ledger rows); the S3 purge drains in the background, so the request never
+    // waits on it. A database failure propagates as a 5xx; ids already
+    // processed stay processed, and retrying the whole batch is safe because
+    // every step is idempotent.
     const results: Array<{ id: string; result: z.infer<typeof federatedAssetDeleteResult> }> = [];
     for (const fileId of [...new Set(ids)]) {
       const result = await assetService.deleteFederatedMediaForApp(fileId, appId);

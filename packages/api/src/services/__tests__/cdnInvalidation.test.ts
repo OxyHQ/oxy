@@ -17,12 +17,29 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
+const mockCloudFrontConfigs: unknown[] = [];
+const mockCloudFrontSend = jest.fn();
+jest.mock('@aws-sdk/client-cloudfront', () => ({
+  CloudFrontClient: class {
+    constructor(config: unknown) {
+      mockCloudFrontConfigs.push(config);
+    }
+    send = (...args: unknown[]) => mockCloudFrontSend(...args);
+  },
+  CreateInvalidationCommand: class {
+    constructor(public readonly input: unknown) {}
+  },
+}));
+
 import { S3Service } from '../s3Service';
 import {
   CdnInvalidationQueue,
   MAX_ATTEMPTS,
+  MAX_PENDING_PATHS,
   MAX_WILDCARDS_PER_REQUEST,
+  WILDCARD_COOLDOWN_MS,
   cdnPathForKey,
+  flushCdnInvalidations,
   planInvalidationPaths,
   type InvalidationSender,
 } from '../cdnInvalidation';
@@ -156,7 +173,7 @@ describe('CdnInvalidationQueue', () => {
     expect(queue.pendingPaths()).toEqual([]);
   });
 
-  it(`sends at most ${MAX_WILDCARDS_PER_REQUEST} wildcards per request (CloudFront allows 15 in progress)`, async () => {
+  it(`sends at most ${MAX_WILDCARDS_PER_REQUEST} wildcards per request, and the overflow as EXACT paths in the same request`, async () => {
     const { sender, calls } = recordingSender();
     const queue = new CdnInvalidationQueue({ distributionId: 'EDIST', sender });
     const dirs = MAX_WILDCARDS_PER_REQUEST + 2;
@@ -166,9 +183,100 @@ describe('CdnInvalidationQueue', () => {
     }
     await queue.flush();
 
-    expect(calls.map((c) => c.paths.length)).toEqual([MAX_WILDCARDS_PER_REQUEST, 2]);
-    expect(calls.flatMap((c) => c.paths).every((p) => p.endsWith('/*'))).toBe(true);
+    // One request: nothing waits for the wildcard ceiling.
+    expect(calls).toHaveLength(1);
+    const wildcards = calls[0].paths.filter((p) => p.endsWith('/*'));
+    const exact = calls[0].paths.filter((p) => !p.endsWith('/*'));
+    expect(wildcards).toHaveLength(MAX_WILDCARDS_PER_REQUEST);
+    expect(exact).toHaveLength(2 * 2);
     expect(queue.pendingPaths()).toEqual([]);
+  });
+
+  it('after TooManyInvalidationsInProgress, sends exact paths only for the cooldown', async () => {
+    let clock = 1_000_000;
+    let first = true;
+    const { sender, calls } = recordingSender(async () => {
+      if (first) {
+        first = false;
+        throw namedError('TooManyInvalidationsInProgress');
+      }
+    });
+    const queue = new CdnInvalidationQueue({ distributionId: 'EDIST', sender, now: () => clock });
+    queue.enqueueDeletedKey(`public/${VARIANT_DIR}/a.webp`);
+    queue.enqueueDeletedKey(`public/${VARIANT_DIR}/b.webp`);
+
+    await queue.flush();
+    expect(calls[0].paths).toEqual([`/${VARIANT_DIR}/*`]);
+
+    await queue.flush();
+    expect(calls[1].paths).toEqual([`/${VARIANT_DIR}/a.webp`, `/${VARIANT_DIR}/b.webp`]);
+
+    clock += WILDCARD_COOLDOWN_MS + 1;
+    queue.enqueueDeletedKey(`public/${VARIANT_DIR}/c.webp`);
+    queue.enqueueDeletedKey(`public/${VARIANT_DIR}/d.webp`);
+    await queue.flush();
+    expect(calls[2].paths).toEqual([`/${VARIANT_DIR}/*`]);
+  });
+
+  it('a throttle never counts toward dropping a path', async () => {
+    const { sender } = recordingSender(async () => {
+      throw namedError('Throttling');
+    });
+    const queue = new CdnInvalidationQueue({ distributionId: 'EDIST', sender });
+    queue.enqueueDeletedKey('public/content/a.png');
+
+    for (let i = 0; i < MAX_ATTEMPTS * 3; i++) {
+      await queue.flush();
+    }
+
+    expect(queue.pendingPaths()).toEqual(['/content/a.png']);
+    expect(logger.error).not.toHaveBeenCalledWith(expect.stringContaining('DROPPED'), expect.anything());
+  });
+
+  it(`caps the queue at ${MAX_PENDING_PATHS} paths, dropping — and naming — the OLDEST`, () => {
+    const queue = new CdnInvalidationQueue({ distributionId: 'EDIST', sender: recordingSender().sender });
+    for (let i = 0; i < MAX_PENDING_PATHS + 3; i++) {
+      queue.enqueueDeletedKey(`public/content/${String(i).padStart(6, '0')}.png`);
+    }
+
+    const pending = queue.pendingPaths();
+    expect(pending).toHaveLength(MAX_PENDING_PATHS);
+    expect(pending).not.toContain('/content/000000.png');
+    expect(pending).toContain(`/content/${String(MAX_PENDING_PATHS + 2).padStart(6, '0')}.png`);
+    const dropped = (logger.error as jest.Mock).mock.calls
+      .filter(([message]) => String(message).includes('queue full'))
+      .flatMap(([, meta]) => (meta as { paths: string[] }).paths);
+    expect(dropped).toEqual(['/content/000000.png', '/content/000001.png', '/content/000002.png']);
+  });
+
+  it('the shutdown flush gives up after its timeout, naming what is left', async () => {
+    const { sender } = recordingSender(() => new Promise<void>(() => { /* never settles */ }));
+    const queue = new CdnInvalidationQueue({ distributionId: 'EDIST', sender });
+    queue.enqueueDeletedKey('public/content/a.png');
+
+    const started = Date.now();
+    await flushCdnInvalidations(queue, 50);
+
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('timed out'),
+      expect.objectContaining({ timeoutMs: 50 }),
+    );
+  });
+
+  it('the real CloudFront client is built with connection and request timeouts', async () => {
+    mockCloudFrontSend.mockResolvedValue({});
+    const queue = new CdnInvalidationQueue({ distributionId: 'EDIST' });
+    queue.enqueueDeletedKey('public/content/a.png');
+    await queue.flush();
+
+    expect(mockCloudFrontConfigs).toHaveLength(1);
+    expect(mockCloudFrontConfigs[0]).toMatchObject({
+      requestHandler: { connectionTimeout: expect.any(Number), requestTimeout: expect.any(Number) },
+    });
+    const [command] = mockCloudFrontSend.mock.calls[0] as [{ input: { DistributionId: string; InvalidationBatch: { Paths: { Items: string[] } } } }];
+    expect(command.input.DistributionId).toBe('EDIST');
+    expect(command.input.InvalidationBatch.Paths.Items).toEqual(['/content/a.png']);
   });
 
   it('debounces: a scheduled flush fires once after the window', async () => {

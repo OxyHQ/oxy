@@ -6,23 +6,28 @@
  * the verified `serviceApp`), the rate limiter, and S3 (a recording fake). The
  * authorization decision lives in one conditional `UPDATE`, so it is exercised
  * against real rows: the owner's `users.type`, the row's `metadata`, `purpose`,
- * `system_owner` and `status` are all what production would read.
+ * `status`, and every table that can hold a file id.
  *
  * Invariants:
- *  1. The uploading app deletes its own federated media: row tombstoned, the
- *     original, every variant and every HLS segment removed from storage.
+ *  1. The uploading app deletes its own federated media: the row is tombstoned
+ *     and its storage (original, variant directory incl. HLS segments) recorded
+ *     in `storage_object_deletions` in the same transaction, then purged.
  *  2. Never a local user's asset, never another app's upload, never a cache
  *     object, never a row the federation upload path did not write — 403 (or
  *     `forbidden` in a batch), the row untouched and ZERO storage calls.
- *  3. Idempotent: unknown and already-deleted ids are 200 `not_found`.
- *  4. Both scopes are required, and the app id comes from the token only.
+ *  3. Never an asset ANOTHER account holds (a link it created, a mail
+ *     attachment, a listing screenshot) — 200 `in_use`, kept, nothing owed.
+ *  4. A purge that fails stays owed: the ledger row is pending and the
+ *     storage-deletion worker finishes it later.
+ *  5. Idempotent: unknown and already-deleted ids are 200 `not_found`.
+ *  6. Both scopes are required, and the app id comes from the token only.
  */
 
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
-import { randomBytes } from 'node:crypto';
-import { eq, inArray } from 'drizzle-orm';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 
 const mockServiceAuthMiddleware = jest.fn();
 
@@ -57,11 +62,26 @@ jest.mock('../../services/variantService', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { files, fileVariants, users } from '../../db/schema';
+import {
+  appCategories,
+  appListings,
+  appListingScreenshots,
+  applications,
+  fileLinks,
+  files,
+  fileVariants,
+  mailboxes,
+  messageAttachments,
+  messages,
+  storageObjectDeletions,
+  users,
+} from '../../db/schema';
 import assetsRouter from '../assets';
 import { errorHandler } from '../../middleware/errorHandler';
 import { logger } from '../../utils/logger';
 import fileCache from '../../utils/fileCache';
+import { assetService } from '../../services/assetServiceSingleton';
+import { runStorageDeletionBatch } from '../../services/accountStorageDeletion.worker';
 
 const APP_ID = `app-mention-${randomBytes(4).toString('hex')}`;
 const OTHER_APP_ID = `app-other-${randomBytes(4).toString('hex')}`;
@@ -109,6 +129,13 @@ function request(method: string, path: string, payload?: unknown): Promise<JsonR
   });
 }
 
+/** Issue a request and wait for the background purge it started. */
+async function call(method: string, path: string, payload?: unknown): Promise<JsonResponse> {
+  const res = await request(method, path, payload);
+  await assetService.settleStoragePurges();
+  return res;
+}
+
 function actAs(appId: string, scopes: string[] = ['files:write', 'federation:write']): void {
   mockServiceAuthMiddleware.mockImplementation(
     (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
@@ -137,13 +164,14 @@ interface FixtureOptions {
   purpose?: 'user' | 'federation-media-cache';
   status?: 'active' | 'trash' | 'deleted';
   metadata?: Record<string, unknown>;
-  variants?: Array<{ type: string; key: string }>;
+  variantTypes?: string[];
 }
 
 /** A files row plus its variants; returns the id and the keys it owns. */
 async function insertFile(options: FixtureOptions) {
   const sha256 = randomBytes(32).toString('hex');
   const storageKey = `public/files/${sha256}.mp4`;
+  const variantDir = `variants/2026/09/${sha256.slice(0, 2)}/${sha256}/`;
   const [row] = await getDb()
     .insert(files)
     .values({
@@ -160,13 +188,13 @@ async function insertFile(options: FixtureOptions) {
       metadata: options.metadata ?? { source: 'federation', serviceAppId: APP_ID },
     })
     .returning({ id: files.id });
-  const variants = (options.variants ?? []).map((v) => ({ ...v, key: v.key.replace('<sha>', sha256) }));
-  if (variants.length > 0) {
+  const variantKeys = (options.variantTypes ?? []).map((type) => `public/${variantDir}${type}`);
+  if (variantKeys.length > 0) {
     await getDb()
       .insert(fileVariants)
-      .values(variants.map((v) => ({ fileId: row.id, type: v.type, key: v.key, readyAt: new Date() })));
+      .values(variantKeys.map((key, i) => ({ fileId: row.id, type: `v${i}`, key, readyAt: new Date() })));
   }
-  return { id: row.id, sha256, storageKey, variantKeys: variants.map((v) => v.key) };
+  return { id: row.id, sha256, storageKey, variantDir, variantKeys };
 }
 
 async function statusOf(id: string): Promise<string | undefined> {
@@ -174,8 +202,23 @@ async function statusOf(id: string): Promise<string | undefined> {
   return row?.status;
 }
 
+async function ledgerFor(sha256: string) {
+  return getDb()
+    .select({
+      kind: storageObjectDeletions.kind,
+      target: storageObjectDeletions.target,
+      reason: storageObjectDeletions.reason,
+      outcome: storageObjectDeletions.outcome,
+      completedAt: storageObjectDeletions.completedAt,
+      lastError: storageObjectDeletions.lastError,
+    })
+    .from(storageObjectDeletions)
+    .where(eq(storageObjectDeletions.sha256, sha256));
+}
+
 let federatedOwner: string;
 let localOwner: string;
+let otherLocal: string;
 const createdIds: string[] = [];
 
 beforeAll((done) => {
@@ -190,13 +233,11 @@ beforeAll(async () => {
   await connectPostgres();
   federatedOwner = await insertUser('federated');
   localOwner = await insertUser('local');
+  otherLocal = await insertUser('local');
 });
 
 afterAll(async () => {
-  if (createdIds.length > 0) {
-    await getDb().delete(files).where(inArray(files.id, createdIds));
-  }
-  await getDb().delete(users).where(inArray(users.id, [federatedOwner, localOwner]));
+  await assetService.settleStoragePurges();
   await closePostgres();
 });
 
@@ -219,38 +260,42 @@ async function fixture(options: FixtureOptions) {
   return created;
 }
 
-describe('DELETE /assets/service/federation/:id — the uploading app deletes its federated media', () => {
-  it('tombstones the row and removes the original, every variant and every HLS segment', async () => {
-    const file = await fixture({
-      ownerUserId: federatedOwner,
-      variants: [
-        { type: 'poster', key: 'public/variants/2026/09/ab/<sha>/poster.jpg' },
-        { type: 'hls_720p', key: 'public/variants/2026/09/ab/<sha>/hls_720p.m3u8' },
-        { type: 'hls_master', key: 'public/variants/2026/09/ab/<sha>/hls_master.m3u8' },
-      ],
-    });
-    const hlsPlaylist = file.variantKeys[1];
-    const segmentPrefix = `${hlsPlaylist.slice(0, -'.m3u8'.length)}_segment_`;
-    const segments = [`${segmentPrefix}720p_000.ts.ts`, `${segmentPrefix}720p_001.ts.ts`];
-    mockS3.listFiles.mockImplementation(async (prefix: string) =>
-      prefix === segmentPrefix && mockS3.deleteFile.mock.calls.every(([k]) => !segments.includes(k))
-        ? segments.map((key) => ({ key, size: 1, lastModified: new Date(), bucket: 'b' }))
-        : [],
-    );
+const listing = (keys: string[]) => keys.map((key) => ({ key, size: 1, lastModified: new Date(), bucket: 'b' }));
 
-    const res = await request('DELETE', `/assets/service/federation/${file.id}`);
+describe('DELETE /assets/service/federation/:id — the uploading app deletes its federated media', () => {
+  it('tombstones the row, records its storage in the same commit, and purges original, variants and HLS segments', async () => {
+    const file = await fixture({ ownerUserId: federatedOwner, variantTypes: ['poster.jpg', 'hls_720p.m3u8', 'hls_master.m3u8'] });
+    const publicDir = `public/${file.variantDir}`;
+    const dirObjects = [
+      ...file.variantKeys,
+      `${publicDir}hls_720p_segment_720p_000.ts.ts`,
+      `${publicDir}hls_720p_segment_720p_001.ts.ts`,
+    ];
+    let listed = false;
+    mockS3.listFiles.mockImplementation(async (prefix: string) => {
+      if (prefix === publicDir && !listed) {
+        listed = true;
+        return listing(dirObjects);
+      }
+      return [];
+    });
+
+    const res = await call('DELETE', `/assets/service/federation/${file.id}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ id: file.id, result: 'deleted' });
     expect(await statusOf(file.id)).toBe('deleted');
 
+    // Owed in the ledger — the original and the WHOLE variant directory — and done.
+    const ledger = await ledgerFor(file.sha256);
+    expect(ledger.map(({ kind, target }) => ({ kind, target })).sort((a, b) => a.kind.localeCompare(b.kind))).toEqual([
+      { kind: 'object', target: `files/${file.sha256}.mp4` },
+      { kind: 'prefix', target: file.variantDir },
+    ]);
+    expect(ledger.every((row) => row.reason === 'file.deleted' && row.outcome === 'deleted')).toBe(true);
+
     const deletedKeys = mockS3.deleteFile.mock.calls.map(([k]) => k);
-    expect(deletedKeys).toEqual(
-      expect.arrayContaining([file.storageKey, ...file.variantKeys, ...segments]),
-    );
-    // Listed by the rendition playlist's own prefix — never the master's, never wider.
-    expect(mockS3.listFiles).toHaveBeenCalledWith(segmentPrefix);
-    expect(mockS3.listFiles.mock.calls.every(([p]) => p === segmentPrefix)).toBe(true);
+    expect(deletedKeys).toEqual(expect.arrayContaining([file.storageKey, ...dirObjects]));
 
     expect(logger.info).toHaveBeenCalledWith(
       'Audit: federated media delete',
@@ -261,53 +306,154 @@ describe('DELETE /assets/service/federation/:id — the uploading app deletes it
   it('deletes a trashed row too — trash still holds bytes', async () => {
     const file = await fixture({ ownerUserId: federatedOwner, status: 'trash' });
 
-    const res = await request('DELETE', `/assets/service/federation/${file.id}`);
+    const res = await call('DELETE', `/assets/service/federation/${file.id}`);
 
-    expect(res.status).toBe(200);
     expect(res.body.data?.result).toBe('deleted');
     expect(await statusOf(file.id)).toBe('deleted');
   });
 
-  it('is idempotent: a second delete, an already-deleted row and an unknown id are 200 not_found with no storage calls', async () => {
+  it('a link the OWNER created does not block the delete', async () => {
     const file = await fixture({ ownerUserId: federatedOwner });
-    expect((await request('DELETE', `/assets/service/federation/${file.id}`)).body.data?.result).toBe('deleted');
+    await getDb().insert(fileLinks).values({
+      fileId: file.id, app: 'mention', entityType: 'post', entityId: randomUUID(), createdBy: federatedOwner,
+    });
+
+    const res = await call('DELETE', `/assets/service/federation/${file.id}`);
+
+    expect(res.body.data?.result).toBe('deleted');
+  });
+
+  it('is idempotent: a second delete, an already-deleted row and an unknown id are 200 not_found and owe nothing', async () => {
+    const file = await fixture({ ownerUserId: federatedOwner });
+    expect((await call('DELETE', `/assets/service/federation/${file.id}`)).body.data?.result).toBe('deleted');
     mockS3.deleteFile.mockClear();
 
-    const again = await request('DELETE', `/assets/service/federation/${file.id}`);
+    const again = await call('DELETE', `/assets/service/federation/${file.id}`);
     expect(again.status).toBe(200);
     expect(again.body.data).toEqual({ id: file.id, result: 'not_found' });
 
     const tombstone = await fixture({ ownerUserId: federatedOwner, status: 'deleted' });
-    const deleted = await request('DELETE', `/assets/service/federation/${tombstone.id}`);
-    expect(deleted.status).toBe(200);
+    const deleted = await call('DELETE', `/assets/service/federation/${tombstone.id}`);
     expect(deleted.body.data?.result).toBe('not_found');
+    expect(await ledgerFor(tombstone.sha256)).toEqual([]);
 
-    const unknown = await request('DELETE', '/assets/service/federation/0190aaaa-0000-7000-8000-000000000000');
-    expect(unknown.status).toBe(200);
+    const unknown = await call('DELETE', '/assets/service/federation/0190aaaa-0000-7000-8000-000000000000');
     expect(unknown.body.data?.result).toBe('not_found');
 
     expect(mockS3.deleteFile).not.toHaveBeenCalled();
   });
 
-  it('keeps the row tombstoned and answers 5xx when the original cannot be removed from storage', async () => {
+  it('a purge that fails stays OWED: the worker finishes it later', async () => {
     const file = await fixture({ ownerUserId: federatedOwner });
-    mockS3.deleteFile.mockRejectedValueOnce(new Error('S3 unavailable'));
+    mockS3.deleteFile.mockRejectedValue(new Error('S3 unavailable'));
 
-    const res = await request('DELETE', `/assets/service/federation/${file.id}`);
+    const res = await call('DELETE', `/assets/service/federation/${file.id}`);
 
-    expect(res.status).toBeGreaterThanOrEqual(500);
-    // Never served again (every read path refuses a non-active row) …
+    // The delete itself succeeded — nothing serves a tombstone …
+    expect(res.status).toBe(200);
+    expect(res.body.data?.result).toBe('deleted');
     expect(await statusOf(file.id)).toBe('deleted');
-    // … and the stranded key is named for an operator.
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining('could not be deleted from storage'),
-      expect.objectContaining({ fileId: file.id, storageKey: file.storageKey }),
-    );
+    // … and the storage is still owed, with the failure recorded.
+    const pending = await ledgerFor(file.sha256);
+    expect(pending.length).toBeGreaterThan(0);
+    expect(pending.every((row) => row.completedAt === null && row.lastError !== null)).toBe(true);
+
+    // S3 recovers; the storage-deletion worker's next pass finishes the job.
+    mockS3.deleteFile.mockReset().mockResolvedValue(undefined);
+    await getDb()
+      .update(storageObjectDeletions)
+      .set({ nextAttemptAt: new Date(Date.now() - 1000) })
+      .where(eq(storageObjectDeletions.sha256, file.sha256));
+    await runStorageDeletionBatch({
+      ownerId: 'test-worker',
+      store: {
+        deleteObject: (key) => mockS3.deleteFile(key),
+        listKeys: async () => [],
+      },
+    });
+
+    const done = await ledgerFor(file.sha256);
+    expect(done.every((row) => row.outcome === 'deleted')).toBe(true);
+    expect(mockS3.deleteFile).toHaveBeenCalledWith(file.storageKey);
+  });
+});
+
+describe('DELETE /assets/service/federation/:id — another account holds it (in_use)', () => {
+  async function expectKept(file: { id: string; sha256: string }) {
+    const res = await call('DELETE', `/assets/service/federation/${file.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ id: file.id, result: 'in_use' });
+    expect(await statusOf(file.id)).toBe('active');
+    expect(await ledgerFor(file.sha256)).toEqual([]);
+    expect(mockS3.deleteFile).not.toHaveBeenCalled();
+  }
+
+  it('keeps an asset a LOCAL user linked (dedup handed them the federated row)', async () => {
+    const file = await fixture({ ownerUserId: federatedOwner });
+    await getDb().insert(fileLinks).values({
+      fileId: file.id, app: 'mention', entityType: 'avatar', entityId: randomUUID(), createdBy: otherLocal,
+    });
+    await expectKept(file);
+  });
+
+  it("keeps an asset attached to a message in somebody's mailbox", async () => {
+    const file = await fixture({ ownerUserId: federatedOwner });
+    const [mailbox] = await getDb()
+      .insert(mailboxes)
+      .values({ userId: otherLocal, name: 'Inbox', path: `Inbox-${randomUUID()}` })
+      .returning({ id: mailboxes.id });
+    const [message] = await getDb()
+      .insert(messages)
+      .values({
+        userId: otherLocal,
+        mailboxId: mailbox!.id,
+        messageId: `<${randomUUID()}@example.test>`,
+        fromAddress: 'a@example.test',
+        subject: 'A file',
+        size: 10,
+        date: new Date(),
+      })
+      .returning({ id: messages.id });
+    await getDb().insert(messageAttachments).values({
+      messageId: message!.id, ord: 0, fileId: file.id, name: 'x.mp4', contentType: 'video/mp4', size: 10,
+    });
+    await expectKept(file);
+  });
+
+  it('keeps an asset used as an app listing screenshot', async () => {
+    const file = await fixture({ ownerUserId: federatedOwner });
+    const [app] = await getDb()
+      .insert(applications)
+      .values({ name: `App ${randomUUID().slice(0, 8)}`, ownerAccountId: otherLocal })
+      .returning({ id: applications.id });
+    const [category] = await getDb()
+      .insert(appCategories)
+      .values({ slug: `cat-${randomUUID().slice(0, 8)}`, label: 'Tools' })
+      .returning({ id: appCategories.id });
+    const [listingRow] = await getDb()
+      .insert(appListings)
+      .values({ applicationId: app!.id, slug: `listing-${randomUUID().slice(0, 8)}`, categoryId: category!.id })
+      .returning({ id: appListings.id });
+    await getDb().insert(appListingScreenshots).values({ listingId: listingRow!.id, fileId: file.id });
+    await expectKept(file);
+  });
+
+  it('answers forbidden, not in_use, for a held asset that is not this app’s — no oracle', async () => {
+    const file = await fixture({
+      ownerUserId: federatedOwner,
+      metadata: { source: 'federation', serviceAppId: OTHER_APP_ID },
+    });
+    await getDb().insert(fileLinks).values({
+      fileId: file.id, app: 'mention', entityType: 'post', entityId: randomUUID(), createdBy: otherLocal,
+    });
+
+    const res = await call('DELETE', `/assets/service/federation/${file.id}`);
+    expect(res.status).toBe(403);
   });
 });
 
 describe('DELETE /assets/service/federation/:id — strict authorization (negative cases)', () => {
-  const refusals: Array<[string, () => Promise<{ id: string }>]> = [
+  const refusals: Array<[string, () => Promise<{ id: string; sha256: string }>]> = [
     [
       "a LOCAL user's asset, even with federation metadata naming this app",
       () => fixture({ ownerUserId: localOwner }),
@@ -343,13 +489,14 @@ describe('DELETE /assets/service/federation/:id — strict authorization (negati
     ],
   ];
 
-  it.each(refusals)('refuses %s: 403, row untouched, zero storage calls', async (_label, make) => {
+  it.each(refusals)('refuses %s: 403, row untouched, nothing owed, zero storage calls', async (_label, make) => {
     const file = await make();
 
-    const res = await request('DELETE', `/assets/service/federation/${file.id}`);
+    const res = await call('DELETE', `/assets/service/federation/${file.id}`);
 
     expect(res.status).toBe(403);
     expect(await statusOf(file.id)).not.toBe('deleted');
+    expect(await ledgerFor(file.sha256)).toEqual([]);
     expect(mockS3.deleteFile).not.toHaveBeenCalled();
     expect(mockS3.listFiles).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledWith(
@@ -366,7 +513,7 @@ describe('DELETE /assets/service/federation/:id — strict authorization (negati
     const file = await fixture({ ownerUserId: federatedOwner });
     actAs(APP_ID, scopes);
 
-    const res = await request('DELETE', `/assets/service/federation/${file.id}`);
+    const res = await call('DELETE', `/assets/service/federation/${file.id}`);
 
     expect(res.status).toBe(403);
     expect(await statusOf(file.id)).toBe('active');
@@ -377,7 +524,7 @@ describe('DELETE /assets/service/federation/:id — strict authorization (negati
     const file = await fixture({ ownerUserId: federatedOwner });
     actAs(OTHER_APP_ID);
 
-    const res = await request('DELETE', `/assets/service/federation/${file.id}?appId=${APP_ID}`, {
+    const res = await call('DELETE', `/assets/service/federation/${file.id}?appId=${APP_ID}`, {
       appId: APP_ID,
       serviceAppId: APP_ID,
     });
@@ -390,6 +537,10 @@ describe('DELETE /assets/service/federation/:id — strict authorization (negati
 describe('POST /assets/service/federation/delete — batch', () => {
   it('returns one result per distinct id, in order, deleting only what qualifies', async () => {
     const mine = await fixture({ ownerUserId: federatedOwner });
+    const held = await fixture({ ownerUserId: federatedOwner });
+    await getDb().insert(fileLinks).values({
+      fileId: held.id, app: 'mention', entityType: 'post', entityId: randomUUID(), createdBy: otherLocal,
+    });
     const local = await fixture({ ownerUserId: localOwner });
     const theirs = await fixture({
       ownerUserId: federatedOwner,
@@ -397,32 +548,36 @@ describe('POST /assets/service/federation/delete — batch', () => {
     });
     const unknown = '0190bbbb-0000-7000-8000-000000000000';
 
-    const res = await request('POST', '/assets/service/federation/delete', {
-      ids: [mine.id, local.id, mine.id, theirs.id, unknown],
+    const res = await call('POST', '/assets/service/federation/delete', {
+      ids: [mine.id, held.id, local.id, mine.id, theirs.id, unknown],
     });
 
     expect(res.status).toBe(200);
     expect(res.body.data?.results).toEqual([
       { id: mine.id, result: 'deleted' },
+      { id: held.id, result: 'in_use' },
       { id: local.id, result: 'forbidden' },
       { id: theirs.id, result: 'forbidden' },
       { id: unknown, result: 'not_found' },
     ]);
     expect(await statusOf(mine.id)).toBe('deleted');
-    expect(await statusOf(local.id)).toBe('active');
-    expect(await statusOf(theirs.id)).toBe('active');
-    // Storage was touched for the one qualifying row only.
-    expect(mockS3.deleteFile.mock.calls.map(([k]) => k)).toEqual([mine.storageKey]);
+    for (const kept of [held, local, theirs]) {
+      expect(await statusOf(kept.id)).toBe('active');
+    }
+    // Storage was touched for the one qualifying row only (both key spellings).
+    expect([...new Set(mockS3.deleteFile.mock.calls.map(([k]) => k))].sort()).toEqual(
+      [`files/${mine.sha256}.mp4`, mine.storageKey].sort(),
+    );
   });
 
   it.each([
     ['an empty list', { ids: [] }],
-    ['more than 50 ids', { ids: Array.from({ length: 51 }, (_, i) => `id-${i}`) }],
+    ['more than 20 ids', { ids: Array.from({ length: 21 }, (_, i) => `id-${i}`) }],
     ['a missing ids field', {}],
     ['an unknown field', { ids: ['x'], appId: 'forged' }],
     ['a non-string id', { ids: [42] }],
   ])('rejects %s with 400', async (_label, payload) => {
-    const res = await request('POST', '/assets/service/federation/delete', payload);
+    const res = await call('POST', '/assets/service/federation/delete', payload);
     expect(res.status).toBe(400);
     expect(mockS3.deleteFile).not.toHaveBeenCalled();
   });
@@ -431,7 +586,7 @@ describe('POST /assets/service/federation/delete — batch', () => {
     const file = await fixture({ ownerUserId: federatedOwner });
     actAs(APP_ID, ['files:write']);
 
-    const res = await request('POST', '/assets/service/federation/delete', { ids: [file.id] });
+    const res = await call('POST', '/assets/service/federation/delete', { ids: [file.id] });
 
     expect(res.status).toBe(403);
     expect(await statusOf(file.id)).toBe('active');

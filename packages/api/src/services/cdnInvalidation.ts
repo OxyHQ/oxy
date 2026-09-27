@@ -18,20 +18,24 @@
  * - **Bounded count and cost.** Keys under `variants/` sit in one directory per
  *   content hash; when a window holds two or more keys from the same directory
  *   they collapse to one wildcard (`/variants/…/<sha>/*`), which CloudFront
- *   bills as one path. A lone key stays an exact path. CloudFront allows only 15
- *   wildcard paths in progress per distribution, so a request carries at most
- *   {@link MAX_WILDCARDS_PER_REQUEST} and the rest wait for the next flush.
- * - **Loud on failure.** A throttle (`TooManyInvalidationsInProgress`, …) puts
- *   the paths back and retries with backoff; any other error is logged at
- *   `error` on every attempt and the batch is dropped — with its paths named —
- *   after {@link MAX_ATTEMPTS}.
+ *   bills as one path. A lone key stays an exact path.
+ * - **Never stalls on the wildcard ceiling.** CloudFront allows only 15
+ *   wildcard paths in progress per distribution. A request carries at most
+ *   {@link MAX_WILDCARDS_PER_REQUEST}; directories beyond that go out as their
+ *   exact paths in the SAME request, and after a `TooManyInvalidationsInProgress`
+ *   the queue sends exact paths only for {@link WILDCARD_COOLDOWN_MS}.
+ * - **Loud on failure, bounded in memory.** Every failure is logged at `error`.
+ *   A throttle retries with backoff and costs a path nothing; any other error
+ *   counts against each path in the batch, and a path is dropped — named in the
+ *   log — after {@link MAX_ATTEMPTS}. The queue holds at most
+ *   {@link MAX_PENDING_PATHS}; past that the OLDEST are dropped and named.
  * - **No-op without configuration.** With `CDN_CLOUDFRONT_DISTRIBUTION_ID`
  *   unset the queue logs ONE warning and does nothing, so this code can deploy
  *   before the IAM grant and the environment variable exist.
  *
  * The queue is per process and in memory: a task killed between a delete and
- * its flush loses that invalidation (the flush window is seconds, and
- * `flushCdnInvalidations` runs on graceful shutdown).
+ * its flush loses that invalidation. The flush window is seconds, and
+ * `flushCdnInvalidations` runs, time-boxed, on graceful shutdown.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -43,10 +47,19 @@ import { logger } from '../utils/logger';
 export const MAX_WILDCARDS_PER_REQUEST = 5;
 /** Exact paths per request (CloudFront's per-request ceiling is 3000). */
 export const MAX_EXACT_PATHS_PER_REQUEST = 1000;
-/** Attempts for a batch that fails with a non-throttling error before it is dropped. */
+/** Non-throttling failures a path survives before it is dropped. */
 export const MAX_ATTEMPTS = 5;
+/** Paths held while waiting; past this the oldest are dropped (and named). */
+export const MAX_PENDING_PATHS = 20_000;
+/** After CloudFront reports too many invalidations in progress, send no wildcards for this long. */
+export const WILDCARD_COOLDOWN_MS = 10 * 60_000;
+/** How long graceful shutdown waits for the final flush. */
+export const SHUTDOWN_FLUSH_TIMEOUT_MS = 5_000;
 const DEFAULT_FLUSH_DELAY_MS = 5_000;
 const MAX_RETRY_DELAY_MS = 5 * 60_000;
+/** CloudFront client timeouts: a hung control-plane call must not pin the queue. */
+const CLOUDFRONT_CONNECTION_TIMEOUT_MS = 3_000;
+const CLOUDFRONT_REQUEST_TIMEOUT_MS = 10_000;
 const THROTTLE_ERROR_NAMES = new Set([
   'TooManyInvalidationsInProgress',
   'Throttling',
@@ -63,6 +76,7 @@ export interface CdnInvalidationOptions {
   distributionId: string | undefined;
   sender?: InvalidationSender;
   flushDelayMs?: number;
+  now?: () => number;
 }
 
 /**
@@ -71,19 +85,31 @@ export interface CdnInvalidationOptions {
  * `public/variants/x.webp` is served at `/variants/x.webp`.
  */
 export function cdnPathForKey(key: string): string | null {
-  if (!key.startsWith(PUBLIC_KEY_PREFIX)) return null;
+  if (typeof key !== 'string' || !key.startsWith(PUBLIC_KEY_PREFIX)) return null;
   const rest = key.slice(PUBLIC_KEY_PREFIX.length);
   if (rest.length === 0) return null;
   return `/${rest}`;
 }
 
+export interface InvalidationPlan {
+  /** Wildcards sent, each standing for every path under its directory. */
+  wildcards: string[];
+  /** Exact paths sent. */
+  exact: string[];
+  /** The queued paths this plan covers (what leaves the queue if it succeeds). */
+  covered: string[];
+}
+
 /**
- * Collapse exact paths into the invalidation path list: two or more paths in the
- * same `/variants/…/` directory become that directory's wildcard.
+ * Choose one request's paths. Two or more paths in the same `/variants/…/`
+ * directory become that directory's wildcard, up to `wildcardBudget`; groups
+ * past the budget are sent as their exact paths instead of waiting. At most
+ * {@link MAX_EXACT_PATHS_PER_REQUEST} exact paths go per request; the rest stay
+ * queued for the next one.
  */
-export function planInvalidationPaths(paths: Iterable<string>): { exact: string[]; wildcards: string[] } {
+export function planInvalidationPaths(paths: Iterable<string>, wildcardBudget = MAX_WILDCARDS_PER_REQUEST): InvalidationPlan {
   const byVariantDir = new Map<string, string[]>();
-  const exact: string[] = [];
+  const singles: string[] = [];
   for (const path of new Set(paths)) {
     const slash = path.lastIndexOf('/');
     if (path.startsWith('/variants/') && slash > '/variants'.length) {
@@ -92,18 +118,25 @@ export function planInvalidationPaths(paths: Iterable<string>): { exact: string[
       group.push(path);
       byVariantDir.set(dir, group);
     } else {
-      exact.push(path);
+      singles.push(path);
     }
   }
+
   const wildcards: string[] = [];
-  for (const [dir, group] of byVariantDir) {
-    if (group.length >= 2) {
+  const covered: string[] = [];
+  const exactCandidates: string[] = [...singles];
+  for (const [dir, group] of [...byVariantDir].sort(([a], [b]) => a.localeCompare(b))) {
+    if (group.length >= 2 && wildcards.length < wildcardBudget) {
       wildcards.push(`${dir}/*`);
+      covered.push(...group);
     } else {
-      exact.push(...group);
+      exactCandidates.push(...group);
     }
   }
-  return { exact: exact.sort(), wildcards: wildcards.sort() };
+
+  const exact = exactCandidates.sort().slice(0, MAX_EXACT_PATHS_PER_REQUEST);
+  covered.push(...exact);
+  return { wildcards, exact, covered };
 }
 
 function errorName(error: unknown): string {
@@ -126,6 +159,11 @@ class CloudFrontSender implements InvalidationSender {
       this.client = new CloudFrontClient({
         region: process.env.AWS_REGION || 'us-east-1',
         ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
+        requestHandler: {
+          connectionTimeout: CLOUDFRONT_CONNECTION_TIMEOUT_MS,
+          requestTimeout: CLOUDFRONT_REQUEST_TIMEOUT_MS,
+        },
+        maxAttempts: 2,
       });
     }
     await this.client.send(
@@ -144,10 +182,15 @@ export class CdnInvalidationQueue {
   private readonly distributionId: string | undefined;
   private readonly sender: InvalidationSender;
   private readonly flushDelayMs: number;
+  private readonly now: () => number;
+  /** Insertion-ordered: the first entry is the oldest. */
   private readonly pending = new Set<string>();
+  /** Non-throttling failures per path. */
+  private readonly failures = new Map<string, number>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private flushing: Promise<void> | null = null;
   private consecutiveFailures = 0;
+  private wildcardsBlockedUntil = 0;
   private warnedUnconfigured = false;
 
   constructor(options: CdnInvalidationOptions) {
@@ -155,6 +198,7 @@ export class CdnInvalidationQueue {
     this.distributionId = id && id.length > 0 ? id : undefined;
     this.sender = options.sender ?? new CloudFrontSender();
     this.flushDelayMs = options.flushDelayMs ?? DEFAULT_FLUSH_DELAY_MS;
+    this.now = options.now ?? Date.now;
   }
 
   get enabled(): boolean {
@@ -182,6 +226,7 @@ export class CdnInvalidationQueue {
         return;
       }
       this.pending.add(path);
+      this.enforceCap();
       this.schedule(this.flushDelayMs);
     } catch (error) {
       logger.error('CDN invalidation enqueue failed', {
@@ -191,7 +236,7 @@ export class CdnInvalidationQueue {
     }
   }
 
-  /** Send everything pending now (graceful shutdown, tests). */
+  /** Send everything pending now (graceful shutdown, tests). Stops at the first failure. */
   async flush(): Promise<void> {
     if (this.timer) {
       clearTimeout(this.timer);
@@ -201,9 +246,27 @@ export class CdnInvalidationQueue {
       await this.flushing;
     }
     while (this.pending.size > 0) {
+      const before = this.pending.size;
       const sent = await this.flushOnce();
-      if (!sent) break;
+      // Stop on a failure, and on a pass that moved nothing (never spin).
+      if (!sent || this.pending.size >= before) break;
     }
+  }
+
+  private enforceCap(): void {
+    if (this.pending.size <= MAX_PENDING_PATHS) return;
+    const dropped: string[] = [];
+    for (const path of this.pending) {
+      if (this.pending.size <= MAX_PENDING_PATHS) break;
+      this.pending.delete(path);
+      this.failures.delete(path);
+      dropped.push(path);
+    }
+    logger.error('CDN invalidation queue full: DROPPED the oldest paths; these deleted objects remain cached at the CDN edge', {
+      distributionId: this.distributionId,
+      cap: MAX_PENDING_PATHS,
+      paths: dropped,
+    });
   }
 
   private schedule(delayMs: number): void {
@@ -227,7 +290,7 @@ export class CdnInvalidationQueue {
     return Math.min(this.flushDelayMs * 2 ** Math.max(this.consecutiveFailures, 1), MAX_RETRY_DELAY_MS);
   }
 
-  /** One CreateInvalidation. Returns false when it failed (paths are back in the queue or dropped). */
+  /** One CreateInvalidation. Returns false when it failed. */
   private async flushOnce(): Promise<boolean> {
     if (!this.distributionId || this.pending.size === 0) return true;
     const run = this.sendBatch(this.distributionId);
@@ -240,26 +303,27 @@ export class CdnInvalidationQueue {
   }
 
   private async sendBatch(distributionId: string): Promise<boolean> {
-    const plan = planInvalidationPaths(this.pending);
-    const wildcards = plan.wildcards.slice(0, MAX_WILDCARDS_PER_REQUEST);
-    const exact = plan.exact.slice(0, MAX_EXACT_PATHS_PER_REQUEST);
-    const batch = [...wildcards, ...exact];
-    // The source paths this batch covers, so exactly those leave the queue.
-    const exactSet = new Set(exact);
-    const wildcardDirs = wildcards.map((w) => w.slice(0, -1));
-    const covered = [...this.pending].filter(
-      (path) => exactSet.has(path) || wildcardDirs.some((dir) => path.startsWith(dir)),
-    );
-    for (const path of covered) this.pending.delete(path);
+    const wildcardBudget = this.now() < this.wildcardsBlockedUntil ? 0 : MAX_WILDCARDS_PER_REQUEST;
+    const plan = planInvalidationPaths(this.pending, wildcardBudget);
+    const batch = [...plan.wildcards, ...plan.exact];
+    if (batch.length === 0) {
+      logger.error('CDN invalidation planned an empty request; leaving the queue as it is', {
+        distributionId,
+        pending: this.pending.size,
+      });
+      return false;
+    }
+    for (const path of plan.covered) this.pending.delete(path);
 
     try {
-      await this.sender.send(distributionId, batch, `oxy-api-${Date.now()}-${randomUUID()}`);
+      await this.sender.send(distributionId, batch, `oxy-api-${this.now()}-${randomUUID()}`);
       this.consecutiveFailures = 0;
+      for (const path of plan.covered) this.failures.delete(path);
       logger.info('CDN invalidation requested', {
         distributionId,
         paths: batch.length,
-        wildcards: wildcards.length,
-        covers: covered.length,
+        wildcards: plan.wildcards.length,
+        covers: plan.covered.length,
       });
       return true;
     } catch (error) {
@@ -267,24 +331,38 @@ export class CdnInvalidationQueue {
       const name = errorName(error);
       const message = error instanceof Error ? error.message : String(error);
       const throttled = THROTTLE_ERROR_NAMES.has(name);
-      if (throttled || this.consecutiveFailures < MAX_ATTEMPTS) {
-        for (const path of covered) this.pending.add(path);
-        logger.error('CDN invalidation FAILED; deleted objects are still served from the CDN edge — will retry', {
-          distributionId,
-          errorName: name,
-          error: message,
-          attempt: this.consecutiveFailures,
-          paths: batch.length,
-          samplePaths: batch.slice(0, 5),
-        });
-      } else {
-        this.consecutiveFailures = 0;
+      if (name === 'TooManyInvalidationsInProgress') {
+        this.wildcardsBlockedUntil = this.now() + WILDCARD_COOLDOWN_MS;
+      }
+
+      const dropped: string[] = [];
+      for (const path of plan.covered) {
+        const failures = throttled ? this.failures.get(path) ?? 0 : (this.failures.get(path) ?? 0) + 1;
+        if (failures >= MAX_ATTEMPTS) {
+          this.failures.delete(path);
+          dropped.push(path);
+        } else {
+          this.failures.set(path, failures);
+          this.pending.add(path);
+        }
+      }
+      this.enforceCap();
+
+      logger.error('CDN invalidation FAILED; deleted objects are still served from the CDN edge — will retry', {
+        distributionId,
+        errorName: name,
+        error: message,
+        throttled,
+        consecutiveFailures: this.consecutiveFailures,
+        paths: batch.length,
+        samplePaths: batch.slice(0, 5),
+      });
+      if (dropped.length > 0) {
         logger.error('CDN invalidation DROPPED after repeated failures; these deleted objects remain cached at the CDN edge', {
           distributionId,
           errorName: name,
-          error: message,
           attempts: MAX_ATTEMPTS,
-          paths: batch,
+          paths: dropped,
         });
       }
       return false;
@@ -302,15 +380,31 @@ export function getCdnInvalidationQueue(): CdnInvalidationQueue {
   return singleton;
 }
 
-/** Graceful-shutdown hook: send whatever is pending. Never throws. */
-export async function flushCdnInvalidations(): Promise<void> {
-  if (!singleton) return;
+/** Graceful-shutdown hook: send whatever is pending, for at most `timeoutMs`. Never throws. */
+export async function flushCdnInvalidations(
+  queue: CdnInvalidationQueue | null = singleton,
+  timeoutMs = SHUTDOWN_FLUSH_TIMEOUT_MS,
+): Promise<void> {
+  if (!queue) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), timeoutMs);
+    timer.unref?.();
+  });
   try {
-    await singleton.flush();
+    const result = await Promise.race([queue.flush().then(() => 'done' as const), timedOut]);
+    if (result === 'timeout') {
+      logger.error('CDN invalidation flush on shutdown timed out; these deleted objects remain cached at the CDN edge', {
+        timeoutMs,
+        paths: queue.pendingPaths(),
+      });
+    }
   } catch (error) {
     logger.error('CDN invalidation flush on shutdown failed', {
       error: error instanceof Error ? error.message : String(error),
-      pending: singleton.pendingPaths().length,
+      paths: queue.pendingPaths(),
     });
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }

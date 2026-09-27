@@ -1,6 +1,17 @@
 /**
  * `storage_object_deletions` — S3 objects owed a delete because the account
- * that uploaded them was deleted (OxyHQ/Mention#1178).
+ * that uploaded them was deleted (OxyHQ/Mention#1178), or because one asset was
+ * deleted (`reason = 'file.deleted'`: `DELETE /assets/:id`, the federated media
+ * delete, cache eviction).
+ *
+ * The per-asset deletes used to remove the objects inline, after tombstoning the
+ * row, with no record: a failure left the bytes public and un-invalidated
+ * forever (a retry found the row already deleted), and the gap between the
+ * tombstone and the S3 deletes let a fresh upload of the same bytes take the
+ * content hash and then lose its objects to the purge. Recording the targets in
+ * the tombstone's transaction and deleting them through the worker's
+ * shared-content guard, under the content-hash lock
+ * (`services/contentHashLock.ts`), closes both.
  *
  * `files.owner_user_id` CASCADEs, so `DELETE /users/me` has always removed the
  * account's asset ROWS — and with them the only record of where the bytes are.
@@ -43,8 +54,13 @@ import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 
-/** Why the objects are owed a delete. One reason today; a closed set so a new one is a decision. */
-export const STORAGE_OBJECT_DELETION_REASONS = ['account.deleted'] as const;
+/**
+ * Why the objects are owed a delete; a closed set so a new one is a decision.
+ * `account.deleted`: every asset of a deleted account. `file.deleted`: one asset
+ * was tombstoned; `account_id` is then its owner, or `system:<namespace>` for a
+ * system-owned asset.
+ */
+export const STORAGE_OBJECT_DELETION_REASONS = ['account.deleted', 'file.deleted'] as const;
 
 /** `object`: one key. `prefix`: every key under a variant directory. */
 export const STORAGE_OBJECT_DELETION_KINDS = ['object', 'prefix'] as const;
@@ -71,7 +87,7 @@ export const storageObjectDeletions = pgTable(
   {
     id: generatedId(),
     reason: text({ enum: STORAGE_OBJECT_DELETION_REASONS }).notNull(),
-    /** The deleted account whose uploads these were. No foreign key: see the header. */
+    /** The account whose uploads these were (`system:<namespace>` for a system-owned asset). No foreign key: see the header. */
     accountId: text().notNull(),
     kind: text({ enum: STORAGE_OBJECT_DELETION_KINDS }).notNull(),
     /** The base key (or directory, ending in `/`), without the `public/` prefix. */
