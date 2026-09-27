@@ -101,8 +101,10 @@ jobs:
           SYNC_KAANA_EDGE_SIGNING_PRIVATE_KEY: ${{ secrets.KAANA_EDGE_SIGNING_PRIVATE_KEY }}
           SYNC_CAPABILITY_TICKET_SIGNING_PRIVATE_KEY: ${{ secrets.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY }}
           SYNC_CAPABILITY_TICKET_SIGNING_KEY_ID: ${{ secrets.CAPABILITY_TICKET_SIGNING_KEY_ID }}
-          # Instagram Graph (Business Discovery) fallback. Unset secrets are
-          # skipped below, so this writes nothing until an operator sets them.
+          # Instagram Graph (Business Discovery) fallback. Both are BOUND into the
+          # oxy-api task definition (TASK_SECRET_OVERRIDES_JSON below), so they are
+          # in BOUND_API_SECRETS too: an empty value fails this step instead of
+          # being skipped.
           SYNC_META_GRAPH_ACCESS_TOKEN: ${{ secrets.META_GRAPH_ACCESS_TOKEN }}
           SYNC_META_IG_BUSINESS_ACCOUNT_ID: ${{ secrets.META_IG_BUSINESS_ACCOUNT_ID }}
         run: |
@@ -122,6 +124,26 @@ jobs:
           # definition still READS the shared parameters; only the write is
           # gone, and scripts/check-deploy-secrets-sync.mjs refuses its return.
           API_SECRETS="ACCESS_TOKEN_SECRET REFRESH_TOKEN_SECRET SSO_INTERNAL_SECRET DATABASE_URL AWS_S3_BUCKET AWS_ENDPOINT_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET GITHUB_CLIENT_SECRET SMTP_TLS_KEY SMTP_TLS_CERT SMTP_RELAY_USER SMTP_RELAY_PASS EMAIL_INBOUND_WEBHOOK_SECRET DKIM_PRIVATE_KEY EMAIL_S3_ACCESS_KEY_ID EMAIL_S3_SECRET_ACCESS_KEY DEVICE_ID_SALT OXY_PUBLIC_KEY OXY_PRIVATE_KEY KAANA_EDGE_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_KEY_ID META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID"
+
+          # Secrets the task definition BINDS by exact ARN (TASK_SECRET_OVERRIDES_JSON
+          # in the deploy step) whose parameter only this sync ever creates. A task
+          # definition naming a parameter that does not exist registers fine and
+          # then cannot START (`ResourceInitializationError: unable to pull
+          # secrets`), and at desired count 0 nobody sees it until scale-up. So a
+          # missing value here is not skipped with a warning like the rest: it
+          # fails the job HERE, before any SSM write, image rollout or
+          # task-definition registration. A value present here is written by the
+          # loop below in this same run, so by the time the deploy step registers
+          # a revision naming it, the parameter exists.
+          # scripts/check-deploy-secrets-sync.mjs holds each name to both lists.
+          BOUND_API_SECRETS="META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID"
+          for k in $BOUND_API_SECRETS; do
+            v=$(printenv "SYNC_$k" || true)
+            if [ -z "$v" ] || [ "$v" = "-" ]; then
+              echo "::error::secrets.$k is empty or a placeholder, but the oxy-api task definition binds /oxy/$APP/$k. Set the real value (never a placeholder) and re-run; nothing was synced or registered."
+              exit 1
+            fi
+          done
 
           for k in $API_SECRETS; do
             v=$(printenv "SYNC_$k" || true)
@@ -400,8 +422,14 @@ jobs:
           # SERVICE_TOKEN_SIGNING_KEY_ID live only in SSM, and binding them makes
           # oxy-api mint EdDSA service tokens and publish the key at
           # /.well-known/jwks.json for external verifiers (Alia, Homiio, …).
+          # META_GRAPH_ACCESS_TOKEN / META_IG_BUSINESS_ACCOUNT_ID are the Instagram
+          # Graph fallback's credentials. Unlike the SSM-only keys above they are
+          # GitHub secrets, synced by the first step; BOUND_API_SECRETS there
+          # refuses the whole run when either is unset, so this binding can never
+          # name a parameter that does not exist. The feature itself stays off
+          # until vars.INSTAGRAM_GRAPH_FALLBACK_ENABLED is "true".
           TASK_SECRET_OVERRIDES_JSON: >-
-            {"SERVICE_TOKEN_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY","SERVICE_TOKEN_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID","CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET","QUEUE_REDIS_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL"}
+            {"SERVICE_TOKEN_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY","SERVICE_TOKEN_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID","CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET","QUEUE_REDIS_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL","META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_GRAPH_ACCESS_TOKEN","META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID"}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
