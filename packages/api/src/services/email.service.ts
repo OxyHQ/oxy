@@ -58,6 +58,7 @@ import {
   DEFAULT_MAILBOXES,
   EMAIL_QUOTAS,
   EMAIL_DOMAIN,
+  extractUsername,
   resolveEmailAddress,
   type SubscriptionTier,
 } from '../config/email.config';
@@ -72,6 +73,7 @@ import { smtpOutbound } from './smtp.outbound';
 import { sendInboxEmailPush } from './emailPushDelivery.service';
 import { emitEmailNew, emitEmailChanged } from './inboxRealtime';
 import { parseInboundMime } from './inboundMime';
+import { OXY_SENT_ID_HEADER } from './relayMessageId';
 import { assetService } from './assetServiceSingleton';
 import { idempotentMessageId } from './emailIdempotency';
 import { emailSavedSearches, type SavedEmailSearchFilters } from '../db/schema/emailSavedSearches';
@@ -673,18 +675,21 @@ function threadKeys(alias: string): SQL {
   const table = sql.raw(alias);
   return sql`(${table}."references"
     || case when ${table}.in_reply_to is null then '{}'::text[] else array[${table}.in_reply_to] end
+    || case when ${table}.relay_message_id is null then '{}'::text[] else array[${table}.relay_message_id] end
     || array[${table}.message_id])`;
 }
 
 /**
  * The adjacency predicate, decomposed so each arm can use an index:
- * `messages_user_id_message_id_idx`, `messages_user_id_in_reply_to_idx` and the
- * GIN `messages_references_idx` respectively. Written as one array overlap it
+ * `messages_user_id_message_id_idx`, `messages_user_id_relay_message_id_idx`,
+ * `messages_user_id_in_reply_to_idx` and the GIN `messages_references_idx`
+ * respectively. Written as one array overlap it
  * would be a sequential scan of every message the user owns.
  */
 function threadAdjacency(alias: string, keys: SQL): SQL {
   const table = sql.raw(alias);
   return sql`(${table}.message_id = any(${keys})
+    or ${table}.relay_message_id = any(${keys})
     or ${table}.in_reply_to = any(${keys})
     or ${table}.references && ${keys})`;
 }
@@ -1606,7 +1611,8 @@ class EmailService {
       )
       select walk.root_id as "rootId",
              min(walk.id) as "threadId",
-             count(distinct walk.id)::int as "threadCount",
+             -- A copy of the user's own Sent message is the same message.
+             (count(distinct walk.id) filter (where member.sent_copy_of is null))::int as "threadCount",
              array_agg(distinct member.from_address) as participants
       from walk
       join messages member on member.id = walk.id
@@ -1715,6 +1721,38 @@ class EmailService {
       reason: 'moved',
     });
     return dto;
+  }
+
+  /**
+   * The Sent row an inbound message is a copy of, when the user is receiving
+   * their OWN outbound mail back (they addressed themselves, or were on the
+   * list they replied to).
+   *
+   * Recognised by the `X-Oxy-Sent-Id` header every user message goes out with
+   * — the relay may have replaced `Message-ID`, it does not touch that header —
+   * and only when the message is from the user's own address and names a
+   * message in their own Sent mailbox. A stranger copying the header onto mail
+   * from another address links nothing.
+   */
+  private async findOwnSentOriginal(
+    userId: string,
+    recipientUsername: string,
+    fromAddress: string,
+    headers: Record<string, string>,
+  ): Promise<string | null> {
+    const sentId = headers[OXY_SENT_ID_HEADER.toLowerCase()]?.trim();
+    if (!sentId) return null;
+    if (extractUsername(fromAddress.trim().toLowerCase())?.toLowerCase() !== recipientUsername.trim().toLowerCase()) {
+      return null;
+    }
+    const sent = await this.getMailboxBySpecialUse(userId, '\\Sent');
+    if (!sent) return null;
+    const [original] = await getDb()
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.userId, userId), eq(messages.mailboxId, sent.id), eq(messages.messageId, sentId)))
+      .limit(1);
+    return original?.id ?? null;
   }
 
   /**
@@ -1922,6 +1960,8 @@ class EmailService {
       params.rawSize +
       storedAttachments.reduce((sum, a) => sum + a.size, 0);
 
+    const sentCopyOf = await this.findOwnSentOriginal(userId, params.recipientUsername, params.from.address, params.headers);
+
     const receivedAt = new Date();
     const storedMessageId = await insertMessageWithChildren(
       db,
@@ -1941,6 +1981,7 @@ class EmailService {
         inReplyTo: params.inReplyTo,
         references: params.references ?? [],
         aliasTag: params.aliasTag,
+        sentCopyOf,
         readReceiptRequested: Boolean(params.headers['disposition-notification-to']),
         date: params.date,
         receivedAt,
@@ -2256,6 +2297,8 @@ class EmailService {
     userId: string,
     messageData: {
       messageId: string;
+      /** The id the relay delivered it under, when it replaced ours. */
+      relayMessageId?: string | null;
       from: EmailAddress;
       to: EmailAddress[];
       cc?: EmailAddress[];
@@ -2285,6 +2328,7 @@ class EmailService {
         userId,
         mailboxId: sentMailbox.id,
         messageId: messageData.messageId,
+        relayMessageId: messageData.relayMessageId ?? null,
         fromName: messageData.from.name?.trim() ? messageData.from.name.trim() : null,
         fromAddress: messageData.from.address.trim().toLowerCase(),
         subject: messageData.subject,
@@ -2515,7 +2559,7 @@ class EmailService {
         const group = recipients.get(msg.id) ?? emptyRecipients();
         const attachments = await loadOutboundAttachments(db, msg.id);
 
-        await smtpOutbound.sendRaw({
+        const { relayMessageId } = await smtpOutbound.sendRaw({
           userId: msg.userId,
           messageId: msg.messageId,
           from: { name: msg.fromName ?? '', address: msg.fromAddress },
@@ -2531,7 +2575,7 @@ class EmailService {
         });
 
         // Clear scheduledAt to mark as sent
-        await db.update(messages).set({ scheduledAt: null }).where(eq(messages.id, msg.id));
+        await db.update(messages).set({ scheduledAt: null, relayMessageId }).where(eq(messages.id, msg.id));
         count++;
       } catch (err) {
         logger.error('Failed to send scheduled message', err instanceof Error ? err : new Error(String(err)), {
@@ -2590,7 +2634,12 @@ class EmailService {
       .where(inArray(messages.id, memberRows.map((row) => row.id)))
       .orderBy(asc(messages.date), asc(messages.id));
 
-    const thread = await toMessageDtos(db, rows);
+    // A message the user sent to a list that included themselves arrives back
+    // as a second row. The conversation shows it once: the Sent copy.
+    const memberIds = new Set(rows.map((row) => row.id));
+    const shown = rows.filter((row) => row.sentCopyOf === null || !memberIds.has(row.sentCopyOf));
+
+    const thread = await toMessageDtos(db, shown);
     const stableThreadId = memberRows
       .map((row) => row.id)
       .sort()[0];

@@ -20,7 +20,7 @@ export async function processEmailOutbox(): Promise<number> {
     const row = await claimEmailOutbox(workerId);
     if (!row) break;
     try {
-      await smtpOutbound.sendRaw({ ...row.payload, userId: row.userId, messageId: row.messageId });
+      const { relayMessageId } = await smtpOutbound.sendRaw({ ...row.payload, userId: row.userId, messageId: row.messageId });
       // A worker can crash after SMTP accepts the message but before the row
       // is marked sent. The stable RFC Message-ID makes this recovery
       // idempotent in the Sent mailbox as well.
@@ -29,6 +29,7 @@ export async function processEmailOutbox(): Promise<number> {
         const size = Buffer.byteLength(`${row.payload.text ?? ''}${row.payload.html ?? ''}`, 'utf8');
         await emailService.storeSentMessage(row.userId, {
           messageId: row.messageId,
+          relayMessageId,
           from: row.payload.from,
           to: row.payload.to,
           cc: row.payload.cc,

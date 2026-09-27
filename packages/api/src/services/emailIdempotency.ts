@@ -12,10 +12,3 @@ export function idempotentMessageId(userId: string, idempotencyKey: string): str
     .slice(0, 40);
   return `<${digest}@${EMAIL_DOMAIN}>`;
 }
-
-export function idempotencyCacheKey(userId: string, idempotencyKey: string): string {
-  const digest = createHash('sha256')
-    .update(`${userId}\0${idempotencyKey}`)
-    .digest('hex');
-  return `email:send:idempotency:${digest}`;
-}

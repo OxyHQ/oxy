@@ -45,6 +45,7 @@
 
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -208,6 +209,24 @@ export const messages = pgTable(
      */
     size: bigint({ mode: 'number' }).notNull(),
 
+    /**
+     * The `Message-ID` the RELAY gave a message we sent, when it replaced ours.
+     *
+     * SES rewrites `Message-ID` to `<id@region.amazonses.com>`, so a recipient's
+     * reply names THAT id in `In-Reply-To`, never `message_id`. Carrying it as a
+     * thread key is what lets the answer join the conversation it answers.
+     * NULL for received mail and for relays that keep our header.
+     */
+    relayMessageId: text(),
+    /**
+     * For received mail that is the sender's OWN outbound message coming back
+     * (they addressed themselves, or were on the recipient list): the Sent row
+     * it is a copy of, matched by the `X-Oxy-Sent-Id` header we stamp on send.
+     * A conversation shows that message once, not twice. `SET NULL`: deleting the
+     * Sent copy leaves this one an ordinary message.
+     */
+    sentCopyOf: text().references((): AnyPgColumn => messages.id, { onDelete: 'set null' }),
+
     /** RFC `In-Reply-To`. */
     inReplyTo: text(),
     /** RFC `References`, ordered oldest-first. Mongo defaulted to `[]`. */
@@ -264,6 +283,9 @@ export const messages = pgTable(
     // containment read here.
     index('messages_user_id_message_id_idx').on(t.userId, t.messageId),
     index('messages_user_id_in_reply_to_idx').on(t.userId, t.inReplyTo),
+    index('messages_user_id_relay_message_id_idx')
+      .on(t.userId, t.relayMessageId)
+      .where(sql`${t.relayMessageId} is not null`),
     index('messages_references_idx').using('gin', t.references),
     // (5) Unread. Mongo's `{userId, 'flags.seen', mailboxId}` indexed BOTH
     // values of a boolean; only `seen = false` is ever queried

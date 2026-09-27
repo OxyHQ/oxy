@@ -13,9 +13,16 @@ import type { MessageAttachment } from '../db/schema/messageAttachments';
 import type { EmailAddress } from '../db/schema/messages';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
-import { getRedisClient } from '../config/redis';
-import { idempotencyCacheKey as buildIdempotencyCacheKey, idempotentMessageId } from './emailIdempotency';
-import { enqueueEmailOutbox } from './emailOutbox.service';
+import { idempotentMessageId } from './emailIdempotency';
+import {
+  claimIdempotentSend,
+  enqueueEmailOutbox,
+  markEmailOutboxFailed,
+  markEmailOutboxSent,
+  releaseIdempotentSend,
+} from './emailOutbox.service';
+import { OXY_SENT_ID_HEADER, relayAssignedMessageId } from './relayMessageId';
+import type { EmailOutboxPayload } from '../db/schema/emailOutbox';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
 import { ServiceUnavailableError } from '../utils/error';
 
@@ -42,6 +49,23 @@ const SECURE_MAIL_CONTENT_OPTIONS = {
   disableFileAccess: true,
   disableUrlAccess: true,
 } satisfies Pick<SMTPTransport.Options, 'disableFileAccess' | 'disableUrlAccess'>;
+
+/** What the durable outbox keeps to deliver a message later. */
+function outboxPayload(message: OutboundMessage): EmailOutboxPayload {
+  return {
+    from: message.from,
+    to: message.to,
+    cc: message.cc,
+    bcc: message.bcc,
+    subject: message.subject,
+    text: message.text,
+    html: message.html,
+    inReplyTo: message.inReplyTo,
+    references: message.references,
+    attachments: message.attachments,
+    requestReadReceipt: message.requestReadReceipt,
+  };
+}
 
 /**
  * Thrown when outbound email cannot be attempted at all because the relay is
@@ -129,7 +153,6 @@ function isRelayTransportFailure(error: unknown): boolean {
 
 class SmtpOutboundService {
   private transporters = new Map<string, Transporter>();
-  private idempotencyInFlight = new Map<string, Promise<{ messageId: string; queued: boolean }>>();
 
   /** The configured relays, in preference order. */
   private get relays(): SmtpRelayConfig[] {
@@ -180,20 +203,22 @@ class SmtpOutboundService {
    * transport, the LAST error propagates — it is the one describing the state
    * the system ended in.
    */
-  private async deliverThroughRelays(mailOptions: Parameters<Transporter['sendMail']>[0]): Promise<void> {
+  private async deliverThroughRelays(
+    mailOptions: Parameters<Transporter['sendMail']>[0],
+  ): Promise<{ relayMessageId: string | null }> {
     const relays = this.relays;
     let lastError: unknown;
     for (let i = 0; i < relays.length; i++) {
       const relay = relays[i];
       try {
-        await this.transporterFor(relay).sendMail(mailOptions);
+        const info: { response?: string } = await this.transporterFor(relay).sendMail(mailOptions);
         if (i > 0) {
           logger.warn('Outbound email delivered through a fallback relay', {
             relay: relay.name,
             skipped: relays.slice(0, i).map((r) => r.name).join(', '),
           });
         }
-        return;
+        return { relayMessageId: relayAssignedMessageId(relay.host, info.response) };
       } catch (error) {
         lastError = error;
         if (!isRelayTransportFailure(error) || i === relays.length - 1) throw error;
@@ -210,72 +235,86 @@ class SmtpOutboundService {
     throw lastError;
   }
 
-  async send(message: OutboundMessage): Promise<{ messageId: string; queued: boolean }> {
-    const messageId = message.idempotencyKey
-      ? idempotentMessageId(message.userId, message.idempotencyKey)
-      : `<${uuidv4()}@${EMAIL_DOMAIN}>`;
-    const idempotencyCacheKey = message.idempotencyKey
-      ? buildIdempotencyCacheKey(message.userId, message.idempotencyKey)
-      : null;
-    const redis = idempotencyCacheKey ? getRedisClient() : null;
-    if (redis && redis.status === 'ready' && idempotencyCacheKey) {
-      const cached = await redis.get(idempotencyCacheKey);
-      if (cached) return JSON.parse(cached) as { messageId: string; queued: boolean };
-    }
-    if (message.idempotencyKey) {
-      const inFlightKey = `${message.userId}:${message.idempotencyKey}`;
-      const inFlight = this.idempotencyInFlight.get(inFlightKey);
-      if (inFlight) return inFlight;
-
-      const operation = this.sendOnce(message, messageId, redis, idempotencyCacheKey);
-      this.idempotencyInFlight.set(inFlightKey, operation);
-      try {
-        return await operation;
-      } finally {
-        if (this.idempotencyInFlight.get(inFlightKey) === operation) {
-          this.idempotencyInFlight.delete(inFlightKey);
-        }
-      }
-    }
-    return this.sendOnce(message, messageId, redis, idempotencyCacheKey);
-  }
-
-  private async sendOnce(
+  /**
+   * The nodemailer options for one user message. `X-Oxy-Sent-Id` carries OUR
+   * Message-ID through relays that replace the header (SES does), so when the
+   * message comes back to one of our own users — a sender on their own
+   * recipient list — it can be recognised as the copy of a Sent row.
+   */
+  private mailOptionsFor(
     message: OutboundMessage,
     messageId: string,
-    redis: ReturnType<typeof getRedisClient>,
-    idempotencyCacheKey: string | null,
-  ): Promise<{ messageId: string; queued: boolean }> {
-    if (message.idempotencyKey) {
-      const existing = await emailService.findMessageByRfcMessageId(message.userId, messageId);
-      if (existing) return { messageId, queued: false };
-    }
-    const nmAttachments = await this.resolveAttachments(message.attachments || []);
-
-    const mailOptions = {
+    attachments: Awaited<ReturnType<SmtpOutboundService['resolveAttachments']>>,
+  ): Parameters<Transporter['sendMail']>[0] {
+    const format = (a: EmailAddress) => (a.name ? `${a.name} <${a.address}>` : a.address);
+    const sender = `${message.from.name || ''} <${message.from.address}>`.trim();
+    return {
       messageId,
-      from: `${message.from.name || ''} <${message.from.address}>`.trim(),
-      to: message.to.map((a) => (a.name ? `${a.name} <${a.address}>` : a.address)).join(', '),
-      cc: message.cc?.map((a) => (a.name ? `${a.name} <${a.address}>` : a.address)).join(', '),
-      bcc: message.bcc?.map((a) => (a.name ? `${a.name} <${a.address}>` : a.address)).join(', '),
+      from: sender,
+      to: message.to.map(format).join(', '),
+      cc: message.cc?.map(format).join(', '),
+      bcc: message.bcc?.map(format).join(', '),
       subject: message.subject,
       text: message.text,
       html: message.html,
       inReplyTo: message.inReplyTo,
       references: message.references?.join(' '),
-      attachments: nmAttachments,
-      headers: message.requestReadReceipt
-        ? { 'Disposition-Notification-To': `${message.from.name || ''} <${message.from.address}>`.trim() }
-        : undefined,
+      attachments,
+      headers: {
+        [OXY_SENT_ID_HEADER]: messageId,
+        ...(message.requestReadReceipt ? { 'Disposition-Notification-To': sender } : {}),
+      },
       ...SECURE_MAIL_CONTENT_OPTIONS,
     };
+  }
 
+  /**
+   * Send a user's message and file it in their Sent mailbox.
+   *
+   * With an `idempotencyKey`, the send is first CLAIMED durably
+   * ({@link claimIdempotentSend}): a retry of the same key — from a client that
+   * timed out while the relay was still talking, from a double press, or on
+   * another API task — returns the first attempt's outcome instead of sending
+   * again. `queued: true` then means "accepted and still in flight or waiting
+   * to retry"; the outbox shows which.
+   */
+  async send(message: OutboundMessage): Promise<{ messageId: string; queued: boolean }> {
+    if (!message.idempotencyKey) {
+      return this.deliverAndStore(message, `<${uuidv4()}@${EMAIL_DOMAIN}>`, null);
+    }
+
+    const messageId = idempotentMessageId(message.userId, message.idempotencyKey);
+    // Delivered and filed before the outbox row existed, or before it was kept.
+    if (await emailService.findMessageByRfcMessageId(message.userId, messageId)) {
+      return { messageId, queued: false };
+    }
+
+    const claim = await claimIdempotentSend({
+      userId: message.userId,
+      idempotencyKey: message.idempotencyKey,
+      messageId,
+      payload: outboxPayload(message),
+      owner: `request:${uuidv4()}`,
+    });
+    if (!claim.claimed) {
+      return { messageId: claim.existing.messageId, queued: claim.existing.status !== 'sent' };
+    }
+    return this.deliverAndStore(message, messageId, claim.outboxId);
+  }
+
+  private async deliverAndStore(
+    message: OutboundMessage,
+    messageId: string,
+    outboxId: string | null,
+  ): Promise<{ messageId: string; queued: boolean }> {
     try {
-      await this.deliverThroughRelays(mailOptions);
+      const attachments = await this.resolveAttachments(message.attachments || []);
+      const { relayMessageId } = await this.deliverThroughRelays(this.mailOptionsFor(message, messageId, attachments));
 
       const size = Buffer.byteLength((message.text || '') + (message.html || ''), 'utf8');
       await emailService.storeSentMessage(message.userId, {
         messageId,
+        relayMessageId,
         from: message.from,
         to: message.to,
         cc: message.cc,
@@ -288,22 +327,20 @@ class SmtpOutboundService {
         attachments: message.attachments,
         size,
       });
+      if (outboxId) await markEmailOutboxSent(outboxId);
 
       logger.info('Email sent', {
         messageId,
         to: message.to.map((a) => a.address).join(', '),
       });
-
-      const result = { messageId, queued: false };
-      if (redis && idempotencyCacheKey && redis.status === 'ready') {
-        await redis.set(idempotencyCacheKey, JSON.stringify(result), 'EX', 24 * 60 * 60);
-      }
-      return result;
+      return { messageId, queued: false };
     } catch (error) {
       if (!isRetryableSmtpFailure(error)) {
         // Permanent. Do NOT queue: a row in the outbox is a promise that this
-        // message will go out later, and that promise would be a lie. Let it
-        // propagate so the caller answers with a real failure.
+        // message will go out later, and that promise would be a lie. Give the
+        // claim back and let it propagate so the caller answers with a real
+        // failure — and a corrected retry with the same key can try again.
+        if (outboxId) await releaseIdempotentSend(outboxId);
         logger.error(
           'Email send permanently rejected; not queued',
           error instanceof Error ? error : new Error(String(error)),
@@ -312,47 +349,37 @@ class SmtpOutboundService {
         throw error;
       }
       logger.error('Email send failed, queuing for retry', error instanceof Error ? error : new Error(String(error)));
-      await this.enqueue({ ...message, messageId });
-      const result = { messageId, queued: true };
-      if (redis && idempotencyCacheKey && redis.status === 'ready') {
-        await redis.set(idempotencyCacheKey, JSON.stringify(result), 'EX', 24 * 60 * 60);
+      const nextAttemptAt = new Date(Date.now() + SMTP_OUTBOUND_CONFIG.retryDelays[0]);
+      if (outboxId) {
+        await markEmailOutboxFailed(outboxId, error, nextAttemptAt);
+      } else {
+        await enqueueEmailOutbox({
+          userId: message.userId,
+          messageId,
+          payload: outboxPayload(message),
+          nextAttemptAt,
+        });
       }
-      return result;
+      logger.warn('Email persisted in durable outbox', { messageId });
+      return { messageId, queued: true };
     }
   }
 
   /**
-   * Send a message via SMTP without storing it in the Sent mailbox.
-   * Used for scheduled messages that are already stored.
+   * Send a message via SMTP without storing it in the Sent mailbox — for mail
+   * that is already stored (scheduled, outbox) or never is (forwarding).
+   * Returns the id the relay substituted for ours, if it did.
    */
-  async sendRaw(message: OutboundMessage): Promise<void> {
+  async sendRaw(message: OutboundMessage): Promise<{ relayMessageId: string | null }> {
     const messageId = message.messageId ?? `<${uuidv4()}@${EMAIL_DOMAIN}>`;
-    const nmAttachments = await this.resolveAttachments(message.attachments || []);
+    const attachments = await this.resolveAttachments(message.attachments || []);
+    const delivered = await this.deliverThroughRelays(this.mailOptionsFor(message, messageId, attachments));
 
-    const mailOptions = {
-      messageId,
-      from: `${message.from.name || ''} <${message.from.address}>`.trim(),
-      to: message.to.map((a) => (a.name ? `${a.name} <${a.address}>` : a.address)).join(', '),
-      cc: message.cc?.map((a) => (a.name ? `${a.name} <${a.address}>` : a.address)).join(', '),
-      bcc: message.bcc?.map((a) => (a.name ? `${a.name} <${a.address}>` : a.address)).join(', '),
-      subject: message.subject,
-      text: message.text,
-      html: message.html,
-      inReplyTo: message.inReplyTo,
-      references: message.references?.join(' '),
-      attachments: nmAttachments,
-      headers: message.requestReadReceipt
-        ? { 'Disposition-Notification-To': `${message.from.name || ''} <${message.from.address}>`.trim() }
-        : undefined,
-      ...SECURE_MAIL_CONTENT_OPTIONS,
-    };
-
-    await this.deliverThroughRelays(mailOptions);
-
-    logger.info('Scheduled email sent', {
+    logger.info('Raw email sent', {
       messageId,
       to: message.to.map((a) => a.address).join(', '),
     });
+    return delivered;
   }
 
   /**
@@ -485,31 +512,6 @@ class SmtpOutboundService {
     );
 
     return results.filter((r): r is ResolvedAttachment => r !== null);
-  }
-
-  // --- Durable retry queue ---
-
-  private async enqueue(message: OutboundMessage & { messageId: string }): Promise<void> {
-    await enqueueEmailOutbox({
-      userId: message.userId,
-      messageId: message.messageId,
-      idempotencyKey: message.idempotencyKey,
-      payload: {
-        from: message.from,
-        to: message.to,
-        cc: message.cc,
-        bcc: message.bcc,
-        subject: message.subject,
-        text: message.text,
-        html: message.html,
-        inReplyTo: message.inReplyTo,
-        references: message.references,
-        attachments: message.attachments,
-        requestReadReceipt: message.requestReadReceipt,
-      },
-      nextAttemptAt: new Date(Date.now() + SMTP_OUTBOUND_CONFIG.retryDelays[0]),
-    });
-    logger.warn('Email persisted in durable outbox', { messageId: message.messageId });
   }
 
   shutdown(): void {
