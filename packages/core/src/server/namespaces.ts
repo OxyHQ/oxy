@@ -150,8 +150,17 @@ export class ServerAssetsApi extends AssetsApi {
    * with a public `url` for active public assets. Malformed hashes are dropped
    * client-side; the server omits unknown ones, so map by `sha256`. A failed
    * chunk is logged and skipped. Never cached.
+   *
+   * Asset rows are per owner. Pass `ownerUserId` to resolve each hash to THAT
+   * account's own row — the id it may attach to its own content. Without it,
+   * each hash resolves to the oldest live row of any owner: fine for "is this
+   * stored" and for the public `url`, but that id belongs to whoever uploaded
+   * first.
    */
-  async metadataBySha256(sha256s: string[]): Promise<ServiceAssetMetadataBySha[]> {
+  async metadataBySha256(
+    sha256s: string[],
+    options: { ownerUserId?: string } = {},
+  ): Promise<ServiceAssetMetadataBySha[]> {
     const unique = Array.from(
       new Set(
         sha256s
@@ -165,7 +174,8 @@ export class ServerAssetsApi extends AssetsApi {
     const settled = await Promise.all(
       chunk(unique, SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE).map(async (part): Promise<ServiceAssetMetadataBySha[]> => {
         try {
-          const entries = await lane(this.ctx).request<ServiceAssetMetadataBySha[]>('POST', '/assets/service/by-sha256', { sha256s: part });
+          const body = options.ownerUserId ? { sha256s: part, ownerUserId: options.ownerUserId } : { sha256s: part };
+          const entries = await lane(this.ctx).request<ServiceAssetMetadataBySha[]>('POST', '/assets/service/by-sha256', body);
           return Array.isArray(entries) ? entries : [];
         } catch (error: unknown) {
           logger.warn('assets.metadataBySha256: chunk failed, continuing with remaining chunks', {

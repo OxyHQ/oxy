@@ -83,6 +83,21 @@ describe('OxyServer.assets.metadataBySha256', () => {
     );
   });
 
+  it('scopes every chunk to an owner when asked, and sends no owner otherwise', async () => {
+    serviceRequestSpy.mockResolvedValue([]);
+
+    await oxy.assets.metadataBySha256(['a'.repeat(64)], { ownerUserId: 'owner-1' });
+    await oxy.assets.metadataBySha256(['b'.repeat(64)]);
+
+    expect(serviceRequestSpy).toHaveBeenNthCalledWith(1, 'POST', '/assets/service/by-sha256', {
+      sha256s: ['a'.repeat(64)],
+      ownerUserId: 'owner-1',
+    });
+    expect(serviceRequestSpy).toHaveBeenNthCalledWith(2, 'POST', '/assets/service/by-sha256', {
+      sha256s: ['b'.repeat(64)],
+    });
+  });
+
   it('chunks at 100 hashes per request and merges each chunk', async () => {
     // 250 distinct valid hex digests.
     const shas = Array.from({ length: 250 }, (_, i) =>
