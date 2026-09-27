@@ -2,20 +2,22 @@
  * One lock per content hash, shared by everything that makes stored bytes
  * belong to a LIVE row and everything that deletes stored bytes.
  *
- * Storage is content-addressed: every asset with the same `sha256` uses the
- * same keys (`content/…/<sha>.<ext>`, `variants/…/<sha>/…`), and at most one
- * live row may hold a hash (`files_sha256_live_key`). Deleting an asset
- * tombstones its row first — which frees the hash — and removes the objects
- * afterwards. In that gap a fresh upload of the same bytes can insert a new live
- * row on the same keys, and the purge then deletes the new row's bytes: a
- * permanent 404 for somebody else's upload.
+ * Storage is content-addressed and SHARED: every owner's row for the same
+ * `sha256` points at the same keys (`content/…/<sha>.<ext>`,
+ * `variants/…/<sha>/…`), one live row per owner. Deleting an asset tombstones
+ * its row first and removes the objects afterwards, and only the spellings no
+ * live row still uses. In that gap a fresh upload of the same bytes — by anyone
+ * — can insert a new live row on the same keys, and an unguarded purge would
+ * then delete the new row's bytes: a permanent 404 for somebody else's upload.
  *
- * The purge therefore re-checks "does a live row hold this hash?" and deletes
- * only while holding this lock, and every path that creates a new live row takes
- * the same lock around its insert (and, where the object is written BEFORE the
- * row, around that write too). Either the insert commits first and the purge
- * sees it and keeps the bytes (`retained_shared`), or the purge finishes first
- * and the upload writes its bytes after.
+ * The purge therefore re-checks "does a live row use this key?" and deletes
+ * only while holding this lock, and every path that makes a live row use a key
+ * takes the same lock: the insert of a new row (with the choice of which
+ * existing key it shares, and — where the object is written BEFORE the row —
+ * that write), and the copy-and-repoint of a visibility relocation. Either the
+ * row commits first and the purge sees it and keeps the bytes
+ * (`retained_shared`), or the purge finishes first and the upload writes its
+ * bytes after.
  *
  * A transaction-scoped advisory lock (`pg_advisory_xact_lock`): released on
  * commit or rollback, so a crashed holder cannot strand it. The callback gets

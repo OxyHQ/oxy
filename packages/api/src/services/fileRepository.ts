@@ -28,12 +28,12 @@
  * order twice in a row.
  */
 
-import { and, asc, count, desc, eq, exists, inArray, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, inArray, ne, notExists, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { fileLinks, fileVariants, files, users } from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
 import { messageAttachments } from '../db/schema/messageAttachments';
-import type { FileLinkRecord, FileRecord, FileVariantRecord, NewFileVariant } from '../types/file.types';
+import type { FileLinkRecord, FileOwner, FileRecord, FileVariantRecord, NewFileVariant } from '../types/file.types';
 
 /** Columns a caller may set when creating a file row. */
 export type NewFile = typeof files.$inferInsert;
@@ -47,10 +47,11 @@ export type NewFileLink = Omit<typeof fileLinks.$inferInsert, 'fileId'>;
 /**
  * Postgres `unique_violation`.
  *
- * The one that matters here is `files_sha256_live_key`, the partial unique that
- * makes content-addressed dedup a database invariant rather than a hope: two
- * concurrent uploads of identical bytes race, one inserts, the other lands here
- * and re-reads the winner. Mongo's equivalent was `E11000`/`code: 11000`.
+ * The ones that matter here are the per-owner partial uniques
+ * (`files_sha256_owner_user_live_key`, `files_sha256_system_owner_live_key`)
+ * that make per-owner dedup a database invariant rather than a hope: two
+ * concurrent uploads of identical bytes BY ONE OWNER race, one inserts, the
+ * other lands here and re-reads the winner. Mongo's equivalent was `E11000`/`code: 11000`.
  *
  * **The cause chain is not optional.** Drizzle does not surface the driver's
  * error: it throws its own `Failed query: …` `Error` with the postgres.js error
@@ -136,36 +137,115 @@ export async function findFilesByIds(fileIds: string[]): Promise<FileRecord[]> {
 }
 
 /**
- * The live (non-tombstone) record holding this content, if any.
+ * The live (non-tombstone) row THIS owner holds for this content, if any.
+ *
+ * Owner-scoped on purpose: another owner's row for the same bytes is never an
+ * answer to "does this uploader already have it" — returning it handed that
+ * owner's id, links and delete authority to the uploader. Storage is shared
+ * through {@link findLiveStorageSourceBySha256} instead, which returns a KEY to
+ * reuse, never a row to hand out.
  *
  * `deleted` is excluded deliberately: a tombstone is a deletion intent, not a
- * reusable asset, and reviving one under the next uploader's ownership was a
- * cross-tenant takeover vector. The partial unique index covers exactly the two
- * statuses selected here, so at most one row can match.
+ * reusable asset. The per-owner partial uniques cover exactly the two statuses
+ * selected here, so at most one row can match.
  */
-export async function findLiveFileBySha256(sha256: string): Promise<FileRecord | null> {
-  const rows = await getDb()
+export async function findLiveFileBySha256ForOwner(
+  sha256: string,
+  owner: FileOwner,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<FileRecord | null> {
+  const rows = await db
+    .select()
+    .from(files)
+    .where(and(eq(files.sha256, sha256), ne(files.status, 'deleted'), ownerPredicate(owner)))
+    .limit(1);
+  const [record] = await withChildren(rows, db);
+  return record ?? null;
+}
+
+/** `owner_user_id = $1` or `system_owner = $1` — exactly one is set (`files_owner_exclusive_check`). */
+function ownerPredicate(owner: FileOwner) {
+  return owner.ownerUserId !== null
+    ? eq(files.ownerUserId, owner.ownerUserId)
+    : eq(files.systemOwner, owner.systemOwner);
+}
+
+/** Whether a storage key is the CDN-reachable `public/` spelling. */
+function isPublicSpelling(key: string): boolean {
+  return key.startsWith('public/');
+}
+
+/**
+ * A live row, of ANY owner, whose stored object a new row for the same bytes
+ * can share — so a second owner's upload never stores the bytes twice.
+ *
+ * Prefers a row whose key is already the spelling `visibility` needs (`public/`
+ * for public, the bare key otherwise), oldest first, so the choice is stable;
+ * falls back to the oldest live row of the other spelling, whose key the caller
+ * re-spells (and writes, having the bytes). `null` when no live row holds the
+ * content.
+ *
+ * What is returned is a SOURCE OF STORAGE, never an identity: callers read its
+ * `storageKey` (and, for variants, its renditions) and create their own row.
+ */
+export async function findLiveStorageSourceBySha256(
+  sha256: string,
+  visibility: FileRecord['visibility'],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<FileRecord | null> {
+  const rows = await db
     .select()
     .from(files)
     .where(and(eq(files.sha256, sha256), ne(files.status, 'deleted')))
-    .limit(1);
-  const [record] = await withChildren(rows);
+    .orderBy(asc(files.createdAt), asc(files.id));
+  if (rows.length === 0) return null;
+  const wantPublic = visibility === 'public';
+  const chosen = rows.find((row) => isPublicSpelling(row.storageKey) === wantPublic) ?? rows[0];
+  const [record] = await withChildren([chosen], db);
   return record ?? null;
+}
+
+/**
+ * Whether any live row OTHER than `excludeFileId` stores its original at this
+ * exact key. A key several owners' rows share must never be handed out for a
+ * client-side PUT: whoever PUTs would be writing bytes that other owners serve.
+ */
+export async function isStorageKeyUsedByOtherLiveRow(
+  sha256: string,
+  storageKey: string,
+  excludeFileId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<boolean> {
+  const [hit] = await db
+    .select({ id: files.id })
+    .from(files)
+    .where(and(
+      eq(files.sha256, sha256),
+      ne(files.status, 'deleted'),
+      ne(files.id, excludeFileId),
+      eq(files.storageKey, storageKey),
+    ))
+    .limit(1);
+  return hit !== undefined;
 }
 
 /**
  * Batch reverse content-address lookup: many hashes → at most one live record
  * each.
  *
- * Content-addressing dedups BYTES, but a `files` row is per-owner/per-context,
- * so several live rows can share one hash (a tombstone frees the hash for a new
- * row, and the partial unique only covers live rows). The caller maps
- * `sha256 -> id` and that mapping must be stable across calls, so the collapse
- * keeps the OLDEST row — `(created_at, id)`, with `id` as the total-order
- * tiebreak because two rows can share a timestamp. The first-uploaded row is the
- * canonical origin of that content and never changes once written.
+ * Content-addressing dedups BYTES, but a `files` row is per owner, so several
+ * live rows can share one hash. With `ownerUserId` the lookup is that account's
+ * own rows only — at most one per hash, by the per-owner unique. Without it
+ * (the legacy, unscoped form every current caller uses) the collapse keeps the
+ * OLDEST row — `(created_at, id)`, with `id` as the total-order tiebreak
+ * because two rows can share a timestamp — so the `sha256 -> id` mapping is
+ * stable across calls. An unscoped answer is NOT the caller's row; see the
+ * route's documentation.
  */
-export async function findLiveFilesBySha256(sha256s: string[]): Promise<FileRecord[]> {
+export async function findLiveFilesBySha256(
+  sha256s: string[],
+  options: { ownerUserId?: string } = {},
+): Promise<FileRecord[]> {
   if (sha256s.length === 0) {
     return [];
   }
@@ -173,7 +253,11 @@ export async function findLiveFilesBySha256(sha256s: string[]): Promise<FileReco
   const rows = await getDb()
     .select()
     .from(files)
-    .where(and(inArray(files.sha256, sha256s), ne(files.status, 'deleted')))
+    .where(and(
+      inArray(files.sha256, sha256s),
+      ne(files.status, 'deleted'),
+      options.ownerUserId === undefined ? undefined : eq(files.ownerUserId, options.ownerUserId),
+    ))
     .orderBy(asc(files.createdAt), asc(files.id));
 
   const oldestBySha = new Map<string, typeof files.$inferSelect>();
@@ -204,25 +288,65 @@ export async function listFilesByOwner(
 }
 
 /**
- * Another live row holding the same content and already carrying variants — the
- * source `generateVariants` copies a rendition set from instead of re-encoding
- * bytes it has already encoded.
+ * Another LIVE row holding the same content and already carrying variants whose
+ * keys are the spelling `visibility` needs — the source `generateVariants`
+ * copies a rendition set from instead of re-encoding bytes it has already
+ * encoded. Rows share content-addressed storage, so the copy points the new row
+ * at the SAME objects.
+ *
+ * Live only: a tombstone's renditions are owed a purge, and the purge keeps
+ * them only while a live row uses them — copying them onto a new row is exactly
+ * what makes that row "use" them, but only under the content-hash lock, which a
+ * variant copy does not take. Matching spelling only: a private row pointed at
+ * `public/` renditions would keep them on the CDN after every public owner had
+ * deleted theirs.
  */
 export async function findVariantTwin(
   sha256: string,
-  excludeFileId: string
+  excludeFileId: string,
+  visibility: FileRecord['visibility'],
 ): Promise<FileRecord | null> {
   const rows = await getDb()
     .select({ file: files })
     .from(files)
     .innerJoin(fileVariants, eq(fileVariants.fileId, files.id))
-    .where(and(eq(files.sha256, sha256), ne(files.id, excludeFileId)))
+    .where(and(eq(files.sha256, sha256), ne(files.id, excludeFileId), ne(files.status, 'deleted')))
     .groupBy(files.id)
     .orderBy(asc(files.createdAt), asc(files.id))
-    .limit(1);
+    .limit(TWIN_CANDIDATES);
 
-  const [record] = await withChildren(rows.map((row) => row.file));
-  return record ?? null;
+  const wantPublic = visibility === 'public';
+  const candidates = await withChildren(rows.map((row) => row.file));
+  return candidates.find((candidate) =>
+    candidate.variants.length > 0 &&
+    candidate.variants.every((variant) => isPublicSpelling(variant.key) === wantPublic),
+  ) ?? null;
+}
+
+/** Twins examined per lookup: one per spelling is the realistic need; a few spare for mixed sets. */
+const TWIN_CANDIDATES = 5;
+
+/**
+ * Live rows for this content, other than `excludeFileId`, with NO renditions
+ * yet and the same visibility spelling — the rows a finished generation can
+ * hand its set to, so concurrent owners of one upload do not each encode it.
+ */
+export async function findVariantlessTwins(
+  sha256: string,
+  excludeFileId: string,
+  visibility: FileRecord['visibility'],
+): Promise<FileRecord[]> {
+  const rows = await getDb()
+    .select()
+    .from(files)
+    .where(and(
+      eq(files.sha256, sha256),
+      ne(files.id, excludeFileId),
+      ne(files.status, 'deleted'),
+      notExists(getDb().select({ one: sql`1` }).from(fileVariants).where(eq(fileVariants.fileId, files.id))),
+    ));
+  const wantPublic = visibility === 'public';
+  return (await withChildren(rows)).filter((row) => (row.visibility === 'public') === wantPublic);
 }
 
 /**
@@ -271,18 +395,24 @@ function federatedScopeFor(db: DatabaseOrTransaction, appId: string) {
 }
 
 /**
- * Somebody OTHER than the owner holds this asset — the one live row per content
- * hash (`files_sha256_live_key`) is handed to whoever uploads the same bytes, so
- * a local user can end up using a federated user's file id. Every reference the
- * platform records:
+ * Somebody OTHER than the owner holds this asset. Every reference the platform
+ * records:
  *
  *  - a `file_links` row created by anyone but the owner (a use in some app);
  *  - a `message_attachments` row (an attachment in somebody's mailbox);
  *  - an `app_listing_screenshots` row (a store listing picture).
  *
+ * Defence in depth since uploads became per-owner: a second owner's upload of
+ * the same bytes now gets its OWN row, so a foreign link is no longer how an
+ * upload ends up referenced. It still happens — `POST /assets/:id/links` takes
+ * any id, and rows created before per-owner rows (the one live row per hash
+ * was handed to every uploader) keep their foreign links until they are split
+ * (`scripts/split-cross-owner-file-links.ts`). A reference held OUTSIDE Oxy (a
+ * Mention post that stored the id) is invisible here; the caller must
+ * reference-check its own.
+ *
  * The last two are the same references `recordAccountStorageDeletion` refuses to
- * purge. A reference held OUTSIDE Oxy (a Mention post that stored the id) is
- * invisible here; the caller must reference-check its own.
+ * purge.
  */
 function heldByOthers(db: DatabaseOrTransaction) {
   return or(
@@ -503,6 +633,10 @@ export async function deleteVariant(fileId: string, type: string, key: string): 
 }
 
 /** Point one rendition at a new object key (a visibility relocation). */
-export async function updateVariantKey(variantId: string, key: string): Promise<void> {
-  await getDb().update(fileVariants).set({ key }).where(eq(fileVariants.id, variantId));
+export async function updateVariantKey(
+  variantId: string,
+  key: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  await db.update(fileVariants).set({ key }).where(eq(fileVariants.id, variantId));
 }

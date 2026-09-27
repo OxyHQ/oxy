@@ -12,9 +12,10 @@
  *
  * 2. **One hash resolves to ONE id, stably.** Callers map `sha256 -> fileId`
  *    (Mention's MTN materializer, node-blob sync) and that mapping must not move
- *    between calls. `files_sha256_live_key` — unique on `sha256` among
- *    `active`/`trash` rows — is what makes it true, so the test checks the
- *    CONSTRAINT rather than a collapse branch the constraint makes unreachable.
+ *    between calls. Rows are per owner, so several live rows can hold one hash:
+ *    unscoped, the collapse keeps the OLDEST (stable); scoped to an owner, the
+ *    per-owner unique makes that owner's row the only answer — and another
+ *    owner's row is never it.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -29,9 +30,8 @@ import fileCache from '../../utils/fileCache';
 const service = new AssetService({} as unknown as S3Service);
 
 /**
- * A globally unique 64-hex content hash. Jest runs suites in PARALLEL against
- * ONE throwaway database and `files_sha256_live_key` spans the whole table, so a
- * per-file counter would collide with another suite's fixture rows.
+ * A globally unique 64-hex content hash, so this file's fixtures never share a
+ * hash with another suite's rows in the same throwaway database.
  */
 const sha = () => randomBytes(32).toString('hex');
 
@@ -106,16 +106,14 @@ describe('getFilesByIds is lenient about ids it cannot resolve', () => {
 });
 
 describe('findActiveFilesBySha256 — one live record per hash', () => {
-  it('the database refuses a second LIVE row for the same content hash', async () => {
+  it('the database refuses a second LIVE row for the same content hash and OWNER', async () => {
     const contentHash = sha();
-    const first = await insertUser();
-    const second = await insertUser();
-    await insertFile({ sha256: contentHash, ownerUserId: first });
+    const ownerId = await insertUser();
+    await insertFile({ sha256: contentHash, ownerUserId: ownerId });
 
-    // This is the guarantee the `sha256 -> fileId` mapping rests on. Under
-    // Mongo it was a boot-time index reconciliation that could be absent;
-    // `files_sha256_live_key` is created by a migration and cannot be.
-    const error = await insertFile({ sha256: contentHash, ownerUserId: second }).then(
+    // The guarantee the scoped `sha256 -> fileId` mapping rests on, created by
+    // a migration (`files_sha256_owner_user_live_key`).
+    const error = await insertFile({ sha256: contentHash, ownerUserId: ownerId, storageKey: `content/${sha()}.png` }).then(
       () => null,
       (thrown: unknown) => thrown
     );
@@ -128,6 +126,34 @@ describe('findActiveFilesBySha256 — one live record per hash', () => {
     // concurrent duplicate upload becomes a 500 instead of resolving to the
     // winner. Asserting through the real predicate is what pins that.
     expect(isUniqueViolation(error)).toBe(true);
+  });
+
+  it('unscoped: several owners hold the hash, and the OLDEST row answers, stably', async () => {
+    const contentHash = sha();
+    const first = await insertUser();
+    const second = await insertUser();
+    const firstId = await insertFile({ sha256: contentHash, ownerUserId: first, createdAt: new Date(Date.now() - 60_000) });
+    await insertFile({ sha256: contentHash, ownerUserId: second });
+
+    const once = await service.findActiveFilesBySha256([contentHash]);
+    const twice = await service.findActiveFilesBySha256([contentHash]);
+
+    expect(once.map((f) => f.id)).toEqual([firstId]);
+    expect(twice.map((f) => f.id)).toEqual([firstId]);
+  });
+
+  it('scoped to an owner: that owner\'s row answers, never another owner\'s', async () => {
+    const contentHash = sha();
+    const first = await insertUser();
+    const second = await insertUser();
+    const stranger = await insertUser();
+    await insertFile({ sha256: contentHash, ownerUserId: first, createdAt: new Date(Date.now() - 60_000) });
+    const secondId = await insertFile({ sha256: contentHash, ownerUserId: second });
+
+    await expect(service.findActiveFilesBySha256([contentHash], { ownerUserId: second }))
+      .resolves.toEqual([expect.objectContaining({ id: secondId, ownerUserId: second })]);
+    // An owner holding nothing gets nothing — not the oldest row of somebody else.
+    await expect(service.findActiveFilesBySha256([contentHash], { ownerUserId: stranger })).resolves.toEqual([]);
   });
 
   it('resolves a hash to its live row while a tombstone for the same content exists', async () => {

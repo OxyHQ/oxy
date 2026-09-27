@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { assetService } from '../services/assetServiceSingleton';
+import { AssetService } from '../services/assetService';
 import { s3Service } from '../services/s3ServiceSingleton';
 import { authMiddleware, serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { optionalAuthMiddleware, getMediaViewerUserId } from '../middleware/optionalAuth';
@@ -412,7 +413,7 @@ router.post('/complete', authMiddleware, validate({ body: completeUploadSchema }
     throw error;
   }
   
-  const file = await assetService.completeUpload(validatedData);
+  const file = await assetService.completeUpload(validatedData, user._id);
 
   logger.info('Asset upload completed', { 
     userId: user._id, 
@@ -466,6 +467,16 @@ router.post('/:id/upload-direct', authMiddleware, validate({ params: assetIdPara
   }
   if (file.status === 'deleted') {
     throw new BadRequestError('Cannot upload to deleted file');
+  }
+  // Only the row's owner writes its bytes. The key is content-addressed and
+  // SHARED by every owner's row for the same content, so the bytes written
+  // must also BE that content: anything else would replace what other owners
+  // serve from this key.
+  if (file.ownerUserId !== user._id) {
+    throw new ForbiddenError('You do not own this file');
+  }
+  if (AssetService.calculateSHA256(req.file.buffer) !== file.sha256) {
+    throw new BadRequestError('Uploaded bytes do not match the declared sha256');
   }
 
   // Upload buffer to the predetermined storageKey
@@ -1528,6 +1539,14 @@ router.post(
  *       hashes are silently omitted from `data` (the batch never 404s as a
  *       whole); the result may be shorter than the requested list — map by
  *       `sha256`.
+ *
+ *       Asset rows are per OWNER: several accounts that uploaded the same bytes
+ *       each hold their own row (sharing the stored object). Pass `ownerUserId`
+ *       to resolve each hash to THAT account's own row — the id it may
+ *       reference as its own media. Without it (the legacy form) each hash
+ *       resolves to the oldest live row of any owner: good for "is this content
+ *       stored" and for its public `url`, but that id belongs to whoever
+ *       uploaded first and must not be attached to another account's content.
  *     requestBody:
  *       required: true
  *       content:
@@ -1544,6 +1563,9 @@ router.post(
  *                 items:
  *                   type: string
  *                   pattern: '^[a-f0-9]{64}$'
+ *               ownerUserId:
+ *                 type: string
+ *                 description: Resolve each hash to this account's own live row only.
  *     responses:
  *       200:
  *         description: Resolved asset metadata (order not guaranteed).
@@ -1586,16 +1608,18 @@ router.post(
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
     requireServiceScope(req, 'files:read');
 
-    const { sha256s } = req.body as { sha256s: string[] };
+    const { sha256s, ownerUserId } = req.body as { sha256s: string[]; ownerUserId?: string };
 
     // Dedupe so a single batch never issues duplicate work; the schema already
     // lowercased + validated each entry as a 64-char hex digest.
     const uniqueShas = Array.from(new Set(sha256s));
 
-    // One live record per hash: several File docs can share a sha256 (per-owner),
-    // so the service collapses each hash to a single deterministic representative
-    // (oldest by createdAt/_id) — the sha256 -> id mapping is stable across calls.
-    const files = await assetService.findActiveFilesBySha256(uniqueShas);
+    // One live record per hash. Rows are per owner, so several can share a
+    // hash: with `ownerUserId` the answer is that account's own row (at most
+    // one, by the per-owner unique); without it — the legacy form — the oldest
+    // live row of any owner, so the sha256 -> id mapping stays stable across
+    // calls for existing callers.
+    const files = await assetService.findActiveFilesBySha256(uniqueShas, { ownerUserId });
 
     // Resolve the public CDN URL for active public assets. getPublicCdnUrl gates
     // on active+public and verifies CDN reachability (returns null otherwise), so

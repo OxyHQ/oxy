@@ -4845,7 +4845,7 @@
           "Files"
         ],
         "summary": "Reverse content-address resolve assets by SHA-256",
-        "description": "Service-token-only batch REVERSE lookup. Given up to 100 lowercase hex SHA-256 content hashes, resolves each to the live (non-deleted) Oxy asset holding that content: its file `id`, `mime`, byte `size`, `status`, and — for ACTIVE, PUBLIC, CDN-reachable assets only — a public `url` (`cloud.oxy.so`). This is the inverse of `POST /assets/service/by-ids`: callers (e.g. Mention's MTN materializer / node-blob sync) that hold a record's `blob.sha256` use it to find the servable asset for that content. Private/unlisted assets omit `url`. Unknown, invalid, or deleted hashes are silently omitted from `data` (the batch never 404s as a whole); the result may be shorter than the requested list — map by `sha256`.\n",
+        "description": "Service-token-only batch REVERSE lookup. Given up to 100 lowercase hex SHA-256 content hashes, resolves each to the live (non-deleted) Oxy asset holding that content: its file `id`, `mime`, byte `size`, `status`, and — for ACTIVE, PUBLIC, CDN-reachable assets only — a public `url` (`cloud.oxy.so`). This is the inverse of `POST /assets/service/by-ids`: callers (e.g. Mention's MTN materializer / node-blob sync) that hold a record's `blob.sha256` use it to find the servable asset for that content. Private/unlisted assets omit `url`. Unknown, invalid, or deleted hashes are silently omitted from `data` (the batch never 404s as a whole); the result may be shorter than the requested list — map by `sha256`.\nAsset rows are per OWNER: several accounts that uploaded the same bytes each hold their own row (sharing the stored object). Pass `ownerUserId` to resolve each hash to THAT account's own row — the id it may reference as its own media. Without it (the legacy form) each hash resolves to the oldest live row of any owner: good for \"is this content stored\" and for its public `url`, but that id belongs to whoever uploaded first and must not be attached to another account's content.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -4864,6 +4864,10 @@
                       "type": "string",
                       "pattern": "^[a-f0-9]{64}$"
                     }
+                  },
+                  "ownerUserId": {
+                    "type": "string",
+                    "description": "Resolve each hash to this account's own live row only."
                   }
                 }
               }

@@ -73,8 +73,8 @@ import { errorHandler } from '../../middleware/errorHandler';
 
 /**
  * The content hash is RANDOM per run, not a fixed `'c'.repeat(64)`:
- * `files_sha256_live_key` admits one live row per hash across the whole table,
- * jest runs suites in parallel against one database, and this suite is re-run
+ * rows for one hash share storage and renditions across the whole table
+ * (a twin's variants are reused), jest runs suites in parallel against one database, and this suite is re-run
  * against a database that already holds its previous rows. Every key the
  * pipeline derives from it is therefore derived in the assertions too, never
  * spelled out.

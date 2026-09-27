@@ -64,8 +64,8 @@ function makeFakeS3(originalBuffer: Buffer): FakeS3 {
 
 /**
  * A real `files` row, so `ensureImageVariant` writes its rendition to a real
- * child row. Each call gets its own RANDOM content hash: `files_sha256_live_key`
- * allows one live row per hash across the whole table, and Jest runs suites in
+ * child row. Each call gets its own RANDOM content hash: rows for one hash share
+ * storage and renditions across the whole table, and Jest runs suites in
  * parallel against one database.
  */
 async function makeFile(): Promise<FileRecord> {

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { type Readable, Transform } from 'stream';
+import { eq } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxy.so/core';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import type { S3Service } from './s3Service';
@@ -10,7 +11,8 @@ import {
 } from '../constants/federationCache';
 import { VariantService } from './variantService';
 import { getDb, type Transaction } from '../config/postgres';
-import { recordFileStorageDeletion } from './accountStorageDeletion.service';
+import { files as filesTable } from '../db/schema/files';
+import { recordFileStorageDeletion, recordFileStorageRelocation } from './accountStorageDeletion.service';
 import { runStorageDeletionBatch } from './accountStorageDeletion.worker';
 import { withContentHashLock } from './contentHashLock';
 import { enqueueAssetVariantGeneration } from '../queue/assetVariants.queue';
@@ -24,7 +26,7 @@ import {
   IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
 import { logger } from '../utils/logger';
-import { ApiError, ConflictError } from '../utils/error';
+import { ApiError, ForbiddenError } from '../utils/error';
 import type {
   AssetInitResponse,
   AssetCompleteRequest,
@@ -49,9 +51,11 @@ import {
   deleteVariant,
   findFileById,
   findFilesByIds,
-  findLiveFileBySha256,
+  findLiveFileBySha256ForOwner,
   findLiveFilesBySha256,
+  findLiveStorageSourceBySha256,
   insertFile,
+  isStorageKeyUsedByOtherLiveRow,
   insertFileLink,
   isUniqueViolation,
   listFilesByOwner,
@@ -80,12 +84,14 @@ interface StreamedMediaOptions {
   metadata: Record<string, unknown>;
   tempPrefix: string;
   logLabel: string;
-  dedupeScope?: 'any' | 'federation-cache' | 'owner';
   /**
-   * `federation-cache` scope only: the application uploading. A live row with
-   * the same bytes that is ALREADY this owner's federated media from this app is
-   * reused (idempotent re-upload) instead of refused.
+   * `federated`: the owner's existing row for these bytes is reused only when it
+   * is ALREADY this owner's federated media from this app (idempotent re-upload);
+   * any other row of the same owner is refused. Otherwise the owner's existing
+   * row is simply reused.
    */
+  dedupeScope?: 'federated';
+  /** `federated` scope only: the application uploading. */
   uploaderAppId?: string;
 }
 
@@ -93,10 +99,10 @@ interface StreamedMediaOptions {
 export interface StreamedMediaResult {
   file: FileRecord;
   /**
-   * True when no new row was created: the bytes already existed as a live row
-   * and that row was returned (possibly promoted from the media cache). Such an
-   * id may already be referenced elsewhere, so a caller must reference-check it
-   * before deleting.
+   * True when no new row was created: THIS owner already held a live row for
+   * these bytes and it was returned. Rows are per owner, so a reused row is
+   * always the uploader's own — never another owner's — but it may already be
+   * referenced elsewhere, so a caller must reference-check it before deleting.
    */
   deduplicated: boolean;
 }
@@ -187,31 +193,40 @@ export class AssetService {
   }
 
   /**
-   * Content-addressed dedup lookup. Deliberately excludes `deleted` tombstones:
-   * a deleted record is a deletion intent, not a reusable asset. Matching a
-   * tombstone and reassigning its ownership to the next uploader was a
-   * cross-tenant ownership-takeover vector (any user who can produce content
-   * whose SHA-256 collides with a victim's deleted file could revive that
-   * record under their own ownership). The `files_sha256_live_key` partial
-   * unique is scoped to live rows, so a fresh upload whose content matches only
-   * a tombstone can insert a brand-new row owned by the uploader.
+   * Batch reverse content-address lookup: resolve many content hashes to live
+   * file records in a single query, used by the service-token
+   * `POST /assets/service/by-sha256` route.
+   *
+   * With `ownerUserId`, only that account's own rows answer (at most one per
+   * hash). Without it — the legacy form — the oldest live row of ANY owner
+   * answers, which is a statement about the content, not a row the caller may
+   * treat as its own. The result is unordered and may be shorter than the
+   * input; unresolvable hashes are simply absent.
    */
-  private async findActiveFileBySha(sha256: string): Promise<FileRecord | null> {
-    return findLiveFileBySha256(sha256);
+  async findActiveFilesBySha256(sha256s: string[], options: { ownerUserId?: string } = {}): Promise<FileRecord[]> {
+    return findLiveFilesBySha256(sha256s, options);
   }
 
   /**
-   * Batch reverse content-address lookup: resolve many content hashes to their
-   * live (non-deleted) file records in a single query.
+   * Where a NEW row for these bytes keeps them, decided under the content-hash
+   * lock: the key of a live row (of any owner) already holding the bytes in the
+   * spelling `visibility` needs, else such a row's key re-spelled, else a fresh
+   * content-addressed key. Rows are per owner; storage is shared.
    *
-   * This is the batched counterpart of {@link findActiveFileBySha}, used by the
-   * service-token `POST /assets/service/by-sha256` route to resolve a record's
-   * `blob.sha256` back to a servable asset without issuing one query per hash.
-   * The result is unordered and may be shorter than the input — unresolvable
-   * hashes are simply absent, and at most one record per hash is returned.
+   * The returned key may not hold the object yet (a re-spelled key, or a source
+   * row whose object is missing): the caller has the verified bytes and writes
+   * them when absent — identical bytes, so a write to a shared key is harmless.
    */
-  async findActiveFilesBySha256(sha256s: string[]): Promise<FileRecord[]> {
-    return findLiveFilesBySha256(sha256s);
+  private async sharedStorageKeyFor(
+    tx: Transaction,
+    sha256: string,
+    mime: string,
+    visibility: FileVisibility,
+  ): Promise<string> {
+    const source = await findLiveStorageSourceBySha256(sha256, visibility, tx);
+    return source
+      ? this.targetKeyForVisibility(source.storageKey, visibility)
+      : this.generateStorageKey(sha256, mime, visibility);
   }
 
   /**
@@ -448,101 +463,34 @@ export class AssetService {
     return true;
   }
 
-  private async prepareExistingDirectUploadFile(
-    file: FileRecord,
-    userId: string,
-    visibility?: FileVisibility,
-    metadata?: Record<string, unknown>
-  ): Promise<FileRecord> {
-    const wasCacheFile = file.purpose === FEDERATION_MEDIA_CACHE_PURPOSE;
-    if (!wasCacheFile) {
-      return file;
-    }
-
-    const updated = await updateFile(file.id, {
-      ownerUserId: userId,
-      systemOwner: null,
-      purpose: 'user',
-      ...(visibility ? { visibility } : {}),
-      metadata: {
-        ...(file.metadata ?? {}),
-        ...(metadata ?? {}),
-        promotedFromFederationCache: true,
-      },
-    });
-
-    return updated ? this.cacheFile(updated) : file;
-  }
-
+  /**
+   * The uploader already holds a live row for these bytes (`existing` is always
+   * the SAME owner's row — lookups are owner-scoped). Every scope reuses it,
+   * except the federated one, which reuses only this owner's federated media
+   * from this application: the per-owner unique leaves no second row to create,
+   * and that id is not one this app may treat as its own (the federated delete
+   * route would refuse it).
+   */
   private assertStreamedDedupeAllowed(file: FileRecord, options: StreamedMediaOptions): void {
-    if (options.dedupeScope === 'federation-cache') {
-      if (file.purpose === FEDERATION_MEDIA_CACHE_PURPOSE) {
-        return;
-      }
-
-      // The same federated owner's media, uploaded by the same application: the
-      // bytes legitimately appear in more than one federated post (a repost, a
-      // carousel reusing a photo, one item seen through two sources). Reuse the
-      // row — nothing changes hands.
-      if (isSameFederatedUpload(file, options)) {
-        return;
-      }
-
-      // Anyone else's row. At most one live row may hold a content hash
-      // (`files_sha256_live_key`), so there is no second row to create, and
-      // returning this id would give the caller a reference to — and, through
-      // the federated delete route, authority over — an asset that belongs to a
-      // different owner or was uploaded by a different application.
+    if (options.dedupeScope === 'federated' && !isSameFederatedUpload(file, options)) {
       throw new ApiError(
         409,
-        'Federated media content already exists for another owner or application',
+        'This owner already holds this content as media from another application or source',
         'FEDERATED_MEDIA_OWNED_ELSEWHERE',
       );
     }
-
-    if (options.dedupeScope === 'owner') {
-      if (file.purpose === FEDERATION_MEDIA_CACHE_PURPOSE) {
-        return;
-      }
-
-      if (file.ownerUserId !== options.owner.ownerUserId) {
-        throw new ConflictError('Media content already exists for another user');
-      }
-
-      return;
-    }
   }
 
+  /** A reused federated row that had fallen to `trash` (unlinked) is in use again. */
   private async prepareExistingStreamedMediaFile(
     file: FileRecord,
     options: StreamedMediaOptions
   ): Promise<FileRecord> {
-    if (options.purpose === FEDERATION_MEDIA_CACHE_PURPOSE) {
-      return file;
+    if (file.status === 'trash' && isSameFederatedUpload(file, options)) {
+      const reactivated = await updateFile(file.id, { status: 'active' });
+      return reactivated ? this.cacheFile(reactivated) : file;
     }
-
-    const wasCacheFile = file.purpose === FEDERATION_MEDIA_CACHE_PURPOSE;
-    if (!wasCacheFile) {
-      // A reused row that had fallen to `trash` (unlinked) is in use again.
-      if (file.status === 'trash' && isSameFederatedUpload(file, options)) {
-        const reactivated = await updateFile(file.id, { status: 'active' });
-        return reactivated ? this.cacheFile(reactivated) : file;
-      }
-      return file;
-    }
-
-    const updated = await updateFile(file.id, {
-      ...options.owner,
-      purpose: options.purpose,
-      visibility: options.visibility,
-      metadata: {
-        ...(file.metadata ?? {}),
-        ...options.metadata,
-        promotedFromFederationCache: true,
-      },
-    });
-
-    return updated ? this.cacheFile(updated) : file;
+    return file;
   }
 
   async ensureVariant(
@@ -617,7 +565,23 @@ export class AssetService {
   }
 
   /**
-   * Initialize file upload - returns pre-signed URL and file ID
+   * Initialize a two-step upload: the caller's OWN row for these bytes and,
+   * when the bytes still have to be written, a presigned PUT URL.
+   *
+   * - The caller already holds a live row for the hash → that row. A repair PUT
+   *   URL is returned only when its object is missing AND no other live row
+   *   stores its original at that key: a presigned PUT carries no content
+   *   check, so signing a key other owners serve would let this caller replace
+   *   their bytes.
+   * - Another owner holds the bytes and the object exists → a NEW row for the
+   *   caller pointing at the same object, and no upload URL: nothing to upload.
+   * - Nobody holds them → a new row on a fresh content-addressed key and a PUT
+   *   URL for it. When another owner's row holds the hash but its object is
+   *   missing (e.g. its own PUT is still in flight), the caller gets a key of
+   *   its own (`…/<sha>-<random>.<ext>`) rather than a PUT URL onto theirs.
+   *
+   * Never another owner's id: that handed their row, links and delete authority
+   * to whoever uploaded the same bytes.
    */
   async initUpload(
     userId: string,
@@ -625,86 +589,72 @@ export class AssetService {
     expectedSize: number,
     expectedMime: string
   ): Promise<AssetInitResponse> {
+    const owner: FileOwner = { ownerUserId: userId, systemOwner: null };
     try {
-      // Check if file already exists by SHA256 (active records only — deleted
-      // tombstones are never deduplicated/revived, so a fresh upload matching a
-      // tombstone falls through to a brand-new record below).
-      const existingFile = await this.findActiveFileBySha(expectedSha256);
-
-      if (existingFile) {
-        const storageKey = existingFile.storageKey || this.generateStorageKey(expectedSha256, expectedMime);
-        let uploadUrl = '';
-        const objectExists = await this.s3Service.fileExists(storageKey);
-        const requesterOwnsExisting = existingFile.ownerUserId === userId;
-        if (!objectExists && requesterOwnsExisting) {
-          logger.warn('Existing asset record has no storage object; returning upload URL for the existing key', {
-            fileId: existingFile.id,
-            sha256: expectedSha256,
-            storageKey,
-          });
-          // Only the file owner may receive a repair PUT URL for an existing
-          // record, and only when the object is missing. Signing a live
-          // deduplicated object's key would let any authenticated user who
-          // knows the SHA-256 overwrite another user's asset bytes.
-          uploadUrl = await this.s3Service.getPresignedUploadUrl(storageKey, {
-            contentType: expectedMime,
-            expiresIn: 3600
-          });
-        } else if (!objectExists) {
-          logger.warn('Existing asset record has no storage object; not returning repair URL to non-owner', {
-            fileId: existingFile.id,
-            sha256: expectedSha256,
-            storageKey,
-            requesterUserId: userId,
-            ownerUserId: existingFile.ownerUserId,
-          });
-        }
-
-        logger.info('File already exists, returning existing', {
-          sha256: expectedSha256,
-          fileId: existingFile.id
-        });
-
-        return {
-          uploadUrl,
-          fileId: existingFile.id,
-          sha256: expectedSha256
-        };
+      const own = await findLiveFileBySha256ForOwner(expectedSha256, owner);
+      if (own) {
+        return await this.initUploadForExistingOwnRow(own, userId, expectedMime);
       }
 
-      // Create new file record
       const ext = this.getExtensionFromMime(expectedMime);
-      const storageKey = this.generateStorageKey(expectedSha256, expectedMime);
+      let created: { file: FileRecord; needsUpload: boolean };
+      try {
+        // Under the content-hash lock: the choice of key, the copy that
+        // re-spells a shared object, and the insert are one step against a
+        // purge of the same bytes (`contentHashLock.ts`).
+        created = await withContentHashLock(expectedSha256, async (tx) => {
+          const source = await findLiveStorageSourceBySha256(expectedSha256, 'private', tx);
+          let storageKey = this.generateStorageKey(expectedSha256, expectedMime);
+          let needsUpload = true;
+          if (source) {
+            const shared = this.targetKeyForVisibility(source.storageKey, 'private');
+            if (await this.s3Service.fileExists(shared)) {
+              storageKey = shared;
+              needsUpload = false;
+            } else if (shared !== source.storageKey && await this.s3Service.fileExists(source.storageKey)) {
+              await this.s3Service.copyFile(source.storageKey, shared);
+              storageKey = shared;
+              needsUpload = false;
+            } else {
+              storageKey = this.generateStorageKey(expectedSha256, expectedMime, 'private', crypto.randomBytes(8).toString('hex'));
+            }
+          }
+          const file = await insertFile({
+            sha256: expectedSha256,
+            size: expectedSize,
+            mime: expectedMime,
+            ext,
+            ...owner,
+            status: 'active',
+            storageKey,
+          }, tx);
+          return { file, needsUpload };
+        });
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+        // The same caller raced itself; its other request created the row.
+        const raced = await findLiveFileBySha256ForOwner(expectedSha256, owner);
+        if (!raced) throw error;
+        return await this.initUploadForExistingOwnRow(raced, userId, expectedMime);
+      }
 
-      // Under the content-hash lock: a purge of a tombstone with these bytes
-      // either finished before this row exists or sees it and keeps the keys
-      // the client is about to PUT to.
-      const file = await withContentHashLock(expectedSha256, (tx) => insertFile({
-        sha256: expectedSha256,
-        size: expectedSize,
-        mime: expectedMime,
-        ext,
-        ownerUserId: userId,
-        status: 'active',
-        storageKey,
-      }, tx));
-
-      // Generate pre-signed upload URL
-      // Do not include metadata in the presigned URL signature; clients aren't required to send it
-      const uploadUrl = await this.s3Service.getPresignedUploadUrl(storageKey, {
-        contentType: expectedMime,
-        expiresIn: 3600
-      });
+      const uploadUrl = created.needsUpload
+        ? await this.s3Service.getPresignedUploadUrl(created.file.storageKey, {
+            contentType: expectedMime,
+            expiresIn: 3600,
+          })
+        : '';
 
       logger.info('Asset upload initialized', {
-        fileId: file.id,
+        fileId: created.file.id,
         sha256: expectedSha256,
-        storageKey
+        storageKey: created.file.storageKey,
+        sharedStorage: !created.needsUpload,
       });
 
       return {
         uploadUrl,
-        fileId: file.id,
+        fileId: created.file.id,
         sha256: expectedSha256
       };
     } catch (error) {
@@ -713,8 +663,49 @@ export class AssetService {
     }
   }
 
+  private async initUploadForExistingOwnRow(
+    own: FileRecord,
+    userId: string,
+    expectedMime: string,
+  ): Promise<AssetInitResponse> {
+    let uploadUrl = '';
+    if (!(await this.s3Service.fileExists(own.storageKey))) {
+      if (await isStorageKeyUsedByOtherLiveRow(own.sha256, own.storageKey, own.id)) {
+        logger.warn('Own asset row has no storage object, but its key is shared; not returning a repair URL', {
+          fileId: own.id,
+          sha256: own.sha256,
+          storageKey: own.storageKey,
+          requesterUserId: userId,
+        });
+      } else {
+        logger.warn('Existing asset record has no storage object; returning upload URL for the existing key', {
+          fileId: own.id,
+          sha256: own.sha256,
+          storageKey: own.storageKey,
+        });
+        uploadUrl = await this.s3Service.getPresignedUploadUrl(own.storageKey, {
+          contentType: expectedMime,
+          expiresIn: 3600
+        });
+      }
+    }
+
+    logger.info('File already exists for this owner, returning it', {
+      sha256: own.sha256,
+      fileId: own.id
+    });
+
+    return { uploadUrl, fileId: own.id, sha256: own.sha256 };
+  }
+
   /**
-   * Upload file directly - calculates SHA256 on backend
+   * Upload file directly - calculates SHA256 on backend.
+   *
+   * Returns the caller's OWN row: the existing one when it already holds these
+   * bytes, otherwise a new one. A new row shares the stored object of any other
+   * owner's row for the same bytes instead of storing them again; the bytes
+   * were hashed here, so writing them to a shared key when it is missing
+   * restores it for everyone.
    */
   async uploadFileDirect(
     userId: string,
@@ -743,91 +734,52 @@ export class AssetService {
         throw new BadRequestError('Uploaded file content does not match the declared image type');
       }
 
-      // Check if file already exists by SHA256 (active records only).
-      const existingFile = await this.findActiveFileBySha(sha256);
-
-      if (existingFile) {
-        const { file: restoredFile, restored } = await this.restoreMissingDirectUploadContent(
-          existingFile,
-          fileBuffer,
-          mimeType,
-          'direct upload',
-        );
-        const preparedFile = await this.prepareExistingDirectUploadFile(
-          restoredFile,
-          userId,
-          visibility,
-          metadata,
-        );
-        if (restored) {
-          this.queueVariantGeneration(preparedFile);
-        }
-        logger.info('File already exists, returning existing', {
-          sha256,
-          fileId: preparedFile.id
-        });
-
-        // File already exists, return existing file
-        return preparedFile;
+      const owner: FileOwner = { ownerUserId: userId, systemOwner: null };
+      const own = await findLiveFileBySha256ForOwner(sha256, owner);
+      if (own) {
+        return await this.returnExistingDirectUpload(own, fileBuffer, mimeType, 'direct upload');
       }
 
-      // Create new file record
       const ext = this.getExtensionFromMime(mimeType);
       const resolvedVisibility: FileVisibility = visibility || 'private';
-      const storageKey = this.generateStorageKey(sha256, mimeType, resolvedVisibility);
 
       let file: FileRecord;
       try {
-        // Under the content-hash lock; the object is written after the row, so
-        // a purge either saw this row (and kept the key) or finished first.
-        file = await withContentHashLock(sha256, (tx) => insertFile({
+        // Under the content-hash lock: the key is chosen and the row inserted
+        // as one step; the object is written after the row, so a purge either
+        // saw this row (and kept the key) or finished first.
+        file = await withContentHashLock(sha256, async (tx) => insertFile({
           sha256,
           size,
           mime: mimeType,
           ext,
-          ownerUserId: userId,
+          ...owner,
           status: 'active',
-          storageKey,
+          storageKey: await this.sharedStorageKeyFor(tx, sha256, mimeType, resolvedVisibility),
           originalName: normalizeInlineText(originalName),
           visibility: resolvedVisibility,
           metadata: metadata ?? {},
         }, tx));
       } catch (error) {
         if (isUniqueViolation(error)) {
-          const racedFile = await this.findActiveFileBySha(sha256);
-          if (racedFile) {
-            const { file: restoredFile, restored } = await this.restoreMissingDirectUploadContent(
-              racedFile,
-              fileBuffer,
-              mimeType,
-              'direct upload duplicate race',
-            );
-            const preparedFile = await this.prepareExistingDirectUploadFile(
-              restoredFile,
-              userId,
-              visibility,
-              metadata,
-            );
-            if (restored) {
-              this.queueVariantGeneration(preparedFile);
-            }
-            logger.info('File already exists after concurrent upload, returning existing', {
-              sha256,
-              fileId: preparedFile.id,
-            });
-            return preparedFile;
+          // The same caller raced itself; its other request created the row.
+          const raced = await findLiveFileBySha256ForOwner(sha256, owner);
+          if (raced) {
+            return await this.returnExistingDirectUpload(raced, fileBuffer, mimeType, 'direct upload duplicate race');
           }
         }
         throw error;
       }
 
-      // Upload to S3
-      await this.s3Service.uploadBuffer(storageKey, fileBuffer, {
-        contentType: mimeType,
-        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-      });
+      if (!(await this.s3Service.fileExists(file.storageKey))) {
+        await this.s3Service.uploadBuffer(file.storageKey, fileBuffer, {
+          contentType: mimeType,
+          cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+        });
+      }
 
-      // Queue variant generation
+      // Renditions: copied from a live twin of the same spelling when one has
+      // them, generated otherwise (`variantService.generateVariants`).
       this.queueVariantGeneration(file);
 
       logger.info('File uploaded directly', {
@@ -842,6 +794,21 @@ export class AssetService {
       logger.error('Error uploading file directly:', error);
       throw error;
     }
+  }
+
+  /** The caller's own existing row, with its object restored from these (hashed) bytes if missing. */
+  private async returnExistingDirectUpload(
+    own: FileRecord,
+    fileBuffer: Buffer,
+    mimeType: string,
+    logLabel: string,
+  ): Promise<FileRecord> {
+    const { file, restored } = await this.restoreMissingDirectUploadContent(own, fileBuffer, mimeType, logLabel);
+    if (restored) {
+      this.queueVariantGeneration(file);
+    }
+    logger.info('File already exists for this owner, returning it', { sha256: file.sha256, fileId: file.id, logLabel });
+    return file;
   }
 
   /**
@@ -909,7 +876,7 @@ export class AssetService {
       },
       tempPrefix: 'federation/incoming',
       logLabel: 'Federated media',
-      dedupeScope: 'federation-cache',
+      dedupeScope: 'federated',
       uploaderAppId,
     });
   }
@@ -937,7 +904,6 @@ export class AssetService {
       },
       tempPrefix: 'user/incoming',
       logLabel: 'User media',
-      dedupeScope: 'owner',
     });
   }
 
@@ -1039,44 +1005,21 @@ export class AssetService {
 
     const sha256 = hash.digest('hex');
 
-    // Dedup: if this exact content already exists (cache or otherwise), reuse
-    // it and drop the temp object. Active records only — deleted tombstones are
-    // never revived.
-    const existingFile = await this.findActiveFileBySha(sha256);
-    if (existingFile) {
-      try {
-        this.assertStreamedDedupeAllowed(existingFile, options);
-      } catch (error) {
-        await deleteTempKey(`Failed to clean up rejected ${options.logLabel.toLowerCase()} upload`);
-        throw error;
-      }
-      let restored = false;
-      try {
-        restored = await this.restoreMissingStreamedMediaContent(
-          existingFile,
-          tempKey,
-          options.logLabel,
-        );
-      } finally {
-        await deleteTempKey(`Failed to clean up deduplicated ${options.logLabel.toLowerCase()} upload`);
-      }
-      const preparedFile = await this.prepareExistingStreamedMediaFile(existingFile, options);
-      if (restored) {
-        this.queueVariantGeneration(preparedFile);
-      }
-      logger.info(`${options.logLabel} already exists, returning existing`, {
-        sha256,
-        fileId: preparedFile.id,
-      });
-      return { file: preparedFile, deduplicated: true };
+    // Dedup, per OWNER: the uploader's own live row for these bytes is reused
+    // and the temp object dropped. Another owner's row is never returned — the
+    // uploader gets its own row below, sharing that row's stored object.
+    const own = await findLiveFileBySha256ForOwner(sha256, options.owner);
+    if (own) {
+      return this.reuseOwnStreamedMedia(own, tempKey, options, deleteTempKey, '');
     }
 
-    // Promote the temp object to its content-addressed key (server-side copy,
-    // no RAM), then drop the temp object. Federation/cache media is always
-    // `public`, so its content-addressed key lands under the CDN-reachable
-    // `public/` prefix (decided centrally by `generateStorageKey`).
+    // Promote the temp object to the content-addressed key (server-side copy,
+    // no RAM) unless a live row of another owner already stores these bytes in
+    // the spelling this row needs — then the new row shares that object. The
+    // key's spelling follows visibility (`generateStorageKey` /
+    // `targetKeyForVisibility`): federation and cache media is `public`, so it
+    // lands under the CDN-reachable `public/` prefix.
     const ext = this.getExtensionFromMime(mimeType);
-    const storageKey = this.generateStorageKey(sha256, mimeType, options.visibility);
 
     // `visibility: 'public'` is an app-level ACL meaning "served without a user
     // session via the presigned-redirect stream route (GET /:id/stream)". It is
@@ -1086,14 +1029,17 @@ export class AssetService {
     // making the raw S3 object public would let it be fetched/listed directly,
     // bypassing the stream route's access checks.
     //
-    // The promotion and the insert run under the content-hash lock, TOGETHER:
-    // this path writes the object BEFORE its row exists, so a purge of a
-    // tombstone with the same bytes must not be able to check "no live row",
-    // then delete the key this copy just wrote (`contentHashLock.ts`).
+    // The key choice, the promotion and the insert run under the content-hash
+    // lock, TOGETHER: this path writes the object BEFORE its row exists, so a
+    // purge of a tombstone with the same bytes must not be able to check "no
+    // live row", then delete the key this copy just wrote (`contentHashLock.ts`).
     let file: FileRecord;
     try {
       file = await withContentHashLock(sha256, async (tx) => {
-        await this.s3Service.copyFile(tempKey, storageKey);
+        const storageKey = await this.sharedStorageKeyFor(tx, sha256, mimeType, options.visibility);
+        if (!(await this.s3Service.fileExists(storageKey))) {
+          await this.s3Service.copyFile(tempKey, storageKey);
+        }
         return insertFile({
           sha256,
           size,
@@ -1110,55 +1056,17 @@ export class AssetService {
       });
       await deleteTempKey('Failed to delete temp key after cache promotion');
     } catch (error) {
-      await deleteTempKey('Failed to delete temp key after cache promotion');
       if (isUniqueViolation(error)) {
-        const racedFile = await this.findActiveFileBySha(sha256);
-        if (racedFile) {
-          try {
-            this.assertStreamedDedupeAllowed(racedFile, options);
-          } catch (dedupeError) {
-            if (racedFile.storageKey !== storageKey) {
-              try {
-                await this.s3Service.deleteFile(storageKey);
-              } catch (cleanupError) {
-                logger.warn(`Failed to clean up rejected duplicate ${options.logLabel.toLowerCase()} storage object`, {
-                  storageKey,
-                  error: cleanupError,
-                });
-              }
-            }
-            throw dedupeError;
-          }
-          let restored = false;
-          try {
-            restored = await this.restoreMissingStreamedMediaContent(
-              racedFile,
-              storageKey,
-              `${options.logLabel} duplicate race`,
-            );
-          } finally {
-            if (racedFile.storageKey !== storageKey) {
-              try {
-                await this.s3Service.deleteFile(storageKey);
-              } catch (cleanupError) {
-                logger.warn(`Failed to clean up duplicate ${options.logLabel.toLowerCase()} storage object`, {
-                  storageKey,
-                  error: cleanupError,
-                });
-              }
-            }
-          }
-          const preparedFile = await this.prepareExistingStreamedMediaFile(racedFile, options);
-          if (restored) {
-            this.queueVariantGeneration(preparedFile);
-          }
-          logger.info(`${options.logLabel} already exists after concurrent upload, returning existing`, {
-            sha256,
-            fileId: preparedFile.id,
-          });
-          return { file: preparedFile, deduplicated: true };
+        // The same owner raced itself; its other request created the row. The
+        // object this attempt may have written is at a content-addressed key
+        // that row (or a sharing one) also uses, so it is kept — never
+        // deleted from under them.
+        const raced = await findLiveFileBySha256ForOwner(sha256, options.owner);
+        if (raced) {
+          return this.reuseOwnStreamedMedia(raced, tempKey, options, deleteTempKey, ' duplicate race');
         }
       }
+      await deleteTempKey('Failed to delete temp key after cache promotion');
       throw error;
     }
 
@@ -1172,6 +1080,41 @@ export class AssetService {
     this.queueVariantGeneration(file);
 
     return { file, deduplicated: false };
+  }
+
+  /**
+   * The uploader already holds these bytes: check the scope allows reusing its
+   * row, restore the row's object from the temp upload if it is missing, drop
+   * the temp object, and hand the row back as deduplicated.
+   */
+  private async reuseOwnStreamedMedia(
+    own: FileRecord,
+    tempKey: string,
+    options: StreamedMediaOptions,
+    deleteTempKey: (reason: string) => Promise<void>,
+    logSuffix: string,
+  ): Promise<StreamedMediaResult> {
+    try {
+      this.assertStreamedDedupeAllowed(own, options);
+    } catch (error) {
+      await deleteTempKey(`Failed to clean up rejected ${options.logLabel.toLowerCase()} upload`);
+      throw error;
+    }
+    let restored = false;
+    try {
+      restored = await this.restoreMissingStreamedMediaContent(own, tempKey, `${options.logLabel}${logSuffix}`);
+    } finally {
+      await deleteTempKey(`Failed to clean up deduplicated ${options.logLabel.toLowerCase()} upload`);
+    }
+    const prepared = await this.prepareExistingStreamedMediaFile(own, options);
+    if (restored) {
+      this.queueVariantGeneration(prepared);
+    }
+    logger.info(`${options.logLabel} already exists for this owner, returning it${logSuffix}`, {
+      sha256: prepared.sha256,
+      fileId: prepared.id,
+    });
+    return { file: prepared, deduplicated: true };
   }
 
   /**
@@ -1219,11 +1162,17 @@ export class AssetService {
   /**
    * Complete file upload - commit metadata and trigger variant generation
    */
-  async completeUpload(request: AssetCompleteRequest): Promise<FileRecord> {
+  async completeUpload(request: AssetCompleteRequest, requestingUserId: string): Promise<FileRecord> {
     try {
       const existing = await findFileById(request.fileId);
-      if (!existing) {
+      if (!existing || existing.status === 'deleted') {
         throw new Error('File not found');
+      }
+      // Only the row's owner commits its metadata and visibility. Before rows
+      // were per owner this was unchecked, and any account could rename,
+      // re-describe or re-publish anyone's upload by id.
+      if (existing.ownerUserId !== requestingUserId) {
+        throw new ForbiddenError('You do not own this file');
       }
 
       // Verify file exists in storage
@@ -1584,96 +1533,74 @@ export class AssetService {
   }
 
   /**
-   * Delete a legacy backfilled CDN copy for a non-public object key. Older
-   * public files may have DB keys outside `public/` while a backfill-created
-   * `public/<key>` copy exists for CDN serving; visibility downgrades and
-   * deletes must remove that deterministic public copy even when the stored key
-   * itself does not need relocation. Best-effort: a failure is logged, not
-   * thrown.
-   */
-  private async deleteBackfilledPublicCopy(key: string): Promise<void> {
-    if (isPublicKey(key)) {
-      return;
-    }
-
-    const publicKey = applyPublicPrefix(key);
-    if (!(await this.s3Service.fileExists(publicKey))) {
-      return;
-    }
-
-    try {
-      await this.s3Service.deleteFile(publicKey);
-    } catch (cleanupError) {
-      logger.warn('Failed to delete legacy public CDN copy after visibility downgrade', {
-        sourceKey: key,
-        publicKey,
-        error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
-      });
-    }
-  }
-
-  /**
-   * Relocate a single S3 object so its key prefix matches `visibility`. Returns
-   * the (possibly unchanged) key. Idempotent and best-effort: a missing source
-   * object is logged and the original key is returned unchanged.
-   */
-  private async relocateObjectForVisibility(key: string, visibility: FileVisibility): Promise<string> {
-    const targetKey = this.targetKeyForVisibility(key, visibility);
-    if (visibility !== 'public') {
-      await this.deleteBackfilledPublicCopy(key);
-    }
-
-    if (targetKey === key) {
-      return key;
-    }
-
-    if (!(await this.s3Service.fileExists(key))) {
-      logger.warn('Cannot relocate object for visibility change; source missing', {
-        sourceKey: key,
-        targetKey,
-        visibility,
-      });
-      return key;
-    }
-
-    await this.s3Service.copyFile(key, targetKey);
-    try {
-      await this.s3Service.deleteFile(key);
-    } catch (cleanupError) {
-      logger.warn('Failed to delete source object after visibility relocation', {
-        sourceKey: key,
-        targetKey,
-        error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
-      });
-    }
-    return targetKey;
-  }
-
-  /**
-   * Relocate the original object and every variant so all keys match the file's
-   * current visibility, persisting the rewritten keys. Used when visibility
-   * actually flips (`public` ↔ `private`/`unlisted`) so existing CDN-served
-   * objects stop being reachable when made private, and become reachable when
-   * made public.
+   * Make every key of the file (original and renditions) the spelling its
+   * visibility needs — under `public/` for public, bare otherwise — so a
+   * now-private asset leaves the CDN and a now-public one becomes reachable.
+   *
+   * Storage is SHARED between owners' rows for the same bytes, so this never
+   * moves an object out from under anyone: it COPIES to the new spelling and
+   * repoints this row, under the content-hash lock (a purge cannot delete the
+   * fresh copy before the row references it), and then owes the OLD spelling a
+   * delete through `storage_object_deletions` (reason `file.relocated`). The
+   * storage-deletion worker deletes each spelling no live row uses — so a key
+   * another owner's row still uses stays, and a public copy nobody uses any
+   * more goes (with its CloudFront invalidation) — and retries a failure.
+   *
+   * A legacy public object kept at a bare key may have a backfilled `public/`
+   * copy; on a downgrade that copy is owed the same guarded delete even though
+   * the row's key itself does not change.
    */
   private async relocateAllForVisibility(file: FileRecord): Promise<FileRecord> {
-    const newOriginalKey = await this.relocateObjectForVisibility(file.storageKey, file.visibility);
-    let changed = newOriginalKey !== file.storageKey;
+    const wantPublic = file.visibility === 'public';
+    const keys = [
+      { variantId: null as string | null, key: file.storageKey },
+      ...file.variants.map((variant) => ({ variantId: variant.id as string | null, key: variant.key })),
+    ];
+    const moves = keys
+      .map((entry) => ({ ...entry, target: this.targetKeyForVisibility(entry.key, file.visibility) }))
+      .filter((entry) => entry.target !== entry.key);
 
-    for (const variant of file.variants) {
-      const newVariantKey = await this.relocateObjectForVisibility(variant.key, file.visibility);
-      if (newVariantKey !== variant.key) {
-        await updateVariantKey(variant.id, newVariantKey);
-        variant.key = newVariantKey;
-        changed = true;
+    // A downgrade also owes any legacy backfilled `public/` copy of a bare key.
+    const staleCopies: string[] = [];
+    if (!wantPublic) {
+      for (const { key } of keys) {
+        if (!isPublicKey(key) && await this.s3Service.fileExists(applyPublicPrefix(key))) {
+          staleCopies.push(key);
+        }
       }
     }
 
-    if (!changed) {
+    if (moves.length === 0 && staleCopies.length === 0) {
       return file;
     }
 
-    const updated = await updateFile(file.id, { storageKey: newOriginalKey });
+    const ledgerIds = await withContentHashLock(file.sha256, async (tx) => {
+      for (const move of moves) {
+        if (await this.s3Service.fileExists(move.target)) continue;
+        if (!(await this.s3Service.fileExists(move.key))) {
+          logger.warn('Cannot copy object for visibility change; source missing', {
+            fileId: file.id,
+            sourceKey: move.key,
+            targetKey: move.target,
+            visibility: file.visibility,
+          });
+          continue;
+        }
+        await this.s3Service.copyFile(move.key, move.target);
+      }
+      for (const move of moves) {
+        if (move.variantId === null) {
+          await tx.update(filesTable).set({ storageKey: move.target }).where(eq(filesTable.id, file.id));
+        } else {
+          await updateVariantKey(move.variantId, move.target, tx);
+        }
+      }
+      return recordFileStorageRelocation(tx, file, [...moves.map((move) => move.key), ...staleCopies]);
+    });
+
+    await this.drainStorageDeletion(file.id, ledgerIds);
+
+    const updated = await findFileById(file.id);
     if (!updated) {
       return file;
     }
@@ -1683,6 +1610,7 @@ export class AssetService {
       visibility: updated.visibility,
       storageKey: updated.storageKey,
       variantCount: updated.variants.length,
+      moved: moves.length,
     });
     return updated;
   }
@@ -2107,18 +2035,28 @@ export class AssetService {
    * route. The public-vs-private placement decision lives in one place
    * (`storageKeyForVisibility` in `config/cdn.ts`).
    *
+   * Several owners' rows share one key for the same bytes; see
+   * `sharedStorageKeyFor`.
+   *
    * `visibility` defaults to `private` for the two-phase upload flow
    * (`initUpload`), where the storage key (and its presigned PUT URL) must be
    * generated before the client declares visibility at `completeUpload`.
    */
-  private generateStorageKey(sha256: string, mime: string, visibility: FileVisibility = 'private'): string {
+  private generateStorageKey(
+    sha256: string,
+    mime: string,
+    visibility: FileVisibility = 'private',
+    uniqueSuffix?: string,
+  ): string {
     const ext = this.getExtensionFromMime(mime);
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
 
     // Content-addressed path: content/{year}/{month}/{first2chars}/{sha256}.{ext}
+    // A `uniqueSuffix` (`{sha256}-{suffix}.{ext}`) is for a presigned PUT that
+    // must not target a key another owner's row already holds (`initUpload`).
     const prefix = sha256.substring(0, 2);
-    const baseKey = `content/${year}/${month}/${prefix}/${sha256}${ext}`;
+    const baseKey = `content/${year}/${month}/${prefix}/${sha256}${uniqueSuffix ? `-${uniqueSuffix}` : ''}${ext}`;
     return storageKeyForVisibility(baseKey, visibility);
   }
 

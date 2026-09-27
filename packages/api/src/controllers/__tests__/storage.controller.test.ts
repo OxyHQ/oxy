@@ -70,8 +70,8 @@ async function usageFor(userId: string): Promise<UsageBody> {
 
 /**
  * A globally unique 64-hex content hash. Jest runs suites in PARALLEL against
- * ONE throwaway database and `files_sha256_live_key` spans the whole table, so a
- * per-file counter would collide with another suite's fixture rows.
+ * ONE throwaway database and rows for one hash share storage across the whole
+ * table, so a per-file counter would collide with another suite's fixture rows.
  */
 const sha = () => randomBytes(32).toString('hex');
 

@@ -20,11 +20,19 @@ import { applyCanonicalMediaMetadata, resolveFileMediaMetadata } from '../utils/
 import {
   deleteVariant,
   findFileById,
+  findVariantlessTwins,
   findVariantTwin,
   upsertVariantSet,
   updateFile,
   upsertVariant,
 } from './fileRepository';
+
+/**
+ * `files.metadata` keys that describe the BYTES (written by generation from the
+ * decode pass), as opposed to what an uploader or application said about its
+ * row. Only these travel between rows for the same content.
+ */
+const INTRINSIC_METADATA_KEYS: ReadonlySet<string> = new Set(['media', 'image', 'video']);
 
 // FFprobe metadata interfaces for type safety
 interface FFprobeStream {
@@ -369,29 +377,13 @@ export class VariantService {
         size: file.size
       });
 
-      // Check if variants already exist (for content-addressed files)
-      const existingFile = await findVariantTwin(file.sha256, file.id);
+      // Rows are per owner and share content-addressed storage: another live
+      // row with these bytes whose renditions are already the spelling this
+      // row's visibility needs gives them to this row without re-encoding.
+      const existingFile = await findVariantTwin(file.sha256, file.id, file.visibility);
 
       if (existingFile && existingFile.variants.length > 0) {
-        // Reuse existing variants and intrinsic metadata from the content-address
-        // twin. The twin's rows are copied as NEW rows: `id` and `file_id`
-        // belong to the twin and must not be carried over.
-        if (existingFile.metadata) {
-          file.metadata = { ...(file.metadata ?? {}), ...existingFile.metadata };
-        }
-        await this.commitVariants(
-          file,
-          existingFile.variants.map((variant) => ({
-            type: variant.type,
-            key: variant.key,
-            width: variant.width,
-            height: variant.height,
-            readyAt: variant.readyAt,
-            size: variant.size,
-            metadata: variant.metadata,
-          }))
-        );
-
+        await this.copyVariantSet(existingFile, file);
         logger.info('Reused existing variants for duplicate content', {
           fileId,
           sourceFileId: existingFile.id,
@@ -413,9 +405,64 @@ export class VariantService {
         fileId, 
         variantCount: file.variants.length 
       });
+
+      await this.shareVariantsWithTwins(file);
     } catch (error) {
       logger.error('Error generating variants:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Point `target` at `source`'s renditions. The rows are copied as NEW rows —
+   * `id` and `file_id` belong to the source — and name the SAME objects, so no
+   * byte is encoded twice; INTRINSIC metadata (dimensions, duration) comes
+   * along, since it describes the same bytes.
+   *
+   * Only intrinsic metadata: the source is usually ANOTHER owner's row, and its
+   * application metadata (`source`, `serviceAppId`, …) is what the federated
+   * delete route authorizes by — copying it would hand a different application
+   * delete authority over this row.
+   */
+  private async copyVariantSet(source: FileRecord, target: FileRecord): Promise<void> {
+    const intrinsic = Object.fromEntries(
+      Object.entries(source.metadata ?? {}).filter(([key]) => INTRINSIC_METADATA_KEYS.has(key)),
+    );
+    if (Object.keys(intrinsic).length > 0) {
+      target.metadata = { ...(target.metadata ?? {}), ...intrinsic };
+    }
+    await this.commitVariants(
+      target,
+      source.variants.map((variant) => ({
+        type: variant.type,
+        key: variant.key,
+        width: variant.width,
+        height: variant.height,
+        readyAt: variant.readyAt,
+        size: variant.size,
+        metadata: variant.metadata,
+      }))
+    );
+  }
+
+  /**
+   * Hand a freshly generated rendition set to the other live rows for the same
+   * bytes that have none yet and need the same spelling — owners who uploaded
+   * the same content while this generation was running, whose own queued jobs
+   * then find the set already there. Best-effort: a twin that misses out
+   * generates (or copies) on its own job.
+   */
+  private async shareVariantsWithTwins(file: FileRecord): Promise<void> {
+    if (file.variants.length === 0) return;
+    try {
+      for (const twin of await findVariantlessTwins(file.sha256, file.id, file.visibility)) {
+        await this.copyVariantSet(file, twin);
+      }
+    } catch (error) {
+      logger.warn('Could not share generated variants with content twins', {
+        fileId: file.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
