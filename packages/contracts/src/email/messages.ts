@@ -63,6 +63,37 @@ export type EmailFilterActionType = (typeof EMAIL_FILTER_ACTION_TYPES)[number];
 export const EMAIL_OUTBOX_STATUSES = ['pending', 'processing', 'sent', 'failed', 'cancelled'] as const;
 export type EmailOutboxStatus = (typeof EMAIL_OUTBOX_STATUSES)[number];
 
+/**
+ * Where a message the user SENT stands with the outside world.
+ *
+ * - `sending`: accepted and filed in Sent; the relay has not answered yet.
+ * - `retrying`: the relay failed in a way waiting can fix; another attempt is
+ *   scheduled.
+ * - `sent`: a relay accepted it.
+ * - `failed`: it will not go out on its own. `error` says why and whether a
+ *   retry can help (see {@link EMAIL_DELIVERY_ERROR_CODES}).
+ */
+export const EMAIL_DELIVERY_STATES = ['sending', 'retrying', 'sent', 'failed'] as const;
+export type EmailDeliveryState = (typeof EMAIL_DELIVERY_STATES)[number];
+
+/**
+ * Why a delivery failed or is retrying.
+ *
+ * - `relay_unavailable`: no relay answered (timeout, reset, 4xx). Transient.
+ * - `relay_unconfigured`: the server has no outbound relay; an operator must act.
+ * - `relay_auth`: the relay rejected our credential; an operator must act.
+ * - `rejected`: the relay refused THIS message (5xx). Editing it may help.
+ * - `retries_exhausted`: every scheduled retry failed transiently.
+ */
+export const EMAIL_DELIVERY_ERROR_CODES = [
+  'relay_unavailable',
+  'relay_unconfigured',
+  'relay_auth',
+  'rejected',
+  'retries_exhausted',
+] as const;
+export type EmailDeliveryErrorCode = (typeof EMAIL_DELIVERY_ERROR_CODES)[number];
+
 // ─── Messages ───────────────────────────────────────────────────────
 
 /** One addressee. A header without a display name carries `name: ''`. */
@@ -114,6 +145,25 @@ export const emailMessageHighlightSchema = z.object({
 export type EmailMessageHighlightWire = z.infer<typeof emailMessageHighlightSchema>;
 
 /**
+ * The delivery of a message the user sent. Absent on received mail and on
+ * messages sent before delivery was tracked, which were delivered.
+ */
+export const emailMessageDeliverySchema = z.object({
+  state: z.enum(EMAIL_DELIVERY_STATES),
+  /** Attempts made so far, including the one in flight. */
+  attempts: z.number().int().min(0),
+  /** The retry budget; `attempts >= maxAttempts` never retries on its own. */
+  maxAttempts: z.number().int().min(1),
+  /** The relay's own words for the last failure, when there was one. */
+  error: z.string().nullable(),
+  errorCode: z.enum(EMAIL_DELIVERY_ERROR_CODES).nullable(),
+  /** When the next automatic attempt is due; `null` unless `retrying`. */
+  nextAttemptAt: isoInstant.nullable(),
+  updatedAt: isoInstant,
+});
+export type EmailMessageDeliveryWire = z.infer<typeof emailMessageDeliverySchema>;
+
+/**
  * A stored message as every `/email` read returns it.
  *
  * `_id` and `id` are the same row id (see the "Wire shapes" note in oxy-api's
@@ -155,6 +205,8 @@ export const emailMessageSchema = z.object({
   createdAt: isoInstant,
   updatedAt: isoInstant,
   draftRevision: z.number().int().min(1),
+  /** Present only on messages the user sent since delivery was tracked. */
+  delivery: emailMessageDeliverySchema.optional(),
   /** Present only on the reads that return bodies (single message, thread). */
   text: z.string().nullable().optional(),
   html: z.string().nullable().optional(),

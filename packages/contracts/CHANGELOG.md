@@ -1,5 +1,18 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.2.0
+
+### Added
+
+- `email/messages`: `emailMessageSchema.delivery` (optional) — the delivery of a
+  message the user sent: `state` (`EMAIL_DELIVERY_STATES`: `sending`,
+  `retrying`, `sent`, `failed`), `attempts`, `maxAttempts`, `error`,
+  `errorCode` (`EMAIL_DELIVERY_ERROR_CODES`), `nextAttemptAt`, `updatedAt`.
+  oxy-api now answers a send with 202 as soon as the message is filed in Sent
+  and delivers it in the background; this is how a client shows "Sending…",
+  "Retrying" and "Not delivered". Absent on received mail. Additive: older
+  clients strip it.
+
 ## 4.1.0
 
 ### Added

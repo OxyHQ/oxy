@@ -108,3 +108,27 @@ describe('rfcMessageIdSchema', () => {
     expect(rfcMessageIdSchema.safeParse(id).success).toBe(false);
   });
 });
+
+describe('emailMessageSchema.delivery', () => {
+  const delivery = {
+    state: 'retrying',
+    attempts: 2,
+    maxAttempts: 5,
+    error: '421 Service not available',
+    errorCode: 'relay_unavailable',
+    nextAttemptAt: NOW,
+    updatedAt: NOW,
+  };
+
+  it('is optional: received mail has none', () => {
+    expect(emailMessageSchema.parse(message()).delivery).toBeUndefined();
+  });
+
+  it('carries the state of a message the user sent', () => {
+    expect(emailMessageSchema.parse(message({ delivery })).delivery).toEqual(delivery);
+  });
+
+  it('refuses a state outside the vocabulary', () => {
+    expect(emailMessageSchema.safeParse(message({ delivery: { ...delivery, state: 'queued' } })).success).toBe(false);
+  });
+});
