@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Changed (Inbox: accept now, deliver afterwards)
+
+- `POST /email/messages` no longer talks SMTP inside the request. It files the
+  message in Sent with `delivery.state = 'sending'` and creates its
+  `email_outbox` job in the same transaction, answers 202 with the row id and
+  its `delivery`, and delivery starts at once on the `oxy-api-email-delivery`
+  BullMQ queue (`QUEUE_REDIS_URL`, else `REDIS_URL`; in-process without either).
+  The one-minute sweep stays as the net for lost jobs and expired leases.
+- Every outcome is recorded on the message (`delivery_*` columns, migration
+  0122, pre): `sent`, `retrying` with `nextAttemptAt`, or `failed` with
+  `errorCode` (`relay_unavailable`, `relay_unconfigured`, `relay_auth`,
+  `rejected`, `retries_exhausted`) and the relay's words. Each change emits
+  `email:changed` with the new reason `delivery`.
+- `POST /email/messages/:messageId/delivery/retry` retries a failed message with
+  a fresh budget. The `/email/outbox` endpoints stay for clients older than
+  this change and now update the message too.
+- Scheduled sends go through the same delivery instead of an inline send whose
+  failures were only logged.
+- A server with no relay still answers 503 before anything is filed. `queued` in
+  the response is always `false`, kept only for older clients.
+
 ### Changed (Inbox mail integrity)
 
 - **Breaking for clients sending a row id:** `POST /email/messages` and

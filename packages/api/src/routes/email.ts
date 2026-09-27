@@ -100,6 +100,7 @@ import {
   importMessages,
   listOutboundMessages,
   retryOutboundMessage,
+  retryMessageDelivery,
   cancelOutboundMessage,
   listSavedSearches,
   createSavedSearch,
@@ -178,6 +179,7 @@ router.put('/messages/:messageId/flags', validate({ params: messageIdParams, bod
 router.put('/messages/:messageId/labels', validate({ params: messageIdParams, body: updateLabelsSchema }), asyncHandler(updateMessageLabels));
 router.post('/messages/:messageId/move', validate({ params: messageIdParams, body: moveMessageSchema }), asyncHandler(moveMessage));
 router.delete('/messages/:messageId', validate({ params: messageIdParams }), asyncHandler(deleteMessage));
+router.post('/messages/:messageId/delivery/retry', validate({ params: messageIdParams }), asyncHandler(retryMessageDelivery));
 router.post('/messages/:messageId/snooze', validate({ params: messageIdParams, body: snoozeMessageSchema }), asyncHandler(snoozeMessage));
 router.post('/messages/:messageId/unsnooze', validate({ params: messageIdParams }), asyncHandler(unsnoozeMessage));
 

@@ -49,11 +49,12 @@ export interface EmailUnreadCountEvent {
 }
 
 /** Why a message a client already holds is no longer what it holds. */
-export type EmailChangedReason = 'flags' | 'labels' | 'moved' | 'deleted' | 'sent';
+export type EmailChangedReason = 'flags' | 'labels' | 'moved' | 'deleted' | 'sent' | 'delivery';
 
 /**
  * Emitted to `user:${userId}` when an EXISTING message changes — read/unread,
- * starred, labelled, moved, deleted, or a new message landing in Sent.
+ * starred, labelled, moved, deleted, a new message landing in Sent, or a sent
+ * message's delivery state changing (`delivery`: retrying, delivered, failed).
  *
  * Deliberately carries no message body: it is a signal, not a payload. A client
  * answers it by invalidating the affected mailbox lists, which re-reads through

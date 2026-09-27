@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, lte, lt, or, sql } from 'drizzle-orm';
-import { getDb } from '../config/postgres';
+import { getDb, type Database, type Transaction } from '../config/postgres';
 import { emailOutbox, type EmailOutboxPayload, type EmailOutboxStatus } from '../db/schema/emailOutbox';
 import { ConflictError, NotFoundError } from '../utils/error';
 
@@ -30,15 +30,6 @@ export interface EmailOutboxDto {
   updatedAt: Date;
 }
 
-interface EnqueueEmailOutboxInput {
-  userId: string;
-  messageRowId?: string;
-  messageId: string;
-  idempotencyKey?: string;
-  payload: EmailOutboxPayload;
-  nextAttemptAt?: Date;
-}
-
 function toDto(row: typeof emailOutbox.$inferSelect): EmailOutboxDto {
   return {
     id: row.id,
@@ -55,131 +46,101 @@ function toDto(row: typeof emailOutbox.$inferSelect): EmailOutboxDto {
   };
 }
 
-export async function enqueueEmailOutbox(input: EnqueueEmailOutboxInput): Promise<EmailOutboxDto> {
-  const db = getDb();
-  if (input.idempotencyKey) {
-    const [existing] = await db
-      .select()
-      .from(emailOutbox)
-      .where(and(eq(emailOutbox.userId, input.userId), eq(emailOutbox.idempotencyKey, input.idempotencyKey)))
-      .limit(1);
-    if (existing) return toDto(existing);
-  }
-
-  try {
-    const [created] = await db
-      .insert(emailOutbox)
-      .values({
-        userId: input.userId,
-        messageRowId: input.messageRowId,
-        messageId: input.messageId,
-        idempotencyKey: input.idempotencyKey,
-        payload: input.payload,
-        nextAttemptAt: input.nextAttemptAt ?? new Date(),
-      })
-      .returning();
-    return toDto(created);
-  } catch (error) {
-    if (input.idempotencyKey) {
-      const [existing] = await db
-        .select()
-        .from(emailOutbox)
-        .where(and(eq(emailOutbox.userId, input.userId), eq(emailOutbox.idempotencyKey, input.idempotencyKey)))
-        .limit(1);
-      if (existing) return toDto(existing);
-    }
-    throw error;
-  }
-}
-
-/** The outcome of {@link claimIdempotentSend}. */
-export type IdempotentSendClaim =
-  | { claimed: true; outboxId: string }
-  | { claimed: false; existing: EmailOutboxDto };
+type DbOrTx = Database | Transaction;
 
 /**
- * Take the durable, cross-process claim on ONE send, keyed by the client's
- * `Idempotency-Key`, BEFORE anything is said to a relay.
+ * Create the delivery job for a message just filed in Sent, INSIDE the
+ * transaction that filed it — a filed message always has a job, a job always
+ * has its message.
  *
- * The row is created already `processing` and leased to the caller, so the
- * outbox worker leaves it alone while the request delivers it — and adopts it
- * after the lease expires if the request died mid-flight. A second request with
- * the same key (a client retry after its own timeout, a double press, a retry
- * that landed on another API task) loses the unique-index race and gets the
- * existing row instead of sending again.
- *
- * This replaces a per-process in-flight map plus a Redis result cache written
- * only AFTER the relay answered: two tasks could both miss both, and the same
- * reply went out twice.
+ * With an `idempotencyKey`, the unique `(user_id, idempotency_key)` index is
+ * what makes a retried request (a client that timed out, a double press, a
+ * retry that landed on another task) lose: its insert fails, its transaction
+ * rolls back with the message it filed, and the caller returns the first one.
  */
-export async function claimIdempotentSend(input: {
-  userId: string;
-  idempotencyKey: string;
-  messageId: string;
-  payload: EmailOutboxPayload;
-  owner: string;
-}): Promise<IdempotentSendClaim> {
-  const db = getDb();
-  const now = new Date();
-  const [created] = await db
+export async function insertDeliveryJob(
+  tx: Transaction,
+  input: {
+    userId: string;
+    messageRowId: string;
+    messageId: string;
+    idempotencyKey?: string;
+    payload: EmailOutboxPayload;
+  },
+): Promise<string> {
+  const [created] = await tx
     .insert(emailOutbox)
     .values({
       userId: input.userId,
+      messageRowId: input.messageRowId,
       messageId: input.messageId,
       idempotencyKey: input.idempotencyKey,
-      payload: input.payload,
-      status: 'processing',
-      attempts: 1,
-      lockedAt: now,
-      lockedBy: input.owner,
-      nextAttemptAt: now,
-    })
-    .onConflictDoNothing({
-      target: [emailOutbox.userId, emailOutbox.idempotencyKey],
-      where: sql`${emailOutbox.idempotencyKey} is not null`,
+      payload: { ...input.payload, filed: true },
+      status: 'pending',
+      nextAttemptAt: new Date(),
     })
     .returning({ id: emailOutbox.id });
-  if (created) return { claimed: true, outboxId: created.id };
+  return created.id;
+}
 
-  const [existing] = await db
+/** The job, if any, for one filed message. */
+export async function findDeliveryJobForMessage(
+  userId: string,
+  messageRowId: string,
+): Promise<typeof emailOutbox.$inferSelect | undefined> {
+  const [row] = await getDb()
     .select()
     .from(emailOutbox)
-    .where(and(eq(emailOutbox.userId, input.userId), eq(emailOutbox.idempotencyKey, input.idempotencyKey)))
+    .where(and(eq(emailOutbox.userId, userId), eq(emailOutbox.messageRowId, messageRowId)))
+    .orderBy(desc(emailOutbox.createdAt))
     .limit(1);
-  if (!existing) {
-    // The holder released its claim (a permanent refusal) between our insert
-    // and this read. Nothing was sent; take the claim ourselves.
-    return claimIdempotentSend(input);
-  }
-  return { claimed: false, existing: toDto(existing) };
+  return row;
+}
+
+/** Rows a worker may take: due and within budget, or leased by someone who died. */
+function claimable(now: Date) {
+  const leaseExpiredAt = new Date(now.getTime() - LEASE_MS);
+  return or(
+    and(
+      inArray(emailOutbox.status, ['pending', 'failed']),
+      lte(emailOutbox.nextAttemptAt, now),
+      lt(emailOutbox.attempts, MAX_ATTEMPTS),
+    ),
+    and(eq(emailOutbox.status, 'processing'), isNull(emailOutbox.lockedAt)),
+    and(eq(emailOutbox.status, 'processing'), lt(emailOutbox.lockedAt, leaseExpiredAt)),
+  );
 }
 
 /**
- * Give a claim back after a PERMANENT refusal. Nothing was sent and nothing
- * will be, so no row may promise otherwise — and the same key must be free to
- * try again once the sender has fixed the cause.
+ * Take ONE named job, if it is claimable. Two workers handed the same id — a
+ * queue job and the sweep, say — race on the row lock and exactly one wins.
  */
-export async function releaseIdempotentSend(outboxId: string): Promise<void> {
-  await getDb().delete(emailOutbox).where(eq(emailOutbox.id, outboxId));
+export async function claimEmailOutboxById(
+  id: string,
+  workerId: string,
+): Promise<typeof emailOutbox.$inferSelect | undefined> {
+  const now = new Date();
+  const [claimed] = await getDb()
+    .update(emailOutbox)
+    .set({
+      status: 'processing',
+      lockedAt: now,
+      lockedBy: workerId,
+      attempts: sql`${emailOutbox.attempts} + 1`,
+    })
+    .where(and(eq(emailOutbox.id, id), claimable(now)))
+    .returning();
+  return claimed;
 }
 
 export async function claimEmailOutbox(workerId: string): Promise<typeof emailOutbox.$inferSelect | undefined> {
   const db = getDb();
   const now = new Date();
-  const leaseExpiredAt = new Date(now.getTime() - LEASE_MS);
   return db.transaction(async (tx) => {
     const [candidate] = await tx
       .select()
       .from(emailOutbox)
-      .where(or(
-        and(
-          inArray(emailOutbox.status, ['pending', 'failed']),
-          lte(emailOutbox.nextAttemptAt, now),
-          lt(emailOutbox.attempts, MAX_ATTEMPTS),
-        ),
-        and(eq(emailOutbox.status, 'processing'), isNull(emailOutbox.lockedAt)),
-        and(eq(emailOutbox.status, 'processing'), lt(emailOutbox.lockedAt, leaseExpiredAt)),
-      ))
+      .where(claimable(now))
       .orderBy(asc(emailOutbox.nextAttemptAt), asc(emailOutbox.createdAt))
       .limit(1)
       .for('update', { skipLocked: true });
@@ -193,7 +154,6 @@ export async function claimEmailOutbox(workerId: string): Promise<typeof emailOu
         lockedAt: now,
         lockedBy: workerId,
         attempts: sql`${emailOutbox.attempts} + 1`,
-        lastError: null,
       })
       .where(eq(emailOutbox.id, candidate.id))
       .returning();
@@ -201,22 +161,27 @@ export async function claimEmailOutbox(workerId: string): Promise<typeof emailOu
   });
 }
 
-export async function markEmailOutboxSent(id: string): Promise<void> {
-  await getDb()
+export async function markEmailOutboxSent(id: string, db: DbOrTx = getDb()): Promise<void> {
+  await db
     .update(emailOutbox)
     .set({ status: 'sent', sentAt: new Date(), lockedAt: null, lockedBy: null, lastError: null })
     .where(eq(emailOutbox.id, id));
 }
 
-function errorText(error: unknown): string {
+export function errorText(error: unknown): string {
   return error instanceof Error
     ? error.message.slice(0, 2000)
     : String(error).slice(0, 2000);
 }
 
 /** Record a TRANSIENT failure and schedule the next attempt. */
-export async function markEmailOutboxFailed(id: string, error: unknown, nextAttemptAt: Date): Promise<void> {
-  await getDb()
+export async function markEmailOutboxFailed(
+  id: string,
+  error: unknown,
+  nextAttemptAt: Date,
+  db: DbOrTx = getDb(),
+): Promise<void> {
+  await db
     .update(emailOutbox)
     .set({
       status: 'failed',
@@ -240,8 +205,8 @@ export async function markEmailOutboxFailed(id: string, error: unknown, nextAtte
  * refills it when an operator has fixed the cause. `attempts` is a budget, not
  * a history counter; `lastError` carries what actually happened.
  */
-export async function markEmailOutboxTerminal(id: string, error: unknown): Promise<void> {
-  await getDb()
+export async function markEmailOutboxTerminal(id: string, error: unknown, db: DbOrTx = getDb()): Promise<void> {
+  await db
     .update(emailOutbox)
     .set({
       status: 'failed',
@@ -263,8 +228,8 @@ export async function listEmailOutbox(userId: string, limit = 50): Promise<Email
   return rows.map(toDto);
 }
 
-export async function retryEmailOutbox(userId: string, id: string): Promise<EmailOutboxDto> {
-  const [updated] = await getDb()
+export async function retryEmailOutbox(userId: string, id: string, db: DbOrTx = getDb()): Promise<EmailOutboxDto> {
+  const [updated] = await db
     .update(emailOutbox)
     .set({ status: 'pending', attempts: 0, nextAttemptAt: new Date(), lockedAt: null, lockedBy: null, lastError: null })
     .where(and(eq(emailOutbox.id, id), eq(emailOutbox.userId, userId), inArray(emailOutbox.status, ['failed', 'cancelled'])))
@@ -273,8 +238,8 @@ export async function retryEmailOutbox(userId: string, id: string): Promise<Emai
   return toDto(updated);
 }
 
-export async function cancelEmailOutbox(userId: string, id: string): Promise<EmailOutboxDto> {
-  const [updated] = await getDb()
+export async function cancelEmailOutbox(userId: string, id: string, db: DbOrTx = getDb()): Promise<EmailOutboxDto> {
+  const [updated] = await db
     .update(emailOutbox)
     .set({ status: 'cancelled', lockedAt: null, lockedBy: null })
     .where(and(eq(emailOutbox.id, id), eq(emailOutbox.userId, userId), inArray(emailOutbox.status, ['pending', 'failed'])))
@@ -284,3 +249,6 @@ export async function cancelEmailOutbox(userId: string, id: string): Promise<Ema
 }
 
 export { MAX_ATTEMPTS as EMAIL_OUTBOX_MAX_ATTEMPTS };
+
+/** The DTO's shape for one row, for callers that updated it themselves. */
+export { toDto as toEmailOutboxDto };

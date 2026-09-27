@@ -15,6 +15,8 @@
 export const QUEUE_NAMES = {
   /** Email housekeeping: snoozed messages, due reminders, scheduled sends. */
   EMAIL_MAINTENANCE: 'oxy-api-email-maintenance',
+  /** One job per outbound delivery attempt; see `emailDelivery.queue.ts`. */
+  EMAIL_DELIVERY: 'oxy-api-email-delivery',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

@@ -117,3 +117,22 @@ export function getAssetVariantQueueConnectionOptions(): ConnectionOptions {
   }
   return parseQueueConnectionOptions(url);
 }
+
+/**
+ * Outbound email delivery prefers the isolated noeviction Valkey too — a job
+ * evicted under memory pressure would sit until the one-minute safety sweep —
+ * and falls back to the shared `REDIS_URL`. Losing a job is never losing a
+ * message: the durable state is the `email_outbox` row, and the sweep adopts
+ * anything the queue dropped.
+ */
+export function getEmailDeliveryQueueUrl(): string | undefined {
+  return process.env.QUEUE_REDIS_URL ?? process.env.REDIS_URL;
+}
+
+export function getEmailDeliveryQueueConnectionOptions(): ConnectionOptions {
+  const url = getEmailDeliveryQueueUrl();
+  if (!url) {
+    throw new Error('getEmailDeliveryQueueConnectionOptions called without QUEUE_REDIS_URL or REDIS_URL set');
+  }
+  return parseQueueConnectionOptions(url);
+}

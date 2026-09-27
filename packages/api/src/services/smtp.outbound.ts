@@ -1,31 +1,21 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import {
-  SMTP_OUTBOUND_CONFIG,
   SMTP_RELAYS,
   DKIM_CONFIG,
   EMAIL_DOMAIN,
   type SmtpRelayConfig,
 } from '../config/email.config';
-import { emailService } from './email.service';
 import { assetService } from './assetServiceSingleton';
 import type { MessageAttachment } from '../db/schema/messageAttachments';
 import type { EmailAddress } from '../db/schema/messages';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
-import { idempotentMessageId } from './emailIdempotency';
-import {
-  claimIdempotentSend,
-  enqueueEmailOutbox,
-  markEmailOutboxFailed,
-  markEmailOutboxSent,
-  releaseIdempotentSend,
-} from './emailOutbox.service';
 import { OXY_SENT_ID_HEADER, relayAssignedMessageId } from './relayMessageId';
-import type { EmailOutboxPayload } from '../db/schema/emailOutbox';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
 import { ServiceUnavailableError } from '../utils/error';
 
+/** One message handed to a relay. Filing and retrying are `emailDelivery.service.ts`. */
 interface OutboundMessage {
   userId: string;
   from: EmailAddress;
@@ -40,8 +30,6 @@ interface OutboundMessage {
   attachments?: MessageAttachment[];
   /** When true, add Disposition-Notification-To header requesting a read receipt */
   requestReadReceipt?: boolean;
-  /** Stable client key used to make retries return the original outcome. */
-  idempotencyKey?: string;
   messageId?: string;
 }
 
@@ -50,29 +38,12 @@ const SECURE_MAIL_CONTENT_OPTIONS = {
   disableUrlAccess: true,
 } satisfies Pick<SMTPTransport.Options, 'disableFileAccess' | 'disableUrlAccess'>;
 
-/** What the durable outbox keeps to deliver a message later. */
-function outboxPayload(message: OutboundMessage): EmailOutboxPayload {
-  return {
-    from: message.from,
-    to: message.to,
-    cc: message.cc,
-    bcc: message.bcc,
-    subject: message.subject,
-    text: message.text,
-    html: message.html,
-    inReplyTo: message.inReplyTo,
-    references: message.references,
-    attachments: message.attachments,
-    requestReadReceipt: message.requestReadReceipt,
-  };
-}
-
 /**
  * Thrown when outbound email cannot be attempted at all because the relay is
  * not configured. NOT an SMTP failure: nothing was ever said to a server.
  *
  * It is a subclass of {@link ServiceUnavailableError} so the route answers 503
- * with an actionable message instead of 202 `queued`.
+ * with an actionable message instead of accepting a message it cannot send.
  */
 export class SmtpConfigurationError extends ServiceUnavailableError {
   constructor(message: string) {
@@ -86,7 +57,7 @@ export class SmtpConfigurationError extends ServiceUnavailableError {
  * server's own 5xx (`535 Authentication credentials invalid`) may or may not
  * survive onto the error object depending on where the handshake died.
  */
-function isAuthenticationFailure(error: unknown): boolean {
+export function isAuthenticationFailure(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const e = error as { code?: unknown; responseCode?: unknown; command?: unknown };
   if (e.code === 'EAUTH') return true;
@@ -266,103 +237,6 @@ class SmtpOutboundService {
       },
       ...SECURE_MAIL_CONTENT_OPTIONS,
     };
-  }
-
-  /**
-   * Send a user's message and file it in their Sent mailbox.
-   *
-   * With an `idempotencyKey`, the send is first CLAIMED durably
-   * ({@link claimIdempotentSend}): a retry of the same key — from a client that
-   * timed out while the relay was still talking, from a double press, or on
-   * another API task — returns the first attempt's outcome instead of sending
-   * again. `queued: true` then means "accepted and still in flight or waiting
-   * to retry"; the outbox shows which.
-   */
-  async send(message: OutboundMessage): Promise<{ messageId: string; queued: boolean }> {
-    if (!message.idempotencyKey) {
-      return this.deliverAndStore(message, `<${uuidv4()}@${EMAIL_DOMAIN}>`, null);
-    }
-
-    const messageId = idempotentMessageId(message.userId, message.idempotencyKey);
-    // Delivered and filed before the outbox row existed, or before it was kept.
-    if (await emailService.findMessageByRfcMessageId(message.userId, messageId)) {
-      return { messageId, queued: false };
-    }
-
-    const claim = await claimIdempotentSend({
-      userId: message.userId,
-      idempotencyKey: message.idempotencyKey,
-      messageId,
-      payload: outboxPayload(message),
-      owner: `request:${uuidv4()}`,
-    });
-    if (!claim.claimed) {
-      return { messageId: claim.existing.messageId, queued: claim.existing.status !== 'sent' };
-    }
-    return this.deliverAndStore(message, messageId, claim.outboxId);
-  }
-
-  private async deliverAndStore(
-    message: OutboundMessage,
-    messageId: string,
-    outboxId: string | null,
-  ): Promise<{ messageId: string; queued: boolean }> {
-    try {
-      const attachments = await this.resolveAttachments(message.attachments || []);
-      const { relayMessageId } = await this.deliverThroughRelays(this.mailOptionsFor(message, messageId, attachments));
-
-      const size = Buffer.byteLength((message.text || '') + (message.html || ''), 'utf8');
-      await emailService.storeSentMessage(message.userId, {
-        messageId,
-        relayMessageId,
-        from: message.from,
-        to: message.to,
-        cc: message.cc,
-        bcc: message.bcc,
-        subject: message.subject,
-        text: message.text,
-        html: message.html,
-        inReplyTo: message.inReplyTo,
-        references: message.references,
-        attachments: message.attachments,
-        size,
-      });
-      if (outboxId) await markEmailOutboxSent(outboxId);
-
-      logger.info('Email sent', {
-        messageId,
-        to: message.to.map((a) => a.address).join(', '),
-      });
-      return { messageId, queued: false };
-    } catch (error) {
-      if (!isRetryableSmtpFailure(error)) {
-        // Permanent. Do NOT queue: a row in the outbox is a promise that this
-        // message will go out later, and that promise would be a lie. Give the
-        // claim back and let it propagate so the caller answers with a real
-        // failure — and a corrected retry with the same key can try again.
-        if (outboxId) await releaseIdempotentSend(outboxId);
-        logger.error(
-          'Email send permanently rejected; not queued',
-          error instanceof Error ? error : new Error(String(error)),
-          { messageId, to: message.to.map((a) => a.address).join(', ') },
-        );
-        throw error;
-      }
-      logger.error('Email send failed, queuing for retry', error instanceof Error ? error : new Error(String(error)));
-      const nextAttemptAt = new Date(Date.now() + SMTP_OUTBOUND_CONFIG.retryDelays[0]);
-      if (outboxId) {
-        await markEmailOutboxFailed(outboxId, error, nextAttemptAt);
-      } else {
-        await enqueueEmailOutbox({
-          userId: message.userId,
-          messageId,
-          payload: outboxPayload(message),
-          nextAttemptAt,
-        });
-      }
-      logger.warn('Email persisted in durable outbox', { messageId });
-      return { messageId, queued: true };
-    }
   }
 
   /**

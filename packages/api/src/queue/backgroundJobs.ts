@@ -34,6 +34,7 @@ import {
   registerRepeatableJob,
   closeQueues,
 } from './queueManager';
+import { startEmailDeliveryWorker, stopEmailDelivery } from './emailDelivery.queue';
 
 /**
  * Tracks which scheduling path is active so shutdown stops the right one.
@@ -47,6 +48,17 @@ let fallbackActive = false;
  * enabled, otherwise the in-process fallback. Never throws.
  */
 export async function startBackgroundJobs(): Promise<void> {
+  // Outbound delivery has its own queue (it prefers the noeviction Valkey) and
+  // its own fallback, so it starts whichever path the maintenance jobs take.
+  try {
+    startEmailDeliveryWorker();
+  } catch (err) {
+    logger.error(
+      'Email delivery worker failed to start — sends will go out on the one-minute sweep',
+      err instanceof Error ? err : new Error(String(err)),
+    );
+  }
+
   if (!isQueueEnabled()) {
     logger.warn(
       'BullMQ queues disabled (REDIS_URL unset) — using in-process cron fallback for email maintenance'
@@ -96,6 +108,7 @@ export async function startBackgroundJobs(): Promise<void> {
  * BEFORE the shared cache Redis client and MongoDB are closed.
  */
 export async function stopBackgroundJobs(): Promise<void> {
+  await stopEmailDelivery();
   if (fallbackActive) {
     stopSnoozeCron();
     fallbackActive = false;

@@ -23,7 +23,6 @@ jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extract
 jest.mock('../smtp.outbound', () => ({
   __esModule: true,
   smtpOutbound: {
-    send: (...args: unknown[]) => mockSend(...args),
     sendRaw: (...args: unknown[]) => mockSend(...args),
     sendMdn: (...args: unknown[]) => mockSend(...args),
   },

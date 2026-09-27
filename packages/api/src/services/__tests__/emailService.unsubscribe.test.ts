@@ -30,7 +30,7 @@ jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
 jest.mock('../senderAvatar.service', () => ({ getAvatarPathsBatch: jest.fn() }));
 jest.mock('../aiLabeling.service', () => ({ aiLabelingService: {} }));
 jest.mock('../cardExtraction.service', () => ({ cardExtractionService: {} }));
-jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: { send: jest.fn() }, default: {} }));
+jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: { sendRaw: jest.fn() }, default: {} }));
 jest.mock('../../utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));

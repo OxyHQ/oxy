@@ -25,6 +25,8 @@ import {
   type SQLWrapper,
 } from 'drizzle-orm';
 import type {
+  EmailDeliveryErrorCode,
+  EmailDeliveryState,
   EmailFilterActionType,
   EmailFilterConditionField,
   EmailFilterConditionOperator,
@@ -70,12 +72,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { aiLabelingService } from './aiLabeling.service';
 import { cardExtractionService } from './cardExtraction.service';
 import { smtpOutbound } from './smtp.outbound';
+import { acceptOutboundMessage, deliverFiledMessage } from './emailDelivery.service';
 import { sendInboxEmailPush } from './emailPushDelivery.service';
 import { emitEmailNew, emitEmailChanged } from './inboxRealtime';
 import { parseInboundMime } from './inboundMime';
 import { OXY_SENT_ID_HEADER } from './relayMessageId';
 import { assetService } from './assetServiceSingleton';
 import { idempotentMessageId } from './emailIdempotency';
+import { EMAIL_OUTBOX_MAX_ATTEMPTS } from './emailOutbox.service';
 import { emailSavedSearches, type SavedEmailSearchFilters } from '../db/schema/emailSavedSearches';
 import { enqueueInboxMessageEvents } from '../capabilities/inbox.events';
 
@@ -246,6 +250,35 @@ export interface MessageCardDto {
   extractedAt: Date | null;
 }
 
+/** What filing a message the user is sending needs. */
+export interface OutgoingMessageData {
+  messageId: string;
+  from: EmailAddress;
+  to: EmailAddress[];
+  cc?: EmailAddress[];
+  bcc?: EmailAddress[];
+  subject: string;
+  text?: string;
+  html?: string;
+  inReplyTo?: string;
+  references?: string[];
+  attachments?: MessageAttachment[];
+}
+
+/**
+ * Where a message the user sent stands. Absent on received mail and on
+ * messages sent before delivery was tracked.
+ */
+export interface MessageDeliveryDto {
+  state: EmailDeliveryState;
+  attempts: number;
+  maxAttempts: number;
+  error: string | null;
+  errorCode: EmailDeliveryErrorCode | null;
+  nextAttemptAt: Date | null;
+  updatedAt: Date;
+}
+
 /** A stored message as every `/email` endpoint returns it. */
 export interface MessageDto {
   _id: string;
@@ -281,6 +314,8 @@ export interface MessageDto {
   createdAt: Date;
   updatedAt: Date;
   draftRevision: number;
+  /** Present only on messages the user sent since delivery was tracked. */
+  delivery?: MessageDeliveryDto;
   /** Present only on the reads that explicitly asked for the protected bodies. */
   text?: string | null;
   html?: string | null;
@@ -634,6 +669,17 @@ function toMessageDto(
       data: row.cardData,
       confidence: row.cardConfidence,
       extractedAt: row.cardExtractedAt,
+    };
+  }
+  if (row.deliveryState !== null && row.deliveryAttempts !== null && row.deliveryUpdatedAt !== null) {
+    dto.delivery = {
+      state: row.deliveryState,
+      attempts: row.deliveryAttempts,
+      maxAttempts: EMAIL_OUTBOX_MAX_ATTEMPTS,
+      error: row.deliveryError,
+      errorCode: row.deliveryErrorCode,
+      nextAttemptAt: row.deliveryNextAttemptAt,
+      updatedAt: row.deliveryUpdatedAt,
     };
   }
   if ('text' in row) dto.text = row.text ?? null;
@@ -2291,26 +2337,56 @@ class EmailService {
   }
 
   /**
-   * Move a sent message to the Sent mailbox after it has been dispatched.
+   * File a message the user is sending in their Sent mailbox BEFORE it is
+   * delivered, with delivery `sending`.
+   *
+   * Filing first is what lets `POST /email/messages` answer without waiting on
+   * SMTP: the message is durable the moment this commits, and the relay's
+   * verdict arrives later as a delivery state on this row. `onFiled` runs in the
+   * same transaction — the delivery job is created there, so a filed message
+   * always has a job and a job always has its message.
+   */
+  async fileOutgoingMessage(
+    userId: string,
+    messageData: OutgoingMessageData,
+    onFiled: (transaction: Transaction, rowId: string) => Promise<void>,
+  ): Promise<MessageDto> {
+    return this.insertSentRow(
+      userId,
+      messageData,
+      { deliveryState: 'sending', deliveryAttempts: 0, deliveryUpdatedAt: new Date() },
+      onFiled,
+    );
+  }
+
+  /**
+   * File a message that has ALREADY been delivered — an outbox row accepted
+   * before sends were filed first, whose Sent row is written only on delivery.
    */
   async storeSentMessage(
     userId: string,
-    messageData: {
-      messageId: string;
+    messageData: OutgoingMessageData & {
       /** The id the relay delivered it under, when it replaced ours. */
       relayMessageId?: string | null;
-      from: EmailAddress;
-      to: EmailAddress[];
-      cc?: EmailAddress[];
-      bcc?: EmailAddress[];
-      subject: string;
-      text?: string;
-      html?: string;
-      inReplyTo?: string;
-      references?: string[];
-      attachments?: MessageAttachment[];
-      size: number;
-    }
+      attempts: number;
+    },
+  ): Promise<MessageDto> {
+    return this.insertSentRow(userId, messageData, {
+      relayMessageId: messageData.relayMessageId ?? null,
+      deliveryState: 'sent',
+      deliveryAttempts: messageData.attempts,
+      deliveryUpdatedAt: new Date(),
+    });
+  }
+
+  private async insertSentRow(
+    userId: string,
+    messageData: OutgoingMessageData,
+    delivery: Pick<
+      typeof messages.$inferInsert,
+      'relayMessageId' | 'deliveryState' | 'deliveryAttempts' | 'deliveryUpdatedAt'
+    >,
+    onFiled?: (transaction: Transaction, rowId: string) => Promise<void>,
   ): Promise<MessageDto> {
     await this.ensureMailboxes(userId);
     const db = getDb();
@@ -2328,7 +2404,7 @@ class EmailService {
         userId,
         mailboxId: sentMailbox.id,
         messageId: messageData.messageId,
-        relayMessageId: messageData.relayMessageId ?? null,
+        ...delivery,
         fromName: messageData.from.name?.trim() ? messageData.from.name.trim() : null,
         fromAddress: messageData.from.address.trim().toLowerCase(),
         subject: messageData.subject,
@@ -2343,11 +2419,12 @@ class EmailService {
       },
       { to: messageData.to, cc: messageData.cc, bcc: messageData.bcc },
       messageData.attachments ?? [],
+      onFiled,
     );
 
     const dto = await readMessageDto(db, created);
     // A second device showing the Sent folder should see the message the moment
-    // it is dispatched, not on its next refresh.
+    // it is filed, not on its next refresh.
     await emitEmailChanged({
       userId,
       id: dto.id,
@@ -2528,8 +2605,15 @@ class EmailService {
   }
 
   /**
-   * Process all scheduled messages whose send time has passed.
-   * Called by the scheduled send cron job every minute.
+   * Hand every scheduled message whose time has come to delivery.
+   *
+   * Each is already filed in Sent; this gives it a delivery job and the state
+   * `sending`, and from there it is an ordinary send — retried on a transient
+   * failure, `failed` with the relay's reason on a permanent one. It used to be
+   * sent inline here, and a failure was logged and retried every minute,
+   * forever, with nothing on the message to say so.
+   *
+   * Called by the maintenance job every minute.
    */
   async processScheduledMessages(): Promise<number> {
     const db = getDb();
@@ -2559,33 +2643,33 @@ class EmailService {
         const group = recipients.get(msg.id) ?? emptyRecipients();
         const attachments = await loadOutboundAttachments(db, msg.id);
 
-        const { relayMessageId } = await smtpOutbound.sendRaw({
+        await deliverFiledMessage({
           userId: msg.userId,
+          messageRowId: msg.id,
           messageId: msg.messageId,
-          from: { name: msg.fromName ?? '', address: msg.fromAddress },
-          to: group.to,
-          cc: group.cc.length ? group.cc : undefined,
-          bcc: group.bcc.length ? group.bcc : undefined,
-          subject: msg.subject,
-          text: msg.text ?? undefined,
-          html: msg.html ?? undefined,
-          inReplyTo: msg.inReplyTo ?? undefined,
-          references: msg.references.length ? msg.references : undefined,
-          attachments: attachments.length ? attachments : undefined,
+          payload: {
+            from: { name: msg.fromName ?? '', address: msg.fromAddress },
+            to: group.to,
+            cc: group.cc.length ? group.cc : undefined,
+            bcc: group.bcc.length ? group.bcc : undefined,
+            subject: msg.subject,
+            text: msg.text ?? undefined,
+            html: msg.html ?? undefined,
+            inReplyTo: msg.inReplyTo ?? undefined,
+            references: msg.references.length ? msg.references : undefined,
+            attachments: attachments.length ? attachments : undefined,
+          },
         });
-
-        // Clear scheduledAt to mark as sent
-        await db.update(messages).set({ scheduledAt: null, relayMessageId }).where(eq(messages.id, msg.id));
         count++;
       } catch (err) {
-        logger.error('Failed to send scheduled message', err instanceof Error ? err : new Error(String(err)), {
+        logger.error('Failed to hand a scheduled message to delivery', err instanceof Error ? err : new Error(String(err)), {
           messageId: msg.id,
         });
       }
     }
 
     if (count > 0) {
-      logger.info('Scheduled send cron processed', { count });
+      logger.info('Scheduled messages handed to delivery', { count });
     }
     return count;
   }
@@ -4122,7 +4206,7 @@ class EmailService {
 
               const user = await loadSenderIdentity(db, userId);
               if (user?.username) {
-                await smtpOutbound.send({
+                await acceptOutboundMessage({
                   userId,
                   from: {
                     name: resolveEmailFromName(user),
@@ -4265,10 +4349,10 @@ class EmailService {
    * removed; the blob itself is never deleted here — the file manager owns
    * blob lifecycle.
    *
-   * Links are recorded under two entityId conventions: outbound sends link by
-   * the RFC Message-ID (the Mongo _id of the Sent copy is created later inside
-   * storeSentMessage), while inbound/import link by the Mongo _id. Unlinking
-   * is a no-op when a link doesn't exist, so we clear both.
+   * Links are recorded under two entityId conventions: sends accepted before
+   * messages were filed first linked by the RFC Message-ID (the Sent row did
+   * not exist yet), everything since links by the row id. Unlinking is a
+   * no-op when a link doesn't exist, so we clear both.
    */
   private async deleteMessageAttachments(message: { id: string; messageId: string }): Promise<void> {
     const fileIds = await getDb()

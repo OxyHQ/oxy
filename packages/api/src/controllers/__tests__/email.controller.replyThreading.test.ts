@@ -1,5 +1,5 @@
 /**
- * `sendMessageForUser` threading, on a REAL Postgres. The transport is stubbed.
+ * `sendMessageForUser` threading, on a REAL Postgres. Accepting the send is stubbed.
  *
  * A reply's `In-Reply-To` / `References` must be RFC 5322 Message-IDs. The
  * Inbox client once sent the parent's ROW id; nodemailer wrapped it as
@@ -10,8 +10,8 @@
 
 const mockSend = jest.fn();
 
-jest.mock('../../services/smtp.outbound', () => ({
-  smtpOutbound: { send: (...args: unknown[]) => mockSend(...args) },
+jest.mock('../../services/emailDelivery.service', () => ({
+  acceptOutboundMessage: (...args: unknown[]) => mockSend(...args),
 }));
 jest.mock('../../services/assetServiceSingleton', () => ({
   assetService: { uploadFileDirect: jest.fn(), linkFile: jest.fn(), getFilesByIds: jest.fn() },
@@ -56,7 +56,10 @@ afterAll(async () => {
 
 beforeEach(() => {
   mockSend.mockReset();
-  mockSend.mockResolvedValue({ messageId: `<sent-${unique()}@oxy.so>`, queued: false });
+  mockSend.mockResolvedValue({
+    message: { id: unique(), messageId: `<sent-${unique()}@oxy.so>`, delivery: { state: 'sending' } },
+    created: true,
+  });
 });
 
 async function received(overrides: { references?: string[]; inReplyTo?: string } = {}) {

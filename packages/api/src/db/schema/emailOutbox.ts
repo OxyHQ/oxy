@@ -32,6 +32,13 @@ export interface EmailOutboxPayload {
   references?: string[];
   attachments?: MessageAttachment[];
   requestReadReceipt?: boolean;
+  /**
+   * The message was filed in Sent when it was accepted, and `message_row_id`
+   * points at it. Rows without this predate filing-first: their Sent row is
+   * written only on delivery. With it, a NULL `message_row_id` means the user
+   * deleted the message before it left, and it is not sent.
+   */
+  filed?: boolean;
 }
 
 export const emailOutbox = pgTable(

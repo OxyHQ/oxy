@@ -2,14 +2,14 @@
  * Email Controller
  *
  * Request handlers for all /email routes.
- * Delegates to emailService for business logic and smtpOutbound for sending.
+ * Delegates to emailService for business logic and emailDelivery for sending.
  */
 
 import type { Request, Response } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
 import { rfcMessageIdSchema, type CapabilityTicketClaims } from '@oxy.so/contracts';
 import { emailService } from '../services/email.service';
-import { smtpOutbound } from '../services/smtp.outbound';
+import { acceptOutboundMessage, cancelDeliveryJob, retryDelivery, retryDeliveryJob } from '../services/emailDelivery.service';
 import { findSuppressed } from '../services/emailSuppression.service';
 import { assetService } from '../services/assetServiceSingleton';
 import { resolveEmailAddress } from '../config/email.config';
@@ -28,7 +28,7 @@ import { logger } from '../utils/logger';
 import { resolveEmailFromName } from '../utils/displayName';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
 import type { RecipientInput, AttachmentInput } from '../schemas/email.schemas';
-import { cancelEmailOutbox, listEmailOutbox, retryEmailOutbox } from '../services/emailOutbox.service';
+import { listEmailOutbox } from '../services/emailOutbox.service';
 
 /**
  * Read an optional query-string param that MUST be a single string.
@@ -628,7 +628,7 @@ export async function sendMessageForUser(
     };
   }
 
-  const result = await smtpOutbound.send({
+  const accepted = await acceptOutboundMessage({
     userId,
     from: { name: fromName, address: fromAddress },
     to,
@@ -644,24 +644,33 @@ export async function sendMessageForUser(
     idempotencyKey,
   });
 
-  if (attachedFiles.length > 0) {
-    await linkAttachmentsToMessage(attachedFiles, result.messageId, userId);
+  // A retried key returns the first send; its side effects already happened.
+  if (accepted.created) {
+    if (attachedFiles.length > 0) {
+      await linkAttachmentsToMessage(attachedFiles, accepted.message.id, userId);
+    }
+
+    if (threading.parentRowId) {
+      await emailService.updateMessageFlags(userId, threading.parentRowId, { answered: true });
+    }
+
+    emailService.autoCollectContacts(userId, allRecipients).catch((err) => {
+      logger.warn('autoCollectContacts failed', { userId, error: err instanceof Error ? err.message : String(err) });
+    });
   }
 
-  if (threading.parentRowId) {
-    await emailService.updateMessageFlags(userId, threading.parentRowId, { answered: true });
-  }
-
-  emailService.autoCollectContacts(userId, allRecipients).catch((err) => {
-    logger.warn('autoCollectContacts failed', { userId, error: err instanceof Error ? err.message : String(err) });
-  });
-
+  const delivery = accepted.message.delivery;
   return {
     status: 202,
     data: {
-      messageId: result.messageId,
-      queued: result.queued,
-      message: result.queued ? 'Message queued for delivery' : 'Message sent',
+      id: accepted.message.id,
+      messageId: accepted.message.messageId,
+      // Filed in Sent and handed to delivery. `queued: false` keeps a client
+      // written before delivery states from treating an accepted send as one
+      // stuck in a retry queue; the truth is `delivery.state` on the message.
+      queued: false,
+      delivery: delivery ?? null,
+      message: 'Message accepted for delivery',
     },
   };
 }
@@ -710,11 +719,16 @@ export async function listOutboundMessages(req: AuthRequest, res: Response): Pro
 }
 
 export async function retryOutboundMessage(req: AuthRequest, res: Response): Promise<void> {
-  res.json({ data: await retryEmailOutbox(req.user!.id, req.params.outboxId) });
+  res.json({ data: await retryDeliveryJob(req.user!.id, req.params.outboxId) });
 }
 
 export async function cancelOutboundMessage(req: AuthRequest, res: Response): Promise<void> {
-  res.json({ data: await cancelEmailOutbox(req.user!.id, req.params.outboxId) });
+  res.json({ data: await cancelDeliveryJob(req.user!.id, req.params.outboxId) });
+}
+
+/** Try a message whose delivery failed again, with a fresh retry budget. */
+export async function retryMessageDelivery(req: AuthRequest, res: Response): Promise<void> {
+  res.status(202).json({ data: await retryDelivery(req.user!.id, req.params.messageId) });
 }
 
 export async function listSavedSearches(req: AuthRequest, res: Response): Promise<void> {

@@ -56,7 +56,7 @@ import {
   pgTable,
   text,
 } from 'drizzle-orm/pg-core';
-import { MESSAGE_CARD_TYPES } from '@oxy.so/contracts';
+import { EMAIL_DELIVERY_ERROR_CODES, EMAIL_DELIVERY_STATES, MESSAGE_CARD_TYPES } from '@oxy.so/contracts';
 import { createdAt, generatedId, timestamptz, tsvector, updatedAt } from '@oxy.so/db';
 import { mailboxes } from './mailboxes';
 import { users } from './users';
@@ -227,6 +227,22 @@ export const messages = pgTable(
      */
     sentCopyOf: text().references((): AnyPgColumn => messages.id, { onDelete: 'set null' }),
 
+    /**
+     * The delivery of a message the user sent, as the user sees it. A send is
+     * filed in Sent FIRST and delivered afterwards, so "it is in Sent" no longer
+     * means "it left"; these say whether it did. NULL on received mail and on
+     * messages sent before delivery was tracked (all of which were delivered).
+     * The job itself — lease, retry schedule, payload — is the `email_outbox`
+     * row pointing here; every transition writes both in one statement batch.
+     */
+    deliveryState: text({ enum: EMAIL_DELIVERY_STATES }),
+    deliveryAttempts: integer(),
+    /** The relay's own words for the last failure. */
+    deliveryError: text(),
+    deliveryErrorCode: text({ enum: EMAIL_DELIVERY_ERROR_CODES }),
+    deliveryNextAttemptAt: timestamptz(),
+    deliveryUpdatedAt: timestamptz(),
+
     /** RFC `In-Reply-To`. */
     inReplyTo: text(),
     /** RFC `References`, ordered oldest-first. Mongo defaulted to `[]`. */
@@ -328,6 +344,25 @@ export const messages = pgTable(
     // Mongo's standalone `{userId}` and `{mailboxId}` are dropped — (1) and (14)
     // lead with them.
 
+    check(
+      'messages_delivery_state_check',
+      sql`${t.deliveryState} is null or ${t.deliveryState} in (${sql.raw(
+        EMAIL_DELIVERY_STATES.map((value) => `'${value}'`).join(', ')
+      )})`
+    ),
+    check(
+      'messages_delivery_error_code_check',
+      sql`${t.deliveryErrorCode} is null or ${t.deliveryErrorCode} in (${sql.raw(
+        EMAIL_DELIVERY_ERROR_CODES.map((value) => `'${value}'`).join(', ')
+      )})`
+    ),
+    // Delivery is whole or absent, like the card: a state always has its
+    // attempt count and its timestamp.
+    check(
+      'messages_delivery_whole_check',
+      sql`(${t.deliveryState} is null) = (${t.deliveryAttempts} is null)
+        and (${t.deliveryState} is null) = (${t.deliveryUpdatedAt} is null)`
+    ),
     check(
       'messages_card_type_check',
       sql`${t.cardType} is null or ${t.cardType} in (${sql.raw(

@@ -10,14 +10,14 @@
  *
  * Failure modes covered:
  *   1. Happy path — valid {fileId} array sends; resolved MessageAttachment[]
- *      reaches smtpOutbound.send AND linkFile is called for each file.
+ *      reaches acceptOutboundMessage AND linkFile is called for each file.
  *   2. Foreign file (ownerUserId !== sender) → 403 ForbiddenError.
  *   3. Missing file (assetService returns no record) → 400 BadRequestError.
  *   4. Trashed file (status !== 'active') → 400 BadRequestError.
  *   5. Legacy shape (bare `s3Key`/`filename`) → 400 from Zod validation
  *      (no silent compat path).
  *
- * smtpOutbound, emailService and assetService are stubbed at the module
+ * emailDelivery, emailService and assetService are stubbed at the module
  * boundary — they own the network. The SENDER lookup is not: it reads the
  * `users` row from a real Postgres, because "resolve the sending account" is
  * one of the queries this batch ported.
@@ -31,7 +31,7 @@ import type { AddressInfo } from 'net';
 let mockTestUserId = '';
 
 const mockAuthMiddleware = jest.fn();
-const mockSmtpSend = jest.fn();
+const mockAccept = jest.fn();
 const mockEnforceSendLimit = jest.fn();
 const mockAutoCollectContacts = jest.fn();
 const mockGetFilesByIds = jest.fn();
@@ -53,8 +53,11 @@ jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-jest.mock('../../services/smtp.outbound', () => ({
-  smtpOutbound: { send: (...args: unknown[]) => mockSmtpSend(...args) },
+jest.mock('../../services/emailDelivery.service', () => ({
+  acceptOutboundMessage: (...args: unknown[]) => mockAccept(...args),
+  retryDelivery: jest.fn(),
+  retryDeliveryJob: jest.fn(),
+  cancelDeliveryJob: jest.fn(),
 }));
 
 jest.mock('../../services/email.service', () => ({
@@ -190,7 +193,10 @@ beforeEach(() => {
   mockEnforceSendLimit.mockResolvedValue(undefined);
   mockAutoCollectContacts.mockResolvedValue(undefined);
   mockResolveEmailAddress.mockReturnValue('alice@oxy.so');
-  mockSmtpSend.mockResolvedValue({ messageId: 'sent-1', queued: false });
+  mockAccept.mockResolvedValue({
+    message: { id: 'row-1', messageId: '<sent-1@oxy.so>', delivery: { state: 'sending' } },
+    created: true,
+  });
 });
 
 describe('POST /email/messages — attachment resolution', () => {
@@ -208,14 +214,14 @@ describe('POST /email/messages — attachment resolution', () => {
 
     expect(res.status).toBe(202);
     expect(res.body.data).toEqual(
-      expect.objectContaining({ messageId: 'sent-1', queued: false }),
+      expect.objectContaining({ id: 'row-1', messageId: '<sent-1@oxy.so>', queued: false, delivery: { state: 'sending' } }),
     );
 
     expect(mockGetFilesByIds).toHaveBeenCalledWith([FILE_OWN]);
     expect(mockCanUserAccessFile).not.toHaveBeenCalled();
 
-    expect(mockSmtpSend).toHaveBeenCalledTimes(1);
-    const sendArg = mockSmtpSend.mock.calls[0][0] as {
+    expect(mockAccept).toHaveBeenCalledTimes(1);
+    const sendArg = mockAccept.mock.calls[0][0] as {
       attachments: Array<{ fileId: string; name: string; contentType: string; size: number; isInline: boolean }>;
     };
     expect(sendArg.attachments).toEqual([
@@ -231,7 +237,7 @@ describe('POST /email/messages — attachment resolution', () => {
     expect(mockLinkFile).toHaveBeenCalledWith(FILE_OWN, {
       app: 'oxy-mail',
       entityType: 'message',
-      entityId: 'sent-1',
+      entityId: 'row-1',
       createdBy: mockTestUserId,
     });
   });
@@ -252,7 +258,7 @@ describe('POST /email/messages — attachment resolution', () => {
       expect.objectContaining({ error: expect.stringMatching(/forbidden/i) }),
     );
     expect(mockCanUserAccessFile).not.toHaveBeenCalled();
-    expect(mockSmtpSend).not.toHaveBeenCalled();
+    expect(mockAccept).not.toHaveBeenCalled();
     expect(mockLinkFile).not.toHaveBeenCalled();
   });
 
@@ -266,7 +272,7 @@ describe('POST /email/messages — attachment resolution', () => {
     });
 
     expect(res.status).toBe(400);
-    expect(mockSmtpSend).not.toHaveBeenCalled();
+    expect(mockAccept).not.toHaveBeenCalled();
     expect(mockLinkFile).not.toHaveBeenCalled();
   });
 
@@ -281,7 +287,7 @@ describe('POST /email/messages — attachment resolution', () => {
     });
 
     expect(res.status).toBe(400);
-    expect(mockSmtpSend).not.toHaveBeenCalled();
+    expect(mockAccept).not.toHaveBeenCalled();
     expect(mockCanUserAccessFile).not.toHaveBeenCalled();
     expect(mockLinkFile).not.toHaveBeenCalled();
   });
@@ -295,7 +301,7 @@ describe('POST /email/messages — attachment resolution', () => {
 
     expect(res.status).toBe(400);
     expect(mockGetFilesByIds).not.toHaveBeenCalled();
-    expect(mockSmtpSend).not.toHaveBeenCalled();
+    expect(mockAccept).not.toHaveBeenCalled();
   });
 
   it('rejects bare-string recipients (legacy shape) at the schema layer', async () => {
@@ -306,6 +312,6 @@ describe('POST /email/messages — attachment resolution', () => {
 
     expect(res.status).toBe(400);
     expect(mockEnforceSendLimit).not.toHaveBeenCalled();
-    expect(mockSmtpSend).not.toHaveBeenCalled();
+    expect(mockAccept).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,7 @@
  * handed to the same `@oxy.so/contracts` schema the client uses, with the rows
  * that once broke a client in it: an attachment without a Content-ID
  * (`contentId: null`), a card whose extracted fields are unknown, a contact
- * without a company.
+ * without a company, a sent message whose delivery failed.
  *
  * `.parse`, not `.safeParse`: a failure must name the field.
  */
@@ -30,8 +30,8 @@ jest.mock('../cardExtraction.service', () => ({
 }));
 jest.mock('../smtp.outbound', () => ({
   __esModule: true,
-  smtpOutbound: { send: jest.fn() },
-  default: { send: jest.fn() },
+  smtpOutbound: { sendRaw: jest.fn() },
+  default: { sendRaw: jest.fn() },
 }));
 jest.mock('../emailPushDelivery.service', () => ({
   sendInboxEmailPush: jest.fn().mockResolvedValue(undefined),
@@ -169,6 +169,39 @@ describe('Inbox read API honours @oxy.so/contracts', () => {
       actions: [{ type: 'star' }],
     });
     z.array(emailFilterSchema).parse(overTheWire(await emailService.listFilters(user.id)));
+  });
+
+  it('carries the delivery of a sent message, and none on received mail', async () => {
+    const filed = await emailService.fileOutgoingMessage(
+      user.id,
+      {
+        messageId: `<sent-${unique()}@oxy.so>`,
+        from: { name: 'Nate', address: `${user.username}@oxy.so` },
+        to: [{ name: '', address: 'support@example.com' }],
+        subject: 'Re: Quota Increase',
+        text: 'Thanks',
+      },
+      async () => {},
+    );
+    await getDb()
+      .update(messages)
+      .set({
+        deliveryState: 'failed',
+        deliveryAttempts: 1,
+        deliveryError: '554 5.7.1 Message rejected',
+        deliveryErrorCode: 'rejected',
+      })
+      .where(eq(messages.id, filed.id));
+
+    const sent = await emailService.getMailboxBySpecialUse(user.id, '\\Sent');
+    const page = await emailService.listMessages(user.id, sent!.id, { limit: 50 });
+    const parsed = z.array(emailMessageSchema).parse(overTheWire(page.data));
+    expect(parsed.find((m) => m.id === filed.id)?.delivery).toEqual(
+      expect.objectContaining({ state: 'failed', errorCode: 'rejected', error: '554 5.7.1 Message rejected', maxAttempts: 5 }),
+    );
+
+    const received = emailMessageSchema.parse(overTheWire(await emailService.getMessage(user.id, ampMessageId)));
+    expect(received.delivery).toBeUndefined();
   });
 
   it('lists a contact without a company or notes', async () => {
