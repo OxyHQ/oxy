@@ -71,8 +71,8 @@ import { cardExtractionService } from './cardExtraction.service';
 import { smtpOutbound } from './smtp.outbound';
 import { sendInboxEmailPush } from './emailPushDelivery.service';
 import { emitEmailNew, emitEmailChanged } from './inboxRealtime';
+import { parseInboundMime } from './inboundMime';
 import { assetService } from './assetServiceSingleton';
-import { simpleParser } from 'mailparser';
 import { idempotentMessageId } from './emailIdempotency';
 import { emailSavedSearches, type SavedEmailSearchFilters } from '../db/schema/emailSavedSearches';
 import { enqueueInboxMessageEvents } from '../capabilities/inbox.events';
@@ -3332,41 +3332,21 @@ class EmailService {
 
     for (const file of files) {
       try {
-        const parsed = await simpleParser(file.buffer);
+        const mime = await parseInboundMime(file.buffer);
 
-        const from: EmailAddress = parsed.from?.value?.[0]
-          ? { name: parsed.from.value[0].name || '', address: parsed.from.value[0].address || '' }
-          : { name: '', address: 'unknown@unknown' };
-
-        const mapAddresses = (addrs: typeof parsed.to): EmailAddress[] => {
-          if (!addrs) return [];
-          const addrArray = Array.isArray(addrs) ? addrs : [addrs];
-          return addrArray.flatMap((group) =>
-            (group.value || []).map((a) => ({
-              name: a.name || '',
-              address: a.address || '',
-            })),
-          );
-        };
-
-        const to = mapAddresses(parsed.to);
-        const cc = mapAddresses(parsed.cc);
+        const from: EmailAddress = mime.from ?? { name: '', address: 'unknown@unknown' };
+        const { to, cc } = mime;
 
         const rawSize = file.buffer.length;
 
         // Upload attachments to the Oxy file manager
         const storedAttachments: MessageAttachment[] = [];
         const importedFileIds: string[] = [];
-        const parsedAttachments = parsed.attachments || [];
-        const attachmentBytes = parsedAttachments.reduce(
-          (sum, att) => sum + (att.size || att.content.length),
-          0,
-        );
-        for (const att of parsedAttachments) {
-          const attachmentSize = att.size || att.content.length;
-          if (attachmentSize > maxAttachmentSize) {
+        const attachmentBytes = mime.attachments.reduce((sum, att) => sum + att.size, 0);
+        for (const att of mime.attachments) {
+          if (att.size > maxAttachmentSize) {
             throw new BadRequestError(
-              `Attachment ${att.filename || 'attachment'} exceeds the ${maxAttachmentSize} byte limit for your plan.`,
+              `Attachment ${att.filename} exceeds the ${maxAttachmentSize} byte limit for your plan.`,
             );
           }
         }
@@ -3374,26 +3354,24 @@ class EmailService {
         const totalSize = rawSize + attachmentBytes;
         await this.enforceQuota(userId, totalSize);
 
-        if (parsed.attachments?.length) {
-          for (const att of parsedAttachments) {
-            const uploadedFile = await assetService.uploadFileDirect(
-              userId,
-              att.content,
-              att.contentType || 'application/octet-stream',
-              att.filename || 'attachment',
-              'private',
-              { source: 'email-import' }
-            );
-            storedAttachments.push({
-              fileId: uploadedFile.id,
-              name: uploadedFile.originalName || att.filename || 'attachment',
-              contentType: uploadedFile.mime,
-              size: uploadedFile.size,
-              ...(att.contentId ? { contentId: att.contentId } : {}),
-              isInline: att.related ?? false,
-            });
-            importedFileIds.push(uploadedFile.id);
-          }
+        for (const att of mime.attachments) {
+          const uploadedFile = await assetService.uploadFileDirect(
+            userId,
+            att.content,
+            att.contentType,
+            att.filename,
+            'private',
+            { source: 'email-import' }
+          );
+          storedAttachments.push({
+            fileId: uploadedFile.id,
+            name: uploadedFile.originalName || att.filename,
+            contentType: uploadedFile.mime,
+            size: uploadedFile.size,
+            ...(att.contentId ? { contentId: att.contentId } : {}),
+            isInline: att.isInline,
+          });
+          importedFileIds.push(uploadedFile.id);
         }
 
         const msgId = await insertMessageWithChildren(
@@ -3401,21 +3379,17 @@ class EmailService {
           {
             userId,
             mailboxId: inbox.id,
-            messageId: parsed.messageId || `<imported-${uuidv4()}@${EMAIL_DOMAIN}>`,
+            messageId: mime.messageId || `<imported-${uuidv4()}@${EMAIL_DOMAIN}>`,
             fromName: from.name?.trim() ? from.name.trim() : null,
             fromAddress: from.address.trim().toLowerCase(),
-            subject: parsed.subject || '(no subject)',
-            text: parsed.text || undefined,
-            html: parsed.html || undefined,
+            subject: mime.subject || '(no subject)',
+            text: mime.text || undefined,
+            html: mime.html || undefined,
             seen: true,
             size: totalSize,
-            inReplyTo: typeof parsed.inReplyTo === 'string' ? parsed.inReplyTo : undefined,
-            references: Array.isArray(parsed.references)
-              ? parsed.references
-              : parsed.references
-                ? [parsed.references]
-                : [],
-            date: parsed.date || new Date(),
+            inReplyTo: mime.inReplyTo,
+            references: mime.references,
+            date: mime.date || new Date(),
             receivedAt: new Date(),
           },
           { to, cc },

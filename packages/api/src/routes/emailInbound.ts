@@ -22,11 +22,10 @@ import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { simpleParser } from 'mailparser';
-import type { ParsedMail } from 'mailparser';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler } from '../utils/asyncHandler';
 import { emailService } from '../services/email.service';
+import { parseInboundMime } from '../services/inboundMime';
 import { spamService } from '../services/spam.service';
 import { EMAIL_DOMAIN, extractUsername, extractAliasTag } from '../config/email.config';
 import { getEnvVar } from '../config/env';
@@ -166,34 +165,11 @@ router.post(
       return res.status(400).json({ error: 'Message rejected as spam' });
     }
 
-    // Parse MIME
-    const parsed: ParsedMail = await simpleParser(rawMessage);
-
-    const fromAddr = parsed.from?.value?.[0];
-    const toAddrs = (parsed.to && !Array.isArray(parsed.to) ? [parsed.to] : parsed.to || [])
-      .flatMap((addr) => addr.value);
-    const ccAddrs = (parsed.cc && !Array.isArray(parsed.cc) ? [parsed.cc] : parsed.cc || [])
-      .flatMap((addr) => addr.value);
-
-    // Convert attachments
-    const attachments = (parsed.attachments || []).map((att) => ({
-      filename: att.filename || 'attachment',
-      contentType: att.contentType || 'application/octet-stream',
-      content: att.content,
-      contentId: att.contentId,
-      isInline: att.contentDisposition === 'inline',
-    }));
-
-    // Extract headers
-    const headersObj: Record<string, string> = {};
-    if (parsed.headers) {
-      parsed.headers.forEach((value, key) => {
-        headersObj[key] = typeof value === 'string' ? value : JSON.stringify(value);
-      });
-    }
+    // Parse MIME — the one parser every ingest path shares.
+    const mime = await parseInboundMime(rawMessage);
 
     const envelopeFrom = (req.headers['x-envelope-from'] as string || '').toLowerCase();
-    const senderAddress = fromAddr?.address || envelopeFrom;
+    const senderAddress = mime.from?.address || envelopeFrom;
 
     // Deliver to each valid recipient
     const results: Array<{ recipient: string; status: string }> = [];
@@ -202,24 +178,20 @@ router.post(
         await emailService.storeIncomingMessage({
           recipientUsername: rcpt.username,
           from: {
-            name: fromAddr?.name || '',
+            name: mime.from?.name || '',
             address: senderAddress,
           },
-          to: toAddrs.map((a) => ({ name: a.name || '', address: a.address || '' })),
-          cc: ccAddrs.map((a) => ({ name: a.name || '', address: a.address || '' })),
-          subject: parsed.subject || '',
-          text: parsed.text,
-          html: typeof parsed.html === 'string' ? parsed.html : undefined,
-          messageId: parsed.messageId || `<${Date.now()}@${EMAIL_DOMAIN}>`,
-          inReplyTo: parsed.inReplyTo || undefined,
-          references: Array.isArray(parsed.references)
-            ? parsed.references
-            : parsed.references
-              ? [parsed.references]
-              : [],
-          date: parsed.date || new Date(),
-          headers: headersObj,
-          attachments,
+          to: mime.to,
+          cc: mime.cc,
+          subject: mime.subject,
+          text: mime.text,
+          html: mime.html,
+          messageId: mime.messageId || `<${Date.now()}@${EMAIL_DOMAIN}>`,
+          inReplyTo: mime.inReplyTo,
+          references: mime.references,
+          date: mime.date || new Date(),
+          headers: mime.headers,
+          attachments: mime.attachments,
           spamScore: spamResult.score,
           spamAction: spamResult.action,
           aliasTag: rcpt.aliasTag,
@@ -230,7 +202,7 @@ router.post(
         logger.info('Inbound webhook: message delivered', {
           from: senderAddress,
           to: rcpt.address,
-          subject: parsed.subject,
+          subject: mime.subject,
         });
       } catch (err) {
         logger.error('Inbound webhook: delivery failed', err instanceof Error ? err : new Error(String(err)), {
