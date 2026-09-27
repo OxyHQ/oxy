@@ -52,7 +52,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type {
   ModerationDecisionEvent,
   ModerationEffectSkipReason,
@@ -100,6 +100,7 @@ import moderationReputationService, {
   buildIdempotencyKey,
 } from '../moderationReputation.service';
 import reputationService from '../reputation.service';
+import { runModerationReconcileSweep } from '../moderationReconcile.worker';
 import { REPUTATION_RULES, type ReputationRuleDefinition } from '../reputationRules';
 
 /**
@@ -1612,6 +1613,66 @@ describe('reconcileModerationIncident', () => {
 // ===========================================================================
 // FINALIZE
 // ===========================================================================
+
+describe('runModerationReconcileSweep — reconciliation without a person', () => {
+  async function loseTheStrike(incidentId: string, userId: string): Promise<void> {
+    await getDb()
+      .update(moderationEffects)
+      .set({ strikeId: null, updatedAt: new Date() })
+      .where(eq(moderationEffects.incidentId, incidentId));
+    await getDb().delete(conductStrikes).where(eq(conductStrikes.userId, userId));
+  }
+
+  it('finds a dropped strike on its own and repairs it', async () => {
+    const world = await makeWorld();
+    const event = makeEvent(world);
+    await moderationReputationService.applyModerationDecision(event, world.context);
+    await loseTheStrike(event.incidentId, world.subjectId);
+    expect(await strikeRows(world.subjectId)).toHaveLength(0);
+
+    // The most recently changed incident is this one, so a batch of one reaches it.
+    const result = await runModerationReconcileSweep({ batchSize: 1 });
+
+    expect(result).toMatchObject({ status: 'swept', incidents: 1, repaired: 1, failed: 0 });
+    const strikes = await strikeRows(world.subjectId);
+    expect(strikes).toHaveLength(1);
+    expect(strikes[0].status).toBe('active');
+  });
+
+  it('writes nothing for a healthy incident', async () => {
+    const world = await makeWorld();
+    const event = makeEvent(world);
+    await moderationReputationService.applyModerationDecision(event, world.context);
+    const ledgerBefore = await ledgerRows(world.subjectId);
+    const strikesBefore = await strikeRows(world.subjectId);
+
+    const result = await runModerationReconcileSweep({ batchSize: 1 });
+
+    expect(result).toMatchObject({ status: 'swept', incidents: 1, repaired: 0, failed: 0 });
+    expect(await ledgerRows(world.subjectId)).toEqual(ledgerBefore);
+    expect(await strikeRows(world.subjectId)).toEqual(strikesBefore);
+  });
+
+  it('reconciles at most one batch per sweep', async () => {
+    for (let i = 0; i < 3; i += 1) {
+      const world = await makeWorld();
+      await moderationReputationService.applyModerationDecision(makeEvent(world), world.context);
+    }
+
+    const result = await runModerationReconcileSweep({ batchSize: 2 });
+
+    expect(result.status).toBe('swept');
+    expect(result.incidents).toBe(2);
+  });
+
+  it('skips while another task holds the sweep', async () => {
+    await getDb().transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'moderation-reconcile-sweep'}, 0))`);
+      const result = await runModerationReconcileSweep({ batchSize: 1 });
+      expect(result).toEqual({ status: 'locked', incidents: 0, repaired: 0, failed: 0 });
+    });
+  });
+});
 
 describe('finalizeModerationDecision', () => {
   it('re-derives the snapshot from the durable effect and strike', async () => {

@@ -11,7 +11,9 @@
  *    the figures.
  *  - `reputation:binding:register` (service credential) registers identity
  *    bindings, and only with the SUBJECT'S OWN access token as proof.
- *  - Platform staff run reconciliation and read an incident's effects.
+ *  - Nobody runs reconciliation by hand: the system sweeps recently changed
+ *    incidents (`moderationReconcile.worker.ts`), and Oxy staff get no view of
+ *    anyone's incidents or standing.
  *  - The SUBJECT reads their own conduct standing and the explanations behind it.
  *
  * WHAT THIS ROUTER NEVER EXPOSES
@@ -52,14 +54,13 @@ import {
   type AuthRequest,
   type ServiceAuthRequest,
 } from '../middleware/auth';
-import { requireStaff } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { ForbiddenError, UnauthorizedError } from '../utils/error';
 import { resolveUserIdToObjectId } from '../utils/validation';
 import type { IdentityBindingRecord } from '../services/identityBinding.service';
-import { asc, desc, eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { moderationEffects } from '../db/schema/moderationEffects';
 import type { ModerationEffectRow } from '../services/moderationReputation.service';
@@ -94,13 +95,6 @@ const bindingLimiter = rateLimit({
   prefix: 'rl:reputation:moderation:binding:',
   windowMs: WINDOW_1_MIN,
   max: 120,
-});
-
-/** Staff reconciliation / read limiter. */
-const staffLimiter = rateLimit({
-  prefix: 'rl:reputation:moderation:staff:',
-  windowMs: WINDOW_15_MIN,
-  max: 200,
 });
 
 /** Subject-facing read limiter. */
@@ -334,9 +328,9 @@ function requireUserId(req: AuthRequest): string {
 }
 
 /**
- * GET /reputation/moderation/standing/:userId — conduct standing (own or staff).
+ * GET /reputation/moderation/standing/:userId — conduct standing (own only).
  *
- * Owner-or-staff, never public. Standing names a sanction, and the public
+ * The subject's alone — never public, and no Oxy staff view either. Standing names a sanction, and the public
  * surface publishes a contribution tier and a general signal — not the fact that
  * someone is currently under moderation consequence.
  */
@@ -346,7 +340,7 @@ router.get(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const callerId = requireUserId(req);
     const userObjectId = await resolveUserIdToObjectId(req.params.userId);
-    if (userObjectId !== callerId && req.user?.isStaff !== true) {
+    if (userObjectId !== callerId) {
       throw new ForbiddenError('You can only view your own conduct standing');
     }
     const balance = await reputationService.getBalance(userObjectId);
@@ -374,45 +368,6 @@ router.get(
       .where(eq(moderationEffects.principalId, callerId))
       .orderBy(desc(moderationEffects.appliedAt))
       .limit(100);
-    sendSuccess(res, { effects: effects.map(serializeEffect) });
-  })
-);
-
-// =============================================================================
-// STAFF ROUTES
-// =============================================================================
-
-/**
- * POST /reputation/moderation/incidents/:incidentId/reconcile — audit + repair.
- *
- * Finds the two silent failure shapes a dropped background job produces: points
- * deducted with no strike behind them, and a consequence still active after a
- * later revision superseded it. Neither errors on its own, so nothing but a
- * reconciliation pass ever notices.
- */
-router.post(
-  '/incidents/:incidentId/reconcile',
-  staffLimiter,
-  requireStaff,
-  asyncHandler(async (req, res) => {
-    const result = await moderationReputationService.reconcileModerationIncident(
-      req.params.incidentId
-    );
-    sendSuccess(res, result);
-  })
-);
-
-/** GET /reputation/moderation/incidents/:incidentId/effects — an incident's effects (staff). */
-router.get(
-  '/incidents/:incidentId/effects',
-  staffLimiter,
-  requireStaff,
-  asyncHandler(async (req, res) => {
-    const effects = await getDb()
-      .select()
-      .from(moderationEffects)
-      .where(eq(moderationEffects.incidentId, req.params.incidentId))
-      .orderBy(asc(moderationEffects.decisionRevision));
     sendSuccess(res, { effects: effects.map(serializeEffect) });
   })
 );

@@ -40,16 +40,6 @@ jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-jest.mock('../../middleware/requireStaff', () => ({
-  requireStaff: (req: { user?: { isStaff?: boolean } }, res: { status: (c: number) => { json: (b: unknown) => void } }, next: () => void) => {
-    if (req.user?.isStaff === true) {
-      next();
-      return;
-    }
-    res.status(403).json({ error: 'Forbidden', message: 'Staff privileges required' });
-  },
-}));
-
 jest.mock('../../utils/validation', () => ({
   resolveUserIdToObjectId: (...args: unknown[]) => mockResolveUserIdToObjectId(...args),
 }));
@@ -86,12 +76,16 @@ interface JsonResponse {
 }
 
 async function post(server: http.Server, path: string, payload: unknown): Promise<JsonResponse> {
+  return send(server, 'POST', path, payload);
+}
+
+async function send(server: http.Server, method: 'GET' | 'POST', path: string, payload?: unknown): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
-  const body = JSON.stringify(payload ?? {});
+  const body = method === 'GET' ? '' : JSON.stringify(payload ?? {});
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
-        method: 'POST',
+        method,
         host: '127.0.0.1',
         port: address.port,
         path,
@@ -108,8 +102,9 @@ async function post(server: http.Server, path: string, payload: unknown): Promis
           raw += chunk;
         });
         res.on('end', () => {
+          const json = (res.headers['content-type'] ?? '').includes('application/json');
           try {
-            resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} });
+            resolve({ status: res.statusCode ?? 0, body: json && raw.length > 0 ? JSON.parse(raw) : {} });
           } catch (err) {
             reject(err);
           }
@@ -446,24 +441,34 @@ describe('a user session can never satisfy a bridge route', () => {
   });
 });
 
-describe('staff-only reconciliation', () => {
-  it('a non-staff session cannot reconcile an incident', async () => {
-    withServiceScopes([]);
-    const res = await post(server, '/reputation/moderation/incidents/inc_1/reconcile', {});
-    expect(res.status).toBe(403);
-    expect(mockReconcile).not.toHaveBeenCalled();
-  });
-
-  it('a staff session can', async () => {
+describe('no person has a hand on anyone else\'s standing', () => {
+  function asStaff(): void {
     withServiceScopes([]);
     mockAuthMiddleware.mockImplementation(
       (req: { user?: unknown }, _res: unknown, next: () => void) => {
-        req.user = { _id: { toString: () => 'staff1' }, isStaff: true };
+        req.user = { _id: { toString: () => '64eeeeeeeeeeeeeeeeeeeeee' }, isStaff: true };
         next();
       }
     );
+  }
+
+  it('there is no route to reconcile an incident by hand, staff or not', async () => {
+    asStaff();
     const res = await post(server, '/reputation/moderation/incidents/inc_1/reconcile', {});
-    expect(res.status).toBe(200);
-    expect(mockReconcile).toHaveBeenCalledWith('inc_1');
+    expect(res.status).toBe(404);
+    expect(mockReconcile).not.toHaveBeenCalled();
+  });
+
+  it('there is no route to read an incident\'s effects, staff or not', async () => {
+    asStaff();
+    const res = await send(server, 'GET', '/reputation/moderation/incidents/inc_1/effects');
+    expect(res.status).toBe(404);
+  });
+
+  it('a staff session cannot read another person\'s conduct standing', async () => {
+    asStaff();
+    mockResolveUserIdToObjectId.mockResolvedValue('64dddddddddddddddddddddd');
+    const res = await send(server, 'GET', '/reputation/moderation/standing/64dddddddddddddddddddddd');
+    expect(res.status).toBe(403);
   });
 });

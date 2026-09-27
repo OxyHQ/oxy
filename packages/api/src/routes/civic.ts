@@ -26,7 +26,6 @@ import {
   type SignedRecordEnvelope,
   type CredentialStatus,
 } from '@oxy.so/contracts';
-import { requireStaff } from '../middleware/requireStaff';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { personhoodStatuses } from '../db/schema/personhoodStatuses';
@@ -101,18 +100,6 @@ const personhoodReadLimiter = rateLimit({
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.id;
     return userId ? `civic:personhood:read:${userId}` : `civic:personhood:read:ip:${hashedIpKey(req)}`;
-  },
-});
-
-/** Staff-only personhood recompute. */
-const personhoodAdminLimiter = rateLimit({
-  prefix: 'rl:civic:personhood:admin:',
-  windowMs: 60 * 1000,
-  max: 30,
-  message: 'Too many personhood admin operations. Please slow down.',
-  keyGenerator: (req: Request): string => {
-    const userId = (req as AuthRequest).user?.id;
-    return userId ? `civic:personhood:admin:${userId}` : `civic:personhood:admin:ip:${hashedIpKey(req)}`;
   },
 });
 
@@ -559,43 +546,6 @@ router.get(
           }
         : null,
       updatedAt: status?.updatedAt ?? null,
-    });
-  }),
-);
-
-/**
- * POST /civic/personhood/:userId/recompute — force a personhood recompute for a
- * user (staff only). Re-aggregates vouches/real-life/biometric − sybil and
- * re-mirrors `User.verified`.
- */
-router.post(
-  '/personhood/:userId/recompute',
-  authMiddleware,
-  requireStaff,
-  personhoodAdminLimiter,
-  asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { userId } = req.params;
-
-    const status = await recomputePersonhood(userId);
-    res.json({
-      userId,
-      score: status.score,
-      isRealPerson: status.isRealPerson,
-      vouchCount: status.vouchCount,
-      realLifeCount: status.realLifeCount,
-      biometricBound: status.biometricBound,
-      sybilPenalty: status.sybilPenalty,
-      // The `breakdown` subdocument is six prefixed columns now; the WIRE shape
-      // is unchanged, so it is reassembled here at the serializer boundary.
-      breakdown: {
-        vouchSignal: status.breakdownVouchSignal,
-        realLifeSignal: status.breakdownRealLifeSignal,
-        biometricSignal: status.breakdownBiometricSignal,
-        evidence: status.breakdownEvidence,
-        sybilPenalty: status.breakdownSybilPenalty,
-        seed: status.breakdownSeed,
-      },
-      updatedAt: status.updatedAt,
     });
   }),
 );

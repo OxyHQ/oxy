@@ -322,7 +322,7 @@ export const personhoodBreakdownSchema: z.ZodType<PersonhoodBreakdown> = z.objec
 
 /**
  * The public personhood status snapshot returned by
- * `GET /civic/personhood/:userId` (and `POST /civic/personhood/:userId/recompute`).
+ * `GET /civic/personhood/:userId`.
  * Mirrors the API `PersonhoodStatus` model's serialized response exactly — a
  * cached, recomputable proof-of-personhood snapshot.
  *

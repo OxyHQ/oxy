@@ -68,7 +68,7 @@ public — but the RESPONSE IS VIEW-SPLIT by caller:
 
 | Caller | Serializer | Fields |
 | --- | --- | --- |
-| The subject, or platform staff | `serializeBalance` | everything |
+| The subject | `serializeBalance` | everything |
 | Anyone else, including anonymous | `serializePublicBalance` | `userId`, `total`, `trustTier` |
 
 Withheld from a third party: `reliability` (the platform's internal abuse
@@ -81,7 +81,8 @@ reputation event). `trustTier` stays public because it is the contribution
 ladder this system exists to publish, and the leaderboard already emits it.
 
 The neighbouring reads are gated harder — `GET /:userId/transactions` and
-`GET /:userId/influence` are owner-or-staff and answer **403** to a third party,
+`GET /:userId/influence` are the subject's alone and answer **403** to anyone
+else, Oxy staff included,
 because transaction `metadata` names third parties (the attestor who physically
 met the subject, the staking voucher, the juror roster of a resolved
 validation).
@@ -124,26 +125,23 @@ Timestamps are ISO 8601 strings and ids are strings everywhere on this surface.
 The view split is in the types, so a caller cannot read a field the server did
 not send them:
 
-- **`getMyReputationBalance()`** → `ReputationBalance` (the full shape). The
-  common case, and the ergonomic path: no id to pass, no narrowing to do. Throws
-  rather than half-populating if the request was not authenticated as the
-  subject — including when the server answers `200` with the public view because
-  the token was absent or lapsed.
-- **`getReputationBalance(userId)`** → `ReputationBalanceView`, the union
+- **`oxy.reputation.balance()`** → `ReputationBalance` (the full shape). The
+  common case: no id to pass, no narrowing to do. Throws rather than
+  half-populating if the request was not authenticated as the subject —
+  including when the server answers `200` with the public view because the
+  token was absent or lapsed.
+- **`oxy.reputation.balance(userId)`** → `ReputationBalanceView`, the union
   `ReputationBalance | ReputationBalanceSummary`. Only `userId` / `total` /
-  `trustTier` are reachable without narrowing; reach the rest (as the subject or
-  as staff) with the `isFullReputationBalance(balance)` type guard.
-- **`recalculateReputation(userId)`** → `ReputationBalance`. Staff-gated, so
-  always the full view.
+  `trustTier` are reachable without narrowing; the subject reaches the rest
+  with the `isFullReputationBalance(balance)` type guard.
 
-Reads: `getReputationBalance(userId)`, `getReputationTransactions(userId, limit?, offset?)`,
-`getReputationInfluence(userId, context?)`, `getReputationLeaderboard`,
-`getReputationRules`, `getUserReputationDisputes`. Writes (service-token/staff
-only, sweep the `GET:/reputation/` cache): `awardReputation`,
-`reverseReputationTransaction`, `voidReputationTransaction`,
-`recalculateReputation`, `upsertReputationRule`, `createReputationDispute`,
-`resolveReputationDispute`, `getReputationDisputeQueue`. All of their argument
-and return types come from `@oxy.so/contracts`.
+Reads: `oxy.reputation.balance`, `.transactions(userId?, { limit, offset })`,
+`.influence(userId?, context?)`, `.leaderboard`, `.rules` (the rules live in
+code, `packages/api/src/services/reputationRules.ts`). The one write is
+`OxyServer.reputation.award` (a service token with `reputation:write`). Nobody
+edits rules, reverses, voids or recalculates anyone's reputation by hand, and
+there are no disputes to resolve. Argument and return types come from
+`@oxy.so/contracts`.
 
 > **Not pending.** Karma was hard-replaced by this ledger (b28f886b), and the
 > `karmas`/`karmarules` collections were verified empty cluster-wide before the
@@ -329,8 +327,9 @@ opens a `personhood_audit` validation request — reusing the **F2 jury machiner
 If the jury rules the subject fake, the slash cascade runs on all of that
 subject's active vouchers.
 
-Routes: `GET /civic/personhood/:userId` (public, `rl:civic:personhood:read:`
-120/min), `POST /civic/personhood/:userId/recompute` (staff).
+Route: `GET /civic/personhood/:userId` (public, `rl:civic:personhood:read:`
+120/min). There is no manual recompute: every vouch, attestation and audit
+outcome recomputes the subject itself.
 
 ---
 

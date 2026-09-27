@@ -4,6 +4,10 @@
 
 ### Added
 
+- A moderation reconciliation sweep (`services/moderationReconcile.worker.ts`):
+  every 10 minutes one API task (advisory lock) reconciles up to 50 incidents
+  whose effects changed in the last 24 h, repairing dropped strikes and
+  superseded consequences — what used to wait for a staff member to ask.
 - Instagram Graph fallback: `*@instagram.com` handles whose kilogram bridge
   resolution fails (429, timeout, refusal) resolve through Meta Graph API
   Business Discovery as protocol `instagram-graph`, actor
@@ -15,6 +19,13 @@
 
 ### Removed
 
+- **Breaking:** the last staff hands on people's standing —
+  `POST /reputation/moderation/incidents/:incidentId/reconcile`,
+  `GET /reputation/moderation/incidents/:incidentId/effects` and
+  `POST /civic/personhood/:userId/recompute`, and the staff view of another
+  person's `GET /reputation/moderation/standing/:userId` (now the subject's
+  alone). Personhood already recomputes on every vouch, attestation and audit
+  outcome; moderation reconciliation now runs by itself (below).
 - **Breaking:** reputation staff routes — `POST /reputation/rules`,
   `POST /reputation/transactions/:id/reverse`, `POST /reputation/transactions/:id/void`,
   `POST /reputation/:userId/recalculate`, `GET /reputation/disputes`,
