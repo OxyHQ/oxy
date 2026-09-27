@@ -24,6 +24,12 @@ import {
   type SQL,
   type SQLWrapper,
 } from 'drizzle-orm';
+import type {
+  EmailFilterActionType,
+  EmailFilterConditionField,
+  EmailFilterConditionOperator,
+  MessageCardType,
+} from '@oxy.so/contracts';
 import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb, type Database, type Transaction } from '../config/postgres';
@@ -232,7 +238,7 @@ const MESSAGE_FLAG_COLUMNS = {
 
 /** The structured card the AI extractor emits, reassembled from its columns. */
 export interface MessageCardDto {
-  type: string;
+  type: MessageCardType;
   data: Record<string, unknown> | null;
   confidence: number | null;
   extractedAt: Date | null;
@@ -318,14 +324,14 @@ export interface LabelDto {
 
 /** One condition of a mail rule. */
 export interface FilterConditionDto {
-  field: string;
-  operator: string;
+  field: EmailFilterConditionField;
+  operator: EmailFilterConditionOperator;
   value: string;
 }
 
 /** One action of a mail rule. `value` is absent for the actions that take none. */
 export interface FilterActionDto {
-  type: string;
+  type: EmailFilterActionType;
   value?: string;
 }
 

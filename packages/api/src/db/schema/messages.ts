@@ -55,12 +55,13 @@ import {
   pgTable,
   text,
 } from 'drizzle-orm/pg-core';
+import { MESSAGE_CARD_TYPES } from '@oxy.so/contracts';
 import { createdAt, generatedId, timestamptz, tsvector, updatedAt } from '@oxy.so/db';
 import { mailboxes } from './mailboxes';
 import { users } from './users';
 
-/** Structured data cards the AI extractor can emit. */
-export const MESSAGE_CARD_TYPES = ['trip', 'purchase', 'event', 'bill', 'package'] as const;
+/** Structured data cards the AI extractor can emit. The vocabulary is the wire contract's. */
+export { MESSAGE_CARD_TYPES };
 
 /**
  * One RFC 5322 address as the mail subsystem passes it around: the optional
