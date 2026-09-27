@@ -57,6 +57,7 @@ import { verifyPassword } from '../../services/password.service';
 import sessionService from '../../services/session.service';
 import { totpCodeAt } from '../../services/totp.service';
 import accountSecurityRouter from '../accountSecurity';
+import { awayFromTotpStepEdge } from '../../../test-support/totpStep';
 
 let server: http.Server;
 
@@ -213,15 +214,8 @@ describe('the password', () => {
 });
 
 describe('the authenticator', () => {
-  // These tests use the codes of the previous, current and next 30 s step on
-  // purpose (the server accepts one step of skew each way). A test that crosses
-  // a step boundary between computing a code and the server checking it shifts
-  // every one of those by a step, so it failed about one run in ten. Start each
-  // test with at least 10 s left in its step.
-  beforeEach(async () => {
-    const intoStep = Date.now() % 30_000;
-    if (intoStep > 20_000) await new Promise((resolve) => setTimeout(resolve, 30_000 - intoStep + 50));
-  }, 15_000);
+  // Codes of the previous, current and next step are used on purpose.
+  beforeEach(awayFromTotpStepEdge, 15_000);
 
   async function turnOn(password = 'my password 123') {
     await setPassword(password, { emailCode: await emailCode() });

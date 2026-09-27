@@ -39,6 +39,7 @@ import {
 } from './mcpConnection.service';
 import { composeDisplayName } from '../utils/displayName';
 import { serializePublicApplication } from '../utils/serializeApplication';
+import { trimTrailingSlashes } from '../utils/slashes';
 
 export const MCP_AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 export const MCP_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
@@ -114,7 +115,7 @@ export function canonicalMcpResource(value: string): string {
   if (url.username || url.password || url.search || url.hash) {
     throw new McpOAuthError('invalid_request', 'resource cannot contain credentials, query or fragment');
   }
-  const pathname = url.pathname === '/' ? '' : url.pathname.replace(/\/+$/, '');
+  const pathname = url.pathname === '/' ? '' : trimTrailingSlashes(url.pathname);
   return `${url.origin}${pathname}`;
 }
 

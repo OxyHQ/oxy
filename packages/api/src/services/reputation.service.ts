@@ -492,11 +492,13 @@ class ReputationService {
    */
   async reverseTransaction(
     transactionId: string,
-    review: ReviewInput
+    review: ReviewInput,
+    tx?: ReputationTransactionHandle
   ): Promise<{ original: ReputationTransactionRow; reversal: ReputationTransactionRow }> {
     const reviewedByUserId = review.reviewedByUserId;
+    const handle: ReputationDbHandle = tx ?? getDb();
 
-    const [original] = await getDb()
+    const [original] = await handle
       .select()
       .from(reputationTransactions)
       .where(eq(reputationTransactions.id, transactionId))
@@ -506,7 +508,7 @@ class ReputationService {
     }
 
     if (original.status === 'reversed') {
-      const [existingReversal] = await getDb()
+      const [existingReversal] = await handle
         .select()
         .from(reputationTransactions)
         .where(eq(reputationTransactions.reversedTransactionId, original.id))
@@ -516,7 +518,7 @@ class ReputationService {
       }
     }
 
-    const result = await getDb().transaction(async (tx) => {
+    const write = async (tx: ReputationTransactionHandle) => {
       const reviewedAt = new Date();
       const [flipped] = await tx
         .update(reputationTransactions)
@@ -552,23 +554,34 @@ class ReputationService {
 
       await this.recalculateBalance(original.userId, tx);
       return { original: flipped, reversal };
-    });
+    };
 
-    // Staking slash (Fase 2): a reversed civic award slashes the jurors /
-    // attestor who vouched for it. Non-fatal + dynamically imported to avoid a
-    // reputation↔slash module cycle; never blocks or rolls back the reversal.
+    // Inside a caller's transaction the reversal is part of ITS unit of work, so
+    // the post-commit hook is the caller's to run (`afterReversal`) once that
+    // commits — run here it would read state that may still roll back.
+    if (tx) return write(tx);
+    const result = await getDb().transaction(write);
+    await this.afterReversal(result.original);
+    return result;
+  }
+
+  /**
+   * Post-commit consequences of a reversal. Staking slash (Fase 2): a reversed
+   * civic award slashes the jurors / attestor who vouched for it. Non-fatal and
+   * dynamically imported to avoid a reputation↔slash module cycle; it never
+   * blocks or rolls back the reversal.
+   */
+  async afterReversal(original: ReputationTransactionRow): Promise<void> {
     try {
       const { slashForReversedTransaction } = await import('./civic/slash.service.js');
-      await slashForReversedTransaction(result.original);
+      await slashForReversedTransaction(original);
     } catch (error) {
       logger.warn('Reputation slash hook failed (non-fatal)', {
         component: 'reputation.service',
-        transactionId,
+        transactionId: original.id,
         error: error instanceof Error ? error.message : String(error),
       });
     }
-
-    return result;
   }
 
   /**

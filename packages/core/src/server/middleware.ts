@@ -930,7 +930,8 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
           req.sessionId = sessionId;
           // Session validation already returned the full user, so `loadUser`
           // costs no extra round-trip.
-          req.user = loadUser ? toRequestUser(validationResult.user) : { id: validatedUserId };
+          // One id source: the one `getUserIdentityId` validated (`id`, else `_id`).
+          req.user = loadUser ? ({ ...validationResult.user, id: validatedUserId } as OxyRequestUser) : { id: validatedUserId };
 
           if (debug) {
             logger.debug(`[oxy.auth] OK user=${validatedUserId} session=${sessionId}`, {
@@ -1450,11 +1451,6 @@ function readStringClaim(value: unknown): string | null {
  * `_id` instead. We accept either, but only a non-empty string — anything else
  * means the validated identity is unusable and the caller must reject.
  */
-/** A validated `User` as the request's `OxyRequestUser` (every field kept). */
-function toRequestUser(user: User): OxyRequestUser {
-  return { ...(user as unknown as Record<string, unknown>), id: user.id };
-}
-
 function getUserIdentityId(user: User): string | null {
   const candidate = (user as { id?: unknown; _id?: unknown }).id
     ?? (user as { id?: unknown; _id?: unknown })._id;

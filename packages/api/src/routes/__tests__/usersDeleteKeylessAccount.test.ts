@@ -89,6 +89,7 @@ import { startReauthEmail } from '../../services/reauth.service';
 import { _resetInMemoryStateForTests } from '../../services/loginLockout.service';
 import { confirmTotp, enrollTotp, totpCodeAt } from '../../services/totp.service';
 import usersRouter from '../users';
+import { awayFromTotpStepEdge } from '../../../test-support/totpStep';
 
 jest.setTimeout(60_000);
 
@@ -152,6 +153,8 @@ async function accountExists(id: string): Promise<boolean> {
 }
 
 describe('deleting an account without a key', () => {
+  beforeEach(awayFromTotpStepEdge, 15_000);
+
   it('deletes with a code sent to its email for this deletion', async () => {
     const me = await person();
     const res = await call('DELETE', '/users/me', { confirmText: me.username, reauth: { emailCode: await emailCode(me.id) } });
@@ -201,6 +204,8 @@ describe('deleting an account without a key', () => {
 });
 
 describe('deleting an account with a key', () => {
+  beforeEach(awayFromTotpStepEdge, 15_000);
+
   it('asks for the authenticator code on top of the key signature when there is one', async () => {
     const me = await person({ publicKey: `04${'d'.repeat(128)}` });
     const { secret } = await enrollTotp(me.id, 'x');

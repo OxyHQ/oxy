@@ -11,8 +11,8 @@
  *    the figures.
  *  - `reputation:binding:register` (service credential) registers identity
  *    bindings, and only with the SUBJECT'S OWN access token as proof.
- *  - Nobody runs reconciliation by hand: the system sweeps recently changed
- *    incidents (`moderationReconcile.worker.ts`), and Oxy staff get no view of
+ *  - Nobody repairs or reverses a consequence by hand: every change to
+ *    someone's standing is one transaction, and Oxy staff get no view of
  *    anyone's incidents or standing.
  *  - The SUBJECT reads their own conduct standing and the explanations behind it.
  *
