@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 /**
- * One-time repair: federated users whose `users.avatar` is a raw remote URL
- * instead of an Oxy Cloud file id.
+ * One-time repair: federated users whose `users.avatar` is anything but an Oxy
+ * Cloud file id — a raw remote URL (any host, any protocol) or another
+ * non-file-id value.
  *
  * Why it exists:
  *   `registerExternalIdentity` used to seed the source picture URL as an
@@ -12,7 +13,7 @@
  *   a broken avatar. The registry no longer writes remote URLs; this script
  *   repairs the rows it already wrote.
  *
- * Behavior (per row, `type = 'federated' and avatar ~* '^https?://'`):
+ * Behavior (per row, `type = 'federated' and avatar is not null and avatar !~ '^[A-Za-z0-9_-]{1,128}$'`):
  *   - Dry run (DEFAULT): writes nothing; reports how many rows, by host, and how
  *     many are Meta CDN URLs already past their signed expiry.
  *   - Apply: re-runs the corrected mirror (`FederationService.mirrorFederatedAvatar`)
@@ -40,11 +41,12 @@
  *   INSTAGRAM_GRAPH_FALLBACK_ENABLED / META_*  Optional Graph fallback config
  */
 
-import { and, asc, eq, gt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, isNotNull, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import { closeRedis, getRedisClient } from '../config/redis';
 import { users } from '../db/schema/users';
 import { federationService, isExpiredSignedAvatarUrl } from '../services/federation.service';
+import { AVATAR_FILE_ID_SQL_PATTERN, persistFederatedAvatar } from '../utils/federatedAvatar';
 import userCache from '../utils/userCache';
 
 export interface RepairFederatedAvatarsResult {
@@ -69,7 +71,8 @@ export interface RepairFederatedAvatarsOptions {
   log?: (line: string) => void;
 }
 
-const REMOTE_AVATAR = sql`${users.avatar} ~* '^https?://'`;
+/** Everything the write boundary would refuse: the rows owed a repair. */
+const NOT_A_FILE_ID = and(isNotNull(users.avatar), sql`${users.avatar} !~ ${sql.raw(`'${AVATAR_FILE_ID_SQL_PATTERN}'`)}`);
 
 function hostOf(url: string): string {
   try { return new URL(url).hostname.toLowerCase(); } catch { return '(unparseable)'; }
@@ -90,7 +93,7 @@ export async function repairFederatedRemoteAvatars(
     const rows = await getDb()
       .select({ id: users.id, username: users.username, avatar: users.avatar })
       .from(users)
-      .where(and(eq(users.type, 'federated'), REMOTE_AVATAR, result.after ? gt(users.id, result.after) : undefined))
+      .where(and(eq(users.type, 'federated'), NOT_A_FILE_ID, result.after ? gt(users.id, result.after) : undefined))
       .orderBy(asc(users.id))
       .limit(batchSize);
     if (rows.length === 0) break;
@@ -98,7 +101,7 @@ export async function repairFederatedRemoteAvatars(
     for (const row of rows) {
       result.after = row.id;
       const remoteUrl = row.avatar;
-      if (!remoteUrl) continue;
+      if (remoteUrl === null) continue;
       result.scanned += 1;
       const host = hostOf(remoteUrl);
       result.byHost[host] = (result.byHost[host] ?? 0) + 1;
@@ -109,19 +112,20 @@ export async function repairFederatedRemoteAvatars(
         continue;
       }
 
-      const stored = await federationService.mirrorFederatedAvatar(row.id, remoteUrl);
+      // Only an https URL can be mirrored; any other value is simply cleared.
+      const stored = remoteUrl.startsWith('https://')
+        ? await federationService.mirrorFederatedAvatar(row.id, remoteUrl)
+        : { fileId: null, notModified: false, failure: 'permanent' as const, source: undefined };
       const now = new Date();
       const written = stored.fileId
-        ? await getDb().update(users).set({
-          avatar: stored.fileId,
+        ? await persistFederatedAvatar(row.id, { fileId: stored.fileId }, {
           federationLastAvatarFetchedAt: now,
           federationAvatarETag: stored.etag ?? null,
           federationAvatarLastModified: stored.lastModified ?? null,
-        }).where(and(eq(users.id, row.id), eq(users.avatar, remoteUrl))).returning({ id: users.id })
-        : await getDb().update(users).set({ avatar: null, federationLastAvatarFetchedAt: now })
-          .where(and(eq(users.id, row.id), eq(users.avatar, remoteUrl))).returning({ id: users.id });
+        }, remoteUrl)
+        : await persistFederatedAvatar(row.id, 'keep_previous_mirror', { federationLastAvatarFetchedAt: now }, remoteUrl);
 
-      if (written.length === 0) {
+      if (!written) {
         result.changedConcurrently += 1;
         log(JSON.stringify({ userId: row.id, host, action: 'changed_concurrently' }));
         continue;

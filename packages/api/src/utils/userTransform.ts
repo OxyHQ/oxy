@@ -3,6 +3,7 @@
  * Returns clean, explicit user object with id (MongoDB ObjectId) and publicKey as separate fields.
  */
 
+import { isAvatarFileId } from './federatedAvatar';
 import { getUserLanguages } from '@oxy.so/core';
 import {
   ACCOUNT_CATEGORY_IDS,
@@ -229,14 +230,14 @@ export function userIdentityFields(source: UserIdentitySource): UserIdentityFiel
 
 /**
  * The avatar a serializer may emit. A FEDERATED account's picture is an Oxy
- * Cloud mirror or nothing: a raw remote URL in that column is a mirror that
+ * Cloud file id or nothing: any other value (a raw remote URL) is a mirror that
  * never happened (the pre-fix registry seeded one, and a signed Meta CDN URL
  * expires into a 403), so it is withheld and clients show the default avatar
  * until the mirror lands. Local accounts are untouched.
  */
 function servedAvatar(source: UserIdentitySource): string | undefined {
   const avatar = stringValue(source.avatar);
-  if (avatar && source.type === 'federated' && /^https?:\/\//i.test(avatar)) return undefined;
+  if (avatar && source.type === 'federated' && !isAvatarFileId(avatar)) return undefined;
   return avatar;
 }
 

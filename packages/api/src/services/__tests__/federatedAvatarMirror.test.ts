@@ -52,6 +52,7 @@ import { registerExternalIdentity } from '../externalIdentityRegistry.service';
 import { resetInstagramGraphStateForTests } from '../federation/instagramGraph';
 import { formatUserResponse } from '../../utils/userTransform';
 import { repairFederatedRemoteAvatars } from '../../scripts/repair-federated-remote-avatars';
+import { FederatedAvatarWriteRefused, isAvatarFileId, persistFederatedAvatar } from '../../utils/federatedAvatar';
 
 /** Signed with an `oe` in the past: the exact shape kilogram served. */
 const EXPIRED_FBCDN = 'https://instagram.fymq2-1.fna.fbcdn.net/v/t51.2885-19/70121982_n.jpg?stp=dst-jpg&oe=6869EA02&_nc_sid=abc';
@@ -144,6 +145,38 @@ describe('isExpiredSignedAvatarUrl', () => {
   });
 });
 
+describe('the federated avatar write boundary', () => {
+  it.each([
+    ['a Meta CDN URL', LIVE_FBCDN()],
+    ['a Bluesky CDN URL', 'https://cdn.bsky.app/img/avatar/plain/did:plc:abc/bafk@jpeg'],
+    ['a Mastodon media URL', 'https://files.mastodon.social/accounts/avatars/1.png'],
+    ['a data URI', 'data:image/png;base64,AAAA'],
+    ['a path', 'avatars/abc.png'],
+    ['an empty string', ''],
+  ])('refuses %s and leaves the row untouched', async (_label, value) => {
+    const user = await seedUser('mastodon.social', 'previous-mirror');
+    await expect(persistFederatedAvatar(user.id, { fileId: value })).rejects.toBeInstanceOf(FederatedAvatarWriteRefused);
+    expect((await avatarOf(user.id)).avatar).toBe('previous-mirror');
+  });
+
+  it('accepts an Oxy file id (uuid or legacy ObjectId)', async () => {
+    const user = await seedUser('mastodon.social', null);
+    const id = randomUUID();
+    expect(await persistFederatedAvatar(user.id, { fileId: id })).toBe(true);
+    expect((await avatarOf(user.id)).avatar).toBe(id);
+    expect(isAvatarFileId('65f1c0ffee00000000000001')).toBe(true);
+  });
+
+  it('keep_previous_mirror keeps a file id and clears any other value', async () => {
+    const kept = await seedUser('bsky.social', 'kept-mirror');
+    await persistFederatedAvatar(kept.id, 'keep_previous_mirror');
+    expect((await avatarOf(kept.id)).avatar).toBe('kept-mirror');
+    const legacy = await seedUser('bsky.social', 'https://cdn.bsky.app/img/avatar/plain/did:plc:x/y@jpeg');
+    await persistFederatedAvatar(legacy.id, 'keep_previous_mirror');
+    expect((await avatarOf(legacy.id)).avatar).toBeNull();
+  });
+});
+
 describe('registration never persists the source picture URL', () => {
   it('creates a new federated user with NO avatar, then mirrors it', async () => {
     const local = `new${randomUUID().replaceAll('-', '').slice(0, 12)}`;
@@ -184,8 +217,8 @@ describe('registration never persists the source picture URL', () => {
     expect(stored.fetchedAt).toBeInstanceOf(Date);
   });
 
-  it('clears a legacy remote URL on re-registration but keeps a mirrored file id', async () => {
-    const legacy = await seedUser('mastodon.social', EXPIRED_FBCDN);
+  it('clears a legacy remote URL (any host, even a live one) on re-registration but keeps a mirrored file id', async () => {
+    const legacy = await seedUser('mastodon.social', 'https://files.mastodon.social/accounts/avatars/live.png');
     await getDb().insert(externalIdentities).values({ canonicalAcct: legacy.acct, userId: legacy.id, network: 'mastodon.social' });
     await getDb().insert(externalIdentityActors).values({ actorUri: legacy.actorUri, canonicalAcct: legacy.acct, transportAcct: legacy.acct, protocol: 'activitypub' });
     await registerExternalIdentity({ canonicalAcct: legacy.acct, actorUri: legacy.actorUri, transportAcct: legacy.acct, protocol: 'activitypub', profile: { displayName: 'L' } });
@@ -209,6 +242,15 @@ describe('the avatar mirror worker', () => {
     await settle();
     expect((await avatarOf(user.id)).avatar).toBeNull();
     expect(mockCacheInvalidate).toHaveBeenCalledWith(user.id);
+  });
+
+  it('an atproto user whose Bluesky CDN picture fails ends with no avatar, not the URL', async () => {
+    const picture = `https://cdn.bsky.app/img/avatar/plain/did:plc:${randomUUID()}/x@jpeg`;
+    const user = await seedUser('bsky.social', picture);
+    route({ [picture]: () => reply(404) });
+    federationService.scheduleAvatarRefresh(user.id, picture, undefined, { force: false });
+    await settle();
+    expect((await avatarOf(user.id)).avatar).toBeNull();
   });
 
   it('keeps the previous mirrored avatar on a transient failure', async () => {
@@ -326,6 +368,7 @@ describe('serializers withhold a federated remote-URL avatar', () => {
   it('drops it for a federated user and keeps a local user avatar untouched', () => {
     expect(formatUserResponse({ _id: 'a', type: 'federated', username: 'x@instagram.com', avatar: EXPIRED_FBCDN })?.avatar).toBeUndefined();
     expect(formatUserResponse({ _id: 'b', type: 'federated', username: 'y@instagram.com', avatar: 'file-id' })?.avatar).toBe('file-id');
+    expect(formatUserResponse({ _id: 'd', type: 'federated', username: 'w@bsky.social', avatar: 'data:image/png;base64,AA' })?.avatar).toBeUndefined();
     expect(formatUserResponse({ _id: 'c', type: 'local', username: 'z', avatar: 'https://example.com/a.png' })?.avatar).toBe('https://example.com/a.png');
   });
 });
@@ -339,9 +382,10 @@ describe('repairFederatedRemoteAvatars', () => {
     const deadUrl = `https://files.repair.example/${randomUUID()}-gone.png`;
     const dead = await seedUser('repair.example', deadUrl);
     const mirrored = await seedUser('repair.example', 'already-a-file-id');
+    const dataUri = await seedUser('repair.example', 'data:image/png;base64,AAAA');
     const local = await getDb().insert(users).values({ type: 'local', username: `l${randomUUID().slice(0, 8)}`, avatar: 'https://example.com/local.png' })
       .returning({ id: users.id });
-    return { expiredIg, live, liveUrl, dead, deadUrl, mirrored, localId: local[0].id };
+    return { expiredIg, live, liveUrl, dead, deadUrl, mirrored, dataUri, localId: local[0].id };
   }
   const mine = (ids: string[]) => (line: string) => ids.some((id) => line.includes(id));
 
@@ -351,9 +395,9 @@ describe('repairFederatedRemoteAvatars', () => {
     const lines: string[] = [];
     const result = await repairFederatedRemoteAvatars({ log: (l) => lines.push(l), batchSize: 2 });
     expect(result.apply).toBe(false);
-    const ids = [c.expiredIg.id, c.live.id, c.dead.id];
+    const ids = [c.expiredIg.id, c.live.id, c.dead.id, c.dataUri.id];
     const reported = lines.filter(mine(ids));
-    expect(reported).toHaveLength(3);
+    expect(reported).toHaveLength(4);
     expect(lines.some(mine([c.mirrored.id, c.localId]))).toBe(false);
     expect(reported.find(mine([c.expiredIg.id]))).toContain('"expiredSigned":true');
     expect(result.scanned).toBeGreaterThanOrEqual(3);
@@ -375,6 +419,8 @@ describe('repairFederatedRemoteAvatars', () => {
     expect((await avatarOf(c.expiredIg.id)).avatar).toMatch(/^mirror-/);
     expect(lines.find(mine([c.expiredIg.id]))).toContain('"source":"instagram_graph"');
     expect((await avatarOf(c.dead.id)).avatar).toBeNull();
+    expect((await avatarOf(c.dataUri.id)).avatar).toBeNull();
+    expect(fetchedUrls().some((url) => url.startsWith('data:'))).toBe(false);
     expect((await avatarOf(c.mirrored.id)).avatar).toBe('already-a-file-id');
     const [local] = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, c.localId));
     expect(local.avatar).toBe('https://example.com/local.png');
@@ -384,7 +430,7 @@ describe('repairFederatedRemoteAvatars', () => {
 
     const again: string[] = [];
     await repairFederatedRemoteAvatars({ apply: true, log: (l) => again.push(l) });
-    expect(again.filter(mine([c.expiredIg.id, c.live.id, c.dead.id]))).toHaveLength(0);
+    expect(again.filter(mine([c.expiredIg.id, c.live.id, c.dead.id, c.dataUri.id]))).toHaveLength(0);
   });
 
   it('never overwrites a row another writer changed after it was read', async () => {

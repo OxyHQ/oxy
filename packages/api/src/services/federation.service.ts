@@ -9,7 +9,7 @@
 import { resolutionFailure, safeActorSelector, type ActorProfileResult } from './federation/resolutionFailure';
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { signRequest, canonicalFederationHost, createUrlBuilders, federatedUsernameFromUpstreamUrl, INSTANCE_ACTOR_USERNAME, normalizeAlsoKnownAs } from '@oxy.so/federation';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
@@ -23,6 +23,7 @@ import { AssetService } from './assetService';
 import { createS3Service } from './s3Service';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
+import { isAvatarFileId, persistFederatedAvatar, type FederatedAvatarWrite } from '../utils/federatedAvatar';
 import { composeDisplayName } from '../utils/displayName';
 import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { sanitizePlainText } from '../utils/sanitize';
@@ -720,9 +721,7 @@ export async function getInstanceActor(domain: string = AP_DOMAIN): Promise<Reco
  * written today and exactly the failure this is meant to end.
  */
 export function storedAvatarFileId(avatar: string | null | undefined): string | undefined {
-  return typeof avatar === 'string' && avatar.length > 0 && !avatar.startsWith('http')
-    ? avatar
-    : undefined;
+  return isAvatarFileId(avatar) ? avatar : undefined;
 }
 
 /** Meta's CDN hosts, whose picture URLs are signed and carry their own expiry. */
@@ -761,15 +760,6 @@ export interface AvatarDownloadResult {
   failure?: AvatarMirrorFailure;
   /** Which picture was mirrored when the result carries a new file id. */
   source?: 'remote' | 'instagram_graph';
-}
-
-/**
- * `users.avatar` with any remote URL dropped, for the write a failed mirror makes.
- * Computed in the UPDATE itself so a file id a concurrent mirror just stored is
- * never overwritten, while a URL left by the pre-fix registry is cleared.
- */
-function avatarWithoutRemoteUrl() {
-  return sql<string | null>`case when ${users.avatar} ~* '^https?://' then null else ${users.avatar} end`;
 }
 
 async function resolveActorAvatarUrl(avatar: unknown): Promise<string | undefined> {
@@ -1325,7 +1315,7 @@ class FederationService {
     if (profile.avatarUrl) {
       const [source] = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, result.identity.userId));
       const avatar = source?.avatar ?? undefined;
-      if (opts.forceAvatarRefresh || !avatar || avatar.startsWith('http')) {
+      if (opts.forceAvatarRefresh || !isAvatarFileId(avatar)) {
         this.scheduleAvatarRefresh(result.identity.userId, profile.avatarUrl, storedAvatarFileId(avatar), { force: opts.forceAvatarRefresh === true });
       }
     }
@@ -1655,8 +1645,9 @@ class FederationService {
     const updatedAt = existing.updatedAt;
     const isStale = !(updatedAt instanceof Date)
       || Date.now() - updatedAt.getTime() >= STALE_MS;
+    // Anything but a file id (a legacy remote URL) is a mirror still owed.
     const avatarNeedsDownload = typeof existing.avatar === 'string'
-      && existing.avatar.startsWith('http');
+      && existing.avatar.length > 0 && !isAvatarFileId(existing.avatar);
     const avatarFileMissing = !isStale && !avatarNeedsDownload
       ? !(await this.storedAvatarExists(existing.avatar))
       : false;
@@ -1867,18 +1858,17 @@ class FederationService {
         // URL in its place, and advance the clock so a forced refresh can't
         // hammer a broken remote every request. No stored file means no picture,
         // which clients render as the default avatar.
-        await getDb().update(users).set({ ...setFields, avatar: avatarWithoutRemoteUrl() }).where(eq(users.id, userId));
+        await persistFederatedAvatar(userId, 'keep_previous_mirror', setFields);
         userCache.invalidate(userId);
         logger.warn(`Background avatar refresh: download failed for ${userId} (keeping existing mirror)`, { failure: stored.failure });
         return;
       }
 
-      setFields.avatar = stored.fileId;
       // Validators belong to the bytes just stored; absent ones replace stale ones.
       setFields.federationAvatarETag = stored.etag ?? null;
       setFields.federationAvatarLastModified = stored.lastModified ?? null;
 
-      await getDb().update(users).set(setFields).where(eq(users.id, userId));
+      await persistFederatedAvatar(userId, { fileId: stored.fileId }, setFields);
 
       // CRITICAL: every path that mutates user state must invalidate the cache,
       // otherwise getUserBySession serves stale in-memory data and silently
@@ -1947,7 +1937,7 @@ class FederationService {
       // COLUMN PROPERTIES, never Mongo dot paths — see the note in
       // `resolveAndUpsert`. `name.first` here would silently write nothing.
       const setFields: Partial<typeof users.$inferInsert> = {};
-      let clearRemoteAvatar = false;
+      let avatarWrite: FederatedAvatarWrite | undefined;
 
       if (profile.displayName) {
         setFields.nameFirst = cleanDisplayName(profile.displayName);
@@ -1988,13 +1978,13 @@ class FederationService {
         if (stored.notModified) {
           setFields.federationLastAvatarFetchedAt = new Date();
         } else if (stored.fileId) {
-          setFields.avatar = stored.fileId;
+          avatarWrite = { fileId: stored.fileId };
           setFields.federationLastAvatarFetchedAt = new Date();
           setFields.federationAvatarETag = stored.etag ?? null;
           setFields.federationAvatarLastModified = stored.lastModified ?? null;
         } else {
           // Keep the previous mirror; a remote URL is never left standing in.
-          clearRemoteAvatar = true;
+          avatarWrite = 'keep_previous_mirror';
           setFields.federationLastAvatarFetchedAt = new Date();
           logger.warn(`Background refresh: avatar download failed for ${actorUri} (keeping existing mirror)`, { failure: stored.failure });
         }
@@ -2009,12 +1999,13 @@ class FederationService {
         .update(users)
         .set({
           ...setFields,
-          ...(clearRemoteAvatar ? { avatar: avatarWithoutRemoteUrl() } : {}),
           // Mongo's `$unset` of the tombstone fields — NULL is "available".
           federationUnavailableAt: null,
           federationUnavailableReason: null,
         })
         .where(eq(users.id, userId));
+
+      if (avatarWrite) await persistFederatedAvatar(userId, avatarWrite);
 
       // CRITICAL: every path that mutates user state must invalidate the cache,
       // otherwise getUserBySession serves stale in-memory data and silently

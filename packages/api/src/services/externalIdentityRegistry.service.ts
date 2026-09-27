@@ -1,3 +1,4 @@
+import { avatarKeepingMirror } from '../utils/federatedAvatar';
 import { ConflictError } from '../utils/error';
 import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
@@ -333,16 +334,16 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
         stableId: input.stableId ?? identity.stableId }).where(eq(externalIdentities.canonicalAcct, canonicalAcct)).returning();
     }
     if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), identity.userId);
-    // `avatar` is never set FROM the source here — only the mirror writes it, and
-    // only with an Oxy Cloud file id. A remote URL standing in for the mirror is
-    // what a failed download used to leave behind forever (a signed Meta CDN URL
-    // expires and 403s; measured on ibaillanos@instagram.com), so a legacy one is
-    // cleared on every registration and the mirror is rescheduled against the
-    // fresh source picture. A stored file id is kept: it is the previous good
-    // mirror. `nullif` covers the empty string from the Mongo backfill.
+    // `avatar` is never set FROM the source here — only `persistFederatedAvatar`
+    // writes it, and only with an Oxy Cloud file id. A remote URL standing in for
+    // the mirror is what a failed download used to leave behind forever (a signed
+    // Meta CDN URL expires and 403s; measured on ibaillanos@instagram.com), so any
+    // non-file-id value is cleared on every registration and the mirror is
+    // rescheduled against the fresh source picture. A stored file id is kept: it
+    // is the previous good mirror.
     await tx.update(users).set({ username: canonicalAcct, federationDomain: network,
       nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null,
-      avatar: sql`case when ${users.avatar} ~* '^https?://' then null else nullif(${users.avatar}, '') end`,
+      avatar: avatarKeepingMirror(),
       federationLastResolvedAt: new Date(), federationUnavailableAt: null, federationUnavailableReason: null }).where(eq(users.id, identity.userId));
     const actorValues = { canonicalAcct, transportAcct: normalizeExternalAcct(input.transportAcct), protocol: input.protocol, evidenceLinks: input.evidenceLinks ?? [] };
     await tx.insert(externalIdentityActors).values({ actorUri: input.actorUri, ...actorValues })
