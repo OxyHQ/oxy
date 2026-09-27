@@ -56,6 +56,8 @@ const dict = {
       "description": "Wenn es ein Konto zu {{identifier}} gibt, haben wir ihm einen Code und einen Anmeldelink geschickt.",
       "codeLabel": "Code",
       "codeHint": "Gib den Code aus der E-Mail ein oder öffne ihren Link in diesem Browser.",
+      "codeHasLetters": "Enthält dein Code Buchstaben?",
+      "codeDigitsOnly": "Besteht dein Code nur aus Ziffern?",
       "resend": "Neue E-Mail senden",
       "resendIn": "Neue E-Mail senden in {{seconds}} s",
       "resent": "Wir haben eine neue E-Mail geschickt.",
@@ -337,7 +339,6 @@ const dict = {
     "passwordLabel": "Aktuelles Passwort",
     "usePassword": "Stattdessen dein Passwort verwenden",
     "useEmail": "Stattdessen Code per E-Mail erhalten",
-    "totpLabel": "Authenticator-Code oder Backup-Code",
     "errors": {
       "invalid": "Das hat nicht geklappt. Prüfe deine Eingabe und versuch es noch einmal.",
       "totpRequired": "Gib auch den Code aus deiner Authenticator-App ein."

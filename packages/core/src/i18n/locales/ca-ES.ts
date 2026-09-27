@@ -56,6 +56,8 @@ const dict = {
       "description": "Si hi ha un compte amb {{identifier}}, li hem enviat un codi i un enllaç per iniciar sessió.",
       "codeLabel": "Codi",
       "codeHint": "Escriu el codi del correu o obre'n l'enllaç en aquest navegador.",
+      "codeHasLetters": "El teu codi té lletres?",
+      "codeDigitsOnly": "El teu codi només té números?",
       "resend": "Envia un correu nou",
       "resendIn": "Envia un correu nou d'aquí a {{seconds}} s",
       "resent": "T'hem enviat un correu nou.",
@@ -337,7 +339,6 @@ const dict = {
     "passwordLabel": "Contrasenya actual",
     "usePassword": "Fes servir la contrasenya",
     "useEmail": "Rep un codi per correu",
-    "totpLabel": "Codi d'autenticació o de seguretat",
     "errors": {
       "invalid": "No ha funcionat. Revisa el que has escrit i torna-ho a provar.",
       "totpRequired": "Escriu també el codi de la teva app d'autenticació."

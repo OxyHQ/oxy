@@ -30,8 +30,8 @@ import { OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScr
 import { ReauthStep } from './ReauthStep';
 import {
   AccountFlowAction,
+  AccountFlowCodeField,
   AccountFlowErrorLine,
-  AccountFlowField,
   AccountFlowNote,
   describeSignInError,
 } from './accountFlowParts';
@@ -161,16 +161,12 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
               {enrollment.secret.replace(/(.{4})/g, '$1 ').trim()}
             </Text>
           </View>
-          <AccountFlowField
+          <AccountFlowCodeField
             label={t('signInSecurity.totp.codeLabel')}
             value={code}
-            onChange={(value) => setCode(value.replace(/\D/g, '').slice(0, TOTP_DIGITS))}
-            onSubmit={() => undefined}
+            onChange={setCode}
             error={null}
-            placeholder="000000"
-            autoComplete="one-time-code"
-            keyboardType="number-pad"
-            maxLength={TOTP_DIGITS}
+            length={TOTP_DIGITS}
             testID="totp-enroll-code"
           />
         </ReauthStep>

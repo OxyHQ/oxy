@@ -56,6 +56,8 @@ const dict = {
       "description": "Si un compte correspond à {{identifier}}, nous lui avons envoyé un code et un lien de connexion.",
       "codeLabel": "Code",
       "codeHint": "Saisissez le code de l'e-mail, ou ouvrez son lien dans ce navigateur.",
+      "codeHasLetters": "Votre code contient des lettres ?",
+      "codeDigitsOnly": "Votre code ne contient que des chiffres ?",
       "resend": "Envoyer un nouvel e-mail",
       "resendIn": "Envoyer un nouvel e-mail dans {{seconds}} s",
       "resent": "Nous avons envoyé un nouvel e-mail.",
@@ -337,7 +339,6 @@ const dict = {
     "passwordLabel": "Mot de passe actuel",
     "usePassword": "Utiliser plutôt votre mot de passe",
     "useEmail": "Recevoir plutôt un code par e-mail",
-    "totpLabel": "Code d'authentification ou code de secours",
     "errors": {
       "invalid": "Cela n'a pas fonctionné. Vérifiez votre saisie et réessayez.",
       "totpRequired": "Saisissez aussi le code de votre application d'authentification."

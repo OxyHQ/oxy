@@ -10,9 +10,12 @@
  *                 photo carousel, in the right column (the account dialog grows to
  *                 that card); below `md` it is "Continue with Oxy" at the top. On
  *                 native it is "Continue with Oxy" ("Get Commons" without Commons).
- *   check-email   one email carries a code and a link. The code is typed here (6
- *                 digits, or the 10-character long code); meanwhile the screen asks
- *                 whether the link was opened in this browser, and signs in when it was.
+ *   check-email   one email carries a code and a link. The code is typed here: 6
+ *                 digits, or — "Does your code have letters?" — the 10-character
+ *                 long code an account past its daily guessing ceiling is sent
+ *                 (the start response does not say which, by design); meanwhile
+ *                 the screen asks whether the link was opened in this browser,
+ *                 and signs in when it was.
  *   password      the alternative for an account that has one.
  *   second-factor the authenticator's code, or a backup code, when the account has one.
  *
@@ -32,6 +35,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import type { SwitcherContextRow } from '@oxy.so/core/session';
 import {
+  EMAIL_CODE_LENGTH,
   EMAIL_SIGNIN_LONG_CODE_LENGTH,
   SIGN_IN_ERROR_CODES,
   TOTP_DIGITS,
@@ -54,11 +58,12 @@ import { OxyAccountPicker } from './OxyAccountPicker';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthSplit, OxyAuthTerms } from './OxyAuthScreen';
 import {
   AccountFlowAction,
+  AccountFlowCodeField,
   AccountFlowField,
   AccountFlowNote,
+  BACKUP_CODE_LENGTH,
   describeSignInError,
   errorCode,
-  formatSignInCodeInput,
   isCompleteSignInCode,
   isRateLimited,
   retryAfterSeconds,
@@ -79,6 +84,8 @@ interface SavedSignInFlow {
   identifier: string;
   showForm: boolean;
   useBackupCode: boolean;
+  /** The code field takes the 10-character long code ("Does your code have letters?"). */
+  longCode: boolean;
   /** When "Send a new email" may be pressed again (ms). */
   resendUntil: number;
 }
@@ -139,6 +146,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   const [password, setPassword] = useState('');
   const [secondFactorCode, setSecondFactorCode] = useState('');
   const [useBackupCode, setUseBackupCode] = useState(saved?.useBackupCode ?? false);
+  const [longCode, setLongCode] = useState(saved?.longCode ?? false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -153,9 +161,10 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       identifier,
       showForm,
       useBackupCode,
+      longCode,
       resendUntil: Date.now() + resendSeconds * 1000,
     } satisfies SavedSignInFlow);
-  }, [flowOwner, step, identifier, showForm, useBackupCode, resendSeconds]);
+  }, [flowOwner, step, identifier, showForm, useBackupCode, longCode, resendSeconds]);
   const blocked = pending || rateLimitSeconds > 0;
 
   // The countdown after a 429: one tick a second until the person may retry.
@@ -244,7 +253,9 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         }
         setCode('');
         setResendSeconds(EMAIL_RESEND_COOLDOWN_SECONDS);
+        // A resend keeps the field as the person set it; a new request starts at 6 digits.
         if (step.name === 'check-email') setNotice(t('signin.checkEmail.resent'));
+        else setLongCode(false);
         setStep({ name: 'check-email', identifier: name, requestId: started.requestId, requestSecret: started.requestSecret });
       })
       .catch(fail)
@@ -362,6 +373,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     setError(null);
     setNotice(null);
     setCode('');
+    setLongCode(false);
     setPassword('');
     setStep({ name: 'start' });
   };
@@ -443,23 +455,33 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
             title={t('signin.checkEmail.title')}
             description={t('signin.checkEmail.description', { identifier: request.identifier })}
           />
-          <AccountFlowField
+          <AccountFlowCodeField
+            key={longCode ? 'long' : 'digits'}
             label={t('signin.checkEmail.codeLabel')}
             value={code}
             onChange={(value) => {
-              const typed = formatSignInCodeInput(value);
-              setCode(typed);
+              setCode(value);
               clearError();
-              if (isCompleteSignInCode(typed)) submitCode(typed);
             }}
-            onSubmit={() => submitCode(code)}
+            onComplete={submitCode}
             error={shownError}
             disabled={blocked}
-            placeholder="000000"
-            autoComplete="one-time-code"
-            maxLength={EMAIL_SIGNIN_LONG_CODE_LENGTH + 1}
+            length={longCode ? EMAIL_SIGNIN_LONG_CODE_LENGTH : EMAIL_CODE_LENGTH}
+            type={longCode ? 'alphanumeric' : 'numeric'}
+            groupEvery={longCode ? EMAIL_SIGNIN_LONG_CODE_LENGTH / 2 : undefined}
             hint={t('signin.checkEmail.codeHint')}
             testID="signin-code"
+          />
+          <SubtleLink
+            label={longCode ? t('signin.checkEmail.codeDigitsOnly') : t('signin.checkEmail.codeHasLetters')}
+            theme={theme}
+            onPress={() => {
+              setLongCode(!longCode);
+              setCode('');
+              setError(null);
+            }}
+            disabled={pending}
+            testID="signin-code-letters"
           />
           {notice ? <AccountFlowNote testID="signin-notice">{notice}</AccountFlowNote> : null}
           <AccountFlowAction
@@ -553,28 +575,20 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
             title={t('signin.secondFactor.title')}
             description={useBackupCode ? t('signin.secondFactor.backupDescription') : t('signin.secondFactor.description')}
           />
-          <AccountFlowField
+          <AccountFlowCodeField
             key={useBackupCode ? 'backup' : 'totp'}
             label={useBackupCode ? t('signin.secondFactor.backupLabel') : t('signin.secondFactor.label')}
             value={secondFactorCode}
             onChange={(value) => {
-              if (useBackupCode) {
-                setSecondFactorCode(value);
-                clearError();
-                return;
-              }
-              const digits = value.replace(/\D/g, '').slice(0, TOTP_DIGITS);
-              setSecondFactorCode(digits);
+              setSecondFactorCode(value);
               clearError();
-              if (digits.length === TOTP_DIGITS) submitSecondFactor(digits);
             }}
-            onSubmit={() => submitSecondFactor(secondFactorCode)}
+            onComplete={submitSecondFactor}
             error={shownError}
             disabled={blocked}
-            placeholder={useBackupCode ? 'xxxxx-xxxxx' : '000000'}
-            autoComplete="one-time-code"
-            keyboardType={useBackupCode ? 'default' : 'number-pad'}
-            maxLength={useBackupCode ? 11 : TOTP_DIGITS}
+            length={useBackupCode ? BACKUP_CODE_LENGTH : TOTP_DIGITS}
+            type={useBackupCode ? 'alphanumeric' : 'numeric'}
+            groupEvery={useBackupCode ? BACKUP_CODE_LENGTH / 2 : undefined}
             testID="signin-second-factor"
           />
           <AccountFlowAction

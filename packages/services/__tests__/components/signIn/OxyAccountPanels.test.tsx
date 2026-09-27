@@ -439,9 +439,14 @@ describe('the authenticator app', () => {
     render(<OxyAuthenticatorPanel onDone={onDone} />);
     press('totp-disable');
     type('reauth-password', 'pw');
+    // A backup code instead: ten characters in two groups of five, pasted with its dash.
+    press('reauth-toggle-backup');
+    expect(screen.getByTestId('reauth-totp').getAttribute('data-type')).toBe('alphanumeric');
+    expect(screen.getByTestId('reauth-totp').getAttribute('data-length')).toBe('10');
+    expect(screen.getByTestId('reauth-totp').getAttribute('data-group-every')).toBe('5');
     type('reauth-totp', 'abcde-fgh23');
     press('reauth-submit');
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
-    expect(oxyServices.auth.totp.disable).toHaveBeenCalledWith({ password: 'pw', totpCode: 'abcde-fgh23' });
+    expect(oxyServices.auth.totp.disable).toHaveBeenCalledWith({ password: 'pw', totpCode: 'ABCDEFGH23' });
   });
 });

@@ -552,6 +552,69 @@ export const TextFieldInput = ({
 export const TextFieldLabel = passthrough('label');
 export const TextFieldHint = ({ children }: { children?: ReactNode }) => createElement('p', { role: 'alert' }, children);
 
+/**
+ * `@oxy.so/bloom/field`: the label, the control, then the error (an `alert`)
+ * or the description. `multiple` fields are a labelled group.
+ */
+export const Field = ({
+  label,
+  description,
+  error,
+  children,
+}: {
+  label?: ReactNode;
+  description?: ReactNode;
+  error?: string | null;
+  children?: ReactNode;
+} & Record<string, unknown>) =>
+  createElement(
+    'div',
+    { role: 'group', 'aria-label': typeof label === 'string' ? label : undefined },
+    label ? createElement('label', null, label) : null,
+    children,
+    error ? createElement('p', { role: 'alert' }, error) : description ? createElement('p', null, description) : null,
+  );
+
+/**
+ * `@oxy.so/bloom/input-otp`: ONE `<input>` standing for the boxes. A change is
+ * cleaned the way the real one cleans it — digits only, or (`alphanumeric`)
+ * upper-cased `A`–`Z`/`0`–`9` — and cut to `length`; `onComplete` fires once
+ * every box is filled. `data-length` / `data-type` let a test see the mode.
+ */
+export const InputOtp = ({
+  length = 6,
+  type = 'numeric',
+  value,
+  onChange,
+  onComplete,
+  disabled,
+  groupEvery,
+  testID,
+}: {
+  length?: number;
+  type?: 'numeric' | 'alphanumeric';
+  value?: string;
+  onChange?: (next: string) => void;
+  onComplete?: (next: string) => void;
+  disabled?: boolean;
+  groupEvery?: number;
+  testID?: string;
+} & Record<string, unknown>) =>
+  createElement('input', {
+    value: value ?? '',
+    disabled,
+    'data-testid': testID,
+    'data-length': length,
+    'data-type': type,
+    'data-group-every': groupEvery,
+    onChange: (event: { target: { value: string } }) => {
+      const raw = event.target.value;
+      const cleaned = (type === 'alphanumeric' ? raw.toUpperCase().replace(/[^A-Z0-9]/g, '') : raw.replace(/\D/g, '')).slice(0, length);
+      onChange?.(cleaned);
+      if (cleaned.length === length) onComplete?.(cleaned);
+    },
+  });
+
 /** `@oxy.so/bloom/auth-card`'s carousel: a marker, so a test can see the split card's artwork. */
 export const AuthMediaCarousel = () => createElement('div', { 'data-testid': 'auth-media-carousel' });
 

@@ -1,5 +1,19 @@
 # Changelog — `@oxy.so/core`
 
+## 3.1.0
+
+### Added
+
+- `signin.checkEmail.codeHasLetters` ("Does your code have letters?") and
+  `signin.checkEmail.codeDigitsOnly` ("Is your code only numbers?"), in all
+  eleven locales: the switch between the 6-digit sign-in code and the
+  10-character long code.
+
+### Removed
+
+- `reauth.totpLabel`: "Confirm it's you" labels the authenticator code and the
+  backup code separately (`signin.secondFactor.label` / `backupLabel`).
+
 ## 3.0.3
 
 ### Fixed
