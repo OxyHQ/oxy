@@ -30,6 +30,12 @@
  *      bound from `secrets.*` or listed, no `SHARED_SECRETS` list comes back,
  *      and no executable line names a `/oxy/_shared/` path except as a
  *      task-definition ARN (a READ).
+ *   5. Every name in `BOUND_API_SECRETS` — GitHub secrets the task definition
+ *      binds by exact ARN, which the sync step refuses to run without — is
+ *      synced AND carries its exact `/oxy/oxy-api/<NAME>` binding. A name in
+ *      that guard with no binding is a refusal protecting nothing; a binding
+ *      whose name left the guard is the dangling reference the guard exists
+ *      to prevent.
  *
  * (2) is the half that catches the `DATABASE_URL` shape, and it is anchored on
  * the API's own boot contract rather than on a second copy of the list — the
@@ -194,6 +200,7 @@ const envModule = read(ENV_MODULE_PATH);
 
 const syncEntries = parseSyncEntries(workflow);
 const apiSecrets = parseSecretList(workflow, 'API_SECRETS');
+const boundApiSecrets = parseSecretList(workflow, 'BOUND_API_SECRETS');
 const requiredEnvVars = parseRequiredEnvVars(envModule);
 
 // ── Vacuity guards (boot-contract parse only — see the constants above) ────
@@ -292,6 +299,33 @@ workflow.split('\n').forEach((line, index) => {
   }
 });
 
+// ── 5. Bound GitHub secrets are refused when empty AND actually bound ──────
+/**
+ * GitHub-synced secrets bound into the task definition whose empty value must
+ * fail the run. Kept as an exact expectation, not derived from the workflow:
+ * the failure this guards is a name silently dropping out of
+ * BOUND_API_SECRETS while its binding stays, and deriving the list from the
+ * guard would make that edit invisible.
+ */
+const REQUIRED_BOUND_API_SECRETS = ['META_GRAPH_ACCESS_TOKEN', 'META_IG_BUSINESS_ACCOUNT_ID'];
+for (const name of REQUIRED_BOUND_API_SECRETS) {
+  if (!boundApiSecrets.includes(name)) {
+    fail(
+      `${name} is bound into the task definition but is not in BOUND_API_SECRETS, so an unset ` +
+      `secrets.${name} is skipped with a warning and the new revision names a parameter that may not exist.`,
+    );
+  }
+}
+for (const name of boundApiSecrets) {
+  if (!listed.has(name)) {
+    fail(`${name} is in BOUND_API_SECRETS but not in API_SECRETS; the guard would demand a value the sync never writes.`);
+  }
+  const parameterArn = `arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/${name}`;
+  if (!workflow.includes(`"${name}":"${parameterArn}"`)) {
+    fail(`${name} is in BOUND_API_SECRETS but has no exact TASK_SECRET_OVERRIDES_JSON binding to ${parameterArn}.`);
+  }
+}
+
 if (problems.length > 0) {
   console.error('Deploy secret sync is BROKEN:\n');
   for (const problem of problems) console.error(`- ${problem}`);
@@ -307,5 +341,6 @@ console.log(
   `all ${requiredEnvVars.length} boot-required env vars are accounted for, ` +
   `all ${PRODUCTION_MANDATORY_SYNCED_SECRETS.length} production-mandatory secrets are synced, ` +
   `all ${SSM_ONLY_SECRET_BINDINGS.size} SSM-only secret bindings have no GitHub copy channel, ` +
+  `all ${boundApiSecrets.length} bound GitHub secrets are refused when empty and bound by exact ARN, ` +
   `and none of the ${INFRA_OWNED_SHARED_SECRETS.length} oxy-infra-owned /oxy/_shared/ parameters is written.`
 );

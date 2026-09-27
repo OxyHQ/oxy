@@ -218,6 +218,45 @@ expectVerdict(
   'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY is missing its exact TASK_SECRET_OVERRIDES_JSON binding',
 );
 
+// ── Bound GitHub secrets: refused when empty, and actually bound ────────────
+//
+// A name dropped from BOUND_API_SECRETS while its binding stays is the exact
+// start-unsafe shape: the sync then SKIPS an unset secret with a warning and the
+// deploy registers a revision naming a parameter that was never created.
+const boundGuardDropped = createFixture();
+edit(boundGuardDropped, WORKFLOW, 'bound-secret-guard-dropped', (text) =>
+  text.replace('BOUND_API_SECRETS="META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID"', 'BOUND_API_SECRETS="META_IG_BUSINESS_ACCOUNT_ID"'));
+expectVerdict(
+  'bound-secret-guard-dropped',
+  boundGuardDropped,
+  1,
+  'META_GRAPH_ACCESS_TOKEN is bound into the task definition but is not in BOUND_API_SECRETS',
+);
+
+// The guard without the binding refuses deploys to protect nothing.
+const boundBindingMissing = createFixture();
+edit(boundBindingMissing, WORKFLOW, 'bound-secret-binding-missing', (text) =>
+  text.replace(',"META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID"', ''));
+expectVerdict(
+  'bound-secret-binding-missing',
+  boundBindingMissing,
+  1,
+  'META_IG_BUSINESS_ACCOUNT_ID is in BOUND_API_SECRETS but has no exact TASK_SECRET_OVERRIDES_JSON binding',
+);
+
+// A guarded name the sync never writes can never be satisfied.
+const boundNotSynced = createFixture();
+edit(boundNotSynced, WORKFLOW, 'bound-secret-not-synced', (text) =>
+  text
+    .replace(/^\s+SYNC_META_IG_BUSINESS_ACCOUNT_ID: \$\{\{ secrets\.META_IG_BUSINESS_ACCOUNT_ID \}\}\n/m, '')
+    .replace(' META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID"\n', ' META_GRAPH_ACCESS_TOKEN"\n'));
+expectVerdict(
+  'bound-secret-not-synced',
+  boundNotSynced,
+  1,
+  'META_IG_BUSINESS_ACCOUNT_ID is in BOUND_API_SECRETS but not in API_SECRETS',
+);
+
 // A list the gate can no longer read must be reported as such, not treated as
 // an empty allowlist.
 const brokenParse = createFixture();
