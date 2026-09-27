@@ -581,17 +581,49 @@ describe('identity lookup/resolve — federation:identities:resolve without fede
     expect((await requestJson('POST', '/federation/identities/resolve', resolveBody)).status).toBe(404);
   });
 
-  it('passes an explicit instagram-graph protocol through for Instagram handles only', async () => {
+  /**
+   * The EXACT bodies Mention sends through `resolveOxyIdentity`
+   * (Mention packages/backend/src/connectors/oxyIdentity.ts). Each call site is
+   * named so a change on either side is visible here:
+   * - connectors.routes.ts (search):            { handle }
+   * - activitypub/actor.service.ts, identity.ts,
+   *   scripts/reconcileMetaIdentityAndCrossposts.ts: { actorUri, transportAcct, protocol: 'activitypub' }
+   * - atproto/profile.mapper.ts, identity.ts:     { actorUri: did, transportAcct, protocol: 'atproto' }
+   * - instagram/profile.ts (Graph refresh):       { actorUri: 'instagram-graph:<id>', protocol: 'instagram-graph' }
+   * - identity.ts (protocol = actor.network):     { actorUri: 'instagram-graph:<id>', transportAcct, protocol: 'instagram-graph' }
+   */
+  const MENTION_RESOLVE_BODIES: Record<string, unknown>[] = [
+    { handle: 'plex@instagram.com' },
+    { handle: 'https://www.instagram.com/Plex/' },
+    { actorUri: 'https://mastodon.social/users/alice', transportAcct: 'alice@mastodon.social', protocol: 'activitypub' },
+    { actorUri: 'https://kilogram.makeup/users/plex', transportAcct: 'plex@kilogram.makeup', protocol: 'activitypub' },
+    { actorUri: 'did:plc:abcdefghijklmnopqrstuvwx', transportAcct: 'alice.bsky.social', protocol: 'atproto' },
+    { actorUri: 'instagram-graph:17841401746480004', protocol: 'instagram-graph' },
+    { actorUri: 'instagram-graph:17841401746480004', transportAcct: 'plex@instagram.com', protocol: 'instagram-graph' },
+    { handle: 'plex@instagram.com', protocol: 'instagram-graph' },
+  ];
+
+  it.each(MENTION_RESOLVE_BODIES)('passes Mention\'s resolve body %j through unchanged', async (body) => {
     presentCredential('mention-app', ['federation:write']);
     mockResolveExternalIdentity.mockResolvedValueOnce(null);
-    const graph = await requestJson('POST', '/federation/identities/resolve', { handle: 'https://www.instagram.com/Plex/', protocol: 'instagram-graph' });
-    expect(graph.status).toBe(404);
-    expect(mockResolveExternalIdentity).toHaveBeenCalledWith({ actorUri: undefined, handle: 'https://www.instagram.com/Plex/', transportAcct: undefined, protocol: 'instagram-graph' });
-    mockResolveExternalIdentity.mockClear();
-    for (const body of [{ handle: 'bob@mastodon.social', protocol: 'instagram-graph' }, { handle: 'bob@instagram.com.evil.example', protocol: 'instagram-graph' },
-      { actorUri: 'instagram-graph:17841401746480004', protocol: 'instagram-graph' }]) {
-      expect((await requestJson('POST', '/federation/identities/resolve', body)).status).toBe(400);
-    }
+    const res = await requestJson('POST', '/federation/identities/resolve', body);
+    expect(res.status).toBe(404);
+    expect(mockResolveExternalIdentity).toHaveBeenCalledTimes(1);
+    expect(mockResolveExternalIdentity).toHaveBeenCalledWith({ actorUri: undefined, handle: undefined, transportAcct: undefined, protocol: undefined, ...body });
+  });
+
+  it.each([
+    { handle: 'bob@mastodon.social', protocol: 'instagram-graph' },
+    { handle: 'bob@instagram.com.evil.example', protocol: 'instagram-graph' },
+    { actorUri: 'https://kilogram.makeup/users/plex', protocol: 'instagram-graph' },
+    { actorUri: 'did:plc:abcdefghijklmnopqrstuvwx', protocol: 'instagram-graph' },
+    { actorUri: 'instagram-graph:17841401746480004', protocol: 'activitypub' },
+    { actorUri: 'instagram-graph:17841401746480004', protocol: 'atproto' },
+    { actorUri: 'instagram-graph:plex', protocol: 'instagram-graph' },
+    { actorUri: 'instagram-graph:', protocol: 'instagram-graph' },
+  ])('rejects the protocol/source mismatch %j before resolving', async (body) => {
+    presentCredential('mention-app', ['federation:write']);
+    expect((await requestJson('POST', '/federation/identities/resolve', body)).status).toBe(400);
     expect(mockResolveExternalIdentity).not.toHaveBeenCalled();
   });
 

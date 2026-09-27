@@ -87,8 +87,11 @@ kilogram.makeup, the reviewed Instagram bridge, routinely answers WebFinger with
 failure: 429, timeout, refusal), Oxy may fall back to Meta's Graph API Business
 Discovery (`services/federation/instagramGraph.ts`). A resolve request with
 `protocol: 'instagram-graph'` and an Instagram handle or profile URL goes to
-Graph directly; the route rejects that protocol for any other handle or for an
-`actorUri`.
+Graph directly, and one with an `instagram-graph:<igUserId>` `actorUri` refreshes
+that stored source. The route returns 400 for `instagram-graph` with any other
+handle or actor URI, and for an `instagram-graph:` actor URI under another
+protocol. Route tests pin every request body Mention's `resolveOxyIdentity`
+sends.
 
 Only Business and Creator accounts are visible; a personal or missing account
 (error 110, subcode 2207013) is not found. The source is protocol
