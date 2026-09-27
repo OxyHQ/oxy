@@ -88,7 +88,7 @@ expectVerdict(
   'secret-not-in-any-list',
   noListEntry,
   1,
-  'DATABASE_URL has a SYNC_DATABASE_URL env entry but is in neither SHARED_SECRETS nor API_SECRETS',
+  'DATABASE_URL has a SYNC_DATABASE_URL env entry but is not in API_SECRETS',
 );
 
 // The other half: the name is iterated but nothing exports its value, so it is
@@ -142,12 +142,43 @@ expectVerdict(
   'SYNC_DATABASE_URL reads ${{ secrets.DATABASE_URI }}',
 );
 
-// One name in both lists is written to two SSM paths, and whichever the task
-// definition does not read silently rots.
+// One name listed twice is written twice, which says the list is being edited
+// by hand without being read.
 const duplicated = createFixture();
-edit(duplicated, WORKFLOW, 'name-in-both-lists', (text) =>
-  text.replace('SHARED_SECRETS="AWS_ACCESS_KEY_ID', 'SHARED_SECRETS="DATABASE_URL AWS_ACCESS_KEY_ID'));
-expectVerdict('name-in-both-lists', duplicated, 1, 'DATABASE_URL appears in both');
+edit(duplicated, WORKFLOW, 'name-listed-twice', (text) =>
+  text.replace('API_SECRETS="ACCESS_TOKEN_SECRET', 'API_SECRETS="DATABASE_URL ACCESS_TOKEN_SECRET'));
+expectVerdict('name-listed-twice', duplicated, 1, 'DATABASE_URL appears twice in API_SECRETS');
+
+// ── /oxy/_shared/* is oxy-infra's, never this deploy's (incident 2026-09-27) ──
+//
+// A shared name restored as a well-formed SYNC_* entry plus a list entry
+// satisfies every parity check above; only the ownership check sees it.
+const sharedSyncedAgain = createFixture();
+edit(sharedSyncedAgain, WORKFLOW, 'shared-secret-synced-again', (text) =>
+  text
+    .replace(
+      '          SYNC_DATABASE_URL: ${{ secrets.DATABASE_URL }}',
+      '          SYNC_DATABASE_URL: ${{ secrets.DATABASE_URL }}\n          SYNC_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}',
+    )
+    .replace('API_SECRETS="ACCESS_TOKEN_SECRET', 'API_SECRETS="AWS_ACCESS_KEY_ID ACCESS_TOKEN_SECRET'));
+expectVerdict(
+  'shared-secret-synced-again',
+  sharedSyncedAgain,
+  1,
+  'AWS_ACCESS_KEY_ID is a /oxy/_shared/ parameter owned by oxy-infra',
+);
+
+// The old shape: a SHARED_SECRETS list routed to /oxy/_shared/.
+const sharedListRestored = createFixture();
+edit(sharedListRestored, WORKFLOW, 'shared-list-restored', (text) =>
+  text.replace('          API_SECRETS="', '          SHARED_SECRETS=""\n          API_SECRETS="'));
+expectVerdict('shared-list-restored', sharedListRestored, 1, 'assigns SHARED_SECRETS again');
+
+// A write path into /oxy/_shared/ under any other name.
+const sharedPathWritten = createFixture();
+edit(sharedPathWritten, WORKFLOW, 'shared-path-written', (text) =>
+  text.replace('path="/oxy/$APP/$k"', 'path="/oxy/_shared/$k"'));
+expectVerdict('shared-path-written', sharedPathWritten, 1, 'names a /oxy/_shared/ path outside a task-definition ARN');
 
 // The credential-control private key is provisioned directly in SSM. A
 // well-formed SYNC_* entry plus matching allow-list would satisfy the generic

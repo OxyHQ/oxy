@@ -100,16 +100,18 @@ silently does not take effect:
 1. The value lives as a **GitHub repository secret**.
 2. `.github/workflows/deploy-aws.yml` writes it to **SSM** with
    `aws ssm put-parameter --type SecureString --overwrite`, at
-   `/oxy/oxy-api/<NAME>` (or `/oxy/_shared/<NAME>` for the shared set).
+   `/oxy/oxy-api/<NAME>`. It never writes `/oxy/_shared/*`: those parameters
+   are owned by oxy-infra and rotated once, centrally
+   (oxy-infra `docs/runbooks/45-shared-ssm-parameters.md`).
 3. **ECS injects it at TASK LAUNCH** from the task definition's `secrets` block.
 
 Three consequences:
 
 - A secret changed in GitHub reaches production only on the **next deploy**, and
   only if the deploy's sync step runs.
-- The sync loop iterates two **hand-maintained allow-lists** (`SHARED_SECRETS` and
-  `API_SECRETS` plus a matching `SYNC_<NAME>` env entry). A name missing from
-  either is written nowhere, the deploy is green, and the failure surfaces later as
+- The sync loop iterates a **hand-maintained allow-list** (`API_SECRETS` plus a
+  matching `SYNC_<NAME>` env entry). A name missing from either is written
+  nowhere, the deploy is green, and the failure surfaces later as
   `ResourceInitializationError: unable to pull secrets`.
   `scripts/check-deploy-secrets-sync.mjs` is the gate that catches that on a pull
   request — `ACCESS_TOKEN_SECRET` and `REFRESH_TOKEN_SECRET` are both in
