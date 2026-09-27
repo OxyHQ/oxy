@@ -24,6 +24,12 @@ import {
   type SQL,
   type SQLWrapper,
 } from 'drizzle-orm';
+import type {
+  EmailFilterActionType,
+  EmailFilterConditionField,
+  EmailFilterConditionOperator,
+  MessageCardType,
+} from '@oxy.so/contracts';
 import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb, type Database, type Transaction } from '../config/postgres';
@@ -52,6 +58,7 @@ import {
   DEFAULT_MAILBOXES,
   EMAIL_QUOTAS,
   EMAIL_DOMAIN,
+  extractUsername,
   resolveEmailAddress,
   type SubscriptionTier,
 } from '../config/email.config';
@@ -65,8 +72,9 @@ import { cardExtractionService } from './cardExtraction.service';
 import { smtpOutbound } from './smtp.outbound';
 import { sendInboxEmailPush } from './emailPushDelivery.service';
 import { emitEmailNew, emitEmailChanged } from './inboxRealtime';
+import { parseInboundMime } from './inboundMime';
+import { OXY_SENT_ID_HEADER } from './relayMessageId';
 import { assetService } from './assetServiceSingleton';
-import { simpleParser } from 'mailparser';
 import { idempotentMessageId } from './emailIdempotency';
 import { emailSavedSearches, type SavedEmailSearchFilters } from '../db/schema/emailSavedSearches';
 import { enqueueInboxMessageEvents } from '../capabilities/inbox.events';
@@ -232,7 +240,7 @@ const MESSAGE_FLAG_COLUMNS = {
 
 /** The structured card the AI extractor emits, reassembled from its columns. */
 export interface MessageCardDto {
-  type: string;
+  type: MessageCardType;
   data: Record<string, unknown> | null;
   confidence: number | null;
   extractedAt: Date | null;
@@ -318,14 +326,14 @@ export interface LabelDto {
 
 /** One condition of a mail rule. */
 export interface FilterConditionDto {
-  field: string;
-  operator: string;
+  field: EmailFilterConditionField;
+  operator: EmailFilterConditionOperator;
   value: string;
 }
 
 /** One action of a mail rule. `value` is absent for the actions that take none. */
 export interface FilterActionDto {
-  type: string;
+  type: EmailFilterActionType;
   value?: string;
 }
 
@@ -667,18 +675,21 @@ function threadKeys(alias: string): SQL {
   const table = sql.raw(alias);
   return sql`(${table}."references"
     || case when ${table}.in_reply_to is null then '{}'::text[] else array[${table}.in_reply_to] end
+    || case when ${table}.relay_message_id is null then '{}'::text[] else array[${table}.relay_message_id] end
     || array[${table}.message_id])`;
 }
 
 /**
  * The adjacency predicate, decomposed so each arm can use an index:
- * `messages_user_id_message_id_idx`, `messages_user_id_in_reply_to_idx` and the
- * GIN `messages_references_idx` respectively. Written as one array overlap it
+ * `messages_user_id_message_id_idx`, `messages_user_id_relay_message_id_idx`,
+ * `messages_user_id_in_reply_to_idx` and the GIN `messages_references_idx`
+ * respectively. Written as one array overlap it
  * would be a sequential scan of every message the user owns.
  */
 function threadAdjacency(alias: string, keys: SQL): SQL {
   const table = sql.raw(alias);
   return sql`(${table}.message_id = any(${keys})
+    or ${table}.relay_message_id = any(${keys})
     or ${table}.in_reply_to = any(${keys})
     or ${table}.references && ${keys})`;
 }
@@ -1600,7 +1611,8 @@ class EmailService {
       )
       select walk.root_id as "rootId",
              min(walk.id) as "threadId",
-             count(distinct walk.id)::int as "threadCount",
+             -- A copy of the user's own Sent message is the same message.
+             (count(distinct walk.id) filter (where member.sent_copy_of is null))::int as "threadCount",
              array_agg(distinct member.from_address) as participants
       from walk
       join messages member on member.id = walk.id
@@ -1709,6 +1721,38 @@ class EmailService {
       reason: 'moved',
     });
     return dto;
+  }
+
+  /**
+   * The Sent row an inbound message is a copy of, when the user is receiving
+   * their OWN outbound mail back (they addressed themselves, or were on the
+   * list they replied to).
+   *
+   * Recognised by the `X-Oxy-Sent-Id` header every user message goes out with
+   * — the relay may have replaced `Message-ID`, it does not touch that header —
+   * and only when the message is from the user's own address and names a
+   * message in their own Sent mailbox. A stranger copying the header onto mail
+   * from another address links nothing.
+   */
+  private async findOwnSentOriginal(
+    userId: string,
+    recipientUsername: string,
+    fromAddress: string,
+    headers: Record<string, string>,
+  ): Promise<string | null> {
+    const sentId = headers[OXY_SENT_ID_HEADER.toLowerCase()]?.trim();
+    if (!sentId) return null;
+    if (extractUsername(fromAddress.trim().toLowerCase())?.toLowerCase() !== recipientUsername.trim().toLowerCase()) {
+      return null;
+    }
+    const sent = await this.getMailboxBySpecialUse(userId, '\\Sent');
+    if (!sent) return null;
+    const [original] = await getDb()
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.userId, userId), eq(messages.mailboxId, sent.id), eq(messages.messageId, sentId)))
+      .limit(1);
+    return original?.id ?? null;
   }
 
   /**
@@ -1916,6 +1960,8 @@ class EmailService {
       params.rawSize +
       storedAttachments.reduce((sum, a) => sum + a.size, 0);
 
+    const sentCopyOf = await this.findOwnSentOriginal(userId, params.recipientUsername, params.from.address, params.headers);
+
     const receivedAt = new Date();
     const storedMessageId = await insertMessageWithChildren(
       db,
@@ -1935,6 +1981,7 @@ class EmailService {
         inReplyTo: params.inReplyTo,
         references: params.references ?? [],
         aliasTag: params.aliasTag,
+        sentCopyOf,
         readReceiptRequested: Boolean(params.headers['disposition-notification-to']),
         date: params.date,
         receivedAt,
@@ -2250,6 +2297,8 @@ class EmailService {
     userId: string,
     messageData: {
       messageId: string;
+      /** The id the relay delivered it under, when it replaced ours. */
+      relayMessageId?: string | null;
       from: EmailAddress;
       to: EmailAddress[];
       cc?: EmailAddress[];
@@ -2279,6 +2328,7 @@ class EmailService {
         userId,
         mailboxId: sentMailbox.id,
         messageId: messageData.messageId,
+        relayMessageId: messageData.relayMessageId ?? null,
         fromName: messageData.from.name?.trim() ? messageData.from.name.trim() : null,
         fromAddress: messageData.from.address.trim().toLowerCase(),
         subject: messageData.subject,
@@ -2509,7 +2559,7 @@ class EmailService {
         const group = recipients.get(msg.id) ?? emptyRecipients();
         const attachments = await loadOutboundAttachments(db, msg.id);
 
-        await smtpOutbound.sendRaw({
+        const { relayMessageId } = await smtpOutbound.sendRaw({
           userId: msg.userId,
           messageId: msg.messageId,
           from: { name: msg.fromName ?? '', address: msg.fromAddress },
@@ -2525,7 +2575,7 @@ class EmailService {
         });
 
         // Clear scheduledAt to mark as sent
-        await db.update(messages).set({ scheduledAt: null }).where(eq(messages.id, msg.id));
+        await db.update(messages).set({ scheduledAt: null, relayMessageId }).where(eq(messages.id, msg.id));
         count++;
       } catch (err) {
         logger.error('Failed to send scheduled message', err instanceof Error ? err : new Error(String(err)), {
@@ -2584,7 +2634,12 @@ class EmailService {
       .where(inArray(messages.id, memberRows.map((row) => row.id)))
       .orderBy(asc(messages.date), asc(messages.id));
 
-    const thread = await toMessageDtos(db, rows);
+    // A message the user sent to a list that included themselves arrives back
+    // as a second row. The conversation shows it once: the Sent copy.
+    const memberIds = new Set(rows.map((row) => row.id));
+    const shown = rows.filter((row) => row.sentCopyOf === null || !memberIds.has(row.sentCopyOf));
+
+    const thread = await toMessageDtos(db, shown);
     const stableThreadId = memberRows
       .map((row) => row.id)
       .sort()[0];
@@ -3326,41 +3381,21 @@ class EmailService {
 
     for (const file of files) {
       try {
-        const parsed = await simpleParser(file.buffer);
+        const mime = await parseInboundMime(file.buffer);
 
-        const from: EmailAddress = parsed.from?.value?.[0]
-          ? { name: parsed.from.value[0].name || '', address: parsed.from.value[0].address || '' }
-          : { name: '', address: 'unknown@unknown' };
-
-        const mapAddresses = (addrs: typeof parsed.to): EmailAddress[] => {
-          if (!addrs) return [];
-          const addrArray = Array.isArray(addrs) ? addrs : [addrs];
-          return addrArray.flatMap((group) =>
-            (group.value || []).map((a) => ({
-              name: a.name || '',
-              address: a.address || '',
-            })),
-          );
-        };
-
-        const to = mapAddresses(parsed.to);
-        const cc = mapAddresses(parsed.cc);
+        const from: EmailAddress = mime.from ?? { name: '', address: 'unknown@unknown' };
+        const { to, cc } = mime;
 
         const rawSize = file.buffer.length;
 
         // Upload attachments to the Oxy file manager
         const storedAttachments: MessageAttachment[] = [];
         const importedFileIds: string[] = [];
-        const parsedAttachments = parsed.attachments || [];
-        const attachmentBytes = parsedAttachments.reduce(
-          (sum, att) => sum + (att.size || att.content.length),
-          0,
-        );
-        for (const att of parsedAttachments) {
-          const attachmentSize = att.size || att.content.length;
-          if (attachmentSize > maxAttachmentSize) {
+        const attachmentBytes = mime.attachments.reduce((sum, att) => sum + att.size, 0);
+        for (const att of mime.attachments) {
+          if (att.size > maxAttachmentSize) {
             throw new BadRequestError(
-              `Attachment ${att.filename || 'attachment'} exceeds the ${maxAttachmentSize} byte limit for your plan.`,
+              `Attachment ${att.filename} exceeds the ${maxAttachmentSize} byte limit for your plan.`,
             );
           }
         }
@@ -3368,26 +3403,24 @@ class EmailService {
         const totalSize = rawSize + attachmentBytes;
         await this.enforceQuota(userId, totalSize);
 
-        if (parsed.attachments?.length) {
-          for (const att of parsedAttachments) {
-            const uploadedFile = await assetService.uploadFileDirect(
-              userId,
-              att.content,
-              att.contentType || 'application/octet-stream',
-              att.filename || 'attachment',
-              'private',
-              { source: 'email-import' }
-            );
-            storedAttachments.push({
-              fileId: uploadedFile.id,
-              name: uploadedFile.originalName || att.filename || 'attachment',
-              contentType: uploadedFile.mime,
-              size: uploadedFile.size,
-              ...(att.contentId ? { contentId: att.contentId } : {}),
-              isInline: att.related ?? false,
-            });
-            importedFileIds.push(uploadedFile.id);
-          }
+        for (const att of mime.attachments) {
+          const uploadedFile = await assetService.uploadFileDirect(
+            userId,
+            att.content,
+            att.contentType,
+            att.filename,
+            'private',
+            { source: 'email-import' }
+          );
+          storedAttachments.push({
+            fileId: uploadedFile.id,
+            name: uploadedFile.originalName || att.filename,
+            contentType: uploadedFile.mime,
+            size: uploadedFile.size,
+            ...(att.contentId ? { contentId: att.contentId } : {}),
+            isInline: att.isInline,
+          });
+          importedFileIds.push(uploadedFile.id);
         }
 
         const msgId = await insertMessageWithChildren(
@@ -3395,21 +3428,17 @@ class EmailService {
           {
             userId,
             mailboxId: inbox.id,
-            messageId: parsed.messageId || `<imported-${uuidv4()}@${EMAIL_DOMAIN}>`,
+            messageId: mime.messageId || `<imported-${uuidv4()}@${EMAIL_DOMAIN}>`,
             fromName: from.name?.trim() ? from.name.trim() : null,
             fromAddress: from.address.trim().toLowerCase(),
-            subject: parsed.subject || '(no subject)',
-            text: parsed.text || undefined,
-            html: parsed.html || undefined,
+            subject: mime.subject || '(no subject)',
+            text: mime.text || undefined,
+            html: mime.html || undefined,
             seen: true,
             size: totalSize,
-            inReplyTo: typeof parsed.inReplyTo === 'string' ? parsed.inReplyTo : undefined,
-            references: Array.isArray(parsed.references)
-              ? parsed.references
-              : parsed.references
-                ? [parsed.references]
-                : [],
-            date: parsed.date || new Date(),
+            inReplyTo: mime.inReplyTo,
+            references: mime.references,
+            date: mime.date || new Date(),
             receivedAt: new Date(),
           },
           { to, cc },

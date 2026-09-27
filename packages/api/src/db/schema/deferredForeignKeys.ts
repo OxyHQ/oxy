@@ -504,6 +504,14 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'here — most values name mail this database has never held.',
   },
   {
+    table: messages,
+    column: messages.relayMessageId,
+    reason:
+      'The RFC 5322 `Message-ID` the outbound relay (SES) substituted for ours. ' +
+      'An external email identifier used as a thread key, like `message_id` — ' +
+      'never a row here.',
+  },
+  {
     table: emailOutbox,
     column: emailOutbox.messageId,
     reason:

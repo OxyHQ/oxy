@@ -10,19 +10,12 @@
 
 import { sql } from 'drizzle-orm';
 import { check, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { EMAIL_FILTER_ACTION_TYPES } from '@oxy.so/contracts';
 import { generatedId } from '@oxy.so/db';
 import { emailFilters } from './emailFilters';
 
-/** What the rule does. */
-export const EMAIL_FILTER_ACTION_TYPES = [
-  'move',
-  'label',
-  'star',
-  'mark-read',
-  'archive',
-  'delete',
-  'forward',
-] as const;
+/** What the rule does. The vocabulary is the wire contract's. */
+export { EMAIL_FILTER_ACTION_TYPES };
 
 export const emailFilterActions = pgTable(
   'email_filter_actions',

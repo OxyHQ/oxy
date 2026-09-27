@@ -11,28 +11,12 @@
 
 import { sql } from 'drizzle-orm';
 import { check, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { EMAIL_FILTER_CONDITION_FIELDS, EMAIL_FILTER_CONDITION_OPERATORS } from '@oxy.so/contracts';
 import { generatedId } from '@oxy.so/db';
 import { emailFilters } from './emailFilters';
 
-/** What the condition looks at. */
-export const EMAIL_FILTER_CONDITION_FIELDS = [
-  'from',
-  'to',
-  'subject',
-  'has-attachment',
-  'size',
-] as const;
-
-/** How it compares. */
-export const EMAIL_FILTER_CONDITION_OPERATORS = [
-  'contains',
-  'equals',
-  'not-contains',
-  'starts-with',
-  'ends-with',
-  'greater-than',
-  'less-than',
-] as const;
+/** What the condition looks at, and how it compares. The vocabulary is the wire contract's. */
+export { EMAIL_FILTER_CONDITION_FIELDS, EMAIL_FILTER_CONDITION_OPERATORS };
 
 export const emailFilterConditions = pgTable(
   'email_filter_conditions',

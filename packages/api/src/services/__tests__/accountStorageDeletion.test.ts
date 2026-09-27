@@ -7,7 +7,7 @@
  */
 
 import { randomBytes, randomUUID } from 'node:crypto';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { files } from '../../db/schema/files';
 import { fileVariants } from '../../db/schema/fileVariants';
@@ -320,6 +320,55 @@ describe('runStorageDeletionBatch', () => {
     // Converged: nothing is claimable again, and a second run deletes nothing.
     const again = await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket });
     expect(again.claimed).toBe(0);
+  });
+
+  it('claims rows named by id even when they were recorded within the claim\'s own millisecond', async () => {
+    // `next_attempt_at` defaults to the database's now(): microseconds. The claim
+    // clock is a JavaScript Date: milliseconds. Pin both inside ONE millisecond,
+    // the database value later than the truncated claim instant — exactly what a
+    // delete draining the rows it just recorded produces on a fast connection.
+    const target = `content/${sha()}.png`;
+    const [row] = await getDb()
+      .insert(storageObjectDeletions)
+      .values({
+        reason: 'file.deleted',
+        accountId: `same-ms-${randomUUID()}`,
+        kind: 'object',
+        target,
+        sha256: sha(),
+        nextAttemptAt: sql`'2026-09-27 06:10:40.123456+00'::timestamptz`,
+      })
+      .returning({ id: storageObjectDeletions.id });
+    const bucket = new FakeBucket();
+
+    const result = await runStorageDeletionBatch({
+      ownerId: 'test-drain',
+      ids: [row.id],
+      store: bucket,
+      now: () => new Date('2026-09-27T06:10:40.123Z'),
+    });
+
+    expect(result).toMatchObject({ claimed: 1, deleted: 1 });
+  });
+
+  it('the SWEEP still honours the due time: a row not yet due is not claimed', async () => {
+    const [row] = await getDb()
+      .insert(storageObjectDeletions)
+      .values({
+        reason: 'file.deleted',
+        accountId: `not-due-${randomUUID()}`,
+        kind: 'object',
+        target: `content/${sha()}.png`,
+        sha256: sha(),
+        nextAttemptAt: sql`now() + interval '1 hour'`,
+      })
+      .returning({ id: storageObjectDeletions.id });
+
+    await runStorageDeletionBatch({ ownerId: 'test-worker', store: new FakeBucket() });
+
+    const [after] = await getDb().select().from(storageObjectDeletions).where(eq(storageObjectDeletions.id, row.id));
+    expect(after.claimedAt).toBeNull();
+    expect(after.completedAt).toBeNull();
   });
 
   it('succeeds when the objects are already gone (S3 answers a missing key with success)', async () => {

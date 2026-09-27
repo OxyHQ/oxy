@@ -1313,3 +1313,4 @@ export * from './externalIdentity';
 export * from './linkedAccounts';
 export * from './federationInstanceFetch';
 export * from './notifications';
+export * from './email/messages';
