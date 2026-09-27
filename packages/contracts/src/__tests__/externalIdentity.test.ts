@@ -26,4 +26,14 @@ describe('external identity boundary', () => {
     expect(resolveExternalIdentityResponseSchema.safeParse({ ...response, externalIdentity: { ...response.externalIdentity, userId: 'other' } }).success).toBe(false);
     expect(resolveExternalIdentityResponseSchema.safeParse({ ...response, externalIdentities: [] }).success).toBe(false);
   });
+
+  it('admits the instagram-graph transport in requests and responses', () => {
+    expect(resolveExternalIdentityRequestSchema.safeParse({ handle: 'alice@instagram.com', protocol: 'instagram-graph' }).success).toBe(true);
+    expect(resolveExternalIdentityRequestSchema.safeParse({ handle: 'alice@instagram.com', protocol: 'instagram' }).success).toBe(false);
+    const graph = { canonicalAcct: 'alice@instagram.com', network: 'instagram.com', protocol: 'instagram-graph',
+      actorUri: 'instagram-graph:17841400000000000', transportAcct: 'alice@instagram.com', sourceUserId: 'user-1' };
+    const graphResponse = { user: { ...response.user, username: graph.canonicalAcct, externalIdentities: [graph] },
+      externalIdentity: { ...graph, userId: 'user-1' }, externalIdentities: [graph], redirectedUserIds: [] };
+    expect(resolveExternalIdentityResponseSchema.parse(graphResponse)).toEqual(graphResponse);
+  });
 });

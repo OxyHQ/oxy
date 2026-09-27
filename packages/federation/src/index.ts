@@ -125,8 +125,14 @@ export {
   type ActorMediaResolver,
 } from './actorObject';
 
-/** Supported external networks. */
-export type NetworkId = 'activitypub' | 'atproto';
+/**
+ * Supported external networks, keyed by the transport a connector speaks.
+ * `instagram-graph` is Meta's Graph API Business Discovery: a read-only
+ * fallback for Business/Creator Instagram accounts whose identity Oxy resolves
+ * (actor ids `instagram-graph:<igUserId>`). It shares the existing `instagram`
+ * entry of {@link FEDERATION_NETWORKS}; it is a transport, not a new network.
+ */
+export type NetworkId = 'activitypub' | 'atproto' | 'instagram-graph';
 
 /**
  * A remote actor normalized into a network-neutral shape. Built by a connector

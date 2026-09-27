@@ -1,5 +1,22 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.2.0
+
+### Added
+
+- `NetworkId` admits `'instagram-graph'`, so an app can register a connector
+  for Meta's Graph API Business Discovery (the read-only Instagram fallback
+  transport oxy-api resolves as `instagram-graph:<igUserId>`).
+  `FEDERATION_NETWORKS` is unchanged: the transport maps onto the existing
+  `instagram` network. A consumer that switches exhaustively over `NetworkId`
+  gains a case to handle; nothing in this repository or in Mention does.
+
+### Changed
+
+- `@oxy.so/contracts` admits `^4.0.0`: 4.0 only widens the external-identity
+  `protocol` enum, which this package never imported (it imports only
+  `AccountKind` / `isAccountKind`).
+
 ## 2.1.2
 
 ### Changed

@@ -16182,7 +16182,8 @@
                     "type": "string",
                     "enum": [
                       "activitypub",
-                      "atproto"
+                      "atproto",
+                      "instagram-graph"
                     ]
                   }
                 }

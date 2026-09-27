@@ -100,6 +100,10 @@ const ALLOWED: ReadonlyMap<string, string> = new Map([
     'First-party Instagram and Threads profile URL handles bind official page owners and reciprocal platform badges; these external source namespaces never allocate or validate local Oxy usernames.',
   ],
   [
+    'packages/api/src/services/federation/instagramGraph.ts',
+    "Instagram's own username grammar, used to bound the Graph API Business Discovery field expansion for a remote instagram.com account; that is Meta's namespace and never validates or allocates local Oxy usernames.",
+  ],
+  [
     'packages/api/src/services/externalProfileInspection.service.ts',
     'Read-only HTTPS actor URI selectors for the reviewed external Bird bridge namespace; these inspect remote source bindings and never validate or allocate local Oxy usernames.',
   ],

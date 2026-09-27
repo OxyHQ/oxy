@@ -80,6 +80,50 @@ ordinary accepted-host, credentials, and profile-path checks. Conflicting
 Official profile assertions fail closed. Operator accounts without upstream
 evidence retain their transport identity.
 
+## Instagram Graph fallback transport
+
+kilogram.makeup, the reviewed Instagram bridge, routinely answers WebFinger with
+429. For `*@instagram.com` handles, when bridge resolution yields nothing (any
+failure: 429, timeout, refusal), Oxy may fall back to Meta's Graph API Business
+Discovery (`services/federation/instagramGraph.ts`). A resolve request with
+`protocol: 'instagram-graph'` and an Instagram handle or profile URL goes to
+Graph directly; the route rejects that protocol for any other handle or for an
+`actorUri`.
+
+Only Business and Creator accounts are visible; a personal or missing account
+(error 110, subcode 2207013) is not found. The source is protocol
+`instagram-graph`, actor `instagram-graph:<igUserId>`, canonical and transport
+account `<username>@instagram.com`, with Graph's name, biography and picture.
+It has no stable ID and no evidence links, so it never creates a cross-network
+edge and never reaches the stable-owner revocation path.
+
+The registry joins it to the identity its canonical account names, in either
+discovery order. An identity pinned to `instagram:pk:<pk>` admits a Graph source
+only when its IG User ID equals the pin's `instagramGraphId` (Business Discovery
+and the first-party profile page report the same ID); otherwise the source is
+deferred exactly like an unverified bridge observation. Graph sources never
+record or refresh first-party badge proofs, and a Graph failure never revokes a
+bridge-backed Meta proof. A user created by a Graph source may acquire the
+Instagram owner pin from a later bridge discovery only when the first-party page
+names that same IG User ID.
+
+Refreshing an `instagram-graph:` actor re-queries Business Discovery by its stored
+username and refuses when the username now names another IG User (a recycled
+handle). An IG User ID already bound to another handle (a rename) is refused
+rather than re-pointed; that needs reconciliation. The reconciler skips these
+actors.
+
+Configuration, read per call and fail-closed: `INSTAGRAM_GRAPH_FALLBACK_ENABLED`
+must be `true` and `META_GRAPH_ACCESS_TOKEN` plus a numeric
+`META_IG_BUSINESS_ACCOUNT_ID` must be set; `META_GRAPH_API_VERSION` defaults to
+`v23.0`. The token is sent only as a bearer header and never logged. Results,
+including not-found, are cached in process for ten minutes. A throttle answer
+(codes 4, 17, 32, 613, 80001, 80002 or HTTP 429) or `x-app-usage` at 90% or more pauses Graph calls for
+fifteen minutes, because Business Discovery allows about 200 calls per hour per
+token. Token errors (190) and throttles are logged as
+`Instagram Graph lookup failed` with the reason, HTTP status, Meta code and
+subcode.
+
 ## Existing data
 
 Deploy migrations 0083 and 0084 before switching application consumers. The
@@ -122,7 +166,7 @@ no source binding is refused rather than silently adopted.
 ## Protected operations
 
 `.github/workflows/release-external-identity-packages.yml` releases only
-`@oxy.so/contracts@1.5.0`, followed by `@oxy.so/federation@2.1.0`. Dispatch from
+`@oxy.so/contracts@4.0.0`, followed by `@oxy.so/federation@2.2.0`. Dispatch from
 protected `main` with its full `expected_source_sha` and `dry_run=true` first.
 The job builds and packs each package in one command, runs its tests, validates
 all packed export targets, checks the existing npm credential, and records
