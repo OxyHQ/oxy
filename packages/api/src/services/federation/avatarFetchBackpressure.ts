@@ -2,7 +2,22 @@ import crypto from 'crypto';
 import { getRedisClient } from '../../config/redis';
 import { logger } from '../../utils/logger';
 
-const ORIGIN_REQUEST_LEASE_MS = 15_000;
+/**
+ * Minimum gap between two avatar fetches from one origin, cluster-wide.
+ *
+ * It was 15 s. Shared media CDNs (cdn.masto.host, files.mastodon.social,
+ * pbs.twimg.com, cdn.bsky.app, Meta's CDN) serve thousands of accounts, so a
+ * 15 s gap capped each at four avatars a minute for the whole fleet — and a
+ * fetch refused by the gap was reported as a failure. A bulk repair of 1215
+ * rows lost 842 avatars that way. One second still keeps every origin at a
+ * polite rate; callers now WAIT for the gap (see `downloadAndStoreAvatar`), and
+ * a real 429 still sets the long cooldown below.
+ */
+export const AVATAR_ORIGIN_REQUEST_GAP_MS = (() => {
+  const configured = Number.parseInt(process.env.FEDERATION_AVATAR_ORIGIN_GAP_MS ?? '', 10);
+  return Number.isInteger(configured) && configured >= 100 && configured <= 60_000 ? configured : 1_000;
+})();
+const ORIGIN_REQUEST_LEASE_MS = AVATAR_ORIGIN_REQUEST_GAP_MS;
 const DEFAULT_RATE_LIMIT_BACKOFF_MS = 30_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 60 * 60 * 1_000;
 const FAILURE_COUNTER_TTL_SECONDS = 60 * 60;
@@ -10,8 +25,9 @@ const FAILURE_COUNTER_TTL_SECONDS = 60 * 60;
 const localCooldowns = new Map<string, number>();
 const localFailures = new Map<string, { count: number; expiresAt: number }>();
 
-function originKey(rawUrl: string): string {
-  return crypto.createHash('sha256').update(new URL(rawUrl).origin).digest('hex');
+function originKey(rawUrl: string, namespace = 'avatar'): string {
+  const origin = new URL(rawUrl).origin;
+  return crypto.createHash('sha256').update(namespace === 'avatar' ? origin : `${namespace}:${origin}`).digest('hex');
 }
 
 function cooldownKey(key: string): string {
@@ -37,8 +53,8 @@ function localRemainingMs(key: string, now: number): number {
  * lease effective across API replicas; the local map preserves the same
  * behaviour when Redis is intentionally unavailable in development.
  */
-export async function acquireAvatarOriginLease(rawUrl: string): Promise<number> {
-  const key = originKey(rawUrl);
+export async function acquireAvatarOriginLease(rawUrl: string, namespace: 'avatar' | 'actor' = 'avatar'): Promise<number> {
+  const key = originKey(rawUrl, namespace);
   const now = Date.now();
   const redis = getRedisClient();
 

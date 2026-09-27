@@ -19,6 +19,7 @@ jest.mock('../../../utils/logger', () => ({
 }));
 
 import {
+  AVATAR_ORIGIN_REQUEST_GAP_MS,
   acquireAvatarOriginLease,
   clearAvatarOriginFailures,
   recordAvatarOriginRateLimit,
@@ -38,11 +39,22 @@ describe('federated avatar origin backpressure', () => {
 
   it('serializes requests by origin while allowing a different origin', async () => {
     expect(await acquireAvatarOriginLease('https://media.one.example/a.png')).toBe(0);
-    expect(await acquireAvatarOriginLease('https://media.one.example/b.png')).toBe(15_000);
+    expect(await acquireAvatarOriginLease('https://media.one.example/b.png')).toBe(AVATAR_ORIGIN_REQUEST_GAP_MS);
     expect(await acquireAvatarOriginLease('https://media.two.example/a.png')).toBe(0);
 
-    jest.advanceTimersByTime(15_001);
+    jest.advanceTimersByTime(AVATAR_ORIGIN_REQUEST_GAP_MS + 1);
     expect(await acquireAvatarOriginLease('https://media.one.example/c.png')).toBe(0);
+  });
+
+  it('keeps the per-origin gap short, so a shared CDN is not throttled to a few avatars a minute', async () => {
+    // It was 15 s: a bulk repair over cdn.masto.host lost every avatar but one per gap.
+    expect(AVATAR_ORIGIN_REQUEST_GAP_MS).toBeLessThanOrEqual(1_000);
+  });
+
+  it('keeps source-profile fetches and picture downloads in separate gaps', async () => {
+    expect(await acquireAvatarOriginLease('https://shared.example/a.png')).toBe(0);
+    expect(await acquireAvatarOriginLease('https://shared.example/users/a', 'actor')).toBe(0);
+    expect(await acquireAvatarOriginLease('https://shared.example/users/b', 'actor')).toBe(AVATAR_ORIGIN_REQUEST_GAP_MS);
   });
 
   it('honours Retry-After and applies exponential backoff to repeated 429s', async () => {
@@ -74,7 +86,7 @@ describe('federated avatar origin backpressure', () => {
     expect(await acquireAvatarOriginLease(url)).toBe(0);
     await clearAvatarOriginFailures(url);
 
-    expect(await acquireAvatarOriginLease('https://fast.example/another.png')).toBe(15_000);
+    expect(await acquireAvatarOriginLease('https://fast.example/another.png')).toBe(AVATAR_ORIGIN_REQUEST_GAP_MS);
   });
 
   it('coordinates leases and 429 cooldowns through Redis across replicas', async () => {

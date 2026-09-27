@@ -18,6 +18,10 @@ name: Repair federated remote avatars
 # read, and a second pass finds nothing. ALWAYS run dry FIRST (the default): it
 # writes nothing and prints the count, the per-host split and how many URLs are
 # already past their signed expiry.
+#
+# mode=recover re-fetches the SOURCE PROFILE of every federated user left without
+# an avatar by a failed mirror and mirrors its current picture (dry run: count
+# only). Anything still failing stays queued for the API's retry sweep.
 
 on:
   workflow_dispatch:
@@ -27,6 +31,16 @@ on:
         required: true
         type: boolean
         default: true
+      mode:
+        description: 'repair = non-file-id avatars; recover = re-fetch the source picture of every federated user left without one'
+        required: true
+        type: choice
+        options: [repair, recover]
+        default: repair
+      concurrency:
+        description: 'recover only: users retried at once (default 4, max 16)'
+        required: false
+        type: string
       batch_size:
         description: 'Rows scanned per batch (default 200)'
         required: false
@@ -69,10 +83,15 @@ jobs:
         env:
           BATCH_SIZE: ${{ inputs.batch_size }}
           AFTER: ${{ inputs.after }}
+          CONCURRENCY: ${{ inputs.concurrency }}
         run: |
           set -euo pipefail
           if [ -n "${BATCH_SIZE// /}" ] && ! [[ "$BATCH_SIZE" =~ ^[1-9][0-9]{0,4}$ ]]; then
             echo "::error::batch_size must be a positive integer (1-99999); got '$BATCH_SIZE'."
+            exit 1
+          fi
+          if [ -n "$CONCURRENCY" ] && ! [[ "$CONCURRENCY" =~ ^([1-9]|1[0-6])$ ]]; then
+            echo "::error::concurrency must be 1-16; got '$CONCURRENCY'."
             exit 1
           fi
           if [ -n "$AFTER" ] && ! [[ "$AFTER" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
@@ -107,6 +126,8 @@ jobs:
         env:
           IMAGE: ${{ steps.image.outputs.image }}
           DRY_RUN: ${{ inputs.dry_run }}
+          MODE: ${{ inputs.mode }}
+          CONCURRENCY: ${{ inputs.concurrency }}
           BATCH_SIZE: ${{ inputs.batch_size }}
           AFTER: ${{ inputs.after }}
         run: |
@@ -149,10 +170,13 @@ jobs:
             --arg dry "$DRY_RUN" \
             --arg batch "$BATCH_SIZE" \
             --arg after "$AFTER" \
+            --arg mode "$MODE" \
+            --arg conc "$CONCURRENCY" \
             '{containerOverrides:[{
                name: $name,
                command: ["bun","run","packages/api/src/scripts/repair-federated-remote-avatars.ts"],
-               environment: ([{name:"DRY_RUN", value:$dry}] +
+               environment: ([{name:"DRY_RUN", value:$dry}, {name:"MODE", value:$mode}] +
+                 (if $conc != "" then [{name:"CONCURRENCY", value:$conc}] else [] end) +
                  (if $batch != "" then [{name:"BATCH_SIZE", value:$batch}] else [] end) +
                  (if $after != "" then [{name:"AFTER", value:$after}] else [] end))
              }]}')

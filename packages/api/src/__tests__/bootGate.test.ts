@@ -52,6 +52,7 @@ import { stopBackgroundJobs } from '../queue/backgroundJobs';
 import { stopConductRiskExpiryJobs } from '../queue/conductRiskExpiry.queue';
 import { stopNodeIngestJobs } from '../queue/nodeIngest.queue';
 import { stopSubscriptionExpiryJobs } from '../queue/subscriptionExpiry.queue';
+import { stopFederatedAvatarRetryJobs } from '../queue/federatedAvatarRetry.queue';
 import { stopTransparencyCheckpointJobs } from '../queue/transparencyCheckpoint.queue';
 import { BASELINE_OXY_CONDUCT_POLICY_VERSION } from '../utils/moderation.constants';
 
@@ -121,6 +122,7 @@ afterAll(async () => {
   await stopTransparencyCheckpointJobs();
   await stopConductRiskExpiryJobs();
   await stopSubscriptionExpiryJobs();
+  await stopFederatedAvatarRetryJobs();
   await closePostgres();
   if (ownDatabaseUrl !== '') {
     await dropTestDatabase(ownDatabaseUrl);

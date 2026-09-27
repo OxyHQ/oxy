@@ -151,6 +151,10 @@ import {
   startSubscriptionExpiryJobs,
   stopSubscriptionExpiryJobs,
 } from './queue/subscriptionExpiry.queue';
+import {
+  startFederatedAvatarRetryJobs,
+  stopFederatedAvatarRetryJobs,
+} from './queue/federatedAvatarRetry.queue';
 import { getEnvBoolean, validateRequiredEnvVars, getSanitizedConfig, getEnvNumber } from './config/env';
 import { logger } from './utils/logger';
 import type { Response } from 'express';
@@ -505,6 +509,7 @@ async function gracefulShutdown(signal: string) {
   await stopAssetVariantProducer();
   await stopConductRiskExpiryJobs();
   await stopSubscriptionExpiryJobs();
+  await stopFederatedAvatarRetryJobs();
   await stopSmtpInbound();
   smtpOutbound.shutdown();
   if (userCacheInvalidationSubscriber) {
@@ -1386,6 +1391,11 @@ export async function bootstrap(
   // running — every read derives expiry from `end_date` itself — so a missed
   // tick delays a label and nothing more. Never throws.
   await startSubscriptionExpiryJobs();
+
+  // Re-mirror federated avatars whose last mirror failed and left the user
+  // without a picture (`users.federation_avatar_retry_at`). Without it a failed
+  // mirror is a permanent default avatar. Never throws.
+  await startFederatedAvatarRetryJobs();
 
   await new Promise<void>((resolve) => {
     server.listen(PORT, '0.0.0.0', () => {

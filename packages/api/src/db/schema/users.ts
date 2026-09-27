@@ -452,6 +452,18 @@ export const users = pgTable(
     federationLastAvatarFetchedAt: timestamptz(),
     federationAvatarETag: text(),
     federationAvatarLastModified: text(),
+    /**
+     * When a failed avatar mirror is owed another attempt; NULL = nothing owed.
+     * Set by `persistFederatedAvatar` whenever a mirror fails and leaves the user
+     * WITHOUT a stored file (a previous mirror stays, and is not retried early);
+     * the federated-avatar retry sweep re-derives the source picture from the
+     * source profile and mirrors it. Backs off per attempt.
+     */
+    federationAvatarRetryAt: timestamptz(),
+    /** Consecutive failed mirror attempts; reset by a successful mirror. */
+    federationAvatarAttempts: integer().notNull().default(0),
+    /** The last failure reason (`AvatarFailureReason`), for the repair report. */
+    federationAvatarFailure: text(),
     federationLastResolvedAt: timestamptz(),
     /** Set when the remote actor stops resolving and leaves discovery surfaces. */
     federationUnavailableAt: timestamptz(),
@@ -685,6 +697,10 @@ export const users = pgTable(
     index('users_federation_unavailable_at_idx')
       .on(t.federationUnavailableAt)
       .where(sql`${t.federationUnavailableAt} is not null`),
+    // The federated-avatar retry sweep claims due rows by this column.
+    index('users_federation_avatar_retry_at_idx')
+      .on(t.federationAvatarRetryAt)
+      .where(sql`${t.federationAvatarRetryAt} is not null`),
     // Mongo also indexed `federation.actorId` (a bare `sparse: true` builds one).
     // Dropped: no query in the codebase reads that field.
     index('users_automation_owner_id_idx')

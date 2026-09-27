@@ -135,10 +135,24 @@ URL, whatever the host. `utils/federatedAvatar.ts#persistFederatedAvatar` is the
 only writer after registration, and it refuses anything but a file id. Registration
 writes no avatar and clears any non-file-id value. `mirrorFederatedAvatar`
 downloads the source picture into Oxy storage. If a mirror fails, the previous
-file id is kept, or the column stays NULL so clients show the default avatar;
-the mirror is retried after the avatar throttle window. Signed Meta CDN URLs
-(`fbcdn.net`, `cdninstagram.com`) past their `oe` expiry are refused without a
-request.
+file id is kept, or the column stays NULL so clients show the default avatar.
+Signed Meta CDN URLs (`fbcdn.net`, `cdninstagram.com`) past their `oe` expiry
+are refused without a request.
+
+A failure that leaves no stored picture is owed a durable retry
+(`users.federation_avatar_retry_at`, `federation_avatar_attempts` and
+`federation_avatar_failure`, written by `persistFederatedAvatar`). Transient
+failures back off at 5 min × 3^n, up to 6 h. Permanent ones are retried daily.
+The API's `federated-avatar-retry` sweep (`queue/federatedAvatarRetry.queue.ts`)
+runs every 5 minutes. It claims due rows with a 30-minute lease, re-reads each
+user's source profile for the picture it has now, and mirrors that picture.
+Picture downloads and source fetches wait for a 1 s gap per origin, shared
+cluster-wide (`FEDERATION_AVATAR_ORIGIN_GAP_MS`), and a 429 sets an exponential
+cooldown. Only a cooldown makes a download fail.
+
+The downloader decides what a response is from its magic bytes, never from its
+Content-Type. It downloads up to 25 MB. A picture over 5 MB, or in a format
+browsers cannot show, is stored as a first-frame WebP of at most 1024 px.
 
 When an instagram.com picture fails permanently (expired, any 4xx) and the
 Instagram Graph fallback is enabled, Oxy mirrors a fresh Business Discovery
@@ -157,6 +171,11 @@ default; `--apply` or `DRY_RUN=false` writes). In production, dispatch
 `dry_run=true`, read the summary, then dispatch `dry_run=false`. Writes are
 conditional on the URL the pass read, so a rerun is idempotent; `after` resumes
 from a summary's cursor.
+
+`mode=recover` on the same workflow (`--recover` locally) queues every federated
+user that a mirror attempt left without an avatar and drains the retry sweep.
+Dry run reports the count; `concurrency` bounds the pass (default 4). Summaries
+report failures by `reason[:http status]` and by host.
 
 ## Existing data
 

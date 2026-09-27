@@ -931,7 +931,7 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
               etag: '"etag-v2"',
               'last-modified': 'Thu, 22 Oct 2025 07:28:00 GMT',
             },
-            Buffer.from('png-bytes'),
+            Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('png-bytes')]),
           ),
         );
       });
@@ -1009,7 +1009,7 @@ describe('FederationService SSRF guards', () => {
   it('enforces https-only: an http avatar URL is rejected before reaching safeFetch', async () => {
     const result = await federationService.downloadAndStoreAvatar('http://cdn.example/avatar.png');
 
-    expect(result).toEqual({ fileId: null, notModified: false, failure: 'permanent' });
+    expect(result).toEqual({ fileId: null, notModified: false, failure: 'permanent', reason: 'not_https' });
     expect(mockSafeFetch).not.toHaveBeenCalled();
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1019,7 +1019,7 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar('https://private.example/avatar.png');
 
-    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient' });
+    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient', reason: 'transport' });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1030,7 +1030,7 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar(avatarUrl);
 
-    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient' });
+    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient', reason: 'rate_limited', httpStatus: 429 });
     expect(mockRecordAvatarOriginRateLimit).toHaveBeenCalledWith(avatarUrl, '120');
     expect(mockClearAvatarOriginFailures).not.toHaveBeenCalled();
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
@@ -1042,7 +1042,7 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar(avatarUrl);
 
-    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient' });
+    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient', reason: 'origin_cooldown' });
     expect(mockSafeFetch).not.toHaveBeenCalled();
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1062,7 +1062,7 @@ describe('FederationService SSRF guards', () => {
         200,
         {
           'content-type': 'image/png',
-          'content-length': String(6 * 1024 * 1024),
+          'content-length': String(26 * 1024 * 1024),
         },
         Buffer.alloc(64),
       ),
@@ -1070,7 +1070,7 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar('https://cdn.example/huge.png');
 
-    expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false, failure: 'permanent' });
+    expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false, failure: 'permanent', reason: 'too_large' });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1080,13 +1080,13 @@ describe('FederationService SSRF guards', () => {
       makeSafeFetchResult(
         200,
         { 'content-type': 'image/png' },
-        Buffer.alloc(6 * 1024 * 1024),
+        Buffer.alloc(26 * 1024 * 1024),
       ),
     );
 
     const result = await federationService.downloadAndStoreAvatar('https://cdn.example/streamed-huge.png');
 
-    expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false, failure: 'permanent' });
+    expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false, failure: 'permanent', reason: 'too_large' });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
