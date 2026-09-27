@@ -7,7 +7,7 @@
 
 import type { Request, Response } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
-import type { CapabilityTicketClaims } from '@oxy.so/contracts';
+import { rfcMessageIdSchema, type CapabilityTicketClaims } from '@oxy.so/contracts';
 import { emailService } from '../services/email.service';
 import { smtpOutbound } from '../services/smtp.outbound';
 import { findSuppressed } from '../services/emailSuppression.service';
@@ -156,13 +156,68 @@ async function linkAttachmentsToMessage(
 async function findOwnMessageByRfcId(
   userId: string,
   rfcMessageId: string,
-): Promise<{ id: string } | undefined> {
+): Promise<{ id: string; messageId: string; inReplyTo: string | null; references: string[] } | undefined> {
   const [row] = await getDb()
-    .select({ id: messages.id })
+    .select({
+      id: messages.id,
+      messageId: messages.messageId,
+      inReplyTo: messages.inReplyTo,
+      references: messages.references,
+    })
     .from(messages)
     .where(and(eq(messages.userId, userId), eq(messages.messageId, rfcMessageId)))
     .limit(1);
   return row;
+}
+
+/** The threading headers a reply goes out with, and the message it answers. */
+interface ReplyThreading {
+  inReplyTo?: string;
+  references?: string[];
+  /** The sender's own copy of the message being answered, when they hold one. */
+  parentRowId?: string;
+}
+
+/**
+ * Validate and complete a reply's `In-Reply-To` / `References`.
+ *
+ * Both must be RFC 5322 msg-ids. A database row id is refused: the Inbox client
+ * once sent `message._id` here, nodemailer wrapped it as `<uuid>`, and every
+ * such reply left its conversation — for the sender and for every recipient.
+ * This runs in the domain function, not only the REST schema, because Alia
+ * tickets and MCP call {@link sendMessageForUser} directly.
+ *
+ * When the sender holds the parent, `References` is derived from it (RFC 5322
+ * §3.6.4: the parent's `References`, or failing that its `In-Reply-To`, then
+ * its `Message-ID`), so a client that sends only `inReplyTo` still threads.
+ */
+async function resolveReplyThreading(
+  userId: string,
+  inReplyTo: string | undefined,
+  references: string[] | undefined,
+): Promise<ReplyThreading> {
+  const refused = [inReplyTo, ...(references ?? [])].filter(
+    (id): id is string => id !== undefined && !rfcMessageIdSchema.safeParse(id).success,
+  );
+  if (refused.length > 0) {
+    throw new BadRequestError(
+      `inReplyTo and references must be RFC 5322 Message-IDs such as <id@host>; got ${refused.join(', ')}`,
+    );
+  }
+  if (!inReplyTo) {
+    return references && references.length > 0 ? { references } : {};
+  }
+
+  const parent = await findOwnMessageByRfcId(userId, inReplyTo);
+  if (!parent) return { inReplyTo, references };
+
+  const ancestry = parent.references.length > 0
+    ? parent.references
+    : parent.inReplyTo ? [parent.inReplyTo] : [];
+  const chain = [...new Set([...ancestry, parent.messageId])].filter(
+    (id) => rfcMessageIdSchema.safeParse(id).success,
+  );
+  return { inReplyTo, references: chain, parentRowId: parent.id };
 }
 
 interface AuthRequest extends Request {
@@ -469,14 +524,15 @@ export async function sendMessageForUser(
     subject,
     text,
     html,
-    inReplyTo,
-    references,
     attachments,
     scheduledAt,
     requestReadReceipt,
   } = command;
 
   // Schema validation already guarantees to.length >= 1 and recipient shape.
+
+  const threading = await resolveReplyThreading(userId, command.inReplyTo, command.references);
+  const { inReplyTo, references } = threading;
 
   await emailService.enforceSendLimit(userId);
 
@@ -554,11 +610,8 @@ export async function sendMessageForUser(
       await linkAttachmentsToMessage(attachedFiles, scheduled.id, userId);
     }
 
-    if (inReplyTo) {
-      const original = await findOwnMessageByRfcId(userId, inReplyTo);
-      if (original) {
-        await emailService.updateMessageFlags(userId, original.id, { answered: true });
-      }
+    if (threading.parentRowId) {
+      await emailService.updateMessageFlags(userId, threading.parentRowId, { answered: true });
     }
 
     emailService.autoCollectContacts(userId, allRecipients).catch((err) => {
@@ -595,11 +648,8 @@ export async function sendMessageForUser(
     await linkAttachmentsToMessage(attachedFiles, result.messageId, userId);
   }
 
-  if (inReplyTo) {
-    const original = await findOwnMessageByRfcId(userId, inReplyTo);
-    if (original) {
-      await emailService.updateMessageFlags(userId, original.id, { answered: true });
-    }
+  if (threading.parentRowId) {
+    await emailService.updateMessageFlags(userId, threading.parentRowId, { answered: true });
   }
 
   emailService.autoCollectContacts(userId, allRecipients).catch((err) => {
