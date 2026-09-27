@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Changed (Inbox mail integrity)
+
+- **Breaking for clients sending a row id:** `POST /email/messages` and
+  `POST /email/drafts` answer 400 unless `inReplyTo` and every `references`
+  entry is an RFC 5322 Message-ID (`<id@host>`). `sendMessageForUser` enforces
+  the same for Alia tickets and MCP. When the sender holds the parent, the
+  server derives `References` from the parent's chain.
+- `Idempotency-Key` sends take a durable claim (an `email_outbox` row) before
+  the relay is contacted, so a retry of the same key on any task returns the
+  first outcome instead of sending again. `queued: true` now also covers "the
+  first attempt is still in flight".
+- Inbound mail from all three paths goes through `parseInboundMime`: the AMP
+  (`text/x-amp-html`) and Apple Watch alternative bodies are no longer stored as
+  an attachment named "attachment".
+- Every user message carries `X-Oxy-Sent-Id`; the relay-assigned Message-ID
+  (SES) is kept as `messages.relay_message_id` and threads replies; a user's own
+  message coming back is linked by `messages.sent_copy_of` and shown once in its
+  conversation (migration 0121, pre).
+- One-off operations: `src/scripts/purge-alternative-body-attachments.ts` and
+  `src/scripts/repair-reply-row-id-threading.ts`, each `--dry-run` / `--apply`.
+
 ### Added
 
 - A moderation reconciliation sweep (`services/moderationReconcile.worker.ts`):
