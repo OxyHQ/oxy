@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 3.0.3
+
+### Fixed
+
+- A loaded `req.user` takes its `id` from the one source the middleware
+  validated (`id`, else `_id`), so it always agrees with `req.userId`.
+- `server/workloadIdentity` trims the base URL without `/\/+$/` (polynomial
+  backtracking on a long run of slashes); `HttpService` and it share
+  `utils/slashes`.
+
 ## 3.0.2
 
 ### Changed

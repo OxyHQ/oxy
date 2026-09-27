@@ -27,6 +27,7 @@
 
 import { getEnvVar } from './env';
 import type { FileVisibility } from '../db/schema/files';
+import { trimLeadingSlashes, trimTrailingSlashes } from '../utils/slashes';
 
 /**
  * Default CDN origin. Overridable via the `ASSET_CDN_URL` env var (set on the
@@ -107,7 +108,7 @@ export const HLS_MASTER_PLAYLIST_CACHE_CONTROL = 'public, max-age=3600';
  */
 export function getAssetCdnUrl(): string {
   const raw = getEnvVar('ASSET_CDN_URL', DEFAULT_ASSET_CDN_URL).trim() || DEFAULT_ASSET_CDN_URL;
-  return raw.replace(/\/+$/, '');
+  return trimTrailingSlashes(raw);
 }
 
 /**
@@ -153,7 +154,7 @@ export function storageKeyForVisibility(baseKey: string, visibility: FileVisibil
  * never produces double slashes.
  */
 export function buildCdnUrl(cdnRelativeKey: string): string {
-  const normalizedKey = cdnRelativeKey.replace(/^\/+/, '');
+  const normalizedKey = trimLeadingSlashes(cdnRelativeKey);
   return `${getAssetCdnUrl()}/${normalizedKey}`;
 }
 

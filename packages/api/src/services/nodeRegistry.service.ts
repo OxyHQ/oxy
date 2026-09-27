@@ -73,6 +73,7 @@ import {
   MANAGED_NODE_PUBLIC_KEY_ENV,
   MANAGED_NODE_MODE,
 } from '../utils/nodes.constants';
+import { trimTrailingSlashes } from '../utils/slashes';
 
 /** How records move: the node pulls (default), or Oxy pushes. */
 export type UserNodeMode = (typeof USER_NODE_MODES)[number];
@@ -198,7 +199,7 @@ function normalizeHttpsEndpoint(raw: string): string | null {
   if (url.protocol !== 'https:') return null;
   if (url.username.length > 0 || url.password.length > 0) return null;
   if (url.hostname.length === 0) return null;
-  const path = url.pathname.replace(/\/+$/, '');
+  const path = trimTrailingSlashes(url.pathname);
   return `${url.origin}${path}`;
 }
 
@@ -469,7 +470,7 @@ function resolveManagedEndpoint(userId: string): string | null {
   if (!base) {
     return null;
   }
-  const trimmed = base.replace(/\/+$/, '');
+  const trimmed = trimTrailingSlashes(base);
   return normalizeHttpsEndpoint(`${trimmed}${MANAGED_NODE_USER_PATH_PREFIX}${userId}`);
 }
 

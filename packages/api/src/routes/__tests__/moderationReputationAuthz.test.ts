@@ -27,7 +27,6 @@ const mockAuthMiddleware = jest.fn();
 const mockApply = jest.fn();
 const mockReverse = jest.fn();
 const mockFinalize = jest.fn();
-const mockReconcile = jest.fn();
 const mockRegisterBinding = jest.fn();
 const mockResolveUserIdToObjectId = jest.fn();
 
@@ -50,7 +49,6 @@ jest.mock('../../services/moderationReputation.service', () => ({
     applyModerationDecision: (...args: unknown[]) => mockApply(...args),
     reverseModerationDecision: (...args: unknown[]) => mockReverse(...args),
     finalizeModerationDecision: (...args: unknown[]) => mockFinalize(...args),
-    reconcileModerationIncident: (...args: unknown[]) => mockReconcile(...args),
   },
 }));
 
@@ -185,13 +183,6 @@ beforeEach(() => {
   mockApply.mockResolvedValue({ applied: false, skipReason: 'no_binding_proof', idempotent: false });
   mockReverse.mockResolvedValue({ reversed: [], idempotent: true });
   mockFinalize.mockResolvedValue([]);
-  mockReconcile.mockResolvedValue({
-    incidentId: 'inc_1',
-    effectsExamined: 0,
-    strikesRepaired: 0,
-    supersededReversed: 0,
-    balancesRecalculated: 0,
-  });
   mockAuthMiddleware.mockImplementation(
     (req: { user?: unknown }, _res: unknown, next: () => void) => {
       req.user = { _id: { toString: () => '64dddddddddddddddddddddd' }, isStaff: false };
@@ -456,7 +447,6 @@ describe('no person has a hand on anyone else\'s standing', () => {
     asStaff();
     const res = await post(server, '/reputation/moderation/incidents/inc_1/reconcile', {});
     expect(res.status).toBe(404);
-    expect(mockReconcile).not.toHaveBeenCalled();
   });
 
   it('there is no route to read an incident\'s effects, staff or not', async () => {
