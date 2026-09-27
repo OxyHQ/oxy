@@ -12212,13 +12212,16 @@
                     "type": "string"
                   },
                   "inReplyTo": {
-                    "type": "string"
+                    "type": "string",
+                    "pattern": "^<[^<>\\s]+@[^<>\\s]+>$"
                   },
                   "references": {
                     "type": "array",
                     "items": {
-                      "type": "string"
-                    }
+                      "type": "string",
+                      "pattern": "^<[^<>\\s]+@[^<>\\s]+>$"
+                    },
+                    "maxItems": 100
                   },
                   "attachments": {
                     "type": "array",
@@ -13422,13 +13425,16 @@
                     "type": "string"
                   },
                   "inReplyTo": {
-                    "type": "string"
+                    "type": "string",
+                    "pattern": "^<[^<>\\s]+@[^<>\\s]+>$"
                   },
                   "references": {
                     "type": "array",
                     "items": {
-                      "type": "string"
-                    }
+                      "type": "string",
+                      "pattern": "^<[^<>\\s]+@[^<>\\s]+>$"
+                    },
+                    "maxItems": 100
                   },
                   "attachments": {
                     "type": "array",
