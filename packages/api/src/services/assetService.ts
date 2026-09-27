@@ -20,7 +20,7 @@ import {
   IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
 import { logger } from '../utils/logger';
-import { ConflictError } from '../utils/error';
+import { ApiError, ConflictError } from '../utils/error';
 import type {
   AssetInitResponse,
   AssetCompleteRequest,
@@ -75,6 +75,43 @@ interface StreamedMediaOptions {
   tempPrefix: string;
   logLabel: string;
   dedupeScope?: 'any' | 'federation-cache' | 'owner';
+  /**
+   * `federation-cache` scope only: the application uploading. A live row with
+   * the same bytes that is ALREADY this owner's federated media from this app is
+   * reused (idempotent re-upload) instead of refused.
+   */
+  uploaderAppId?: string;
+}
+
+/** A streamed upload's stored row, and whether an EXISTING row was reused. */
+export interface StreamedMediaResult {
+  file: FileRecord;
+  /**
+   * True when no new row was created: the bytes already existed as a live row
+   * and that row was returned (possibly promoted from the media cache). Such an
+   * id may already be referenced elsewhere, so a caller must reference-check it
+   * before deleting.
+   */
+  deduplicated: boolean;
+}
+
+/**
+ * The existing row is already this owner's federated media, uploaded by this
+ * application — the only shape a federated re-upload may reuse. Every term is
+ * one the federated delete route also requires, so a reused id is exactly one
+ * the same caller could already delete.
+ */
+function isSameFederatedUpload(file: FileRecord, options: StreamedMediaOptions): boolean {
+  const appId = options.uploaderAppId;
+  return (
+    typeof appId === 'string' &&
+    appId.length > 0 &&
+    file.purpose === 'user' &&
+    file.ownerUserId !== null &&
+    file.ownerUserId === options.owner.ownerUserId &&
+    file.metadata?.source === 'federation' &&
+    file.metadata?.serviceAppId === appId
+  );
 }
 
 /** Outcome of {@link AssetService.deleteFederatedMediaForApp} for one id. */
@@ -437,7 +474,24 @@ export class AssetService {
         return;
       }
 
-      throw new ConflictError('Federated media content already exists outside the federation cache');
+      // The same federated owner's media, uploaded by the same application: the
+      // bytes legitimately appear in more than one federated post (a repost, a
+      // carousel reusing a photo, one item seen through two sources). Reuse the
+      // row — nothing changes hands.
+      if (isSameFederatedUpload(file, options)) {
+        return;
+      }
+
+      // Anyone else's row. At most one live row may hold a content hash
+      // (`files_sha256_live_key`), so there is no second row to create, and
+      // returning this id would give the caller a reference to — and, through
+      // the federated delete route, authority over — an asset that belongs to a
+      // different owner or was uploaded by a different application.
+      throw new ApiError(
+        409,
+        'Federated media content already exists for another owner or application',
+        'FEDERATED_MEDIA_OWNED_ELSEWHERE',
+      );
     }
 
     if (options.dedupeScope === 'owner') {
@@ -463,6 +517,11 @@ export class AssetService {
 
     const wasCacheFile = file.purpose === FEDERATION_MEDIA_CACHE_PURPOSE;
     if (!wasCacheFile) {
+      // A reused row that had fallen to `trash` (unlinked) is in use again.
+      if (file.status === 'trash' && isSameFederatedUpload(file, options)) {
+        const reactivated = await updateFile(file.id, { status: 'active' });
+        return reactivated ? this.cacheFile(reactivated) : file;
+      }
       return file;
     }
 
@@ -822,19 +881,25 @@ export class AssetService {
     originalName: string,
     maxBytes: number,
     ownerUserId: string,
+    uploaderAppId: string,
     metadata?: Record<string, unknown>
-  ): Promise<FileRecord> {
-    return this.uploadStreamedMedia(source, mimeType, originalName, maxBytes, {
+  ): Promise<StreamedMediaResult> {
+    return this.uploadStreamedMediaDetailed(source, mimeType, originalName, maxBytes, {
       owner: { ownerUserId, systemOwner: null },
       purpose: 'user',
       visibility: 'public',
+      // `source` and `serviceAppId` come LAST so caller-supplied metadata cannot
+      // replace them: they are what the idempotent re-upload and the federated
+      // delete route both recognise this row by.
       metadata: {
-        source: 'federation',
         ...(metadata ?? {}),
+        source: 'federation',
+        serviceAppId: uploaderAppId,
       },
       tempPrefix: 'federation/incoming',
       logLabel: 'Federated media',
       dedupeScope: 'federation-cache',
+      uploaderAppId,
     });
   }
 
@@ -872,6 +937,16 @@ export class AssetService {
     maxBytes: number,
     options: StreamedMediaOptions
   ): Promise<FileRecord> {
+    return (await this.uploadStreamedMediaDetailed(source, mimeType, originalName, maxBytes, options)).file;
+  }
+
+  private async uploadStreamedMediaDetailed(
+    source: AbortableReadable,
+    mimeType: string,
+    originalName: string,
+    maxBytes: number,
+    options: StreamedMediaOptions
+  ): Promise<StreamedMediaResult> {
     const hash = crypto.createHash('sha256');
     let size = 0;
 
@@ -982,7 +1057,7 @@ export class AssetService {
         sha256,
         fileId: preparedFile.id,
       });
-      return preparedFile;
+      return { file: preparedFile, deduplicated: true };
     }
 
     // Promote the temp object to its content-addressed key (server-side copy,
@@ -1062,7 +1137,7 @@ export class AssetService {
             sha256,
             fileId: preparedFile.id,
           });
-          return preparedFile;
+          return { file: preparedFile, deduplicated: true };
         }
       }
       throw error;
@@ -1077,7 +1152,7 @@ export class AssetService {
 
     this.queueVariantGeneration(file);
 
-    return file;
+    return { file, deduplicated: false };
   }
 
   /**

@@ -359,11 +359,14 @@ describe('POST /assets/service/cache', () => {
 describe('POST /assets/service/federation', () => {
   it('streams durable federated media owned by an existing federated user', async () => {
     mockUploadFederatedMediaStream.mockResolvedValueOnce({
-      id: USER_FILE_ID,
-      sha256: 'a'.repeat(64),
-      size: 4,
-      mime: 'image/jpeg',
-      visibility: 'public',
+      file: {
+        id: USER_FILE_ID,
+        sha256: 'a'.repeat(64),
+        size: 4,
+        mime: 'image/jpeg',
+        visibility: 'public',
+      },
+      deduplicated: false,
     });
 
     const res = await requestRaw(
@@ -382,14 +385,16 @@ describe('POST /assets/service/federation', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data?.file?.id).toBe(USER_FILE_ID);
+    expect((res.body.data as { deduplicated?: boolean }).deduplicated).toBe(false);
     expect(mockUploadFederatedMediaStream).toHaveBeenCalledTimes(1);
     expect(mockUploadFederatedMediaStream.mock.calls[0][1]).toBe('image/jpeg');
     expect(mockUploadFederatedMediaStream.mock.calls[0][2]).toBe('photo.jpg');
     expect(mockUploadFederatedMediaStream.mock.calls[0][4]).toBe(FEDERATED_OWNER_ID);
-    expect(mockUploadFederatedMediaStream.mock.calls[0][5]).toEqual(
+    // The uploader is the TOKEN's application, passed as its own argument.
+    expect(mockUploadFederatedMediaStream.mock.calls[0][5]).toBe('mention-app');
+    expect(mockUploadFederatedMediaStream.mock.calls[0][6]).toEqual(
       expect.objectContaining({
         remoteHost: 'example.social',
-        serviceAppId: 'mention-app',
         serviceAppName: 'mention',
       })
     );

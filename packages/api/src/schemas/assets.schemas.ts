@@ -53,6 +53,22 @@ export const batchAccessSchema = z.object({
   context: z.string().optional(),
 });
 
+// POST /assets/service/federation — 200 for a new row AND for an idempotent
+// re-upload; `deduplicated` says which. A deduplicated id may already be
+// referenced by other posts.
+export const federatedMediaUploadResponse = z.object({
+  data: z.object({
+    file: z.object({
+      id: z.string(),
+      sha256: z.string(),
+      size: z.number(),
+      mime: z.string(),
+      visibility: z.enum(['public', 'private', 'unlisted']),
+    }),
+    deduplicated: z.boolean(),
+  }),
+});
+
 // Maximum number of ids accepted by POST /assets/service/federation/delete.
 // One federated post carries at most a few dozen media objects (each video adds
 // a poster), so 50 covers a post — or a small reconcile batch — in one call,

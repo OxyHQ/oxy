@@ -23,9 +23,9 @@
  * another case's fixture rather than exercising the path under test.
  */
 
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Readable } from 'stream';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { fileVariants, files, users } from '../../db/schema';
 import { AssetService } from '../assetService';
@@ -459,6 +459,7 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
       'federated-post.png',
       CACHE_MAX_BYTES,
       await insertUser(),
+      'app-mention',
       { sourceUri: 'https://remote.example/media/1' }
     );
 
@@ -552,13 +553,15 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
       'federated-post.png',
       CACHE_MAX_BYTES,
       federatedOwnerId,
+      'app-mention',
       { sourceUri: 'https://remote.example/media/1' }
     );
 
     await new Promise((resolve) => setImmediate(resolve));
     resolveUpload?.({ key: capturedTempKey || 'federation/incoming/x', size: 4, contentType: 'image/png' } as FileInfo);
 
-    await expect(promise).resolves.toMatchObject({ id: existing.id });
+    // An existing row was reused, so the caller is told the id may be shared.
+    await expect(promise).resolves.toMatchObject({ file: { id: existing.id }, deduplicated: true });
 
     // The cache record is PROMOTED in place: it becomes an ordinary user-owned
     // durable asset, so the cache eviction job can no longer delete it.
@@ -570,6 +573,7 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
       metadata: {
         cached: true,
         source: 'federation',
+        serviceAppId: 'app-mention',
         sourceUri: 'https://remote.example/media/1',
         promotedFromFederationCache: true,
       },
@@ -719,5 +723,142 @@ describe('ensureOwnedAssetPublic — profile media is promoted to public', () =>
     jest.spyOn(service, 'getFile').mockResolvedValue(asFile({ ownerUserId: 'u1', visibility: 'private' }));
     jest.spyOn(service, 'updateFileVisibility').mockRejectedValue(new Error('boom'));
     await expect(service.ensureOwnedAssetPublic('f1', 'u1')).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * `uploadFederatedMediaStream` is idempotent per (owner, application, bytes).
+ *
+ * The same image legitimately appears in more than one federated post (a repost,
+ * a carousel reusing a photo, one item seen through two sources). Before this,
+ * the second upload was a 409 and Mention dropped the post's media. The reuse is
+ * narrow on purpose: only a row that is ALREADY this owner's federated media from
+ * this application — the exact shape the federated delete route would let the
+ * same caller delete — is handed back. Anything else stays a 409 with a code the
+ * caller can branch on, and the other row is never touched.
+ */
+describe('AssetService.uploadFederatedMediaStream — idempotent re-upload', () => {
+  async function uploadOver(
+    existing: Partial<typeof files.$inferInsert> | null,
+    call: { ownerUserId: string; appId: string; metadata?: Record<string, unknown> },
+    content: Buffer = uniqueBody(),
+  ) {
+    let resolveUpload: ((info: FileInfo) => void) | undefined;
+    let capturedTempKey: string | undefined;
+    const uploadStream = jest.fn((key: string, _body: Readable): Promise<FileInfo> => {
+      capturedTempKey = key;
+      return new Promise<FileInfo>((resolve) => { resolveUpload = resolve; });
+    });
+    const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
+    const copyFile = jest.fn((): Promise<void> => Promise.resolve());
+    const { service } = buildAssetService({ uploadStream, deleteFile, copyFile });
+
+    const row = existing ? await insertFile({ sha256: hashOf(content), ...existing }) : null;
+    const source = bodySource(content);
+    const promise = service.uploadFederatedMediaStream(
+      source,
+      'image/png',
+      'federated-post.png',
+      CACHE_MAX_BYTES,
+      call.ownerUserId,
+      call.appId,
+      call.metadata,
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    resolveUpload?.({ key: capturedTempKey || 'federation/incoming/x', size: 4, contentType: 'image/png' } as FileInfo);
+    const settled = await promise.then(
+      (value) => ({ ok: true as const, value }),
+      (error: unknown) => ({ ok: false as const, error }),
+    );
+    source.destroy();
+    return { settled, row, copyFile, deleteFile, tempKey: capturedTempKey, sha256: hashOf(content) };
+  }
+
+  const federatedRow = (ownerUserId: string, appId: string, extra: Partial<typeof files.$inferInsert> = {}) => ({
+    ownerUserId,
+    purpose: 'user' as const,
+    visibility: 'public' as const,
+    storageKey: `public/content/${randomUUID()}.png`,
+    metadata: { source: 'federation', serviceAppId: appId, activityId: 'first-post' },
+    ...extra,
+  });
+
+  it('returns the EXISTING row with deduplicated: true for the same owner and application, creating nothing', async () => {
+    const owner = await insertUser();
+    const r = await uploadOver(federatedRow(owner, 'app-mention'), { ownerUserId: owner, appId: 'app-mention' });
+
+    expect(r.settled.ok).toBe(true);
+    if (!r.settled.ok || !r.row) throw new Error('unreachable');
+    expect(r.settled.value).toMatchObject({ file: { id: r.row.id }, deduplicated: true });
+    // Nothing promoted, nothing re-keyed: the row is exactly as it was.
+    expect(await readFile(r.row.id)).toEqual(r.row);
+    expect(r.copyFile).not.toHaveBeenCalled();
+    expect(r.deleteFile).toHaveBeenCalledWith(r.tempKey);
+    const live = await getDb().select({ id: files.id }).from(files)
+      .where(and(eq(files.sha256, r.sha256), ne(files.status, 'deleted')));
+    expect(live).toEqual([{ id: r.row.id }]);
+  });
+
+  it('reactivates a reused row that had fallen to trash', async () => {
+    const owner = await insertUser();
+    const r = await uploadOver(
+      federatedRow(owner, 'app-mention', { status: 'trash' }),
+      { ownerUserId: owner, appId: 'app-mention' },
+    );
+
+    expect(r.settled.ok).toBe(true);
+    if (!r.row) throw new Error('unreachable');
+    expect((await readFile(r.row.id)).status).toBe('active');
+  });
+
+  it('a first upload is not deduplicated', async () => {
+    const r = await uploadOver(null, { ownerUserId: await insertUser(), appId: 'app-mention' });
+
+    expect(r.settled.ok).toBe(true);
+    if (!r.settled.ok) throw new Error('unreachable');
+    expect(r.settled.value.deduplicated).toBe(false);
+  });
+
+  it.each([
+    ['a DIFFERENT federated owner, same application', 'other-owner', 'app-mention'],
+    ['the same owner, a DIFFERENT application', 'same-owner', 'app-other'],
+  ])('refuses %s: 409 FEDERATED_MEDIA_OWNED_ELSEWHERE, the row untouched', async (_label, who, uploaderApp) => {
+    const owner = await insertUser();
+    const caller = who === 'same-owner' ? owner : await insertUser();
+    const r = await uploadOver(federatedRow(owner, 'app-mention'), { ownerUserId: caller, appId: uploaderApp });
+
+    expect(r.settled.ok).toBe(false);
+    if (r.settled.ok || !r.row) throw new Error('unreachable');
+    expect(r.settled.error).toMatchObject({ statusCode: 409, code: 'FEDERATED_MEDIA_OWNED_ELSEWHERE' });
+    expect(await readFile(r.row.id)).toEqual(r.row);
+    expect(r.deleteFile).toHaveBeenCalledWith(r.tempKey);
+  });
+
+  it('refuses a row with the right owner and app but NOT written by the federation path', async () => {
+    const owner = await insertUser();
+    const r = await uploadOver(
+      federatedRow(owner, 'app-mention', { metadata: { source: 'mention-service', serviceAppId: 'app-mention' } }),
+      { ownerUserId: owner, appId: 'app-mention' },
+    );
+
+    expect(r.settled.ok).toBe(false);
+    if (!r.row) throw new Error('unreachable');
+    expect(await readFile(r.row.id)).toEqual(r.row);
+  });
+
+  it('caller metadata cannot replace source or serviceAppId on the stored row', async () => {
+    const r = await uploadOver(null, {
+      ownerUserId: await insertUser(),
+      appId: 'app-mention',
+      metadata: { source: 'forged', serviceAppId: 'app-victim', activityId: 'kept' },
+    });
+
+    expect(r.settled.ok).toBe(true);
+    if (!r.settled.ok) throw new Error('unreachable');
+    expect((await readFile(r.settled.value.file.id)).metadata).toEqual({
+      activityId: 'kept',
+      source: 'federation',
+      serviceAppId: 'app-mention',
+    });
   });
 });

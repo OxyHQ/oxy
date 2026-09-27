@@ -29,6 +29,7 @@ import {
   federatedAssetDeleteResult,
   federatedAssetDeleteResponse,
   federatedAssetBatchDeleteResponse,
+  federatedMediaUploadResponse,
 } from '../schemas/assets.schemas';
 import { generateMissingFilePlaceholder, TRANSPARENT_PNG_PLACEHOLDER } from '../utils/placeholders';
 import {
@@ -751,7 +752,17 @@ router.post(
  *       the resolved federated Oxy user. Unlike `/service/cache`, files created
  *       here are not in the eviction namespace and can safely be referenced from
  *       persisted Mention posts.
+ *
+ *       Idempotent per (owner, application, bytes): re-uploading content that is
+ *       already this federated owner's media from this application answers 200
+ *       with the EXISTING id and `deduplicated: true` — the same id can then be
+ *       referenced by several posts, so reference-check before deleting it.
+ *       Content that already belongs to a different owner or was uploaded by a
+ *       different application is a 409 `FEDERATED_MEDIA_OWNED_ELSEWHERE`: only one
+ *       live row may hold a content hash, and it is never handed across owners.
  * @access Service token only (requires files:write)
+ * @response 200 federatedMediaUploadResponse The stored asset; `deduplicated` is true when an existing row was reused.
+ * @response 409 Error The bytes already belong to another owner or application.
  */
 router.post(
   '/service/federation',
@@ -806,38 +817,48 @@ router.post(
       }
     }
 
+    const uploaderAppId = req.serviceApp?.appId;
+    if (typeof uploaderAppId !== 'string' || uploaderAppId.length === 0) {
+      throw new ForbiddenError('Service token carries no application id');
+    }
+
     try {
-      const file = await assetService.uploadFederatedMediaStream(
+      const { file, deduplicated } = await assetService.uploadFederatedMediaStream(
         req,
         mime,
         originalName,
         FEDERATION_CACHE_MAX_BYTES,
         ownerUserId,
+        uploaderAppId,
         {
           ...(metadata || {}),
-          serviceAppId: req.serviceApp?.appId,
           serviceAppName: req.serviceApp?.appName,
         }
       );
 
       logger.info('Federation media persisted', {
-        appId: req.serviceApp?.appId,
+        appId: uploaderAppId,
         appName: req.serviceApp?.appName,
         ownerUserId,
         fileId: file.id,
+        deduplicated,
         mime,
         size: file.size,
       });
 
-      sendSuccess(res, {
-        file: {
-          id: file.id,
-          sha256: file.sha256,
-          size: file.size,
-          mime: file.mime,
-          visibility: file.visibility,
+      const body: z.infer<typeof federatedMediaUploadResponse> = {
+        data: {
+          file: {
+            id: file.id,
+            sha256: file.sha256,
+            size: file.size,
+            mime: file.mime,
+            visibility: file.visibility,
+          },
+          deduplicated,
         },
-      });
+      };
+      res.status(200).json(body);
     } catch (error) {
       if (error instanceof Error && error.name === 'CacheMediaTooLargeError') {
         throw new ApiError(413, 'Federated media exceeds the maximum allowed size', 'PAYLOAD_TOO_LARGE');
