@@ -13,39 +13,6 @@ const QR_PLATE_BG = '#FFFFFF';
  * text-link rhythm every view's fallback affordances share.
  */
 export const authChooserStyles = StyleSheet.create({
-  rows: {
-    width: '100%',
-    gap: 8,
-  },
-  accountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  rowDisabled: {
-    opacity: 0.6,
-  },
-  avatarRing: {
-    borderRadius: 9999,
-    borderWidth: 2,
-    padding: 1,
-  },
-  rowMeta: {
-    flex: 1,
-    minWidth: 0,
-  },
-  rowName: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  rowHandle: {
-    fontSize: 12.5,
-    marginTop: 1,
-  },
   /**
    * Animated-collapse container for the account switch list — the outer clip and
    * the inner measuring wrapper. Style-based (NOT NativeWind): the container

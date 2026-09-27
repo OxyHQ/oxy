@@ -8,19 +8,33 @@
  * means — a switch, a "Continue as" sign-in, or activating the pair before an
  * OAuth consent — and passes the pair back, never an account id, which cannot
  * say whose route was chosen.
+ *
+ * One rounded list: each row is the account's name and `@handle` on the left,
+ * its avatar and a chevron on the right, with a hairline between rows that
+ * steps aside for a hovered row. Layout is NativeWind; hover is driven by
+ * `onHoverIn`/`onHoverOut` (web only), because this pipeline does not emit
+ * `hover:` variants — the same pattern as the account menu.
  */
 
 import type React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Fragment, useState } from 'react';
+import { ScrollView } from 'react-native';
+import { Pressable, View } from 'react-native-css/components';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiLoader4Line } from '@oxy.so/bloom/icons/RiLoader4Line';
 import { RiUserAddLine } from '@oxy.so/bloom/icons/RiUserAddLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { showsPrincipalHeaders, type SwitcherContextRow, type SwitcherPrincipalRow } from '@oxy.so/core/session';
 import { useI18n } from '../../hooks/useI18n';
-import { AccountRow } from '../authChooser/primitives';
-import { authChooserStyles } from '../authChooser/styles';
+import { resolveAccentHex } from '../authChooser/types';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthTerms } from './OxyAuthScreen';
+
+/** The list scrolls past this height (`max-h-96`). */
+const LIST_MAX_HEIGHT = 384;
+const AVATAR_SIZE = 40;
 
 export interface OxyAccountPickerProps {
   /** The device's people, each with the accounts they may act as (`useDeviceSwitcher`). */
@@ -35,9 +49,9 @@ export interface OxyAccountPickerProps {
   /** Disables every row while a choice is in flight. */
   isLoading?: boolean;
   /**
-   * This origin holds no session. A row then reads "Continue as @handle" and
-   * never as the current account: the device can list an identity as active
-   * while nobody is signed in HERE.
+   * This origin holds no session. A row is then announced as "Continue as
+   * @handle" and never marked as the current account: the device can list an
+   * identity as active while nobody is signed in HERE.
    */
   signedOut?: boolean;
 }
@@ -53,9 +67,32 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
 }) => {
   const theme = useTheme();
   const { t } = useI18n();
+  const [hovered, setHovered] = useState<number | null>(null);
   // Whose route a row is only needs naming once someone holds more than one
   // account here — the same rule the account menu's group headers follow.
   const namesTheOperator = showsPrincipalHeaders(principals);
+
+  const rows = principals.flatMap((principal) =>
+    principal.contexts.map((context) => ({
+      context,
+      operatedBy:
+        namesTheOperator && context.isDelegated
+          ? t('accountSwitcher.context.operatedBy', { name: principal.displayName })
+          : null,
+    })),
+  );
+  const useAnotherIndex = rows.length;
+
+  /** The hairline under row `index`, hidden while either neighbour is hovered. */
+  const divider = (index: number) =>
+    hovered === index || hovered === index + 1 ? (
+      <View className="h-px mx-[8px]" />
+    ) : (
+      <View className="h-px mx-[8px] bg-border opacity-50" />
+    );
+
+  const rowClassName = (index: number, disabled: boolean) =>
+    `flex-row items-center gap-[12px] rounded-[14px] p-[8px] ${hovered === index && !disabled ? 'bg-fill' : ''} ${disabled ? 'opacity-50' : ''}`;
 
   return (
     <OxyAuthScreen>
@@ -63,67 +100,95 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
         title={t('signin.chooser.title')}
         description={appName ? t('signin.chooser.subtitleToApp', { app: appName }) : t('signin.chooser.subtitle')}
       />
-      <View style={authChooserStyles.rows}>
-        {principals.flatMap((principal) =>
-          principal.contexts.map((context) => (
-            <AccountRow
-              key={context.contextId}
-              context={context}
-              operatedBy={
-                namesTheOperator && context.isDelegated
-                  ? t('accountSwitcher.context.operatedBy', { name: principal.displayName })
-                  : null
-              }
-              continueAsLabel={
-                signedOut
-                  ? t('signin.chooser.continueAs', {
-                      name: context.handle ? `@${context.handle}` : context.displayName,
-                    })
-                  : null
-              }
-              theme={theme}
-              activating={pendingContextId === context.contextId}
-              disabled={isLoading}
-              onPress={() => onSelectContext(context)}
-            />
-          )),
-        )}
-        <Pressable
-          onPress={onUseAnother}
-          disabled={isLoading}
-          accessibilityRole="button"
-          accessibilityLabel={t('signin.chooser.useAnother')}
-          style={[
-            authChooserStyles.accountRow,
-            { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-            isLoading ? authChooserStyles.rowDisabled : null,
-          ]}
-          testID="use-another-account"
-        >
-          <View style={[styles.addGlyph, { backgroundColor: theme.colors.backgroundSecondary }]}>
-            <RiUserAddLine size="md" fill={theme.colors.textSecondary} />
-          </View>
-          <Text style={[authChooserStyles.rowName, styles.addLabel, { color: theme.colors.text }]}>
-            {t('signin.chooser.useAnother')}
-          </Text>
-          <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
-        </Pressable>
+      <View className="bg-fill-secondary rounded-[22px] overflow-hidden" testID="account-picker-list">
+        <ScrollView style={{ maxHeight: LIST_MAX_HEIGHT }} contentContainerStyle={{ padding: 8 }}>
+          {rows.map(({ context, operatedBy }, index) => {
+            const activating = pendingContextId === context.contextId;
+            const disabled = isLoading || !context.canActivate;
+            const current = !signedOut && context.isActive;
+            const accent = resolveAccentHex(context.color, theme.colors.primary);
+            const handle = context.handle ? `@${context.handle}` : null;
+            const label = signedOut
+              ? t('signin.chooser.continueAs', { name: handle ?? context.displayName })
+              : context.displayName;
+            return (
+              <Fragment key={context.contextId}>
+                <Pressable
+                  className={rowClassName(index, disabled && !activating)}
+                  onPress={() => onSelectContext(context)}
+                  onHoverIn={() => setHovered(index)}
+                  onHoverOut={() => setHovered((value) => (value === index ? null : value))}
+                  disabled={disabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                  accessibilityState={{ selected: current, disabled, busy: activating }}
+                >
+                  <View className="flex-1 min-w-0">
+                    <Text className="text-body text-text" style={{ fontWeight: '500' }} numberOfLines={1}>
+                      {context.displayName}
+                    </Text>
+                    {operatedBy || handle ? (
+                      <Text className="text-bodySmall text-text-secondary" numberOfLines={1}>
+                        {operatedBy ?? handle}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View className="flex-row items-center gap-[8px] shrink-0">
+                    <View style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
+                      <Avatar
+                        source={context.avatarUrl ?? undefined}
+                        variant="thumb"
+                        name={context.displayName}
+                        size={AVATAR_SIZE}
+                      />
+                      {current ? (
+                        <View
+                          className="absolute -bottom-[2px] -right-[2px] items-center justify-center rounded-full border-2 border-background"
+                          style={{ width: 18, height: 18, backgroundColor: accent }}
+                        >
+                          <RiCheckLine size="xs" fill="#ffffff" />
+                        </View>
+                      ) : null}
+                    </View>
+                    {activating ? (
+                      <RiLoader4Line size="sm" fill={accent} />
+                    ) : (
+                      <RiArrowRightSLine size="sm" fill={theme.colors.textSecondary} />
+                    )}
+                  </View>
+                </Pressable>
+                {divider(index)}
+              </Fragment>
+            );
+          })}
+          <Pressable
+            className={rowClassName(useAnotherIndex, isLoading)}
+            onPress={onUseAnother}
+            onHoverIn={() => setHovered(useAnotherIndex)}
+            onHoverOut={() => setHovered((value) => (value === useAnotherIndex ? null : value))}
+            disabled={isLoading}
+            accessibilityRole="button"
+            accessibilityLabel={t('signin.chooser.useAnother')}
+            testID="use-another-account"
+          >
+            <View className="flex-1 min-w-0">
+              <Text className="text-body text-text" style={{ fontWeight: '500' }} numberOfLines={1}>
+                {t('signin.chooser.useAnother')}
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-[8px] shrink-0">
+              <View
+                className="bg-fill items-center justify-center rounded-full"
+                style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}
+              >
+                <RiUserAddLine size="md" fill={theme.colors.textSecondary} />
+              </View>
+              <RiArrowRightSLine size="sm" fill={theme.colors.textSecondary} />
+            </View>
+          </Pressable>
+        </ScrollView>
       </View>
       <OxyAuthTerms />
     </OxyAuthScreen>
   );
 };
-
-const styles = StyleSheet.create({
-  // Matches `AccountRow`'s 40px avatar plus its 2px ring and 1px gap.
-  addGlyph: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addLabel: {
-    flex: 1,
-  },
-});

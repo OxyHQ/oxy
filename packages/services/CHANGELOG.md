@@ -1,5 +1,19 @@
 # Changelog
 
+## [8.1.0] - 2026-09-27
+
+### Changed
+
+- `OxyAccountPicker` ("Choose an account") is one rounded list: each row is the
+  account's name and `@handle` on the left, its avatar (with a check on the
+  current account) and a chevron on the right, with a hairline between rows
+  that steps aside for a hovered row; "Use another account" is the list's last
+  row. Built with NativeWind classes; scrolls past 384px.
+
+### Removed
+
+- `AccountRow` (internal), which only the picker used.
+
 ## [8.0.0] - 2026-09-26
 
 Built on `@oxy.so/core` 3.0 (namespaced client, `OxyServer`, subpath entries).
