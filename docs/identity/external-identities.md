@@ -124,6 +124,29 @@ token. Token errors (190) and throttles are logged as
 `Instagram Graph lookup failed` with the reason, HTTP status, Meta code and
 subcode.
 
+## Avatars
+
+A federated user's `users.avatar` is an Oxy Cloud file id or NULL, never the
+source's picture URL. Registration writes no avatar; `mirrorFederatedAvatar`
+downloads the source picture and only a successful mirror sets the column. A
+failed mirror keeps the previous file id, or leaves NULL so clients show the
+default, and is retried after the avatar throttle window. Signed Meta CDN URLs
+(`fbcdn.net`, `cdninstagram.com`) past their `oe` expiry are refused without a
+request. When an instagram.com picture fails permanently (expired, any 4xx) and
+the Instagram Graph fallback is enabled, a fresh Business Discovery
+`profile_picture_url` is mirrored instead, within that client's cache, cooldown
+and call budget; a Graph account bound to another handle or contradicting the
+pinned first-party owner is refused, and a personal account stays NULL.
+Serializers withhold any remaining remote URL on a federated row.
+
+Rows written before this rule are repaired by
+`packages/api/src/scripts/repair-federated-remote-avatars.ts` (dry run by
+default; `--apply` or `DRY_RUN=false` writes). In production, dispatch
+`.github/workflows/repair-federated-avatars.yml` from `main` with
+`dry_run=true`, read the summary, then dispatch `dry_run=false`. Writes are
+conditional on the URL the pass read, so a rerun is idempotent; `after` resumes
+from a summary's cursor.
+
 ## Existing data
 
 Deploy migrations 0083 and 0084 before switching application consumers. The

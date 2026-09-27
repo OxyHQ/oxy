@@ -1009,7 +1009,7 @@ describe('FederationService SSRF guards', () => {
   it('enforces https-only: an http avatar URL is rejected before reaching safeFetch', async () => {
     const result = await federationService.downloadAndStoreAvatar('http://cdn.example/avatar.png');
 
-    expect(result).toEqual({ fileId: null, notModified: false });
+    expect(result).toEqual({ fileId: null, notModified: false, failure: 'permanent' });
     expect(mockSafeFetch).not.toHaveBeenCalled();
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1019,7 +1019,7 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar('https://private.example/avatar.png');
 
-    expect(result).toEqual({ fileId: null, notModified: false });
+    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient' });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1030,7 +1030,7 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar(avatarUrl);
 
-    expect(result).toEqual({ fileId: null, notModified: false });
+    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient' });
     expect(mockRecordAvatarOriginRateLimit).toHaveBeenCalledWith(avatarUrl, '120');
     expect(mockClearAvatarOriginFailures).not.toHaveBeenCalled();
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
@@ -1042,7 +1042,7 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar(avatarUrl);
 
-    expect(result).toEqual({ fileId: null, notModified: false });
+    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient' });
     expect(mockSafeFetch).not.toHaveBeenCalled();
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1070,7 +1070,7 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar('https://cdn.example/huge.png');
 
-    expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false });
+    expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false, failure: 'permanent' });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1086,7 +1086,7 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar('https://cdn.example/streamed-huge.png');
 
-    expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false });
+    expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false, failure: 'permanent' });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });

@@ -1685,7 +1685,7 @@ router.put(
     // awaited — must not delay the response.
     // Read as a FILE ID, through the one helper that owns that question: the third
     // argument below is the file the download DELETES when it replaces it, and
-    // `users.avatar` can now also hold a source URL awaiting replacement.
+    // a legacy `users.avatar` can still hold a remote URL, which is not a file.
     const existingStoredFileId = storedAvatarFileId(existingAvatarFileId);
     if (remoteAvatarUrl && (forceAvatarRefresh || existingStoredFileId === undefined)) {
       federationService.scheduleAvatarRefresh(
