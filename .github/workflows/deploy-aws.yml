@@ -69,7 +69,7 @@ jobs:
         # shadows the OIDC role assumed above and makes `aws ssm put-parameter`
         # fail with UnrecognizedClientException.
         #
-        # The `SYNC_*` env block below and the SHARED_SECRETS / API_SECRETS lists
+        # The `SYNC_*` env block below and the API_SECRETS list
         # in the script are TWO hand-maintained allowlists that have to agree —
         # and a name missing from either is silent: the loop simply never writes
         # that parameter, the deploy goes green, and the next task launch dies
@@ -82,8 +82,6 @@ jobs:
           SYNC_REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}
           SYNC_SSO_INTERNAL_SECRET: ${{ secrets.SSO_INTERNAL_SECRET }}
           SYNC_DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SYNC_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          SYNC_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SYNC_AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           SYNC_AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
           SYNC_STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
@@ -100,8 +98,6 @@ jobs:
           SYNC_DEVICE_ID_SALT: ${{ secrets.DEVICE_ID_SALT }}
           SYNC_OXY_PUBLIC_KEY: ${{ secrets.OXY_PUBLIC_KEY }}
           SYNC_OXY_PRIVATE_KEY: ${{ secrets.OXY_PRIVATE_KEY }}
-          SYNC_LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-          SYNC_LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
           SYNC_KAANA_EDGE_SIGNING_PRIVATE_KEY: ${{ secrets.KAANA_EDGE_SIGNING_PRIVATE_KEY }}
           SYNC_CAPABILITY_TICKET_SIGNING_PRIVATE_KEY: ${{ secrets.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY }}
           SYNC_CAPABILITY_TICKET_SIGNING_KEY_ID: ${{ secrets.CAPABILITY_TICKET_SIGNING_KEY_ID }}
@@ -114,15 +110,20 @@ jobs:
           # Do not iterate over the entire GitHub secrets context: this repository also contains
           # credentials for other systems (Cloudflare, unrelated deployments,
           # etc.) that must not be copied into the API's SSM namespace.
-          # REDIS_URL is deliberately absent: /oxy/_shared/REDIS_URL is owned by
-          # oxy-infra Terraform (terraform-uswest2/redis.tf), and an app deploy
-          # must never write a shared parameter. Six repos each copied their own
-          # secrets.REDIS_URL into it, two held different values, and every
-          # deploy flipped it between Redis clusters (incident 2026-09-27).
-          SHARED_SECRETS="AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY LIVEKIT_API_KEY LIVEKIT_API_SECRET"
+          #
+          # Nothing here writes /oxy/_shared/*. Shared parameters
+          # (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REDIS_URL, QUEUE_REDIS_URL,
+          # LIVEKIT_API_KEY, LIVEKIT_API_SECRET) are owned by oxy-infra, not by
+          # any app, and are rotated once, centrally
+          # (oxy-infra docs/runbooks/45-shared-ssm-parameters.md). When several
+          # app deploys each copied their own GitHub secret into
+          # /oxy/_shared/REDIS_URL, two held different values and every deploy
+          # flipped it between Redis clusters (incident 2026-09-27). The task
+          # definition still READS the shared parameters; only the write is
+          # gone, and scripts/check-deploy-secrets-sync.mjs refuses its return.
           API_SECRETS="ACCESS_TOKEN_SECRET REFRESH_TOKEN_SECRET SSO_INTERNAL_SECRET DATABASE_URL AWS_S3_BUCKET AWS_ENDPOINT_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET GITHUB_CLIENT_SECRET SMTP_TLS_KEY SMTP_TLS_CERT SMTP_RELAY_USER SMTP_RELAY_PASS EMAIL_INBOUND_WEBHOOK_SECRET DKIM_PRIVATE_KEY EMAIL_S3_ACCESS_KEY_ID EMAIL_S3_SECRET_ACCESS_KEY DEVICE_ID_SALT OXY_PUBLIC_KEY OXY_PRIVATE_KEY KAANA_EDGE_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_KEY_ID META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID"
 
-          for k in $SHARED_SECRETS $API_SECRETS; do
+          for k in $API_SECRETS; do
             v=$(printenv "SYNC_$k" || true)
             # Defence in depth: a secret left as an empty string or a single
             # dash placeholder is almost always a mistake (forgot to set a
@@ -134,7 +135,7 @@ jobs:
               echo "::warning::skip empty/placeholder secret $k (value=${v:-<empty>}); SSM unchanged"
               continue
             fi
-            case " $SHARED_SECRETS " in *" $k "*) path="/oxy/_shared/$k";; *) path="/oxy/$APP/$k";; esac
+            path="/oxy/$APP/$k"
             printf '%s' "$v" | bash .github/scripts/put-secure-parameter.sh "$path" overwrite
             echo "synced -> $path"
           done
