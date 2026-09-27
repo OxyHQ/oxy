@@ -33,6 +33,7 @@ import { externalIdentities, externalIdentityActors } from '../db/schema/externa
 import { userService } from '../services/user.service';
 import { applyFederationMove, FederationMoveRefused } from '../services/federationMove.service';
 import { InstanceFetchRefused, InstanceKeyUnavailable, signInstanceFetch } from '../services/federation/instanceFetchSignature';
+import { INSTAGRAM_GRAPH_PROTOCOL, instagramAcctFromHandle } from '../services/federation/instagramGraph';
 import {
   DEFAULT_PURGE_LIMIT,
   purgeBlockedDomain,
@@ -77,14 +78,18 @@ function assertIdentityResolveScope(req: ServiceAuthRequest): void {
 
 router.post('/identities/resolve', serviceAuthMiddleware, validate({ body: resolveExternalIdentityRequestSchema }), asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
   assertIdentityResolveScope(req);
-  const { actorUri, handle, transportAcct } = req.body ?? {};
+  const { actorUri, handle, transportAcct, protocol } = req.body ?? {};
   if ((typeof actorUri === 'string') === (typeof handle === 'string')
     || (actorUri !== undefined && (typeof actorUri !== 'string' || !actorUri || actorUri.length > 2048))
     || (handle !== undefined && (typeof handle !== 'string' || !handle || handle.length > 2048))
     || (transportAcct !== undefined && (typeof transportAcct !== 'string' || transportAcct.length > 320))) {
     throw new BadRequestError('Exactly one actorUri or handle, and optional transportAcct, are required');
   }
-  const result = await federationService.resolveExternalIdentity({ actorUri, handle, transportAcct });
+  // Business Discovery only speaks for Instagram accounts, and only by username.
+  if (protocol === INSTAGRAM_GRAPH_PROTOCOL && (typeof handle !== 'string' || !instagramAcctFromHandle(handle))) {
+    throw new BadRequestError('protocol instagram-graph requires an instagram.com handle');
+  }
+  const result = await federationService.resolveExternalIdentity({ actorUri, handle, transportAcct, protocol });
   if (!result) throw new NotFoundError('External actor could not be verified');
   sendSuccess(res, resolveExternalIdentityResponseSchema.parse(result));
 }));

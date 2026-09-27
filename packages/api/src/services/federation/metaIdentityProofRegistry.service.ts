@@ -3,6 +3,8 @@ import { getDb } from '../../config/postgres';
 import { externalIdentities, externalIdentityActors } from '../../db/schema/externalIdentities';
 import type { ObservedInstagramProfile } from './metaFirstPartyProof.service';
 import { externalIdentityInstagramPins, externalIdentityMetaProofs } from '../../db/schema/externalIdentityMetaProofs';
+import { users } from '../../db/schema/users';
+import { instagramGraphActorUri } from './instagramGraph';
 
 export interface BoundMetaIdentityProof {
   instagramActorUri: string;
@@ -130,7 +132,15 @@ export async function recordInstagramSourcePin(actorUri: string, proof: Observed
     // an overlapping non-creator cannot take that authority from it or invent it.
     const latestAt = previous && previous.verifiedAt > observedAt ? previous.verifiedAt : observedAt;
     if (source.revokedAt && source.revokedAt >= latestAt) return { state: 'refused', reason: 'proof_predates_revocation' };
-    const eligible = source.stableId === stableId || enrollment.createdInstagramUserId === source.userId;
+    // A source user created by a Graph (Business Discovery) observation has the
+    // same lineage as one created in this discovery when the first-party page
+    // names that very IG User id: both observations are of the current owner.
+    const [graphCreator] = source.stableId === null && enrollment.createdInstagramUserId !== source.userId
+      ? await tx.select({ id: users.id }).from(users).innerJoin(externalIdentityActors, eq(externalIdentityActors.actorUri, users.federationActorUri))
+        .where(and(eq(users.id, source.userId), eq(users.federationActorUri, instagramGraphActorUri(proof.graphId)),
+          eq(externalIdentityActors.canonicalAcct, source.canonicalAcct))).limit(1)
+      : [];
+    const eligible = source.stableId === stableId || enrollment.createdInstagramUserId === source.userId || !!graphCreator;
     const state = eligible ? 'pinned' : 'pending';
     if (eligible && source.stableId === null) {
       await tx.update(externalIdentities).set({ stableId }).where(eq(externalIdentities.canonicalAcct, source.canonicalAcct));

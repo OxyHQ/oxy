@@ -581,6 +581,20 @@ describe('identity lookup/resolve — federation:identities:resolve without fede
     expect((await requestJson('POST', '/federation/identities/resolve', resolveBody)).status).toBe(404);
   });
 
+  it('passes an explicit instagram-graph protocol through for Instagram handles only', async () => {
+    presentCredential('mention-app', ['federation:write']);
+    mockResolveExternalIdentity.mockResolvedValueOnce(null);
+    const graph = await requestJson('POST', '/federation/identities/resolve', { handle: 'https://www.instagram.com/Plex/', protocol: 'instagram-graph' });
+    expect(graph.status).toBe(404);
+    expect(mockResolveExternalIdentity).toHaveBeenCalledWith({ actorUri: undefined, handle: 'https://www.instagram.com/Plex/', transportAcct: undefined, protocol: 'instagram-graph' });
+    mockResolveExternalIdentity.mockClear();
+    for (const body of [{ handle: 'bob@mastodon.social', protocol: 'instagram-graph' }, { handle: 'bob@instagram.com.evil.example', protocol: 'instagram-graph' },
+      { actorUri: 'instagram-graph:17841401746480004', protocol: 'instagram-graph' }]) {
+      expect((await requestJson('POST', '/federation/identities/resolve', body)).status).toBe(400);
+    }
+    expect(mockResolveExternalIdentity).not.toHaveBeenCalled();
+  });
+
   it('does not let the narrow scope sign', async () => {
     presentCredential('move-app', ['federation:identities:resolve']);
     const res = await requestJson('POST', '/federation/sign', { keyId: MENTION_KEY_ID, signingString: SIGNING_STRING });

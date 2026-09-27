@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- Instagram Graph fallback: `*@instagram.com` handles whose kilogram bridge
+  resolution fails (429, timeout, refusal) resolve through Meta Graph API
+  Business Discovery as protocol `instagram-graph`, actor
+  `instagram-graph:<igUserId>`; `POST /federation/identities/resolve` accepts
+  `protocol: 'instagram-graph'` for Instagram handles (400 otherwise). Inert
+  unless `INSTAGRAM_GRAPH_FALLBACK_ENABLED=true`, `META_GRAPH_ACCESS_TOKEN` and
+  `META_IG_BUSINESS_ACCOUNT_ID` are set (`META_GRAPH_API_VERSION` defaults to
+  `v23.0`). See `docs/identity/external-identities.md`.
+
 ### Removed
 
 - **Breaking:** reputation staff routes — `POST /reputation/rules`,

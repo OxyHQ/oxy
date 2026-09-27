@@ -438,7 +438,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "3.0.0",
+      "version": "4.0.0",
       "dependencies": {
         "zod": "^3.25.64",
       },
@@ -564,9 +564,9 @@
     },
     "packages/federation": {
       "name": "@oxy.so/federation",
-      "version": "2.1.2",
+      "version": "2.2.0",
       "dependencies": {
-        "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0",
+        "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0",
         "@oxy.so/core": "^1.0.0 || ^2.0.0 || ^3.0.0",
       },
       "devDependencies": {

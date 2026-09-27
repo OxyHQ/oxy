@@ -27,6 +27,15 @@ import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { sanitizePlainText } from '../utils/sanitize';
 import { deriveExternalActorProfile, type ExternalActorProfile } from './federation/externalIdentityPolicy';
 import { fetchMetaFirstPartyProfilePair } from './federation/metaFirstPartyProof.service';
+import {
+  fetchInstagramGraphProfile,
+  INSTAGRAM_GRAPH_PROTOCOL,
+  INSTAGRAM_NETWORK_DOMAIN,
+  instagramGraphUserIdFromActorUri,
+  instagramUsernameFromAcct,
+  isInstagramGraphActorUri,
+  isInstagramGraphEnabled,
+} from './federation/instagramGraph';
 import { recordInstagramSourcePin, recordMetaIdentityProof, revokeMetaIdentityProof, type MetaIdentityProofOutcome } from './federation/metaIdentityProofRegistry.service';
 import { getExternalIdentitiesForUser, getCanonicalUserRedirects, lookupExternalIdentity, registerExternalIdentity, resolveCanonicalUserId } from './externalIdentityRegistry.service';
 import {
@@ -1149,32 +1158,83 @@ class FederationService {
     return { ...outcome, sourceOwnerVerified };
   }
 
-  async resolveExternalIdentity(input: { actorUri?: string; handle?: string; transportAcct?: string }) {
+  async resolveExternalIdentity(input: { actorUri?: string; handle?: string; transportAcct?: string; protocol?: string }) {
     if (input.actorUri) return this.resolveExternalActorIdentity(input.actorUri, input.transportAcct);
     const handle = input.handle ? this.normalizeExternalHandle(input.handle) : null;
     if (!handle) return null;
-    const userId = await lookupExternalIdentity(handle);
-    if (userId) {
-      const identities = await getExternalIdentitiesForUser(userId);
-      const source = identities.find(identity => identity.canonicalAcct === handle || identity.transportAcct === handle);
-      if (source) return this.resolveExternalActorIdentity(source.actorUri, source.transportAcct);
-    }
     const at = handle.lastIndexOf('@');
     const domain = handle.slice(at + 1);
+    const instagram = domain === INSTAGRAM_NETWORK_DOMAIN;
+    // An explicit Graph request goes straight to Business Discovery.
+    if (input.protocol === INSTAGRAM_GRAPH_PROTOCOL) return instagram ? this.resolveInstagramGraphHandle(handle) : null;
+    // Any failed bridge resolution of an Instagram account (429, timeout,
+    // refusal) may fall back to Graph; the flag being off keeps today's null.
+    const graphFallback = () => (instagram ? this.resolveInstagramGraphHandle(handle) : Promise.resolve(null));
+    const userId = await lookupExternalIdentity(handle);
+    if (userId) {
+      const identities = (await getExternalIdentitiesForUser(userId))
+        .filter(identity => identity.canonicalAcct === handle || identity.transportAcct === handle);
+      // The bridge actor carries the Meta proof path, so it is preferred; a
+      // Graph-only source falls through to fresh bridge discovery below.
+      const source = identities.find(identity => identity.protocol !== INSTAGRAM_GRAPH_PROTOCOL)
+        ?? (instagram ? undefined : identities[0]);
+      if (source) return (await this.resolveExternalActorIdentity(source.actorUri, source.transportAcct)) ?? graphFallback();
+    }
     if (isOwnFederationDomain(domain)) return null;
     // Reverse transport routing is also Oxy policy. The fetched actor must still
     // publish the reviewed per-account assertion before the identity is accepted.
     const transport = this.transportHandleForExternalAccount(handle);
     const webfinger = await this.resolveWebFingerResource(transport);
-    if (!webfinger) return null;
+    if (!webfinger) return graphFallback();
     const verifiedAcct = await this.verifiedAccountForResolution(transport, webfinger);
     const result = await this.resolveExternalActorIdentity(webfinger.actorUri, verifiedAcct);
-    if (transport !== handle && result?.externalIdentity.canonicalAcct !== handle) return null;
+    if (!result || (transport !== handle && result.externalIdentity.canonicalAcct !== handle)) return graphFallback();
     return result;
+  }
+
+  /** Business Discovery for one `<username>@instagram.com`; null when disabled or not discoverable. */
+  private async resolveInstagramGraphHandle(handle: string) {
+    if (!isInstagramGraphEnabled()) return null;
+    const lookup = await fetchInstagramGraphProfile(handle);
+    if (!lookup.ok) return null;
+    // An IG User id survives a username change. A Graph source already bound to
+    // another handle is not silently re-pointed: that is a rename (or reuse) the
+    // registry has no ownership proof for.
+    const [bound] = await getDb().select({ canonicalAcct: externalIdentityActors.canonicalAcct }).from(externalIdentityActors)
+      .where(eq(externalIdentityActors.actorUri, lookup.profile.actorUri)).limit(1);
+    if (bound && bound.canonicalAcct !== lookup.profile.username) {
+      logger.warn('Instagram Graph source refused', { operation: 'instagram_graph_resolve', reason: 'graph_id_bound_to_other_account', username: lookup.profile.username });
+      return null;
+    }
+    return this.persistResolvedProfile(lookup.profile, {});
+  }
+
+  /**
+   * Refresh a stored Graph source: re-query Business Discovery by the username it
+   * was registered under and refuse when that username now names another IG User
+   * (a recycled handle). Graph outages never revoke bridge-backed Meta proofs.
+   */
+  private async resolveInstagramGraphActorIdentity(actorUri: string, transportAcct: string | undefined, opts: { forceAvatarRefresh?: boolean }) {
+    const igUserId = instagramGraphUserIdFromActorUri(actorUri);
+    if (!igUserId || !isInstagramGraphEnabled()) return null;
+    const [stored] = await getDb().select({ transportAcct: externalIdentityActors.transportAcct }).from(externalIdentityActors)
+      .where(eq(externalIdentityActors.actorUri, actorUri)).limit(1);
+    const username = instagramUsernameFromAcct(stored?.transportAcct ?? transportAcct ?? '');
+    if (!username) return null;
+    const lookup = await fetchInstagramGraphProfile(username);
+    if (!lookup.ok) return null;
+    if (lookup.profile.actorUri !== actorUri) {
+      logger.warn('Instagram Graph source refused', { operation: 'instagram_graph_refresh', reason: 'username_names_another_account', username });
+      return null;
+    }
+    return this.persistResolvedProfile(lookup.profile, opts);
   }
 
   /** The single persistence path used by public discovery and every connector. */
   async resolveExternalActorIdentity(actorUri: string, transportAcct?: string, opts: { forceAvatarRefresh?: boolean } = {}) {
+    // Not a URL: dispatched before any URL parsing, and never through the
+    // proof-revoking unavailable path below.
+    if (isInstagramGraphActorUri(actorUri)) return this.resolveInstagramGraphActorIdentity(actorUri, transportAcct, opts);
     if (!actorUri.startsWith('did:')) {
       try { if (isOwnFederationDomain(new URL(actorUri).hostname)) return null; } catch { return null; }
     }
@@ -1186,13 +1246,20 @@ class FederationService {
       await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', startedAt);
       return null;
     }
+    return this.persistResolvedProfile(profile, opts);
+  }
+
+  /** Register a freshly fetched source profile and project the canonical person. */
+  private async persistResolvedProfile(profile: ExternalActorProfile, opts: { forceAvatarRefresh?: boolean }) {
     if (isOwnFederationDomain(profile.domain)) return null;
     const result = await registerExternalIdentity({
       canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
       protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
       profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
     });
-    const identityCheck = await this.refreshMetaIdentityProof(profile, result);
+    // First-party badge proofs bind bridge actors; a Graph source is admitted by
+    // the registry's pinned graph-id check and never records or revokes them.
+    const identityCheck = profile.protocol === INSTAGRAM_GRAPH_PROTOCOL ? undefined : await this.refreshMetaIdentityProof(profile, result);
     const sourceOwnerVerified = identityCheck?.sourceOwnerVerified;
     const identityProof = identityCheck ? { state: identityCheck.state, ...(identityCheck.reason ? { reason: identityCheck.reason } : {}) } : undefined;
     const canonicalUserId = await resolveCanonicalUserId(result.identity.userId);
@@ -1706,6 +1773,12 @@ class FederationService {
         || await this.resolveWebFinger(handle);
       if (!actorUri) {
         logger.warn(`Background refresh: could not resolve actor URI for ${handle}`);
+        return;
+      }
+      if (isInstagramGraphActorUri(actorUri)) {
+        // Graph sources refresh through the id-checked resolver, which also
+        // registers the profile and schedules the avatar download.
+        await this.resolveExternalActorIdentity(actorUri);
         return;
       }
 

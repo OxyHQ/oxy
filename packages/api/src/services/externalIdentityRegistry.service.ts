@@ -5,6 +5,7 @@ import { canonicalUserRedirects, externalIdentities, externalIdentityActors, ext
 import { users } from '../db/schema/users';
 import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
 import { revokeMetaIdentityProof } from './federation/metaIdentityProofRegistry.service';
+import { INSTAGRAM_GRAPH_PROTOCOL, instagramGraphUserIdFromActorUri } from './federation/instagramGraph';
 import { blocks } from '../db/schema/blocks';
 import { restrictions } from '../db/schema/restrictions';
 import { userFollows } from '../db/schema/userFollows';
@@ -265,7 +266,20 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
     let createdUser = false;
     let [identity] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, canonicalAcct));
-    if (network === 'instagram.com' && identity?.stableId?.startsWith('instagram:pk:')) {
+    // A Graph source is a first-party Meta observation of username -> IG User id.
+    // It joins the identity its canonical account names; a pinned identity
+    // admits it only when that id is the one its owner pin recorded.
+    const graphUserId = input.protocol === INSTAGRAM_GRAPH_PROTOCOL ? instagramGraphUserIdFromActorUri(input.actorUri) : null;
+    if (input.protocol === INSTAGRAM_GRAPH_PROTOCOL && (!graphUserId || network !== 'instagram.com' || input.stableId)) {
+      throw new Error('Invalid Instagram Graph source');
+    }
+    let graphOwnerPinned = false;
+    if (graphUserId && identity?.stableId?.startsWith('instagram:pk:')) {
+      const pins = await tx.select().from(externalIdentityInstagramPins).where(and(eq(externalIdentityInstagramPins.canonicalAcct, canonicalAcct),
+        eq(externalIdentityInstagramPins.state, 'pinned'), eq(externalIdentityInstagramPins.sourceUserId, identity.userId)));
+      graphOwnerPinned = pins.some(pin => identity.stableId === `instagram:pk:${pin.instagramPk}` && pin.instagramGraphId === graphUserId);
+      if (!graphOwnerPinned) return { userId: await resolveCanonicalUserId(identity.userId, tx), identity, createdUser: false, deferredInstagramOwnerRefresh: true };
+    } else if (network === 'instagram.com' && identity?.stableId?.startsWith('instagram:pk:')) {
       const [pin] = await tx.select().from(externalIdentityInstagramPins).where(eq(externalIdentityInstagramPins.actorUri, input.actorUri));
       const proof = input.verifiedInstagramPin;
       const matches = pin?.state === 'pinned' && pin.canonicalAcct === canonicalAcct && pin.sourceUserId === identity.userId
@@ -278,7 +292,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     }
     if (identity?.stableId && input.stableId && identity.stableId !== input.stableId) throw new Error('External stable identity changed; explicit ownership reconciliation required');
     const [actor] = await tx.select().from(externalIdentityActors).where(eq(externalIdentityActors.actorUri, input.actorUri));
-    if (identity && (!actor || actor.canonicalAcct !== canonicalAcct)) {
+    if (identity && !graphOwnerPinned && (!actor || actor.canonicalAcct !== canonicalAcct)) {
       const [existing] = await tx.select({ federationActorUri: users.federationActorUri, nameDisplay: users.nameDisplay,
         nameFirst: users.nameFirst, nameLast: users.nameLast }).from(users).where(eq(users.id, identity.userId));
       if (existing) assertCompatibleSource(existing, input, identity.stableId);
@@ -309,7 +323,8 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
     } else {
       const canonicalId = await resolvePhysicalUserId(identity.userId, tx);
       if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), canonicalId);
-      [identity] = await tx.update(externalIdentities).set({ evidenceLinks: input.evidenceLinks ?? identity.evidenceLinks,
+      // A Graph source carries no claims of its own; it never clears the bridge's.
+      [identity] = await tx.update(externalIdentities).set({ evidenceLinks: graphUserId ? identity.evidenceLinks : input.evidenceLinks ?? identity.evidenceLinks,
         stableId: input.stableId ?? identity.stableId }).where(eq(externalIdentities.canonicalAcct, canonicalAcct)).returning();
     }
     if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), identity.userId);

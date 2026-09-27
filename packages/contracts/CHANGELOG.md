@@ -1,5 +1,21 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.0.0
+
+### Changed (breaking)
+
+- The external-identity `protocol` enum admits `'instagram-graph'` (Meta Graph
+  API Business Discovery, a fallback transport for Business/Creator Instagram
+  accounts) in both `externalIdentityReferenceSchema` and
+  `resolveExternalIdentityRequestSchema`. Breaking for parsers: a consumer on
+  3.x that parses a resolve or lookup response carrying a Graph-backed source
+  rejects it, so upgrade before oxy-api enables the Graph fallback.
+
+### Added
+
+- `externalIdentityProtocolSchema` and `ExternalIdentityProtocol`, the single
+  source for that enum.
+
 ## 3.0.0
 
 Passkeys are removed from Oxy (ADR 0030): an account signs in with an email

@@ -1,10 +1,17 @@
 import { z } from 'zod';
 import { userResponseSchema } from './userResponse';
 
+/**
+ * How Oxy observed an external account. `instagram-graph` is Meta's Graph API
+ * Business Discovery, a fallback transport for Business/Creator Instagram
+ * accounts when the ActivityPub bridge is unavailable.
+ */
+export const externalIdentityProtocolSchema = z.enum(['activitypub', 'atproto', 'instagram-graph']);
+
 export const externalIdentityReferenceSchema = z.object({
   canonicalAcct: z.string().min(1),
   network: z.string().min(1),
-  protocol: z.enum(['activitypub', 'atproto']),
+  protocol: externalIdentityProtocolSchema,
   actorUri: z.string().min(1),
   transportAcct: z.string().min(1),
   sourceUserId: z.string().min(1),
@@ -14,7 +21,7 @@ export const resolveExternalIdentityRequestSchema = z.object({
   actorUri: z.string().min(1).max(2048).optional(),
   handle: z.string().min(1).max(2048).optional(),
   transportAcct: z.string().max(320).optional(),
-  protocol: z.enum(['activitypub', 'atproto']).optional(),
+  protocol: externalIdentityProtocolSchema.optional(),
 }).refine(value => Boolean(value.actorUri) !== Boolean(value.handle), 'Exactly one actorUri or handle is required');
 
 export const resolveExternalIdentityResponseSchema = z.object({
@@ -52,6 +59,7 @@ export const lookupExternalIdentitiesResponseSchema = z.object({
   })),
 });
 
+export type ExternalIdentityProtocol = z.infer<typeof externalIdentityProtocolSchema>;
 export type ExternalIdentityReference = z.infer<typeof externalIdentityReferenceSchema>;
 export type ResolveExternalIdentityRequest = z.infer<typeof resolveExternalIdentityRequestSchema>;
 export type ResolveExternalIdentityResponse = z.infer<typeof resolveExternalIdentityResponseSchema>;

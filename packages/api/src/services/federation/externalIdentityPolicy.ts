@@ -8,7 +8,7 @@ export interface ExternalActorProfile {
   domain: string;
   username: string;
   transportAcct: string;
-  protocol: 'activitypub' | 'atproto';
+  protocol: 'activitypub' | 'atproto' | 'instagram-graph';
   displayName: string;
   avatarUrl?: string;
   bio: string;
