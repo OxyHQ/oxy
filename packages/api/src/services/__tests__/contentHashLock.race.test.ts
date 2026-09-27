@@ -12,7 +12,9 @@
  *
  * `Promise.all` would not force the interleaving (`~/Oxy/docs/postgres-and-drizzle.md`),
  * so each case holds one side at a gate, PROVES the other side is blocked on the
- * lock by polling `pg_locks` (and throws if it never blocks), then releases.
+ * lock by polling `pg_locks` for THIS hash's key (and throws if it never blocks),
+ * then releases. Every wait is bounded and names what it waited for; afterEach
+ * releases any gate a failed test left shut.
  */
 
 import { createHash, randomBytes } from 'node:crypto';
@@ -36,30 +38,81 @@ import { AssetService } from '../assetService';
 import type { S3Service } from '../s3Service';
 import type { FileInfo } from '../../types/s3.types';
 import { runStorageDeletionBatch, type StorageDeletionStore } from '../accountStorageDeletion.worker';
-import { withContentHashLock } from '../contentHashLock';
+import { CONTENT_HASH_LOCK_NAMESPACE, withContentHashLock } from '../contentHashLock';
 import fileCache from '../../utils/fileCache';
 
 const png = () => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), randomBytes(24)]);
 const hashOf = (content: Buffer) => createHash('sha256').update(content).digest('hex');
 
+/**
+ * Every wait in this file is BOUNDED and says what it was waiting for. A step
+ * that never comes (a purge that claimed nothing, a contender that never
+ * blocked) fails fast with its reason instead of burning the jest timeout —
+ * which is how this file used to fail in CI: a purge that claimed nothing never
+ * reached its S3 delete, and the test waited for it until jest gave up.
+ */
+const STEP_TIMEOUT_MS = 5000;
+
+/** Gates and in-flight work a test started, released and settled in afterEach even if it failed midway. */
+const openGates: Array<() => void> = [];
+const inFlight: Array<Promise<unknown>> = [];
+
 function gate() {
   let open!: () => void;
   const opened = new Promise<void>((resolve) => { open = resolve; });
+  openGates.push(open);
   return { opened, open };
 }
 
-/** Wait until some session in THIS database waits on an advisory lock; throw if none ever does. */
-async function waitForAdvisoryWaiter(): Promise<void> {
-  const deadline = Date.now() + 5000;
+function track<T>(work: Promise<T>): Promise<T> {
+  inFlight.push(work.catch(() => undefined));
+  return work;
+}
+
+/**
+ * Resolve once `signal` fires. Throw if `other` settles first (the side we are
+ * waiting on finished WITHOUT reaching the point — its result is in the
+ * message), or after {@link STEP_TIMEOUT_MS}.
+ */
+async function reach(signal: Promise<void>, other: Promise<unknown>, what: string): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const outcome = await Promise.race([
+    signal.then(() => ({ kind: 'reached' as const })),
+    other.then(
+      (value) => ({ kind: 'settled' as const, detail: JSON.stringify(value) }),
+      (error: unknown) => ({ kind: 'settled' as const, detail: error instanceof Error ? error.message : String(error) }),
+    ),
+    new Promise<{ kind: 'timeout' }>((resolve) => { timer = setTimeout(() => resolve({ kind: 'timeout' }), STEP_TIMEOUT_MS); }),
+  ]);
+  clearTimeout(timer);
+  if (outcome.kind === 'settled') throw new Error(`${what}: the other side finished first (${outcome.detail})`);
+  if (outcome.kind === 'timeout') throw new Error(`${what}: not reached within ${STEP_TIMEOUT_MS}ms`);
+}
+
+/**
+ * Wait until a session waits on THIS hash's advisory lock — the exact key, in
+ * this database, so no other lock can satisfy it. Throws if `contender` settles
+ * first (it never blocked) or if nothing blocks within the bound.
+ */
+async function waitForLockWaiter(sha256: string, contender: Promise<unknown>, what: string): Promise<void> {
+  let settled: string | null = null;
+  void contender.then(
+    (value) => { settled = `resolved ${JSON.stringify(value)}`; },
+    (error: unknown) => { settled = `rejected ${error instanceof Error ? error.message : String(error)}`; },
+  );
+  const deadline = Date.now() + STEP_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const [row] = await getDb().execute<{ n: number }>(sql`
       select count(*)::int as n from pg_locks
       where locktype = 'advisory' and not granted
-        and database = (select oid from pg_database where datname = current_database())`);
+        and database = (select oid from pg_database where datname = current_database())
+        and ((classid::bigint << 32) | objid::bigint)
+          = hashtextextended(${CONTENT_HASH_LOCK_NAMESPACE + sha256}, 0)`);
     if ((row as { n: number } | undefined)?.n) return;
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    if (settled !== null) throw new Error(`precondition failed (${what}): it never blocked on the lock — ${settled}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error('precondition failed: nothing ever waited on the content-hash lock');
+  throw new Error(`precondition failed (${what}): nothing waited on this hash's lock within ${STEP_TIMEOUT_MS}ms`);
 }
 
 async function insertUser(): Promise<string> {
@@ -83,7 +136,16 @@ beforeAll(async () => {
   await connectPostgres();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // A failed test must not leave a transaction holding a lock (or a pool
+  // connection) for the next one: open every gate, then settle what is left.
+  for (const open of openGates.splice(0)) open();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.all(inFlight.splice(0)),
+    new Promise((resolve) => { timer = setTimeout(resolve, STEP_TIMEOUT_MS); }),
+  ]);
+  clearTimeout(timer);
   fileCache.clear();
 });
 
@@ -102,20 +164,20 @@ describe('the purge honours the lock and re-checks under it', () => {
 
     // An upload in flight: it holds the lock, and commits a live row on the
     // same key before letting go.
-    const upload = withContentHashLock(sha256, async (tx) => {
+    const upload = track(withContentHashLock(sha256, async (tx) => {
       locked.open();
       await release.opened;
       await tx.insert(files).values({
         sha256, size: 1, mime: 'image/png', ext: 'png', storageKey: `public/${target}`, ownerUserId: owner, status: 'active',
       });
-    });
-    await locked.opened;
+    }));
+    await reach(locked.opened, upload, 'the upload took the lock');
 
     const deleteObject = jest.fn((): Promise<void> => Promise.resolve());
     const store: StorageDeletionStore = { deleteObject, listKeys: async () => [] };
-    const purge = runStorageDeletionBatch({ ownerId: 'race', ids: [ledgerId], store });
+    const purge = track(runStorageDeletionBatch({ ownerId: 'race', ids: [ledgerId], store }));
 
-    await waitForAdvisoryWaiter();
+    await waitForLockWaiter(sha256, purge, 'the purge');
     expect(deleteObject).not.toHaveBeenCalled();
 
     release.open();
@@ -145,8 +207,8 @@ describe('every path that creates a live row waits for a purge in progress', () 
       },
       listKeys: async () => [],
     };
-    const purge = runStorageDeletionBatch({ ownerId: 'race', ids: [ledgerId], store });
-    await inDelete.opened;
+    const purge = track(runStorageDeletionBatch({ ownerId: 'race', ids: [ledgerId], store }));
+    await reach(inDelete.opened, purge, 'the purge reached its S3 delete');
     return { release, purge, events };
   }
 
@@ -178,9 +240,9 @@ describe('every path that creates a live row waits for a purge in progress', () 
     const service = new AssetService(s3 as unknown as S3Service);
 
     const source = new Readable({ read() { this.push(content); this.push(null); } });
-    const upload = service.uploadCachedMediaStream(source, 'image/png', 'x.png', 1_000_000);
+    const upload = track(service.uploadCachedMediaStream(source, 'image/png', 'x.png', 1_000_000));
 
-    await waitForAdvisoryWaiter();
+    await waitForLockWaiter(sha256, upload, 'the streamed upload');
     expect(s3.copyFile).not.toHaveBeenCalled();
 
     release.open();
@@ -202,9 +264,9 @@ describe('every path that creates a live row waits for a purge in progress', () 
     const s3 = fakeS3(events);
     const service = new AssetService(s3 as unknown as S3Service);
 
-    const upload = service.uploadFileDirect(await insertUser(), content, 'image/png', 'x.png', 'public');
+    const upload = track(service.uploadFileDirect(await insertUser(), content, 'image/png', 'x.png', 'public'));
 
-    await waitForAdvisoryWaiter();
+    await waitForLockWaiter(sha256, upload, 'the direct upload');
     expect(await liveRowsFor(sha256)).toEqual([]);
     expect(s3.uploadBuffer).not.toHaveBeenCalled();
 
@@ -223,9 +285,9 @@ describe('every path that creates a live row waits for a purge in progress', () 
     const { release, purge, events } = await purgeBlockedInDelete(sha256);
     const service = new AssetService(fakeS3(events) as unknown as S3Service);
 
-    const init = service.initUpload(await insertUser(), sha256, 10, 'image/png');
+    const init = track(service.initUpload(await insertUser(), sha256, 10, 'image/png'));
 
-    await waitForAdvisoryWaiter();
+    await waitForLockWaiter(sha256, init, 'initUpload');
     expect(await liveRowsFor(sha256)).toEqual([]);
 
     release.open();
