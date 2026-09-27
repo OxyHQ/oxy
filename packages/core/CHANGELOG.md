@@ -1,5 +1,13 @@
 # Changelog — `@oxy.so/core`
 
+## 3.0.2
+
+### Changed
+
+- Published against `@oxy.so/contracts` 4.x and `@oxy.so/protocol` 1.1.4:
+  3.0.1 required contracts `^3.0.0`, so every app on contracts 4 installed a
+  second, nested contracts 3.x. No code change.
+
 ## 3.0.1
 
 ### Fixed

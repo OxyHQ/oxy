@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.1.1] - 2026-09-27
+
+### Changed
+
+- Published against `@oxy.so/contracts` 4.x: 8.1.0 required `^3.0.0`, so
+  every app on contracts 4 installed a second, nested contracts 3.x (+925 KiB
+  in a web bundle). No code change.
+
 ## [8.1.0] - 2026-09-27
 
 ### Changed
