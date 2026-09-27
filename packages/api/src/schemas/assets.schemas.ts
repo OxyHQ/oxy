@@ -53,6 +53,83 @@ export const batchAccessSchema = z.object({
   context: z.string().optional(),
 });
 
+// POST /assets/service/federation — 200 for a new row AND for an idempotent
+// re-upload; `deduplicated` says which. A deduplicated id may already be
+// referenced by other posts.
+export const federatedMediaUploadResponse = z.object({
+  data: z.object({
+    file: z.object({
+      id: z.string(),
+      sha256: z.string(),
+      size: z.number(),
+      mime: z.string(),
+      visibility: z.enum(['public', 'private', 'unlisted']),
+    }),
+    deduplicated: z.boolean(),
+  }),
+});
+
+// Maximum number of ids accepted by POST /assets/service/federation/delete.
+// A federated post carries a handful of media objects (a carousel of ten, each
+// video adding a poster), so 20 covers a post in one call. The request only
+// tombstones and records (the S3 purge drains in the background), so its time
+// is bounded by 20 short transactions, far inside the ALB idle timeout; the
+// per-app limiter counts the request, and 20 bounds what one request can do.
+export const MAX_FEDERATED_ASSET_DELETE_IDS = 20;
+
+// POST /assets/service/federation/delete
+export const federatedAssetDeleteBodySchema = z
+  .object({
+    ids: z
+      .array(z.string().trim().min(1).max(128))
+      .min(1, 'ids must not be empty')
+      .max(
+        MAX_FEDERATED_ASSET_DELETE_IDS,
+        `Cannot delete more than ${MAX_FEDERATED_ASSET_DELETE_IDS} assets at once`,
+      ),
+  })
+  .strict();
+
+/**
+ * Per-id outcome of a federated media delete.
+ *  - `deleted`   — this call tombstoned the row; its storage (original,
+ *                  variants, HLS segments) is recorded as owed and purged in the
+ *                  background, durably, with a CDN invalidation.
+ *  - `not_found` — no live row (unknown id, or already deleted): nothing to do,
+ *                  and safe to treat as done. Deliberately a 200 result, not an
+ *                  HTTP 404, so "already gone" can never be confused with a
+ *                  missing route on an older API.
+ *  - `in_use`    — this application's federated media, but another account holds
+ *                  it (a link it created, a mail attachment, a store listing
+ *                  screenshot): content-addressed dedup hands the one live row to
+ *                  whoever uploads the same bytes. KEPT; treat as done, never
+ *                  retry.
+ *  - `forbidden` — the row is live but is not federation media uploaded by the
+ *                  calling application; nothing was touched.
+ */
+export const federatedAssetDeleteResult = z.enum(['deleted', 'not_found', 'in_use', 'forbidden']);
+
+const federatedAssetDeleteItem = z.object({
+  id: z.string(),
+  result: federatedAssetDeleteResult,
+});
+
+// DELETE /assets/service/federation/:id — a `forbidden` outcome is a 403 instead,
+// so the 200 body only ever carries the three done results.
+export const federatedAssetDeleteResponse = z.object({
+  data: z.object({
+    id: z.string(),
+    result: z.enum(['deleted', 'not_found', 'in_use']),
+  }),
+});
+
+// POST /assets/service/federation/delete — always 200; one result per distinct id.
+export const federatedAssetBatchDeleteResponse = z.object({
+  data: z.object({
+    results: z.array(federatedAssetDeleteItem),
+  }),
+});
+
 // Maximum number of ids accepted by POST /assets/service/by-ids in a single
 // request. Mirrors the POST /users/by-ids cap so a single service call can
 // resolve all media of one post at once without unbounded fan-out.

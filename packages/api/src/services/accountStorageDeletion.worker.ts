@@ -26,7 +26,7 @@ import { hostname } from 'node:os';
 import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { applyPublicPrefix } from '../config/cdn';
 import { getEnvBoolean, getEnvNumber } from '../config/env';
-import { getDb, type Database } from '../config/postgres';
+import { getDb, type Database, type DatabaseOrTransaction } from '../config/postgres';
 import { FILE_LIVE_STATUSES, files } from '../db/schema/files';
 import { fileVariants } from '../db/schema/fileVariants';
 import {
@@ -35,6 +35,7 @@ import {
   type StorageObjectDeletionRow,
 } from '../db/schema/storageObjectDeletions';
 import { logger } from '../utils/logger';
+import { withContentHashLock } from './contentHashLock';
 import { s3Service } from './s3ServiceSingleton';
 
 export const STORAGE_DELETION_LEASE_MS = 5 * 60_000;
@@ -66,6 +67,8 @@ const defaultStore: StorageDeletionStore = {
 
 export interface StorageDeletionBatchOptions {
   ownerId: string;
+  /** Work off exactly these rows (a delete draining what it just recorded). */
+  ids?: readonly string[];
   batchSize?: number;
   leaseMs?: number;
   store?: StorageDeletionStore;
@@ -86,11 +89,18 @@ function describeError(error: unknown): string {
     : message;
 }
 
-function claimableRows(db: Database, now: Date, claimedBefore: Date, limit: number) {
+function claimableRows(
+  db: Database,
+  now: Date,
+  claimedBefore: Date,
+  limit: number,
+  ids?: readonly string[],
+) {
   return db
     .select({ id: storageObjectDeletions.id })
     .from(storageObjectDeletions)
     .where(and(
+      ids === undefined ? undefined : inArray(storageObjectDeletions.id, [...ids]),
       isNull(storageObjectDeletions.completedAt),
       lte(storageObjectDeletions.nextAttemptAt, now),
       or(
@@ -115,8 +125,8 @@ const baseKey = (column: typeof files.storageKey | typeof fileVariants.key) =>
  */
 export async function isStorageTargetInUse(
   row: Pick<StorageObjectDeletionRow, 'kind' | 'target' | 'sha256'>,
+  db: DatabaseOrTransaction = getDb(),
 ): Promise<boolean> {
-  const db = getDb();
   const live = and(eq(files.sha256, row.sha256), inArray(files.status, LIVE_STATUSES));
 
   if (row.kind === 'prefix') {
@@ -172,7 +182,7 @@ export async function runStorageDeletionBatch(
   const db = getDb();
   const now = options.now ?? (() => new Date());
   const batchSize = options.batchSize
-    ?? getEnvNumber('STORAGE_DELETION_BATCH_SIZE', DEFAULT_BATCH_SIZE);
+    ?? (options.ids ? Math.max(options.ids.length, 1) : getEnvNumber('STORAGE_DELETION_BATCH_SIZE', DEFAULT_BATCH_SIZE));
   const leaseMs = options.leaseMs ?? STORAGE_DELETION_LEASE_MS;
   const claimTime = now();
 
@@ -181,7 +191,7 @@ export async function runStorageDeletionBatch(
     .set({ claimedAt: claimTime, claimedBy: options.ownerId })
     .where(inArray(
       storageObjectDeletions.id,
-      claimableRows(db, claimTime, new Date(claimTime.getTime() - leaseMs), batchSize),
+      claimableRows(db, claimTime, new Date(claimTime.getTime() - leaseMs), batchSize, options.ids),
     ))
     .returning();
 
@@ -198,11 +208,15 @@ export async function runStorageDeletionBatch(
   for (const row of claimed) {
     const attempts = row.attempts + 1;
     try {
-      let outcome: StorageObjectDeletionOutcome = 'retained_shared';
-      if (!(await isStorageTargetInUse(row))) {
+      // Check and delete under the content-hash lock: an upload that makes these
+      // bytes belong to a new live row takes the same lock around its insert, so
+      // it either committed before the check (kept) or waits until the delete is
+      // done (and then writes its own bytes).
+      const outcome = await withContentHashLock(row.sha256, async (tx): Promise<StorageObjectDeletionOutcome> => {
+        if (await isStorageTargetInUse(row, tx)) return 'retained_shared';
         await deleteTarget(store, row);
-        outcome = 'deleted';
-      }
+        return 'deleted';
+      });
       const completed = await db.update(storageObjectDeletions).set({
         attempts,
         completedAt: now(),

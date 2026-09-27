@@ -175,12 +175,13 @@ describe('every path that writes original_name normalises it', () => {
       },
     });
 
-    const file = await service.uploadFederatedMediaStream(
+    const { file } = await service.uploadFederatedMediaStream(
       source,
       'image/png',
       MESSY_NAME,
       1_000_000,
       await insertUser(),
+      'app-test',
     );
 
     expect(await storedName(file.id)).toBe(CLEAN_NAME);

@@ -14,11 +14,18 @@
  */
 
 import { createS3Service } from './s3Service';
+import { getCdnInvalidationQueue } from './cdnInvalidation';
 
-export const s3Service = createS3Service({
-  region: process.env.AWS_REGION || 'us-east-1',
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  bucketName: process.env.AWS_S3_BUCKET || '',
-  endpointUrl: process.env.AWS_ENDPOINT_URL,
-});
+// The media bucket is the CDN's origin, so every delete here is also a CDN
+// invalidation (a no-op with a warning while CDN_CLOUDFRONT_DISTRIBUTION_ID is
+// unset — see cdnInvalidation.ts).
+export const s3Service = createS3Service(
+  {
+    region: process.env.AWS_REGION || 'us-east-1',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+    bucketName: process.env.AWS_S3_BUCKET || '',
+    endpointUrl: process.env.AWS_ENDPOINT_URL,
+  },
+  getCdnInvalidationQueue(),
+);

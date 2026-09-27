@@ -5085,11 +5085,67 @@
           "Files"
         ],
         "summary": "Stream-upload durable federated media into a normal public file owned by",
-        "description": "the resolved federated Oxy user. Unlike `/service/cache`, files created\n      here are not in the eviction namespace and can safely be referenced from\n      persisted Mention posts.",
+        "description": "the resolved federated Oxy user. Unlike `/service/cache`, files created\n      here are not in the eviction namespace and can safely be referenced from\n      persisted Mention posts.\n\n      Idempotent per (owner, application, bytes): re-uploading content that is\n      already this federated owner's media from this application answers 200\n      with the EXISTING id and `deduplicated: true` — the same id can then be\n      referenced by several posts, so reference-check before deleting it.\n      Content that already belongs to a different owner or was uploaded by a\n      different application is a 409 `FEDERATED_MEDIA_OWNED_ELSEWHERE`: only one\n      live row may hold a content hash, and it is never handed across owners.",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+            "description": "The stored asset; `deduplicated` is true when an existing row was reused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "sha256": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "type": "number"
+                            },
+                            "mime": {
+                              "type": "string"
+                            },
+                            "visibility": {
+                              "type": "string",
+                              "enum": [
+                                "public",
+                                "private",
+                                "unlisted"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "sha256",
+                            "size",
+                            "mime",
+                            "visibility"
+                          ]
+                        },
+                        "deduplicated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "file",
+                        "deduplicated"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication required",
@@ -5103,6 +5159,16 @@
           },
           "403": {
             "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The bytes already belong to another owner or application.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5138,6 +5204,269 @@
           }
         ],
         "operationId": "postAssetsServiceFederation"
+      }
+    },
+    "/assets/service/federation/delete": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Batch form of `DELETE /service/federation/:id` for up to 20 ids (e.g.",
+        "description": "every media object and poster of one deleted federated post). Always\n      200; each distinct id gets its own `deleted` / `not_found` / `in_use` /\n      `forbidden` result, so one out-of-scope id never blocks the rest.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "One result per distinct id, in request order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "results": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "result": {
+                                "type": "string",
+                                "enum": [
+                                  "deleted",
+                                  "not_found",
+                                  "in_use",
+                                  "forbidden"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "result"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "results"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "minItems": 1,
+                    "maxItems": 20
+                  }
+                },
+                "required": [
+                  "ids"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAssetsServiceFederationDelete"
+      }
+    },
+    "/assets/service/federation/{id}": {
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Delete durable federated media (created by `POST /service/federation`)",
+        "description": "when its federated source is gone. Only a live asset owned by a\n      federated account AND uploaded by the calling application qualifies;\n      anything else is a 403 and is left untouched. The row is tombstoned and\n      its storage (original, variants, HLS segments) recorded as owed in the\n      same transaction, then purged in the background — durably, guarded\n      against a concurrent re-upload of the same bytes, with a CDN\n      invalidation. Idempotent: an unknown or already-deleted id answers 200\n      with `result: \"not_found\"`. An asset another account holds (content-\n      addressed dedup shares one row per hash) answers 200 `in_use` and is\n      kept.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`deleted`, `not_found` (nothing to delete) or `in_use` (kept: another account holds it).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "result": {
+                          "type": "string",
+                          "enum": [
+                            "deleted",
+                            "not_found",
+                            "in_use"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "result"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope, or the asset is not this application's federated media.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "deleteAssetsServiceFederationId"
       }
     },
     "/assets/service/linked-url": {
