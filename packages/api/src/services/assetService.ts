@@ -51,6 +51,7 @@ import {
   insertFileLink,
   isUniqueViolation,
   listFilesByOwner,
+  tombstoneFederatedFileForApp,
   updateFile,
   updateVariantKey,
 } from './fileRepository';
@@ -75,6 +76,12 @@ interface StreamedMediaOptions {
   logLabel: string;
   dedupeScope?: 'any' | 'federation-cache' | 'owner';
 }
+
+/** Outcome of {@link AssetService.deleteFederatedMediaForApp} for one id. */
+export type FederatedMediaDeleteOutcome = 'deleted' | 'not_found' | 'forbidden';
+
+/** Parallel S3 DELETEs per batch when purging one rendition's HLS segments. */
+const HLS_SEGMENT_DELETE_CONCURRENCY = 25;
 
 const FEDERATION_REPAIR_MAX_BYTES = 10 * 1024 * 1024;
 const FEDERATION_REPAIR_MAX_REDIRECTS = 3;
@@ -1716,20 +1723,7 @@ export class AssetService {
         throw new Error('Cannot delete file with active links. Use force=true to override.');
       }
 
-      // Delete from storage, including any legacy CDN copy produced by the
-      // public-asset backfill while the DB key stayed non-public.
-      await this.s3Service.deleteFile(file.storageKey);
-      await this.deleteBackfilledPublicCopy(file.storageKey);
-
-      // Delete variants from storage
-      for (const variant of file.variants) {
-        try {
-          await this.s3Service.deleteFile(variant.key);
-          await this.deleteBackfilledPublicCopy(variant.key);
-        } catch (error) {
-          logger.warn('Failed to delete variant', { variant: variant.key, error });
-        }
-      }
+      await this.purgeStoredObjects(file);
 
       await updateFile(fileId, { status: 'deleted' });
       fileCache.invalidate(fileId);
@@ -1746,6 +1740,133 @@ export class AssetService {
       logger.error('Error deleting file:', error);
       throw error;
     }
+  }
+
+  /**
+   * Remove every S3 object a file record accounts for: the original, each
+   * variant, the HLS segments behind each rendition playlist, and any legacy
+   * backfilled `public/` copy of a non-public key.
+   *
+   * The original's delete THROWS (the caller must not report success while the
+   * bytes remain); variant and segment deletes are best-effort and logged, as
+   * they always were.
+   *
+   * HLS segments are not variant rows: `generateHLSStream` records one variant
+   * per rendition PLAYLIST and uploads its `.ts` segments beside it as
+   * `<playlist-stem>_segment_<type>_NNN.ts.ts`. Deleting the playlist alone left
+   * every segment — i.e. the whole video — in the bucket, so they are listed by
+   * that prefix and deleted too. The prefix is content-addressed by the file's
+   * `sha256`, and at most one live row holds a given hash, so nothing else can
+   * own a key under it.
+   */
+  private async purgeStoredObjects(file: FileRecord): Promise<void> {
+    await this.s3Service.deleteFile(file.storageKey);
+    await this.deleteBackfilledPublicCopy(file.storageKey);
+
+    for (const variant of file.variants) {
+      try {
+        await this.s3Service.deleteFile(variant.key);
+        await this.deleteBackfilledPublicCopy(variant.key);
+      } catch (error) {
+        logger.warn('Failed to delete variant', { variant: variant.key, error });
+      }
+      if (variant.type.startsWith('hls_') && variant.type !== 'hls_master') {
+        await this.purgeHlsSegments(variant.key);
+      }
+    }
+  }
+
+  /** Upper bound on list-then-delete rounds for one rendition's segments. */
+  private static readonly HLS_SEGMENT_PURGE_MAX_ROUNDS = 20;
+
+  private async purgeHlsSegments(playlistKey: string): Promise<void> {
+    if (!playlistKey.endsWith('.m3u8')) {
+      return;
+    }
+    const segmentPrefix = `${playlistKey.slice(0, -'.m3u8'.length)}_segment_`;
+    try {
+      // `listFiles` returns one page (≤1000 keys); deleting what it returned
+      // and listing again walks the whole set without a continuation token.
+      for (let round = 0; round < AssetService.HLS_SEGMENT_PURGE_MAX_ROUNDS; round++) {
+        const page = await this.s3Service.listFiles(segmentPrefix);
+        const keys = page.map((entry) => entry.key).filter((key) => key.startsWith(segmentPrefix));
+        if (keys.length === 0) {
+          return;
+        }
+        for (let i = 0; i < keys.length; i += HLS_SEGMENT_DELETE_CONCURRENCY) {
+          await Promise.all(
+            keys.slice(i, i + HLS_SEGMENT_DELETE_CONCURRENCY).map((key) => this.s3Service.deleteFile(key)),
+          );
+        }
+      }
+      logger.warn('HLS segment purge stopped at its round limit', { segmentPrefix });
+    } catch (error) {
+      logger.warn('Failed to delete HLS segments', {
+        segmentPrefix,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Delete federation-owned media on behalf of the application that uploaded it
+   * (`POST /assets/service/federation`), e.g. when the federated source deleted
+   * the post the media belonged to.
+   *
+   * Authorization is ONE conditional write ({@link tombstoneFederatedFileForApp}):
+   * the row is tombstoned only if it is live, owned by a `federated` account,
+   * written by the federation upload path, and uploaded by `appId`. Only after
+   * that write succeeds are the S3 objects purged — so a row that fails any
+   * condition, or changes hands concurrently, never has its bytes touched.
+   *
+   * Idempotent: an unknown id and an already-deleted row both answer
+   * `not_found`, which callers treat as done. `forbidden` means the row exists,
+   * is live, and is not this application's federated media.
+   *
+   * The order is tombstone THEN purge. If the purge of the original throws, the
+   * row is already `deleted` (nothing serves it: every read path refuses
+   * non-active rows) and the error propagates so the caller sees a failure;
+   * the keys are logged for an operator. The opposite order could delete bytes
+   * of a row that then failed the authorization.
+   */
+  async deleteFederatedMediaForApp(
+    fileId: string,
+    appId: string,
+  ): Promise<FederatedMediaDeleteOutcome> {
+    const tombstoned = await tombstoneFederatedFileForApp(fileId, appId);
+
+    if (!tombstoned) {
+      const current = await findFileById(fileId);
+      if (!current || current.status === 'deleted') {
+        return 'not_found';
+      }
+      logger.warn('Refusing to delete asset via federated media delete: out of scope', {
+        fileId,
+        appId,
+        purpose: current.purpose,
+        systemOwner: current.systemOwner,
+        uploaderAppId:
+          typeof current.metadata?.serviceAppId === 'string' ? current.metadata.serviceAppId : null,
+      });
+      return 'forbidden';
+    }
+
+    fileCache.invalidate(fileId);
+
+    try {
+      await this.purgeStoredObjects(tombstoned);
+    } catch (error) {
+      logger.error('Federated media tombstoned but its original could not be deleted from storage', {
+        fileId,
+        storageKey: tombstoned.storageKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+
+    await this.notifyLinks(tombstoned, 'deleted', { reason: 'federated_source_deleted' });
+
+    return 'deleted';
   }
 
   /**

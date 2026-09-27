@@ -28,9 +28,9 @@
  * order twice in a row.
  */
 
-import { and, asc, count, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { fileLinks, fileVariants, files } from '../db/schema';
+import { fileLinks, fileVariants, files, users } from '../db/schema';
 import type { FileLinkRecord, FileRecord, FileVariantRecord, NewFileVariant } from '../types/file.types';
 
 /** Columns a caller may set when creating a file row. */
@@ -235,6 +235,59 @@ export async function insertFile(values: NewFile): Promise<FileRecord> {
 /** Apply a column patch and return the file as it now stands, or `null` if it is gone. */
 export async function updateFile(fileId: string, patch: FilePatch): Promise<FileRecord | null> {
   const rows = await getDb().update(files).set(patch).where(eq(files.id, fileId)).returning();
+  const [record] = await withChildren(rows);
+  return record ?? null;
+}
+
+/**
+ * Tombstone a federation-owned file on behalf of the application that uploaded
+ * it — the WHOLE authorization decision, taken in the one statement that writes.
+ *
+ * Every condition is part of the `UPDATE … WHERE`, not a read before it, so there
+ * is no window in which the row can change hands between being checked and being
+ * deleted (a check-then-write would let an ownership change land in the gap and
+ * have the write act on a row that no longer qualifies). The row qualifies only
+ * when it is:
+ *
+ *  - live (`status <> 'deleted'`; `trash` counts as live — it still holds bytes);
+ *  - owned by an account whose `type` is `'federated'`, read from `users` in the
+ *    same statement, so a local user's asset can never qualify. A non-null owner
+ *    also means the row is not system-owned: `files_owner_exclusive_check` makes
+ *    `owner_user_id` and `system_owner` mutually exclusive, so a separate
+ *    `system_owner IS NULL` term would be dead (it survived mutation);
+ *  - `purpose = 'user'`, which is what `POST /assets/service/federation` writes —
+ *    a cache-purpose row keeps its own eviction route;
+ *  - written by the federation upload path (`metadata.source = 'federation'`);
+ *  - uploaded by THIS application (`metadata.serviceAppId = appId`). The upload
+ *    route sets `serviceAppId` from the verified service token AFTER spreading the
+ *    caller's `x-media-metadata`, so a caller cannot forge another app's id.
+ *
+ * Returns the tombstoned row with its children, or `null` when nothing qualified
+ * (absent, already deleted, or out of scope — the caller tells them apart).
+ */
+export async function tombstoneFederatedFileForApp(
+  fileId: string,
+  appId: string,
+): Promise<FileRecord | null> {
+  const federatedOwners = getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.type, 'federated'));
+
+  const rows = await getDb()
+    .update(files)
+    .set({ status: 'deleted' })
+    .where(
+      and(
+        eq(files.id, fileId),
+        ne(files.status, 'deleted'),
+        eq(files.purpose, 'user'),
+        inArray(files.ownerUserId, federatedOwners),
+        sql`${files.metadata}->>'source' = 'federation'`,
+        sql`${files.metadata}->>'serviceAppId' = ${appId}`,
+      ),
+    )
+    .returning();
   const [record] = await withChildren(rows);
   return record ?? null;
 }

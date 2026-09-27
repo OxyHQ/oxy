@@ -25,6 +25,10 @@ import {
   assetsBySha256BodySchema,
   linkFileSchema,
   unlinkFileSchema,
+  federatedAssetDeleteBodySchema,
+  federatedAssetDeleteResult,
+  federatedAssetDeleteResponse,
+  federatedAssetBatchDeleteResponse,
 } from '../schemas/assets.schemas';
 import { generateMissingFilePlaceholder, TRANSPARENT_PNG_PLACEHOLDER } from '../utils/placeholders';
 import {
@@ -990,6 +994,134 @@ router.delete(
     });
 
     sendSuccess(res, { message: 'Cached asset deleted successfully' });
+  })
+);
+
+/**
+ * Per-app limiter for federated media deletes (single and batch share it). Its
+ * own prefix, so it neither double-counts with nor borrows from the cache
+ * eviction budget. A batch is ONE request here but up to
+ * {@link MAX_FEDERATED_ASSET_DELETE_IDS} deletes, which the schema bounds.
+ */
+const federationDeleteLimiter = rateLimit({
+  prefix: 'rl:asset-federation:delete:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: CACHE_DELETE_MAX_PER_MINUTE,
+  message: 'Too many federated media deletions. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-federation:delete:${serviceApp.appId}`;
+    }
+    return `asset-federation:delete:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/**
+ * Both scopes, like `/service/user-media`'s original pair: `files:write` is the
+ * scope the matching upload (`POST /service/federation`) requires, and
+ * `federation:write` — privileged, staff-granted — is what makes acting on a
+ * federated account's content a platform decision rather than a self-grant.
+ * The row-level bound (only media THIS app uploaded, owned by a federated
+ * account) is enforced in the delete itself; the scopes gate who may ask.
+ */
+function requireFederatedDeleteScopes(req: ServiceAuthRequest): string {
+  requireServiceScope(req, 'files:write');
+  requireServiceScope(req, 'federation:write');
+  const appId = req.serviceApp?.appId;
+  if (typeof appId !== 'string' || appId.length === 0) {
+    throw new ForbiddenError('Service token carries no application id');
+  }
+  return appId;
+}
+
+/** One audit line per id — the record of who removed which federated object. */
+function auditFederatedDelete(
+  req: ServiceAuthRequest,
+  fileId: string,
+  result: z.infer<typeof federatedAssetDeleteResult>,
+): void {
+  const fields = {
+    event: 'federated_media_delete',
+    appId: req.serviceApp?.appId,
+    appName: req.serviceApp?.appName,
+    credentialId: req.serviceApp?.credentialId,
+    fileId,
+    result,
+  };
+  if (result === 'forbidden') {
+    logger.warn('Audit: federated media delete refused', fields);
+  } else {
+    logger.info('Audit: federated media delete', fields);
+  }
+}
+
+/**
+ * @route DELETE /api/assets/service/federation/:id
+ * @desc Delete durable federated media (created by `POST /service/federation`)
+ *       when its federated source is gone. Only a live asset owned by a
+ *       federated account AND uploaded by the calling application qualifies;
+ *       anything else is a 403 and is left untouched. The original, every
+ *       variant and HLS segment are removed from storage and the row is
+ *       tombstoned. Idempotent: an unknown or already-deleted id answers 200
+ *       with `result: "not_found"`.
+ * @access Service token only (requires files:write and federation:write)
+ * @response 200 federatedAssetDeleteResponse `deleted`, or `not_found` when there was nothing to delete.
+ * @response 403 Error Missing scope, or the asset is not this application's federated media.
+ */
+router.delete(
+  '/service/federation/:id',
+  serviceAuthMiddleware,
+  federationDeleteLimiter,
+  validate({ params: assetIdParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = requireFederatedDeleteScopes(req);
+    const { id: fileId } = req.params;
+
+    const result = await assetService.deleteFederatedMediaForApp(fileId, appId);
+    auditFederatedDelete(req, fileId, result);
+
+    if (result === 'forbidden') {
+      throw new ForbiddenError('Asset is not federated media uploaded by this application');
+    }
+
+    const body: z.infer<typeof federatedAssetDeleteResponse> = { data: { id: fileId, result } };
+    res.status(200).json(body);
+  })
+);
+
+/**
+ * @route POST /api/assets/service/federation/delete
+ * @desc Batch form of `DELETE /service/federation/:id` for up to 50 ids (e.g.
+ *       every media object and poster of one deleted federated post). Always
+ *       200; each distinct id gets its own `deleted` / `not_found` /
+ *       `forbidden` result, so one out-of-scope id never blocks the rest.
+ * @access Service token only (requires files:write and federation:write)
+ * @response 200 federatedAssetBatchDeleteResponse One result per distinct id, in request order.
+ * @response 403 Error Missing scope.
+ */
+router.post(
+  '/service/federation/delete',
+  serviceAuthMiddleware,
+  federationDeleteLimiter,
+  validate({ body: federatedAssetDeleteBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = requireFederatedDeleteScopes(req);
+    const { ids } = req.body as z.infer<typeof federatedAssetDeleteBodySchema>;
+
+    // Sequential on purpose: each id is a conditional write plus a handful of
+    // S3 deletes, and the batch cap keeps the total bounded. A failure (an S3
+    // outage) propagates as a 5xx; ids already processed stay processed, and a
+    // retry of the whole batch is safe because every step is idempotent.
+    const results: Array<{ id: string; result: z.infer<typeof federatedAssetDeleteResult> }> = [];
+    for (const fileId of [...new Set(ids)]) {
+      const result = await assetService.deleteFederatedMediaForApp(fileId, appId);
+      auditFederatedDelete(req, fileId, result);
+      results.push({ id: fileId, result });
+    }
+
+    const body: z.infer<typeof federatedAssetBatchDeleteResponse> = { data: { results } };
+    res.status(200).json(body);
   })
 );
 

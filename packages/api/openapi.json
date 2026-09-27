@@ -5140,6 +5140,267 @@
         "operationId": "postAssetsServiceFederation"
       }
     },
+    "/assets/service/federation/delete": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Batch form of `DELETE /service/federation/:id` for up to 50 ids (e.g.",
+        "description": "every media object and poster of one deleted federated post). Always\n      200; each distinct id gets its own `deleted` / `not_found` /\n      `forbidden` result, so one out-of-scope id never blocks the rest.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "One result per distinct id, in request order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "results": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "result": {
+                                "type": "string",
+                                "enum": [
+                                  "deleted",
+                                  "not_found",
+                                  "forbidden"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "result"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "results"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "minItems": 1,
+                    "maxItems": 50
+                  }
+                },
+                "required": [
+                  "ids"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAssetsServiceFederationDelete"
+      }
+    },
+    "/assets/service/federation/{id}": {
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Delete durable federated media (created by `POST /service/federation`)",
+        "description": "when its federated source is gone. Only a live asset owned by a\n      federated account AND uploaded by the calling application qualifies;\n      anything else is a 403 and is left untouched. The original, every\n      variant and HLS segment are removed from storage and the row is\n      tombstoned. Idempotent: an unknown or already-deleted id answers 200\n      with `result: \"not_found\"`.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`deleted`, or `not_found` when there was nothing to delete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "result": {
+                          "type": "string",
+                          "enum": [
+                            "deleted",
+                            "not_found"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "result"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope, or the asset is not this application's federated media.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "deleteAssetsServiceFederationId"
+      }
+    },
     "/assets/service/linked-url": {
       "post": {
         "tags": [

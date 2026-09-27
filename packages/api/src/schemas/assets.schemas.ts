@@ -53,6 +53,58 @@ export const batchAccessSchema = z.object({
   context: z.string().optional(),
 });
 
+// Maximum number of ids accepted by POST /assets/service/federation/delete.
+// One federated post carries at most a few dozen media objects (each video adds
+// a poster), so 50 covers a post — or a small reconcile batch — in one call,
+// while keeping one request's S3 fan-out bounded.
+export const MAX_FEDERATED_ASSET_DELETE_IDS = 50;
+
+// POST /assets/service/federation/delete
+export const federatedAssetDeleteBodySchema = z
+  .object({
+    ids: z
+      .array(z.string().trim().min(1).max(128))
+      .min(1, 'ids must not be empty')
+      .max(
+        MAX_FEDERATED_ASSET_DELETE_IDS,
+        `Cannot delete more than ${MAX_FEDERATED_ASSET_DELETE_IDS} assets at once`,
+      ),
+  })
+  .strict();
+
+/**
+ * Per-id outcome of a federated media delete.
+ *  - `deleted`   — this call tombstoned the row and purged its S3 objects.
+ *  - `not_found` — no live row (unknown id, or already deleted): nothing to do,
+ *                  and safe to treat as done. Deliberately a 200 result, not an
+ *                  HTTP 404, so "already gone" can never be confused with a
+ *                  missing route on an older API.
+ *  - `forbidden` — the row is live but is not federation media uploaded by the
+ *                  calling application; nothing was touched.
+ */
+export const federatedAssetDeleteResult = z.enum(['deleted', 'not_found', 'forbidden']);
+
+const federatedAssetDeleteItem = z.object({
+  id: z.string(),
+  result: federatedAssetDeleteResult,
+});
+
+// DELETE /assets/service/federation/:id — a `forbidden` outcome is a 403 instead,
+// so the 200 body only ever carries the two success-ish results.
+export const federatedAssetDeleteResponse = z.object({
+  data: z.object({
+    id: z.string(),
+    result: z.enum(['deleted', 'not_found']),
+  }),
+});
+
+// POST /assets/service/federation/delete — always 200; one result per distinct id.
+export const federatedAssetBatchDeleteResponse = z.object({
+  data: z.object({
+    results: z.array(federatedAssetDeleteItem),
+  }),
+});
+
 // Maximum number of ids accepted by POST /assets/service/by-ids in a single
 // request. Mirrors the POST /users/by-ids cap so a single service call can
 // resolve all media of one post at once without unbounded fan-out.
