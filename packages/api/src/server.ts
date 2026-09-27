@@ -131,6 +131,10 @@ import {
   startStorageDeletionWorker,
   stopStorageDeletionWorker,
 } from './services/accountStorageDeletion.worker';
+import {
+  startModerationReconcileWorker,
+  stopModerationReconcileWorker,
+} from './services/moderationReconcile.worker';
 import { flushCdnInvalidations } from './services/cdnInvalidation';
 import {
   startNormalizedEventOutboxWorker,
@@ -498,6 +502,7 @@ async function gracefulShutdown(signal: string) {
   stopNormalizedEventOutboxWorker();
   stopAccountEventWebhookWorker();
   stopStorageDeletionWorker();
+  stopModerationReconcileWorker();
   await flushCdnInvalidations();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
@@ -1349,6 +1354,9 @@ export async function bootstrap(
   // Delete a deleted account's stored uploads (OxyHQ/Mention#1178). ON by
   // default: see `startStorageDeletionWorker`.
   startStorageDeletionWorker();
+  // Repair partially applied moderation consequences — by the system, on a
+  // schedule, never by a person choosing whose standing to touch.
+  startModerationReconcileWorker();
 
   // Start background jobs: durable BullMQ scheduling when REDIS_URL is set,
   // otherwise the in-process cron fallback. Never throws.
