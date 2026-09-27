@@ -9,16 +9,18 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { EMAIL_CODE_LENGTH, type ReauthAction, type ReauthProof } from '@oxy.so/contracts';
+import { EMAIL_CODE_LENGTH, TOTP_DIGITS, type ReauthAction, type ReauthProof } from '@oxy.so/contracts';
 import { useOxy } from '../../context/OxyContext';
 import { useI18n } from '../../hooks/useI18n';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
 import {
   AccountFlowAction,
+  AccountFlowCodeField,
   AccountFlowErrorLine,
   AccountFlowField,
   AccountFlowNote,
+  BACKUP_CODE_LENGTH,
   describeSignInError,
 } from './accountFlowParts';
 
@@ -64,6 +66,7 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
   const [emailCode, setEmailCode] = useState('');
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
+  const [useBackupCode, setUseBackupCode] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -138,17 +141,13 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
       ) : verificationId ? (
         <>
           <AccountFlowNote>{t('reauth.codeSent')}</AccountFlowNote>
-          <AccountFlowField
+          <AccountFlowCodeField
             label={t('reauth.codeLabel')}
             value={emailCode}
-            onChange={(value) => setEmailCode(value.replace(/\D/g, '').slice(0, EMAIL_CODE_LENGTH))}
-            onSubmit={submit}
+            onChange={setEmailCode}
             error={null}
             disabled={pending}
-            placeholder="000000"
-            autoComplete="one-time-code"
-            keyboardType="number-pad"
-            maxLength={EMAIL_CODE_LENGTH}
+            length={EMAIL_CODE_LENGTH}
             testID="reauth-code"
           />
         </>
@@ -156,19 +155,32 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
         <AccountFlowNote>{t('reauth.emailDescription')}</AccountFlowNote>
       )}
       {totpEnabled && !needsCode ? (
-        <AccountFlowField
-          label={t('reauth.totpLabel')}
-          value={totpCode}
-          onChange={setTotpCode}
-          onSubmit={submit}
-          error={null}
-          disabled={pending}
-          placeholder="000000"
-          autoComplete="one-time-code"
-          autoFocus={false}
-          maxLength={11}
-          testID="reauth-totp"
-        />
+        <>
+          <AccountFlowCodeField
+            key={useBackupCode ? 'backup' : 'totp'}
+            label={useBackupCode ? t('signin.secondFactor.backupLabel') : t('signin.secondFactor.label')}
+            value={totpCode}
+            onChange={setTotpCode}
+            error={null}
+            disabled={pending}
+            length={useBackupCode ? BACKUP_CODE_LENGTH : TOTP_DIGITS}
+            type={useBackupCode ? 'alphanumeric' : 'numeric'}
+            groupEvery={useBackupCode ? BACKUP_CODE_LENGTH / 2 : undefined}
+            autoFocus={false}
+            testID="reauth-totp"
+          />
+          <SubtleLink
+            label={useBackupCode ? t('signin.secondFactor.useAuthenticator') : t('signin.secondFactor.useBackup')}
+            theme={theme}
+            onPress={() => {
+              setUseBackupCode(!useBackupCode);
+              setTotpCode('');
+              setError(null);
+            }}
+            disabled={pending}
+            testID="reauth-toggle-backup"
+          />
+        </>
       ) : null}
       {error ? <AccountFlowErrorLine message={error} /> : null}
       <AccountFlowAction

@@ -56,6 +56,8 @@ const dict = {
       "description": "{{identifier}}와(과) 일치하는 계정이 있다면 코드와 로그인 링크를 보냈습니다.",
       "codeLabel": "코드",
       "codeHint": "이메일의 코드를 입력하거나 이 브라우저에서 이메일의 링크를 여세요.",
+      "codeHasLetters": "코드에 문자가 포함되어 있나요?",
+      "codeDigitsOnly": "코드가 숫자로만 되어 있나요?",
       "resend": "새 이메일 보내기",
       "resendIn": "{{seconds}}초 후 새 이메일 보내기",
       "resent": "새 이메일을 보냈습니다.",
@@ -337,7 +339,6 @@ const dict = {
     "passwordLabel": "현재 비밀번호",
     "usePassword": "비밀번호 사용하기",
     "useEmail": "이메일로 코드 받기",
-    "totpLabel": "인증 코드 또는 백업 코드",
     "errors": {
       "invalid": "확인하지 못했습니다. 입력한 내용을 확인하고 다시 시도하세요.",
       "totpRequired": "인증 앱의 코드도 입력하세요."

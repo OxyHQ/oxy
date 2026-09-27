@@ -1,5 +1,31 @@
 # Changelog
 
+## [8.2.0] - 2026-09-27
+
+### Changed
+
+- Every one-time code in the sign-in and account screens is Bloom's
+  `InputOtp` (one box per character), named by its `Field` label: the
+  sign-in "Check your email" code, the second step's authenticator code and
+  backup code, the sign-up email code, "Confirm it's you" (email code and
+  authenticator code) and the authenticator set-up code. The sign-in, sign-up
+  and second-step codes submit themselves once every box is filled; the
+  confirm-it's-you and set-up codes still wait for the screen's own action.
+- "Check your email" is six digit boxes. "Does your code have letters?" turns
+  it into ten characters in two groups of five for the long code an account
+  past its daily guessing ceiling is sent (`XXXXX-XXXXX`; a pasted code with
+  its dash fills every box), and "Is your code only numbers?" turns it back.
+  The choice survives a remount of the dialog (`signInFlowStore`).
+- A backup code is ten characters in two groups of five, in the second step
+  and now in "Confirm it's you" too, which gains the same "Use a backup code"
+  / "Use your authenticator app" switch instead of one field for either.
+- Requires `@oxy.so/bloom` `^4.31.0` (`InputOtp type="alphanumeric"`) and
+  `@oxy.so/core` `^3.1.0` (the new strings).
+
+### Removed
+
+- `formatSignInCodeInput` (internal): the field cleans what is typed.
+
 ## [8.1.1] - 2026-09-27
 
 ### Changed
