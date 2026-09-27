@@ -10,7 +10,7 @@ import { resolutionFailure, safeActorSelector, type ActorProfileResult } from '.
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { eq } from 'drizzle-orm';
-import { signRequest, canonicalFederationHost, federatedUsernameFromUpstreamUrl, normalizeAlsoKnownAs } from '@oxy.so/federation';
+import { signRequest, canonicalFederationHost, createUrlBuilders, federatedUsernameFromUpstreamUrl, INSTANCE_ACTOR_USERNAME, normalizeAlsoKnownAs } from '@oxy.so/federation';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { federationKeyPairs } from '../db/schema/federationKeyPairs';
@@ -610,8 +610,12 @@ function buildActor(opts: BuildActorOptions): Record<string, unknown> {
   const aliases = normalizeAlsoKnownAs(opts.alsoKnownAs);
   const base = `https://${domain}/ap`;
 
+  // The one builder the WebFinger `self` link also uses: Mastodon compares the
+  // two byte for byte before it trusts a signed fetch.
+  const actorUrlFor = createUrlBuilders(domain).actor;
+
   if (username === null) {
-    const actorUrl = `${base}/users/instance`;
+    const actorUrl = actorUrlFor(INSTANCE_ACTOR_USERNAME);
     return {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -619,7 +623,7 @@ function buildActor(opts: BuildActorOptions): Record<string, unknown> {
       ],
       id: actorUrl,
       type: 'Application',
-      preferredUsername: 'instance',
+      preferredUsername: INSTANCE_ACTOR_USERNAME,
       name,
       summary: summary ?? '',
       url: `https://${domain}`,
@@ -634,7 +638,7 @@ function buildActor(opts: BuildActorOptions): Record<string, unknown> {
     };
   }
 
-  const actorUrl = `${base}/users/${username}`;
+  const actorUrl = actorUrlFor(username);
   return {
     // The alias term is declared only when an alias is emitted, so an actor
     // without aliases keeps exactly the context it always had.

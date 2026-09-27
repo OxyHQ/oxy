@@ -9,8 +9,7 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import request from 'supertest';
 import { createWebfingerHandler } from '../webfinger';
 
 interface FakeUser {
@@ -26,40 +25,16 @@ const USERS: FakeUser[] = [
 const findUserByUsername = jest.fn(async (username: string) => USERS.find((user) => user.username === username));
 const logger = { error: jest.fn() };
 
-let server: http.Server;
+const app = express();
+app.get('/.well-known/webfinger', createWebfingerHandler<FakeUser>({
+  domain: 'oxy.so',
+  isOwnFederationDomain: (domain) => domain === 'oxy.so' || domain === 'api.oxy.so',
+  findUserByUsername,
+  isFederatableUser: (user) => user.federatable,
+  logger,
+}));
 
-function get(path: string): Promise<{ status: number; contentType?: string; body: Record<string, unknown> }> {
-  const address = server.address() as AddressInfo;
-  return new Promise((resolve, reject) => {
-    http.get({ host: '127.0.0.1', port: address.port, path }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => {
-        raw += chunk;
-      });
-      res.on('end', () => resolve({
-        status: res.statusCode ?? 0,
-        contentType: res.headers['content-type'],
-        body: JSON.parse(raw) as Record<string, unknown>,
-      }));
-    }).on('error', reject);
-  });
-}
-
-beforeAll((done) => {
-  const app = express();
-  app.get('/.well-known/webfinger', createWebfingerHandler<FakeUser>({
-    domain: 'oxy.so',
-    isOwnFederationDomain: (domain) => domain === 'oxy.so' || domain === 'api.oxy.so',
-    findUserByUsername,
-    isFederatableUser: (user) => user.federatable,
-    logger,
-  }));
-  server = app.listen(0, '127.0.0.1', done);
-});
-
-afterAll((done) => {
-  server.close(done);
-});
+const get = (path: string) => request(app).get(path);
 
 beforeEach(() => {
   findUserByUsername.mockClear();
@@ -71,7 +46,7 @@ describe('GET /.well-known/webfinger', () => {
     const res = await get('/.well-known/webfinger?resource=acct:instance@oxy.so');
 
     expect(res.status).toBe(200);
-    expect(res.contentType).toMatch(/^application\/jrd\+json/);
+    expect(res.headers['content-type']).toMatch(/^application\/jrd\+json/);
     expect(res.body).toEqual({
       subject: 'acct:instance@oxy.so',
       links: [{ rel: 'self', type: 'application/activity+json', href: 'https://oxy.so/ap/users/instance' }],

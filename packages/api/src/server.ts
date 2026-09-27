@@ -880,6 +880,7 @@ app.use('/nodes', nodeRoutes);
 import { getInstanceActor, getUserActor, isOwnFederationDomain } from './services/federation.service';
 import federationRoutes from './routes/federation';
 import { createWebfingerHandler } from './routes/webfinger';
+import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '@oxy.so/federation';
 
 // Federation domain constant — used by nodeinfo, webfinger, and actor endpoints
 const AP_DOMAIN = process.env.FEDERATION_DOMAIN || 'oxy.so';
@@ -948,7 +949,7 @@ app.get('/ap/users/:username', async (req: any, res: Response) => {
     const { username } = req.params;
 
     // Instance actor
-    if (username === 'instance') {
+    if (normalizeActorUsername(username) === INSTANCE_ACTOR_USERNAME) {
       const actor = await getInstanceActor();
       res.setHeader('Content-Type', 'application/activity+json');
       res.setHeader('Cache-Control', 'max-age=1800');
