@@ -86,7 +86,6 @@ jobs:
           SYNC_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SYNC_AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           SYNC_AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
-          SYNC_REDIS_URL: ${{ secrets.REDIS_URL }}
           SYNC_STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           SYNC_STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           SYNC_GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
@@ -115,7 +114,12 @@ jobs:
           # Do not iterate over the entire GitHub secrets context: this repository also contains
           # credentials for other systems (Cloudflare, unrelated deployments,
           # etc.) that must not be copied into the API's SSM namespace.
-          SHARED_SECRETS="AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY REDIS_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET"
+          # REDIS_URL is deliberately absent: /oxy/_shared/REDIS_URL is owned by
+          # oxy-infra Terraform (terraform-uswest2/redis.tf), and an app deploy
+          # must never write a shared parameter. Six repos each copied their own
+          # secrets.REDIS_URL into it, two held different values, and every
+          # deploy flipped it between Redis clusters (incident 2026-09-27).
+          SHARED_SECRETS="AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY LIVEKIT_API_KEY LIVEKIT_API_SECRET"
           API_SECRETS="ACCESS_TOKEN_SECRET REFRESH_TOKEN_SECRET SSO_INTERNAL_SECRET DATABASE_URL AWS_S3_BUCKET AWS_ENDPOINT_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET GITHUB_CLIENT_SECRET SMTP_TLS_KEY SMTP_TLS_CERT SMTP_RELAY_USER SMTP_RELAY_PASS EMAIL_INBOUND_WEBHOOK_SECRET DKIM_PRIVATE_KEY EMAIL_S3_ACCESS_KEY_ID EMAIL_S3_SECRET_ACCESS_KEY DEVICE_ID_SALT OXY_PUBLIC_KEY OXY_PRIVATE_KEY KAANA_EDGE_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_KEY_ID META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID"
 
           for k in $SHARED_SECRETS $API_SECRETS; do
@@ -128,10 +132,6 @@ jobs:
             # took the API down in the 2026-06-12 incident.
             if [ -z "$v" ] || [ "$v" = "-" ]; then
               echo "::warning::skip empty/placeholder secret $k (value=${v:-<empty>}); SSM unchanged"
-              continue
-            fi
-            if [ "$k" = "REDIS_URL" ] && [ "$AWS_REGION" = "us-west-2" ] && ! printf '%s' "$v" | grep -q '\.usw2\.cache\.amazonaws\.com'; then
-              echo "::warning::skip REDIS_URL because it does not point at the us-west-2 Valkey endpoint; SSM unchanged"
               continue
             fi
             case " $SHARED_SECRETS " in *" $k "*) path="/oxy/_shared/$k";; *) path="/oxy/$APP/$k";; esac
