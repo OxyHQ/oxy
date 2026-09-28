@@ -954,6 +954,11 @@ jobs:
         if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
         run: bun run test
         working-directory: ./packages/protocol
+      # Stickers SDK (needs only contracts)
+      - name: 'Stickers Tests: lint, typecheck, build, test'
+        if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
+        run: bun run lint && bun run typescript && bun run build && bun run test
+        working-directory: ./packages/stickers
 
       # Core SDK tests (Jest — build contracts + protocol first)
       - name: Build protocol
