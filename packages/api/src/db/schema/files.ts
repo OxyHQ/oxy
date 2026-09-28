@@ -83,7 +83,7 @@ export const FILE_VISIBILITIES = ['private', 'public', 'unlisted'] as const;
 export type FileVisibility = (typeof FILE_VISIBILITIES)[number];
 
 /** Classification of what the asset is FOR. */
-export const FILE_PURPOSES = ['user', 'federation-media-cache'] as const;
+export const FILE_PURPOSES = ['user', 'federation-media-cache', 'sticker'] as const;
 
 /**
  * System namespaces that own an asset instead of a user.
@@ -112,6 +112,8 @@ export const FILE_PURPOSES = ['user', 'federation-media-cache'] as const;
 export const FILE_SYSTEM_OWNERS = [
   '__federation__',
   '__federation_media_cache__',
+  // The sticker catalogue's animations and fallbacks (`schema/stickers.ts`).
+  '__stickers__',
 ] as const;
 
 export const files = pgTable(

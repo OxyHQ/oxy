@@ -127,6 +127,7 @@
         "@aws-sdk/client-s3": "^3.1087.0",
         "@aws-sdk/lib-storage": "3.1076.0",
         "@aws-sdk/s3-request-presigner": "^3.1087.0",
+        "@lottiefiles/dotlottie-web": "0.80.0",
         "@opentelemetry/api": "^1.9.1",
         "@opentelemetry/auto-instrumentations-node": "^0.80.0",
         "@opentelemetry/exporter-metrics-otlp-http": "^0.222.0",
@@ -439,7 +440,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "4.2.0",
+      "version": "4.3.0",
       "dependencies": {
         "zod": "^3.25.64",
       },

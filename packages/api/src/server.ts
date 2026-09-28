@@ -19,6 +19,7 @@ import walletRoutes from './routes/wallet.routes';
 import reputationRoutes from './routes/reputation.routes';
 import moderationReputationRoutes from './routes/moderationReputation.routes';
 import storeRoutes from './routes/store';
+import stickerRoutes from './routes/stickers';
 import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
 import accountSecurityRoutes from './routes/accountSecurity';
@@ -744,6 +745,9 @@ app.use('/wallet', userRateLimiter, walletRoutes);
 // inside it — a blanket middleware here would lock the storefront or leave the
 // reviews open.
 app.use('/store', storeRoutes);
+// Stickers: the same shape — a public catalogue and per-route guards for the
+// signed-in picker and the staff tools.
+app.use('/stickers', stickerRoutes);
 app.use('/location-search', locationSearchRoutes);
 app.use('/applications', applicationRoutes);
 // Service-to-service only. The router gates ITSELF on a valid service token AND

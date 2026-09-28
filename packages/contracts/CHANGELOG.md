@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.3.0
+
+### Added
+
+- `stickers`: the wire contract of Oxy's shared sticker catalogue (`/stickers`).
+  `stickerSchema`, `stickerFileSchema`, `stickerPackSummarySchema`,
+  `stickerPackSchema`, `installedStickerPackSchema`, `stickerRefSchema` (how an
+  app stores or sends a sticker), the resolve, reorder and staff request
+  schemas, and the limits every uploaded animation is held to
+  (`STICKER_CANVAS_SIZES`, `STICKER_MAX_DURATION_MS`, …).
+
 ## 4.2.0
 
 ### Added
