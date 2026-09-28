@@ -185,6 +185,8 @@ export function formatProfileResult(u: RecommendationRow) {
     avatar: identity.avatar,
     // A row of recommendations draws each person the way their profile does.
     // Without it every client re-fetched each recommended user one by one.
+    // Every account has one (assigned at creation); a row built from a partial
+    // select simply omits it.
     ...(typeof u.color === 'string' && u.color ? { color: u.color } : {}),
     description: u.description,
     verified: u.verified === true,

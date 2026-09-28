@@ -470,18 +470,17 @@ describe('GET /profiles/recommendations — scored ranking', () => {
     expect(scores[1]).toBeGreaterThan(scores[2]);
   });
 
-  it('carries each account\'s accent colour, and nothing when it has none', async () => {
-    const coloured = await account({ username: handle('coloured'), avatar: 'file_a', color: 'teal' });
-    const plain = await account({ username: handle('plain'), avatar: 'file_b' });
-    const { viewer } = await viewerWithOverlap([coloured, plain]);
+  it('carries each account\'s accent colour', async () => {
+    const teal = await account({ username: handle('teal'), avatar: 'file_a', color: 'teal' });
+    const amber = await account({ username: handle('amber'), avatar: 'file_b', color: 'amber' });
+    const { viewer } = await viewerWithOverlap([teal, amber]);
     currentUserId = viewer;
 
     const res = await getRecommendations('?limit=50');
 
     const byId = new Map((res.body.data ?? []).map((row) => [row.id, row]));
-    expect(byId.get(coloured)?.color).toBe('teal');
-    expect(byId.get(plain)).toBeDefined();
-    expect(byId.get(plain)).not.toHaveProperty('color');
+    expect(byId.get(teal)?.color).toBe('teal');
+    expect(byId.get(amber)?.color).toBe('amber');
     expect(safeParseContract(recommendationResponseSchema, res.body.data)).not.toBeNull();
   });
 
@@ -747,6 +746,7 @@ describe('GET /profiles/recommendations — wire shape', () => {
       nameFirst: 'Rec',
       nameLast: 'Ommended',
       avatar: 'file_rec',
+      color: 'teal',
       description: 'a description',
       verified: true,
       reputationTier: 'trusted',
@@ -765,6 +765,7 @@ describe('GET /profiles/recommendations — wire shape', () => {
       username,
       name: { displayName: 'Rec Ommended', first: 'Rec', last: 'Ommended', full: 'Rec Ommended' },
       avatar: 'file_rec',
+      color: 'teal',
       description: 'a description',
       verified: true,
       trustTier: 'trusted',
