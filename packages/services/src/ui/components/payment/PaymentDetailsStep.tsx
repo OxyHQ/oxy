@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { View, Animated, TouchableOpacity, Clipboard, Linking } from 'react-native';
+import { View, Animated, TouchableOpacity, Linking } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import { Button } from '@oxy.so/bloom/button';
@@ -8,6 +8,7 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import FAIRWalletIcon from '../icon/FAIRWalletIcon';
 import { createPaymentStyles } from './paymentStyles';
 import { toast } from '@oxy.so/bloom/toast';
+import { copyText } from '../../utils/clipboard';
 import type { CardDetails, PaymentColors, PaymentStepAnimations } from './types';
 import { useI18n } from '../../hooks/useI18n';
 
@@ -43,8 +44,9 @@ const PaymentDetailsStep: React.FC<PaymentDetailsStepProps> = ({
     const { fadeAnim, slideAnim, scaleAnim } = animations;
 
     const handleCopyAddress = () => {
-        Clipboard.setString(faircoinAddress);
-        toast(t('payment.details.addressCopied'));
+        copyText(faircoinAddress)
+            .then(() => toast(t('payment.details.addressCopied')))
+            .catch(() => toast.error(t('appInfo.toasts.copyFailed')));
     };
 
     const handleOpenFairWallet = () => {

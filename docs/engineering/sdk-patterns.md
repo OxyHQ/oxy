@@ -96,3 +96,12 @@ Activated inside `FileManagementScreen` when `isImageOnlyPicker` is true. Apple 
 
 - BottomSheet pan context must use a **primitive** `SharedValue` (`contextY = useSharedValue(0)`), NEVER an object-valued SharedValue — object SharedValues mutated inside worklets crash under `react-native-worklets@0.8.3` (`removeListener` on UI thread).
 - `hooks/mergeRefs.ts` returns a plain `(instance: T|null) => void` (not `React.RefCallback`) so the ref stays assignable across duplicate `@types/react` copies (RN 0.85 / React 19).
+
+## Bloom's locale follows Oxy's language (services)
+
+`OxyProvider` wraps everything it renders, the app included, in Bloom's `LocaleProvider` (`BloomLocaleBridge`), set to `useOxy().currentLanguage`. Bloom's own words ("Show password", "Close", "Step 2 of 3") then speak the account's language without the app doing anything. The nearest provider wins in both directions:
+
+- an app that mounts `LocaleProvider` / `BloomProvider locale` ABOVE `OxyProvider` keeps it; the bridge reads the inherited locale and passes it through instead of overriding it;
+- one mounted INSIDE `OxyProvider` scopes its own subtree, as usual.
+
+This is separate from `OxyProvider language` (ADR 0022), which hands the language to the app's OWN i18n library. Gate: `src/ui/components/__tests__/BloomLocaleBridge.test.tsx`.

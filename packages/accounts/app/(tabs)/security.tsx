@@ -1,11 +1,10 @@
 import React from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { useColors } from '@/hooks/useColors';
-import { ThemedText } from '@/components/themed-text';
 import { ScreenHeader } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 import { useOxy, useUserDevices, useRecentSecurityActivity } from '@oxy.so/services';
-import { type DeviceRecord } from '@/utils/device-utils';
+import type { DeviceRecord } from '@/utils/device-utils';
 import { useTranslation } from '@/lib/i18n';
 import { useBiometricSettings } from '@/hooks/useBiometricSettings';
 import { SecurityRecommendationsSection } from '@/components/security/security-recommendations-section';
@@ -22,6 +21,7 @@ import { useDeviceItems } from '@/components/security/useDeviceItems';
 import { ActiveSessionsSection } from '@/components/security/active-sessions-section';
 import { useActiveSessions } from '@/components/security/useActiveSessions';
 import { ConnectedAppsSection } from '@/components/security/connected-apps-section';
+import { SecuritySkeleton } from '@/components/security/security-skeleton';
 
 export default function SecurityScreen() {
     const colors = useColors();
@@ -86,19 +86,13 @@ export default function SecurityScreen() {
 
     const { items: activeSessionsItems } = useActiveSessions({ sessions, logoutAll });
 
-    // Show loading state
-    if (oxyLoading || loading) {
-        return (
-            <ScreenContentWrapper>
-                <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
-                    <ActivityIndicator size="large" color={colors.tint} />
-                    <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('security.loading')}</ThemedText>
-                </View>
-            </ScreenContentWrapper>
-        );
-    }
+    // While the account and its devices load, the page keeps its header and
+    // shows the sections' shape (Bloom `Skeleton`) rather than a spinner.
+    const loadingContent = oxyLoading || loading;
 
-    const renderContent = () => (
+    const renderContent = () => loadingContent ? (
+        <SecuritySkeleton label={t('security.loading')} />
+    ) : (
         <>
             <SecurityRecommendationsSection items={securityRecommendations} />
 
@@ -150,15 +144,5 @@ const styles = StyleSheet.create({
     mobileContent: {
         padding: 16,
         paddingBottom: 120,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 16,
-    },
-    loadingText: {
-        fontSize: 16,
-        opacity: 0.7,
     },
 });

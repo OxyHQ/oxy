@@ -144,6 +144,7 @@ const dict = {
     "linkOpenFailed": "No s'ha pogut obrir l'enllaç. Torna-ho a provar."
   },
   "common": {
+    "stepOf": "Pas {{step}} de {{total}}",
     "actions": {
       "back": "Enrere",
       "continue": "Continuar",

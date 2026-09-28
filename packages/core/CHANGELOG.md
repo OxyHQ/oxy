@@ -1,5 +1,12 @@
 # Changelog — `@oxy.so/core`
 
+## 3.2.0
+
+### Added
+
+- `common.stepOf` ("Step {{step}} of {{total}}"), in all eleven locales: the
+  count under the sign-up and authenticator set-up progress bars.
+
 ## 3.1.0
 
 ### Added

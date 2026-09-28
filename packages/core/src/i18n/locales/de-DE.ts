@@ -144,6 +144,7 @@ const dict = {
     "linkOpenFailed": "Der Link konnte nicht geöffnet werden. Bitte versuchen Sie es erneut."
   },
   "common": {
+    "stepOf": "Schritt {{step}} von {{total}}",
     "actions": {
       "back": "Zurück",
       "continue": "Fortfahren",

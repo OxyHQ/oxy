@@ -12,12 +12,13 @@
 
 import type React from 'react';
 import { useState } from 'react';
+import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useOxy } from '../../context/OxyContext';
 import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { useI18n } from '../../hooks/useI18n';
 import { OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
 import { ReauthStep } from './ReauthStep';
-import { AccountFlowField, AccountFlowNote } from './accountFlowParts';
+import { AccountFlowField, AccountFlowNotice } from './accountFlowParts';
 
 export interface OxyDeleteAccountPanelProps {
   /** The account is gone and this origin signed out of it. */
@@ -45,7 +46,8 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({ on
   if (keyed) {
     return (
       <OxyAuthScreen>
-        <OxyAuthScreenHeader title={t('deleteAccount.handoff.commonsTitle')} description={t('deleteAccount.keyless.keyed')} />
+        <OxyAuthScreenHeader title={t('deleteAccount.handoff.commonsTitle')} />
+        <AccountFlowNotice testID="delete-account-keyed">{t('deleteAccount.keyless.keyed')}</AccountFlowNotice>
       </OxyAuthScreen>
     );
   }
@@ -65,6 +67,16 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({ on
       validate={() => (confirmText.trim() === username ? null : t('deleteAccount.confirmLabel', { username }))}
       onSubmit={async (proof) => {
         if (!proof.emailCode) throw new Error(t('reauth.errors.invalid'));
+        // The last word before it is gone: the proof is ready, and nothing has
+        // been sent yet. Cancelling keeps the screen as it is, code and all.
+        const confirmed = await surfaces.confirm({
+          title: t('deleteAccount.title'),
+          description: t('deleteAccount.warning'),
+          confirmLabel: t('deleteAccount.confirm'),
+          cancelLabel: t('common.cancel'),
+          destructive: true,
+        });
+        if (!confirmed) return;
         await oxyServices.users.deleteMe(confirmText.trim(), {
           reauth: {
             emailCode: proof.emailCode,
@@ -77,7 +89,9 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({ on
       }}
       secondary={onCancel ? { label: t('common.cancel'), onPress: onCancel } : undefined}
     >
-      <AccountFlowNote>{t('deleteAccount.warning')}</AccountFlowNote>
+      <AccountFlowNotice type="warning" testID="delete-account-warning">
+        {t('deleteAccount.warning')}
+      </AccountFlowNotice>
       <AccountFlowField
         label={t('deleteAccount.confirmLabel', { username })}
         value={confirmText}

@@ -942,6 +942,7 @@ const dict = {
     "noFollowingDesc": "When this user follows people, they will appear here."
   },
   "common": {
+    "stepOf": "Step {{step}} of {{total}}",
     "errors": {
       "signOutFailed": "There was a problem signing you out. Please try again.",
       "signOutAllFailed": "There was a problem signing out of all accounts. Please try again."

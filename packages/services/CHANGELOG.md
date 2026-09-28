@@ -1,5 +1,53 @@
 # Changelog
 
+## [8.4.0] - 2026-09-28
+
+Requires `@oxy.so/bloom` ^4.35.0 and `@oxy.so/core` ^3.2.0.
+
+### Added
+
+- Every password field has an eye button that shows and hides the password:
+  the sign-in password step, "Confirm it's you", and the new/repeat fields
+  when setting a password (Bloom `TextFieldInput revealable`). Pressing it
+  leaves focus in the field.
+- `OxyProvider` sets Bloom's locale (`@oxy.so/bloom/locale`) to Oxy's
+  language (`currentLanguage`), so Bloom's own words ("Show password",
+  "Close", "Step 2 of 3") follow the account. The nearest provider still wins:
+  a `LocaleProvider` or `BloomProvider locale` that the app mounts above
+  `OxyProvider` is kept, and one inside it overrides for its subtree.
+- Sign-up shows its three steps (username → email → code) as a Bloom
+  `WizardProgress` under each header. Setting up the authenticator shows two
+  (scan and confirm → backup codes).
+- Deleting an account without a key asks once more ("Delete Forever", a
+  destructive Bloom confirm) after the code is typed and before anything is
+  sent. Declining keeps the screen and the code.
+
+### Changed
+
+- The wait after too many attempts (429) is a warning notice (Bloom
+  `Admonition`) above the action it holds back, counting down. It is no
+  longer the field's error. "We sent a new code", "We sent a 6-digit code to
+  your email", the delete-account warning, and "This account uses Commons:
+  delete it in Oxy Commons" are notices too.
+- The backup codes are a Bloom `CodeBlock`, headed by their count, one code per line, with its own
+  copy button named "Copy codes". A refused copy says so and leaves the copy
+  glyph in place.
+- Copying (backup codes, the payment address, App info) uses the browser
+  Clipboard API on the web and `expo-clipboard` on iOS and Android.
+  `expo-clipboard` is a new OPTIONAL peer: without it, a copy on native
+  reports "Failed to copy to clipboard". React Native's deprecated
+  `Clipboard` is no longer used.
+- Subordinate links ("Send a new code", "Use your password instead", …) are
+  Bloom `LinkButton`s in the secondary tone, underlined under a pointer.
+- The account picker's activating row shows Bloom's animated `SpinnerIcon`
+  instead of a static glyph, and the current account's check sits in the
+  Bloom `Avatar`'s own `verified` slot. The loading states of the sign-in screens, the
+  Commons QR, linking Commons, a request being prepared, and a route still
+  loading use Bloom `Loading`/`SpinnerIcon` instead of React Native's
+  `ActivityIndicator`.
+- "Sign out everywhere else" (setting a password) is a Bloom `Field` that
+  names its switch.
+
 ## [8.3.0] - 2026-09-28
 
 ### Added

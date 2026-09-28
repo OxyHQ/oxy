@@ -1,7 +1,7 @@
 /**
  * The pieces every Oxy sign-in and account screen shares: the error vocabulary,
  * one labelled field, one one-time-code field, the one primary action, a note,
- * and the email-code step.
+ * a notice, and the email-code step.
  * Each screen is built from the same shell as `OxySignInPanel`
  * (`OxyAuthScreen`), so they read as one product in the account dialog, in an
  * app's settings and on auth.oxy.so.
@@ -10,12 +10,14 @@
 import type React from 'react';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
 import { Field } from '@oxy.so/bloom/field';
 import { InputOtp } from '@oxy.so/bloom/input-otp';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { TextField, TextFieldHint, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
+import { WizardProgress } from '@oxy.so/bloom/wizard';
 import {
   EMAIL_CODE_LENGTH,
   EMAIL_SIGNIN_LONG_CODE_ALPHABET,
@@ -119,7 +121,11 @@ export function isCompleteSignInCode(typed: string): boolean {
 /** Characters in a backup code (`xxxxx-xxxxx`, its dash not counted). */
 export const BACKUP_CODE_LENGTH = 10;
 
-/** One labelled input, the way the sign-in screen draws its fields. */
+/**
+ * One labelled input, the way the sign-in screen draws its fields. A
+ * `secureTextEntry` field is always revealable: Bloom's eye button shows and
+ * hides the password, named in the locale Bloom speaks (`OxyProvider` sets it).
+ */
 export const AccountFlowField: React.FC<{
   label: string;
   value: string;
@@ -161,6 +167,7 @@ export const AccountFlowField: React.FC<{
         autoComplete={autoComplete}
         keyboardType={keyboardType}
         secureTextEntry={secureTextEntry}
+        revealable={secureTextEntry}
         autoCapitalize="none"
         autoCorrect={false}
         autoFocus={autoFocus}
@@ -257,6 +264,44 @@ export const AccountFlowNote: React.FC<{ children: React.ReactNode; testID?: str
   );
 };
 
+/**
+ * Something the person should know before acting, above the action it is
+ * about: a wait before trying again, a code that was just sent, a warning. A
+ * Bloom `Admonition`, not a field's error hint — nothing they typed is wrong.
+ */
+export const AccountFlowNotice: React.FC<{
+  children: React.ReactNode;
+  type?: 'info' | 'warning' | 'error';
+  testID?: string;
+}> = ({ children, type = 'info', testID }) => (
+  <View testID={testID}>
+    <Admonition type={type}>{children}</Admonition>
+  </View>
+);
+
+/**
+ * Where a step sits in a flow of several (sign-up, turning on the
+ * authenticator): Bloom's segmented `WizardProgress` and "Step 2 of 3". The
+ * screen's own header names the step, so the progress draws no title; the
+ * titles still name the bar for assistive technology.
+ */
+export const AccountFlowProgress: React.FC<{ steps: readonly string[]; current: number; testID?: string }> = ({
+  steps,
+  current,
+  testID,
+}) => {
+  const { t } = useI18n();
+  return (
+    <WizardProgress
+      steps={steps.map((title, index) => ({ key: String(index), title }))}
+      current={current}
+      hideTitle
+      formatStepCount={(step, total) => t('common.stepOf', { step, total })}
+      testID={testID}
+    />
+  );
+};
+
 /** Why a step failed, where it happened. */
 export const AccountFlowErrorLine: React.FC<{ message: string }> = ({ message }) => {
   const theme = useTheme();
@@ -277,11 +322,19 @@ export interface EmailCodeStepProps {
   onResend: () => Promise<void>;
   /** "Use another email" / "Back" — the step before. */
   back: { label: string; onPress: () => void };
+  /** Where this step sits in a longer flow (a `WizardProgress`), under the header. */
+  progress?: React.ReactNode;
 }
 
 /** "Check your email": the 6-digit code an email verification sent. Submits itself once complete. */
-export const EmailCodeStep: React.FC<EmailCodeStepProps> = ({ description, verificationId, onConfirmed, onResend, back }) => {
-  const theme = useTheme();
+export const EmailCodeStep: React.FC<EmailCodeStepProps> = ({
+  description,
+  verificationId,
+  onConfirmed,
+  onResend,
+  back,
+  progress,
+}) => {
   const { t } = useI18n();
   const { oxyServices } = useOxy();
   const [code, setCode] = useState('');
@@ -317,6 +370,7 @@ export const EmailCodeStep: React.FC<EmailCodeStepProps> = ({ description, verif
   return (
     <OxyAuthScreen>
       <OxyAuthScreenHeader title={t('emailCode.title')} description={description} />
+      {progress}
       <AccountFlowCodeField
         label={t('emailCode.label')}
         value={code}
@@ -330,10 +384,10 @@ export const EmailCodeStep: React.FC<EmailCodeStepProps> = ({ description, verif
         length={EMAIL_CODE_LENGTH}
         testID="email-code"
       />
-      {notice ? <Text style={[styles.note, { color: theme.colors.textSecondary }]}>{notice}</Text> : null}
+      {notice ? <AccountFlowNotice testID="email-code-notice">{notice}</AccountFlowNotice> : null}
       <AccountFlowAction label={t('signin.actions.continue')} onPress={() => confirm(code)} pending={pending} testID="email-code-continue" />
-      <SubtleLink label={t('emailCode.resend')} theme={theme} onPress={resend} disabled={pending} testID="email-code-resend" />
-      <SubtleLink label={back.label} theme={theme} onPress={back.onPress} disabled={pending} testID="email-code-back" />
+      <SubtleLink label={t('emailCode.resend')} onPress={resend} disabled={pending} testID="email-code-resend" />
+      <SubtleLink label={back.label} onPress={back.onPress} disabled={pending} testID="email-code-back" />
     </OxyAuthScreen>
   );
 };

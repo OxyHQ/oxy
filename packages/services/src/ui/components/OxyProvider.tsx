@@ -15,6 +15,7 @@ import { isNetConnectivityOnline } from '../utils/netConnectivity';
 import { KeyboardBoundary } from './KeyboardBoundary';
 import { ProductAnalyticsObserver } from '../analytics/productAnalytics';
 import { LanguageBridge } from './LanguageBridge';
+import { BloomLocaleBridge } from './BloomLocaleBridge';
 
 const bootStyles = StyleSheet.create({
     providerRoot: {
@@ -229,6 +230,8 @@ const OxyProvider: FC<OxyProviderProps> = ({
     // (defaultColorPreset, defaultMode, persistKey, storage, fonts, etc.).
     // OxyProvider does NOT wrap a BloomThemeProvider — that would create a
     // duplicate scope that silently shadows the consumer's configuration.
+    // It DOES set Bloom's locale (`BloomLocaleBridge`) to Oxy's language, but
+    // defers to a locale the app already set above it.
     const coreContent = (
         <QueryClientProvider client={queryClient}>
             <OxyRuntimeProvider
@@ -248,14 +251,16 @@ const OxyProvider: FC<OxyProviderProps> = ({
             >
                 {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
                 {language ? <LanguageBridge {...language} /> : null}
-                <SurfaceProvider>
-                    {requireAuth === 'off' ? (
-                        children
-                    ) : (
-                        <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
-                    )}
-                </SurfaceProvider>
-                <ToastOutlet />
+                <BloomLocaleBridge>
+                    <SurfaceProvider>
+                        {requireAuth === 'off' ? (
+                            children
+                        ) : (
+                            <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
+                        )}
+                    </SurfaceProvider>
+                    <ToastOutlet />
+                </BloomLocaleBridge>
             </OxyRuntimeProvider>
         </QueryClientProvider>
     );

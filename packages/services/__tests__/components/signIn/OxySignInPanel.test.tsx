@@ -486,7 +486,13 @@ describe('"Check your email" — the code or the link', () => {
     await reachCheckEmail();
     type('signin-code', '111111');
 
-    await waitFor(() => expect(alertText()).toBe('Too many attempts. Try again in 42s.'));
+    // A wait, not a wrong code: a warning notice above Continue, and the field
+    // carries no error of its own.
+    const notice = await screen.findByTestId('signin-rate-limit');
+    expect(notice.textContent).toBe('Too many attempts. Try again in 42s.');
+    expect(notice.querySelector('[role="note"]')?.getAttribute('data-admonition-type')).toBe('warning');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(notice.compareDocumentPosition(screen.getByTestId('signin-code-continue')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect((screen.getByTestId('signin-code-continue') as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -579,6 +585,9 @@ describe('the password, instead of the email', () => {
     renderPanel();
     await reachCheckEmail('ada');
     press('signin-use-password');
+    // A password field the person can show (Bloom's eye), not a bare secure input.
+    expect(screen.getByTestId('signin-password').getAttribute('type')).toBe('password');
+    expect(screen.getByTestId('signin-password').getAttribute('data-revealable')).toBe('true');
     type('signin-password', 'correct horse battery');
     press('signin-password-continue');
 
