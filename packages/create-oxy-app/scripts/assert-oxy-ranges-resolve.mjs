@@ -22,6 +22,7 @@ import { execFile } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { assertPublishedBloomPair } from './assert-bloom-pair.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -102,9 +103,11 @@ async function main() {
   }
 
   const failures = [];
+  const resolved = new Map();
   for (const [spec, sites] of specs) {
     try {
       const version = await resolve(spec);
+      resolved.set(spec, version);
       console.log(`ok  ${spec} -> ${version}   (${sites.join(', ')})`);
     } catch (error) {
       failures.push(`${error.message}   named by ${sites.join(', ')}`);
@@ -112,15 +115,26 @@ async function main() {
     }
   }
 
+  if (failures.length === 0) {
+    try {
+      await assertPublishedBloomPair(resolved, async (spec, field) => {
+        const { stdout } = await execFileAsync('npm', ['view', spec, field, '--json'], { encoding: 'utf8' });
+        return JSON.parse(stdout);
+      });
+    } catch (error) {
+      failures.push(`Published Services/Bloom pair is incompatible or could not be verified: ${error.message}`);
+    }
+  }
+
   if (failures.length > 0) {
     for (const failure of failures) console.error(`::error::${failure}`);
     console.error(
-      `::error::${failures.length} generated range(s) do not resolve on the public registry — a scaffolded app cannot install. Fix packages/create-oxy-app/src/versions.ts.`,
+      `::error::${failures.length} generated dependency check(s) failed — public resolution and Services/Bloom compatibility are required. Check packages/create-oxy-app/src/versions.ts.`,
     );
     process.exit(1);
   }
 
-  console.log(`all ${specs.size} generated @oxy.so ranges resolve on the public registry`);
+  console.log(`all ${specs.size} generated @oxy.so ranges resolve and the published Services/Bloom pair is compatible`);
 }
 
 main().catch((error) => {

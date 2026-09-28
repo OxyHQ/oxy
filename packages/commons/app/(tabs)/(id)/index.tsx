@@ -16,6 +16,7 @@ import {
 import { useOxy, useCurrentUser } from '@oxy.so/services';
 import { buildUserDid } from '@oxy.so/core';
 import { Fab } from '@oxy.so/bloom/fab';
+import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -65,6 +66,7 @@ export default function IdScreen() {
   const colors = useColors();
   const router = useRouter();
   const tabBarFootprint = useTabBarFootprint();
+  const bottomEdgeInset = useBottomEdgeInset();
   // The QR FAB floats over the scroller; the content's bottom inset clears it,
   // so the last lines can always be scrolled out from under the button.
   const fabClearance = useFabClearance(tabBarFootprint);
@@ -294,23 +296,17 @@ export default function IdScreen() {
         )}
       </Screen>
 
-      {/*
-        QR scanner is an action, not a tab — opens the root full-screen modal.
-
-        `offset` lifts the FAB clear of the floating tab bar. It is the bar's RAW
-        footprint: `Fab` supplies its own gap from that anchor, and the bottom
-        safe-area inset is already folded into the footprint, so adding
-        `insets.bottom` here would count the home indicator twice.
-      */}
-      <Fab
-        variant="primary"
-        size="md"
-        placement="bottom-right"
-        offset={tabBarFootprint}
-        onPress={handleScan}
-        accessibilityLabel={t('civic.id.scanAction')}
-        icon={<Icons.scan size='lg' fill={colors.primaryForeground} />}
-      />
+      {/* Placement belongs to the screen; preserve the previous tab-bar anchor. */}
+      <View style={{ position: 'absolute', bottom: tabBarFootprint + bottomEdgeInset, right: tabBarFootprint }}>
+        <Fab
+          size="md"
+          onPress={handleScan}
+          accessibilityLabel={t('civic.id.scanAction')}
+          icon={Icons.scan}
+          appearance="solid"
+          tone="accent"
+        />
+      </View>
 
       {qrSheetOpen && <AttestQrSheet onClose={() => setQrSheetOpen(false)} />}
       {cameraPermissionSheetOpen && (

@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { ViewStyle, TextStyle, StyleProp } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Button } from '@oxy.so/bloom/button';
+import { InverseButton } from '@oxy.so/bloom/button';
 import type { PaymentItem, PaymentGatewayResult } from '../screens/PaymentGatewayScreen';
 import { LogoIcon } from './logo/LogoIcon';
 
@@ -46,8 +46,7 @@ const PeableButton: React.FC<PeableButtonProps> = ({
     const textColor = variant === 'black' || (color && isColorDark(color)) ? theme.colors.background : '#1b1f0a';
 
     return (
-        <Button
-            variant="inverse"
+        <InverseButton
             onPress={handlePress}
             disabled={disabled}
             style={[{ backgroundColor, borderColor: textColor, borderWidth: 1 }, style]}
@@ -55,7 +54,7 @@ const PeableButton: React.FC<PeableButtonProps> = ({
             icon={<LogoIcon height={16} color={textColor} style={{ marginRight: 6 }} />}
         >
             {text}
-        </Button>
+        </InverseButton>
     );
 };
 

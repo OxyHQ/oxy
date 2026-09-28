@@ -146,7 +146,7 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
     return (
         <View className="flex-1 bg-bg">
             {isLoading && !apps ? (
-                <Loading size="large" color={bloomTheme.colors.primary} />
+                <Loading size="lg" color={bloomTheme.colors.primary} />
             ) : (
                 <FlatList
                     data={apps ?? []}

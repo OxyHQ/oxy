@@ -192,7 +192,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
     if (isLoading) {
         return (
             <>
-                <Loading size="large" color={bloomTheme.colors.text} />
+                <Loading size="lg" color={bloomTheme.colors.text} />
             </>
         );
     }
@@ -207,28 +207,28 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                             icon={<SettingsIcon name="lock-outline" color={bloomTheme.colors.primary} />}
                             title={t('privacySettings.isPrivateAccount') || 'Private Account'}
                             description={t('privacySettings.isPrivateAccountDesc') || 'Only approved followers can see your posts'}
-                            rightElement={<Switch value={settings.isPrivateAccount} onValueChange={() => toggle('isPrivateAccount')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.isPrivateAccount} onCheckedChange={() => toggle('isPrivateAccount')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="account-eye-outline" color={bloomTheme.colors.info} />}
                             title={t('privacySettings.profileVisibility') || 'Profile Visibility'}
                             description={t('privacySettings.profileVisibilityDesc') || 'Control who can view your profile'}
-                            rightElement={<Switch value={settings.profileVisibility} onValueChange={() => toggle('profileVisibility')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.profileVisibility} onCheckedChange={() => toggle('profileVisibility')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="circle-outline" color={bloomTheme.colors.success} />}
                             title={t('privacySettings.hideOnlineStatus') || 'Hide Online Status'}
                             description={t('privacySettings.hideOnlineStatusDesc') || 'Don\'t show when you\'re online'}
-                            rightElement={<Switch value={settings.hideOnlineStatus} onValueChange={() => toggle('hideOnlineStatus')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.hideOnlineStatus} onCheckedChange={() => toggle('hideOnlineStatus')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="clock-outline" color={bloomTheme.colors.secondary} />}
                             title={t('privacySettings.hideLastSeen') || 'Hide Last Seen'}
                             description={t('privacySettings.hideLastSeenDesc') || 'Don\'t show when you were last active'}
-                            rightElement={<Switch value={settings.hideLastSeen} onValueChange={() => toggle('hideLastSeen')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.hideLastSeen} onCheckedChange={() => toggle('hideLastSeen')} disabled={isSaving} />}
                             showChevron={false}
                         />
                     </SettingsListGroup>
@@ -239,28 +239,28 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                             icon={<SettingsIcon name="tag-outline" color={bloomTheme.colors.primary} />}
                             title={t('privacySettings.allowTagging') || 'Allow Tagging'}
                             description={t('privacySettings.allowTaggingDesc') || 'Let others tag you in posts'}
-                            rightElement={<Switch value={settings.allowTagging} onValueChange={() => toggle('allowTagging')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.allowTagging} onCheckedChange={() => toggle('allowTagging')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="at" color={bloomTheme.colors.info} />}
                             title={t('privacySettings.allowMentions') || 'Allow Mentions'}
                             description={t('privacySettings.allowMentionsDesc') || 'Let others mention you'}
-                            rightElement={<Switch value={settings.allowMentions} onValueChange={() => toggle('allowMentions')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.allowMentions} onCheckedChange={() => toggle('allowMentions')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="message-outline" color={bloomTheme.colors.success} />}
                             title={t('privacySettings.allowDirectMessages') || 'Allow Direct Messages'}
                             description={t('privacySettings.allowDirectMessagesDesc') || 'Let others send you direct messages'}
-                            rightElement={<Switch value={settings.allowDirectMessages} onValueChange={() => toggle('allowDirectMessages')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.allowDirectMessages} onCheckedChange={() => toggle('allowDirectMessages')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="check-all" color={bloomTheme.colors.secondary} />}
                             title={t('privacySettings.hideReadReceipts') || 'Hide Read Receipts'}
                             description={t('privacySettings.hideReadReceiptsDesc') || 'Don\'t show read receipts in messages'}
-                            rightElement={<Switch value={settings.hideReadReceipts} onValueChange={() => toggle('hideReadReceipts')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.hideReadReceipts} onCheckedChange={() => toggle('hideReadReceipts')} disabled={isSaving} />}
                             showChevron={false}
                         />
                     </SettingsListGroup>
@@ -271,28 +271,28 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                             icon={<SettingsIcon name="pulse" color={bloomTheme.colors.primary} />}
                             title={t('privacySettings.showActivity') || 'Show Activity Status'}
                             description={t('privacySettings.showActivityDesc') || 'Display your activity on your profile'}
-                            rightElement={<Switch value={settings.showActivity} onValueChange={() => toggle('showActivity')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.showActivity} onCheckedChange={() => toggle('showActivity')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="database-outline" color={bloomTheme.colors.info} />}
                             title={t('privacySettings.dataSharing') || 'Data Sharing'}
                             description={t('privacySettings.dataSharingDesc') || 'Allow sharing data for personalization'}
-                            rightElement={<Switch value={settings.dataSharing} onValueChange={() => toggle('dataSharing')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.dataSharing} onCheckedChange={() => toggle('dataSharing')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="map-marker-outline" color={bloomTheme.colors.warning} />}
                             title={t('privacySettings.locationSharing') || 'Location Sharing'}
                             description={t('privacySettings.locationSharingDesc') || 'Share your location'}
-                            rightElement={<Switch value={settings.locationSharing} onValueChange={() => toggle('locationSharing')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.locationSharing} onCheckedChange={() => toggle('locationSharing')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="chart-line" color={bloomTheme.colors.secondary} />}
                             title={t('privacySettings.analyticsSharing') || 'Analytics Sharing'}
                             description={t('privacySettings.analyticsSharingDesc') || 'Allow analytics data collection'}
-                            rightElement={<Switch value={settings.analyticsSharing} onValueChange={() => toggle('analyticsSharing')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.analyticsSharing} onCheckedChange={() => toggle('analyticsSharing')} disabled={isSaving} />}
                             showChevron={false}
                         />
                     </SettingsListGroup>
@@ -303,28 +303,28 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                             icon={<SettingsIcon name="eye-off-outline" color={bloomTheme.colors.warning} />}
                             title={t('privacySettings.sensitiveContent') || 'Show Sensitive Content'}
                             description={t('privacySettings.sensitiveContentDesc') || 'Allow sensitive or explicit content'}
-                            rightElement={<Switch value={settings.sensitiveContent} onValueChange={() => toggle('sensitiveContent')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.sensitiveContent} onCheckedChange={() => toggle('sensitiveContent')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="filter-outline" color={bloomTheme.colors.success} />}
                             title={t('privacySettings.autoFilter') || 'Auto Filter'}
                             description={t('privacySettings.autoFilterDesc') || 'Automatically filter inappropriate content'}
-                            rightElement={<Switch value={settings.autoFilter} onValueChange={() => toggle('autoFilter')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.autoFilter} onCheckedChange={() => toggle('autoFilter')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="volume-off" color={bloomTheme.colors.info} />}
                             title={t('privacySettings.muteKeywords') || 'Mute Keywords'}
                             description={t('privacySettings.muteKeywordsDesc') || 'Hide posts containing muted keywords'}
-                            rightElement={<Switch value={settings.muteKeywords} onValueChange={() => toggle('muteKeywords')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.muteKeywords} onCheckedChange={() => toggle('muteKeywords')} disabled={isSaving} />}
                             showChevron={false}
                         />
                         <SettingsListItem
                             icon={<SettingsIcon name="cellphone-screenshot" color={bloomTheme.colors.secondary} />}
                             title={t('privacySettings.blockScreenshots') || 'Block Screenshots'}
                             description={t('privacySettings.blockScreenshotsDesc') || 'Prevent screenshots of your content'}
-                            rightElement={<Switch value={settings.blockScreenshots} onValueChange={() => toggle('blockScreenshots')} disabled={isSaving} />}
+                            rightElement={<Switch checked={settings.blockScreenshots} onCheckedChange={() => toggle('blockScreenshots')} disabled={isSaving} />}
                             showChevron={false}
                         />
                     </SettingsListGroup>
@@ -332,7 +332,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                     {/* Blocked Users */}
                     <SettingsListGroup title={t('privacySettings.sections.blockedUsers') || 'BLOCKED USERS'}>
                         {isLoadingUsers ? (
-                            <Loading size="small" color={bloomTheme.colors.text} />
+                            <Loading size="sm" color={bloomTheme.colors.text} />
                         ) : blockedUsers.length === 0 ? (
                             <Text className="text-text-secondary text-center p-space-40">
                                 {t('privacySettings.noBlockedUsers') || 'No blocked users'}
@@ -349,7 +349,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                                         rightElement={
                                             <Button
                                                 appearance="solid" tone="danger"
-                                                size="small"
+                                                size="sm"
                                                 onPress={() => handleUnblock(userId)}
                                             >
                                                 {t('privacySettings.unblock') || 'Unblock'}
@@ -365,7 +365,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                     {/* Restricted Users */}
                     <SettingsListGroup title={t('privacySettings.sections.restrictedUsers') || 'RESTRICTED USERS'}>
                         {isLoadingUsers ? (
-                            <Loading size="small" color={bloomTheme.colors.text} />
+                            <Loading size="sm" color={bloomTheme.colors.text} />
                         ) : restrictedUsers.length === 0 ? (
                             <Text className="text-text-secondary text-center p-space-40">
                                 {t('privacySettings.noRestrictedUsers') || 'No restricted users'}
@@ -383,7 +383,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({
                                         rightElement={
                                             <Button
                                                 appearance="subtle" tone="neutral"
-                                                size="small"
+                                                size="sm"
                                                 onPress={() => handleUnrestrict(userId)}
                                             >
                                                 {t('privacySettings.unrestrict') || 'Unrestrict'}

@@ -776,13 +776,13 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                 // Hide action buttons when selecting (in selectMode or bulk operations mode)
                 rightElement: (!selectMode && selectedIds.size === 0) ? (
                     <View className="flex-row items-center gap-1.5 ml-3">
-                        {(isImage || isVideo || file.contentType.includes('pdf')) ? <Button appearance="subtle" tone="neutral" size="small" iconOnly stopPropagation
+                        {(isImage || isVideo || file.contentType.includes('pdf')) ? <Button appearance="subtle" tone="neutral" size="sm" iconOnly stopPropagation
                             accessibilityLabel={`Preview ${file.filename}`} onPress={() => handleFileOpen(file)}
                             icon={<Ionicons name="eye" size={18} color={colors.text} />} /> : null}
-                        <Button appearance="subtle" tone="neutral" size="small" iconOnly stopPropagation
+                        <Button appearance="subtle" tone="neutral" size="sm" iconOnly stopPropagation
                             accessibilityLabel={`Download ${file.filename}`} onPress={() => handleFileDownload(file.id, file.filename)}
                             icon={<Ionicons name="download" size={18} color={colors.text} />} />
-                        <Button appearance="subtle" tone="danger" size="small" iconOnly stopPropagation loading={deletingId === file.id}
+                        <Button appearance="subtle" tone="danger" size="sm" iconOnly stopPropagation loading={deletingId === file.id}
                             accessibilityLabel={`Delete ${file.filename}`} onPress={() => confirmFileDelete(file.id, file.filename)}
                             icon={<Ionicons name="trash" size={18} color={colors.error} />} />
                     </View>
@@ -1144,7 +1144,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                     style={{ maxWidth: '80%' }}
                 >
                     <SegmentedControl type="radio" label={t('fileManagement.viewMode') || 'File type'}
-                        value={viewMode} onValueChange={setViewMode} size="small">
+                        value={viewMode} onValueChange={setViewMode} size="sm">
                         {(['all', 'photos', 'videos', 'documents', 'audio'] as const).map(mode => (
                             <SegmentedControlItem key={mode} value={mode} accessibilityLabel={mode}>
                                 <MaterialCommunityIcons
@@ -1154,7 +1154,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                         ))}
                     </SegmentedControl>
                 </ScrollView>
-                <Button appearance="subtle" tone="neutral" size="small"
+                <Button appearance="subtle" tone="neutral" size="sm"
                     accessibilityRole="button"
                     accessibilityLabel={t('fileManagement.a11y.sortBy', {
                         field: sortBy,
