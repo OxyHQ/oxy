@@ -310,10 +310,12 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       // A stable ID the actor URI itself carries (a numeric Threads actor, a
       // Bridgy Fed DID actor) names the subject that actor row always named,
       // even when the previous identity predates stable-ID persistence: a
-      // handle change on the source is a rename, not a new person.
+      // handle change on the source is a rename, not a new person. That holds
+      // across networks too, since a legacy row may have kept the bridge's own
+      // transport domain where the source now derives its upstream network.
       const boundToActor = !!input.stableId && (input.actorUri === input.stableId || input.actorUri.endsWith(`/${input.stableId}`));
-      const sameSubject = !!input.stableId && previous?.network === network
-        && (previous.stableId === input.stableId || (previous.stableId === null && boundToActor));
+      const sameSubject = !!input.stableId && !!previous
+        && ((previous.stableId === input.stableId && previous.network === network) || (previous.stableId === null && boundToActor));
       if (sameSubject) renamedFrom = previous;
       if (!sameSubject && actor.canonicalAcct !== normalizeExternalAcct(input.transportAcct)) throw new Error('Actor already belongs to another external identity');
     }
