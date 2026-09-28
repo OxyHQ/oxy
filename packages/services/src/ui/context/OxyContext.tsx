@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import { Linking, Platform } from 'react-native';
 import { OxyServices } from '@oxy.so/core';
@@ -43,7 +44,7 @@ import { useLanguageManagement } from '../hooks/useLanguageManagement';
 import { useSessionManagement } from '../hooks/useSessionManagement';
 import { useAuthOperations, clearPersistedAuthSafe } from './hooks/useAuthOperations';
 import { useDeviceManagement } from '../hooks/useDeviceManagement';
-import { getStorageKeys, createPlatformStorage, type StorageInterface } from '../utils/storageHelpers';
+import { getStorageKeys, createMemoryStorage, createPlatformStorage, type StorageInterface } from '../utils/storageHelpers';
 import type { RouteName } from '../navigation/routes';
 import { showBottomSheet as globalShowBottomSheet } from '../navigation/bottomSheetManager';
 import {
@@ -54,6 +55,7 @@ import {
 } from '../navigation/surfaces';
 import { useQueryClient, onlineManager } from '@tanstack/react-query';
 import { clearQueryCache } from '../hooks/queryClient';
+import { createAccountQueryPersistence, type AccountQueryPersistence } from '../hooks/accountQueryPersistence';
 import { useAvatarPicker } from '../hooks/useAvatarPicker';
 import { resetSessionScopedStores } from '../stores/resetSessionScopedStores';
 import { ASSET_DOWNLOAD_URLS_QUERY_KEY } from '../hooks/useResolvedFileUrls';
@@ -93,6 +95,8 @@ import { useOxyAccountGraph } from './useOxyAccountGraph';
 export type { LogoutResult, OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
 
 const OxyRuntimeContext = createContext<OxyContextState | null>(null);
+
+const subscribeNever = (): (() => void) => () => undefined;
 
 type OxyAuthActionsContextState = Pick<
   OxyContextState,
@@ -135,6 +139,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   webAuthMode = 'popup',
   backgroundSession = false,
   platformStorage,
+  accountQueries,
   onAuthStateChange,
   onError,
 }) => {
@@ -283,6 +288,24 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // Local display/bookkeeping storage (session id list, language). Distinct
   // from `authStore` (the durable credential blob). Exposed as an awaitable so
   // a persistence write is never dropped because it raced storage init.
+  const queryClient = useQueryClient();
+
+  // The app's per-account offline cache (`accountQueries`). Built once, like the
+  // runtime. `handleSubjectChange` activates it BEFORE anyone is woken, so a
+  // consumer of the new account never reads the previous account's rows.
+  const accountQueryPersistenceRef = useRef<AccountQueryPersistence | null | undefined>(undefined);
+  if (accountQueryPersistenceRef.current === undefined) {
+    accountQueryPersistenceRef.current = accountQueries
+      ? createAccountQueryPersistence(queryClient, accountQueries)
+      : null;
+  }
+  const accountQueryPersistence = accountQueryPersistenceRef.current;
+  const isAccountCacheReady = useSyncExternalStore(
+    accountQueryPersistence ? accountQueryPersistence.subscribe : subscribeNever,
+    () => accountQueryPersistence?.isReady() ?? true,
+    () => accountQueryPersistence?.isReady() ?? true,
+  );
+
   const storageRef = useRef<StorageInterface | null>(null);
   const [storage, setStorage] = useState<StorageInterface | null>(null);
   const buildStorageDeferred = () => {
@@ -313,12 +336,16 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       .then((storageInstance) => {
         storageRef.current = storageInstance;
         storageReady.resolve(storageInstance);
+        accountQueryPersistence?.setStorage(storageInstance);
         if (mounted) {
           setStorage(storageInstance);
           runtime.setStorageReady(true);
         }
       })
       .catch((err) => {
+        // Nothing persisted can be restored; the account cache still has to
+        // become ready, or RequireOxyAuth would wait forever.
+        accountQueryPersistence?.setStorage(createMemoryStorage());
         if (mounted) {
           logger('Failed to initialize storage', err);
           onError?.({ message: 'Failed to initialize storage', code: 'STORAGE_INIT_ERROR', status: 500 });
@@ -327,7 +354,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     return () => {
       mounted = false;
     };
-  }, [logger, onError, platformStorage, runtime, storageReady]);
+  }, [accountQueryPersistence, logger, onError, platformStorage, runtime, storageReady]);
 
   const {
     currentLanguage,
@@ -343,8 +370,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     onError,
     logger,
   });
-
-  const queryClient = useQueryClient();
 
   const {
     saveSessionIds,
@@ -1207,6 +1232,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // buy a refetch storm at first paint.
   const handleSubjectChange = useCallback(
     ({ previous, next }: SubjectTransition): void => {
+      // Every transition, the first sign-in included: the account cache is
+      // keyed by the subject, and a sign-out deletes the signed-out one's.
+      accountQueryPersistence?.activate(next);
       if (previous === null) {
         return;
       }
@@ -1224,7 +1252,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       queryClient.invalidateQueries();
       void refreshAccounts();
     },
-    [queryClient, refreshAccounts],
+    [accountQueryPersistence, queryClient, refreshAccounts],
   );
   subjectChangeRef.current = handleSubjectChange;
 
@@ -1256,6 +1284,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       isPrivateApiPending,
       isAuthResolved: authResolved,
       isStorageReady: snapshot.storageReady,
+      isAccountCacheReady,
       sessionMode: isIdentityBound ? 'identity' : 'account',
       webAuthMode,
       error,
@@ -1310,6 +1339,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       isPrivateApiPending,
       authResolved,
       snapshot.storageReady,
+      isAccountCacheReady,
       isIdentityBound,
       webAuthMode,
       error,

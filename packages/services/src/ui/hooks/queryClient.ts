@@ -24,7 +24,7 @@
  *   when introducing reads that should survive restart.
  */
 
-import { QueryClient, onlineManager, type Query, type Mutation } from '@tanstack/react-query';
+import { QueryClient, hashKey, onlineManager, type Query, type Mutation, type QueryKey } from '@tanstack/react-query';
 import {
   persistQueryClient,
   type PersistedClient,
@@ -32,6 +32,7 @@ import {
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { isDev } from '@oxy.so/core';
 import type { StorageInterface } from '../utils/storageHelpers';
+import { getOxyBuildId } from '../utils/buildId';
 
 const QUERY_CACHE_KEY = 'oxy_query_cache_v3';
 const QUERY_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -106,13 +107,6 @@ function shouldDehydrateQuery(query: Query): boolean {
   return PERSISTED_QUERY_PREFIXES.includes(head);
 }
 
-/**
- * Persist every mutation regardless of status — paused mutations are
- * exactly the ones that must survive restart to replay when online.
- */
-function shouldDehydrateMutation(_mutation: Mutation): boolean {
-  return true;
-}
 
 /**
  * Create a QueryClient with offline-first defaults.
@@ -191,6 +185,12 @@ export interface AttachPersistenceResult {
 export const attachQueryPersistence = (
   queryClient: QueryClient,
   storage: StorageInterface | null | undefined,
+  /**
+   * Mutation keys the app declared account-scoped (`accountQueries`). Those are
+   * persisted per account by `createAccountQueryPersistence`, never here, so a
+   * paused mutation cannot replay twice or under another account.
+   */
+  accountMutationKeys: readonly QueryKey[] = [],
 ): AttachPersistenceResult => {
   if (!storage) {
     return {
@@ -205,10 +205,19 @@ export const attachQueryPersistence = (
     throttleTime: QUERY_PERSIST_THROTTLE_MS,
   });
 
+  // Persist every other mutation regardless of status: paused mutations are
+  // exactly the ones that must survive restart to replay when online.
+  const accountScoped = new Set(accountMutationKeys.map((key) => hashKey(key)));
+  const shouldDehydrateMutation = (mutation: Mutation): boolean => {
+    const key = mutation.options.mutationKey;
+    return key === undefined || !accountScoped.has(hashKey(key));
+  };
+
   const [unsubscribe, restored] = persistQueryClient({
     queryClient,
     persister,
     maxAge: QUERY_CACHE_MAX_AGE,
+    buster: getOxyBuildId(),
     dehydrateOptions: {
       shouldDehydrateQuery,
       shouldDehydrateMutation,

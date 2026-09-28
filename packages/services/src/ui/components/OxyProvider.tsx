@@ -88,6 +88,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
     sessionMode = 'account',
     webAuthMode = 'popup',
     queryClient: providedQueryClient,
+    accountQueries,
     requireAuth = 'off',
     backgroundSession = false,
     language,
@@ -102,6 +103,8 @@ const OxyProvider: FC<OxyProviderProps> = ({
     const queryClientRef = useRef<ReturnType<typeof createQueryClient> | null>(null);
     const persistenceUnsubRef = useRef<(() => void) | null>(null);
     const ownsQueryClientRef = useRef(providedQueryClient === undefined);
+    // `accountQueries` is read once, at mount, like the client itself.
+    const accountMutationKeysRef = useRef(accountQueries?.mutationKeys);
     const [platformStorage, setPlatformStorage] = useState<StorageInterface | null>(null);
 
     // If the consumer supplied their own QueryClient we use it as-is and skip
@@ -135,7 +138,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
             setPlatformStorage(storage);
             const client = queryClientRef.current;
             if (!client || !ownsQueryClientRef.current) return;
-            const persistence = attachQueryPersistence(client, storage);
+            const persistence = attachQueryPersistence(client, storage, accountMutationKeysRef.current);
             persistenceUnsubRef.current = persistence.unsubscribe;
             await persistence.restored;
         };
@@ -240,6 +243,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
                 webAuthMode={webAuthMode}
                 backgroundSession={backgroundSession}
                 platformStorage={platformStorage}
+                accountQueries={accountQueries}
                 onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
             >
                 {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}

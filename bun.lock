@@ -212,7 +212,7 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "2.0.5",
+      "version": "2.1.0",
       "devDependencies": {
         "expo": "catalog:",
         "nativewind": "catalog:",
@@ -668,7 +668,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "8.2.0",
+      "version": "8.3.0",
       "dependencies": {
         "@expo/config-plugins": "catalog:",
         "@oxy.so/contracts": "workspace:^",
