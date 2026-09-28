@@ -75,7 +75,7 @@ export const RequireOxyAuth: React.FC<RequireOxyAuthProps> = ({
   bannerMessage,
   bannerActionLabel,
 }) => {
-  const { canUsePrivateApi, isPrivateApiPending, openAccountDialog } = useOxy();
+  const { canUsePrivateApi, isPrivateApiPending, isAccountCacheReady, openAccountDialog } = useOxy();
 
   // Public app: render straight through. Cheap enough to short-circuit before
   // touching any gate UI.
@@ -83,8 +83,13 @@ export const RequireOxyAuth: React.FC<RequireOxyAuthProps> = ({
     return <>{children}</>;
   }
 
-  // Signed in (and token ready): render the protected subtree in every mode.
+  // Signed in (and token ready): render the protected subtree in every mode,
+  // once the account's offline cache (`accountQueries`) has restored. Before
+  // that it would render with no rows, or with the previous account's.
   if (canUsePrivateApi) {
+    if (!isAccountCacheReady) {
+      return loadingFallback ? <>{loadingFallback}</> : <NeutralLoading />;
+    }
     return <>{children}</>;
   }
 

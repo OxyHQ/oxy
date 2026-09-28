@@ -1,5 +1,27 @@
 # Changelog
 
+## [8.3.0] - 2026-09-28
+
+### Added
+
+- `OxyProvider`'s `accountQueries` (`AccountQueriesConfig`): an app declares
+  the query roots that hold the signed-in account's private data (`roots`,
+  persisted; `memoryOnlyRoots`, never written to disk) and the mutation keys
+  whose paused instances replay after a restart (`mutationKeys`). The SDK
+  stores them per account (`oxy_account_queries:<accountId>`), drops them from
+  memory synchronously on an account switch, deletes the signed-out account's
+  on sign-out, and restores the signed-in account's before `RequireOxyAuth`
+  renders its children (`useOxy().isAccountCacheReady`). Works with the SDK's
+  client or one passed as `queryClient`. Apps no longer scope a persister to
+  the session themselves.
+
+### Changed
+
+- Every persisted query cache the SDK owns is busted by the build
+  (`process.env.OXY_BUILD_ID`, inlined by `@oxy.so/app-preset` 2.1's Babel
+  config): a cache written by an older bundle, in an older shape, is never
+  served. Without the preset the id is a constant, as before.
+
 ## [8.2.0] - 2026-09-27
 
 ### Changed

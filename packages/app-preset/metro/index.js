@@ -35,6 +35,7 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 const path = require('path');
+const { resolveOxyBuildId } = require('../build-id');
 
 function blockPath(dir) {
   const resolved = path.resolve(dir);
@@ -60,6 +61,14 @@ function createOxyMetroConfig(projectRoot, options = {}) {
 
   const monorepoRoot = path.resolve(projectRoot, '../..');
   const config = getDefaultConfig(projectRoot);
+
+  // The preset's Babel plugin inlines this id into every module, but Metro's
+  // transform cache key does not cover it: without the id in `cacheVersion`, a
+  // cached SDK module would keep an old build's id. Published so the Babel
+  // workers Metro forks resolve the same value.
+  const buildId = resolveOxyBuildId(projectRoot);
+  process.env.OXY_BUILD_ID = buildId;
+  config.cacheVersion = [config.cacheVersion, `oxy-build:${buildId}`].filter(Boolean).join('|');
 
   config.projectRoot = projectRoot;
 

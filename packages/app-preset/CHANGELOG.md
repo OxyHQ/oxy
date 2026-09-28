@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 2.1.0
+
+### Added
+
+- The build id `@oxy.so/services` 8.3 busts its persisted query caches on:
+  the commit (`GITHUB_SHA`, `EAS_BUILD_GIT_COMMIT_HASH`, else
+  `git rev-parse HEAD`; `development` in dev). The Babel config inlines it as
+  `process.env.OXY_BUILD_ID` in every module, node_modules included (Expo's own
+  `EXPO_PUBLIC_*` inlining skips them), and the Metro config folds it into
+  `cacheVersion` so a cached transform never carries an old id.
+
 ## 2.0.5
 
 ### Changed
