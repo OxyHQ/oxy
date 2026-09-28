@@ -1,5 +1,13 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.2.0
+
+### Added
+
+- `recommendationItemSchema.color`: the recommended account's accent colour,
+  as every profile serializer already returns it. A client drawing a row of
+  recommendations no longer has to fetch each person again to get it.
+
 ## 4.1.0
 
 ### Added

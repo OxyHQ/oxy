@@ -133,6 +133,8 @@ interface RecommendationRow {
   nameFirst?: string | null;
   nameLast?: string | null;
   avatar?: string | null;
+  /** The account's accent colour, public on every profile serializer. */
+  color?: string | null;
   description?: string | null;
   type?: string;
   federationDomain?: string | null;
@@ -162,6 +164,7 @@ const recommendationColumns = {
   nameFirst: users.nameFirst,
   nameLast: users.nameLast,
   avatar: users.avatar,
+  color: users.color,
   description: users.description,
   type: users.type,
   federationDomain: users.federationDomain,
@@ -180,6 +183,11 @@ export function formatProfileResult(u: RecommendationRow) {
     username: identity.username,
     name: identity.name,
     avatar: identity.avatar,
+    // A row of recommendations draws each person the way their profile does.
+    // Without it every client re-fetched each recommended user one by one.
+    // Every account has one (assigned at creation); a row built from a partial
+    // select simply omits it.
+    ...(typeof u.color === 'string' && u.color ? { color: u.color } : {}),
     description: u.description,
     verified: u.verified === true,
     trustTier: u.reputationTier,
