@@ -312,8 +312,8 @@ export type { AccountQueriesConfig } from './ui/hooks/accountQueryPersistence';
 export { default as FollowButton } from './ui/components/FollowButton';
 export type { FollowButtonProps, SingleFollowButtonProps, MultiFollowButtonProps } from './ui/components/FollowButton';
 // The follow graph (#809): follows anything registered, not just users.
+export { FollowTargetButton } from './ui/components/FollowTargetButton';
 export {
-  FollowTargetButton,
   // The product rules the button encodes, for an application drawing its own
   // affordance instead of using it — a chip grid, a compact row control.
   // Unexported, they get duplicated, and the duplicate is where the "off here"
@@ -322,12 +322,12 @@ export {
   buildFollowMenuItems,
   resolveFollowPrimaryAction,
   FOLLOW_ACTION_LEAVES_ACTIVE,
-} from './ui/components/FollowTargetButton';
+} from './ui/components/followRules';
+export type { FollowDuration, FollowMenuItem } from './ui/components/followRules';
 export type {
   FollowTargetButtonProps,
   FollowVerb,
   FollowLabels,
-  FollowDuration,
 } from './ui/components/FollowTargetButton';
 export { useFollowTarget } from './ui/hooks/useFollowTarget';
 export type { UseFollowTargetResult } from './ui/hooks/useFollowTarget';

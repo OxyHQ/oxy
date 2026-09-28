@@ -1,5 +1,27 @@
 # Changelog
 
+## [9.2.0] - 2026-09-28
+
+### Added
+
+- `@oxy.so/services/ui/client` exports the query, cache and follow helpers an
+  app uses at startup: `queryKeys` and the `invalidate*Queries` helpers,
+  `upsertCachedUser(s)`, `CLEARABLE_USER_FIELDS`, `clearedFieldsFrom*Update`,
+  `useUserProfile(s)`, `useCurrentUser`, `useUserById`, `useUserByUsername`,
+  `useFollowerCounts`, `useSeedFollowStatuses`, `useFollowTarget`, the follow
+  rules (`resolveFollowPrimaryAction`, `buildFollowMenuItems`,
+  `FOLLOW_ACTION_LEAVES_ACTIVE`) and `ProfileButton`. Import them from here
+  rather than the root: the root barrel re-exports the sign-in panels (and the
+  Commons QR encoder), and Metro does not tree-shake, so any root import ships
+  them all, ~140 KB on Mention's home route. A packaging test pins that
+  `ui/client` reaches no panel.
+- `FollowMenuItem` is exported (the return type of `buildFollowMenuItems`).
+
+### Changed
+
+- The follow rules live in `ui/components/followRules.ts`, free of React and
+  Bloom; `FollowTargetButton` imports them. Root exports are unchanged.
+
 ## [9.1.0] - 2026-09-28
 
 ### Added
