@@ -61,7 +61,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function finiteNumber(value: unknown, field: string): number {
+/** A numeric top-level field of the Lottie document, by its Lottie name. */
+function finiteNumber(document: Record<string, unknown>, field: 'w' | 'h' | 'fr' | 'ip' | 'op'): number {
+  const value = document[field];
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new BadRequestError(`Lottie animation is missing a numeric "${field}"`);
   }
@@ -124,8 +126,8 @@ export function normalizeStickerAnimation(buffer: Buffer): NormalizedStickerAnim
     throw new BadRequestError('File is not a Lottie animation');
   }
 
-  const width = finiteNumber(document.w, 'w');
-  const height = finiteNumber(document.h, 'h');
+  const width = finiteNumber(document, 'w');
+  const height = finiteNumber(document, 'h');
   const size = STICKER_CANVAS_SIZES.find((allowed) => allowed === width && allowed === height);
   if (size === undefined) {
     throw new BadRequestError(
@@ -133,15 +135,16 @@ export function normalizeStickerAnimation(buffer: Buffer): NormalizedStickerAnim
     );
   }
 
-  const frameRate = finiteNumber(document.fr, 'fr');
+  const frameRate = finiteNumber(document, 'fr');
   if (frameRate <= 0 || frameRate > STICKER_MAX_FRAME_RATE) {
     throw new BadRequestError(
       `Sticker frame rate is ${frameRate}; it must be above 0 and at most ${STICKER_MAX_FRAME_RATE}`
     );
   }
 
-  const inPoint = finiteNumber(document.ip, 'ip');
-  const outPoint = finiteNumber(document.op, 'op');
+  // Lottie's in and out points: the loop's first and last frame.
+  const inPoint = finiteNumber(document, 'ip');
+  const outPoint = finiteNumber(document, 'op');
   const durationMs = Math.round(((outPoint - inPoint) / frameRate) * 1000);
   if (durationMs <= 0 || durationMs > STICKER_MAX_DURATION_MS) {
     throw new BadRequestError(
