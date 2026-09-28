@@ -11,7 +11,7 @@ const check = join(repoRoot, "scripts", "check-kaana-identity.mjs");
 const fixtures = [];
 const failures = [];
 const oldBindings =
-	'["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]';
+	'["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION"]';
 
 const canonicalFiles = {
 	"docs/adr/0011-inference-data-plane-name.md": [

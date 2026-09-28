@@ -90,7 +90,6 @@ const fetchedUrls = () => mockSafeFetch.mock.calls.map(([url]) => String(url));
 const graphCalls = () => fetchedUrls().filter((url) => url.startsWith('https://graph.facebook.com/'));
 
 function enableGraph() {
-  process.env.INSTAGRAM_GRAPH_FALLBACK_ENABLED = 'true';
   process.env.META_GRAPH_ACCESS_TOKEN = 'EAAG-test-token';
   process.env.META_IG_BUSINESS_ACCOUNT_ID = '17841400000000001';
 }
@@ -129,7 +128,6 @@ beforeEach(() => {
 afterEach(async () => {
   await settle();
   workerSpy.mockRestore();
-  delete process.env.INSTAGRAM_GRAPH_FALLBACK_ENABLED;
   delete process.env.META_GRAPH_ACCESS_TOKEN;
   delete process.env.META_IG_BUSINESS_ACCOUNT_ID;
   jest.restoreAllMocks();

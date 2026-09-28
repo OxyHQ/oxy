@@ -36,7 +36,7 @@ import {
   instagramGraphUserIdFromActorUri,
   instagramUsernameFromAcct,
   isInstagramGraphActorUri,
-  isInstagramGraphEnabled,
+  isInstagramGraphConfigured,
 } from './federation/instagramGraph';
 import { recordInstagramSourcePin, recordMetaIdentityProof, revokeMetaIdentityProof, type MetaIdentityProofOutcome } from './federation/metaIdentityProofRegistry.service';
 import { getExternalIdentitiesForUser, getCanonicalUserRedirects, lookupExternalIdentity, registerExternalIdentity, resolveCanonicalUserId } from './externalIdentityRegistry.service';
@@ -1230,7 +1230,7 @@ class FederationService {
     // An explicit Graph request goes straight to Business Discovery.
     if (input.protocol === INSTAGRAM_GRAPH_PROTOCOL) return instagram ? this.resolveInstagramGraphHandle(handle) : null;
     // Any failed bridge resolution of an Instagram account (429, timeout,
-    // refusal) may fall back to Graph; the flag being off keeps today's null.
+    // refusal) may fall back to Graph; without Graph credentials it stays null.
     const graphFallback = () => (instagram ? this.resolveInstagramGraphHandle(handle) : Promise.resolve(null));
     const userId = await lookupExternalIdentity(handle);
     if (userId) {
@@ -1256,7 +1256,7 @@ class FederationService {
 
   /** Business Discovery for one `<username>@instagram.com`; null when disabled or not discoverable. */
   private async resolveInstagramGraphHandle(handle: string) {
-    if (!isInstagramGraphEnabled()) return null;
+    if (!isInstagramGraphConfigured()) return null;
     const lookup = await fetchInstagramGraphProfile(handle);
     if (!lookup.ok) return null;
     // An IG User id survives a username change. A Graph source already bound to
@@ -1278,7 +1278,7 @@ class FederationService {
    */
   private async resolveInstagramGraphActorIdentity(actorUri: string, transportAcct: string | undefined, opts: { forceAvatarRefresh?: boolean }) {
     const igUserId = instagramGraphUserIdFromActorUri(actorUri);
-    if (!igUserId || !isInstagramGraphEnabled()) return null;
+    if (!igUserId || !isInstagramGraphConfigured()) return null;
     const [stored] = await getDb().select({ transportAcct: externalIdentityActors.transportAcct }).from(externalIdentityActors)
       .where(eq(externalIdentityActors.actorUri, actorUri)).limit(1);
     const username = instagramUsernameFromAcct(stored?.transportAcct ?? transportAcct ?? '');
@@ -1583,7 +1583,7 @@ class FederationService {
    *
    * When the source URL fails PERMANENTLY for an instagram.com account (the
    * bridge served a signed Meta CDN URL that has expired, or any 4xx) and the
-   * Instagram Graph fallback is enabled, a fresh `profile_picture_url` is read
+   * Instagram Graph credentials are configured, a fresh `profile_picture_url` is read
    * through Business Discovery — under its own result cache, cooldown and call
    * budget — and mirrored instead. A personal account is invisible to Business
    * Discovery, so it simply has no picture until the bridge serves a live one.
@@ -1613,7 +1613,7 @@ class FederationService {
    * identity's pinned first-party owner, is refused rather than shown.
    */
   private async freshInstagramGraphAvatarUrl(userId: string, failedUrl: string): Promise<string | null> {
-    if (!isInstagramGraphEnabled()) return null;
+    if (!isInstagramGraphConfigured()) return null;
     const [user] = await getDb().select({ username: users.username, domain: users.federationDomain })
       .from(users).where(eq(users.id, userId)).limit(1);
     if (user?.domain !== INSTAGRAM_NETWORK_DOMAIN) return null;

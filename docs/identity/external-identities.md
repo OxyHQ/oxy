@@ -116,10 +116,10 @@ handle). An IG User ID already bound to another handle (a rename) is refused
 rather than re-pointed; that needs reconciliation. The reconciler skips these
 actors.
 
-Configuration, read per call and fail-closed: `INSTAGRAM_GRAPH_FALLBACK_ENABLED`
-must be `true` and `META_GRAPH_ACCESS_TOKEN` plus a numeric
-`META_IG_BUSINESS_ACCOUNT_ID` must be set; `META_GRAPH_API_VERSION` defaults to
-`v23.0`. The token is sent only as a bearer header and never logged. Results,
+Configuration, read per call and fail-closed: the fallback runs whenever
+`META_GRAPH_ACCESS_TOKEN` and a numeric `META_IG_BUSINESS_ACCOUNT_ID` are set, and
+is inert when either is missing. There is no separate switch; the Graph API
+version is pinned in code (`v23.0`). The token is sent only as a bearer header and never logged. Results,
 including not-found, are cached in process for ten minutes. A throttle answer
 (codes 4, 17, 32, 613, 80001, 80002 or HTTP 429) or `x-app-usage` at 90% or more pauses Graph calls for
 fifteen minutes, because Business Discovery allows about 200 calls per hour per

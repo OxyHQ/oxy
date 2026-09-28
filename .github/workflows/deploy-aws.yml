@@ -400,16 +400,18 @@ jobs:
           # variable: unset renders "", which the API reads as off (one warning),
           # so this can merge before oxy-infra grants cloudfront:CreateInvalidation.
           TASK_ENV_OVERRIDES_JSON: >-
-            {"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","INBOX_INFERENCE_ROUTING_PROFILE_ID":"${{ vars.INBOX_INFERENCE_ROUTING_PROFILE_ID }}","INSTAGRAM_GRAPH_FALLBACK_ENABLED":"${{ vars.INSTAGRAM_GRAPH_FALLBACK_ENABLED }}","META_GRAPH_API_VERSION":"${{ vars.META_GRAPH_API_VERSION }}","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}
+            {"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","INBOX_INFERENCE_ROUTING_PROFILE_ID":"${{ vars.INBOX_INFERENCE_ROUTING_PROFILE_ID }}","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}
           # Re-assert the Terraform-declared ADOT sidecar because releases are
           # rendered from the currently-running task revision.
           TASK_EXTRA_CONTAINERS_JSON: >-
             [{"name":"aws-otel-collector","image":"public.ecr.aws/aws-observability/aws-otel-collector:v0.49.0","essential":false,"cpu":128,"memoryReservation":256,"command":["--config=/etc/ecs/ecs-default-config.yaml"],"healthCheck":{"command":["CMD","/healthcheck"],"interval":30,"timeout":5,"retries":3,"startPeriod":10},"logConfiguration":{"logDriver":"awslogs","options":{"awslogs-group":"/oxy/ecs","awslogs-region":"us-west-2","awslogs-stream-prefix":"oxy-api-otel"}}}]
-          # Exact legacy inference bindings inherited from previous task
-          # definitions. The deployer removes only these named entries;
-          # ordinary SMTP/device uses of the word relay remain untouched.
+          # Exact legacy bindings inherited from previous task definitions. The
+          # deployer removes only these named entries; ordinary SMTP/device uses
+          # of the word relay remain untouched. The two Instagram Graph names are
+          # the retired fallback switch and version knob (#1253): the fallback now
+          # runs whenever its credentials are bound and pins its version in code.
           TASK_REMOVE_NAMES_JSON: >-
-            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]
+            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION"]
           # The service-token JWKS (ADR 0012), then the Inbox MCP checks.
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-oxy-api.sh
           # The deploy script renders from the task definition the service is
@@ -426,8 +428,8 @@ jobs:
           # Graph fallback's credentials. Unlike the SSM-only keys above they are
           # GitHub secrets, synced by the first step; BOUND_API_SECRETS there
           # refuses the whole run when either is unset, so this binding can never
-          # name a parameter that does not exist. The feature itself stays off
-          # until vars.INSTAGRAM_GRAPH_FALLBACK_ENABLED is "true".
+          # name a parameter that does not exist. With both bound, the fallback
+          # runs; there is no separate switch.
           TASK_SECRET_OVERRIDES_JSON: >-
             {"SERVICE_TOKEN_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY","SERVICE_TOKEN_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID","CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET","QUEUE_REDIS_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL","META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_GRAPH_ACCESS_TOKEN","META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID"}
         run: |
