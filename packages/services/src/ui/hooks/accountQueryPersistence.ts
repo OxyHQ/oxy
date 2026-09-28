@@ -23,14 +23,18 @@ import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import type { StorageInterface } from '../utils/storageHelpers';
 import { getOxyBuildId } from '../utils/buildId';
+import { PERSISTED_QUERY_PREFIXES } from './queryClient';
+import { ASSET_DOWNLOAD_URLS_QUERY_KEY } from './useResolvedFileUrls';
 
 /** An app's declaration of which data is private to the signed-in account. */
 export interface AccountQueriesConfig {
   /**
    * Query-key roots (`queryKey[0]`) whose data belongs to the signed-in account
-   * and survives a restart.
+   * and survives a restart. `'all'`: every query the app runs, except the SDK's
+   * own account-agnostic ones, for an app whose every read may depend on who
+   * is signed in. Nothing can then be forgotten.
    */
-  roots: readonly string[];
+  roots: readonly string[] | 'all';
   /**
    * Roots that belong to the account too, but must not be written to disk
    * (signed URLs, AI output, search results): dropped on a switch, never persisted.
@@ -68,8 +72,10 @@ export function createAccountQueryPersistence(
   queryClient: QueryClient,
   config: AccountQueriesConfig,
 ): AccountQueryPersistence {
-  const persistedRoots = new Set(config.roots);
-  const accountRoots = new Set([...config.roots, ...(config.memoryOnlyRoots ?? [])]);
+  // Signed media URLs expire and must never be written to disk, whatever the app declares.
+  const memoryOnlyRoots = new Set<string>([...(config.memoryOnlyRoots ?? []), ASSET_DOWNLOAD_URLS_QUERY_KEY]);
+  const sdkRoots = new Set(PERSISTED_QUERY_PREFIXES);
+  const declaredRoots = config.roots === 'all' ? null : new Set(config.roots);
   const mutationHashes = new Set((config.mutationKeys ?? []).map((key) => hashKey(key)));
   const listeners = new Set<() => void>();
 
@@ -90,8 +96,17 @@ export function createAccountQueryPersistence(
     const head = query.queryKey[0];
     return typeof head === 'string' ? head : null;
   };
-  const ownsQuery = (query: Query): boolean => accountRoots.has(rootOf(query) ?? '');
-  const persistsQuery = (query: Query): boolean => persistedRoots.has(rootOf(query) ?? '');
+  const ownsQuery = (query: Query): boolean => {
+    const root = rootOf(query);
+    if (root !== null && memoryOnlyRoots.has(root)) return true;
+    // The SDK's own account-agnostic prefixes are the SDK persister's.
+    if (declaredRoots === null) return root === null || !sdkRoots.has(root);
+    return root !== null && declaredRoots.has(root);
+  };
+  const persistsQuery = (query: Query): boolean => {
+    const root = rootOf(query);
+    return ownsQuery(query) && (root === null || !memoryOnlyRoots.has(root));
+  };
 
   const ownsMutation = (mutation: Mutation): boolean => {
     const key = mutation.options.mutationKey;

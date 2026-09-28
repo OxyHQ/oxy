@@ -61,7 +61,7 @@ export function shouldRetryQuery(failureCount: number, error: unknown): boolean 
  * Mutations are persisted independently (always) so the offline write queue
  * works regardless of the read whitelist.
  */
-const PERSISTED_QUERY_PREFIXES: ReadonlyArray<string> = [
+export const PERSISTED_QUERY_PREFIXES: ReadonlyArray<string> = [
   'accounts',
   'users',
   'sessions',

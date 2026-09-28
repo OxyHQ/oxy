@@ -146,4 +146,30 @@ describe('account query persistence', () => {
     shared.unsubscribe();
     persistence.dispose();
   });
+
+  it("with roots 'all', owns every app query but not the SDK's own", async () => {
+    const storage = createMemoryStorage();
+    const client = new QueryClient();
+    const persistence = createAccountQueryPersistence(client, { roots: 'all', memoryOnlyRoots: ['search'] });
+    persistence.setStorage(storage);
+    persistence.activate('alice');
+    await until(persistence);
+    client.setQueryData(['library', 'liked'], ['alice track']);
+    client.setQueryData(['search', 'q'], ['alice result']);
+    client.setQueryData(['accounts'], ['sdk data']);
+    client.setQueryData(['assetDownloadUrls', 'f1'], ['signed url']);
+    await flushWrites();
+
+    const blob = (await storage.getItem(`${ACCOUNT_QUERY_CACHE_KEY}:alice`)) ?? '';
+    expect(blob).toContain('alice track');
+    expect(blob).not.toContain('alice result');
+    expect(blob).not.toContain('sdk data');
+    expect(blob).not.toContain('signed url');
+
+    persistence.activate('bob');
+    expect(client.getQueryData(['library', 'liked'])).toBeUndefined();
+    expect(client.getQueryData(['search', 'q'])).toBeUndefined();
+    expect(client.getQueryData(['accounts'])).toEqual(['sdk data']);
+    persistence.dispose();
+  });
 });

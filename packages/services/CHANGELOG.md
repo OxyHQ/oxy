@@ -1,5 +1,20 @@
 # Changelog
 
+## [9.1.0] - 2026-09-28
+
+### Added
+
+- `accountQueries.roots: 'all'`: every query the app runs belongs to the
+  signed-in account, except the SDK's own account-agnostic prefixes
+  (`accounts`, `users`, `sessions`, `devices`, `privacy`). For an app whose
+  every read may depend on who is signed in (Syra), so no root can be
+  forgotten and survive an account switch.
+
+### Changed
+
+- Signed media URLs (`assetDownloadUrls`) are never written to an account
+  cache, whatever the app declares.
+
 ## [8.4.0] - 2026-09-28
 
 Requires `@oxy.so/bloom` ^4.35.0 and `@oxy.so/core` ^3.2.0.
