@@ -5,34 +5,28 @@
  * - TanStack Query with `networkMode: 'offlineFirst'` for queries and mutations
  *   so cached data is served immediately and mutations are queued (paused) while
  *   the browser/device reports offline.
- * - `persistQueryClient(...)` from `@tanstack/react-query-persist-client` so that
- *   query results AND paused mutations survive a cold restart (kill-and-relaunch).
+ * - `attachQueryPersistence(...)` so that query results AND paused mutations
+ *   survive a cold restart (kill-and-relaunch); see `persistedQueryCache.ts`.
  * - `onlineManager` resume hook so paused mutations replay the moment the
  *   network is reported back, even if the host app swapped in a custom
  *   onlineManager implementation.
  *
- * Storage layer:
- * - React Native -> AsyncStorage via `createAsyncStoragePersister`.
- * - Web -> localStorage via `createSyncStoragePersister` (wrapped in the
- *   async persister API for a single call site).
- * - Both adapters are content-shape compatible with our `StorageInterface`.
+ * Storage layer: the platform `StorageInterface` (AsyncStorage on native,
+ * localStorage on web).
  *
  * Whitelist policy:
  * - Persist every account/user/session/privacy query and every queued mutation.
  * - DO NOT persist large list queries (e.g. activity feeds) — they go stale
  *   fast and would balloon storage. Add new keys to `PERSISTED_QUERY_PREFIXES`
- *   when introducing reads that should survive restart.
+ *   (`persistedQueryCache.ts`) when introducing reads that should survive restart.
  */
 
-import { QueryClient, hashKey, onlineManager, type Query, type Mutation, type QueryKey } from '@tanstack/react-query';
-import {
-  persistQueryClient,
-  type PersistedClient,
-} from '@tanstack/react-query-persist-client';
-import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import { QueryClient, onlineManager, type Mutation, type Query } from '@tanstack/react-query';
+import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { isDev } from '@oxy.so/core';
 import type { StorageInterface } from '../utils/storageHelpers';
-import { getOxyBuildId } from '../utils/buildId';
+import { accountQueryOwnership, type AccountQueriesConfig } from './accountQueryPersistence';
+import { PERSISTED_QUERY_PREFIXES, hydrateSnapshot, subscribeSnapshots } from './persistedQueryCache';
 
 const QUERY_CACHE_KEY = 'oxy_query_cache_v3';
 const QUERY_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -55,58 +49,17 @@ export function shouldRetryQuery(failureCount: number, error: unknown): boolean 
 }
 
 /**
- * Query-key prefixes that should survive cold restart. Anything not listed
- * is dropped during dehydration so the persisted blob stays small.
- *
- * Mutations are persisted independently (always) so the offline write queue
- * works regardless of the read whitelist.
+ * Whether a query belongs in the account-agnostic cache: successful (a
+ * `pending`/`error` state is not worth keeping, and an error would leak
+ * failure objects across restarts) and under one of the SDK's own prefixes.
  */
-const PERSISTED_QUERY_PREFIXES: ReadonlyArray<string> = [
-  'accounts',
-  'users',
-  'sessions',
-  'devices',
-  'privacy',
-];
-
-/**
- * Adapt our `StorageInterface` (which always returns `null` for missing keys)
- * to TanStack's `AsyncStorage` shape. The two are structurally identical
- * apart from naming; this also gives us a single place to add error
- * suppression if a host platform's storage throws.
- */
-function adaptStorage(storage: StorageInterface): {
-  getItem: (key: string) => Promise<string | null>;
-  setItem: (key: string, value: string) => Promise<void>;
-  removeItem: (key: string) => Promise<void>;
-} {
-  return {
-    getItem: (key) => storage.getItem(key),
-    setItem: (key, value) => storage.setItem(key, value),
-    removeItem: (key) => storage.removeItem(key),
-  };
-}
-
-/**
- * Decide whether a given query should be written to persistent storage.
- *
- * Two gates:
- * 1. The query must be in our prefix whitelist.
- * 2. The query must have completed successfully at least once — there's no
- *    point persisting a `pending`/`error` state, and persisting `error` would
- *    leak failure objects across restarts.
- */
-function shouldDehydrateQuery(query: Query): boolean {
+function isSharedQuery(query: Query): boolean {
   if (query.state.status !== 'success') {
     return false;
   }
   const head = query.queryKey[0];
-  if (typeof head !== 'string') {
-    return false;
-  }
-  return PERSISTED_QUERY_PREFIXES.includes(head);
+  return typeof head === 'string' && PERSISTED_QUERY_PREFIXES.includes(head);
 }
-
 
 /**
  * Create a QueryClient with offline-first defaults.
@@ -174,10 +127,13 @@ export interface AttachPersistenceResult {
 }
 
 /**
- * Wire `persistQueryClient` to the supplied storage adapter.
+ * Restore, then keep writing, the account-agnostic cache.
  *
- * Returns once the in-flight restore promise is available so callers can
- * `await result.restored` before rendering UI that depends on cached data.
+ * Queries written by another build are dropped; queued mutations are kept
+ * (`persistedQueryCache.ts`). Whatever the app declared account-scoped
+ * (`accountQueries`) is left to `createAccountQueryPersistence`, even under
+ * one of the SDK's prefixes, so private rows never land in the shared blob and
+ * a paused mutation cannot replay twice or under another account.
  *
  * Safe to no-op if `storage` is null/undefined (e.g. server-side render
  * with no host storage).
@@ -185,12 +141,7 @@ export interface AttachPersistenceResult {
 export const attachQueryPersistence = (
   queryClient: QueryClient,
   storage: StorageInterface | null | undefined,
-  /**
-   * Mutation keys the app declared account-scoped (`accountQueries`). Those are
-   * persisted per account by `createAccountQueryPersistence`, never here, so a
-   * paused mutation cannot replay twice or under another account.
-   */
-  accountMutationKeys: readonly QueryKey[] = [],
+  accountQueries?: AccountQueriesConfig,
 ): AttachPersistenceResult => {
   if (!storage) {
     return {
@@ -199,38 +150,44 @@ export const attachQueryPersistence = (
     };
   }
 
-  const persister = createAsyncStoragePersister({
-    storage: adaptStorage(storage),
-    key: QUERY_CACHE_KEY,
-    throttleTime: QUERY_PERSIST_THROTTLE_MS,
-  });
-
-  // Persist every other mutation regardless of status: paused mutations are
-  // exactly the ones that must survive restart to replay when online.
-  const accountScoped = new Set(accountMutationKeys.map((key) => hashKey(key)));
-  const shouldDehydrateMutation = (mutation: Mutation): boolean => {
-    const key = mutation.options.mutationKey;
-    return key === undefined || !accountScoped.has(hashKey(key));
+  const account = accountQueries ? accountQueryOwnership(accountQueries) : null;
+  const filters = {
+    shouldDehydrateQuery: (query: Query) =>
+      isSharedQuery(query) && !(account?.ownsQuery(query) ?? false),
+    // Every other mutation, whatever its status: paused ones are exactly the
+    // ones that must survive a restart to replay when online.
+    shouldDehydrateMutation: (mutation: Mutation) =>
+      !(account?.ownsMutation(mutation) ?? false),
   };
 
-  const [unsubscribe, restored] = persistQueryClient({
-    queryClient,
-    persister,
-    maxAge: QUERY_CACHE_MAX_AGE,
-    buster: getOxyBuildId(),
-    dehydrateOptions: {
-      shouldDehydrateQuery,
-      shouldDehydrateMutation,
-    },
-  });
-
-  restored.catch((error) => {
-    if (isDev()) {
-      console.warn('[QueryClient] Failed to restore persisted cache', error);
+  let stopped = false;
+  let writer: ReturnType<typeof subscribeSnapshots> | null = null;
+  const restored = (async () => {
+    const raw = await storage.getItem(QUERY_CACHE_KEY);
+    if (stopped) return;
+    if (!hydrateSnapshot(queryClient, raw, QUERY_CACHE_MAX_AGE) && raw) {
+      await storage.removeItem(QUERY_CACHE_KEY);
     }
-  });
+  })()
+    .catch((error) => {
+      if (isDev()) {
+        console.warn('[QueryClient] Failed to restore persisted cache', error);
+      }
+    })
+    .then(() => {
+      if (stopped) return;
+      writer = subscribeSnapshots(queryClient, filters, QUERY_PERSIST_THROTTLE_MS, (serialized) => {
+        void Promise.resolve(storage.setItem(QUERY_CACHE_KEY, serialized)).catch(() => undefined);
+      });
+    });
 
-  return { unsubscribe, restored };
+  return {
+    restored,
+    unsubscribe: () => {
+      stopped = true;
+      writer?.unsubscribe();
+    },
+  };
 };
 
 /**

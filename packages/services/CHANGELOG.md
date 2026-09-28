@@ -1,5 +1,33 @@
 # Changelog
 
+## [9.1.0] - 2026-09-28
+
+### Added
+
+- `accountQueries.roots: 'all'`: every query the app runs belongs to the
+  signed-in account, for an app whose every read may depend on who is signed
+  in (Syra), so no root can be forgotten and survive an account switch. The
+  roots `accounts`, `sessions` and `devices` are reserved for the SDK's
+  device-level data.
+
+### Fixed
+
+- A restore still in flight when the account changes can no longer hydrate
+  the previous account's rows: the account is re-checked in the same tick as
+  the hydrate.
+- Switching accounts writes the leaving account's latest state first (it
+  used to be lost inside the 1 s write throttle); a sign-out then deletes it,
+  also when it happens before storage is ready.
+- A new build drops persisted queries but keeps queued (paused) mutations, in
+  both SDK caches: a deploy no longer loses an action the user made offline.
+- Account-declared roots are kept out of the shared cache even when they sit
+  under one of the SDK's own prefixes.
+- The account cache stops with the provider that owns it (`attach`/`detach`,
+  StrictMode-safe).
+- SDK queries that carry signed URLs (`assetDownloadUrls`, `avatarCropSource`,
+  `avatarCropMeasure`, `justifiedPhotoDimensions`) are never written to an
+  account cache, whatever the app declares.
+
 ## [8.4.0] - 2026-09-28
 
 Requires `@oxy.so/bloom` ^4.35.0 and `@oxy.so/core` ^3.2.0.
