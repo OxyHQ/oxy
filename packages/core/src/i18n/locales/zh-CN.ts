@@ -144,6 +144,7 @@ const dict = {
     "linkOpenFailed": "无法打开链接，请重试。"
   },
   "common": {
+    "stepOf": "第 {{step}} 步，共 {{total}} 步",
     "actions": {
       "back": "返回",
       "continue": "继续",

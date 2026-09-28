@@ -313,6 +313,7 @@ const dict = {
     }
   },
   "common": {
+    "stepOf": "Paso {{step}} de {{total}}",
     "actions": {
       "back": "Atrás",
       "continue": "Continuar",

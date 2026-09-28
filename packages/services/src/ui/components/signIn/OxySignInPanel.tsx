@@ -60,7 +60,7 @@ import {
   AccountFlowAction,
   AccountFlowCodeField,
   AccountFlowField,
-  AccountFlowNote,
+  AccountFlowNotice,
   BACKUP_CODE_LENGTH,
   describeSignInError,
   errorCode,
@@ -440,7 +440,14 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     );
   }
 
-  const shownError = rateLimitSeconds > 0 ? t('signin.errors.rateLimited', { seconds: rateLimitSeconds }) : error;
+  // A 429 is not something the person typed wrong: it is a wait, counted down
+  // in a notice above the action it holds back, never the field's error.
+  const rateLimitNotice =
+    rateLimitSeconds > 0 ? (
+      <AccountFlowNotice type="warning" testID="signin-rate-limit">
+        {t('signin.errors.rateLimited', { seconds: rateLimitSeconds })}
+      </AccountFlowNotice>
+    ) : null;
   const clearError = () => {
     if (error) setError(null);
   };
@@ -464,7 +471,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               clearError();
             }}
             onComplete={submitCode}
-            error={shownError}
+            error={error}
             disabled={blocked}
             length={longCode ? EMAIL_SIGNIN_LONG_CODE_LENGTH : EMAIL_CODE_LENGTH}
             type={longCode ? 'alphanumeric' : 'numeric'}
@@ -474,7 +481,6 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
           />
           <SubtleLink
             label={longCode ? t('signin.checkEmail.codeDigitsOnly') : t('signin.checkEmail.codeHasLetters')}
-            theme={theme}
             onPress={() => {
               setLongCode(!longCode);
               setCode('');
@@ -483,7 +489,8 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
             disabled={pending}
             testID="signin-code-letters"
           />
-          {notice ? <AccountFlowNote testID="signin-notice">{notice}</AccountFlowNote> : null}
+          {notice ? <AccountFlowNotice testID="signin-notice">{notice}</AccountFlowNotice> : null}
+          {rateLimitNotice}
           <AccountFlowAction
             label={t('signin.actions.continue')}
             onPress={() => submitCode(code)}
@@ -498,21 +505,18 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
                   ? t('signin.checkEmail.resendIn', { seconds: resendSeconds })
                   : t('signin.checkEmail.resend')
               }
-              theme={theme}
               onPress={() => startEmail(request.identifier)}
               disabled={blocked || resendSeconds > 0}
               testID="signin-resend"
             />
             <SubtleLink
               label={t('signin.checkEmail.usePassword')}
-              theme={theme}
               onPress={() => toPassword(request.identifier)}
               disabled={pending}
               testID="signin-use-password"
             />
             <SubtleLink
               label={t('signin.checkEmail.differentAccount')}
-              theme={theme}
               onPress={backToIdentifier}
               disabled={pending}
               testID="signin-different-account"
@@ -535,12 +539,13 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               clearError();
             }}
             onSubmit={submitPassword}
-            error={shownError}
+            error={error}
             disabled={blocked}
             autoComplete="current-password"
             secureTextEntry
             testID="signin-password"
           />
+          {rateLimitNotice}
           <AccountFlowAction
             label={t('signin.actions.continue')}
             onPress={submitPassword}
@@ -551,14 +556,12 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
           <View style={styles.links}>
             <SubtleLink
               label={t('signin.password.forgot')}
-              theme={theme}
               onPress={() => startEmail(request.identifier)}
               disabled={blocked}
               testID="signin-password-forgot"
             />
             <SubtleLink
               label={t('signin.checkEmail.differentAccount')}
-              theme={theme}
               onPress={backToIdentifier}
               disabled={pending}
               testID="signin-different-account"
@@ -584,13 +587,14 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               clearError();
             }}
             onComplete={submitSecondFactor}
-            error={shownError}
+            error={error}
             disabled={blocked}
             length={useBackupCode ? BACKUP_CODE_LENGTH : TOTP_DIGITS}
             type={useBackupCode ? 'alphanumeric' : 'numeric'}
             groupEvery={useBackupCode ? BACKUP_CODE_LENGTH / 2 : undefined}
             testID="signin-second-factor"
           />
+          {rateLimitNotice}
           <AccountFlowAction
             label={t('signin.actions.continue')}
             onPress={() => submitSecondFactor(secondFactorCode)}
@@ -601,7 +605,6 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
           <View style={styles.links}>
             <SubtleLink
               label={useBackupCode ? t('signin.secondFactor.useAuthenticator') : t('signin.secondFactor.useBackup')}
-              theme={theme}
               onPress={() => {
                 setUseBackupCode(!useBackupCode);
                 setSecondFactorCode('');
@@ -612,7 +615,6 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
             />
             <SubtleLink
               label={t('signin.checkEmail.differentAccount')}
-              theme={theme}
               onPress={backToIdentifier}
               disabled={pending}
               testID="signin-different-account"
@@ -675,7 +677,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
                 clearError();
               }}
               onSubmit={submitIdentifier}
-              error={shownError}
+              error={error}
               disabled={blocked}
               placeholder={t('signin.identifier.placeholder')}
               autoComplete="username"
@@ -694,6 +696,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
                 {t('signin.createAccount')}
               </RNText>
             </Text>
+            {rateLimitNotice}
             <AccountFlowAction
               label={t('signin.actions.continue')}
               onPress={submitIdentifier}

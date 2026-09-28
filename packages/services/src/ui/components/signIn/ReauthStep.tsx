@@ -8,7 +8,6 @@
 
 import type React from 'react';
 import { useState } from 'react';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { EMAIL_CODE_LENGTH, TOTP_DIGITS, type ReauthAction, type ReauthProof } from '@oxy.so/contracts';
 import { useOxy } from '../../context/OxyContext';
 import { useI18n } from '../../hooks/useI18n';
@@ -20,6 +19,7 @@ import {
   AccountFlowErrorLine,
   AccountFlowField,
   AccountFlowNote,
+  AccountFlowNotice,
   BACKUP_CODE_LENGTH,
   describeSignInError,
 } from './accountFlowParts';
@@ -58,7 +58,6 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
   secondary,
   children,
 }) => {
-  const theme = useTheme();
   const { t } = useI18n();
   const { oxyServices } = useOxy();
   const [mode, setMode] = useState<'email' | 'password'>(allowPassword ? 'password' : 'email');
@@ -140,7 +139,7 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
         />
       ) : verificationId ? (
         <>
-          <AccountFlowNote>{t('reauth.codeSent')}</AccountFlowNote>
+          <AccountFlowNotice testID="reauth-code-sent">{t('reauth.codeSent')}</AccountFlowNotice>
           <AccountFlowCodeField
             label={t('reauth.codeLabel')}
             value={emailCode}
@@ -171,7 +170,6 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
           />
           <SubtleLink
             label={useBackupCode ? t('signin.secondFactor.useAuthenticator') : t('signin.secondFactor.useBackup')}
-            theme={theme}
             onPress={() => {
               setUseBackupCode(!useBackupCode);
               setTotpCode('');
@@ -191,12 +189,11 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
         testID={needsCode ? 'reauth-send-code' : 'reauth-submit'}
       />
       {mode === 'email' && verificationId ? (
-        <SubtleLink label={t('emailCode.resend')} theme={theme} onPress={sendCode} disabled={pending} testID="reauth-resend" />
+        <SubtleLink label={t('emailCode.resend')} onPress={sendCode} disabled={pending} testID="reauth-resend" />
       ) : null}
       {allowPassword ? (
         <SubtleLink
           label={mode === 'password' ? t('reauth.useEmail') : t('reauth.usePassword')}
-          theme={theme}
           onPress={() => {
             setError(null);
             setMode(mode === 'password' ? 'email' : 'password');
@@ -206,7 +203,7 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
         />
       ) : null}
       {secondary ? (
-        <SubtleLink label={secondary.label} theme={theme} onPress={secondary.onPress} disabled={pending} testID="reauth-cancel" />
+        <SubtleLink label={secondary.label} onPress={secondary.onPress} disabled={pending} testID="reauth-cancel" />
       ) : null}
     </OxyAuthScreen>
   );

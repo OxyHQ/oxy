@@ -98,9 +98,12 @@ export const authChooserStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Longhands: Bloom's web `Button` (`SubtleLink`) is a raw DOM <button>,
+  // where `paddingVertical` is no CSS property and is silently dropped.
   footerLink: {
     alignSelf: 'center',
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
     marginTop: 12,
   },
   linkText: {

@@ -17,8 +17,9 @@
  */
 
 import type React from 'react';
-import { ActivityIndicator, Linking, Text as RNText } from 'react-native';
+import { Linking, Text as RNText } from 'react-native';
 import { View } from 'react-native-css/components';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';
@@ -97,16 +98,12 @@ export const OxyAuthSplit: React.FC<{ children: React.ReactNode; aside: React.Re
   );
 };
 
-/**
- * The screen while there is nothing to show yet. React Native's own indicator:
- * `@oxy.so/bloom/loading` can tree-shake to `undefined` in a rolldown-vite
- * production bundle when co-imported with `@oxy.so/bloom/button`.
- */
+/** The screen while there is nothing to show yet: Bloom's spinner, named for assistive technology. */
 export const OxyAuthLoading: React.FC = () => {
-  const theme = useTheme();
+  const { t } = useI18n();
   return (
     <View className="min-h-[300px] items-center justify-center">
-      <ActivityIndicator size="large" color={theme.colors.primary} />
+      <Loading variant="spinner" size="large" accessibilityLabel={t('common.status.loading')} testID="oxy-auth-loading" />
     </View>
   );
 };

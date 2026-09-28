@@ -57,6 +57,73 @@ export const FollowButton = ({ following, onFollowChange, label = 'Follow', foll
 }, loading ? null : following ? followingLabel : label);
 
 export const Loading = () => createElement('span', null, 'loading');
+/** `@oxy.so/bloom/loading` `SpinnerIcon`: an unnamed glyph. */
+export const SpinnerIcon = () => createElement('span', { 'data-testid': 'spinner-icon', 'aria-hidden': 'true' });
+
+/** `@oxy.so/bloom/button` `LinkButton`: a text action, pressable like `Button`. */
+export const LinkButton = Button;
+
+/**
+ * `@oxy.so/bloom/locale`: the real context semantics (nearest provider, a
+ * `locale` prop wins), so the provider's bridge can be asserted.
+ */
+const LocaleContext = createContext<string | undefined>(undefined);
+export const LocaleProvider = ({ locale, children }: { locale?: string; children?: ReactNode }) =>
+  createElement(LocaleContext.Provider, { value: locale }, children);
+export const useBloomLocale = (locale?: string): string | undefined => {
+  const inherited = useContext(LocaleContext);
+  return locale ?? inherited;
+};
+
+/** `@oxy.so/bloom/code` `CodeBlock`: the code as text, plus its copy button. */
+export const CodeBlock = ({
+  code,
+  onCopy,
+  labels,
+  testID,
+}: {
+  code: string;
+  onCopy?: (code: string) => void | Promise<void>;
+  labels?: { copy?: string; copied?: string };
+  testID?: string;
+} & Record<string, unknown>) =>
+  createElement(
+    'div',
+    { 'data-testid': testID },
+    createElement('pre', null, code),
+    createElement(
+      'button',
+      {
+        type: 'button',
+        'aria-label': labels?.copy ?? 'Copy code',
+        'data-testid': testID ? `${testID}-copy` : undefined,
+        onClick: () => {
+          void Promise.resolve(onCopy?.(code)).catch(() => undefined);
+        },
+      },
+      labels?.copy ?? 'Copy code',
+    ),
+  );
+
+/** `@oxy.so/bloom/wizard` `WizardProgress`: the count line, named like the real bar. */
+export const WizardProgress = ({
+  steps,
+  current,
+  formatStepCount,
+  testID,
+}: {
+  steps: ReadonlyArray<{ title: string }>;
+  current: number;
+  formatStepCount?: (position: number, total: number) => string;
+  testID?: string;
+} & Record<string, unknown>) => {
+  const count = formatStepCount ? formatStepCount(current + 1, steps.length) : `Step ${current + 1} of ${steps.length}`;
+  return createElement(
+    'div',
+    { role: 'progressbar', 'aria-label': `${count}, ${steps[current]?.title ?? ''}`, 'data-testid': testID },
+    count,
+  );
+};
 
 /**
  * `@oxy.so/bloom/social-button` stubs. Mirrors the parts `OxySignInButton`
@@ -200,7 +267,9 @@ export const DropdownMenuItem = ({
  * so a component under test resolves these names here. `Avatar` renders no text
  * so it never collides with `getByText(displayName)` queries.
  */
-export const Avatar = () => createElement('span', { 'aria-hidden': 'true' });
+/** `@oxy.so/bloom/avatar`: draws its `verifiedIcon` slot when `verified`, as the real one does. */
+export const Avatar = ({ verified, verifiedIcon }: { verified?: boolean; verifiedIcon?: ReactNode } & Record<string, unknown>) =>
+  createElement('span', { 'aria-hidden': 'true' }, verified ? verifiedIcon : null);
 
 /**
  * `@oxy.so/bloom/avatar-group` stub — the account-menu facepile. The real group
@@ -531,6 +600,8 @@ export const TextFieldInput = ({
   placeholder,
   testID,
   label,
+  secureTextEntry,
+  revealable,
 }: {
   value?: string;
   onValueChange?: (next: string) => void;
@@ -538,8 +609,14 @@ export const TextFieldInput = ({
   placeholder?: string | null;
   testID?: string;
   label?: string;
+  secureTextEntry?: boolean;
+  revealable?: boolean;
 } & Record<string, unknown>) =>
   createElement('input', {
+    // A secure input is a password input; `revealable` (Bloom's eye button)
+    // is surfaced so a screen can be asserted to offer it.
+    type: secureTextEntry ? 'password' : 'text',
+    'data-revealable': revealable ? 'true' : undefined,
     value: value ?? '',
     placeholder: placeholder ?? undefined,
     'aria-label': label,

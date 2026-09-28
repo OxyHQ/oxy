@@ -144,6 +144,7 @@ const dict = {
     "linkOpenFailed": "リンクを開けませんでした。もう一度お試しください。"
   },
   "common": {
+    "stepOf": "ステップ {{step}}/{{total}}",
     "actions": {
       "back": "戻る",
       "continue": "続ける",
