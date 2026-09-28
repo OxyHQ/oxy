@@ -44,7 +44,7 @@
  *   AFTER          Resume after this user id (also `--after=<id>`)
  *   REDIS_URL      Optional; enables the cross-app cache invalidation broadcast
  *   AWS_*          Required with --apply (the mirror uploads to Oxy Cloud)
- *   INSTAGRAM_GRAPH_FALLBACK_ENABLED / META_*  Optional Graph fallback config
+ *   META_GRAPH_ACCESS_TOKEN / META_IG_BUSINESS_ACCOUNT_ID  Optional Graph fallback credentials
  */
 
 import { and, asc, eq, gt, isNotNull, sql } from 'drizzle-orm';
