@@ -1314,3 +1314,4 @@ export * from './linkedAccounts';
 export * from './federationInstanceFetch';
 export * from './notifications';
 export * from './email/messages';
+export * from './stickers';

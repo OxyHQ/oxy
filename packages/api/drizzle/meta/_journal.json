@@ -855,6 +855,13 @@
       "when": 1790516399261,
       "tag": "0122_federated_avatar_retry",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1790637157553,
+      "tag": "0123_stickers",
+      "breakpoints": true
     }
   ]
 }

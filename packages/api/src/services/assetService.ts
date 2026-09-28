@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
-import { type Readable, Transform } from 'stream';
+import { Readable, Transform } from 'stream';
 import { normalizeInlineText } from '@oxy.so/core';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import type { S3Service } from './s3Service';
@@ -80,7 +80,7 @@ interface StreamedMediaOptions {
   metadata: Record<string, unknown>;
   tempPrefix: string;
   logLabel: string;
-  dedupeScope?: 'any' | 'federation-cache' | 'owner';
+  dedupeScope?: 'any' | 'federation-cache' | 'owner' | 'sticker';
   /**
    * `federation-cache` scope only: the application uploading. A live row with
    * the same bytes that is ALREADY this owner's federated media from this app is
@@ -511,6 +511,17 @@ export class AssetService {
 
       return;
     }
+
+    if (options.dedupeScope === 'sticker') {
+      // Re-uploading a sticker's bytes, or a cached copy being promoted into
+      // the catalogue, reuses the row. A USER's file with the same bytes is
+      // refused: the catalogue would then point at an asset its owner can
+      // delete or make private.
+      if (file.purpose === FEDERATION_MEDIA_CACHE_PURPOSE || file.systemOwner === '__stickers__') {
+        return;
+      }
+      throw new ConflictError('Sticker content already exists as another owner\'s file');
+    }
   }
 
   private async prepareExistingStreamedMediaFile(
@@ -938,6 +949,25 @@ export class AssetService {
       tempPrefix: 'user/incoming',
       logLabel: 'User media',
       dedupeScope: 'owner',
+    });
+  }
+
+  /**
+   * Store one of a sticker's files — its Lottie animation or its static
+   * fallback — in the `__stickers__` namespace. Public and content-addressed,
+   * so the CDN serves it forever; the caller has already validated the bytes
+   * (`stickerValidation.ts`), which is why this takes a buffer rather than a
+   * stream.
+   */
+  async uploadStickerFile(buffer: Buffer, mimeType: string, originalName: string): Promise<FileRecord> {
+    return this.uploadStreamedMedia(Readable.from(buffer), mimeType, originalName, buffer.length, {
+      owner: { ownerUserId: null, systemOwner: '__stickers__' },
+      purpose: 'sticker',
+      visibility: 'public',
+      metadata: {},
+      tempPrefix: 'stickers/incoming',
+      logLabel: 'Sticker file',
+      dedupeScope: 'sticker',
     });
   }
 
