@@ -303,10 +303,18 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
         nameFirst: users.nameFirst, nameLast: users.nameLast }).from(users).where(eq(users.id, identity.userId));
       if (existing) assertCompatibleSource(existing, input, identity.stableId);
     }
+    let renamedFrom: typeof externalIdentities.$inferSelect | undefined;
     if (actor && actor.canonicalAcct !== canonicalAcct) {
       // Only a migration transport key may be promoted to its source account.
       const [previous] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, actor.canonicalAcct));
-      const sameSubject = !!input.stableId && previous?.stableId === input.stableId && previous.network === network;
+      // A stable ID the actor URI itself carries (a numeric Threads actor, a
+      // Bridgy Fed DID actor) names the subject that actor row always named,
+      // even when the previous identity predates stable-ID persistence: a
+      // handle change on the source is a rename, not a new person.
+      const boundToActor = !!input.stableId && (input.actorUri === input.stableId || input.actorUri.endsWith(`/${input.stableId}`));
+      const sameSubject = !!input.stableId && previous?.network === network
+        && (previous.stableId === input.stableId || (previous.stableId === null && boundToActor));
+      if (sameSubject) renamedFrom = previous;
       if (!sameSubject && actor.canonicalAcct !== normalizeExternalAcct(input.transportAcct)) throw new Error('Actor already belongs to another external identity');
     }
     const [legacy] = await tx.select({ id: users.id, type: users.type }).from(users).where(eq(users.federationActorUri, input.actorUri));
@@ -318,7 +326,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       if (named && named.type !== 'federated') throw new ConflictError('External identity conflicts with local user');
       if (named) assertCompatibleSource(named, input);
       const [sameSubject] = input.stableId ? await tx.select().from(externalIdentities).where(and(eq(externalIdentities.stableId, input.stableId), eq(externalIdentities.network, network))).limit(1) : [];
-      let userId = sameSubject?.userId ?? named?.id ?? legacy?.id;
+      let userId = sameSubject?.userId ?? renamedFrom?.userId ?? named?.id ?? legacy?.id;
       if (!userId) {
         const [user] = await tx.insert(users).values({ username: canonicalAcct, type: 'federated', federationActorUri: input.actorUri,
           federationDomain: network, nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null }).returning();
