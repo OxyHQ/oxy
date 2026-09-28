@@ -22,10 +22,10 @@ export const VERSIONS = {
   // Keep this set paired. Publish Core, Bloom, Services and App Preset before
   // releasing the scaffolder: its ranges must resolve outside this workspace.
   oxyServices: '^4.0.0', // @oxy.so/services — requires the Bloom4 context family
-  oxyCore: '^1.7.3', // @oxy.so/core — native/browser workload identity boundary
-  oxyBloom: '^4.35.0', // @oxy.so/bloom
+  oxyCore: '^3.2.0', // @oxy.so/core — OxyServer and the namespaced client the backend template uses
+  oxyBloom: '^5.1.0', // @oxy.so/bloom
 
-  oxyContracts: '^1.0.0', // @oxy.so/contracts
+  oxyContracts: '^4.1.0', // @oxy.so/contracts
   oxyAppPreset: '^2.0.1', // @oxy.so/app-preset
   oxyExpoSplash: '^1.0.0', // @oxy.so/expo-splash — the shared native splash + "from Oxy" branding
 
