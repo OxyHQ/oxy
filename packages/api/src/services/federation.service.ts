@@ -497,6 +497,16 @@ export async function signWithKeyId(keyId: string, signingString: string): Promi
  * signature is bound to the `(request-target)` / `host` of one specific URL.
  * `safeFetch` cannot do this when it follows redirects internally.
  */
+/**
+ * Bridges whose actor endpoint answers 404 intermittently for live mirrors. On
+ * bird.makeup the same actor alternates 200/404 within seconds (measured
+ * 2026-09-28 against cosmic_yolo_bot, t3chfalcon, melonfur_rim, leixida_sccl),
+ * so one 404 there is not evidence the mirror is gone. It is retried before it
+ * counts; a mirror that is really gone still fails, only later.
+ */
+const TRANSIENT_NOT_FOUND_HOSTS = new Set(['bird.makeup']);
+const TRANSIENT_NOT_FOUND_RETRY_DELAYS_MS = [500, 1_500];
+
 const SIGNED_FETCH_MAX_REDIRECTS = 3;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 
@@ -1057,7 +1067,15 @@ class FederationService {
     try {
       const existingKey = options.readonlySigningKey ? await findKeyPair(composeInstanceKeyId(AP_DOMAIN)) : undefined;
       if (options.readonlySigningKey && !existingKey) return resolutionFailure('actor_fetch', 'signing_key_unavailable', { actorUri });
-      const res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], existingKey ?? undefined);
+      let res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], existingKey ?? undefined);
+      if (res?.status === 404 && TRANSIENT_NOT_FOUND_HOSTS.has(new URL(actorUri).hostname)) {
+        for (const delayMs of TRANSIENT_NOT_FOUND_RETRY_DELAYS_MS) {
+          res.response.destroy();
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], existingKey ?? undefined);
+          if (res?.status !== 404) break;
+        }
+      }
       if (!res || res.status < 200 || res.status >= 300) {
         res?.response.destroy();
         return resolutionFailure('actor_fetch', res ? 'http_status' : 'transport_unavailable', { actorUri }, res?.status);

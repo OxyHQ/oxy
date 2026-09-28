@@ -1214,6 +1214,17 @@ describe('federation source failure diagnostics', () => {
     expect(await federationService.fetchActorProfile(uri)).toBeNull();
   });
 
+  it('retries an intermittent bridge 404 before it counts, and still fails a mirror that stays gone', async () => {
+    const bridged = 'https://bird.makeup/users/flaky';
+    mockSafeFetch.mockResolvedValue(makeSafeFetchResult(404, {}));
+    expect(await federationService.fetchActorProfileResult(bridged)).toMatchObject({ ok: false, failure: { httpStatus: 404 } });
+    expect(mockSafeFetch).toHaveBeenCalledTimes(3);
+    mockSafeFetch.mockReset();
+    mockSafeFetch.mockResolvedValueOnce(makeSafeFetchResult(404, {})).mockResolvedValueOnce(makeSafeFetchResult(429, {}));
+    expect(await federationService.fetchActorProfileResult(bridged)).toMatchObject({ ok: false, failure: { httpStatus: 429 } });
+    expect(mockSafeFetch).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     ['not JSON', 'unreadable_document'],
     [JSON.stringify({ id: uri }), 'missing_actor_fields'],
