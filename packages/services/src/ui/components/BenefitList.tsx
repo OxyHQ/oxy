@@ -103,7 +103,7 @@ export const BenefitList: React.FC<BenefitListProps> = ({
         border="hairline"
         elevation="s"
         className={className}
-        style={[{ padding: SPACING['space-16'], gap: SPACING['space-16'], overflow: 'visible' }, style]}
+        style={[{ padding: SPACING['space-16'], gap: SPACING['space-16'] }, style]}
         accessibilityLabel={accessibilityLabel}
     >
         {children}
