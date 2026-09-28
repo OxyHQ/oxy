@@ -470,6 +470,21 @@ describe('GET /profiles/recommendations — scored ranking', () => {
     expect(scores[1]).toBeGreaterThan(scores[2]);
   });
 
+  it('carries each account\'s accent colour, and nothing when it has none', async () => {
+    const coloured = await account({ username: handle('coloured'), avatar: 'file_a', color: 'teal' });
+    const plain = await account({ username: handle('plain'), avatar: 'file_b' });
+    const { viewer } = await viewerWithOverlap([coloured, plain]);
+    currentUserId = viewer;
+
+    const res = await getRecommendations('?limit=50');
+
+    const byId = new Map((res.body.data ?? []).map((row) => [row.id, row]));
+    expect(byId.get(coloured)?.color).toBe('teal');
+    expect(byId.get(plain)).toBeDefined();
+    expect(byId.get(plain)).not.toHaveProperty('color');
+    expect(safeParseContract(recommendationResponseSchema, res.body.data)).not.toBeNull();
+  });
+
   it('ranks a higher mutual overlap above a lower one', async () => {
     const viewer = await curatedAccount();
     const bridgeA = await curatedAccount();

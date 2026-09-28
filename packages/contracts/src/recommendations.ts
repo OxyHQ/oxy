@@ -98,6 +98,8 @@ export const recommendationItemSchema = z
         username: z.string().optional(),
         name: userNameSchema,
         avatar: z.string().nullable().optional(),
+        /** The account's accent colour, as on every profile; absent when unset. */
+        color: z.string().optional(),
         description: z.string().nullable().optional(),
         verified: z.boolean().optional(),
         trustTier: z.string().optional(),
