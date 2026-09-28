@@ -105,7 +105,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
     const persistenceUnsubRef = useRef<(() => void) | null>(null);
     const ownsQueryClientRef = useRef(providedQueryClient === undefined);
     // `accountQueries` is read once, at mount, like the client itself.
-    const accountMutationKeysRef = useRef(accountQueries?.mutationKeys);
+    const accountQueriesRef = useRef(accountQueries);
     const [platformStorage, setPlatformStorage] = useState<StorageInterface | null>(null);
 
     // If the consumer supplied their own QueryClient we use it as-is and skip
@@ -139,7 +139,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
             setPlatformStorage(storage);
             const client = queryClientRef.current;
             if (!client || !ownsQueryClientRef.current) return;
-            const persistence = attachQueryPersistence(client, storage, accountMutationKeysRef.current);
+            const persistence = attachQueryPersistence(client, storage, accountQueriesRef.current);
             persistenceUnsubRef.current = persistence.unsubscribe;
             await persistence.restored;
         };
