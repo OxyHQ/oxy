@@ -385,7 +385,7 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
             spanning the surface. */}
         <Button
           appearance="subtle" tone="neutral"
-          size="small"
+          size="sm"
           onPress={handlers.onManage}
           accessibilityLabel={manageLabel}
         >

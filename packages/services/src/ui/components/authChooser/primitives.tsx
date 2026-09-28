@@ -27,7 +27,7 @@ export const SubtleLink: React.FC<{
   testID?: string;
 }> = ({ label, onPress, disabled, testID }) => (
   <LinkButton
-    variant="secondary"
+    linkTone="secondary"
     size="sm"
     onPress={onPress}
     disabled={disabled}

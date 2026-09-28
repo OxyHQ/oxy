@@ -40,7 +40,7 @@ const ROUTE_GLYPH_SIZE = 44;
  */
 export const PreparingSurface: React.FC = () => {
   const { t } = useI18n();
-  return <Loading variant="spinner" size="large" accessibilityLabel={t('common.status.loading')} />;
+  return <Loading variant="spinner" size="lg" accessibilityLabel={t('common.status.loading')} />;
 };
 
 /** The leading glyph for a route whose surface is elsewhere (the phone, Commons). */

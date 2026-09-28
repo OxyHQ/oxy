@@ -1,5 +1,13 @@
 # Changelog
 
+## [10.0.0] - 2026-09-29
+
+### Breaking changes
+
+- Requires Bloom ^6.0.0 and migrates SDK UI to canonical appearance, tone and size props.
+- FollowButton and FollowTargetButton size now uses sm, md (default), or lg. Replace small, medium and large respectively.
+- Preserves account, sign-in, payment and action-sheet behavior, including destructive actions and accessible follow state.
+
 ## [9.2.0] - 2026-09-28
 
 ### Added

@@ -575,19 +575,19 @@ export const CompositionBar = ({
 export const SettingsListDivider = () => createElement('hr', { 'aria-hidden': 'true' });
 
 export const Switch = ({
-  value,
-  onValueChange,
+  checked,
+  onCheckedChange,
   testID,
 }: {
-  value?: boolean;
-  onValueChange?: (next: boolean) => void;
+  checked?: boolean;
+  onCheckedChange?: (next: boolean) => void;
   testID?: string;
 } & Record<string, unknown>) =>
   createElement('input', {
     type: 'checkbox',
     role: 'switch',
-    checked: value,
-    onChange: () => onValueChange?.(!value),
+    checked: checked,
+    onChange: () => onCheckedChange?.(!checked),
     'data-testid': testID,
   });
 

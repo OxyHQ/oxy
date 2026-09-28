@@ -90,8 +90,8 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
                             }
                             rightElement={
                                 <Switch
-                                    value={values.pushEnabled}
-                                    onValueChange={() => toggle('pushEnabled')}
+                                    checked={values.pushEnabled}
+                                    onCheckedChange={() => toggle('pushEnabled')}
                                     disabled={isSaving}
                                 />
                             }
@@ -111,8 +111,8 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
                             }
                             rightElement={
                                 <Switch
-                                    value={values.emailDigest}
-                                    onValueChange={() => toggle('emailDigest')}
+                                    checked={values.emailDigest}
+                                    onCheckedChange={() => toggle('emailDigest')}
                                     disabled={isSaving}
                                 />
                             }
@@ -139,8 +139,8 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
                             }
                             rightElement={
                                 <Switch
-                                    value={values.securityAlerts}
-                                    onValueChange={() => toggle('securityAlerts')}
+                                    checked={values.securityAlerts}
+                                    onCheckedChange={() => toggle('securityAlerts')}
                                     disabled={isSaving}
                                 />
                             }
@@ -168,8 +168,8 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
                             }
                             rightElement={
                                 <Switch
-                                    value={values.marketingEmails}
-                                    onValueChange={() => toggle('marketingEmails')}
+                                    checked={values.marketingEmails}
+                                    onCheckedChange={() => toggle('marketingEmails')}
                                     disabled={isSaving}
                                 />
                             }

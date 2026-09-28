@@ -16,6 +16,7 @@ import {
 } from '../followButtonAccessibility';
 
 interface BloomFollowProps {
+  size?: 'sm' | 'md' | 'lg';
   following: boolean;
   label?: string;
   followingLabel?: string;
@@ -188,4 +189,12 @@ describe('FollowTargetButton names the state it shows', () => {
     render(<FollowTargetButton targetId="t1" showOptions={false} />);
     expect(lastBloomProps()?.accessibilityLabel).toBe(label);
   });
+});
+
+
+it.each(['sm', 'md', 'lg'] as const)('forwards canonical %s geometry in both follow modes', size => {
+  render(<FollowButton userId="nate-id" size={size} />);
+  expect(lastBloomProps()?.size).toBe(size);
+  render(<FollowButton userIds={['a', 'b']} size={size} />);
+  expect(lastBloomProps()?.size).toBe(size);
 });

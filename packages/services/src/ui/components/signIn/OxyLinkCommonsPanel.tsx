@@ -204,7 +204,7 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
         <OxyAuthScreen>
           <OxyAuthScreenHeader title={t('linkCommons.title')} description={t('linkCommons.subtitle')} />
           <View style={styles.plateRow}>
-            <Loading variant="spinner" size="large" accessibilityLabel={t('common.status.loading')} />
+            <Loading variant="spinner" size="lg" accessibilityLabel={t('common.status.loading')} />
           </View>
         </OxyAuthScreen>
       );

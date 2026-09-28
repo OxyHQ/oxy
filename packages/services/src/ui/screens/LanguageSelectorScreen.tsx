@@ -197,7 +197,7 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
                                             </Text>
                                         </View>
                                     ) : canRemove ? (
-                                        <Button appearance="plain" tone="neutral" size="small" iconOnly stopPropagation
+                                        <Button appearance="plain" tone="neutral" size="sm" iconOnly stopPropagation
                                             onPress={() => handleRemove(entry.code)} disabled={isBusy}
                                             accessibilityLabel={`${t('language.remove')} ${entry.name}`}
                                             icon={<Ionicons name="close-circle" size={REMOVE_ICON_SIZE} color={bloomTheme.colors.textSecondary} />} />
