@@ -166,3 +166,13 @@ it('does not treat a stable ID absent from the actor URI as a rename of a legacy
   await expect(registerExternalIdentity({ ...input(`${name()}@bsky.social`, actorUri), stableId: `did:plc:${name()}` }))
     .rejects.toThrow('Actor already belongs to another external identity');
 });
+
+it('follows a rename from a legacy bridge-domain identity to the derived network', async () => {
+  const did = `did:plc:${name()}`;
+  const actorUri = `https://bsky.brid.gy/ap/${did}`;
+  const legacy = await registerExternalIdentity(input(`${name()}@bsky.brid.gy`, actorUri));
+  const newAcct = `${name()}@bsky.social`;
+  const renamed = await registerExternalIdentity({ ...input(newAcct, actorUri), stableId: did });
+  expect(renamed.userId).toBe(legacy.userId);
+  expect(await lookupExternalIdentity(newAcct)).toBe(legacy.userId);
+});
