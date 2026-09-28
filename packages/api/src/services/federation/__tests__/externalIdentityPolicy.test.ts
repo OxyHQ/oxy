@@ -29,6 +29,18 @@ describe('Oxy external identity policy', () => {
     }
   });
 
+  it('reads a Bridgy Fed handle from its bsky.app url when the Web site field is absent', () => {
+    const did = 'did:plc:s4olzoz523kbnoneduxwalrk';
+    const uri = `https://bsky.brid.gy/ap/${did}`;
+    const bridgy = { id: uri, type: 'Person', preferredUsername: 'canis55lupus.bsky.social', alsoKnownAs: [did],
+      url: 'https://bsky.brid.gy/r/https://bsky.app/profile/canis55lupus.bsky.social' };
+    expect(deriveExternalActorProfile(bridgy, uri)).toMatchObject({ username: 'canis55lupus@bsky.social', domain: 'bsky.social', stableId: did });
+    // The url must name the actor itself, and the DID rule still binds.
+    expect(deriveExternalActorProfile({ ...bridgy, url: 'https://bsky.brid.gy/r/https://bsky.app/profile/someone.else' }, uri))
+      .toMatchObject({ domain: 'bsky.brid.gy' });
+    expect(deriveExternalActorProfile({ ...bridgy, alsoKnownAs: [] }, uri)).toMatchObject({ domain: 'bsky.brid.gy' });
+  });
+
   it('does not invent an X identity for the bridge administrator', () => {
     expect(deriveExternalActorProfile({ ...actor, attachment: [], type: 'Person', summary: 'Bridge administrator' }, actorUri))
       .toMatchObject({ username: 'jordievole@bird.makeup', bio: 'Bridge administrator' });
