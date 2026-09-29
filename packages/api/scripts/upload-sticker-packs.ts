@@ -31,17 +31,24 @@
  * Run:
  *   OXY_ACCESS_TOKEN=<staff session token> \
  *     bun run packages/api/scripts/upload-sticker-packs.ts <folder> [--api https://api.oxy.so] [--publish] [--dry-run]
+ *
+ * Or, with no staff session at hand, write the manifest `import-sticker-packs.ts`
+ * reads inside the API image, and stage the folder beside it:
+ *   bun run packages/api/scripts/upload-sticker-packs.ts <folder> --manifest <folder>/manifest.json
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { StickerPack, StickerPackSummary } from '@oxy.so/contracts';
+import { manifestPack, type StickerManifest } from './lib/stickerNames';
 
 interface Options {
   folder: string;
   api: string;
   publish: boolean;
   dryRun: boolean;
+  /** Write the import manifest here instead of uploading (`import-sticker-packs.ts` reads it). */
+  manifest: string | null;
   token: string;
 }
 
@@ -50,6 +57,7 @@ function parseArgs(argv: string[]): Options {
   let api = 'https://api.oxy.so';
   let publish = false;
   let dryRun = false;
+  let manifest: string | null = null;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--api') {
@@ -59,6 +67,9 @@ function parseArgs(argv: string[]): Options {
       publish = true;
     } else if (arg === '--dry-run') {
       dryRun = true;
+    } else if (arg === '--manifest') {
+      manifest = argv[index + 1] ?? null;
+      index += 1;
     } else {
       positional.push(arg);
     }
@@ -66,86 +77,8 @@ function parseArgs(argv: string[]): Options {
   const folder = positional[0];
   if (!folder) throw new Error('Usage: upload-sticker-packs.ts <folder> [--api URL] [--publish] [--dry-run]');
   const token = process.env.OXY_ACCESS_TOKEN ?? '';
-  if (!token && !dryRun) throw new Error('OXY_ACCESS_TOKEN (a staff account session token) is required');
-  return { folder, api: api.replace(/\/+$/, ''), publish, dryRun, token };
-}
-
-/**
- * Words in a file name → the emoji they stand for. Matched as substrings of
- * the lower-cased name, first match wins, so the more specific entries come
- * first (`thumbsup` before `up`, `heartbroken` before `heart`).
- */
-const EMOJI_BY_WORD: [string, string][] = [
-  ['rollover', '🙃'], ['surprise', '😮'], ['suprise', '😮'],
-  ['thumbsup', '👍'], ['thumbs_up', '👍'], ['fistbump', '👊'], ['fist_bump', '👊'],
-  ['fingerscrossed', '🤞'], ['peace', '✌️'], ['handsup', '🙌'], ['shrug', '🤷'],
-  ['wave', '👋'], ['waving', '👋'], ['hello', '👋'], ['sup', '👋'],
-  ['mindblown', '🤯'], ['mind_blown', '🤯'], ['lovestruck', '😍'], ['inlove', '😍'],
-  ['loving', '🥰'], ['love', '❤️'], ['heart', '❤️'], ['kiss', '😘'], ['hug', '🤗'],
-  ['imissyou', '🥺'], ['missyou', '🥺'], ['grateful', '🙏'],
-  ['laugh', '😂'], ['lol', '😂'], ['giggl', '🤭'], ['teeth_smile', '😁'], ['smile', '😊'],
-  ['sobbing', '😭'], ['crying', '😭'], ['cry', '😢'], ['sad', '😢'], ['grief', '😢'],
-  ['hurting', '😣'], ['defeated', '😞'], ['sombre', '😔'], ['somber', '😔'],
-  ['angry', '😠'], ['anger', '😠'], ['mad', '😡'], ['annoyed', '😒'], ['humph', '😤'],
-  ['evil', '😈'], ['mischievous', '😈'], ['sneaky', '😏'], ['smug', '😏'], ['smirk', '😏'],
-  ['wink', '😉'], ['cheeky', '😜'], ['silly', '😜'], ['zany', '🤪'], ['playful', '😜'],
-  ['trolling', '😜'], ['rizz', '😏'], ['wolfish', '😏'],
-  ['surprise', '😮'], ['suprise', '😮'], ['gasp', '😮'], ['ohhh', '😮'], ['omg', '😱'],
-  ['shocked', '😱'], ['scared', '😱'], ['awe', '😮'], ['speechless', '😶'], ['empty_face', '😶'],
-  ['nervous', '😬'], ['anxious', '😰'], ['stressed', '😫'], ['overwhelmed', '😵'],
-  ['dizzy', '😵‍💫'], ['dissociating', '😶‍🌫️'], ['awkward', '😬'], ['oops', '😅'],
-  ['embarrass', '😳'], ['embarass', '😳'], ['shy', '😊'],
-  ['confused', '😕'], ['hmm', '🤔'], ['hm_', '🤔'], ['skeptical', '🤨'], ['suspicious', '🤨'],
-  ['sus', '🤨'], ['judgemental', '🧐'], ['condescending', '🧐'], ['eyeroll', '🙄'],
-  ['looking', '👀'], ['watching', '👀'], ['focused', '🧐'], ['nope', '🙅'],
-  ['tired', '😴'], ['sleepy', '😴'], ['goodnight', '🌙'], ['chilling', '😌'], ['relaxed', '😌'],
-  ['contented', '😌'], ['satisfied', '😌'], ['zen', '🧘'], ['cosy', '☕'], ['coffee', '☕'],
-  ['siptea', '🍵'], ['bloated', '🤢'], ['hungry', '🤤'], ['hayfever', '🤧'],
-  ['cool', '😎'], ['confident', '😎'], ['shining', '✨'], ['thriving', '💅'], ['winning', '🏆'],
-  ['celebrat', '🎉'], ['party', '🥳'], ['letsparty', '🥳'], ['yay', '🥳'], ['excited', '🤩'],
-  ['delighted', '😄'], ['inspired', '💡'], ['imyourfan', '🤩'],
-  ['dance', '💃'], ['vibing', '🎶'], ['fire', '🔥'], ['omw', '🏃'], ['disappear', '🫥'],
-  ['hiding', '🫣'], ['fakingit', '🙃'], ['everythingisoki', '🙃'], ['rollover', '🙃'],
-  ['red_card', '🟥'], ['laptop', '💻'], ['croak', '🐸'], ['petals', '🌸'], ['squeezer', '🍋'],
-  ['cute', '🥰'], ['catchingfeelings', '🥰'],
-];
-
-const DEFAULT_EMOJI = '🙂';
-
-/** The words of a file name, without the export noise authoring tools add. */
-function wordsOf(fileName: string): string[] {
-  return fileName
-    .replace(/\.json$/i, '')
-    .split(/[^A-Za-z]+/)
-    .filter((word) => word.length > 1)
-    .filter((word) => !/^(wa|lottie|json|export|opti|optimised|optimising|assemble|pc|vxx|xx|name|packname|stickernumber|stickername)$/i.test(word))
-    .filter((word) => !/^v\d*$/i.test(word));
-}
-
-/**
- * The part of a file name that names the STICKER, not the pack: exports are
- * usually `<Prefix>_<Pack>_<NN>_<Name>`, and a pack called "Dance to the Beat"
- * would otherwise make every sticker in it 💃.
- */
-function stickerName(fileName: string): string {
-  const withoutPrefix = fileName.replace(/^WA_/i, '');
-  const numbered = withoutPrefix.match(/^[A-Za-z]+_\d+[a-z]?_(.+)$/);
-  return numbered ? numbered[1] : withoutPrefix;
-}
-
-function emojiFor(fileName: string): string {
-  const lower = stickerName(fileName).toLowerCase();
-  return EMOJI_BY_WORD.find(([word]) => lower.includes(word))?.[1] ?? DEFAULT_EMOJI;
-}
-
-function slugify(title: string): string {
-  return title
-    .normalize('NFKD')
-    .replace(/[^\w\s-]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-');
+  if (!token && !dryRun && !manifest) throw new Error('OXY_ACCESS_TOKEN (a staff account session token) is required');
+  return { folder, api: api.replace(/\/+$/, ''), publish, dryRun, manifest, token };
 }
 
 async function request<T>(options: Options, method: string, pathname: string, body?: BodyInit, json?: unknown): Promise<T> {
@@ -179,18 +112,29 @@ async function main(): Promise<void> {
     .filter((name) => statSync(path.join(options.folder, name)).isDirectory())
     .sort((a, b) => a.localeCompare(b));
 
+  const packs = packFolders.map((title) =>
+    manifestPack(
+      title,
+      readdirSync(path.join(options.folder, title)).filter((name) => name.toLowerCase().endsWith('.json'))
+    )
+  );
+
+  if (options.manifest) {
+    const manifest: StickerManifest = { packs };
+    writeFileSync(options.manifest, `${JSON.stringify(manifest, null, 2)}\n`);
+    console.log(`manifest: ${packs.length} packs, ${packs.reduce((n, p) => n + p.stickers.length, 0)} stickers → ${options.manifest}`);
+    return;
+  }
+
   const existing = options.dryRun ? new Map<string, StickerPackSummary>() : await existingPacks(options);
 
-  for (const title of packFolders) {
+  for (const { title, slug, stickers } of packs) {
     const folder = path.join(options.folder, title);
-    const files = readdirSync(folder)
-      .filter((name) => name.toLowerCase().endsWith('.json'))
-      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    const slug = slugify(title);
+    const files = stickers.map((sticker) => sticker.file);
 
     if (options.dryRun) {
       console.log(`${slug} (${files.length})`);
-      for (const file of files) console.log(`  ${emojiFor(file)}  ${file}  [${wordsOf(file).join(', ')}]`);
+      for (const sticker of stickers) console.log(`  ${sticker.emoji}  ${sticker.file}  [${sticker.keywords.join(', ')}]`);
       continue;
     }
 
@@ -209,11 +153,11 @@ async function main(): Promise<void> {
     }
 
     const pack = await request<StickerPack>(options, 'POST', '/stickers/admin/packs', undefined, { slug, title });
-    for (const file of files) {
+    for (const { file, emoji, keywords } of stickers) {
       const form = new FormData();
       form.append('animation', new Blob([readFileSync(path.join(folder, file))], { type: 'application/json' }), file);
-      form.append('emoji', emojiFor(file));
-      form.append('keywords', wordsOf(file).join(','));
+      form.append('emoji', emoji);
+      form.append('keywords', keywords.join(','));
       await request(options, 'POST', `/stickers/admin/packs/${pack.id}/stickers`, form);
       process.stdout.write('.');
     }
