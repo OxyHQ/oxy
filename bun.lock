@@ -802,7 +802,7 @@
     },
     "packages/stickers": {
       "name": "@oxy.so/stickers",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
       },
