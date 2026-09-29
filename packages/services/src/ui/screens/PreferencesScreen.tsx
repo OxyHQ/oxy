@@ -158,8 +158,8 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({
                             }
                             rightElement={
                                 <Switch
-                                    value={reduceMotionPref}
-                                    onValueChange={handleReduceMotionToggle}
+                                    checked={reduceMotionPref}
+                                    onCheckedChange={handleReduceMotionToggle}
                                     disabled={isSaving}
                                 />
                             }

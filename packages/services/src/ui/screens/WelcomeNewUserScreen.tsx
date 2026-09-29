@@ -182,10 +182,10 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
         if (currentStep === totalSteps - 1) {
             return (
                 <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-                    <Button appearance="subtle" tone="neutral" onPress={prevStep} size="small">
+                    <Button appearance="subtle" tone="neutral" onPress={prevStep} size="sm">
                         {t('welcomeNew.actions.back') || 'Back'}
                     </Button>
-                    <Button appearance="solid" tone="accent" onPress={finish} size="small">
+                    <Button appearance="solid" tone="accent" onPress={finish} size="sm">
                         {t('welcomeNew.actions.enter') || 'Enter'}
                     </Button>
                 </View>
@@ -195,11 +195,11 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
             return (
                 <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
                     {avatarStepIndex > 0 && (
-                        <Button appearance="subtle" tone="neutral" onPress={skipToAvatar} size="small">
+                        <Button appearance="subtle" tone="neutral" onPress={skipToAvatar} size="sm">
                             {t('welcomeNew.actions.skip') || 'Skip'}
                         </Button>
                     )}
-                    <Button appearance="solid" tone="accent" onPress={nextStep} size="small">
+                    <Button appearance="solid" tone="accent" onPress={nextStep} size="sm">
                         {t('welcomeNew.actions.next') || 'Next'}
                     </Button>
                 </View>
@@ -208,10 +208,10 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
         if (nameStepIndex >= 0 && currentStep === nameStepIndex) {
             return (
                 <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-                    <Button appearance="subtle" tone="neutral" onPress={prevStep} size="small">
+                    <Button appearance="subtle" tone="neutral" onPress={prevStep} size="sm">
                         {t('welcomeNew.actions.back') || 'Back'}
                     </Button>
-                    <Button appearance="solid" tone="accent" onPress={submitName} size="small" disabled={!firstName.trim() || savingName} loading={savingName}>
+                    <Button appearance="solid" tone="accent" onPress={submitName} size="sm" disabled={!firstName.trim() || savingName} loading={savingName}>
                         {t('welcomeNew.actions.continue') || 'Continue'}
                     </Button>
                 </View>
@@ -220,10 +220,10 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
         if (step.showAvatar) {
             return (
                 <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-                    <Button appearance="subtle" tone="neutral" onPress={prevStep} size="small">
+                    <Button appearance="subtle" tone="neutral" onPress={prevStep} size="sm">
                         {t('welcomeNew.actions.back') || 'Back'}
                     </Button>
-                    <Button appearance="solid" tone="accent" onPress={nextStep} size="small">
+                    <Button appearance="solid" tone="accent" onPress={nextStep} size="sm">
                         {avatarUri ? (t('welcomeNew.actions.continue') || 'Continue') : (t('welcomeNew.actions.skip') || 'Skip')}
                     </Button>
                 </View>
@@ -231,10 +231,10 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
         }
         return (
             <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-                <Button appearance="subtle" tone="neutral" onPress={prevStep} size="small">
+                <Button appearance="subtle" tone="neutral" onPress={prevStep} size="sm">
                     {t('welcomeNew.actions.back') || 'Back'}
                 </Button>
-                <Button appearance="solid" tone="accent" onPress={nextStep} size="small">
+                <Button appearance="solid" tone="accent" onPress={nextStep} size="sm">
                     {t('welcomeNew.actions.next') || 'Next'}
                 </Button>
             </View>
@@ -296,7 +296,7 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
                                 placeholderColor={`${colors.primary}20`}
                                 style={styles.avatar}
                             />
-                            <Button appearance="solid" tone="accent" size="small" onPress={openAvatarPicker}>
+                            <Button appearance="solid" tone="accent" size="sm" onPress={openAvatarPicker}>
                                 {avatarUri ? (t('welcomeNew.avatar.change') || 'Change Avatar') : (t('welcomeNew.avatar.add') || 'Add Avatar')}
                             </Button>
                         </View>

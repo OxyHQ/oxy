@@ -14,7 +14,7 @@ import { toast } from '@oxy.so/bloom';
 import { useColors } from '@/hooks/useColors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 import { getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
 import { useAvatarUrl } from '@/hooks/useAvatarUrl';
 import { useTranslation } from '@/lib/i18n';
@@ -168,7 +168,8 @@ export default function AuthorizeScreen() {
           <Text style={[styles.title, { color: textColor }]}>{t('authorize.errorTitle')}</Text>
           <Text style={[styles.errorText, { color: textColor, opacity: 0.8 }]}>{error}</Text>
           <Button
-            variant="secondary"
+            appearance="outline"
+            tone="neutral"
             onPress={() => router.back()}
             style={styles.fullWidthButton}
           >
@@ -253,7 +254,8 @@ export default function AuthorizeScreen() {
       {/* Action Buttons */}
       <View style={styles.footer}>
         <Button
-          variant="secondary"
+          appearance="outline"
+          tone="neutral"
           onPress={handleDeny}
           disabled={isAuthorizing}
           style={styles.button}
@@ -261,7 +263,8 @@ export default function AuthorizeScreen() {
           {t('authorize.cancel')}
         </Button>
         <Button
-          variant="primary"
+          appearance="solid"
+          tone="accent"
           onPress={handleAuthorize}
           disabled={isAuthorizing || !activeSessionId}
           loading={isAuthorizing}

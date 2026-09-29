@@ -574,20 +574,21 @@ export const CompositionBar = ({
 /** `@oxy.so/bloom/settings-list` hairline between rows. */
 export const SettingsListDivider = () => createElement('hr', { 'aria-hidden': 'true' });
 
+/** Bloom 6's controlled spelling: `checked` / `onCheckedChange`. */
 export const Switch = ({
-  value,
-  onValueChange,
+  checked,
+  onCheckedChange,
   testID,
 }: {
-  value?: boolean;
-  onValueChange?: (next: boolean) => void;
+  checked?: boolean;
+  onCheckedChange?: (next: boolean) => void;
   testID?: string;
 } & Record<string, unknown>) =>
   createElement('input', {
     type: 'checkbox',
     role: 'switch',
-    checked: value,
-    onChange: () => onValueChange?.(!value),
+    checked,
+    onChange: () => onCheckedChange?.(!checked),
     'data-testid': testID,
   });
 

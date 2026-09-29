@@ -70,7 +70,7 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({
     if (isLoading) {
         return (
                 <View className="items-center py-space-40">
-                    <Loading size="large" color={primaryColor} />
+                    <Loading size="lg" color={primaryColor} />
                 </View>
         );
     }

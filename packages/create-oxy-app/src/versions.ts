@@ -21,9 +21,14 @@ export const VERSIONS = {
   //
   // Keep this set paired. Publish Core, Bloom, Services and App Preset before
   // releasing the scaffolder: its ranges must resolve outside this workspace.
-  oxyServices: '^9.0.0', // @oxy.so/services — requires the Bloom 5 context family
+  // UNPAIRED UNTIL SERVICES 10 PUBLISHES: `oxyBloom` follows the workspace
+  // catalog (a test pins it), and services 10.0.0 -- the release whose peer is
+  // Bloom 6 -- is not on the registry yet. Move this to '^10.0.0' (and
+  // `oxyAppPreset` to '^2.2.1') in the change that publishes it, before
+  // releasing the scaffolder.
+  oxyServices: '^9.0.0', // @oxy.so/services — 9.x requires the Bloom 5 context family; 10.x Bloom 6
   oxyCore: '^3.2.0', // @oxy.so/core — OxyServer and the namespaced client the backend template uses
-  oxyBloom: '^5.1.0', // @oxy.so/bloom
+  oxyBloom: '^6.0.0', // @oxy.so/bloom
 
   oxyContracts: '^4.1.0', // @oxy.so/contracts
   oxyAppPreset: '^2.2.0', // @oxy.so/app-preset

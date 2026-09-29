@@ -291,7 +291,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
               <Text className="text-caption font-caption text-text-secondary px-space-4">
                 {t('accounts.members.invite.roleLabel') || 'Role'}
               </Text>
-              <SegmentedControl type="radio" label={t('accounts.members.invite.roleLabel') || 'Role'} value={inviteRole} onValueChange={setInviteRole} size="small">
+              <SegmentedControl type="radio" label={t('accounts.members.invite.roleLabel') || 'Role'} value={inviteRole} onValueChange={setInviteRole} size="sm">
                 {ASSIGNABLE_ROLES.map(role => <SegmentedControlItem key={role} value={role}>
                   <SegmentedControlItemText>{roleLabel(role)}</SegmentedControlItemText>
                 </SegmentedControlItem>)}
@@ -372,7 +372,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                           {/* Role chips (editable) or static role label */}
                           {canEditThisRole ? (
                             <SegmentedControl type="radio" label={t('accounts.members.invite.roleLabel') || 'Role'}
-                              value={member.role} onValueChange={role => handleChangeRole(member, role)} disabled={updateMutation.isPending} size="small">
+                              value={member.role} onValueChange={role => handleChangeRole(member, role)} disabled={updateMutation.isPending} size="sm">
                               {ASSIGNABLE_ROLES.map(role => <SegmentedControlItem key={role} value={role}>
                                 <SegmentedControlItemText>{roleLabel(role)}</SegmentedControlItemText>
                               </SegmentedControlItem>)}
@@ -387,7 +387,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                           {(canTransferToThis || canRemoveThisMember) ? (
                             <View className="flex-row gap-space-16 pt-space-4">
                               {canTransferToThis ? (
-                                <Button appearance="plain" tone="neutral" size="small"
+                                <Button appearance="plain" tone="neutral" size="sm"
                                   accessibilityRole="button"
                                   accessibilityLabel={t('accounts.members.actions.transfer') || 'Transfer ownership'}
                                   onPress={() => confirmTransfer(member)}
@@ -400,7 +400,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                                 </Button>
                               ) : null}
                               {canRemoveThisMember ? (
-                                <Button appearance="plain" tone="neutral" size="small"
+                                <Button appearance="plain" tone="neutral" size="sm"
                                   accessibilityRole="button"
                                   accessibilityLabel={t('accounts.members.actions.remove') || 'Remove member'}
                                   onPress={() => confirmRemove(member)}

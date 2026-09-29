@@ -103,7 +103,7 @@ export const OxyAuthLoading: React.FC = () => {
   const { t } = useI18n();
   return (
     <View className="min-h-[300px] items-center justify-center">
-      <Loading variant="spinner" size="large" accessibilityLabel={t('common.status.loading')} testID="oxy-auth-loading" />
+      <Loading variant="spinner" size="lg" accessibilityLabel={t('common.status.loading')} testID="oxy-auth-loading" />
     </View>
   );
 };

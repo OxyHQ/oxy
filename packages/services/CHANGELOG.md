@@ -1,5 +1,28 @@
 # Changelog
 
+## [10.0.0] - 2026-09-29
+
+### Breaking
+
+- Requires `@oxy.so/bloom` `^6.0.0` (the peer moves from `^5.1.0`; it does not
+  widen, so an app resolves one Bloom and one set of Bloom contexts). Move the
+  app to Bloom 6 in the same change.
+- `FollowButton` and `FollowTargetButton` take `size` in Bloom's vocabulary:
+  `'sm' | 'md' | 'lg'` (default `'md'`), not `'small' | 'medium' | 'large'`.
+  Rename `size="small"` to `size="sm"` and so on.
+
+### Changed
+
+- Every Bloom call site uses the Bloom 6 spellings: control sizes `sm`/`md`/`lg`,
+  `Switch` `checked`/`onCheckedChange`, `Button` `appearance`/`tone` in place of
+  `variant` (the same pair each variant resolved to), `LinkButton` `linkTone`,
+  and `Card` `appearance="outline"`.
+- The profile editor's add-item button draws Bloom's `RiAddLine` in the button's
+  own foreground. It drew an Ionicons glyph in `primaryForeground` on a neutral
+  outline surface, a low-contrast pairing.
+- `PeableButton` passes its brand fill and label to `Button`'s `colors` rather
+  than overriding them through `style` and `textStyle`'s background.
+
 ## [9.2.0] - 2026-09-28
 
 ### Added

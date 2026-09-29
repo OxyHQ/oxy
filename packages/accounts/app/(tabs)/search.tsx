@@ -12,7 +12,7 @@ import { AccountCard, EmptyStateCard } from '@/components/ui';
 import { menuItems } from '@/components/ui/sidebar-content';
 import { darkenColor } from '@/utils/color-utils';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
-import { useOxy, FollowButton as ImportedFollowButton } from '@oxy.so/services';
+import { useOxy, FollowButton } from '@oxy.so/services';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import type { User, BlockedUser, RestrictedUser } from '@oxy.so/core';
 import { getAccountFallbackHandle, getNormalizedUserHandle } from '@oxy.so/core';
@@ -23,14 +23,6 @@ import { useDebounce } from '@/hooks/useDebounce';
 const MIN_SEARCH_LENGTH = 2;
 /** Debounce window applied to the search box before refetching. */
 const SEARCH_DEBOUNCE_MS = 500;
-
-// Explicit type annotation to avoid implicit any when services source has transient TS errors
-const FollowButton: React.FC<{
-  userId: string;
-  initiallyFollowing?: boolean;
-  size?: 'small' | 'medium' | 'large';
-  theme?: 'light' | 'dark';
-}> = ImportedFollowButton;
 
 /** ObjectId-like value: a raw MongoDB `_id` exposes `toString()`. */
 interface ObjectIdLike {
@@ -229,7 +221,7 @@ export default function SearchScreen() {
             <FollowButton
               userId={userId}
               initiallyFollowing={false}
-              size="small"
+              size="sm"
               theme={mode}
             />
           ),

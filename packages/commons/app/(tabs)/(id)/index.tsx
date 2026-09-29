@@ -19,7 +19,7 @@ import { Fab } from '@oxy.so/bloom/fab';
 import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { Screen, Section, useFabClearance } from '@/components/ui';
+import { Screen, Section, useFabAnchor, useFabClearance } from '@/components/ui';
 import { Ticket as OxyID } from '@/components/OxyID';
 import { FrontSide } from '@/components/OxyID/front-side';
 import { BackSide } from '@/components/OxyID/back-side';
@@ -68,6 +68,7 @@ export default function IdScreen() {
   // The QR FAB floats over the scroller; the content's bottom inset clears it,
   // so the last lines can always be scrolled out from under the button.
   const fabClearance = useFabClearance(tabBarFootprint);
+  const fabAnchor = useFabAnchor(tabBarFootprint);
   const { t } = useTranslation();
   const { user, oxyServices } = useOxy();
   const [cameraPermission, requestCameraPermission, refreshCameraPermission] = useCameraPermissions();
@@ -297,20 +298,19 @@ export default function IdScreen() {
       {/*
         QR scanner is an action, not a tab — opens the root full-screen modal.
 
-        `offset` lifts the FAB clear of the floating tab bar. It is the bar's RAW
-        footprint: `Fab` supplies its own gap from that anchor, and the bottom
-        safe-area inset is already folded into the footprint, so adding
-        `insets.bottom` here would count the home indicator twice.
+        The anchor lifts the FAB clear of the floating tab bar by the bar's RAW
+        footprint: the bottom safe-area inset is already folded into it, so
+        adding `insets.bottom` here would count the home indicator twice.
       */}
-      <Fab
-        variant="primary"
-        size="md"
-        placement="bottom-right"
-        offset={tabBarFootprint}
-        onPress={handleScan}
-        accessibilityLabel={t('civic.id.scanAction')}
-        icon={<Icons.scan size='lg' fill={colors.primaryForeground} />}
-      />
+      <View style={fabAnchor} pointerEvents="box-none">
+        <Fab
+          tone="accent"
+          size="md"
+          onPress={handleScan}
+          accessibilityLabel={t('civic.id.scanAction')}
+          icon={Icons.scan}
+        />
+      </View>
 
       {qrSheetOpen && <AttestQrSheet onClose={() => setQrSheetOpen(false)} />}
       {cameraPermissionSheetOpen && (

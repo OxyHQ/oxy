@@ -156,7 +156,7 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({
 
                 <Button
                     appearance="solid" tone="accent"
-                    size="large"
+                    size="lg"
                     fullWidth
                     className="mt-space-24"
                     onPress={handleSubmit}

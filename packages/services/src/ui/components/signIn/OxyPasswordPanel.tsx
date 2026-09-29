@@ -95,7 +95,7 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
       {/* The field names the switch ("Sign out everywhere else, switch, off")
           and, on web, its label toggles it. One row: label, then the switch. */}
       <Field label={t('signInSecurity.password.signOutOthers')} style={styles.row}>
-        <Switch value={signOutOthers} onValueChange={setSignOutOthers} testID="password-sign-out-others" />
+        <Switch checked={signOutOthers} onCheckedChange={setSignOutOthers} testID="password-sign-out-others" />
       </Field>
     </ReauthStep>
   );

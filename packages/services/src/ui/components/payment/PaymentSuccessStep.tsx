@@ -57,7 +57,7 @@ const PaymentSuccessStep: React.FC<PaymentSuccessStepProps> = ({
                 </View>
             </View>
 
-            <Button appearance="solid" tone="accent" onPress={onDone} size="small" icon={<Ionicons name="checkmark" size={16} />} iconPosition="right">
+            <Button appearance="solid" tone="accent" onPress={onDone} size="sm" icon={<Ionicons name="checkmark" size={16} />} iconPosition="right">
                 {t('payment.actions.done')}
             </Button>
         </Animated.View>

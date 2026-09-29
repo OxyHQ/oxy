@@ -77,10 +77,10 @@ const PaymentMethodStep: React.FC<PaymentMethodStepProps> = ({
             </View>
 
             <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-                <Button appearance="subtle" tone="neutral" onPress={onBack} size="small" icon={<Ionicons name="arrow-back" size={16} />}>
+                <Button appearance="subtle" tone="neutral" onPress={onBack} size="sm" icon={<Ionicons name="arrow-back" size={16} />}>
                     {t('payment.actions.back')}
                 </Button>
-                <Button appearance="solid" tone="accent" onPress={onNext} size="small" icon={<Ionicons name="arrow-forward" size={16} />} iconPosition="right">
+                <Button appearance="solid" tone="accent" onPress={onNext} size="sm" icon={<Ionicons name="arrow-forward" size={16} />} iconPosition="right">
                     {t('payment.actions.continue')}
                 </Button>
             </View>

@@ -105,13 +105,13 @@ const PaymentReviewStep: React.FC<PaymentReviewStepProps> = ({
             </View>
 
             <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-                <Button appearance="subtle" tone="neutral" onPress={onBack} size="small" disabled={isPaying} icon={<Ionicons name="arrow-back" size={16} />}>
+                <Button appearance="subtle" tone="neutral" onPress={onBack} size="sm" disabled={isPaying} icon={<Ionicons name="arrow-back" size={16} />}>
                     {t('payment.actions.back')}
                 </Button>
                 <Button
                     appearance="solid" tone="accent"
                     onPress={onPay}
-                    size="small"
+                    size="sm"
                     disabled={isPaying}
                     icon={isPaying ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="checkmark" size={16} />}
                     iconPosition="right"

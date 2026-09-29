@@ -259,7 +259,8 @@ export function McpLinkPage() {
             </Button>
             <Button
               size="lg"
-              variant="ghost"
+              appearance="subtle"
+              tone="accent"
               onPress={() =>
                 window.location.assign(
                   buildRelativeUrl("/login", { mcp_link_intent: intent })

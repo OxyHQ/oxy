@@ -88,7 +88,7 @@ const errorStyles = StyleSheet.create({
 function ScreenPending() {
   return (
     <View style={errorStyles.container}>
-      <Loading variant="spinner" size="large" />
+      <Loading variant="spinner" size="lg" />
     </View>
   );
 }

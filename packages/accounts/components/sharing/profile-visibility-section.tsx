@@ -49,8 +49,8 @@ export function ProfileVisibilitySection({
         : t('sharing.privacy.profileVisibilityOff'),
       customContent: (
         <Switch
-          value={profileVisibility}
-          onValueChange={(value) => onPrivacyUpdate('profileVisibility', value)}
+          checked={profileVisibility}
+          onCheckedChange={(value) => onPrivacyUpdate('profileVisibility', value)}
           disabled={pendingPrivacyKey === 'profileVisibility'}
         />
       ),

@@ -70,7 +70,7 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({
     if (isLoading) {
         return (
             <>
-                <Loading size="large" color={bloomTheme.colors.text} />
+                <Loading size="lg" color={bloomTheme.colors.text} />
             </>
         );
     }
@@ -92,8 +92,8 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({
                             description={t('searchSettings.safeSearch.description') || 'Filter out explicit content from search results'}
                             rightElement={
                                 <Switch
-                                    value={settings.safeSearch}
-                                    onValueChange={() => toggle('safeSearch')}
+                                    checked={settings.safeSearch}
+                                    onCheckedChange={() => toggle('safeSearch')}
                                     disabled={isSaving}
                                 />
                             }
@@ -114,8 +114,8 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({
                             description={t('searchSettings.personalization.description') || 'Use your activity to improve search results'}
                             rightElement={
                                 <Switch
-                                    value={settings.searchPersonalization}
-                                    onValueChange={() => toggle('searchPersonalization')}
+                                    checked={settings.searchPersonalization}
+                                    onCheckedChange={() => toggle('searchPersonalization')}
                                     disabled={isSaving}
                                 />
                             }

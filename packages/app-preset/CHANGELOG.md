@@ -1,5 +1,14 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 2.2.1
+
+### Changed
+
+- The peers admit `@oxy.so/bloom` `^6.0.0` and `@oxy.so/services` `^10.0.0`.
+  The files the preset couples to are unchanged: Bloom 6 still exports
+  `design-tokens/theme.css`, and services 10 still ships
+  `plugins/withSharedIdentityReader`.
+
 ## 2.1.0
 
 ### Added

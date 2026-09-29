@@ -22,6 +22,8 @@ const SCREEN_BOTTOM_CLEARANCE = 44;
 export const FAB_MD_DIAMETER = 50;
 /** Air between the last line of content and the top of the FAB. */
 const FAB_CLEARANCE_GAP = 16;
+/** Air between the FAB and the screen's trailing edge. */
+const FAB_EDGE_GAP = 16;
 
 /**
  * Top air above a screen's first element, ON TOP of the safe-area inset.
@@ -52,10 +54,10 @@ export function useScreenBottomPad(): number {
  *
  * `SCREEN_BOTTOM_CLEARANCE` alone does not do it: the FAB sits `fabOffset`
  * above the bottom edge's claimed inset (the floating tab bar's footprint),
- * which is where Bloom anchors it, and its top is a whole diameter above that.
- * On the ID screen that left "You hold the private key. No one can lock you
- * out." under the QR button. The inputs are the same two numbers `Fab` itself
- * positions from, read at the same place in the tree.
+ * which is where {@link useFabAnchor} places it, and its top is a whole
+ * diameter above that. On the ID screen that left "You hold the private key.
+ * No one can lock you out." under the QR button. The inputs are the same two
+ * numbers the anchor positions from, read at the same place in the tree.
  */
 export function useFabClearance(fabOffset: number): number {
   const bottomEdgeInset = useBottomEdgeInset();
@@ -63,6 +65,21 @@ export function useFabClearance(fabOffset: number): number {
   return Math.max(
     screenBottomPad,
     fabOffset + bottomEdgeInset + FAB_MD_DIAMETER + FAB_CLEARANCE_GAP,
+  );
+}
+
+/**
+ * Where a floating `size="md"` Bloom `Fab` sits: absolutely positioned,
+ * `fabOffset` above the bottom edge's claimed inset, {@link FAB_EDGE_GAP} in
+ * from the trailing edge. Bloom 6's `Fab` stays in normal flow (Bloom 5's
+ * `placement`/`offset` are gone), so the screen that floats one positions a
+ * wrapper with this, and {@link useFabClearance} reads the same numbers.
+ */
+export function useFabAnchor(fabOffset: number): ViewStyle {
+  const bottomEdgeInset = useBottomEdgeInset();
+  return useMemo(
+    () => ({ position: 'absolute', bottom: fabOffset + bottomEdgeInset, right: FAB_EDGE_GAP }),
+    [fabOffset, bottomEdgeInset],
   );
 }
 

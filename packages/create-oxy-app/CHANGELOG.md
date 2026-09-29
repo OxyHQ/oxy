@@ -1,5 +1,13 @@
 # Changelog: `create-oxy-app`
 
+## Unreleased
+
+### Changed
+
+- `@oxy.so/bloom` `^6.0.0`, the workspace catalog's range. Not releasable yet:
+  the paired `@oxy.so/services` `^10.0.0` (and `@oxy.so/app-preset` `^2.2.1`)
+  must publish first, and the services pin moves with them.
+
 ## 0.4.0
 
 ### Changed

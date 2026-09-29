@@ -197,7 +197,7 @@ const PaymentGatewayScreen: React.FC<PaymentGatewayScreenProps> = (props) => {
                 <Button
                     appearance="solid" tone="accent"
                     onPress={handleClose}
-                    size="small"
+                    size="sm"
                     icon={<Ionicons name="close" size={16} />}
                     iconPosition="right"
                 >

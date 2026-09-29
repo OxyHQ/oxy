@@ -23,7 +23,7 @@ const UploadBar: React.FC<UploadBarProps> = ({ uploadProgress, t }) => (
                         accessibilityLabel={t('fileManagement.uploading')} />
                 ) : null}
             </View>
-            <Loading size="small" />
+            <Loading size="sm" />
         </Card>
     </View>
 );

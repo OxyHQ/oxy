@@ -47,10 +47,12 @@ const PeableButton: React.FC<PeableButtonProps> = ({
 
     return (
         <Button
-            variant="inverse"
+            appearance="solid"
+            tone="neutral"
+            colors={{ background: backgroundColor, foreground: textColor }}
             onPress={handlePress}
             disabled={disabled}
-            style={[{ backgroundColor, borderColor: textColor, borderWidth: 1 }, style]}
+            style={[{ borderColor: textColor, borderWidth: 1 }, style]}
             textStyle={[{ color: textColor, fontWeight: '700' }, textStyle]}
             icon={<LogoIcon height={16} color={textColor} style={{ marginRight: 6 }} />}
         >

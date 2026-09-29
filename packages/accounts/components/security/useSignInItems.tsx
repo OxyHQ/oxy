@@ -68,8 +68,8 @@ export function useSignInItems({
         subtitle: biometricSubtitle,
         customContent: canEnableBiometric ? (
           <Switch
-            value={biometricEnabled}
-            onValueChange={toggleBiometricLogin}
+            checked={biometricEnabled}
+            onCheckedChange={toggleBiometricLogin}
             disabled={biometricSaving || biometricLoading}
           />
         ) : biometricEnabled ? (

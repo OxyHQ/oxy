@@ -108,7 +108,7 @@ export interface FollowTargetButtonProps {
   verb?: FollowVerb;
   /** Full override, for a verb the vocabulary above does not carry. */
   labels?: Partial<FollowLabels>;
-  size?: 'small' | 'medium' | 'large';
+  size?: 'sm' | 'md' | 'lg';
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
   /**
@@ -152,7 +152,7 @@ export const FollowTargetButton = memo(function FollowTargetButton({
   targetId,
   verb = 'follow',
   labels,
-  size = 'medium',
+  size = 'md',
   style,
   disabled = false,
   showOptions = true,
@@ -309,7 +309,7 @@ export const FollowTargetButton = memo(function FollowTargetButton({
         <DropdownMenuTrigger asChild disabled={disabled || isUnknown}>
           <Button
             appearance="subtle" tone="support"
-            size={size === 'large' ? 'large' : 'small'}
+            size={size === 'lg' ? 'lg' : 'sm'}
             icon={<ChevronDown width={16} />}
             disabled={disabled || isUnknown}
             accessibilityLabel={`${label} options`}

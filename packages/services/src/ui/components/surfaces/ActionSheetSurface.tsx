@@ -72,7 +72,8 @@ export function ActionSheetSurface<T extends string>({
                 {options.map((option) => (
                     <Button
                         key={option.value}
-                        variant={option.destructive ? 'destructive' : 'primary'}
+                        appearance="solid"
+                        tone={option.destructive ? 'danger' : 'accent'}
                         onPress={() => surface.dismiss(option.value)}
                     >
                         {option.label}

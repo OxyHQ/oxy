@@ -150,7 +150,7 @@ export default function TabLayout() {
   if (authLoading && !isAuthenticated) {
     return (
       <Animated.View style={[styles.container, animatedBgStyle, styles.gateCenter]}>
-        <Loading variant="spinner" size="large" color={colors.tint} />
+        <Loading variant="spinner" size="lg" color={colors.tint} />
       </Animated.View>
     );
   }

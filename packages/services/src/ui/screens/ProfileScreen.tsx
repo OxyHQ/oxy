@@ -210,7 +210,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, theme, 
                         {isOwnProfile ? (
                             <Button
                                 appearance="subtle" tone="neutral"
-                                size="small"
+                                size="sm"
                                 onPress={() => navigate?.('ManageAccount')}
                             >
                                 {t('editProfile.title') || 'Edit Profile'}

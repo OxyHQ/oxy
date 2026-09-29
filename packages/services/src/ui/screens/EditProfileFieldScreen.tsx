@@ -11,6 +11,7 @@ import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import {
     Select,
@@ -704,11 +705,13 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
                         </TextField>
                     </View>
                     <Button
-                        variant="icon"
+                        appearance="outline"
+                        tone="neutral"
+                        iconOnly
                         onPress={handleAddItem}
                         disabled={!newItemValue.trim()}
                         accessibilityLabel={addLabel}
-                        icon={<Ionicons name="add" size={20} color={bloomTheme.colors.primaryForeground} />}
+                        icon={RiAddLine}
                     />
                 </View>
 

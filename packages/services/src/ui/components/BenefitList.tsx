@@ -98,7 +98,7 @@ export const BenefitList: React.FC<BenefitListProps> = ({
     style,
 }) => (
     <Card
-        variant="outlined"
+        appearance="outline"
         radius="radius-20"
         border="hairline"
         elevation="s"

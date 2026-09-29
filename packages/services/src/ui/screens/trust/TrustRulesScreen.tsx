@@ -70,7 +70,7 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
     return (
         <>
             {isLoading ? (
-                <Loading size="large" color={bloomTheme.colors.primary} />
+                <Loading size="lg" color={bloomTheme.colors.primary} />
             ) : error ? (
                 <Text className="text-text-secondary text-base text-center px-screen-margin pt-space-40">
                     {error}
