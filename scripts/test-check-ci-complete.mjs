@@ -84,19 +84,24 @@ function needsFor(root, overrides = {}) {
     if (id === GATE_JOB_ID) continue;
     needs[id] = { result: 'success', outputs: {} };
   }
+  // The scope job's output is part of the verdict: a real run reports it.
+  if (needs['api-scope']) needs['api-scope'].outputs = { 'api-tests': 'true' };
   for (const [id, result] of Object.entries(overrides)) {
     if (result === undefined) delete needs[id];
+    else if (typeof result === 'object') needs[id] = { outputs: {}, ...result };
     else needs[id] = { result, outputs: {} };
   }
   return needs;
 }
 
-function expectVerdict(caseName, root, needs, expectedCode, expectedFragment) {
+function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, eventName = 'pull_request') {
   let code = 0;
   let output = '';
   const env = { ...process.env };
   if (needs === null) delete env.NEEDS_JSON;
   else env.NEEDS_JSON = JSON.stringify(needs);
+  if (eventName === null) delete env.EVENT_NAME;
+  else env.EVENT_NAME = eventName;
 
   try {
     output = execFileSync('bun', [checkScript], {
@@ -220,7 +225,7 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment) {
   try {
     execFileSync('bun', [checkScript], {
       cwd: root,
-      env: { ...process.env, NEEDS_JSON: JSON.stringify(needs) },
+      env: { ...process.env, NEEDS_JSON: JSON.stringify(needs), EVENT_NAME: 'pull_request' },
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -252,7 +257,7 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment) {
 // its own — the list is read from the real workflow, not written here, so a job
 // added later is covered the day it lands — and the named ones must still be
 // in it, so a rename that quietly empties this loop goes red too.
-const REQUIRED_JOBS = ['guards', 'api-test', 'api-coverage', 'api-build', 'packages-platform', 'packages-apps'];
+const REQUIRED_JOBS = ['api-scope', 'guards', 'api-test', 'api-coverage', 'api-build', 'packages-platform', 'packages-apps'];
 const workflowJobs = Object.keys(Bun.YAML.parse(readFileSync(join(repoRoot, WORKFLOW), 'utf8'))?.jobs ?? {}).filter(
   (id) => id !== GATE_JOB_ID
 );
@@ -336,6 +341,96 @@ for (const job of workflowJobs) {
     1,
     'which excludes `main`'
   );
+}
+
+// ── PR-light, queue-full ───────────────────────────────────────────────────
+// The API suite may be skipped on a pull request, on the scope job's word and
+// nothing else; on merge_group, push, or any event not named, nothing may be
+// skipped at all. This is the whole safety argument for PR-light, so each
+// direction is pinned.
+const scopedOut = (extra = {}) => ({
+  'api-scope': { result: 'success', outputs: { 'api-tests': 'false' } },
+  'api-test': 'skipped',
+  'api-coverage': 'skipped',
+  ...extra,
+});
+
+{
+  const root = createFixture();
+  expectVerdict('pr-a-scoped-out-api-suite-passes', root, needsFor(root, scopedOut()), 0, '2 skipped for a declared reason');
+}
+{
+  const root = createFixture();
+  expectVerdict('merge-group-everything-passed-passes', root, needsFor(root), 0, 'full suite: nothing skipped', 'merge_group');
+}
+for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
+  const root = createFixture();
+  expectVerdict(
+    `${event}-refuses-a-scoped-out-api-suite`,
+    root,
+    needsFor(root, scopedOut()),
+    1,
+    `\`api-test\` was skipped on a \`${event}\` run`,
+    event
+  );
+}
+{
+  // Even a skip every other rule would excuse — a job with its own `if:` — is
+  // refused in the queue.
+  const root = createFixture();
+  edit(root, 'merge-group-refuses-a-declared-skip', (yaml) =>
+    yaml.replace(
+      '  packages-apps:\n    name: Package Tests (apps)\n',
+      "  packages-apps:\n    name: Package Tests (apps)\n    if: \"github.event_name == 'pull_request'\"\n"
+    )
+  );
+  expectVerdict(
+    'merge-group-refuses-a-declared-skip',
+    root,
+    needsFor(root, { 'packages-apps': 'skipped' }),
+    1,
+    '`packages-apps` was skipped on a `merge_group` run',
+    'merge_group'
+  );
+}
+{
+  const root = createFixture();
+  expectVerdict(
+    'pr-a-skip-the-scope-did-not-order-fails',
+    root,
+    needsFor(root, scopedOut({ 'api-scope': { result: 'success', outputs: { 'api-tests': 'true' } } })),
+    1,
+    '`api-test` was skipped, but `api-scope` did not decide it could be'
+  );
+}
+{
+  const root = createFixture();
+  expectVerdict(
+    'pr-a-failed-scope-cannot-excuse-a-skip',
+    root,
+    needsFor(root, scopedOut({ 'api-scope': { result: 'failure', outputs: { 'api-tests': 'false' } } })),
+    1,
+    '`api-scope` failed.'
+  );
+}
+{
+  const root = createFixture();
+  expectVerdict(
+    'pr-a-silent-scope-cannot-excuse-a-skip',
+    root,
+    needsFor(root, scopedOut({ 'api-scope': { result: 'success', outputs: {} } })),
+    1,
+    'with api-tests=undefined'
+  );
+}
+{
+  const root = createFixture();
+  expectVerdict('a-missing-EVENT_NAME-fails-the-gate', root, needsFor(root), 1, 'EVENT_NAME is empty or unset', null);
+}
+{
+  const root = createFixture();
+  edit(root, 'a-workflow-without-merge-group-fails-the-gate', (yaml) => yaml.replace('  merge_group:\n', ''));
+  expectVerdict('a-workflow-without-merge-group-fails-the-gate', root, needsFor(root), 1, 'no longer declares an `on.merge_group` trigger');
 }
 
 // ── The gate's own guards, so none can rot into decoration ─────────────────

@@ -55,6 +55,17 @@
  *        anything else, including a missing result, fails. Unknown is not good
  *                  news.
  *
+ *   4. The event. `pull_request` runs are PR-LIGHT: the API suite may be
+ *      skipped when scripts/ci-api-scope.mjs proved the pull request cannot
+ *      reach it — and a skip of a SCOPED job passes only when the scope job
+ *      itself succeeded and said `false`, so a scope job that failed, was
+ *      skipped or printed nothing can never excuse one. Every other event —
+ *      `merge_group`, `push`, and any event this file has not heard of — is
+ *      QUEUE-FULL: a single `skipped` job fails the gate, whatever the reason.
+ *      That is the whole safety argument for PR-light: nothing reaches main
+ *      without the complete suite passing on the exact merged tree, because the
+ *      merge queue's `CI complete` cannot go green over a skipped job.
+ *
  * WHAT IS NOT CHECKED, AND CANNOT BE
  *
  * Jobs in OTHER workflow files. `needs:` cannot cross a workflow, so CodeQL,
@@ -82,6 +93,18 @@ const GATE_JOB_ID = 'ci-complete';
  * that one cannot legitimately leave the file while this code is running.
  */
 const MINIMUM_JOBS = 5;
+
+/**
+ * Jobs a pull request may skip on the scope job's word, and only on it:
+ * job id -> the scope job and the output that must read exactly `false`.
+ * `api-coverage` is not listed: it needs `api-test` and inherits its skip.
+ */
+const SCOPED_JOBS = {
+  'api-test': { scopeJob: 'api-scope', output: 'api-tests' },
+};
+
+/** The only event allowed to skip anything. Everything else must run it all. */
+const LIGHT_EVENT = 'pull_request';
 
 const problems = [];
 
@@ -162,6 +185,29 @@ if (pullRequest === undefined) {
     );
   }
 }
+
+// The queue is where the full suite is guaranteed. Dropping this trigger would
+// leave the queue waiting for a check that never reports, and — worse, if the
+// ruleset were then loosened to get merges moving — leave PR-light as the only
+// testing anything gets.
+if (triggers !== null && typeof triggers === 'object' && !('merge_group' in triggers)) {
+  fail(
+    `${WORKFLOW_PATH} no longer declares an \`on.merge_group\` trigger. The merge queue is the only ` +
+    'place the complete suite is guaranteed to run on the tree that lands.'
+  );
+}
+
+// ── The event this run is for ──────────────────────────────────────────────
+const eventName = process.env.EVENT_NAME;
+if (!eventName) {
+  console.error(
+    'EVENT_NAME is empty or unset. The job must pass `EVENT_NAME: ${{ github.event_name }}` — without ' +
+    'it this gate cannot tell a pull request (where the API suite may be scoped out) from the merge ' +
+    'queue (where nothing may be skipped).'
+  );
+  process.exit(1);
+}
+const fullSuiteRequired = eventName !== LIGHT_EVENT;
 
 // ── The verdicts this run produced ─────────────────────────────────────────
 const rawNeeds = process.env.NEEDS_JSON;
@@ -254,6 +300,29 @@ for (const id of needIds.sort()) {
   }
 
   if (result === 'skipped') {
+    if (fullSuiteRequired) {
+      fail(
+        `\`${id}\` was skipped on a \`${eventName}\` run. Only pull requests may skip a job; the merge ` +
+        'queue (and any push) must run the complete suite on the exact tree that lands, so a skip here ' +
+        'is a suite that never ran where it matters most.'
+      );
+      continue;
+    }
+    const scoped = SCOPED_JOBS[id];
+    if (scoped) {
+      const scope = needs?.[scoped.scopeJob];
+      const said = scope?.outputs?.[scoped.output];
+      if (scope?.result === 'success' && said === 'false') {
+        counts.skipped += 1;
+        continue;
+      }
+      fail(
+        `\`${id}\` was skipped, but \`${scoped.scopeJob}\` did not decide it could be: it reported ` +
+        `${JSON.stringify(scope?.result)} with ${scoped.output}=${JSON.stringify(said)}. Only a scope job ` +
+        'that succeeded and said exactly `false` excuses this skip.'
+      );
+      continue;
+    }
     if (maySkip(id)) {
       counts.skipped += 1;
       continue;
@@ -296,6 +365,7 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `CI is complete: ${counts.success} job(s) passed, ${counts.skipped} skipped for a declared ` +
+  `CI is complete (${eventName}, ${fullSuiteRequired ? 'full suite: nothing skipped' : 'pull request'}): ` +
+  `${counts.success} job(s) passed, ${counts.skipped} skipped for a declared ` +
   `reason, across all ${expected.length} job(s) in ${WORKFLOW_PATH}.`
 );
