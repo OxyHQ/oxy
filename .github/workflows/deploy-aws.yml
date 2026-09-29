@@ -179,6 +179,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      # `--cache-from/--cache-to type=gha` below need the Actions runtime token
+      # and cache URL, which GitHub gives to JavaScript actions and NOT to `run:`
+      # steps. Without them buildx skips the cache without a word: this
+      # workflow's builds show zero CACHED layers and the repository holds no
+      # buildkit cache entry at all (`gh cache list`, 2026-09-29), while Clarity,
+      # which builds through docker/build-push-action, reuses 22 layers per build.
+      - name: Expose the Actions cache to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
+
       - name: Build and push (linux/arm64)
         id: build
         env:
