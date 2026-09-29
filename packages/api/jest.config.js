@@ -96,6 +96,27 @@ module.exports = {
       // those 165 suites have to be fixed first — not a side effect of quieting
       // a warning. The TS151002 line is noise on stderr and costs nothing.
       diagnostics: false,
+      // TRANSPILE per file (`isolatedModules`) instead of standing up a
+      // TypeScript LanguageService over the whole program. With `diagnostics`
+      // off the LanguageService computed types nobody read, and it was the
+      // single largest fixed cost of every CI shard: the first test file of
+      // each shard spent ~70s (measured 46-95s on four runs, 2026-09-28/29)
+      // compiling the import graph before a test ran, and the cost recurred
+      // for every newly-imported module after that.
+      //
+      // The emitted code is the same. Measured on 1,198 files — packages/api
+      // src and tests plus the contracts, core, db, federation, protocol,
+      // utils and telemetry sources the mapper points at — every file's output
+      // was byte-identical between the two modes (source maps aside). On one
+      // workstation, 400 of the API's own files took 17.1s through the
+      // LanguageService and 1.9s transpiled. `module: commonjs` is what makes it identical: under this
+      // package's NodeNext the transpiler would keep a native `import()` (e.g.
+      // routes/authLinking.ts), which Jest's CJS runtime cannot execute without
+      // --experimental-vm-modules; the LanguageService path already lowered it
+      // to `require`. `moduleResolution` has to follow `module` or TypeScript
+      // rejects the pair; a single-file transpile resolves nothing either way.
+      // This also silences the TS151002 warning every worker printed.
+      tsconfig: { isolatedModules: true, module: 'commonjs', moduleResolution: 'node10' },
     }],
   },
   // Balances `--shard=i/N` by measured duration; changes which runner runs a

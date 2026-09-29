@@ -49,6 +49,11 @@ concurrency:
 #                  so nothing reaches main without the complete suite passing on
 #                  the exact merged tree — the same guarantee as before, now
 #                  paid once instead of twice.
+#
+# Jobs per run (each holds one of the org's 20 concurrent runners): before this
+# change, 12 on every event (6 API shards + 6). Now 15 on merge_group/push and
+# on a pull request that reaches the API (8 shards + 7), and 6 on a pull request
+# that does not (a skipped matrix holds no runner).
 jobs:
   # Whether a PULL REQUEST needs the API suite. Every other event gets `true`
   # without looking, and `CI complete` independently refuses a skip on those
@@ -131,23 +136,24 @@ jobs:
         # the merge as `--shards`, and the merge fails on a missing or an extra
         # shard, so changing one without the other goes red, not silently thin.
         #
-        # Twelve since 2026-09-29, from six. Measured on four six-shard runs
-        # (36507613467, 36506064337, 36505756253, 36487512672): each shard's
-        # "Run tests with coverage" took 325-583s, of which ~70s is the cold
-        # ts-jest transform its first file pays and ~18s global setup — both
-        # per-runner constants — and the rest (~2,560s of warm test time in all)
-        # divides. jest.shardSequencer.cjs deals files by measured duration.
-        # The first twelve-shard run (36511275164), balanced on durations read
-        # off the six-shard logs, spent 204-385s in the test step; Jest's own
-        # per-file times from that run (now test-durations.json) put every
-        # shard at 229-231s of warm test time, against 325-583s per shard with
-        # the hash split at six.
+        # Eight since 2026-09-29, from six — deliberately not more. Measured on
+        # four six-shard runs (36507613467, 36506064337, 36505756253,
+        # 36487512672): each shard's "Run tests with coverage" took 325-583s,
+        # of which ~70s is the cold ts-jest transform its first file pays and
+        # ~18s global setup — per-runner constants — and the rest divides.
+        # Twelve shards were measured on this change's own pull request (runs
+        # 36511275164, 36512339988): test steps of 204-385s, but each shard
+        # also pays ~140s of fixed setup (containers, ffmpeg, install, build),
+        # and the org's free plan runs at most 20 jobs at once across EVERY
+        # repository — oxy runs have waited up to 9.7m for a runner under load.
+        # A full run is 8 shards + 7 other jobs = 15; twelve would be 19, one
+        # short of the whole org's capacity for a single run.
         #
-        # Not more: the org's free plan runs at most 20 jobs at once across
-        # every repository, and a full run is now 12 shards + 5 other jobs.
-        # PR-light keeps most pull-request runs down to 5 jobs, which is what
-        # makes room for twelve here.
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        # jest.shardSequencer.cjs deals files by measured duration
+        # (test-durations.json) rather than Jest's hash split, so the slowest
+        # shard — the critical path — carries an even share instead of a lucky
+        # draw.
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     # A BACKSTOP, not a budget: the two steps that can actually run long carry
     # their own caps (16m for the ffmpeg install, 15m for this runner's shard),
     # and this is their sum plus the ~5m the fixed steps cost at their observed
@@ -360,10 +366,10 @@ jobs:
 
       # ONE shard per runner. The whole suite measured 44m-46m of test time run
       # serially in three shards (2026-09-13: 43m54s; 2026-09-25: 881s + 891s +
-      # 895s); at twelve shards each runner's share is ~5.5m including its fixed
+      # 895s); at eight shards each runner's share is ~6-7m including its fixed
       # ~90s of cold transform and global setup. The shards are balanced by
       # measured duration (jest.shardSequencer.cjs), not file count; 15m is
-      # ~2.7x that share, enough for a stale durations file and runner variance
+      # ~2.2x that share, enough for a stale durations file and runner variance
       # while still failing a genuinely hung shard as `failure` on this named
       # step long before the job backstop. Per-test limits, coverage floors and
       # heap limits are unchanged.
@@ -468,7 +474,7 @@ jobs:
               fi
             done
           done
-          bun run coverage:merge -- --shards=12
+          bun run coverage:merge -- --shards=8
         working-directory: ./packages/api
 
       # The other half of "no test falls between two runners": the coverage
@@ -479,7 +485,7 @@ jobs:
         run: |
           mkdir -p coverage/partition
           bunx jest --listTests > coverage/partition/listed.txt
-          node scripts/check-shard-partition.mjs --shards=12 \
+          node scripts/check-shard-partition.mjs --shards=8 \
             --list=coverage/partition/listed.txt \
             --durations-out=coverage/partition/test-durations.json
         working-directory: ./packages/api
