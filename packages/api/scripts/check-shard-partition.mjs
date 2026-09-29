@@ -57,13 +57,21 @@ export function checkPartition({ shardResults, listed, committedSeconds }) {
       problems.push(`shard ${shard}: Jest reported failure (success=${result.success}, failed suites=${result.numFailedTestSuites})`);
     }
     if (result.testResults.length === 0) problems.push(`shard ${shard}: executed zero test files`);
-    const ordered = [...result.testResults].sort((a, b) => (a.perfStats?.start ?? 0) - (b.perfStats?.start ?? 0));
+    if (result.wasInterrupted === true) problems.push(`shard ${shard}: Jest reports the run was interrupted`);
+    if (Number.isInteger(result.numTotalTestSuites) && result.numTotalTestSuites !== result.testResults.length) {
+      problems.push(`shard ${shard}: Jest counted ${result.numTotalTestSuites} suites but reported ${result.testResults.length}`);
+    }
+    // Jest's `--json` gives each file `startTime`/`endTime` (ms); `perfStats` is
+    // the in-process shape, accepted too so either form measures.
+    const startOf = (file) => file.startTime ?? file.perfStats?.start;
+    const endOf = (file) => file.endTime ?? file.perfStats?.end;
+    const ordered = [...result.testResults].sort((a, b) => (startOf(a) ?? 0) - (startOf(b) ?? 0));
     ordered.forEach((file, position) => {
       const path = packageRelative(file.name);
       if (seen.has(path)) problems.push(`${path} ran on shard ${seen.get(path)} AND shard ${shard}`);
       else seen.set(path, shard);
-      const start = file.perfStats?.start;
-      const end = file.perfStats?.end;
+      const start = startOf(file);
+      const end = endOf(file);
       if (position > 0 && Number.isFinite(start) && Number.isFinite(end) && end >= start) {
         seconds[path] = Math.round((end - start) / 100) / 10;
       }
@@ -110,7 +118,7 @@ function main(argv) {
   if (values['durations-out']) {
     writeFileSync(
       values['durations-out'],
-      `${JSON.stringify({ ...committed, measuredFrom: `${process.env.GITHUB_RUN_ID ? `CI run ${process.env.GITHUB_RUN_ID}` : 'a local run'}, ${shardCount} shards: Jest perfStats per file, each shard's first file keeping its previous value (it absorbs the cold transform).`, seconds }, null, 2)}\n`
+      `${JSON.stringify({ ...committed, measuredFrom: `${process.env.GITHUB_RUN_ID ? `CI run ${process.env.GITHUB_RUN_ID}` : 'a local run'}, ${shardCount} shards: Jest's per-file startTime/endTime, each shard's first file keeping its previous value (it absorbs the cold transform).`, seconds }, null, 2)}\n`
     );
   }
   if (problems.length > 0) {

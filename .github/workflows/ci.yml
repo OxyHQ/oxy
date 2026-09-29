@@ -136,9 +136,12 @@ jobs:
         # "Run tests with coverage" took 325-583s, of which ~70s is the cold
         # ts-jest transform its first file pays and ~18s global setup — both
         # per-runner constants — and the rest (~2,560s of warm test time in all)
-        # divides. jest.shardSequencer.cjs deals files by measured duration, so
-        # twelve shards carry ~213s of warm test time each (spread <2s on the
-        # recorded durations) instead of a hash split's ~430s±120s at six.
+        # divides. jest.shardSequencer.cjs deals files by measured duration.
+        # The first twelve-shard run (36511275164), balanced on durations read
+        # off the six-shard logs, spent 204-385s in the test step; Jest's own
+        # per-file times from that run (now test-durations.json) put every
+        # shard at 229-231s of warm test time, against 325-583s per shard with
+        # the hash split at six.
         #
         # Not more: the org's free plan runs at most 20 jobs at once across
         # every repository, and a full run is now 12 shards + 5 other jobs.

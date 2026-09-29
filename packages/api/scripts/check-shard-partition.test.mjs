@@ -7,7 +7,8 @@ const require = createRequire(import.meta.url);
 const { assignShards, loadDurations } = require('../jest.shardSequencer.cjs');
 
 const ROOT = '/home/runner/work/oxy/oxy/packages/api/';
-const file = (path, start, end) => ({ name: `${ROOT}${path}`, perfStats: { start, end } });
+// The shape Jest's `--json` really writes: startTime/endTime per file (run 36511275164).
+const file = (path, start, end) => ({ name: `${ROOT}${path}`, startTime: start, endTime: end });
 const shard = (files, overrides = {}) => ({ success: true, numFailedTestSuites: 0, numRuntimeErrorTestSuites: 0, testResults: files, ...overrides });
 
 test('the sequencer partitions every real test file exactly once, for every shard count CI could use', () => {
@@ -47,6 +48,27 @@ test('a complete, disjoint partition passes and records durations minus each sha
   // a kept its committed 9s (first on its shard: cold transform), b measured, c
   // first on its shard with nothing committed, gone.test.ts dropped.
   assert.deepEqual(seconds, { 'a.test.ts': 9, 'b.test.ts': 3 });
+});
+
+test('the in-process perfStats shape measures too', () => {
+  const { seconds } = checkPartition({
+    shardResults: [shard([file('a.test.ts', 0, 1000), { name: `${ROOT}b.test.ts`, perfStats: { start: 1000, end: 3500 } }])],
+    listed: [`${ROOT}a.test.ts`, `${ROOT}b.test.ts`],
+    committedSeconds: {},
+  });
+  assert.deepEqual(seconds, { 'b.test.ts': 2.5 });
+});
+
+test('an interrupted shard or a suite count mismatch fails', () => {
+  const listed = [`${ROOT}a.test.ts`];
+  assert.match(
+    checkPartition({ shardResults: [shard([file('a.test.ts', 0, 1)], { wasInterrupted: true })], listed, committedSeconds: {} }).problems.join('\n'),
+    /interrupted/
+  );
+  assert.match(
+    checkPartition({ shardResults: [shard([file('a.test.ts', 0, 1)], { numTotalTestSuites: 2 })], listed, committedSeconds: {} }).problems.join('\n'),
+    /counted 2 suites but reported 1/
+  );
 });
 
 test('a file that ran nowhere fails', () => {
