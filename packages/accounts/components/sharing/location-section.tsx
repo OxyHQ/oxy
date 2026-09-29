@@ -39,8 +39,8 @@ export function LocationSection({
         : t('sharing.privacy.locationSharingOff'),
       customContent: (
         <Switch
-          value={locationSharing}
-          onValueChange={(value) => onPrivacyUpdate('locationSharing', value)}
+          checked={locationSharing}
+          onCheckedChange={(value) => onPrivacyUpdate('locationSharing', value)}
           disabled={pendingPrivacyKey === 'locationSharing'}
         />
       ),
