@@ -12,14 +12,21 @@
  * screen that shows the same sticker fifty times asks once.
  */
 
-import {
-  STICKER_RESOLVE_MAX_IDS,
-  type InstalledStickerPack,
-  type Sticker,
-  type StickerPack,
-  type StickerPackSummary,
-  type StickerRef,
+import type {
+  InstalledStickerPack,
+  Sticker,
+  StickerPack,
+  StickerPackSummary,
+  StickerRef,
 } from '@oxy.so/contracts';
+
+/**
+ * How many ids one `POST /stickers/resolve` may carry — `STICKER_RESOLVE_MAX_IDS`
+ * in `@oxy.so/contracts`, restated so this module imports contracts for TYPES
+ * only. Contracts is zod schemas, and an app that draws one sticker in an empty
+ * state should not evaluate zod at startup to do it. A test pins the two equal.
+ */
+export const RESOLVE_BATCH_SIZE = 100;
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -122,8 +129,8 @@ export function createStickersClient(oxy: StickersTransport): StickersClient {
         if (known) result.set(id, known);
         else missing.push(id);
       }
-      for (let start = 0; start < missing.length; start += STICKER_RESOLVE_MAX_IDS) {
-        const batch = missing.slice(start, start + STICKER_RESOLVE_MAX_IDS);
+      for (let start = 0; start < missing.length; start += RESOLVE_BATCH_SIZE) {
+        const batch = missing.slice(start, start + RESOLVE_BATCH_SIZE);
         const { stickers } = await oxy.request<{ stickers: Sticker[] }>('POST', '/stickers/resolve', { ids: batch });
         for (const sticker of stickers) {
           remember(sticker);

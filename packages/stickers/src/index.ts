@@ -11,6 +11,10 @@
  * ```
  *
  * React hooks live in `@oxy.so/stickers/react`.
+ *
+ * Nothing here loads `@oxy.so/contracts` at runtime — only its types are
+ * re-exported — so importing this does not evaluate zod. The schemas and
+ * limits are in `@oxy.so/contracts` itself for whoever validates.
  */
 
 export { createStickersClient } from './client';
@@ -18,13 +22,6 @@ export type { StickerPackPage, StickersClient, StickersTransport } from './clien
 export { verifyStickerBytes, webCryptoSha256 } from './verify';
 export type { Sha256Hex } from './verify';
 
-export {
-  STICKER_CANVAS_SIZES,
-  STICKER_FALLBACK_SIZE,
-  STICKER_MAX_DURATION_MS,
-  stickerRefSchema,
-  stickerSchema,
-} from '@oxy.so/contracts';
 export type {
   InstalledStickerPack,
   Sticker,
