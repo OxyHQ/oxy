@@ -16,8 +16,8 @@
  *
  * It also writes `test-durations.json` in the committed format: the committed
  * values overlaid with this run's per-file times, minus each shard's FIRST file
- * (that one absorbs the ~70s cold ts-jest transform every runner pays, and would
- * otherwise be recorded as a 70s test). Copy it over packages/api/
+ * (that one absorbs the cold start every runner pays — Jest and ts-jest
+ * warming up — and would otherwise be recorded as part of the test). Copy it over packages/api/
  * test-durations.json to refresh the balance.
  *
  * Usage (from packages/api, after the shard results are in coverage/shard-<i>/):

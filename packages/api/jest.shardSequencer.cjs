@@ -5,14 +5,12 @@
  * WHY
  *
  * Jest's sharder hashes each path and cuts the sorted list into equal COUNTS.
- * With six shards that already left one runner ~220s behind another on the same
+ * With six shards that left one runner ~250s behind another on the same
  * commit (run 36499876274: "Run tests with coverage" 325s on shard 4, 575s on
- * shard 6), and the slowest shard is the critical path of `CI complete`. With
- * twelve shards a count split puts the same few 20-45s files wherever the hash
- * lands, so the skew is proportionally worse. Here each file carries its
- * measured time (test-durations.json) and files are dealt longest-first to the
- * least-loaded shard (the LPT rule), which is within 4/3 of optimal and in
- * practice within a few seconds for 500+ small jobs.
+ * shard 6), and the slowest shard is the critical path of `CI complete`. Here
+ * each file carries its measured time (test-durations.json) and files are
+ * dealt longest-first to the least-loaded shard (the LPT rule), which is within
+ * 4/3 of optimal and in practice within a second for 500+ small files.
  *
  * WHAT IT MUST NEVER DO
  *
