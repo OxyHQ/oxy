@@ -98,6 +98,9 @@ module.exports = {
       diagnostics: false,
     }],
   },
+  // Balances `--shard=i/N` by measured duration; changes which runner runs a
+  // file, never whether it runs. See jest.shardSequencer.cjs.
+  testSequencer: '<rootDir>/jest.shardSequencer.cjs',
   testMatch: ['**/__tests__/**/*.ts', '**/*.test.ts'],
   coverageDirectory: 'coverage',
   collectCoverageFrom: [

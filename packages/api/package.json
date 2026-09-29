@@ -23,7 +23,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:coverage-merge": "node --test scripts/merge-coverage.test.mjs",
+    "test:coverage-merge": "node --test scripts/merge-coverage.test.mjs scripts/check-shard-partition.test.mjs",
     "coverage:merge": "node scripts/merge-coverage.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
