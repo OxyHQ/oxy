@@ -372,10 +372,19 @@ const authRateLimiter = rateLimit({
   // The email sign-in dialog polls `collect` every few seconds for the link's
   // 15 minutes; that route carries its own hashed-IP limiter
   // (`routes/signIn.ts`), so it is not charged here as well.
+  //
+  // A first-party SERVICE credential is charged to its app by
+  // `serviceCredentialLimiter`, never to this per-IP pool: every service leaves
+  // through the cluster's one NAT address, so here they shared 300/15min with
+  // each other. Mention's MCP introspects each client request's token at
+  // /auth/mcp/oauth/introspect; with a few connected clients that pool ran dry
+  // and every MCP call failed with "Token validation is temporarily
+  // unavailable" (2026-09-29).
   skip: (req: Request) =>
     req.path.startsWith('/files/upload') ||
     isServiceTokenMintPath(`${req.baseUrl}${req.path}`) ||
-    `${req.baseUrl}${req.path}` === '/auth/signin/email/collect',
+    `${req.baseUrl}${req.path}` === '/auth/signin/email/collect' ||
+    isFirstPartyServiceRequest(req),
 });
 
 /**

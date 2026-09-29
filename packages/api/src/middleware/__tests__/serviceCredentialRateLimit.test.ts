@@ -31,7 +31,7 @@ import type { Request } from 'express';
 const ACCESS_TOKEN_SECRET = 'test_access_token_secret_minimum_32_characters';
 process.env.ACCESS_TOKEN_SECRET = ACCESS_TOKEN_SECRET;
 
-import { rateLimiter, serviceCredentialLimiter, userRateLimiter, isFirstPartyServiceRequest } from '../security';
+import { authRateLimiter, rateLimiter, serviceCredentialLimiter, userRateLimiter, isFirstPartyServiceRequest } from '../security';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 function serviceToken(overrides: Record<string, unknown> = {}): string {
@@ -291,5 +291,36 @@ describe('an authenticated request is charged to its subject, not to its IP', ()
     } finally {
       await new Promise<void>((resolve) => local.close(() => resolve()));
     }
+  });
+});
+
+describe('rl:auth leaves service credentials to their own budget', () => {
+  let server: http.Server;
+
+  beforeAll(async () => {
+    const app = express();
+    // Mounted the way server.ts mounts it for the MCP OAuth routes.
+    app.use('/auth/mcp/oauth', authRateLimiter, express.Router().post('/introspect', (_req, res) => res.json({ active: true })));
+    server = await new Promise<http.Server>((resolve) => {
+      const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    });
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  const charged = (headers: http.IncomingHttpHeaders) =>
+    Object.keys(headers).some((name) => name.toLowerCase().startsWith('ratelimit'));
+
+  it('does not charge a service introspecting a token to the shared per-IP pool', async () => {
+    const probe = await request(server, { method: 'POST', path: '/auth/mcp/oauth/introspect', authorization: `Bearer ${serviceToken()}` });
+    expect(probe.status).toBe(200);
+    expect(charged(probe.headers)).toBe(false);
+  });
+
+  it('still charges anonymous and user traffic', async () => {
+    expect(charged((await request(server, { method: 'POST', path: '/auth/mcp/oauth/introspect' })).headers)).toBe(true);
+    expect(charged((await request(server, { method: 'POST', path: '/auth/mcp/oauth/introspect', authorization: `Bearer ${userSessionToken()}` })).headers)).toBe(true);
   });
 });
