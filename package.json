@@ -15,6 +15,7 @@
       "packages/db",
       "packages/core",
       "packages/telemetry",
+      "packages/stickers",
       "packages/utils",
       "packages/mcp",
       "packages/services",
