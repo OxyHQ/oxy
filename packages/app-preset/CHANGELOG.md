@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 2.2.1
+
+### Changed
+
+- Publish the additive Bloom 6 and Services 10 peer compatibility already validated on main. Runtime configuration remains unchanged.
+
 ## 2.1.0
 
 ### Added
