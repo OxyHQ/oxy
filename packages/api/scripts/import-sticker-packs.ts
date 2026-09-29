@@ -35,7 +35,7 @@ import { PUBLIC_KEY_PREFIX } from '../src/config/cdn';
 import { stickerPacks, stickers } from '../src/db/schema/stickers';
 import { s3Service } from '../src/services/s3ServiceSingleton';
 import { addSticker, createPack, deleteDraftPack, publishPack } from '../src/services/stickers.service';
-import type { StickerManifest } from './lib/stickerNames';
+import type { StickerManifest } from './sticker-packs/names';
 
 function flag(name: string): boolean {
   const value = process.env[name];

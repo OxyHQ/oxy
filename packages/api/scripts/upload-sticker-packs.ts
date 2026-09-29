@@ -40,7 +40,7 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { StickerPack, StickerPackSummary } from '@oxy.so/contracts';
-import { manifestPack, type StickerManifest } from './lib/stickerNames';
+import { manifestPack, type StickerManifest } from './sticker-packs/names';
 
 interface Options {
   folder: string;
