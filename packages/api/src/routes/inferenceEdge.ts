@@ -318,6 +318,19 @@ function applyUsageHeaders(res: Response, completion: EdgeCompletion): void {
   );
   res.setHeader('X-Oxy-Usage-Output-Tokens', String(completion.units.output_tokens ?? 0));
   res.setHeader('X-Oxy-Usage-Reasoning-Tokens', String(completion.units.reasoning_tokens ?? 0));
+  // The audio-token units (contract set 3.2.0), only when the request metered
+  // any: a text request's headers stay exactly what they were.
+  if (hasAudioTokens(completion.units)) {
+    res.setHeader('X-Oxy-Usage-Audio-Input-Tokens', String(completion.units.audio_input_tokens ?? 0));
+    res.setHeader(
+      'X-Oxy-Usage-Cached-Audio-Input-Tokens',
+      String(completion.units.cached_audio_input_tokens ?? 0)
+    );
+    res.setHeader(
+      'X-Oxy-Usage-Audio-Output-Tokens',
+      String(completion.units.audio_output_tokens ?? 0)
+    );
+  }
   res.setHeader('X-Oxy-Routing-Policy', completion.routingPolicy.routingPolicyId);
   res.setHeader('X-Oxy-Routing-Policy-Version', String(completion.routingPolicy.policyVersion));
   // Set here rather than only in the `/v1/responses` body because the
@@ -343,25 +356,66 @@ function applyUsageHeaders(res: Response, completion: EdgeCompletion): void {
  * them the compatibility surface cannot show a customer the cache hit their
  * bill was discounted for.
  */
-function openAiUsage(units: EdgeCompletion['units']): {
-  prompt_tokens: number;
-  completion_tokens: number;
-  total_tokens: number;
-  prompt_tokens_details: { cached_tokens: number };
-  completion_tokens_details: { reasoning_tokens: number };
-} {
-  const cachedTokens = units.cached_input_tokens ?? 0;
+/**
+ * Whether a request metered any audio-token unit — reported at all, zero
+ * included, because "the audio model reported zero audio input" is a fact the
+ * body should state rather than drop.
+ */
+function hasAudioTokens(units: EdgeCompletion['units']): boolean {
+  return (
+    units.audio_input_tokens !== undefined ||
+    units.cached_audio_input_tokens !== undefined ||
+    units.audio_output_tokens !== undefined
+  );
+}
+
+type OpenAiUsage = z.infer<typeof chatCompletionResponseSchema>['usage'];
+
+/**
+ * The audio-token units are nested back the same way (contract set 3.2.0,
+ * `money.ts`): OpenAI's `prompt_tokens` includes audio and cached audio,
+ * `prompt_tokens_details.cached_tokens` includes cached audio,
+ * `prompt_tokens_details.audio_tokens` is all audio input (cached or not) and
+ * `cached_tokens_details.audio_tokens` its cached part; `completion_tokens`
+ * includes `completion_tokens_details.audio_tokens`. The audio members are
+ * written only when audio was metered, so a text completion's body is
+ * unchanged.
+ */
+function openAiUsage(units: EdgeCompletion['units']): OpenAiUsage {
+  const cachedText = units.cached_input_tokens ?? 0;
+  const audioInput = units.audio_input_tokens ?? 0;
+  const cachedAudio = units.cached_audio_input_tokens ?? 0;
+  const audioOutput = units.audio_output_tokens ?? 0;
   const reasoningTokens = units.reasoning_tokens ?? 0;
-  const promptTokens = (units.input_tokens ?? 0) + cachedTokens;
-  const completionTokens = (units.output_tokens ?? 0) + reasoningTokens;
+  const cachedTokens = cachedText + cachedAudio;
+  const promptTokens = (units.input_tokens ?? 0) + cachedText + audioInput + cachedAudio;
+  const completionTokens = (units.output_tokens ?? 0) + reasoningTokens + audioOutput;
+  const audio = hasAudioTokens(units);
 
   return {
     prompt_tokens: promptTokens,
     completion_tokens: completionTokens,
     total_tokens: promptTokens + completionTokens,
-    prompt_tokens_details: { cached_tokens: cachedTokens },
-    completion_tokens_details: { reasoning_tokens: reasoningTokens },
+    prompt_tokens_details: audio
+      ? {
+          cached_tokens: cachedTokens,
+          audio_tokens: audioInput + cachedAudio,
+          cached_tokens_details: { audio_tokens: cachedAudio },
+        }
+      : { cached_tokens: cachedTokens },
+    completion_tokens_details: audio
+      ? { reasoning_tokens: reasoningTokens, audio_tokens: audioOutput }
+      : { reasoning_tokens: reasoningTokens },
   };
+}
+
+/**
+ * The id OpenAI's `audio` object carries. One per output, derived from the
+ * request id so a stream and its receipt name the same thing; Oxy retains no
+ * audio, so it identifies a response rather than a stored clip.
+ */
+function openAiAudioId(requestId: string, outputIndex: number): string {
+  return outputIndex === 0 ? `audio_${requestId}` : `audio_${requestId}_${outputIndex}`;
 }
 
 /** The text of an assistant message, as the OpenAI shape carries it. */
@@ -421,6 +475,44 @@ function messageText(message: InferenceMessage): string {
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
     .map((part) => part.text)
     .join('');
+}
+
+type ChatMessageBody = Pick<
+  z.infer<typeof chatCompletionResponseSchema>['choices'][number]['message'],
+  'content' | 'audio'
+>;
+
+/**
+ * `content`, and `audio` when the output was spoken.
+ *
+ * A spoken answer renders as OpenAI renders one: `content: null` (unless the
+ * model also wrote text) and `audio { id, data, transcript, expires_at }`, the
+ * whole clip as base64 in the format the request named. `expires_at` is the
+ * response's own `created` instant: the id cannot be referenced later, because
+ * Oxy retains no audio. An inline source is the only one this dialect can
+ * render; the handler refuses a spoken request whose output carries none, as
+ * a data-plane fault, before this runs.
+ */
+function chatMessageBody(
+  completion: EdgeCompletion,
+  message: InferenceMessage,
+  index: number,
+  created: number
+): ChatMessageBody {
+  const text = messageText(message);
+  const audio = message.content.find((part) => part.type === 'audio');
+  if (audio === undefined || audio.type !== 'audio' || audio.source.kind !== 'inline') {
+    return { content: text };
+  }
+  return {
+    content: text.length === 0 ? null : text,
+    audio: {
+      id: openAiAudioId(completion.requestId, index),
+      data: audio.source.data,
+      transcript: completion.outputAudioTranscripts?.[index] ?? '',
+      expires_at: created,
+    },
+  };
 }
 
 /**
@@ -562,6 +654,8 @@ function chatCompletionsStreamWriter(res: Response, head: EdgeStreamHead): Strea
   const created = Math.floor(Date.now() / 1000);
   /** OpenAI numbers tool calls by position in the message; the contract does not. */
   const toolCallIndexes = new Map<string, number>();
+  /** Outputs whose audio has already stated its `expires_at`. */
+  const announcedAudio = new Set<number>();
 
   const chunk = (choices: unknown[], extra: Record<string, unknown> = {}): void => {
     writeSse(
@@ -594,7 +688,42 @@ function chatCompletionsStreamWriter(res: Response, head: EdgeStreamHead): Strea
             chunk([
               { index: event.outputIndex, delta: { refusal: event.text }, finish_reason: null },
             ]);
+          } else if (event.channel === 'output_audio_transcript') {
+            // OpenAI streams the words of spoken output as `delta.audio.transcript`
+            // — never as `delta.content`, which would be a second written answer.
+            chunk([
+              {
+                index: event.outputIndex,
+                delta: {
+                  audio: {
+                    id: openAiAudioId(head.requestId, event.outputIndex),
+                    transcript: event.text,
+                  },
+                },
+                finish_reason: null,
+              },
+            ]);
           }
+          break;
+        case 'audio':
+          // One bounded base64 chunk of pcm16, exactly as OpenAI streams it. The
+          // first chunk of each output also states `expires_at`, the instant a
+          // stock client reads the id's lifetime from: now, because Oxy keeps no
+          // audio a later request could reference.
+          chunk([
+            {
+              index: event.outputIndex,
+              delta: {
+                audio: {
+                  id: openAiAudioId(head.requestId, event.outputIndex),
+                  data: event.data,
+                  ...(announcedAudio.has(event.outputIndex) ? {} : { expires_at: created }),
+                },
+              },
+              finish_reason: null,
+            },
+          ]);
+          announcedAudio.add(event.outputIndex);
           break;
         case 'tool_call': {
           const index = toolCallIndexes.get(event.toolCallId) ?? toolCallIndexes.size;
@@ -946,16 +1075,37 @@ export function createInferenceEdgeRouter(
       applyUsageHeaders(res, completion);
       res.setHeader('X-Oxy-Finish-Reason', completion.finishReason);
 
+      // The same wire-claim caution as speech: a spoken request answered with no
+      // inline audio is a data-plane fault, surfaced as a typed error rather
+      // than as a text answer the customer did not ask for.
+      if (
+        normalized.audioOutput !== undefined &&
+        !completion.output.some((message) =>
+          message.content.some((part) => part.type === 'audio' && part.source.kind === 'inline')
+        )
+      ) {
+        sendOpenAiError(
+          res,
+          buildInferenceError({
+            code: 'provider_error',
+            message: 'The data plane returned no inline audio for a spoken chat completion.',
+            requestId: completion.requestId,
+          })
+        );
+        return;
+      }
+
+      const created = Math.floor(Date.now() / 1000);
       const body: z.infer<typeof chatCompletionResponseSchema> = {
         id: `chatcmpl-${completion.requestId}`,
         object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
+        created,
         model: completion.resolvedModelReference,
         choices: completion.output.map((message, index) => ({
           index,
           message: {
             role: 'assistant',
-            content: messageText(message),
+            ...chatMessageBody(completion, message, index, created),
             ...(message.toolCalls === undefined
               ? {}
               : {

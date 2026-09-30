@@ -121,6 +121,18 @@ export interface KaanaCompletion {
    * than by type.
    */
   readonly routeSwitchEvents?: readonly InferenceStreamRouteSwitchEvent[];
+  /**
+   * The transcript of each output's spoken audio, parallel to `output` —
+   * folded from the stream's `output_audio_transcript` deltas (contract set
+   * 3.2.0) and `null` for an output that carried none.
+   *
+   * Not a content part, because `inferenceContentPartSchema` has no transcript
+   * member, and a `text` part would present the words the customer is hearing
+   * as a second, written answer — exactly what the contract's separate channel
+   * exists to prevent. Absent when no output carried a transcript; optional for
+   * the wire-derived reason `routeSwitchEvents` states.
+   */
+  readonly outputAudioTranscripts?: readonly (string | null)[];
 }
 
 /**

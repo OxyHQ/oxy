@@ -38,6 +38,8 @@ import {
   inferenceMessageSchema,
   inferenceReasoningSchema,
   modelReferenceSchema,
+  realtimeSessionKindSchema,
+  realtimeSessionTransportSchema,
   reasoningEffortSchema,
   responseFormatSchema,
   inferenceSpeechParametersSchema,
@@ -47,6 +49,7 @@ import {
   toolChoiceSchema,
   toolDefinitionSchema,
   usageQuantitySchema,
+  type InferenceAudioOutputParameters,
   type InferenceInput,
   type InferenceMessage,
   type InferenceReasoning,
@@ -211,6 +214,21 @@ const openAiToolChoiceSchema = z.union([
     .strict(),
 ]);
 
+/**
+ * OpenAI's `audio` output parameter for its audio chat models.
+ *
+ * `aac` is OpenAI's and not the contract's (`inferenceAudioOutputParametersSchema`
+ * names wav, mp3, flac, opus and pcm), so it is refused here rather than
+ * forwarded as a format no route could be held to. `pcm16` is OpenAI's spelling
+ * of the contract's `pcm`.
+ */
+const openAiAudioOutputSchema = z
+  .object({
+    voice: z.string().min(1).max(64),
+    format: z.enum(['wav', 'mp3', 'flac', 'opus', 'pcm16']),
+  })
+  .strict();
+
 const openAiResponseFormatSchema = z.union([
   z.object({ type: z.enum(['text', 'json_object']) }).strict(),
   z
@@ -256,6 +274,19 @@ export const chatCompletionsRequestSchema = z
      */
     reasoning_effort: reasoningEffortSchema.optional(),
     /**
+     * OpenAI's output modalities. `["text", "audio"]` asks an audio chat model
+     * to answer in speech AND its transcript — the only combination those models
+     * produce — and requires `audio`. Only a model whose catalogue declares
+     * `chat_completions` among its `apiFormats` and produces audio serves it.
+     */
+    modalities: z
+      .array(z.enum(['text', 'audio']))
+      .min(1)
+      .max(2)
+      .optional(),
+    /** The voice and format of spoken output. Requires `modalities` to include `audio`. */
+    audio: openAiAudioOutputSchema.optional(),
+    /**
      * OpenAI's end-user attribution field. Carried into the envelope as the
      * DELEGATED user id — attribution only. It never changes which account is
      * charged, and `X-Oxy-User-Id` wins when both are present, because the
@@ -270,6 +301,45 @@ export const chatCompletionsRequestSchema = z
         code: z.ZodIssueCode.custom,
         path: ['max_completion_tokens'],
         message: 'send max_tokens or max_completion_tokens, not both',
+      });
+    }
+    const modalities = request.modalities ?? ['text'];
+    if (new Set(modalities).size !== modalities.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['modalities'],
+        message: 'each modality is named at most once',
+      });
+    }
+    if (!modalities.includes('text')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['modalities'],
+        message: 'modalities must include text; spoken output always carries its transcript',
+      });
+    }
+    const spoken = modalities.includes('audio');
+    if (spoken && request.audio === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['audio'],
+        message: 'modalities including audio require the audio parameter (voice and format)',
+      });
+    }
+    if (!spoken && request.audio !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['modalities'],
+        message: 'the audio parameter requires modalities to include audio',
+      });
+    }
+    // The contract's own refinement, answered as a 400 here rather than as a
+    // refusal from the data plane after a hold was taken: only pcm streams.
+    if (spoken && request.stream === true && request.audio?.format !== 'pcm16') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['audio', 'format'],
+        message: 'streamed audio output is pcm16; the other formats exist only whole',
       });
     }
   });
@@ -508,7 +578,26 @@ export const chatCompletionResponseSchema = z
           message: z
             .object({
               role: z.literal('assistant'),
-              content: z.string(),
+              /**
+               * `null` when the answer is spoken, exactly as OpenAI renders it:
+               * the words are in `audio.transcript`, and repeating them here
+               * would present one answer twice.
+               */
+              content: z.string().nullable(),
+              /**
+               * Spoken output (`modalities: ["text", "audio"]`). `expires_at` is
+               * the `created` instant: Oxy retains no audio, so the id cannot be
+               * referenced by a later request — stated rather than promised.
+               */
+              audio: z
+                .object({
+                  id: z.string().min(1),
+                  data: z.string(),
+                  transcript: z.string(),
+                  expires_at: z.number().int().nonnegative(),
+                })
+                .strict()
+                .optional(),
               tool_calls: z
                 .array(
                   z
@@ -538,9 +627,26 @@ export const chatCompletionResponseSchema = z
         prompt_tokens: z.number().int().nonnegative(),
         completion_tokens: z.number().int().nonnegative(),
         total_tokens: z.number().int().nonnegative(),
-        prompt_tokens_details: z.object({ cached_tokens: z.number().int().nonnegative() }).strict(),
+        /**
+         * The audio members appear only when the request metered audio tokens
+         * (an audio chat model), so a text completion's body is byte-for-byte
+         * what it was before contract set 3.2.0.
+         */
+        prompt_tokens_details: z
+          .object({
+            cached_tokens: z.number().int().nonnegative(),
+            audio_tokens: z.number().int().nonnegative().optional(),
+            cached_tokens_details: z
+              .object({ audio_tokens: z.number().int().nonnegative() })
+              .strict()
+              .optional(),
+          })
+          .strict(),
         completion_tokens_details: z
-          .object({ reasoning_tokens: z.number().int().nonnegative() })
+          .object({
+            reasoning_tokens: z.number().int().nonnegative(),
+            audio_tokens: z.number().int().nonnegative().optional(),
+          })
           .strict(),
       })
       .strict(),
@@ -592,8 +698,32 @@ export const imageGenerationsResponseSchema = z
  * priced in bytes.
  */
 export type EdgeOperation =
-  /** Text in, text out. `input_tokens` bounded by characters, `output_tokens` by the cap. */
-  | { readonly kind: 'completion' }
+  /**
+   * Text in, text out. `input_tokens` bounded by characters, `output_tokens` by
+   * the cap. With `spokenOutput` (an audio chat model answering in speech,
+   * contract set 3.2.0) the same output cap is also the bound on
+   * `audio_output_tokens`: the model's audio and its transcript are both drawn
+   * from one completion budget, so the cap is a partition of the three output
+   * units rather than a fourth budget.
+   */
+  | { readonly kind: 'completion'; readonly spokenOutput?: true }
+  /**
+   * `GET /v1/realtime` — one realtime session (contract set 3.2.0). Its ceiling
+   * is per ROUTE, not per request body: every response consumes at most the
+   * route's context window of input and its per-response output cap, and
+   * `maxResponses` is the signed bound Kaana enforces on how many there are.
+   * See `realtimeCeilingScenarios`.
+   */
+  | {
+      readonly kind: 'realtime_session';
+      readonly sessionKind: z.infer<typeof realtimeSessionKindSchema>;
+      readonly transport: z.infer<typeof realtimeSessionTransportSchema>;
+      readonly maxResponses: number;
+      /** What the session's responses produce, which the model must be able to. */
+      readonly requiredOutput: 'text' | 'audio';
+      /** How long the hold must outlive admission: the session, its resume window and the report. */
+      readonly reservationTtlSeconds: number;
+    }
   /**
    * `POST /v1/embeddings`. `embeddings` is EXACT — the caller says how many inputs
    * they sent — and `input_tokens` is character-bounded, or exact when the caller
@@ -630,6 +760,8 @@ export interface NormalizedEdgeRequest {
   readonly maxOutputTokens?: number;
   readonly sampling: SamplingParameters;
   readonly speech?: InferenceSpeechParameters;
+  /** Spoken output from an audio chat model (contract set 3.2.0). */
+  readonly audioOutput?: InferenceAudioOutputParameters;
   readonly tools: ToolDefinition[];
   readonly toolChoice?: ToolChoice;
   readonly responseFormat?: ResponseFormat;
@@ -731,6 +863,7 @@ export function normalizeChatCompletionsRequest(
     })
   );
 
+  const spoken = request.modalities?.includes('audio') === true && request.audio !== undefined;
   const stopSequences =
     request.stop === undefined
       ? undefined
@@ -739,9 +872,18 @@ export function normalizeChatCompletionsRequest(
         : request.stop;
 
   return defined({
-    operation: { kind: 'completion' as const },
+    operation: spoken
+      ? { kind: 'completion' as const, spokenOutput: true as const }
+      : { kind: 'completion' as const },
     target: { kind: 'model' as const, modelReference: request.model },
     input: { format: 'messages' as const, messages },
+    audioOutput:
+      spoken && request.audio !== undefined
+        ? {
+            voice: request.audio.voice,
+            format: request.audio.format === 'pcm16' ? ('pcm' as const) : request.audio.format,
+          }
+        : undefined,
     stream: request.stream ?? false,
     maxOutputTokens: request.max_completion_tokens ?? request.max_tokens,
     sampling: defined({

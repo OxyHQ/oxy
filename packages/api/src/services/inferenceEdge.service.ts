@@ -505,7 +505,12 @@ export interface EdgeExecutionContext {
   readonly delegatedUserId?: string;
   /** The customer's `Idempotency-Key`, when they sent one. */
   readonly idempotencyKey?: string;
-  readonly apiFormat: ClientRequestMetadata['apiFormat'];
+  /**
+   * The public dialect, rendered into the envelope's `client.apiFormat` and
+   * checked against a model's declared `apiFormats`. Absent for a realtime
+   * session, which is not a one-shot dialect and never builds an envelope.
+   */
+  readonly apiFormat?: ClientRequestMetadata['apiFormat'];
   readonly endpoint: string;
   /** Aborted when the client disconnects. */
   readonly signal: AbortSignal;
@@ -529,6 +534,12 @@ export interface EdgeCompletion {
   readonly servingProvider: string;
   readonly finishReason: KaanaCompletion['finishReason'];
   readonly output: readonly InferenceMessage[];
+  /**
+   * The transcript of each output's spoken audio, parallel to `output` — `null`
+   * where an output carried none. Absent unless the request asked for spoken
+   * output. See `KaanaCompletion.outputAudioTranscripts`.
+   */
+  readonly outputAudioTranscripts?: readonly (string | null)[];
   readonly units: Partial<Record<UsageUnit, number>>;
   readonly routingPolicy: RoutingPolicyReference;
   /**
@@ -604,7 +615,7 @@ export interface EdgeStreamHead {
 /* -------------------------------------------------------------------------- */
 
 /** Everything admission resolved, and the hold it took. */
-interface AdmittedRequest {
+export interface AdmittedRequest {
   readonly route: EdgeRoute;
   /** The caller's concrete target or routing profile, preserved for the envelope. */
   readonly routingTarget: RoutingTarget;
@@ -632,7 +643,7 @@ interface AdmittedRequest {
   readonly hold: ReservationView | undefined;
 }
 
-type Admission =
+export type Admission =
   | { readonly status: 'admitted'; readonly admitted: AdmittedRequest }
   | { readonly status: 'refused'; readonly error: InferenceError };
 
@@ -725,7 +736,7 @@ function modelLineOf(reference: string): string {
 }
 
 /** Log a refusal and build the customer's error. One origin for both. */
-function refuseRequest(
+export function refuseRequest(
   context: EdgeExecutionContext,
   code: InferenceErrorCode,
   message: string,
@@ -778,7 +789,7 @@ function refuseRequest(
  * that was never taken or take a hold nothing ever settles — which is why
  * `hold === undefined` is the single thing every later step branches on.
  */
-async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
+export async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   const { requestId, principal, request } = context;
   const charging = isChargingAuthorized();
 
@@ -858,7 +869,17 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     );
   }
 
-  const requiredModality = modalityForOperation(request.operation);
+  const realtime = request.operation.kind === 'realtime_session' ? request.operation : undefined;
+  // A realtime session names a model and is never substituted (contract set
+  // 3.2.0): a routing profile could resolve to a different model line, and the
+  // conversation a session holds belongs to one.
+  if (realtime !== undefined && target.kind !== 'model') {
+    return refuse('invalid_request', 'A realtime session names a model, never a routing profile.', {
+      param: 'model',
+    });
+  }
+
+  const requiredModality = requirementForRequest(request, context.apiFormat);
   const requestedOutput = request.maxOutputTokens;
   const estimatedInputTokens = estimateInputTokens(request);
   const requiredCapacity = {
@@ -880,8 +901,11 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       : policy.status === 'resolved'
       ? fallbackEnabled && policy.stored.policy.fallback.sameModelDeployment
       : PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER;
+  // Never for a realtime session: every authorized route of a session is
+  // `same_model` (the contract refuses anything else at the signature), so a
+  // cross-model destination is not merely unauthorized but unsignable.
   const authorizesCrossModelFallback =
-    target.kind !== 'model' || fallbackEnabled;
+    realtime === undefined && (target.kind !== 'model' || fallbackEnabled);
 
   type ResolvedRoutes = Extract<
     Awaited<ReturnType<typeof resolveEdgeRoute>>,
@@ -991,8 +1015,9 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
         requestedOutput ?? route.maxOutputTokens
       );
       let candidateQuote: { readonly amount: string; readonly currency: string } | undefined;
-      for (const units of ceilingQuoteScenarios(
-        request.operation,
+      for (const units of routeCeilingScenarios(
+        request,
+        route,
         estimatedInputTokens,
         candidateMaxOutputTokens
       )) {
@@ -1084,7 +1109,7 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     }
 
     if (
-      fallbackEnabled &&
+      authorizesCrossModelFallback &&
       !target.modelReference.includes('@') &&
       policy.status === 'resolved'
     ) {
@@ -1260,6 +1285,18 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
         { reason: `policy_excluded:${concreteFailure.constraints.join(',')}` }
       );
     }
+    if (target.kind === 'model' && concreteFailure?.status === 'capability-unsupported') {
+      await recordEdgeTelemetry(context, {
+        requestedModelReference,
+        statusCode: inferenceErrorStatus('unsupported_modality'),
+        units: {},
+      });
+      return refuse(
+        'unsupported_modality',
+        capabilityRefusal(requestedModelReference, concreteFailure.required),
+        { param: 'model', reason: 'capability_not_declared' }
+      );
+    }
     if (target.kind === 'model' && concreteFailure?.status === 'modality-unsupported') {
       const wanted =
         concreteFailure.required.output === undefined
@@ -1387,18 +1424,18 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   //     max(output, reasoning)`, while keeping all amount/per arithmetic inside
   //     the ledger's exact numeric implementation. It also makes an absent
   //     child price fail closed before a hold or Kaana call.
-  const quoteScenarios = ceilingQuoteScenarios(
-    request.operation,
-    estimatedInputTokens,
-    maxOutputTokens
-  );
   const quotes = new Map<string, { readonly amount: string; readonly currency: string }>();
   let quoteCurrency: string | undefined;
   for (const authorized of authorizedRoutes) {
     let routeQuote = quotedCandidateCeilings.get(authorized.deploymentId);
     if (routeQuote === undefined || requestedOutput === undefined) {
       routeQuote = undefined;
-      for (const units of quoteScenarios) {
+      for (const units of routeCeilingScenarios(
+        request,
+        authorized,
+        estimatedInputTokens,
+        maxOutputTokens
+      )) {
         const scenarioQuote = await quoteUnits(authorized.priceVersionId, units);
         if (scenarioQuote.status !== 'quoted') {
           logger.error(
@@ -1480,12 +1517,19 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       attribution: ledgerAttribution,
       knownUnits: request.operation.kind === 'speech'
         ? { characters: request.operation.characters }
-        : { input_tokens: estimatedInputTokens },
+        : request.operation.kind === 'realtime_session'
+          ? {}
+          : { input_tokens: estimatedInputTokens },
       ...(maxOutputTokens > 0 ? { maxOutputTokens } : {}),
       ceilingPriceVersionId,
       maxAmount,
       currency: quote.currency,
-      expiresInSeconds: RESERVATION_TTL_SECONDS,
+      // A session's hold has to outlive the session: its signed maximum
+      // duration, the resume window and the report after `session.closed`.
+      expiresInSeconds:
+        request.operation.kind === 'realtime_session'
+          ? Math.max(RESERVATION_TTL_SECONDS, request.operation.reservationTtlSeconds)
+          : RESERVATION_TTL_SECONDS,
     });
 
     const held = reservationOrRefusal(reservation, requestId, quote.currency);
@@ -1775,6 +1819,9 @@ export async function executeInferenceRequest(
       servingProvider,
       finishReason: completion.finishReason,
       output: completion.output,
+      ...(completion.outputAudioTranscripts === undefined
+        ? {}
+        : { outputAudioTranscripts: completion.outputAudioTranscripts }),
       units,
       routingPolicy: admitted.routingPolicy,
       latencyMs,
@@ -1906,7 +1953,10 @@ export async function* streamInferenceRequest(
           units: event.units,
           usageSource: event.usageSource,
         };
-      } else if (event.type === 'delta' && event.text.length > 0) {
+      } else if (
+        (event.type === 'delta' && event.text.length > 0) ||
+        event.type === 'audio'
+      ) {
         sawOutput = true;
       } else if (event.type === 'error') {
         terminal = event.error;
@@ -2364,7 +2414,7 @@ async function recordShadowMetering(
 }
 
 /** One settlement, however the units for it were arrived at. */
-interface MeasuredSettlement {
+export interface MeasuredSettlement {
   readonly units: Partial<Record<UsageUnit, number>>;
   readonly usageSource: UsageSource;
   readonly outcome: NormalizedUsageReport['outcome'];
@@ -2410,7 +2460,7 @@ interface MeasuredSettlement {
  * Nothing arrived names nothing by definition, so only that arm uses the
  * admitted provider.
  */
-function settlementFrom(
+export function settlementFrom(
   evidence: KaanaUsageEvidence | undefined,
   fallbackOutcome: 'failed' | 'cancelled' | 'partial',
   admittedProvider: string
@@ -2467,7 +2517,7 @@ function usageEvidenceOf(error: unknown): KaanaUsageEvidence | undefined {
  * records what they WOULD have cost, so a shadow period's records cover the
  * failure paths too rather than only the happy one.
  */
-async function settleMeasured(
+export async function settleMeasured(
   context: EdgeExecutionContext,
   admitted: AdmittedRequest,
   settlement: MeasuredSettlement,
@@ -2702,7 +2752,7 @@ function validateReportRoute(
 }
 
 /** Validate either terminal or partial metering against one exact signed route. */
-function validateUsageEvidence(
+export function validateUsageEvidence(
   evidence: KaanaUsageEvidence,
   requestId: string,
   authorizedRoutes: readonly EdgeRoute[]
@@ -2748,7 +2798,7 @@ function validateUsageEvidence(
  * path needs: there the response is already delivered, so a bad report can only
  * be discarded rather than turned into a refusal.
  */
-function validateUsageReport(
+export function validateUsageReport(
   report: NormalizedUsageReport,
   requestId: string,
   authorizedRoutes: readonly EdgeRoute[]
@@ -2763,7 +2813,7 @@ function unitsFromReport(report: NormalizedUsageReport): Partial<Record<UsageUni
   return unitsFromQuantities(report.units);
 }
 
-function unitsFromQuantities(
+export function unitsFromQuantities(
   quantities: readonly { unit: UsageUnit; quantity: number }[]
 ): Partial<Record<UsageUnit, number>> {
   const units: Partial<Record<UsageUnit, number>> = {};
@@ -2788,6 +2838,12 @@ function buildEnvelope(
 ): InferenceRequest {
   const { principal, request } = context;
   const { route, routingTarget, authorizedRoutes, maxOutputTokens, routingPolicy } = admitted;
+  const apiFormat = context.apiFormat;
+  if (apiFormat === undefined || request.operation.kind === 'realtime_session') {
+    // Unreachable through the router: a realtime session is signed by
+    // `inferenceRealtime.service.ts` as a session request, never as an envelope.
+    throw new Error('A realtime session has no one-shot envelope.');
+  }
   const authorizesCrossModel = authorizedRoutes.some(
     (authorized) => modelLineOf(authorized.modelReference) !== modelLineOf(route.modelReference)
   );
@@ -2815,7 +2871,8 @@ function buildEnvelope(
       routingTarget.kind === 'routing_profile_id' || authorizesCrossModel
         ? routingTarget
         : { kind: 'model', modelReference: route.modelReference },
-    modality: request.operation.kind === 'speech' ? 'audio' : 'text',
+    modality:
+      request.operation.kind === 'speech' || request.audioOutput !== undefined ? 'audio' : 'text',
     input: request.input,
     stream,
     ...(maxOutputTokens > 0 ? { maxOutputTokens } : {}),
@@ -2824,13 +2881,16 @@ function buildEnvelope(
     // advertises this effort.
     ...(request.reasoning === undefined ? {} : { reasoning: request.reasoning }),
     ...(request.speech === undefined ? {} : { speech: request.speech }),
+    // Forwarded only after admission found a route whose model DECLARES
+    // spoken output on this dialect and prices every audio unit it can meter.
+    ...(request.audioOutput === undefined ? {} : { audioOutput: request.audioOutput }),
     tools: request.tools,
     ...(request.toolChoice === undefined ? {} : { toolChoice: request.toolChoice }),
     ...(request.responseFormat === undefined
       ? {}
       : { responseFormat: request.responseFormat }),
     client: {
-      apiFormat: context.apiFormat,
+      apiFormat,
       endpoint: context.endpoint,
       ...(request.clientRequestId === undefined
         ? {}
@@ -2911,7 +2971,19 @@ function isInferenceScope(scope: ApplicationScope): scope is ApplicationScope & 
 export function modalityForOperation(operation: EdgeOperation): EdgeModalityRequirement {
   switch (operation.kind) {
     case 'completion':
-      return TEXT_COMPLETION_MODALITY;
+      // Spoken output is audio OUT; the transcript beside it is the same answer,
+      // not a second modality the model must separately declare.
+      return operation.spokenOutput === true
+        ? { input: 'text', output: 'audio' }
+        : TEXT_COMPLETION_MODALITY;
+    case 'realtime_session':
+      // Every session consumes audio (the contract's own refinement on
+      // `modelCapabilitiesSchema`); what it produces is the session's choice.
+      return {
+        input: 'audio',
+        output: operation.requiredOutput,
+        realtime: { kind: operation.sessionKind, transport: operation.transport },
+      };
     case 'embeddings':
       return { input: 'text', output: 'embedding' };
     case 'rerank':
@@ -2923,6 +2995,40 @@ export function modalityForOperation(operation: EdgeOperation): EdgeModalityRequ
     case 'images':
       return { input: 'text', output: 'image' };
   }
+}
+
+/**
+ * The whole capability requirement of one request: its modalities, plus the
+ * request SHAPE the model must declare it can execute (contract set 3.2.0).
+ *
+ * `apiFormat` is checked against a model's declared `apiFormats` whenever the
+ * model declares them; spoken output additionally REQUIRES the declaration,
+ * because an undeclared model is one nobody said can answer in speech on this
+ * dialect, and catalogue presence alone is not that evidence (OxyHQ/Kaana#90).
+ */
+export function requirementForRequest(
+  request: NormalizedEdgeRequest,
+  apiFormat: ClientRequestMetadata['apiFormat'] | undefined
+): EdgeModalityRequirement {
+  const modality = modalityForOperation(request.operation);
+  return {
+    ...modality,
+    ...(apiFormat === undefined ? {} : { apiFormat }),
+    ...(request.audioOutput === undefined ? {} : { requiresDeclaredApiFormat: true }),
+  };
+}
+
+/** The customer-facing sentence for a `capability-unsupported` resolution. */
+function capabilityRefusal(modelReference: string, required: EdgeModalityRequirement): string {
+  if (required.realtime !== undefined) {
+    return `${modelReference} does not hold realtime ${required.realtime.kind} sessions over ${required.realtime.transport}.`;
+  }
+  if (required.requiresDeclaredApiFormat === true && required.apiFormat !== undefined) {
+    return `${modelReference} does not declare spoken output on ${required.apiFormat}.`;
+  }
+  return required.apiFormat === undefined
+    ? `${modelReference} cannot execute this request.`
+    : `${modelReference} is not served through ${required.apiFormat}.`;
 }
 
 /**
@@ -2985,6 +3091,10 @@ export function ceilingForOperation(
       return { requests: 1, characters: operation.characters };
     case 'images':
       return { requests: 1, input_tokens: estimatedInputTokens, images: operation.images };
+    case 'realtime_session':
+      // The two figures are the SESSION's budgets here, computed per route by
+      // `realtimeCeilingScenarios`, which is the only caller that passes them.
+      return { requests: 1, input_tokens: estimatedInputTokens, output_tokens: maxOutputTokens };
   }
 }
 
@@ -3004,15 +3114,108 @@ export function ceilingQuoteScenarios(
   estimatedInputTokens: number,
   maxOutputTokens: number
 ): readonly Partial<Record<UsageUnit, number>>[] {
+  if (operation.kind === 'realtime_session') {
+    return partitionScenarios(
+      REALTIME_INPUT_UNITS,
+      estimatedInputTokens,
+      REALTIME_OUTPUT_UNITS,
+      maxOutputTokens
+    );
+  }
   if (operation.kind !== 'completion') {
     return [ceilingForOperation(operation, estimatedInputTokens, maxOutputTokens)];
   }
-  return [
-    { requests: 1, input_tokens: estimatedInputTokens, output_tokens: maxOutputTokens },
-    { requests: 1, input_tokens: estimatedInputTokens, reasoning_tokens: maxOutputTokens },
-    { requests: 1, cached_input_tokens: estimatedInputTokens, output_tokens: maxOutputTokens },
-    { requests: 1, cached_input_tokens: estimatedInputTokens, reasoning_tokens: maxOutputTokens },
-  ];
+  return partitionScenarios(
+    TEXT_INPUT_UNITS,
+    estimatedInputTokens,
+    operation.spokenOutput === true ? SPOKEN_OUTPUT_UNITS : TEXT_OUTPUT_UNITS,
+    maxOutputTokens
+  );
+}
+
+/** The units a text prompt can be metered in: it is text, cached or not. */
+const TEXT_INPUT_UNITS = ['input_tokens', 'cached_input_tokens'] as const satisfies readonly UsageUnit[];
+/** The units a text generation budget is spent in. */
+const TEXT_OUTPUT_UNITS = ['output_tokens', 'reasoning_tokens'] as const satisfies readonly UsageUnit[];
+/**
+ * Spoken output (contract set 3.2.0): the audio and its transcript are both
+ * drawn from the one completion budget, so `audio_output_tokens` is a third
+ * member of the output partition — and the most expensive one on every audio
+ * model priced so far, which is exactly why leaving it out would under-hold.
+ */
+const SPOKEN_OUTPUT_UNITS = [
+  'output_tokens',
+  'reasoning_tokens',
+  'audio_output_tokens',
+] as const satisfies readonly UsageUnit[];
+/**
+ * A realtime response reads its conversation, and the conversation holds text
+ * and audio, either of them cached — so every input token of a response is one
+ * of these four, and the context window bounds their sum.
+ */
+const REALTIME_INPUT_UNITS = [
+  'input_tokens',
+  'cached_input_tokens',
+  'audio_input_tokens',
+  'cached_audio_input_tokens',
+] as const satisfies readonly UsageUnit[];
+const REALTIME_OUTPUT_UNITS = SPOKEN_OUTPUT_UNITS;
+
+/**
+ * Every extreme of two partitioned budgets: the whole input budget on one input
+ * unit, the whole output budget on one output unit, for every pair.
+ *
+ * A charge is linear in each unit, so its maximum over a partition is attained
+ * at a vertex — all of the budget on the most expensive member. Quoting every
+ * vertex is therefore exactly `input × max(input prices) + output × max(output
+ * prices)`, computed with the ledger's own arithmetic; and because EVERY
+ * scenario must quote, a route that prices any member of either partition not
+ * at all is refused before a hold is taken or Kaana is called. That is the
+ * existing rule for an unpriced unit, applied to the new ones: an unpriced unit
+ * never becomes a free one.
+ */
+function partitionScenarios(
+  inputUnits: readonly UsageUnit[],
+  inputBudget: number,
+  outputUnits: readonly UsageUnit[],
+  outputBudget: number
+): readonly Partial<Record<UsageUnit, number>>[] {
+  return inputUnits.flatMap((inputUnit) =>
+    outputUnits.map((outputUnit) => ({
+      requests: 1,
+      [inputUnit]: inputBudget,
+      [outputUnit]: outputBudget,
+    }))
+  );
+}
+
+/**
+ * The ceiling scenarios for one ROUTE.
+ *
+ * Every operation but a realtime session is bounded by its request body alone,
+ * so the route contributes only its output cap. A session is bounded by the
+ * route too: each of its at most `maxResponses` responses reads at most the
+ * route's context window and writes at most its per-response output cap
+ * (`config.maxOutputTokens`, else the model's). Kaana enforces `maxResponses`
+ * exactly (it closes the session with `limit_exceeded` rather than exceed it),
+ * which is what makes the product a bound rather than an estimate.
+ */
+export function routeCeilingScenarios(
+  request: NormalizedEdgeRequest,
+  route: Pick<EdgeRoute, 'maxContextTokens' | 'maxOutputTokens'>,
+  estimatedInputTokens: number,
+  maxOutputTokens: number
+): readonly Partial<Record<UsageUnit, number>>[] {
+  if (request.operation.kind !== 'realtime_session') {
+    return ceilingQuoteScenarios(request.operation, estimatedInputTokens, maxOutputTokens);
+  }
+  const perResponseOutput = request.maxOutputTokens ?? route.maxOutputTokens;
+  const responses = request.operation.maxResponses;
+  return ceilingQuoteScenarios(
+    request.operation,
+    responses * route.maxContextTokens,
+    responses * perResponseOutput
+  );
 }
 
 export function estimateInputTokens(request: NormalizedEdgeRequest): number {
@@ -3056,7 +3259,7 @@ function firstNonTextPart(input: InferenceInput): string | undefined {
   return undefined;
 }
 
-interface EdgeTelemetryInput {
+export interface EdgeTelemetryInput {
   readonly requestedModelReference: string;
   readonly statusCode: number;
   readonly units: Partial<Record<UsageUnit, number>>;
@@ -3118,7 +3321,7 @@ interface EdgeTelemetryInput {
  * fails, because a failed telemetry insert makes the measurement unstored, not
  * untrue — and the response is already owed an answer.
  */
-async function recordEdgeTelemetry(
+export async function recordEdgeTelemetry(
   context: EdgeExecutionContext,
   input: EdgeTelemetryInput
 ): Promise<number> {
