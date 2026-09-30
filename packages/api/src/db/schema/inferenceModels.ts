@@ -85,6 +85,29 @@ export const RESERVED_FIRST_PARTY_PUBLISHER = 'alia';
 export const MODEL_REASONING_EFFORTS = ['low', 'medium', 'high'] as const;
 
 /**
+ * `inferenceApiFormatSchema` in `@oxy.so/contracts` (contract set 3.2.0), as
+ * stored. Held against the contract by `schema/__tests__/inferenceCatalogue.test.ts`.
+ */
+export const INFERENCE_API_FORMATS = [
+  'responses',
+  'chat_completions',
+  'embeddings',
+  'images_generations',
+  'audio_transcriptions',
+  'audio_speech',
+  'rerank',
+  'batches',
+] as const;
+
+export type InferenceApiFormatValue = (typeof INFERENCE_API_FORMATS)[number];
+
+/** `realtimeSessionKindSchema` in `@oxy.so/contracts`, as stored. */
+export const REALTIME_SESSION_KINDS = ['conversation', 'transcription', 'translation'] as const;
+
+/** `realtimeSessionTransportSchema` in `@oxy.so/contracts`, as stored. */
+export const REALTIME_SESSION_TRANSPORTS = ['websocket'] as const;
+
+/**
  * Who writes a model row. `reviewed` rows were authored by the reviewed
  * bootstrap or staff tooling and the Kaana sync never rewrites their reviewed
  * facts; `kaana_sync` rows are created and kept current by the sync.
@@ -165,6 +188,29 @@ export const inferenceModels = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /**
+     * `capabilities.apiFormats` (contract set 3.2.0): the request dialects a
+     * route to this model can EXECUTE.
+     *
+     * NULL means UNDECLARED, and that is a different fact from any list: the
+     * contract reads an absent declaration as "a catalogue from before this
+     * field existed", so the edge keeps the rules it applied before — and
+     * authorizes no request shape that NEEDS a declaration (spoken output on
+     * `chat_completions`, a realtime session). An empty array is refused by the
+     * CHECK below rather than stored, because it would read as "executes
+     * nothing" while meaning "nobody said".
+     *
+     * Written by reviewed tooling and the model-documentation ingest only. The
+     * Kaana sync never writes it: catalogue presence is not capability evidence.
+     */
+    apiFormats: text().array(),
+    /**
+     * `capabilities.realtime` (contract set 3.2.0), as two arrays that are
+     * present together or not at all. NULL is "holds no realtime sessions",
+     * which is what the contract's absent `realtime` means.
+     */
+    realtimeTransports: text().array(),
+    realtimeSessionKinds: text().array(),
 
     /* ---- licence (`modelLicenseSchema`) ---------------------------------- */
 
@@ -266,6 +312,27 @@ export const inferenceModels = pgTable(
     check(
       'inference_models_reasoning_efforts_check',
       sql`${t.reasoningEfforts} <@ ${sql.raw(textArrayLiteral(MODEL_REASONING_EFFORTS))}`
+    ),
+    /**
+     * Declared or undeclared, never empty — see `api_formats`. Membership and
+     * cardinality are two constraints, as for the modalities above.
+     */
+    check(
+      'inference_models_api_formats_check',
+      sql`${t.apiFormats} is null or (cardinality(${t.apiFormats}) >= 1 and ${t.apiFormats} <@ ${sql.raw(textArrayLiteral(INFERENCE_API_FORMATS))})`
+    ),
+    /**
+     * `modelRealtimeCapabilitiesSchema`: both lists or neither, each non-empty
+     * and inside its closed set, and — the contract's own refinement — a model
+     * that holds realtime sessions consumes audio.
+     *
+     * The `is not null` pair in the second arm is load-bearing: without it one
+     * NULL list makes that arm NULL rather than FALSE, and a CHECK rejects only
+     * FALSE, so half a declaration would be admitted.
+     */
+    check(
+      'inference_models_realtime_check',
+      sql`(${t.realtimeTransports} is null and ${t.realtimeSessionKinds} is null) or (${t.realtimeTransports} is not null and ${t.realtimeSessionKinds} is not null and cardinality(${t.realtimeTransports}) >= 1 and ${t.realtimeTransports} <@ ${sql.raw(textArrayLiteral(REALTIME_SESSION_TRANSPORTS))} and cardinality(${t.realtimeSessionKinds}) >= 1 and ${t.realtimeSessionKinds} <@ ${sql.raw(textArrayLiteral(REALTIME_SESSION_KINDS))} and 'audio' = any(${t.inputModalities}))`
     ),
     check(
       'inference_models_catalogue_source_check',

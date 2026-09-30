@@ -295,6 +295,14 @@ async function resolveModelLine(
       supportsPromptCaching: model.capabilities.promptCaching,
       maxContextTokens: model.capabilities.maxContextTokens,
       maxOutputTokens: model.capabilities.maxOutputTokens,
+      // Contract set 3.2.0. Carried as declared; an absent declaration stays
+      // NULL ("undeclared"), never an empty or a guessed list.
+      apiFormats:
+        model.capabilities.apiFormats === undefined ? null : [...new Set(model.capabilities.apiFormats)],
+      realtimeTransports:
+        model.capabilities.realtime === undefined ? null : [...new Set(model.capabilities.realtime.transports)],
+      realtimeSessionKinds:
+        model.capabilities.realtime === undefined ? null : [...new Set(model.capabilities.realtime.sessionKinds)],
       licenseId: manifest.license.licenseId,
       licenseDisplayName: manifest.license.displayName,
       licenseUrl: manifest.license.url ?? null,

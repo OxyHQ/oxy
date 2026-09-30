@@ -17,14 +17,22 @@ import { join } from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { getTableColumns } from 'drizzle-orm';
 import {
+  inferenceApiFormatSchema,
   modelRevisionLabelSchema,
   modelSlugSchema,
   publisherSlugSchema,
+  realtimeSessionKindSchema,
+  realtimeSessionTransportSchema,
 } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { inferenceDeployments } from '../inferenceDeployments';
 import { inferenceModelRevisions, INFERENCE_REVISION_IMMUTABLE_COLUMNS, INFERENCE_REVISION_IMMUTABILITY_TRIGGER_NAME } from '../inferenceModelRevisions';
-import { inferenceModels } from '../inferenceModels';
+import {
+  INFERENCE_API_FORMATS,
+  inferenceModels,
+  REALTIME_SESSION_KINDS,
+  REALTIME_SESSION_TRANSPORTS,
+} from '../inferenceModels';
 import {
   INFERENCE_MODEL_PROVENANCE_DDL,
   INFERENCE_MODEL_PROVENANCE_TRIGGER_DDL,
@@ -861,5 +869,104 @@ describe('the provenance migration and the schema agree on the DDL', () => {
     // dropping either would leave the other's test green.
     expect(migration).toContain('BEFORE INSERT OR UPDATE ON inference_model_revisions');
     expect(migration).toContain('BEFORE UPDATE ON inference_models');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('capability declarations (contract set 3.2.0) are declared, never empty or half', () => {
+  it('stores exactly the contract vocabularies, in both directions', () => {
+    // A value the database admits and the contract refuses would be published
+    // by the catalogue and fail its own schema; the reverse would make a real
+    // declaration unstorable. Equality of the two lists closes both.
+    expect([...INFERENCE_API_FORMATS].sort()).toEqual([...inferenceApiFormatSchema.options].sort());
+    expect([...REALTIME_SESSION_KINDS].sort()).toEqual([...realtimeSessionKindSchema.options].sort());
+    expect([...REALTIME_SESSION_TRANSPORTS].sort()).toEqual(
+      [...realtimeSessionTransportSchema.options].sort()
+    );
+  });
+
+  async function insertDeclared(values: {
+    apiFormats?: string[] | null;
+    realtimeTransports?: string[] | null;
+    realtimeSessionKinds?: string[] | null;
+    inputModalities?: string[];
+  }) {
+    const publisher = await insertPublisher();
+    return getDb()
+      .insert(inferenceModels)
+      .values({
+        publisherSlug: publisher,
+        slug: `mdl${suffix()}`,
+        ...modelDefaults(),
+        ...(values.inputModalities === undefined ? {} : { inputModalities: values.inputModalities }),
+        ...(values.apiFormats === undefined ? {} : { apiFormats: values.apiFormats }),
+        ...(values.realtimeTransports === undefined
+          ? {}
+          : { realtimeTransports: values.realtimeTransports }),
+        ...(values.realtimeSessionKinds === undefined
+          ? {}
+          : { realtimeSessionKinds: values.realtimeSessionKinds }),
+      })
+      .returning({
+        apiFormats: inferenceModels.apiFormats,
+        realtimeTransports: inferenceModels.realtimeTransports,
+      });
+  }
+
+  it('reads an undeclared model as NULL, not as an empty list', async () => {
+    const [row] = await insertDeclared({});
+    expect(row.apiFormats).toBeNull();
+    expect(row.realtimeTransports).toBeNull();
+  });
+
+  it('admits a declared format list and a whole realtime declaration on an audio model', async () => {
+    // The control for every refusal below.
+    const [row] = await insertDeclared({
+      apiFormats: ['chat_completions'],
+      inputModalities: ['text', 'audio'],
+      realtimeTransports: ['websocket'],
+      realtimeSessionKinds: ['conversation'],
+    });
+    expect(row.apiFormats).toEqual(['chat_completions']);
+    expect(row.realtimeTransports).toEqual(['websocket']);
+  });
+
+  it.each([
+    ['an empty format list', { apiFormats: [] }],
+    ['an unknown format', { apiFormats: ['realtime'] }],
+    [
+      'transports without session kinds',
+      { inputModalities: ['audio'], realtimeTransports: ['websocket'] },
+    ],
+    [
+      'session kinds without transports',
+      { inputModalities: ['audio'], realtimeSessionKinds: ['conversation'] },
+    ],
+    [
+      'an empty session-kind list',
+      { inputModalities: ['audio'], realtimeTransports: ['websocket'], realtimeSessionKinds: [] },
+    ],
+    [
+      'an unknown transport',
+      { inputModalities: ['audio'], realtimeTransports: ['webrtc'], realtimeSessionKinds: ['conversation'] },
+    ],
+    [
+      'sessions on a model that consumes no audio',
+      { realtimeTransports: ['websocket'], realtimeSessionKinds: ['conversation'] },
+    ],
+  ] as const)('refuses %s', async (_label, values) => {
+    const error = await rejection(
+      insertDeclared({
+        ...values,
+        ...('apiFormats' in values ? { apiFormats: [...values.apiFormats] } : {}),
+        ...('realtimeTransports' in values ? { realtimeTransports: [...values.realtimeTransports] } : {}),
+        ...('realtimeSessionKinds' in values
+          ? { realtimeSessionKinds: [...values.realtimeSessionKinds] }
+          : {}),
+        ...('inputModalities' in values ? { inputModalities: [...values.inputModalities] } : {}),
+      })
+    );
+    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
 });

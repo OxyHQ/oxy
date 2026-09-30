@@ -78,7 +78,15 @@ import {
   normalizeInferenceDeploymentAvailabilityScope,
   SELECTABLE_PERMISSION_STATE,
 } from '../db/schema';
-import type { InferenceModalityValue } from '../db/schema/inferenceModels';
+import type {
+  InferenceApiFormatValue,
+  InferenceModalityValue,
+  REALTIME_SESSION_KINDS,
+  REALTIME_SESSION_TRANSPORTS,
+} from '../db/schema/inferenceModels';
+
+type RealtimeSessionKindValue = (typeof REALTIME_SESSION_KINDS)[number];
+type RealtimeSessionTransportValue = (typeof REALTIME_SESSION_TRANSPORTS)[number];
 import {
   classifyApplicationTier,
   type ApplicationClassification,
@@ -1029,6 +1037,9 @@ interface CatalogueModelRow {
   readonly maxContextTokens: number;
   readonly maxOutputTokens: number;
   readonly reasoningEfforts: string[];
+  readonly apiFormats: string[] | null;
+  readonly realtimeTransports: string[] | null;
+  readonly realtimeSessionKinds: string[] | null;
   readonly providerReleasedAt: Date | null;
   readonly licenseId: string;
   readonly licenseDisplayName: string;
@@ -1234,6 +1245,17 @@ function buildCatalogueEntry(
       promptCaching: model.supportsPromptCaching,
       maxContextTokens: model.maxContextTokens,
       maxOutputTokens: model.maxOutputTokens,
+      // Contract set 3.2.0. Omitted, never emptied, when undeclared: an absent
+      // declaration and an empty one mean different things to a consumer.
+      ...(model.apiFormats === null ? {} : { apiFormats: model.apiFormats }),
+      ...(model.realtimeTransports === null || model.realtimeSessionKinds === null
+        ? {}
+        : {
+            realtime: {
+              transports: model.realtimeTransports,
+              sessionKinds: model.realtimeSessionKinds,
+            },
+          }),
     },
     license: {
       licenseId: model.licenseId,
@@ -1378,6 +1400,9 @@ export async function listCatalogueForViewer(
       maxContextTokens: inferenceModels.maxContextTokens,
       maxOutputTokens: inferenceModels.maxOutputTokens,
       reasoningEfforts: inferenceModels.reasoningEfforts,
+      apiFormats: inferenceModels.apiFormats,
+      realtimeTransports: inferenceModels.realtimeTransports,
+      realtimeSessionKinds: inferenceModels.realtimeSessionKinds,
       providerReleasedAt: inferenceModels.providerReleasedAt,
       licenseId: inferenceModels.licenseId,
       licenseDisplayName: inferenceModels.licenseDisplayName,
@@ -1645,6 +1670,8 @@ export interface EdgeRoute {
    * request naming an effort outside this list rather than forwarding it.
    */
   readonly reasoningEfforts: readonly string[];
+  /** The model's declared `apiFormats`; absent means undeclared, never "every". */
+  readonly apiFormats?: readonly string[];
 }
 
 /**
@@ -1678,6 +1705,62 @@ export interface EdgeRoute {
 export interface EdgeModalityRequirement {
   readonly input: InferenceModalityValue;
   readonly output?: InferenceModalityValue;
+  /**
+   * The public dialect the request arrived in (`client.apiFormat` on the
+   * envelope). A model that DECLARES `apiFormats` serves only the dialects it
+   * lists; one that declares none is served under the rules that applied before
+   * the declaration existed (contract set 3.2.0). Absent means the caller is not
+   * a one-shot dialect at all — a realtime session, or a catalogue test.
+   */
+  readonly apiFormat?: InferenceApiFormatValue;
+  /**
+   * The request shape needs a DECLARATION, not merely the absence of an
+   * exclusion: spoken output on `chat_completions` is authorized only on a
+   * model whose `apiFormats` names the dialect. "Catalogue presence alone is not
+   * capability evidence" (OxyHQ/Kaana#90) — an undeclared model is refused.
+   */
+  readonly requiresDeclaredApiFormat?: boolean;
+  /** A realtime session: the model must declare this kind over this transport. */
+  readonly realtime?: {
+    readonly kind: RealtimeSessionKindValue;
+    readonly transport: RealtimeSessionTransportValue;
+  };
+}
+
+/**
+ * Whether a model's DECLARED capabilities admit a request shape. Pure, and the
+ * one place the three declarations are read, so the edge and any later reader
+ * cannot disagree about what an undeclared `apiFormats` means.
+ */
+export function capabilityAdmits(
+  declared: {
+    readonly apiFormats: readonly string[] | null;
+    readonly realtimeTransports: readonly string[] | null;
+    readonly realtimeSessionKinds: readonly string[] | null;
+  },
+  requirement: EdgeModalityRequirement
+): boolean {
+  if (requirement.apiFormat !== undefined) {
+    if (declared.apiFormats === null) {
+      if (requirement.requiresDeclaredApiFormat === true) return false;
+    } else if (!declared.apiFormats.includes(requirement.apiFormat)) {
+      return false;
+    }
+  } else if (requirement.requiresDeclaredApiFormat === true) {
+    return false;
+  }
+  if (requirement.realtime !== undefined) {
+    if (declared.realtimeTransports === null || declared.realtimeSessionKinds === null) {
+      return false;
+    }
+    if (
+      !declared.realtimeTransports.includes(requirement.realtime.transport) ||
+      !declared.realtimeSessionKinds.includes(requirement.realtime.kind)
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /** Request-specific capacity a route must have before it can enter an envelope. */
@@ -1786,6 +1869,18 @@ export type EdgeRouteResolution =
       /** What the candidate routes actually declare, deduplicated and sorted. */
       readonly supportedInput: readonly string[];
       readonly supportedOutput: readonly string[];
+    }
+  | {
+      /**
+       * The model consumes and produces the right modalities and still cannot
+       * execute this request SHAPE: its declared `apiFormats` exclude the
+       * dialect, spoken output needs a declaration it does not make, or it holds
+       * no realtime session of this kind. Distinct from `modality-unsupported`
+       * so the refusal can say which declaration is missing.
+       */
+      readonly status: 'capability-unsupported';
+      readonly modelReference: string;
+      readonly required: EdgeModalityRequirement;
     }
   | {
       readonly status: 'capacity-unavailable';
@@ -1903,6 +1998,9 @@ export async function resolveEdgeRoute(
       reasoningEfforts: inferenceModels.reasoningEfforts,
       inputModalities: inferenceModels.inputModalities,
       outputModalities: inferenceModels.outputModalities,
+      apiFormats: inferenceModels.apiFormats,
+      realtimeTransports: inferenceModels.realtimeTransports,
+      realtimeSessionKinds: inferenceModels.realtimeSessionKinds,
     })
     .from(inferenceDeployments)
     .innerJoin(
@@ -1950,7 +2048,14 @@ export async function resolveEdgeRoute(
     };
   }
 
-  const permitted = await applyRoutingConstraints(constraints, capable);
+  // The declared request SHAPE, after the modalities and for the same reason:
+  // it is a property of the endpoint the caller used, not of their policy.
+  const executable = capable.filter((row) => capabilityAdmits(row, modality));
+  if (executable.length === 0) {
+    return { status: 'capability-unsupported', modelReference, required: modality };
+  }
+
+  const permitted = await applyRoutingConstraints(constraints, executable);
   if (permitted.kept.length === 0) {
     // Refuse, and say what refused. Never widen back to a candidate the policy
     // excluded, and never answer as though the request had been unconstrained —
@@ -2184,6 +2289,7 @@ export async function resolveEdgeRoute(
     inputModalities: row.inputModalities,
     outputModalities: row.outputModalities,
     reasoningEfforts: row.reasoningEfforts,
+    ...(row.apiFormats === null ? {} : { apiFormats: row.apiFormats }),
   });
 
   const chosen = ranked[0];
