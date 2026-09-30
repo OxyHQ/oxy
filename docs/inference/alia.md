@@ -5,7 +5,7 @@ half**. The Alia-side counterpart is
 [OxyHQ/Alia#139](https://github.com/OxyHQ/Alia/issues/139) and is not described
 here.
 
-Status of the whole picture: [README.md](./README.md). This page records source
+Concepts: [developer guide](./README.md). Status of the whole picture: [status.md](./status.md). This page records source
 and the operating contract, not a successful production rollout. A dry-run that
 reports drift is diagnostic evidence only: it provisions nothing and must not be
 reported as completion. The workflow result, exact live task/image and
@@ -43,6 +43,16 @@ another official product can consume the same reviewed platform route directly
 through Oxy without pretending to be Alia.
 
 ### Which models Alia offers, and how it names them
+
+**Decided, rolling out:** Alia shows its users **power levels** (`auto`,
+`instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`), never model names, and
+sends the chosen level as the request's routing profile. The Alia application's
+policy limits which levels it may use. Alia does not retry, fail over or swap
+models itself; Kaana does that along the routes Oxy signed
+([guide](./README.md#when-a-request-fails)). Until the levels ship, the
+behaviour below is what `main` does.
+
+**Live on `main`:**
 
 Every model the Kaana catalogue sync has written for `platform_internal`
 ([catalogue.md](./catalogue.md#automatic-sync-from-kaana), ADR 0027) — no
@@ -377,6 +387,6 @@ never register a GitHub secret with a placeholder value.
 - **Alia actually invoking Oxy inference.** The edge, Kaana runtime and reviewed
   bootstrap exist in merged source, but bootstrap application, live
   audience gates, canonical Kaana configuration and a real signed canary still require production
-  evidence (see [README.md](./README.md)). The
+  evidence (see [status.md](./status.md)). The
   registration, scopes, credentials, cost centres and entitlement interface do
   not prove that Alia has made that production call.

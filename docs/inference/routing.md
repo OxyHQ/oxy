@@ -1,4 +1,9 @@
-# Routing controls and fallback semantics
+# Routing policies, fallback and route ordering
+
+What a request can target (exact model, power level, app default) is explained
+in the [developer guide](./README.md#three-ways-to-say-which-model-runs). This
+page is the reference for the **routing policy** that governs those requests,
+and it is the one authoritative statement of how Oxy orders routes.
 
 A routing policy is the customer-facing configuration of *which* routes their
 requests may take. Oxy stores, validates and versions it; a data plane executes
@@ -11,7 +16,7 @@ the controls are now also applied to the candidate routes before one is chosen,
 and a request no route satisfies is REFUSED rather than downgraded. One is not
 enforced and is named as such.
 
-Status of the whole platform: [README.md](./README.md).
+Status of the whole platform: [status.md](./status.md).
 
 ---
 
@@ -86,7 +91,8 @@ needs its own.
 
 | Control | Means |
 |---|---|
-| `defaultTarget` | the model or routing profile used when a request names none |
+| `defaultTarget` | the exact model or power level (routing profile) used when a request names none |
+| allowed power levels | **rolling out**: the power levels an application may request (Inbox: `instant` only). Not in the policy schema on `main` |
 | `providerAllowlist` / `providerDenylist` | which providers may serve. Empty allowlist means "no allowlist" |
 | `allowedRegions` / `deniedRegions` | data residency. Empty allowed list means "no constraint" |
 | `requireZeroDataRetention` | only routes that retain no payloads |
@@ -163,6 +169,20 @@ filter below. It is enforced in two places instead:
   switch could be recorded against.
 - **When the switch is recorded**, as rule 3 describes.
 
+Which routes the signed list authorizes, by target:
+
+| Target | Same-model failover | Cross-model fallback |
+|---|---|---|
+| exact model, app has no policy | no | no |
+| exact model, app policy | when `fallback.sameModelDeployment` and not `fallback.disabled` | only to `fallback.authorizedCrossModel` and not `fallback.disabled`; never for a pinned `@revision` |
+| routing profile / power level | yes | among the profile's own candidates |
+| realtime session | yes, same model only | never |
+
+Rolling out: same-model provider failover **by default** for exact-model
+requests. Kaana then retries and fails over along that list on its own; callers
+must not add their own retry or failover
+([guide](./README.md#when-a-request-fails)).
+
 ---
 
 ## What is enforced today
@@ -197,9 +217,9 @@ This is the part to read twice.
 - **A routing-profile target is resolved and authorized** at the edge. New and
   trusted product integrations send the exact opaque `routingProfileId`, which
   is matched only against `inference_routing_profiles.id`, with no trimming,
-  slug/display-name fallback, ordering, or implicit first row. The deprecated
-  public `routingProfile` slug remains an input-only compatibility field: Oxy
-  resolves its unique catalogue row immediately. A slug never appears in a
+  slug/display-name fallback, ordering, or implicit first row. The public
+  `routingProfile` slug (a power level such as `instant`) is an input field:
+  Oxy resolves its unique catalogue row by exact slug immediately. A slug never appears in a
   canonical policy snapshot, cache entry or signed Kaana envelope. Both input
   forms therefore emit `{ kind: "routing_profile_id", routingProfileId }` plus
   the closed authorized deployment set. Unknown and whitespace-modified IDs
@@ -328,7 +348,7 @@ The order is exact and deliberately independent of names:
 2. an explicit BYOK preference, when configured by the customer, comes next;
 3. within one priority and credential preference, eligible reviewed funding is
    ordered `free_entitlement`, `discounted_payg`, `promotional_credit`, then
-   `standard_payg`;
+   `standard_payg` (see [Funding class](#funding-class) below);
 4. within one funding class, the selected score is descending;
 5. lexicographic comparison of the exact `deploymentId` by ECMAScript UTF-16
    code units is the only equal-score tie-break.
@@ -351,6 +371,34 @@ Kaana to attest all exact IDs from one live inventory snapshot before any hold;
 cardinality, identity or region-set drift refuses with zero reservation and zero
 inference POST. The resolver never hides incomplete evidence by dropping only
 the bad survivor.
+
+### Funding class
+
+The funding class is reviewed data on the exact deployment scorecard, never
+inferred from a provider or model name:
+
+| Class | Means | Example |
+|---|---|---|
+| `free_entitlement` | a currently available free allowance or free tier | a renewable allowance with 120 requests left and a future `validUntil` |
+| `discounted_payg` | a cheaper metered rate that charges immediately | a low list-price endpoint with no granted balance |
+| `promotional_credit` | granted credit that will run out or expire | a `$500` launch grant |
+| `standard_payg` | ordinary paid usage | a card-billed endpoint |
+
+Free and promotional entries require a bounded observation window.
+`fundingState` records whether the allocation is `available`, `exhausted`,
+`rate_limited` or `unknown`; optional `fundingRemaining` is an exact
+non-negative decimal meaningful only with `fundingRemainingUnit`;
+`fundingEvidenceRef` names the provider statement, contract or measurement
+behind it. A zero balance, a non-`available` state, or a future or expired
+observation removes the route from its economic class: it never falls through
+as though it were still free. Promotional money is not relabelled "free"
+because it was granted. Migrations backfilled pre-existing scorecards as
+`standard_payg` and dropped the defaults, so every later scorecard states its
+economics.
+
+Oxy owns this classification and the order it produces. Kaana owns live
+technical health and provider limits; Oxy does not turn cached economic
+evidence into a claim that a provider is healthy.
 
 Because one stale score refuses every route, score expiry is a scheduled
 production cliff. A daily read-only monitor requires seven days of validity and

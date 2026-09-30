@@ -1,4 +1,9 @@
-# Model, deployment, routing profile — six things, not one
+# The model catalogue
+
+The concepts (model, revision, provider, deployment, power level) and the three
+ways to call are explained in the [developer guide](./README.md). This page
+covers the catalogue itself: the identifiers, how to read it, what an entry
+contains, and how it is filled.
 
 A catalogue that collapses any two of these starts lying to customers about
 provenance, licence, residency or reproducibility. This page is the
@@ -30,7 +35,7 @@ illustrate grammar; discover actual entries from the live audience-scoped read.
 | **Model revision** | an immutable point in that model's history | `openai/gpt-5@2026-05-01` |
 | **Inference provider** | who *runs* the weights | a third party, Oxy's own hosting, or your own account under BYOK |
 | **Deployment** | one concrete servable route: revision × provider × region × data policy × commercial permission | opaque to customers |
-| **Routing profile** | a named strategy for CHOOSING among routes | `auto`, `fast`, `quality` |
+| **Routing profile** (user-facing: **power level**) | a named strategy for CHOOSING among routes | `instant`, `high` (power levels are rolling out, see the [guide](./README.md#2-power-level--run-something-good-enough-at-this-level)) |
 
 A publisher is not a provider: Meta publishes Llama and serves nothing. A model
 is a line, not an artifact — its behaviour changes as revisions ship. A revision
@@ -55,35 +60,13 @@ also makes a provenance claim.
 
 ## A routing profile is not a model
 
-A profile slug **cannot contain a slash**, so it can never be written in the
-shape of a model id. That is what keeps "did I ask for a concrete model, or ask
-Oxy to choose one?" decidable from the request alone.
-
-Profiles are served from a separate collection with a separate identifier space
-and are rendered separately. They may be selected wherever a model may be, and
-the response always reports the concrete revision and serving deployment that
-actually ran — that report is what makes a profile honest.
-
-## Same-model failover is not cross-model fallback
-
-Two features, two switches, and conflating them is what the platform's
-"never silently substituted" invariant forbids.
-
-- **Same-model deployment failover** — a different deployment of the *same*
-  revision. Permitted by default; you got what you asked for.
-- **Cross-model fallback** — a different model or revision. Never silent, never
-  default, requires an explicit routing-policy opt-in, and emits a
-  customer-visible route-switch event.
-
-A request that named a concrete revision is never subject to cross-model
-fallback, whatever the policy says.
-
-Both mechanisms exist in merged Oxy and Kaana source. Runtime execution walks
-only the signed exact-ID order; a cross-model substitution is refused unless the
-destination is named in the policy version's own authorization rows. That source
-fact is not a production canary: verify the live audience, inventory, signed
-request and customer-visible route switch before calling failover deployed.
-[routing.md](./routing.md#fallback-two-features-two-switches) has the detail.
+A profile slug **cannot contain a slash** (the database CHECK and the wire
+schema both refuse one), so it can never be mistaken for a model id. Profiles
+are listed separately (`GET /v1/models/routing-profiles`) and have their own
+identifier space. What a profile promises, and how it differs from naming a
+model, is in the [developer guide](./README.md#three-ways-to-say-which-model-runs).
+Same-model failover and cross-model fallback are defined once, in
+[routing.md](./routing.md#fallback-two-features-two-switches).
 
 ---
 
@@ -333,70 +316,13 @@ priority-funding-score-exact-ID contract in [routing.md](./routing.md#ranking-af
 
 ## A route that your policy forbids is a refusal
 
-Your routing policy is resolved on every request and its version is recorded on
-the envelope and on the settled receipt. It is also **applied to the candidate
-routes before one is chosen** — which is the difference between a compliance
-setting and a compliance claim (issue #1011).
-
-Filtered against the route: `requireZeroDataRetention`,
-`prohibitTrainingOnCustomerData`, `requireCommercialUseRights`,
-`allowedLicenseIds`, `providerAllowlist`, `providerDenylist`, `allowedRegions`,
-`deniedRegions`, `oxyHostedOnly`, `byokPreference` and `dedicatedCapacity`.
-Three of them read the DEPLOYMENT's own data policy rather than the provider
-organisation's default, because a zero-retention endpoint from a provider that
-otherwise retains is a real and important case.
-
-Two readings are worth stating outright, because the alternatives look
-reasonable:
-
-- **`allowedRegions` is a subset test, not an overlap.** A deployment declares
-  every region it may serve from, and which one it picks is the data plane's
-  decision — so a route that may run outside your allowed set cannot honour a
-  residency requirement and does not qualify. Empty means no regional
-  attestation, so the route fails closed under either an allow-list or a
-  deny-list and is eligible only when neither is configured.
-- **`requireZeroDataRetention` needs the route to actually not retain**, not
-  merely to be capable of zero retention. `zeroDataRetentionAvailable` is a
-  capability; a route carrying it while still retaining payloads by default is
-  excluded.
-
-When NO candidate satisfies your policy, the request is **refused** with
-`policy_violation` (HTTP 403, never retryable) and the message names the controls
-that excluded every route. It is never downgraded to a route the policy forbade,
-and never served as though the policy were absent. A model that does not exist,
-or that your credential may not see, still answers `model_not_found` — the two
-are kept distinct because only one of them is yours to fix.
-
-`maxPricePerUnit` and `maxPricePerRequest` are enforced against the price version
-the route is actually charged at: a rate above your ceiling, a price in a
-currency your ceiling is not quoted in, and a route with no published price at
-all are all excluded. A unit the route's price does not charge for is not.
-Kaana reports `requests: 1` exactly once per attempted request, so every servable
-price version declares that unit explicitly; zero is valid and absence is
-incomplete pricing. The catalogue can cheaply prefilter a route whose flat
-`requests` fee alone breaks `maxPricePerRequest`, because no possible token count
-can make that route affordable.
-
-That prefilter is not the final decision. For each explicit profile priority,
-the edge quotes the complete maximum cost of this request against every
-candidate's pinned price version, including `requests: 1`, the input ceiling and
-the applicable maximum output partitions. It excludes totals above the cap and
-currencies that do not match. Within the first priority that retains a route,
-BYOK preference, funding class, score descending and exact deployment ID choose
-the first survivor. If the
-caller omitted an output ceiling, that survivor's maximum fixes the implicit
-output ceiling before lower priorities are resolved for capacity. A priority
-whose routes all exceed the cap fixes nothing, so the next priority is evaluated
-against its own candidates. If no route survives the full price check, the edge
-returns `policy_violation` (403) before reservation and before Kaana. Full rules:
-[routing.md](./routing.md#the-price-ceilings).
-
-`optimiseFor` is not a qualification predicate: after every applicable control
-has filtered the candidates, Oxy ranks them by explicit routing-profile
-priority, explicit BYOK preference, reviewed funding class, the selected score
-descending, then exact deployment ID by ECMAScript UTF-16 code units. Kaana executes that signed order and does not
-derive another from names or inventory order. Full rule:
-[routing.md](./routing.md#ranking-after-qualification).
+Your routing policy is applied to a model's candidate routes before one is
+chosen. When no route satisfies it, the request is refused with
+`policy_violation` (403), never downgraded. A model that does not exist, or that
+your credential may not see, answers `model_not_found` instead. Every control,
+the price ceilings and the ordering of survivors are in
+[routing.md](./routing.md#what-is-enforced-today). That page is the only
+statement of them.
 
 ## What Oxy never exposes
 

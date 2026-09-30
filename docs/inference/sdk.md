@@ -6,7 +6,9 @@ gates are open or that canonical Kaana is configured; see
 [Verify the deployed path](#verify-the-deployed-path) before planning around
 anything on this page.
 
-Status of the whole platform: [README.md](./README.md).
+What to put in the request (exact model, power level, or the app default) and
+how to handle errors are in the [developer guide](./README.md). This page is
+the client reference. Status of the whole platform: [status.md](./status.md).
 
 ---
 
@@ -76,7 +78,7 @@ life.
 | `stream(request, options?)` | `POST /v1/responses` with validated SSE |
 | `getGeneration(id)` | `GET /v1/generations/:id` |
 
-`stream(request, options?)` is merged and published in `@oxy.so/core@23.1.0` by
+`stream(request, options?)` is merged and published in `@oxy.so/core` by
 [#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana
 runtime v2 source. It sends `stream: true`, propagates cancellation and
 validates the versioned SSE event union. That package publication does not prove
@@ -97,6 +99,11 @@ answer.usage;              // metered quantities — never money
 answer.routingPolicy;      // the exact policy version this request was admitted under
 answer.latencyMs;          // Oxy's handling time — NOT your round trip; see below
 ```
+
+**The target.** Name at most one of `model` (`publisher/model[@revision]`),
+`routingProfile` (a power level slug) or `routingProfileId` (an exact profile
+ID), or none to use the application's default target. Naming two is a 400.
+See [the three ways](./README.md#three-ways-to-say-which-model-runs).
 
 A reasoning model takes `reasoning: { effort: 'low' | 'medium' | 'high' }`
 (`reasoning_effort` on the OpenAI-compatible surface). Name only an effort the
@@ -189,13 +196,14 @@ Four compatibility rules matter, and all four are deliberate:
 
 - **`model` is a canonical Oxy id, `<publisher>/<model>`.** A vendor model name
   is not one and does not resolve — accepting a bare name would mean Oxy
-  guessing which publisher you meant.
+  guessing which publisher you meant. This surface has no `routingProfile`
+  field; accepting a power level (no slash) in `model` is rolling out.
 - **Unknown request fields are rejected, not ignored.** The schema is strict, so
   a parameter Oxy does not implement gets you a `400` naming it rather than
   silently having no effect on a request you were billed for.
 - **`stream: true` uses OpenAI-compatible SSE** when the deployed Kaana path is
   configured and enabled. An unavailable data plane is refused before opening a
-  stream. The typed `@oxy.so/core` decoder is published in `@oxy.so/core@23.1.0`;
+  stream. The typed `@oxy.so/core` decoder is published;
   live reachability remains a separate rollout gate.
 - **Oxy-specific response metadata rides in headers**, so the body stays exactly
   what a stock client parses.
@@ -332,14 +340,17 @@ client's own error classes still work.
 
 ### Retries
 
-`max_retries=0` above is deliberate. The `openai` client retries on its own
-schedule, and Oxy already publishes per-code retryability in
-`X-Oxy-Error-Retryable` plus `Retry-After` where a wait is known. Leaving both
-layers on means retrying refusals Oxy has said are not retryable — `503
-service_unavailable` is `retryable: false` precisely so that an unconfigured data
-plane does not teach every client to retry forever
-(`packages/api/src/utils/inferenceEdgeErrors.ts`). Retry on
-`X-Oxy-Error-Retryable`, and honour `Retry-After`.
+`max_retries=0` above is deliberate. Before any error reaches you, Kaana has
+already retried the same route on transient failures and failed over along the
+signed routes ([guide](./README.md#when-a-request-fails)). The `openai`
+client's own retries would add a second layer on top, and would also retry
+refusals Oxy has said are not retryable — `503 service_unavailable` is
+`retryable: false` precisely so that an unconfigured data plane does not teach
+every client to retry forever
+(`packages/api/src/utils/inferenceEdgeErrors.ts`).
+`X-Oxy-Error-Retryable: true` means a later identical request may succeed: show
+the user a "try again", or reschedule a background job after `Retry-After`.
+Do not loop, and do not switch to another model yourself.
 
 ### Runtime gates and refusals
 

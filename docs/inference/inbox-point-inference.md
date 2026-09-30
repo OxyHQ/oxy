@@ -48,6 +48,11 @@ Postgres `inference_routing_profiles.id`. Runtime resolves that primary key and
 never picks a profile by display name, order, slug fallback or “first row”. An
 absent or unknown ID returns a fail-closed 503 before reservation or Kaana.
 
+**Rolling out:** Inbox moves to the `instant` power level as its application
+default, with `instant` as its only allowed level (see the
+[developer guide](./README.md#3-app-default--whatever-this-app-is-configured-for)).
+Until that ships, the exact `kaana-v1` profile ID above is what `main` uses.
+
 ## Production bootstrap
 
 Production readback workflow run `33736747600` on 2026-09-03 found no row for

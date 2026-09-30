@@ -1,6 +1,8 @@
 # Canonical AI request routing
 
-This document is the authority for choosing between Kaana and Alia. It is an
+The layers (app, Alia, Oxy edge, Kaana) and the ways to call are summarised in
+the [developer guide](./README.md#the-mental-model). This document is the
+authority for choosing between Kaana and Alia per product feature. It is an
 architecture contract, not a production-status assertion: deployment state must
 be verified with the live Oxy and Kaana rollout gates.
 
@@ -8,9 +10,13 @@ be verified with the live Oxy and Kaana rollout gates.
 
 | System | Responsibility |
 |---|---|
-| **Oxy** | authenticates the caller; resolves account, application and delegated user; checks scopes and policy; reserves spend; signs the request; settles the receipt |
-| **Kaana** | executes the signed request; selects only among authorized routes; adapts provider protocols; streams and cancels; measures technical usage and provider health |
-| **Alia** | runs assistants and agents; owns conversations, memory, tools, approvals and orchestration; invokes models through Oxy and Kaana |
+| **Oxy** | authenticates the caller; resolves account, application and delegated user; checks scopes and policy; resolves the target (exact model, power level or the app's default); chooses and orders the routes; reserves spend; signs the request; settles the receipt |
+| **Kaana** | executes the signed request; retries the same route on transient failures and fails over only along the signed routes, before the first output; adapts provider protocols; streams and cancels; measures technical usage and provider health |
+| **Alia** | runs assistants and agents; owns conversations, memory, tools, approvals and orchestration; offers users power levels, never model names (rolling out); invokes models through Oxy and Kaana, and never retries or fails over on its own |
+
+Neither a product app nor Alia implements its own retry, failover or model
+substitution: that is Kaana's, along the list Oxy signed. See
+[When a request fails](./README.md#when-a-request-fails).
 
 The canonical signed data-plane origin is
 [`https://kaana.ai`](https://kaana.ai). No Oxy subdomain or old inference-service
@@ -59,81 +65,23 @@ database row id or list position. Oxy copies the exact identity into the signed
 and requires its signed provider, revision-pinned model reference and complete
 region set to match.
 
-Oxy orders policy-qualified deployments with one explicit rule:
+Oxy orders the policy-qualified deployments by explicit profile priority,
+BYOK preference, reviewed funding class (free allowance, discounted
+pay-as-you-go, promotional credit, standard paid), score, then exact
+`deploymentId`. The single statement of that rule, the funding-class
+definitions and the price-ceiling qualification is
+[routing.md](./routing.md#ranking-after-qualification). Kaana receives the
+already ordered signed list, attempts it in that order (retrying the same route
+on transient failures before moving on) and never re-ranks it by health or name.
 
-1. for a routing profile, lower explicit candidate `priority` comes first;
-2. an explicit customer BYOK preference comes next;
-3. within the same priority and credential preference, an eligible reviewed funding class is ordered as
-   `free_entitlement`, `discounted_payg`, `promotional_credit`, then
-   `standard_payg`;
-4. within the same funding class, the reviewed score for `optimiseFor` is descending;
-5. if scores are equal, lexicographic comparison of the exact `deploymentId` by
-   ECMAScript UTF-16 code units is the sole deterministic tie-break.
-
-Provider name, model name, display name, locale collation, insertion order and
-database return order never participate. Kaana receives the already ordered
-signed list, attempts it in that order and never re-ranks it by health or name.
-
-The funding class is data on the exact deployment scorecard, never inferred
-from a provider or model. `free_entitlement` means a currently available free
-allowance/free tier; `discounted_payg` means a cheaper metered rate that charges
-immediately; `promotional_credit` means granted credit that will eventually be
-exhausted or expire; `standard_payg` is ordinary paid usage. Free and promotional
-entries require a bounded observation window. `fundingState` records whether the
-observed allocation is `available`, `exhausted`, `rate_limited` or `unknown`;
-optional `fundingRemaining` is an exact non-negative decimal and is meaningful
-only together with its `fundingRemainingUnit`; `fundingEvidenceRef` identifies
-the provider statement, contract or reviewed measurement behind the observation.
-The database has no permanent default for class, state or evidence: migrations
-backfill pre-existing scorecards as standard paid and immediately drop those
-defaults, so every later scorecard and audit event must state reviewed economics.
-A zero balance, non-available
-state, future observation or expired observation removes the route from this
-economic preference set; it never falls through as though it were still free.
-
-Oxy owns this commercial classification and the ordering it produces. Kaana owns
-provider-key custody, live technical health, actual provider limits and measured
-usage. Compatibility, customer policy and request capacity qualify a route before
-funding priority; Kaana's signed preflight and execution then provide the live
-health/rate-limit boundary. Oxy does not turn cached economic evidence into a
-claim that a provider is healthy.
-
-This deployment-level order becomes exact credential spending only when Kaana
-binds each signed deployment to one reviewed `(provider, keyId)`. [Kaana PR
-#93](https://github.com/OxyHQ/Kaana/pull/93) is the source candidate for that
-boundary; source code is not rollout evidence.
-Migration `0013`, exact binding readback and a real canary must all succeed on
-the running artifact before production is described as credential-exact. Until
-then, provider-pool rotation can cross key funding classes inside one deployment,
-so this Oxy change must not be presented as completed end-to-end economics.
-
-Examples: a provider's renewable free allowance with `remaining = 120` requests
-and a future `validUntil` is class 1; a low list-price endpoint with no granted
-balance is class 2; a `$500` launch credit is class 3 until its exact balance is
-zero or its observation expires; an ordinary card-billed endpoint is class 4.
-When class 1 becomes rate-limited it is skipped and class 2 precedes class 3 —
-promotional money is not re-labelled “free” merely because it was granted.
-
-`maxPricePerRequest` qualifies routes within each explicit priority before the
-funding/score/ID winner is admitted. The catalogue may prefilter the unavoidable flat
-fee because Kaana emits `requests: 1` once per attempted request, but the edge
-authoritatively quotes the complete maximum for this request from each pinned
-price version. A different currency or a total above the cap excludes that
-candidate. If the caller omitted `maxOutputTokens`, the first priority that has
-a price survivor chooses it by funding class, score descending and exact ID; that survivor's
-model maximum fixes the implicit output ceiling before lower priorities are
-resolved for capacity. A priority with no price survivor fixes nothing. If no
-candidate survives, the edge returns `policy_violation` (403) before reservation
-and before Kaana.
-
-Selection fails closed before a reservation is created or an inference request is sent when
-any otherwise eligible deployment lacks an exact ID, price version or required
-score; when score evidence is stale or names a different price version; or when
-an exact deployment ID is duplicated or collides with more than one approved
-mapping. One incomplete survivor invalidates the complete authorized set; it is
-not silently dropped to make another route selectable. A price version attached
-to a servable deployment is complete only when it explicitly prices the
-`requests` unit Kaana reports once per attempt; zero is allowed, absence is not.
+Exact credential spending needs each signed deployment bound to one reviewed
+`(provider, keyId)`. That binding is in Kaana source
+([Kaana#93](https://github.com/OxyHQ/Kaana/pull/93) and follow-ups: a
+deployment runs on its exact binding, or on its provider's only key, never a
+pick among several). Its production cutover is recorded in Kaana
+`docs/schema-0013-cutover-2026-09-24.md`. Source is not rollout evidence; read
+back the running configuration before describing production as
+credential-exact.
 
 After Oxy has selected and ordered the complete authorized set, but before it
 creates a hold, it sends one signed, non-cacheable
@@ -166,21 +114,10 @@ replaced by earlier partial evidence. Any known Kaana frame that is malformed or
 fails its per-shape schema invalidates the whole measurement record, so a v1 or
 malformed terminal `usage_report` is never reinterpreted as an absent report.
 
-## Conservative catalogue projection
+## Catalogue projection
 
-A model catalogue entry summarizes every deployment visible to that viewer; it
-does not select a representative route. Data-policy fields are aggregated in
-the conservative direction: any retention or training applies, the longest
-retention applies, zero-data-retention availability requires every visible
-route, and subprocessors are the union. A policy URL is published only when all
-routes agree.
-
-Regions and serving providers are unions. Singular pricing, availability scope
-and commercial permission are published only when every visible deployment
-agrees; otherwise that singular field is absent. No provider name, display name,
-locale comparison, insertion order or database order may invent a catalogue
-"primary" route. Runtime selection remains exclusively the explicit
-priority-BYOK-funding-score-ID rule above.
+How a catalogue entry summarises several deployments without choosing a
+"primary" one is in [catalogue.md](./catalogue.md#what-a-catalogue-entry-tells-you).
 
 ## Provider-key custody
 
