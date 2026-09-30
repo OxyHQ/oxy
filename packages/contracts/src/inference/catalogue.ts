@@ -71,6 +71,61 @@ export const inferenceModalitySchema = z.enum([
 export const reasoningEffortSchema = z.enum(['low', 'medium', 'high']);
 
 /**
+ * The public dialects a request can arrive in — `client.apiFormat` on the
+ * envelope, and the list a deployment declares it can execute.
+ *
+ * Named (contract set 3.2.0) rather than inline on the client metadata so the
+ * two uses cannot drift: a capability naming a dialect the envelope cannot
+ * carry, or the reverse, would authorize a request no route can serve.
+ */
+export const inferenceApiFormatSchema = z.enum([
+  'responses',
+  'chat_completions',
+  'embeddings',
+  'images_generations',
+  'audio_transcriptions',
+  'audio_speech',
+  'rerank',
+  'batches',
+]);
+
+/**
+ * What a realtime session is FOR. The three are different upstream products
+ * with different event families and different metering, not options of one:
+ *
+ *  - `conversation` — a speech-to-speech (or text) model holding a dialogue,
+ *    with responses, tool calls and interruption.
+ *  - `transcription` — live speech-to-text; the model never responds, it only
+ *    transcribes committed input audio.
+ *  - `translation` — live speech-to-speech translation into one target language.
+ */
+export const realtimeSessionKindSchema = z.enum([
+  'conversation',
+  'transcription',
+  'translation',
+]);
+
+/**
+ * How a realtime session is carried. One member today: a WebSocket, whose every
+ * frame is one JSON message (see `realtime.ts`). WebRTC and SIP are separate
+ * transports with separate media handling, and are added as members only when a
+ * deployment can actually execute them.
+ */
+export const realtimeSessionTransportSchema = z.enum(['websocket']);
+
+/**
+ * What a deployment can execute as a realtime session. Present only on a model
+ * that holds sessions; absent means it holds none, which is the state of every
+ * catalogue written before contract set 3.2.0.
+ */
+export const modelRealtimeCapabilitiesSchema = z
+  .object({
+    transports: z.array(realtimeSessionTransportSchema).min(1),
+    sessionKinds: z.array(realtimeSessionKindSchema).min(1),
+  })
+  .strict();
+
+/**
  * What a model can do, in the terms a caller has to decide against before
  * sending a request: can it call tools, does it accept images, will it honour a
  * JSON schema, how much context does it take, how much can it emit.
@@ -95,8 +150,59 @@ export const modelCapabilitiesSchema = z
     promptCaching: z.boolean(),
     maxContextTokens: z.number().int().positive().safe(),
     maxOutputTokens: z.number().int().positive().safe(),
+    /**
+     * The request dialects a route to this model can EXECUTE. Modalities say
+     * what a model consumes and produces; they do not say which request shape a
+     * route can carry, and catalogue presence is not that evidence either — a
+     * speech-to-speech model is `audio` in and out and still cannot answer a
+     * `/v1/audio/transcriptions` upload. Oxy authorizes a request only when its
+     * `client.apiFormat` is listed here.
+     *
+     * Added in contract set 3.2.0. ABSENT means undeclared — a catalogue from an
+     * older producer — never "every format": a consumer then applies the rules it
+     * applied before this field existed, and authorizes no format that needs a
+     * declaration (audio output on `chat_completions`, a realtime session).
+     */
+    apiFormats: z.array(inferenceApiFormatSchema).min(1).optional(),
+    /** Realtime sessions this model holds; absent means none. Contract set 3.2.0. */
+    realtime: modelRealtimeCapabilitiesSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((capabilities, ctx) => {
+    const formats = capabilities.apiFormats;
+    if (formats !== undefined && new Set(formats).size !== formats.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['apiFormats'],
+        message: 'each API format is declared at most once',
+      });
+    }
+    const realtime = capabilities.realtime;
+    if (realtime === undefined) return;
+    if (new Set(realtime.sessionKinds).size !== realtime.sessionKinds.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['realtime', 'sessionKinds'],
+        message: 'each session kind is declared at most once',
+      });
+    }
+    if (new Set(realtime.transports).size !== realtime.transports.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['realtime', 'transports'],
+        message: 'each transport is declared at most once',
+      });
+    }
+    // A realtime session consumes audio: a model that declares sessions and no
+    // audio input is a declaration no session could honour.
+    if (!capabilities.inputModalities.includes('audio')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['realtime'],
+        message: 'a model that holds realtime sessions consumes audio',
+      });
+    }
+  });
 
 /**
  * License terms, including the two questions that decide whether Oxy may serve
@@ -565,6 +671,10 @@ export const modelCatalogueEntrySchema = z.object({
 
 export type InferenceModality = z.infer<typeof inferenceModalitySchema>;
 export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
+export type InferenceApiFormat = z.infer<typeof inferenceApiFormatSchema>;
+export type RealtimeSessionKind = z.infer<typeof realtimeSessionKindSchema>;
+export type RealtimeSessionTransport = z.infer<typeof realtimeSessionTransportSchema>;
+export type ModelRealtimeCapabilities = z.infer<typeof modelRealtimeCapabilitiesSchema>;
 export type ModelCapabilities = z.infer<typeof modelCapabilitiesSchema>;
 export type ModelLicense = z.infer<typeof modelLicenseSchema>;
 export type ModelProvenance = z.infer<typeof modelProvenanceSchema>;

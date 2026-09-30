@@ -71,7 +71,13 @@ export const inferenceStreamDeltaEventSchema = z.object({
   sequence: z.number().int().nonnegative().safe(),
   /** Which output of a multi-output response this chunk belongs to. */
   outputIndex: z.number().int().nonnegative().safe(),
-  channel: z.enum(['output_text', 'reasoning', 'refusal']),
+  /**
+   * `output_audio_transcript` (contract set 3.2.0) carries the words of spoken
+   * output requested with `audioOutput`. It is its own channel for the same
+   * reason `reasoning` is: a renderer that shows it as `output_text` presents
+   * the transcript of what the customer is hearing as a second, written answer.
+   */
+  channel: z.enum(['output_text', 'reasoning', 'refusal', 'output_audio_transcript']),
   text: z.string(),
 });
 
