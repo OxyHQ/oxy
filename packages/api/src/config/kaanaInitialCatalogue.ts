@@ -343,8 +343,9 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
  * deploy workflow nor a product may discover one of these rows by slug, name,
  * or insertion order.
  *
- * Only `default` (`kaana-v1`) remains, because Inbox point inference pins it
- * (`config/inboxInference.ts`). The Alia product presets (`kaana-lite`,
+ * Only `default` (`kaana-v1`) remains: Inbox point inference pinned it until it
+ * moved to the `instant` power level, and the bootstrap and its readback still
+ * own it (`config/inboxInference.ts`). The Alia product presets (`kaana-lite`,
  * `-codea`, `-cowork`, `-browser`, `-pro`, `-thinking`, `-pro-max`) were removed
  * from this seed on 2026-09-25: Alia now names real models from the catalogue
  * the Kaana sync keeps current (docs/inference/catalogue.md, "Automatic sync

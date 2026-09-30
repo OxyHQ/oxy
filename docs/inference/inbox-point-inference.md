@@ -43,63 +43,84 @@ credential whose effective application/credential scope intersection lacks
 session authorization. The user is recorded as `delegatedUserId`; the Inbox
 application's owner account remains the billing principal.
 
-Routing is equally explicit. `INBOX_INFERENCE_ROUTING_PROFILE_ID` must contain a
-Postgres `inference_routing_profiles.id`. Runtime resolves that primary key and
-never picks a profile by display name, order, slug fallback or “first row”. An
-absent or unknown ID returns a fail-closed 503 before reservation or Kaana.
+## Routing: the `instant` power level
 
-**Rolling out:** Inbox moves to the `instant` power level as its application
-default, with `instant` as its only allowed level (see the
-[developer guide](./README.md#3-app-default--whatever-this-app-is-configured-for)).
-Until that ships, the exact `kaana-v1` profile ID above is what `main` uses.
+Every Inbox feature (compose, daily brief, natural search, smart replies,
+thread summary, automatic labelling, card extraction) targets the `instant`
+[power level](./power-levels.md), the cheapest one. Runtime names it by its
+fixed primary key `power-instant` (`INBOX_ROUTING_PROFILE_ID` in
+`packages/api/src/config/inboxInference.ts`), the equivalent of
+`"model": "instant"` on the public dialects. Migration
+`0129_power_routing_profiles` seeds that row identically in every environment,
+so it is source, not deploy configuration: there is no
+`INBOX_INFERENCE_ROUTING_PROFILE_ID` variable any more, and a leftover value is
+ignored. If the row is absent the request fails closed with a 503 before
+reservation or Kaana.
+
+The edge picks the cheapest servable model of the reviewed `instant` class,
+may fail over to another `instant` model, and names the concrete model that ran
+in the completion (`model`). Inbox's `/email/ai/*` response bodies do not carry
+it; it is recorded on the usage and route-switch rows.
+
+Every feature's input is bounded well inside the `instant` class: the largest,
+thread summary, is at most 30 messages of 800 characters (about 6 000 input
+tokens, under `auto`'s 8 000-token `medium` floor) with 600 output tokens. The
+previous `kaana-v1` profile's only candidate, `openai/gpt-oss-120b`, is itself
+classed `instant`, so this is not a capability downgrade. No feature needs
+`medium`.
+
+### Application routing policy
+
+Inbox's application routing policy should be:
+
+```json
+{
+  "defaultTarget": { "kind": "routing_profile_id", "routingProfileId": "power-instant" },
+  "allowedRoutingProfileIds": ["power-instant"]
+}
+```
+
+Runtime always names `power-instant` explicitly, so the default only covers a
+future call that names nothing; the allowed list is what refuses any other
+level (`policy_violation`, 403). Because the list is non-empty, a policy that
+omitted `power-instant` would refuse every Inbox request.
+
+The console's routing-policy form can set the default to a routing profile but
+has no control for `allowedRoutingProfileIds` (it preserves the stored list and
+starts a new policy with `[]`), so write the whole policy through the API with
+a principal holding the staff-granted `inference:routing:write`:
+`GET /inference/routing-policies/applications/6a37b3e61ddfd195b656819b` first;
+if it returns `source: "application"`, append a version with
+`POST /inference/routing-policies/:policyId/versions`, otherwise create it with
+`POST /inference/routing-policies/applications/6a37b3e61ddfd195b656819b`. The
+body is the full `routingPolicyControlsBody` (every required control, not only
+the two fields above). There is no workflow that writes routing policies.
 
 ## Production bootstrap
 
-Production readback workflow run `33736747600` on 2026-09-03 found no row for
-the exact Inbox routing-profile primary key. That is dated evidence, not a
-permanent source fact. The current state must be proved by the exact-primary-key
-[Inbox routing-profile PostgreSQL readback](../../.github/workflows/inbox-routing-profile-readback.yml),
-which is SELECT-only and cannot create or repair a row. The required order is:
-
-1. Dry-run, review and then explicitly apply the exact-ID catalogue reviewer
-   bootstrap in [the runbook](../runbooks/bootstrap-catalogue-reviewer.md).
-2. Deploy the matching Oxy image and renew the dedicated
-   `oxy-kaana-catalogue-bootstrap` task definition at that same immutable digest.
-   Grant the GitHub OIDC role exact `iam:PassRole` for that task role; do not use
-   the live API task definition or a wildcard role path.
-3. Follow the dry-run/SHA/apply procedure in
-   [the Kaana catalogue bootstrap runbook](../runbooks/kaana-catalogue-bootstrap.md).
-   It owns permanent reviewed primary keys; for Inbox, `kaana-v1` is exactly
-   `01a06477-94f5-74f0-bc25-4c5c13b93ccd`. The publisher seed is not this
-   bootstrap and does not prove or create the routing-profile row. Apply ends
-   with one matching profile, one
-   `openai/gpt-oss-120b@observed-2026-09-01` candidate at priority `100`, a
-   SELECT-only readback and a zero-operation idempotency dry run.
-4. Resolve the audience gap before treating that identity as runnable. The
-   reviewed bootstrap deployments are `internal_alia`, while Inbox is
-   `first_party` with `isInternal = false` and can see only `public_payg` and
-   `oxy_hosted`. Publish a separately reviewed eligible deployment and prove
-   resolution for the real Inbox principal. Do not convert Inbox to `internal`
-   or change a commercial scope merely to make the check green.
-5. Run the canonical application seed so exact Inbox application
+1. Verify migration `0129_power_routing_profiles` ran in production and the
+   `power-instant` row exists, and that `GET /v1/models/routing-profiles` lists
+   at least one `instant` candidate servable for the real Inbox principal
+   (`first_party`, which sees `platform_internal` routes the Kaana catalogue
+   sync publishes). Do not convert Inbox to `internal` or change a commercial
+   scope merely to make the check green.
+2. Write Inbox's routing policy (above).
+3. Run the canonical application seed so exact Inbox application
    `6a37b3e61ddfd195b656819b` gains `inference:invoke`.
-6. Dry-run, review, then apply **Reconcile service credential authority** for
+4. Dry-run, review, then apply **Reconcile service credential authority** for
    that exact application and existing production credential
    `01a06134-022c-72b6-a876-27da37a39e39`. The workflow pins this pair and adds
    only `inference:invoke`; it never looks up a credential by name or order.
-7. Verify the application and credential selected by `INBOX_APPLICATION_KEY`
+5. Verify the application and credential selected by `INBOX_APPLICATION_KEY`
    are active and their effective scope intersection grants `inference:invoke`.
-8. Set the GitHub Actions variable `INBOX_INFERENCE_ROUTING_PROFILE_ID` to that
-   exact ID.
-9. Deploy Oxy, authorize charging in its documented rollout order, and smoke
-   one non-stream and one cancelled stream while
-   checking reservation settlement and usage attribution.
+6. Deploy Oxy, authorize charging in its documented rollout order, and smoke
+   one non-stream and one cancelled stream while checking the concrete model,
+   reservation settlement and usage attribution.
 
-The permanent source-reviewed ID is an intended identity, not proof that its row
-exists in the live database or that an eligible route exists. Do not configure
-the GitHub variable from source alone: require both the successful exact-PK
-readback and the real-principal audience proof. Until all nine steps pass, Inbox
-inference is intentionally unavailable rather than silently routed elsewhere.
+The `kaana-v1` profile (`01a06477-94f5-74f0-bc25-4c5c13b93ccd`), its reviewed
+bootstrap and the
+[exact-PK readback](../../.github/workflows/inbox-routing-profile-readback.yml)
+predate this: runtime no longer routes Inbox through it.
 
 The two inbound background consumers remain independently opt-in during that
 period: `AI_LABELING_ENABLED=false` and `CARD_EXTRACTION_ENABLED=false` (both

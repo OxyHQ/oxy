@@ -94,9 +94,6 @@ export interface RequiredEnvVars {
   //  - whether an `oxy_sk_…` machine credential authenticates: `enabled` |
   //    `disabled` (unset = disabled)
   INFERENCE_MACHINE_CREDENTIAL_AUTH?: string;
-  // Exact primary key of the Inbox product routing profile. Empty/unset keeps
-  // every Inbox point-inference operation fail-closed.
-  INBOX_INFERENCE_ROUTING_PROFILE_ID?: string;
   // Background card extraction is opt-in independently of interactive Inbox
   // inference. Unset is disabled while the Inbox route is not production-ready.
   CARD_EXTRACTION_ENABLED?: string;

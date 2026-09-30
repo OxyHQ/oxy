@@ -5,7 +5,7 @@ import {
   type ResponseFormat,
 } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
-import { INBOX_APPLICATION_ID } from '../config/inboxInference';
+import { INBOX_APPLICATION_ID, INBOX_ROUTING_PROFILE_ID } from '../config/inboxInference';
 import { applications } from '../db/schema/applications';
 import { inferenceRoutingProfiles } from '../db/schema/inferenceRoutingProfiles';
 import type { NormalizedEdgeRequest } from '../schemas/inferenceEdge.schemas';
@@ -54,14 +54,15 @@ interface InboxInferenceAuthority {
 /**
  * Resolve both identities by exact opaque values. The credential public key is
  * an exact configured selector and must resolve to the pinned Inbox application
- * id; the routing-profile id is queried by primary key, never slug/name/order.
+ * id; the routing profile is the fixed `instant` power level
+ * ({@link INBOX_ROUTING_PROFILE_ID}), queried by primary key, never
+ * slug/name/order.
  */
 async function resolveInboxInferenceAuthority(): Promise<InboxInferenceAuthority> {
   // These are exact opaque selectors. Whitespace or any other byte mismatch
   // must fail closed instead of being normalized into a different authority.
   const credentialPublicKey = process.env.INBOX_APPLICATION_KEY;
-  const routingProfileId = process.env.INBOX_INFERENCE_ROUTING_PROFILE_ID;
-  if (!credentialPublicKey || !routingProfileId) {
+  if (!credentialPublicKey) {
     throw new ApiError(
       503,
       'Inbox inference is not configured.',
@@ -103,7 +104,7 @@ async function resolveInboxInferenceAuthority(): Promise<InboxInferenceAuthority
     getDb()
       .select({ id: inferenceRoutingProfiles.id })
       .from(inferenceRoutingProfiles)
-      .where(eq(inferenceRoutingProfiles.id, routingProfileId))
+      .where(eq(inferenceRoutingProfiles.id, INBOX_ROUTING_PROFILE_ID))
       .limit(1),
   ]);
   if (!application || !profile) {
