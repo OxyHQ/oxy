@@ -756,6 +756,13 @@ export type EdgeOperation =
       readonly sessionKind: z.infer<typeof realtimeSessionKindSchema>;
       readonly transport: z.infer<typeof realtimeSessionTransportSchema>;
       readonly maxResponses: number;
+      /**
+       * The most `session_milliseconds` the session can be metered (contract set
+       * 3.3.0): the signed `maxDurationMs` plus the data plane's bounded open.
+       * A provider that bills session wall-clock time reports it; every other
+       * route prices it (at zero), so it is held on every route.
+       */
+      readonly maxSessionMilliseconds: number;
       /** What the session's responses produce, which the model must be able to. */
       readonly requiredOutput: 'text' | 'audio';
       /** How long the hold must outlive admission: the session, its resume window and the report. */

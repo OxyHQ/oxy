@@ -47,6 +47,7 @@ function units(): UsageUnitTotals {
     audio_input_tokens: 0,
     cached_audio_input_tokens: 0,
     audio_output_tokens: 0,
+    session_milliseconds: 0,
   };
 }
 

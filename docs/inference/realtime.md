@@ -106,8 +106,13 @@ A session is one request: one hold, one receipt.
 
 - **Hold:** per authorized route, `maxResponses × context window` at the dearest
   of the four input token units and `maxResponses × per-response output cap` at
-  the dearest of the three output units, plus `requests`. Every unit must be
-  priced. The hold expires after the session's maximum duration, the resume
+  the dearest of the three output units, plus `requests`, plus
+  `session_milliseconds` at `maxDurationMs + 60 000` (contract set 3.3.0; the
+  allowance covers Kaana's bounded open, 20 s per stage, since Kaana measures
+  from the accepted upstream handshake). Every unit must be priced: a route
+  whose provider bills no session time (OpenAI) prices `session_milliseconds`
+  explicitly at zero, exactly as `requests`; a route that leaves it unpriced is
+  refused before the hold. The hold expires after the session's maximum duration, the resume
   window and a grace, not after the one-shot 15 minutes.
 - **Settle, in order of authority:** the usage report Kaana sends after
   `session.closed`; if that frame is lost, the units `session.closed` carried,
