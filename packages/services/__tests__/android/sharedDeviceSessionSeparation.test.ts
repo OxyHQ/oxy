@@ -199,6 +199,22 @@ describe('shared DeviceSession credential — Android wiring', () => {
     expect(provider).toContain('OxyDeviceSessionStore.write(ctx, deviceId, deviceSecret)');
   });
 
+  test('a publish never leaves a host holding an older credential', () => {
+    // The sweep adopts the FIRST host with a credential. If the first host
+    // refused a write while a later one took it, every app would adopt the
+    // first host's stale secret, fail, re-sign-in and publish again, forever.
+    // So a host that did not confirm is cleared, and the write only counts when
+    // no installed host is left stale.
+    const module = readCode(MODULE_KT);
+    const publish = blockAfter(module, 'private fun publish(deviceId: String, deviceSecret: String): Boolean');
+    expect(publish).toContain('if (!isInstalled(authority)) continue');
+    expect(publish).toContain('} else if (!clearHost(authority)) {');
+    expect(publish).toContain('return confirmed > 0 && !stale');
+    // A clear is only as good as its read-back.
+    expect(readCode(DEVICE_SESSION_SOURCES[0])).toMatch(/fun clear\(context: Context\): Boolean/);
+    expect(readCode(PROVIDER_KT)).toContain('putBoolean(KEY_OK, OxyDeviceSessionStore.clear(ctx))');
+  });
+
   test('an app that is not a host keeps no copy of its own', () => {
     // Every store access in the module is for the host itself; a non-host goes
     // through the hosts' providers only, so there is exactly one credential per

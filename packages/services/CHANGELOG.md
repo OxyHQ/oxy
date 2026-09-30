@@ -35,7 +35,9 @@ is unchanged.
   (`hasSigningCertificate` on API 28+, `checkSignatures` below).
 - `OxyDeviceSession`: a host app reads and writes its own store; every other
   app sweeps the hosts (Commons, then Accounts) to read and publishes to every
-  reachable host, and keeps no copy of its own.
+  installed host, and keeps no copy of its own. A publish succeeds only when no
+  installed host is left holding an older credential: a host that refuses the
+  write is cleared, so the sweep never hands out a stale secret.
 - Comments that said UID members share one data directory are corrected: each
   package always had its own; only the Keystore was shared.
 

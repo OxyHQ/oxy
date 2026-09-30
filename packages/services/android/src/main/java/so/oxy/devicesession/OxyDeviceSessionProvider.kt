@@ -22,7 +22,7 @@ import so.oxy.security.OxyCallerPolicy
  * |---------|----------------------------|------------------------------------------|
  * | `read`  | –                          | `status` (+ `deviceId`, `deviceSecret`)  |
  * | `write` | `deviceId`, `deviceSecret` | `ok`: whether a read-back confirmed it   |
- * | `clear` | –                          | `ok`                                     |
+ * | `clear` | –                          | `ok`: whether a read-back found it empty |
  *
  * The manifest permission is necessary but not sufficient: inside `call()`,
  * [OxyCallerPolicy] takes the caller from the Binder (never from the request)
@@ -55,8 +55,7 @@ class OxyDeviceSessionProvider : ContentProvider() {
         Bundle().apply { putBoolean(KEY_OK, ok) }
       }
       else -> {
-        OxyDeviceSessionStore.clear(ctx)
-        Bundle().apply { putBoolean(KEY_OK, true) }
+        Bundle().apply { putBoolean(KEY_OK, OxyDeviceSessionStore.clear(ctx)) }
       }
     }
   }

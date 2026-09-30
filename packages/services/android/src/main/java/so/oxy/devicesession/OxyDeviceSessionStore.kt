@@ -101,7 +101,10 @@ internal object OxyDeviceSessionStore {
     }.getOrDefault(false)
 
   /** Drop the shared credential. Best-effort; safe to call when already empty. */
-  fun clear(context: Context) {
-    runCatching { prefs(context).edit().clear().commit() }
-  }
+  fun clear(context: Context): Boolean =
+    runCatching {
+      val p = prefs(context)
+      p.edit().clear().commit()
+      p.getString(KEY_DEVICE_ID, null) == null && p.getString(KEY_DEVICE_SECRET, null) == null
+    }.getOrDefault(false)
 }
