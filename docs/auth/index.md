@@ -82,16 +82,12 @@ accepted gap with a named reason, not an oversight:
   which session five other apps boot into), and `shared-key-signin` is retained
   as the last-resort recovery lane for devices where nothing has published a
   credential yet.
-- **Third-party OAuth token exchange still returns `deviceId`/`deviceSecret` from
-  the API.** The client half landed: `exchangeOAuthCode` no longer REQUIRES the
-  pair, and a device-less grant boots, runs and expires correctly (its lifetime
-  is the access token — the zero-cookie mint lane's whole proof is possession of
-  a `deviceSecret`, so there is nothing to re-mint from and the 401 lane ends it
-  loudly). The server still sends both fields, because removing them breaks
-  external integrators pinned to older `@oxy.so/core` and needs an announced
-  cutover. The credential is for the client's own isolated per-`(user, client)`
-  device, never the shared one, so the global-credential hole is already closed.
-  Tracked in #954, with the reasoning at the call site.
+- **A third-party OAuth token exchange carries no `deviceId`/`deviceSecret`**
+  (#954). Its session is an isolated grant on its own derived device, and its
+  lifetime is the access token: the zero-cookie mint lane's whole proof is a
+  `deviceSecret`, so there is nothing to re-mint from, the 401 lane ends it
+  loudly and the app runs the OAuth flow again. Only a trusted (official) app
+  gets the pair.
 
 ## Rules that keep biting
 

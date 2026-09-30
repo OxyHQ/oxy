@@ -27,14 +27,17 @@ import { logger } from '../utils/logger';
  *
  * Returns `{ deviceSecret? }` to be merged into the auth response. The client
  * persists it alongside the response's `deviceId` and mints access tokens via
- * `POST /session/device/token`.
+ * `POST /session/device/token`. `issueSecret: false` registers the session
+ * without minting one: a third-party OAuth grant is isolated and holds no
+ * device credential (#954).
  */
 export async function finalizeDeviceLogin(opts: {
   session: { sessionId: string; deviceId: string };
   userId: string;
   operatedByUserId?: string;
+  issueSecret?: boolean;
 }): Promise<{ deviceSecret?: string }> {
-  const { session, userId, operatedByUserId } = opts;
+  const { session, userId, operatedByUserId, issueSecret = true } = opts;
 
   const result: { deviceSecret?: string } = {};
 
@@ -50,8 +53,10 @@ export async function finalizeDeviceLogin(opts: {
       { activate: 'if-empty' },
     );
     if (changed) broadcastDeviceState(state);
-    const deviceSecret = await deviceSessionService.issueDeviceSecret(session.deviceId);
-    if (deviceSecret) result.deviceSecret = deviceSecret;
+    if (issueSecret) {
+      const deviceSecret = await deviceSessionService.issueDeviceSecret(session.deviceId);
+      if (deviceSecret) result.deviceSecret = deviceSecret;
+    }
     // LAST, and that ordering is load-bearing. `addAccount` created (or reused)
     // this session's device account context, so the ids the access token binds
     // to are only knowable now (issue #937, Phase 6) — but the token catches
