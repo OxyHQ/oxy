@@ -113,7 +113,7 @@ export const SPEND_DIMENSIONS = [
 
 export type SpendDimension = (typeof SPEND_DIMENSIONS)[number];
 
-/** The eleven metered quantities. Counts, never money. */
+/** The fourteen metered quantities. Counts, never money. */
 export interface UsageUnitTotals {
   readonly input_tokens: number;
   readonly cached_input_tokens: number;
@@ -126,6 +126,9 @@ export interface UsageUnitTotals {
   readonly video_milliseconds: number;
   readonly characters: number;
   readonly embeddings: number;
+  readonly audio_input_tokens: number;
+  readonly cached_audio_input_tokens: number;
+  readonly audio_output_tokens: number;
 }
 
 export interface UsageRow {
@@ -412,6 +415,9 @@ export function toUsageUnits(units: UsageUnitTotals): UsageUnitTotals {
     video_milliseconds: units.video_milliseconds,
     characters: units.characters,
     embeddings: units.embeddings,
+    audio_input_tokens: units.audio_input_tokens,
+    cached_audio_input_tokens: units.cached_audio_input_tokens,
+    audio_output_tokens: units.audio_output_tokens,
   };
 }
 

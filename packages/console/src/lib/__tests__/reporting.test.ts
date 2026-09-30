@@ -44,6 +44,9 @@ function units(): UsageUnitTotals {
     video_milliseconds: 0,
     characters: 0,
     embeddings: 0,
+    audio_input_tokens: 0,
+    cached_audio_input_tokens: 0,
+    audio_output_tokens: 0,
   };
 }
 
