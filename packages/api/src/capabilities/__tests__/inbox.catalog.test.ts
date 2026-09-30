@@ -52,6 +52,17 @@ describe('Inbox canonical capability catalog', () => {
     }
   });
 
+  it('publishes exactly the OAuth scopes external clients and grants already know', () => {
+    // `scopes_supported` is derived from these (`routes/mcpOAuth.ts`), and the
+    // deploy's MCP smoke (`.github/scripts/smoke-inbox-mcp.sh`) pins the set: a
+    // tool that introduces a capability is a new OAuth scope for every client
+    // and grant, and failed a production deploy (2026-09-30) before this test.
+    const published = [...new Set(INBOX_CAPABILITY_CATALOG.tools
+      .filter((tool) => tool.exposure.includes('mcp'))
+      .flatMap((tool) => tool.requiredCapabilities))].sort();
+    expect(published).toEqual(['email.organize', 'email.read', 'email.send']);
+  });
+
   it('derives MCP names, schemas and capabilities from the internal catalog', () => {
     const handlers = Object.fromEntries(
       INBOX_CAPABILITY_CATALOG.tools

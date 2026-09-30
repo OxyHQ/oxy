@@ -420,7 +420,12 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
         additionalProperties: false,
       },
       capabilityPackage: 'create',
-      requiredCapabilities: ['email.draft'],
+      // A draft never leaves the owner's mailbox, so it is organizing it, not
+      // sending. It must be one of the capabilities Inbox already publishes as
+      // OAuth scopes (`scopes_supported`): a new one is a new scope for every
+      // external MCP client and every existing grant, and the deploy's MCP smoke
+      // pins the published set.
+      requiredCapabilities: ['email.organize'],
       effect: 'write',
       rollback: 'manual',
       resourceTypes: ['email_account'],
