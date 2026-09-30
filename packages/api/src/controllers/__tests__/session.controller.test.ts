@@ -29,6 +29,7 @@ const mockGetAccessToken = jest.fn();
 const mockValidateSessionById = jest.fn();
 const mockGetUserActiveSessions = jest.fn();
 const mockDeactivateAllUserSessions = jest.fn();
+const mockDeactivateSession = jest.fn();
 const mockEmitSessionUpdate = jest.fn();
 const mockFinalizeDeviceLogin = jest.fn();
 const mockIsValidPublicKey = jest.fn();
@@ -43,7 +44,7 @@ jest.mock('../../services/session.service', () => ({
     getAccessToken: (...a: unknown[]) => mockGetAccessToken(...a),
     validateSessionById: (...a: unknown[]) => mockValidateSessionById(...a),
     getUserActiveSessions: (...a: unknown[]) => mockGetUserActiveSessions(...a),
-    deactivateSession: jest.fn(),
+    deactivateSession: (...a: unknown[]) => mockDeactivateSession(...a),
     deactivateAllUserSessions: (...a: unknown[]) => mockDeactivateAllUserSessions(...a),
   },
 }));
@@ -721,7 +722,7 @@ describe('logoutAllSessions', () => {
     const res = captureRes();
 
     await SessionController.logoutAllSessions(
-      request({ params: { sessionId: current } }),
+      authRequest(userId, { params: { sessionId: current } }),
       asResponse(res)
     );
 
@@ -745,11 +746,133 @@ describe('logoutAllSessions', () => {
     mockDeactivateAllUserSessions.mockResolvedValueOnce(0);
 
     await SessionController.logoutAllSessions(
-      request({ params: { sessionId: current } }),
+      authRequest(userId, { params: { sessionId: current } }),
       asResponse(captureRes())
     );
 
     expect(mockEmitSessionUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('session-management routes prove the acting session (#1372)', () => {
+  afterEach(() => {
+    mockValidateSessionById.mockReset();
+    mockDeactivateSession.mockReset();
+  });
+
+  /** What `validateSessionById` answers for each live session id below. */
+  function liveSessions(rows: Record<string, { userId: string; deviceId: string }>) {
+    mockValidateSessionById.mockImplementation(async (id: string) =>
+      rows[id] ? { session: { sessionId: id, ...rows[id] } } : null
+    );
+  }
+
+  it("refuses to revoke another user's session through the caller's own", async () => {
+    const attacker = await account();
+    const victim = await account();
+    const attackerSession = await session(attacker);
+    const victimSession = await session(victim);
+    liveSessions({
+      [attackerSession]: { userId: attacker, deviceId: 'dev-a' },
+      [victimSession]: { userId: victim, deviceId: 'dev-v' },
+    });
+    const res = captureRes();
+
+    await SessionController.logoutSession(
+      authRequest(attacker, { params: { sessionId: attackerSession, targetSessionId: victimSession } }),
+      asResponse(res)
+    );
+
+    expect(res.statusCode).toBe(404);
+    expect(mockDeactivateSession).not.toHaveBeenCalled();
+  });
+
+  it("refuses an acting session that is not the bearer's, whatever the target", async () => {
+    const attacker = await account();
+    const victim = await account();
+    const victimSession = await session(victim);
+    liveSessions({ [victimSession]: { userId: victim, deviceId: 'dev-v' } });
+    const res = captureRes();
+
+    await SessionController.logoutSession(
+      authRequest(attacker, { params: { sessionId: victimSession } }),
+      asResponse(res)
+    );
+
+    expect(res.statusCode).toBe(401);
+    expect(mockDeactivateSession).not.toHaveBeenCalled();
+  });
+
+  it('refuses a request with no bearer user, even for a live session id', async () => {
+    const owner = await account();
+    const live = await session(owner);
+    liveSessions({ [live]: { userId: owner, deviceId: 'dev-o' } });
+    const res = captureRes();
+
+    await SessionController.logoutSession(request({ params: { sessionId: live } }), asResponse(res));
+
+    expect(res.statusCode).toBe(401);
+    expect(mockDeactivateSession).not.toHaveBeenCalled();
+  });
+
+  it("revokes the owner's other session, and a session on the acting session's device", async () => {
+    const owner = await account();
+    const sibling = await account();
+    const current = await session(owner);
+    const other = await session(owner);
+    const sameDevice = await session(sibling);
+    liveSessions({
+      [current]: { userId: owner, deviceId: 'dev-shared' },
+      [other]: { userId: owner, deviceId: 'dev-elsewhere' },
+      [sameDevice]: { userId: sibling, deviceId: 'dev-shared' },
+    });
+    mockDeactivateSession.mockResolvedValue(true);
+
+    for (const target of [other, sameDevice]) {
+      const res = captureRes();
+      await SessionController.logoutSession(
+        authRequest(owner, { params: { sessionId: current, targetSessionId: target } }),
+        asResponse(res)
+      );
+      expect(res.statusCode).toBe(200);
+      expect(mockDeactivateSession).toHaveBeenLastCalledWith(target);
+    }
+  });
+
+  it('ignores a target smuggled in the body', async () => {
+    const owner = await account();
+    const victim = await account();
+    const current = await session(owner);
+    const victimSession = await session(victim);
+    liveSessions({
+      [current]: { userId: owner, deviceId: 'dev-o' },
+      [victimSession]: { userId: victim, deviceId: 'dev-v' },
+    });
+    mockDeactivateSession.mockResolvedValue(true);
+
+    await SessionController.logoutSession(
+      authRequest(owner, { params: { sessionId: current }, body: { targetSessionId: victimSession } }),
+      asResponse(captureRes())
+    );
+
+    expect(mockDeactivateSession).toHaveBeenCalledWith(current);
+    expect(mockDeactivateSession).not.toHaveBeenCalledWith(victimSession);
+  });
+
+  it("refuses logout-all through another user's session", async () => {
+    const attacker = await account();
+    const victim = await account();
+    const victimSession = await session(victim);
+    liveSessions({ [victimSession]: { userId: victim, deviceId: 'dev-v' } });
+    const res = captureRes();
+
+    await SessionController.logoutAllSessions(
+      authRequest(attacker, { params: { sessionId: victimSession } }),
+      asResponse(res)
+    );
+
+    expect(res.statusCode).toBe(401);
+    expect(mockDeactivateAllUserSessions).not.toHaveBeenCalled();
   });
 });
 
@@ -815,11 +938,11 @@ describe('updateDeviceName', () => {
     const userId = await account();
     const sessionId = await session(userId, { deviceName: 'Old' });
     const before = await storedSession(sessionId);
-    mockValidateSessionById.mockResolvedValueOnce({ session: { sessionId } });
+    mockValidateSessionById.mockResolvedValueOnce({ session: { sessionId, userId, deviceId: 'dev' } });
     const res = captureRes();
 
     await SessionController.updateDeviceName(
-      request({ params: { sessionId }, body: { deviceName: 'Nate MacBook' } }),
+      authRequest(userId, { params: { sessionId }, body: { deviceName: 'Nate MacBook' } }),
       asResponse(res)
     );
 
@@ -837,11 +960,11 @@ describe('updateDeviceName', () => {
     const res = captureRes();
 
     await SessionController.updateDeviceName(
-      request({ params: { sessionId }, body: { deviceName: 'Nate MacBook' } }),
+      authRequest(userId, { params: { sessionId }, body: { deviceName: 'Nate MacBook' } }),
       asResponse(res)
     );
 
-    expect(res.statusCode).toBe(404);
+    expect(res.statusCode).toBe(401);
     expect((await storedSession(sessionId)).deviceName).toBe('Old');
   });
 });
@@ -1097,7 +1220,7 @@ describe('the sessions a handler reads are the live ones', () => {
     mockDeactivateAllUserSessions.mockResolvedValueOnce(1);
 
     await SessionController.logoutAllSessions(
-      request({ params: { sessionId: current } }),
+      authRequest(userId, { params: { sessionId: current } }),
       asResponse(captureRes())
     );
 

@@ -67,6 +67,37 @@ function getAuthenticatedUserId(req: AuthRequest): string | null {
   return null;
 }
 
+/** The acting session of a session-management route, once it is proven. */
+interface ActingSession {
+  sessionId: string;
+  userId: string;
+  deviceId: string;
+}
+
+/**
+ * Resolve the `:sessionId` a session-management route acts through, and prove
+ * it with the bearer (#1372). A session id is an identifier that travels in
+ * client state, logs and URLs, never an authenticator: the route runs behind
+ * `authMiddleware`, and the acting session must be live AND belong to the
+ * bearer's user. Anything else answers the same `401`, so the response says
+ * nothing about whether the id exists or whose it is.
+ */
+async function resolveActingSession(req: AuthRequest, res: Response): Promise<ActingSession | null> {
+  const { sessionId } = req.params;
+  if (!sessionId) {
+    res.status(400).json({ message: 'Session ID is required' });
+    return null;
+  }
+  const authenticatedUserId = getAuthenticatedUserId(req);
+  const result = authenticatedUserId ? await sessionService.validateSessionById(sessionId, false) : null;
+  const session = result?.session;
+  if (!session || session.userId?.toString() !== authenticatedUserId) {
+    res.status(401).json({ message: 'Invalid session', code: 'INVALID_SESSION' });
+    return null;
+  }
+  return { sessionId, userId: session.userId.toString(), deviceId: session.deviceId };
+}
+
 /**
  * The unique constraint a Postgres `23505` (unique_violation) names, or null
  * when `error` is not one.
@@ -597,55 +628,50 @@ export class SessionController {
   }
 
   // Logout from a specific session
-  static async logoutSession(req: Request, res: Response) {
+  static async logoutSession(req: AuthRequest, res: Response) {
     try {
-      const { sessionId, targetSessionId } = req.params;
-      const bodyTargetSessionId = req.body?.targetSessionId;
+      const acting = await resolveActingSession(req, res);
+      if (!acting) return;
 
-      // Use targetSessionId from URL params if provided, otherwise from body
-      const sessionIdToLogout = targetSessionId || bodyTargetSessionId || sessionId;
-
-      if (!sessionId) {
-        return res.status(400).json({ message: 'Session ID is required' });
+      // The acting session signs itself out, or — with `:targetSessionId` — one
+      // of its owner's sessions, or a session on its own device (the device's
+      // holder can already sign out every account there via
+      // `/session/device/logout-all`). Any other target is "not found", so the
+      // route cannot probe sessions it has no claim to.
+      const targetSessionId = req.params.targetSessionId || acting.sessionId;
+      let target: { userId: string; deviceId: string } = acting;
+      if (targetSessionId !== acting.sessionId) {
+        const targetSession = (await sessionService.validateSessionById(targetSessionId, false))?.session;
+        const reachable =
+          targetSession &&
+          (targetSession.userId?.toString() === acting.userId || targetSession.deviceId === acting.deviceId);
+        if (!targetSession || !reachable) {
+          return res.status(404).json({ message: 'Session not found' });
+        }
+        target = { userId: targetSession.userId.toString(), deviceId: targetSession.deviceId };
       }
 
-      // Get session info before deactivating to retrieve userId and deviceId for socket notification
-      const sessionResult = await sessionService.validateSessionById(sessionIdToLogout, false);
-      const session = sessionResult?.session;
-      const userId = session?.userId?.toString();
-      const deviceId = session?.deviceId;
-
-      // Use session service to deactivate
-      const success = await sessionService.deactivateSession(sessionIdToLogout);
-
+      const success = await sessionService.deactivateSession(targetSessionId);
       if (!success) {
         return res.status(404).json({ message: 'Session not found' });
       }
 
       // Emit socket notification to notify remote devices
-      if (userId) {
-        emitSessionUpdate(userId, {
-          type: 'session_removed',
-          sessionId: sessionIdToLogout,
-          deviceId: deviceId || null
-        });
-      }
+      emitSessionUpdate(target.userId, {
+        type: 'session_removed',
+        sessionId: targetSessionId,
+        deviceId: target.deviceId
+      });
 
       // Log security event for sign-out
-      if (userId) {
-        try {
-          await securityActivityService.logSignOut(
-            userId,
-            req,
-            deviceId || undefined
-          );
-        } catch (error) {
-          // Don't fail the logout if logging fails
-          logger.error('Failed to log security event for sign-out:', error);
-        }
+      try {
+        await securityActivityService.logSignOut(target.userId, req, target.deviceId);
+      } catch (error) {
+        // Don't fail the logout if logging fails
+        logger.error('Failed to log security event for sign-out:', error);
       }
 
-      logger.info(`Logged out session: ${sessionIdToLogout.substring(0, 8)}...`);
+      logger.info(`Logged out session: ${targetSessionId.substring(0, 8)}...`);
       res.json({ success: true, message: 'Session logged out successfully' });
     } catch (error) {
       logger.error('Logout session error:', error);
@@ -654,22 +680,11 @@ export class SessionController {
   }
 
   // Logout all sessions for current user
-  static async logoutAllSessions(req: Request, res: Response) {
+  static async logoutAllSessions(req: AuthRequest, res: Response) {
     try {
-      const { sessionId } = req.params;
-
-      if (!sessionId) {
-        return res.status(400).json({ message: 'Session ID is required' });
-      }
-
-      // Find current session to get user ID
-      const currentSessionResult = await sessionService.validateSessionById(sessionId, false);
-
-      if (!currentSessionResult || !currentSessionResult.session) {
-        return res.status(401).json({ message: 'Invalid session', code: 'INVALID_SESSION' });
-      }
-
-      const userId = currentSessionResult.session.userId.toString();
+      const acting = await resolveActingSession(req, res);
+      if (!acting) return;
+      const { sessionId, userId } = acting;
 
       // Get list of sessionIds that will be deactivated before deactivating.
       // `is_active` + `expires_at > now()` stay in the predicate: the broadcast
@@ -805,20 +820,12 @@ export class SessionController {
   }
 
   // Get device sessions for a specific device
-  static async getDeviceSessions(req: Request, res: Response) {
+  static async getDeviceSessions(req: AuthRequest, res: Response) {
     try {
-      const { sessionId } = req.params;
+      const acting = await resolveActingSession(req, res);
+      if (!acting) return;
 
-      if (!sessionId) {
-        return res.status(400).json({ message: 'Session ID is required' });
-      }
-
-      const currentSessionResult = await sessionService.validateSessionById(sessionId, false);
-      if (!currentSessionResult || !currentSessionResult.session) {
-        return res.status(401).json({ message: 'Invalid session', code: 'INVALID_SESSION' });
-      }
-
-      const deviceSessions = await getDeviceActiveSessions(currentSessionResult.session.deviceId, sessionId);
+      const deviceSessions = await getDeviceActiveSessions(acting.deviceId, acting.sessionId);
       res.json(deviceSessions);
     } catch (error) {
       logger.error('Get device sessions error:', error);
@@ -897,22 +904,13 @@ export class SessionController {
   }
 
   // Logout all sessions for a specific device
-  static async logoutAllDeviceSessions(req: Request, res: Response) {
+  static async logoutAllDeviceSessions(req: AuthRequest, res: Response) {
     try {
-      const { sessionId } = req.params;
-
-      if (!sessionId) {
-        return res.status(400).json({ message: 'Session ID is required' });
-      }
-
-      // Get current session using service
-      const currentSessionResult = await sessionService.validateSessionById(sessionId, false);
-      if (!currentSessionResult || !currentSessionResult.session) {
-        return res.status(401).json({ message: 'Invalid session', code: 'INVALID_SESSION' });
-      }
+      const acting = await resolveActingSession(req, res);
+      if (!acting) return;
 
       // Logout all sessions for this device
-      const result = await logoutAllDeviceSessions(currentSessionResult.session.deviceId);
+      const result = await logoutAllDeviceSessions(acting.deviceId);
 
       res.json(result);
     } catch (error) {
@@ -922,24 +920,16 @@ export class SessionController {
   }
 
   // Update device name for a session
-  static async updateDeviceName(req: Request, res: Response) {
+  static async updateDeviceName(req: AuthRequest, res: Response) {
     try {
-      const { sessionId } = req.params;
       const { deviceName } = req.body;
-
-      if (!sessionId) {
-        return res.status(400).json({ message: 'Session ID is required' });
-      }
-
       if (!deviceName) {
         return res.status(400).json({ message: 'Device name is required' });
       }
 
-      // Get session using service
-      const result = await sessionService.validateSessionById(sessionId, false);
-      if (!result || !result.session) {
-        return res.status(404).json({ message: 'Session not found' });
-      }
+      const acting = await resolveActingSession(req, res);
+      if (!acting) return;
+      const { sessionId } = acting;
 
       // Update device name in database. `updated_at` is maintained by the
       // schema's `$onUpdate`, so it is no longer set by hand.

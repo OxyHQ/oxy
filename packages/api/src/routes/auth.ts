@@ -3220,28 +3220,24 @@ router.post(
       },
     );
 
-    // The credential is minted for BOTH lanes, but they are not the same device.
-    // A trusted app joins the browser's shared DeviceSession above (ADR 0029
-    // D2) and gets its OWN holder credential for it: `issueDeviceSecret` adds a
-    // `device_credentials` row, so joining never invalidates `auth.oxy.so`'s or
-    // an earlier app's credential, and every official app in the browser then
-    // follows the same accounts, switches and sign-outs. An untrusted one was
-    // given a derived per-(user, client) device, so the secret it gets back
-    // unlocks only its own isolated session and names a device no other
-    // application shares.
+    // Only a trusted app gets a device credential. It joins the browser's
+    // shared DeviceSession above (ADR 0029 D2) and gets its OWN holder
+    // credential for it: `issueDeviceSecret` adds a `device_credentials` row, so
+    // joining never invalidates `auth.oxy.so`'s or an earlier app's credential,
+    // and every official app in the browser then follows the same accounts,
+    // switches and sign-outs.
     //
-    // #937 asks for a third party to receive no DeviceSession credential at all.
-    // `@oxy.so/core`'s `exchangeOAuthCode` already accepts a device-less grant,
-    // so omitting the pair is now only a server decision — but it is not taken
-    // here: a device-less session ends with its access token, and integrators on
-    // other clients have not been told. What the omission was protecting against
-    // is already closed by the lane split: a third party can no longer join the
-    // SHARED device, so its credential is not the one #937 calls global.
+    // A third party gets an isolated grant and NO device credential (#937,
+    // #954): its session is registered on its own derived device, and lives as
+    // long as its access token. When that expires the SDK resolves signed out
+    // and the app runs the OAuth flow again (`exchangeOAuthCode` in
+    // `@oxy.so/core` accepts the device-less grant).
     const deviceExtras = await finalizeDeviceLogin({
       session: { sessionId: session.sessionId, deviceId: session.deviceId },
       userId,
+      issueSecret: trusted,
     });
-    if (!deviceExtras.deviceSecret) {
+    if (trusted && !deviceExtras.deviceSecret) {
       logger.error('[OAuth] Token exchange succeeded but deviceSecret mint failed', {
         userId,
         sessionId: session.sessionId,
@@ -3249,7 +3245,6 @@ router.post(
       });
       throw OAuthError.serverError('Failed to finalize the device session.');
     }
-    const deviceSecret = deviceExtras.deviceSecret;
     const boundToken = await sessionService.getAccessToken(session.sessionId);
     if (!boundToken) {
       throw OAuthError.serverError('Failed to mint the bound access token.');
@@ -3273,13 +3268,9 @@ router.post(
       // with the app's registered scopes). Omitted when the grant carries none.
       ...(grantedScopes.length > 0 ? { scope: grantedScopes.join(' ') } : {}),
       // Oxy's device-first extras, permitted by §5.1 as additional parameters.
-      // The pair names the session's OWN device — the browser's shared one for a
-      // trusted app, an isolated per-(user, client) one for a third party — so it
-      // is never a credential for a device the caller does not own. See the lane
-      // split above for why the pair is still sent to a third party at all.
+      // The device pair goes to a trusted app only; a third party gets none.
       session_id: session.sessionId,
-      deviceId: session.deviceId,
-      deviceSecret,
+      ...(trusted ? { deviceId: session.deviceId, deviceSecret: deviceExtras.deviceSecret } : {}),
       user: userData,
     });
   })

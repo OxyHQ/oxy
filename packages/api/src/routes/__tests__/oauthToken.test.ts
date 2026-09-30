@@ -737,25 +737,21 @@ describe('POST /auth/oauth/token — security properties', () => {
  * a trusted client that keeps the old behaviour verbatim.
  */
 describe('POST /auth/oauth/token — third-party isolation', () => {
-  it('returns a deviceSecret for the third party OWN device, never the shared one', async () => {
-    // The danger was never that a third party holds a `deviceSecret` — it is
-    // WHICH device the secret unlocks. Handed the shared one, a leaked
-    // third-party token mints bearers for every account on that device and can
-    // change what every official Oxy app there is signed in as. Bound to its
-    // own per-(user, client) device, it reaches exactly one session: its own.
-    //
-    // #937 asks for the pair to be omitted outright. `exchangeOAuthCode` in
-    // `@oxy.so/core` already accepts a device-less grant, but the server still
-    // sends the pair (see the route's lane-split comment), so this test pins the
-    // property that actually protects the user.
+  it('returns NO device credential to a third party (#954)', async () => {
+    // The secret is the device restore credential. A third party gets an
+    // isolated grant that lives as long as its access token, and nothing that
+    // can mint a bearer after it.
     mockExchangeAuthCode.mockResolvedValueOnce(grant({ deviceId: 'dev-shared' }));
 
     const res = await requestForm(pkceParams());
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('access_token');
-    expect(res.body).toHaveProperty('deviceSecret');
-    expect(res.body.deviceId).not.toBe('dev-shared');
+    expect(res.body).toHaveProperty('session_id');
+    expect(res.body).not.toHaveProperty('deviceSecret');
+    expect(res.body).not.toHaveProperty('deviceId');
+    const finalized = mockFinalizeDeviceLogin.mock.calls[0][0] as { issueSecret?: boolean };
+    expect(finalized.issueSecret).toBe(false);
   });
 
   it('registers a third-party session onto its OWN device, not the shared one', async () => {

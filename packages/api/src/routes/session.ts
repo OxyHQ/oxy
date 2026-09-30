@@ -3,7 +3,7 @@ import { SessionController } from '../controllers/session.controller';
 import { authMiddleware } from '../middleware/auth';
 import { idpServiceLimiter } from '../middleware/security';
 import { validate } from '../middleware/validate';
-import { sessionIdParams, updateDeviceNameSchema, batchUsersSchema } from '../schemas/session.schemas';
+import { sessionIdParams, logoutTargetParams, updateDeviceNameSchema, batchUsersSchema } from '../schemas/session.schemas';
 
 const router = express.Router();
 
@@ -96,9 +96,9 @@ router.get('/sessions/:sessionId', authMiddleware, validate({ params: sessionIdP
  *       - Sessions
  *     summary: Sign out the given session
  *     description: >
- *       Revoke the session identified by `sessionId`. After this call any
- *       bearer token tied to that session is rejected. Idempotent — calling
- *       twice is a no-op on the second call.
+ *       Revoke the session identified by `sessionId`. Requires a bearer
+ *       whose user owns that session. After this call any bearer token tied
+ *       to it is rejected.
  *     parameters:
  *       - name: sessionId
  *         in: path
@@ -108,10 +108,10 @@ router.get('/sessions/:sessionId', authMiddleware, validate({ params: sessionIdP
  *     responses:
  *       200:
  *         description: Session revoked.
- *       404:
- *         description: Session not found.
+ *       401:
+ *         description: No bearer, or the session is not live or not the bearer's.
  */
-router.post('/logout/:sessionId', validate({ params: sessionIdParams }), SessionController.logoutSession);
+router.post('/logout/:sessionId', authMiddleware, validate({ params: sessionIdParams }), SessionController.logoutSession);
 
 /**
  * @openapi
@@ -121,9 +121,9 @@ router.post('/logout/:sessionId', validate({ params: sessionIdParams }), Session
  *       - Sessions
  *     summary: Sign another session out via an authenticated session
  *     description: >
- *       Use `sessionId` (which must be a valid active session) to revoke a
- *       different session identified by `targetSessionId`. This is how the
- *       "sign out other devices" flow works.
+ *       Use `sessionId` (a live session owned by the bearer's user) to revoke
+ *       `targetSessionId`, which must belong to the same user or sit on the
+ *       same device. This is how the "sign out other devices" flow works.
  *     parameters:
  *       - name: sessionId
  *         in: path
@@ -139,11 +139,11 @@ router.post('/logout/:sessionId', validate({ params: sessionIdParams }), Session
  *       200:
  *         description: Target session revoked.
  *       401:
- *         description: The acting session is not valid.
+ *         description: No bearer, or the acting session is not live or not the bearer's.
  *       404:
- *         description: Target session not found.
+ *         description: Target session not found, or not reachable from the acting one.
  */
-router.post('/logout/:sessionId/:targetSessionId', SessionController.logoutSession);
+router.post('/logout/:sessionId/:targetSessionId', authMiddleware, validate({ params: logoutTargetParams }), SessionController.logoutSession);
 
 /**
  * @openapi
@@ -153,9 +153,9 @@ router.post('/logout/:sessionId/:targetSessionId', SessionController.logoutSessi
  *       - Sessions
  *     summary: Sign out every session for this user
  *     description: >
- *       Revoke every session belonging to the user behind `sessionId`,
- *       including the calling session itself. Recommended after a password
- *       reset or suspected compromise.
+ *       Revoke every other session belonging to the user behind `sessionId`,
+ *       a live session owned by the bearer's user. Recommended after a
+ *       password reset or suspected compromise.
  *     parameters:
  *       - name: sessionId
  *         in: path
@@ -165,10 +165,10 @@ router.post('/logout/:sessionId/:targetSessionId', SessionController.logoutSessi
  *     responses:
  *       200:
  *         description: All sessions revoked.
- *       404:
- *         description: Session not found.
+ *       401:
+ *         description: No bearer, or the session is not live or not the bearer's.
  */
-router.post('/logout-all/:sessionId', validate({ params: sessionIdParams }), SessionController.logoutAllSessions);
+router.post('/logout-all/:sessionId', authMiddleware, validate({ params: sessionIdParams }), SessionController.logoutAllSessions);
 
 /**
  * @openapi
@@ -266,10 +266,10 @@ router.get('/validate-header/:sessionId', validate({ params: sessionIdParams }),
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/Session'
- *       404:
- *         description: Session not found.
+ *       401:
+ *         description: No bearer, or the session is not live or not the bearer's.
  */
-router.get('/device/sessions/:sessionId', validate({ params: sessionIdParams }), SessionController.getDeviceSessions);
+router.get('/device/sessions/:sessionId', authMiddleware, validate({ params: sessionIdParams }), SessionController.getDeviceSessions);
 
 /**
  * @openapi
@@ -291,10 +291,10 @@ router.get('/device/sessions/:sessionId', validate({ params: sessionIdParams }),
  *     responses:
  *       200:
  *         description: Device sessions revoked.
- *       404:
- *         description: Session not found.
+ *       401:
+ *         description: No bearer, or the session is not live or not the bearer's.
  */
-router.post('/device/logout-all/:sessionId', validate({ params: sessionIdParams }), SessionController.logoutAllDeviceSessions);
+router.post('/device/logout-all/:sessionId', authMiddleware, validate({ params: sessionIdParams }), SessionController.logoutAllDeviceSessions);
 
 /**
  * @openapi
@@ -330,10 +330,10 @@ router.post('/device/logout-all/:sessionId', validate({ params: sessionIdParams 
  *         description: Device renamed.
  *       400:
  *         description: Validation failed.
- *       404:
- *         description: Session not found.
+ *       401:
+ *         description: No bearer, or the session is not live or not the bearer's.
  */
-router.put('/device/name/:sessionId', validate({ params: sessionIdParams, body: updateDeviceNameSchema }), SessionController.updateDeviceName);
+router.put('/device/name/:sessionId', authMiddleware, validate({ params: sessionIdParams, body: updateDeviceNameSchema }), SessionController.updateDeviceName);
 
 // ============================================
 // Batch operations
