@@ -3,8 +3,8 @@
  *
  * Adds an iOS `keychain-access-groups` entitlement so Oxy apps signed with the
  * same Team ID can share Keychain items — the iOS half of "sign in once, use
- * everywhere" (the Android half is withSharedUserId + the shared-identity
- * native module). The group is prefixed with `$(AppIdentifierPrefix)` so Xcode
+ * everywhere" (the Android half is Commons' identity host, reached over
+ * signature-protected IPC; see `withOxySharedPermissions` in @oxy.so/services). The group is prefixed with `$(AppIdentifierPrefix)` so Xcode
  * expands it to the Team ID at build time.
  *
  * Merge-not-overwrite: if the app (or another plugin, e.g. expo-build-properties)

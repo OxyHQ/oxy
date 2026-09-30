@@ -27,11 +27,12 @@
  *    -jarfile <aab>` / `apksigner verify --print-certs <apk>`) rather than
  *    assumed.
  *
- *    The certificate MUST be the shared Oxy ecosystem one: every Oxy app sets
- *    `android:sharedUserId="so.oxy.shared"` (see withSharedUserId) and Android
- *    requires every app sharing that UID to be signed with the SAME
- *    certificate. An app-specific key breaks "sign in once, use everywhere" and
- *    makes the app refuse to install next to its siblings.
+ *    The certificate MUST be the shared Oxy ecosystem one: Oxy apps share the
+ *    identity and the device session through `signature`-level permissions
+ *    (`withOxySharedPermissions`) and providers that check the caller's
+ *    certificate. An app-specific key is refused by Commons, and its duplicate
+ *    permission declaration makes Android refuse to install it next to its
+ *    siblings (INSTALL_FAILED_DUPLICATE_PERMISSION).
  *
  * @param {import('expo/config').ExpoConfig} config
  */
