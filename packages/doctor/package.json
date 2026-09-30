@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/doctor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Read-only health checks for Oxy ecosystem repositories",
   "type": "module",
   "bin": {
