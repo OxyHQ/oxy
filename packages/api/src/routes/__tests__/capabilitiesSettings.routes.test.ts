@@ -12,14 +12,20 @@ import {
 import { users } from '../../db/schema/users';
 
 const USER_ID = 'settings-user';
+const ORG_ID = 'settings-org';
+
+/** The account a managed session acts as, when a test switches into one. */
+let mockManagedSubject: string | null = null;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { user?: { _id: string; id: string } },
+    req: { user?: { _id: string; id: string }; oxyToken?: { principalUserId: string; subjectAccountId: string } },
     _res: unknown,
     next: () => void,
   ) => {
-    req.user = { _id: 'settings-user', id: 'settings-user' };
+    const subject = mockManagedSubject ?? 'settings-user';
+    req.user = { _id: subject, id: subject };
+    req.oxyToken = { principalUserId: 'settings-user', subjectAccountId: subject };
     next();
   },
   serviceAuthMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -29,7 +35,7 @@ jest.mock('../../services/account.service', () => ({
   __esModule: true,
   default: {
     resolveEffectiveAccess: jest.fn(async (operatorId: string, accountId: string) => (
-      operatorId === 'settings-user' && accountId === 'settings-user'
+      operatorId === 'settings-user' && (accountId === 'settings-user' || accountId === 'settings-org')
         ? { permissions: ['account:act_as'] }
         : null
     )),
@@ -122,6 +128,7 @@ let authorizationId: string;
 beforeAll(async () => {
   await connectPostgres();
   await getDb().insert(users).values({ id: USER_ID, color: 'teal' });
+  await getDb().insert(users).values({ id: ORG_ID, color: 'teal', kind: 'organization' });
   const [agent] = await getDb().insert(users).values({
     color: 'teal',
     kind: 'bot',
@@ -334,4 +341,29 @@ it('lists and revokes execution authorizations for Settings', async () => {
   const relisted = await request(app).get(`/capabilities/execution-authorizations?ownerAccountId=${USER_ID}`);
   const authorization = relisted.body.authorizations.find((entry: { id: string }) => entry.id === authorizationId);
   expect(authorization.revokedAt).not.toBeNull();
+});
+
+it('asks authority of the person operating a managed account, not of the account', async () => {
+  // Switched into an organization: the bearer's subject is the org, which is
+  // never its own member. The person behind the session is who operates it.
+  mockManagedSubject = ORG_ID;
+  try {
+    const created = await request(app).post('/capabilities/execution-authorizations').send({
+      kind: 'direct_request',
+      ownerAccountId: ORG_ID,
+      coordinatorApplicationId: applicationId,
+      coordinatorCredentialId: credentialId,
+      actor: { type: 'alia', ownerAccountId: ORG_ID },
+      resource: { appId: appSlug, effectiveAccountId: ORG_ID, resourceType: 'account', resourceId: ORG_ID },
+      tool: 'readResource',
+      runId: `managed-run-${randomUUID()}`,
+      maximumAutonomy: 'read_only',
+      limits: [],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.authorization).toMatchObject({ requesterAccountId: USER_ID, ownerAccountId: ORG_ID });
+  } finally {
+    mockManagedSubject = null;
+  }
 });

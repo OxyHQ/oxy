@@ -166,6 +166,22 @@ function idOf(request: AuthRequest): string {
   return request.user._id.toString();
 }
 
+/**
+ * The HUMAN behind the bearer — who authority questions are asked about.
+ *
+ * On a managed-account session (someone switched into an organization,
+ * project or bot) `req.user` is the account being acted as, which never holds
+ * `account:act_as` over itself: an organization is not its own member. Asking
+ * `canOperate(subject, subject)` refused every capability call such a session
+ * made (`account_authority_required`), e.g. Alia reading the org's Inbox for
+ * the person operating it. The principal is the person, verified by the
+ * middleware against the session row; on a first-party session it IS the
+ * subject.
+ */
+function operatorOf(request: AuthRequest): string {
+  return request.oxyToken?.principalUserId ?? idOf(request);
+}
+
 async function canOperate(operatorId: string, accountId: string): Promise<boolean> {
   const access = await accountService.resolveEffectiveAccess(operatorId, accountId);
   return access?.permissions.includes('account:act_as') ?? false;
@@ -271,7 +287,7 @@ router.post('/grants', authMiddleware, async (request: AuthRequest, response: Re
   }
   const userId = idOf(request);
   const input = parsed.data;
-  if (!await canOperate(userId, input.ownerAccountId) || !await canOperate(userId, input.resource.effectiveAccountId)) {
+  if (!await canOperate(operatorOf(request), input.ownerAccountId) || !await canOperate(operatorOf(request), input.resource.effectiveAccountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -315,7 +331,7 @@ router.post('/grants', authMiddleware, async (request: AuthRequest, response: Re
       canRedelegate: input.canRedelegate,
       expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
       revokedAt: null,
-      createdByUserId: userId,
+      createdByUserId: operatorOf(request),
     }).returning();
     if (!inserted) throw new Error('Delegation grant was not persisted');
     const capabilities = [...new Set(input.capabilities)];
@@ -355,9 +371,8 @@ router.put('/grants/:grantId', authMiddleware, async (request: AuthRequest, resp
     response.status(409).json({ error: 'grant_revoked' });
     return;
   }
-  const userId = idOf(request);
-  if (!await canOperate(userId, existing.ownerAccountId)
-    || !await canOperate(userId, existing.effectiveAccountId)) {
+  if (!await canOperate(operatorOf(request), existing.ownerAccountId)
+    || !await canOperate(operatorOf(request), existing.effectiveAccountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -425,7 +440,7 @@ router.put('/grants/:grantId', authMiddleware, async (request: AuthRequest, resp
 router.get('/grants', authMiddleware, async (request: AuthRequest, response: Response) => {
   const userId = idOf(request);
   const ownerAccountId = typeof request.query.ownerAccountId === 'string' ? request.query.ownerAccountId : userId;
-  if (!await canOperate(userId, ownerAccountId)) {
+  if (!await canOperate(operatorOf(request), ownerAccountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -447,7 +462,7 @@ router.delete('/grants/:grantId', authMiddleware, async (request: AuthRequest, r
     response.status(404).json({ error: 'grant_not_found' });
     return;
   }
-  if (!await canOperate(idOf(request), grant.ownerAccountId)) {
+  if (!await canOperate(operatorOf(request), grant.ownerAccountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -458,7 +473,7 @@ router.delete('/grants/:grantId', authMiddleware, async (request: AuthRequest, r
 router.get('/account-policies', authMiddleware, async (request: AuthRequest, response: Response) => {
   const userId = idOf(request);
   const accountId = typeof request.query.accountId === 'string' ? request.query.accountId : userId;
-  if (!await canOperate(userId, accountId)) {
+  if (!await canOperate(operatorOf(request), accountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -477,7 +492,7 @@ router.put('/account-policies/:appId', authMiddleware, async (request: AuthReque
     response.status(400).json({ error: 'invalid_account_capability_policy', details: parsed.error.flatten() });
     return;
   }
-  if (!await canOperate(idOf(request), parsed.data.accountId)) {
+  if (!await canOperate(operatorOf(request), parsed.data.accountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -510,7 +525,7 @@ router.put('/account-policies/:appId', authMiddleware, async (request: AuthReque
 
 router.delete('/account-policies/:appId', authMiddleware, async (request: AuthRequest, response: Response) => {
   const accountId = typeof request.query.accountId === 'string' ? request.query.accountId : idOf(request);
-  if (!await canOperate(idOf(request), accountId)) {
+  if (!await canOperate(operatorOf(request), accountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -528,7 +543,7 @@ router.delete('/account-policies/:appId', authMiddleware, async (request: AuthRe
 router.get('/execution-authorizations', authMiddleware, async (request: AuthRequest, response: Response) => {
   const userId = idOf(request);
   const ownerAccountId = typeof request.query.ownerAccountId === 'string' ? request.query.ownerAccountId : userId;
-  if (!await canOperate(userId, ownerAccountId)) {
+  if (!await canOperate(operatorOf(request), ownerAccountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -545,7 +560,7 @@ router.post('/execution-authorizations', authMiddleware, async (request: AuthReq
     response.status(400).json({ error: 'invalid_execution_authorization', details: parsed.error.flatten() });
     return;
   }
-  const requesterAccountId = idOf(request);
+  const requesterAccountId = operatorOf(request);
   const input = parsed.data;
   if (!await canOperate(requesterAccountId, input.ownerAccountId)
     || !await canOperate(requesterAccountId, input.resource.effectiveAccountId)) {
@@ -631,7 +646,7 @@ router.delete('/execution-authorizations/:authorizationId', authMiddleware, asyn
     response.status(404).json({ error: 'execution_authorization_not_found' });
     return;
   }
-  if (!await canOperate(idOf(request), authorization.ownerAccountId)) {
+  if (!await canOperate(operatorOf(request), authorization.ownerAccountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -646,7 +661,7 @@ router.get('/catalogs/available', authMiddleware, async (request: AuthRequest, r
     response.status(400).json({ error: 'invalid_available_catalogs_request' });
     return;
   }
-  if (!await canOperate(idOf(request), parsed.data.accountId)) {
+  if (!await canOperate(operatorOf(request), parsed.data.accountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -917,7 +932,7 @@ router.post('/audit', serviceAuthMiddleware, async (request: ServiceAuthRequest,
 router.get('/audit', authMiddleware, async (request: AuthRequest, response: Response) => {
   const userId = idOf(request);
   const accountId = typeof request.query.accountId === 'string' ? request.query.accountId : userId;
-  if (!await canOperate(userId, accountId)) {
+  if (!await canOperate(operatorOf(request), accountId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
