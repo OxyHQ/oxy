@@ -108,6 +108,10 @@ import type { Request } from 'express';
 import { and, asc, desc, eq, or } from 'drizzle-orm';
 import type { z } from 'zod';
 import {
+  currentDeploymentLiveness,
+  isDeploymentPublished,
+} from './kaanaDeploymentPublication.service';
+import {
   inferenceAttributionSchema,
   inferenceRequestSchema,
   INFERENCE_SCOPES,
@@ -1212,9 +1216,27 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     }
   }
 
+  // Kaana withholds a deployment it cannot serve (exhausted credential,
+  // sustained failure) from its serving snapshot. An unpublished route is an
+  // availability fact like capacity: it is dropped here, before the authorized
+  // set is built, rather than signed and then refused wholesale by the exact
+  // attestation below. See `kaanaDeploymentPublication.service.ts`.
+  const liveness = routeGroups.length === 0 ? undefined : await currentDeploymentLiveness();
+  if (liveness?.status === 'unavailable') {
+    return kaanaEvidenceRefusal(
+      requestedModelReference || requestedTargetReference,
+      'kaana-publication-unavailable'
+    );
+  }
+  let sawUnpublished = false;
+
   const rankedCandidates: RankedCandidate[] = [];
   for (const group of routeGroups) {
     for (const route of [group.resolution.route, ...group.resolution.alternates]) {
+      if (liveness !== undefined && !isDeploymentPublished(liveness, route.deploymentId)) {
+        sawUnpublished = true;
+        continue;
+      }
       if (
         maxPricePerRequest !== undefined &&
         !priceEligibleDeploymentIds.has(route.deploymentId)
@@ -1380,7 +1402,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         : target.kind === 'routing_profile_id'
           ? { param: 'routingProfileId' }
           : {}),
-      reason: 'no_ordinary_candidate',
+      reason: sawUnpublished ? 'no_published_deployment' : 'no_ordinary_candidate',
     });
   }
 

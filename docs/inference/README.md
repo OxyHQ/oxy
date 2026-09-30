@@ -240,11 +240,14 @@ You only need this section when debugging. The full rules are in
 
 1. **Resolve the target**: the exact model, the power level's candidate
    models, or the app default.
-2. **Keep only servable routes.** Oxy lists a model only while it has a live
-   deployment: the catalogue sync retires deployments Kaana stops reporting
-   (live). Kaana will also withhold deployments whose keys are all exhausted or
-   rejected, or that fail persistently, so they are never listed or chosen
-   (**rolling out**).
+2. **Keep only servable routes.** Oxy lists or chooses a model only while at
+   least one of its deployments is in Kaana's current serving snapshot and has
+   a complete, effective price, a matching scorecard and eligible funding
+   (live in Oxy; see [catalogue.md](./catalogue.md#a-listed-model-is-a-servable-model)).
+   The catalogue sync also retires deployments Kaana stops reporting (live).
+   Kaana withholding deployments whose keys are all exhausted or rejected, or
+   that fail persistently, is Kaana's side (**rolling out** there); Oxy drops
+   them as soon as Kaana stops publishing them.
 3. **Apply the app's policy**: data retention, regions, providers, licences
    and price ceilings. If no route passes, the request is refused. It is never
    downgraded to a route the policy forbids (live).
@@ -295,7 +298,7 @@ You only need this section when debugging. The full rules are in
 | Cross-model failover among a routing profile's candidates | Live for routing profiles. Arrives for power levels with the levels |
 | Per-app allowed levels (Inbox → `instant` only; Alia exposes levels, never model names) | Rolling out |
 | Naming a power level in `model` (for OpenAI-compatible clients) | Rolling out |
-| Only servable models listed or chosen (Kaana withholds dead deployments) | Rolling out. Retiring deployments Kaana no longer reports is live |
+| Only servable models listed or chosen (published by Kaana, complete price/score/funding evidence) | Live in Oxy. Kaana withholding exhausted or persistently failing deployments: rolling out in Kaana |
 | cheapest/free, fastest, capability, data/region and family-preference profiles | Proposed |
 
 Whether an environment actually serves a feature is a rollout question. The

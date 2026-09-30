@@ -40,6 +40,7 @@ jest.mock('../../utils/logger', () => ({
 import { eq } from 'drizzle-orm';
 import type { ModelCatalogueEntry } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { attachServableEvidence } from '../../db/testServableEvidence';
 import { CATALOGUE_AUDIENCE_VARIABLE } from '../../config/rolloutFlags';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
@@ -286,6 +287,12 @@ async function seed(): Promise<void> {
     legalReviewedAt: new Date(),
     legalReviewEvidenceRef: `contract-register/${tag}`,
     permissionState: 'approved',
+    internalRouteId: `kaana-route-${tag}`,
+  });
+  await attachServableEvidence({
+    modelReference: `${publisherSlug}/${modelSlug}@2026-01-01`,
+    providerSlug,
+    internalRouteId: `kaana-route-${tag}`,
   });
 
   // A profile with no candidate is omitted by `listRoutingProfiles` — the

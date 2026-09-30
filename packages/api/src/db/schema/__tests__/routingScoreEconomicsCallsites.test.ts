@@ -121,5 +121,6 @@ test('every application and script routing-score insert states reviewed economic
   // 13 -> 14: kaanaStreaming.test.ts seeds the reviewed speech scorecard.
   // 14 -> 16: the Kaana catalogue sync writes a synced route's scorecard and
   // its append-only event (services/kaanaCatalogueSync.service.ts).
-  expect(callsites).toHaveLength(16);
+  // 16 -> 17: the shared servable-evidence test fixture (db/testServableEvidence.ts).
+  expect(callsites).toHaveLength(17);
 });

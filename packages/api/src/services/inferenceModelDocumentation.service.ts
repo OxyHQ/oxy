@@ -79,6 +79,7 @@ import {
 import {
   type CatalogueViewer,
   composeModelReference,
+  CATALOGUED,
   getCatalogueEntryForViewer,
 } from './inferenceCatalogue.service';
 
@@ -534,7 +535,7 @@ export async function getRevisionDocumentation(
   modelId: string,
   revisionLabel?: string
 ): Promise<ModelDocumentation | undefined> {
-  const entry = await getCatalogueEntryForViewer(viewer, modelId);
+  const entry = await getCatalogueEntryForViewer(viewer, modelId, CATALOGUED);
   if (entry === undefined) return undefined;
 
   const db = getDb();

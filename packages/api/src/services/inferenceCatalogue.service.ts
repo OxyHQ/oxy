@@ -94,6 +94,7 @@ import {
   type ApplicationClassification,
 } from '../utils/applicationTier';
 import { resolveProviderConnectionForApplication } from './inferenceProviderConnection.service';
+import { type DeploymentLiveness, isDeploymentPublished } from './kaanaDeploymentPublication.service';
 
 /* -------------------------------------------------------------------------- */
 /*  1. The audience                                                           */
@@ -1340,8 +1341,117 @@ function buildCatalogueEntry(
  * catalogue", which is the default-deny reading — a model whose revisions have
  * all been retired is not something a customer can call.
  */
+/**
+ * Which deployments a catalogue read counts.
+ *
+ * - `catalogued` — every approved, offerable route in the viewer's audience:
+ *   the set a routing-policy `defaultTarget` and a documentation read are
+ *   checked against, where "this model exists for you" is the question.
+ * - `servable` — only routes a request could actually be admitted on RIGHT NOW
+ *   (see {@link servableDeploymentRowIds}). What `/v1/models` lists, because a
+ *   model that no request can reach is not available, whatever its catalogue
+ *   row says.
+ *
+ * REQUIRED, never defaulted, for the reason `constraints` is on
+ * {@link resolveEdgeRoute}: each caller states which question it asks.
+ */
+export type CatalogueAvailability =
+  | { readonly kind: 'catalogued' }
+  | { readonly kind: 'servable'; readonly liveness: DeploymentLiveness };
+
+export const CATALOGUED: CatalogueAvailability = { kind: 'catalogued' };
+
+/**
+ * The deployment ROW ids (not Kaana ids) in the viewer's audience that the edge
+ * could admit a request on now. Every condition below is one the edge's own
+ * resolver refuses on, so the catalogue can no longer list a model whose every
+ * route would answer `no_route_available`:
+ *
+ * 1. an exact Kaana `deploymentId` exists and Kaana's current serving snapshot
+ *    publishes it ({@link isDeploymentPublished}; a withheld deployment —
+ *    exhausted credential, sustained failure — is absent);
+ * 2. its price version exists, is `active`, is effective now and names this
+ *    exact revision-pinned model and provider;
+ * 3. its reviewed scorecard names the same exact id and price version;
+ * 4. its reviewed funding evidence is eligible ({@link fundingPriorityFor}):
+ *    an exhausted, expired, rate-limited or unknown allocation is not.
+ *
+ * Which SCORE dimension exists is not checked here: that depends on the
+ * request's `optimiseFor`, which a catalogue read does not have.
+ */
+export async function servableDeploymentRowIds(
+  viewer: CatalogueViewer,
+  liveness: DeploymentLiveness,
+  now: number = Date.now()
+): Promise<ReadonlySet<string>> {
+  if (viewer.scopes.length === 0 || liveness.status === 'unavailable') return new Set();
+  const rows = await getDb()
+    .select({
+      id: inferenceDeployments.id,
+      internalRouteId: inferenceDeployments.internalRouteId,
+      providerSlug: inferenceDeployments.providerSlug,
+      priceVersionId: inferenceDeployments.priceVersionId,
+      revision: inferenceModelRevisions.revision,
+      modelId: inferenceModels.modelId,
+      joinedPriceVersionId: priceVersions.id,
+      joinedPriceStatus: priceVersions.status,
+      joinedPriceModelReference: priceVersions.modelReference,
+      joinedPriceProvider: priceVersions.provider,
+      joinedPriceEffectiveFrom: priceVersions.effectiveFrom,
+      joinedPriceEffectiveUntil: priceVersions.effectiveUntil,
+      scoreDeploymentId: inferenceDeploymentRoutingScores.deploymentId,
+      scorePriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
+      fundingClass: inferenceDeploymentRoutingScores.fundingClass,
+      fundingState: inferenceDeploymentRoutingScores.fundingState,
+      fundingRemaining: inferenceDeploymentRoutingScores.fundingRemaining,
+      fundingObservedAt: inferenceDeploymentRoutingScores.fundingObservedAt,
+      fundingValidUntil: inferenceDeploymentRoutingScores.fundingValidUntil,
+    })
+    .from(inferenceDeployments)
+    .innerJoin(
+      inferenceModelRevisions,
+      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
+    )
+    .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
+    .leftJoin(
+      inferenceDeploymentRoutingScores,
+      eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
+    )
+    .leftJoin(priceVersions, eq(inferenceDeployments.priceVersionId, priceVersions.id))
+    .where(selectableDeploymentWhere(viewer));
+
+  const servable = new Set<string>();
+  for (const row of rows) {
+    if (row.internalRouteId === null || !isDeploymentPublished(liveness, row.internalRouteId)) {
+      continue;
+    }
+    if (row.priceVersionId === null || row.modelId === null) continue;
+    if (
+      row.joinedPriceVersionId !== row.priceVersionId ||
+      row.joinedPriceStatus !== 'active' ||
+      row.joinedPriceModelReference !== composeModelReference(row.modelId, row.revision) ||
+      row.joinedPriceProvider !== row.providerSlug ||
+      row.joinedPriceEffectiveFrom === null ||
+      row.joinedPriceEffectiveFrom.getTime() > now ||
+      (row.joinedPriceEffectiveUntil !== null && row.joinedPriceEffectiveUntil.getTime() <= now)
+    ) {
+      continue;
+    }
+    if (
+      row.scoreDeploymentId !== row.internalRouteId ||
+      row.scorePriceVersionId !== row.priceVersionId
+    ) {
+      continue;
+    }
+    if (fundingPriorityFor(row, now).status !== 'available') continue;
+    servable.add(row.id);
+  }
+  return servable;
+}
+
 export async function listCatalogueForViewer(
-  viewer: CatalogueViewer
+  viewer: CatalogueViewer,
+  availability: CatalogueAvailability
 ): Promise<ModelCatalogueEntry[]> {
   // A viewer with no scopes can see nothing. Stated as an early return rather
   // than left to `inArray(col, [])`, which drizzle renders as a literal `false`
@@ -1361,6 +1471,7 @@ export async function listCatalogueForViewer(
       joinModelId: inferenceModelRevisions.modelId,
       joinRevisionId: inferenceModelRevisions.id,
       joinPriceVersionId: inferenceDeployments.priceVersionId,
+      joinDeploymentRowId: inferenceDeployments.id,
     })
     .from(inferenceDeployments)
     .innerJoin(
@@ -1369,15 +1480,25 @@ export async function listCatalogueForViewer(
     )
     .where(selectableDeploymentWhere(viewer));
 
+  // A `servable` read keeps only routes a request could be admitted on now; a
+  // model left with none is then omitted below exactly like a model with no
+  // approved route at all.
+  const servableIds =
+    availability.kind === 'servable'
+      ? await servableDeploymentRowIds(viewer, availability.liveness)
+      : undefined;
+
   // During the rolling storage rename the database may still contain the
   // legacy value written by an older pod. Normalize immediately after the
   // read, before catalogue policy or any customer-facing serializer sees it.
   // The typed Drizzle column remains on the allow-list so its structural
   // protection continues to be checked by SelectedRow without a cast.
-  const deploymentRows = storedDeploymentRows.map((row) => ({
-    ...row,
-    availabilityScope: normalizeInferenceDeploymentAvailabilityScope(row.availabilityScope),
-  }));
+  const deploymentRows = storedDeploymentRows
+    .filter((row) => servableIds === undefined || servableIds.has(row.joinDeploymentRowId))
+    .map(({ joinDeploymentRowId: _rowId, ...row }) => ({
+      ...row,
+      availabilityScope: normalizeInferenceDeploymentAvailabilityScope(row.availabilityScope),
+    }));
 
   if (deploymentRows.length === 0) return [];
 
@@ -1526,9 +1647,10 @@ export async function listCatalogueForViewer(
  */
 export async function getCatalogueEntryForViewer(
   viewer: CatalogueViewer,
-  modelId: string
+  modelId: string,
+  availability: CatalogueAvailability
 ): Promise<ModelCatalogueEntry | undefined> {
-  const entries = await listCatalogueForViewer(viewer);
+  const entries = await listCatalogueForViewer(viewer, availability);
   return entries.find((entry) => entry.modelId === modelId);
 }
 

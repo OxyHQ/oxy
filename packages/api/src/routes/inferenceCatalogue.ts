@@ -76,6 +76,7 @@ import { resolveServiceTokenPrincipal } from '../services/attribution.service';
 import { getRevisionDocumentation } from '../services/inferenceModelDocumentation.service';
 import { machineCredentialTokenPrefix } from '../utils/machineCredentialToken';
 import {
+  type CatalogueAvailability,
   type CatalogueViewer,
   getCatalogueEntryForViewer,
   isPublicCatalogueViewer,
@@ -84,12 +85,23 @@ import {
   PUBLIC_CATALOGUE_VIEWER,
   resolveCatalogueViewer,
 } from '../services/inferenceCatalogue.service';
+import { currentDeploymentLiveness } from '../services/kaanaDeploymentPublication.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { NotFoundError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { serviceRateLimitKey } from '../utils/serviceRateLimitKey';
 
 const router = Router();
+
+/**
+ * Every customer-facing catalogue read lists only what a request could be
+ * admitted on now: an approved route whose exact deployment Kaana currently
+ * publishes and whose price, score and funding evidence is complete. A model
+ * with none is absent, not listed with a caveat.
+ */
+async function servableAvailability(): Promise<CatalogueAvailability> {
+  return { kind: 'servable', liveness: await currentDeploymentLiveness() };
+}
 
 /**
  * The application credential behind a catalogue read, once it has been resolved
@@ -343,7 +355,7 @@ router.get(
   catalogueServiceReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
-    const models = access.served ? await listCatalogueForViewer(access.viewer) : [];
+    const models = access.served ? await listCatalogueForViewer(access.viewer, await servableAvailability()) : [];
     const body: z.infer<typeof catalogueStatsResponse> = {
       models,
       count: models.length,
@@ -364,7 +376,7 @@ router.get(
   catalogueServiceReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
-    const models = access.served ? await listCatalogueForViewer(access.viewer) : [];
+    const models = access.served ? await listCatalogueForViewer(access.viewer, await servableAvailability()) : [];
     const body: z.infer<typeof catalogueListResponse> = { data: models, count: models.length };
     res.json(body);
   })
@@ -449,7 +461,7 @@ router.get(
     const access = await catalogueAccess(req);
     const modelId = `${req.params.publisher}/${req.params.model}`;
     const entry = access.served
-      ? await getCatalogueEntryForViewer(access.viewer, modelId)
+      ? await getCatalogueEntryForViewer(access.viewer, modelId, await servableAvailability())
       : undefined;
 
     if (entry === undefined) {
