@@ -1627,7 +1627,9 @@ describe("inference contract versioning", () => {
     // MINOR 2: audio-token units, the `output_audio_transcript` channel, the
     // envelope's `audioOutput`, capability `apiFormats`/`realtime`, and the
     // realtime session family — all additive, all refused by a 3.1 consumer.
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.2.0");
+    // MINOR 3: the `session_milliseconds` usage unit (a closed enum gained a
+    // member, which a 3.2 consumer refuses).
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.3.0");
   });
 
   it("matches the frozen schema version map exactly", () => {

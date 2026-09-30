@@ -1,6 +1,7 @@
 /**
  * Contract set 3.2.0: spoken output from audio chat models, audio-token units,
  * capability-declared API formats and realtime sessions (OxyHQ/Kaana#90).
+ * Contract set 3.3.0: `session_milliseconds`, a realtime session's wall clock.
  *
  * The compatibility suite round-trips a fixture of every new versioned shape;
  * this file holds the rules those shapes exist to enforce, each with the
@@ -19,6 +20,8 @@ import {
   realtimeSessionConfigUpdateSchema,
   realtimeSessionRequestSchema,
   USAGE_UNITS,
+  usageQuantitySchema,
+  usageUnitSchema,
 } from "../index";
 
 const attribution = {
@@ -354,5 +357,58 @@ describe("realtime commands and events", () => {
 
   it("refuses an event type outside the closed set", () => {
     expect(realtimeServerEventSchema.safeParse({ ...event, type: "response.audio.delta" }).success).toBe(false);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Session wall-clock metering (contract set 3.3.0)                          */
+/* -------------------------------------------------------------------------- */
+
+describe("session_milliseconds", () => {
+  const closed = {
+    schemaVersion: 1,
+    requestId: "req_rt_vad",
+    sequence: 41,
+    type: "session.closed",
+    reason: "client_closed",
+    deploymentId: "dep_xai_realtime_1",
+    usageSource: "oxy_measured",
+    closedAt: "2026-09-30T11:00:00.000Z",
+  };
+
+  it("is a unit of its own, beside the audio-duration units rather than instead of them", () => {
+    expect(USAGE_UNITS).toEqual(
+      expect.arrayContaining(["session_milliseconds", "audio_input_milliseconds", "audio_output_milliseconds"]),
+    );
+    expect(usageUnitSchema.safeParse("session_milliseconds").success).toBe(true);
+    // Negative control: a near-miss spelling is still outside the closed set.
+    expect(usageUnitSchema.safeParse("session_seconds").success).toBe(false);
+  });
+
+  it("carries a session's wall clock on session.closed, measured by the data plane", () => {
+    expect(
+      realtimeServerEventSchema.safeParse({
+        ...closed,
+        units: [
+          { unit: "session_milliseconds", quantity: 187_412 },
+          { unit: "requests", quantity: 2 },
+        ],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("is an integer count of milliseconds, reported at most once", () => {
+    expect(usageQuantitySchema.safeParse({ unit: "session_milliseconds", quantity: 1_500 }).success).toBe(true);
+    expect(usageQuantitySchema.safeParse({ unit: "session_milliseconds", quantity: 1_500.5 }).success).toBe(false);
+    expect(usageQuantitySchema.safeParse({ unit: "session_milliseconds", quantity: -1 }).success).toBe(false);
+    expect(
+      realtimeServerEventSchema.safeParse({
+        ...closed,
+        units: [
+          { unit: "session_milliseconds", quantity: 1_000 },
+          { unit: "session_milliseconds", quantity: 500 },
+        ],
+      }).success,
+    ).toBe(false);
   });
 });
