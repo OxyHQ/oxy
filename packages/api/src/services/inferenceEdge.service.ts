@@ -3108,7 +3108,12 @@ export function ceilingForOperation(
     case 'realtime_session':
       // The two figures are the SESSION's budgets here, computed per route by
       // `realtimeCeilingScenarios`, which is the only caller that passes them.
-      return { requests: 1, input_tokens: estimatedInputTokens, output_tokens: maxOutputTokens };
+      return {
+        requests: 1,
+        input_tokens: estimatedInputTokens,
+        output_tokens: maxOutputTokens,
+        session_milliseconds: operation.maxSessionMilliseconds,
+      };
   }
 }
 
@@ -3129,12 +3134,17 @@ export function ceilingQuoteScenarios(
   maxOutputTokens: number
 ): readonly Partial<Record<UsageUnit, number>>[] {
   if (operation.kind === 'realtime_session') {
+    // Session wall-clock time (contract set 3.3.0) is not a member of either
+    // token partition: a provider that bills it bills it BESIDE whatever else
+    // the session consumed, so it is added to every vertex at its own ceiling.
+    // Being in every scenario, it must be priced on every route — at zero where
+    // the provider does not bill session time — exactly as `requests` must.
     return partitionScenarios(
       REALTIME_INPUT_UNITS,
       estimatedInputTokens,
       REALTIME_OUTPUT_UNITS,
       maxOutputTokens
-    );
+    ).map((scenario) => ({ ...scenario, session_milliseconds: operation.maxSessionMilliseconds }));
   }
   if (operation.kind !== 'completion') {
     return [ceilingForOperation(operation, estimatedInputTokens, maxOutputTokens)];

@@ -57,6 +57,7 @@ import {
   verifyEdgeSignature,
   waitFor,
   type AudioFixture,
+  AUDIO_PRICES,
 } from '../__fixtures__/kaanaAudioFixtures';
 
 jest.setTimeout(60_000);
@@ -526,6 +527,79 @@ describe('the signed first frame', () => {
       emit.closed([]);
       emit.report([], 'failed');
       await customer.closed;
+    });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Session wall-clock time (contract set 3.3.0)                              */
+/* -------------------------------------------------------------------------- */
+
+describe('session_milliseconds', () => {
+  /** $0.06 per million milliseconds of session wall clock. */
+  const SESSION_TIME_PRICES = { ...AUDIO_PRICES, session_milliseconds: '0.06' };
+  const sessionBilledModel = (): Promise<AudioFixture> =>
+    makeAudioFixture({
+      inputModalities: ['text', 'audio'],
+      outputModalities: ['text', 'audio'],
+      realtime: { transports: ['websocket'], sessionKinds: ['conversation'] },
+      prices: SESSION_TIME_PRICES,
+    });
+
+  it('holds the signed duration plus the bounded open beside the token ceiling', async () => {
+    const fixture = await sessionBilledModel();
+    await withEdge(async (harness) => {
+      const { customer, emit } = await opened(harness, fixture);
+      const [reservation] = await reservationsFor(fixture.accountId);
+      // The token ceiling of the control case above ($2.72), plus
+      // (60 000 ms signed + 60 000 ms open allowance) × $0.06/M = $0.0072.
+      expect(reservation.reservedAmount).toBe('2.727200000000');
+      emit.closed([]);
+      emit.report([], 'failed');
+      await customer.closed;
+    });
+  });
+
+  it("settles a session billed by its wall clock at the unit's own price", async () => {
+    const fixture = await sessionBilledModel();
+    await withEdge(async (harness) => {
+      const { customer, emit } = await opened(harness, fixture);
+      const units: UsageQuantity[] = [
+        { unit: 'requests', quantity: 1 },
+        { unit: 'session_milliseconds', quantity: 45_000 },
+      ];
+      emit.closed(units);
+      emit.report(units);
+      await customer.closed;
+      const [receipt] = await oneReceipt(fixture.accountId);
+      // 45 000 ms × $0.06/M; `requests` is priced at zero.
+      expect(receipt).toMatchObject({
+        billedAmount: '0.002700000000',
+        sessionMilliseconds: 45_000,
+        outcome: 'completed',
+      });
+    });
+  });
+
+  it('refuses a route that leaves session time unpriced, before any hold or upstream', async () => {
+    const { session_milliseconds: _unpriced, ...withoutSessionTime } = AUDIO_PRICES;
+    const fixture = await makeAudioFixture({
+      inputModalities: ['text', 'audio'],
+      outputModalities: ['text', 'audio'],
+      realtime: { transports: ['websocket'], sessionKinds: ['conversation'] },
+      prices: withoutSessionTime,
+    });
+    await withEdge(async (harness) => {
+      const customer = await harness.connect(fixture.token, fixture.modelReference);
+      const upstream = harness.kaana.nextConnection().then(() => 'dialled Kaana' as const);
+      customer.send(openFrame());
+      // Raced against the upstream, so a regression that holds and dials fails
+      // here instead of waiting for an error that never comes.
+      const outcome = await Promise.race([customer.next('error'), upstream]);
+      expect(outcome).toMatchObject({ fatal: true, sequence: 0 });
+      await customer.closed;
+      expect(harness.kaana.connections).toHaveLength(0);
+      expect(await reservationsFor(fixture.accountId)).toHaveLength(0);
     });
   });
 });

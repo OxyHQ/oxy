@@ -25,6 +25,11 @@
  * `maxResponses × per-response output cap` over the three output units, per
  * authorized route, every unit priced (`routeCeilingScenarios`). That bound holds
  * for a `conversation` session whose every billed token belongs to a response.
+ * Beside it, every scenario holds `session_milliseconds` at the signed
+ * duration plus the bounded open (`realtimeMaxSessionMilliseconds`): a provider
+ * that bills a session's wall clock (xAI under `server_vad`) is held for all of
+ * it, and every other route must price the unit — at zero — or be refused
+ * before the hold, because an unpriced unit never becomes a free one.
  * Two shapes consume audio OUTSIDE responses, where no signed limit bounds the
  * tokens, and are refused here rather than held against a guess: `transcription`
  * and `translation` sessions, and input-audio transcription on a conversation.
@@ -162,6 +167,27 @@ export function sessionLimits(requested: Partial<RealtimeSessionLimits> | undefi
       requested?.maxOutputAudioBytes ?? DEFAULT_REALTIME_LIMITS.maxOutputAudioBytes,
     maxResponses: requested?.maxResponses ?? DEFAULT_REALTIME_LIMITS.maxResponses,
   };
+}
+
+/**
+ * How long the data plane's open of an upstream session may take before the
+ * session's own clock (`maxDurationMs`, from `session.created`) starts: Kaana
+ * bounds the handshake and the configure-then-confirm exchange at 20 s each
+ * (`internal/provider/openairealtime`, `openTimeout`), and measures
+ * `session_milliseconds` from the accepted handshake, because that is when a
+ * provider billing session time starts its own clock. Sixty seconds covers both
+ * stages and the close with room to spare.
+ */
+export const REALTIME_SESSION_OPEN_ALLOWANCE_MS = 60_000;
+
+/**
+ * The ceiling on `session_milliseconds` (contract set 3.3.0): the session can be
+ * open upstream for at most its signed duration plus the bounded open. Kaana
+ * ends it at `maxDurationMs` exactly (wire rule 8), whether or not a customer
+ * connection is attached, so this is a bound rather than an estimate.
+ */
+export function realtimeMaxSessionMilliseconds(limits: RealtimeSessionLimits): number {
+  return limits.maxDurationMs + REALTIME_SESSION_OPEN_ALLOWANCE_MS;
 }
 
 /** How long a session's hold must stand: the session, its resume window, and the report. */
@@ -310,6 +336,7 @@ export async function openRealtimeSession(input: OpenRealtimeSessionInput): Prom
       sessionKind: frame.kind,
       transport,
       maxResponses: limits.maxResponses,
+      maxSessionMilliseconds: realtimeMaxSessionMilliseconds(limits),
       requiredOutput: frame.config.outputModalities?.includes('audio') === true ? 'audio' : 'text',
       reservationTtlSeconds: realtimeReservationTtlSeconds(limits),
     },
