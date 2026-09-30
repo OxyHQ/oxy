@@ -46,6 +46,7 @@ import { closePostgres, connectPostgres } from '../../config/postgres';
 import { createHttpKaanaClient, KAANA_DEPLOYMENTS_QUERY_PATH } from '../../services/httpKaanaClient';
 import { KAANA_REALTIME_PATH, createKaanaRealtimeClient } from '../../services/kaanaRealtimeClient';
 import { heldRealtimeSessionCount, realtimeTimings } from '../../services/inferenceRealtime.service';
+import { logger } from '../../utils/logger';
 import { attachRealtimeEdge } from '../inferenceRealtime';
 import { attestFixtureDeployments } from '../__fixtures__/kaanaRuntimeFixtures';
 import {
@@ -401,6 +402,10 @@ beforeAll(async () => {
   await connectPostgres();
 });
 
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 afterAll(async () => {
   realtimeTimings.reportGraceMs = ORIGINAL_GRACE;
   for (const [key, value] of Object.entries(ORIGINAL_ENVIRONMENT)) {
@@ -571,6 +576,11 @@ describe('a session, relayed and settled', () => {
       const [reservation] = await reservationsFor(fixture.accountId);
       expect(reservation.status).toBe('settled');
       expect(heldRealtimeSessionCount()).toBe(0);
+      // The usage row was written too: its failure is swallowed by design, so
+      // the only place it would show is the log.
+      const logged = (logger.error as jest.Mock).mock.calls.map((call) => call[0] as string);
+      expect(logged).not.toContain('inference.edge.telemetry_failed');
+      expect(logged.filter((event) => event.startsWith('inference.realtime.'))).toEqual([]);
     });
   });
 
