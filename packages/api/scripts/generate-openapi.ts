@@ -38,6 +38,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import swaggerJsdoc from 'swagger-jsdoc';
 import { z, ZodTypeAny } from 'zod';
+import { catalogInvocationTemplatesEquivalent } from '@oxy.so/contracts';
 import { INBOX_CAPABILITY_CATALOG } from '../src/capabilities/inbox.catalog';
 
 interface OpenApiInfo {
@@ -1576,12 +1577,16 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
   // Inbox accepts either the user's normal bearer session or a short-lived,
   // audience-bound capability ticket. `emailCapabilityAuth` selects the lane
   // from the Authorization scheme and never treats a Capability ticket as a
-  // general user session.
+  // general user session. A ticket request at an operation's address is a call
+  // of the catalog tool with that address — executed by the tool, with the
+  // tool's input and output — so the lane is published wherever a tool
+  // invocation names the SAME address (parameter names aside: the catalog says
+  // `{emailId}` where the route says `{messageId}`).
   const isEmailCapability = middlewares.includes('emailCapabilityAuth');
   const acceptsCapabilityTicket =
     isEmailCapability &&
-    INBOX_CAPABILITY_CATALOG.tools.some(
-      (tool) => tool.invocation.method === verb.toUpperCase() && tool.invocation.path === openApiPath,
+    INBOX_CAPABILITY_CATALOG.tools.some((tool) =>
+      catalogInvocationTemplatesEquivalent(tool.invocation, { method: verb, path: openApiPath }),
     );
   const isAuth = middlewares.includes('authMiddleware');
   const isOptionalAuth = middlewares.includes('optionalAuthMiddleware');

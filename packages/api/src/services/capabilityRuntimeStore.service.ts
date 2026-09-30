@@ -84,15 +84,6 @@ export async function messageBelongsToMailbox(
   return Boolean(message);
 }
 
-export async function messageBelongsToAccount(messageId: string, accountId: string): Promise<boolean> {
-  const [message] = await getDb()
-    .select({ id: messages.id })
-    .from(messages)
-    .where(and(eq(messages.id, messageId), eq(messages.userId, accountId)))
-    .limit(1);
-  return Boolean(message);
-}
-
 export async function finalizeCapabilityEffect(
   claims: CapabilityTicketClaims,
   keyHash: string,

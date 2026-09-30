@@ -1,17 +1,11 @@
 import { createHash } from 'node:crypto';
+import type { AppCapabilityCatalog, CatalogTool } from '@oxy.so/contracts';
 import type {
   CatalogInvocationContext,
   CatalogToolHandler,
   CatalogToolHandlers,
 } from '@oxy.so/mcp';
 
-import {
-  searchMessagesForUser,
-  sendMessageForUser,
-  type SearchEmailCommand,
-  type SendEmailCommand,
-} from '../controllers/email.controller';
-import { emailService } from '../services/email.service';
 import {
   finalizeCapabilityEffectFor,
   reserveCapabilityEffectFor,
@@ -20,64 +14,67 @@ import {
   ApiError,
   BadRequestError,
   ConflictError,
-  NotFoundError,
 } from '../utils/error';
 import { INBOX_CAPABILITY_CATALOG } from './inbox.catalog';
+import { INBOX_TOOLS, type InboxToolInput, type InboxToolResult } from './inbox.tools';
 
-type Input = Readonly<Record<string, unknown>>;
-type Result = Record<string, unknown>;
+/**
+ * The external Inbox MCP adapter: OAuth-bound MCP calls onto the same tool
+ * functions Alia's capability tickets reach (`inbox.tools.ts`).
+ *
+ * The one thing MCP adds is the retry key. Over HTTP it is the
+ * `Idempotency-Key` header, so the catalog no longer asks the model for it; an
+ * MCP tool call has no per-call headers, so for every tool that requires one
+ * the MCP view of the catalog declares a REQUIRED `idempotencyKey` argument —
+ * the contract external MCP clients have always had. It stays required rather
+ * than derived: a key derived from the arguments would refuse a deliberate
+ * second identical send forever, and a random one would protect nothing, so
+ * only the client can say which calls are retries of the same action.
+ */
 
-function requiredString(input: Input, key: string): string {
-  const value = input[key];
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new BadRequestError(`${key} is required`);
+const IDEMPOTENCY_ARGUMENT = 'idempotencyKey';
+const idempotencyArgument = {
+  type: 'string',
+  minLength: 1,
+  maxLength: 255,
+  description: 'A key you generate once for this action (a UUID, for example) and reuse only when retrying '
+    + 'the SAME action. A key already used is refused instead of acting twice.',
+} as const;
+
+function withIdempotencyArgument(tool: CatalogTool): CatalogTool {
+  if (tool.idempotency !== 'required') return tool;
+  const properties = (tool.inputSchema.properties ?? {}) as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(properties, IDEMPOTENCY_ARGUMENT)) {
+    throw new Error(`Inbox tool ${tool.name} must not declare the reserved ${IDEMPOTENCY_ARGUMENT} argument`);
   }
-  return value;
-}
-
-function integer(input: Input, key: string, fallback: number, maximum = 100): number {
-  const value = input[key];
-  return typeof value === 'number' && Number.isInteger(value)
-    ? Math.min(Math.max(value, 0), maximum)
-    : fallback;
-}
-
-function sendCommand(input: Input): SendEmailCommand {
-  if (!Array.isArray(input.to)) throw new BadRequestError('to is required');
-  // The catalog adapter has already applied the strict JSON schema; this guard
-  // keeps the direct domain boundary safe and gives TypeScript the required
-  // recipient invariant without rebuilding a second schema here.
-  return input as unknown as SendEmailCommand;
-}
-
-function pagination(
-  result: { total: number; limit: number; offset: number; nextCursor?: string | null },
-): Record<string, unknown> {
+  const required = Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required as string[] : [];
   return {
-    total: result.total,
-    limit: result.limit,
-    offset: result.offset,
-    hasMore: result.nextCursor !== undefined
-      ? result.nextCursor !== null
-      : result.offset + result.limit < result.total,
-    ...(result.nextCursor === undefined ? {} : { nextCursor: result.nextCursor }),
+    ...tool,
+    inputSchema: {
+      ...tool.inputSchema,
+      properties: { ...properties, [IDEMPOTENCY_ARGUMENT]: idempotencyArgument },
+      required: [...required, IDEMPOTENCY_ARGUMENT],
+    },
   };
 }
 
+/** The catalog as MCP clients see it: the canonical one plus MCP's retry-key argument. */
+export const INBOX_MCP_CATALOG: AppCapabilityCatalog = Object.freeze({
+  ...INBOX_CAPABILITY_CATALOG,
+  tools: INBOX_CAPABILITY_CATALOG.tools.map(withIdempotencyArgument),
+});
+
 async function executeEffect(
   tool: string,
-  input: Input,
+  idempotencyKey: string,
   context: CatalogInvocationContext,
-  execute: () => Promise<Result>,
-): Promise<Result> {
-  const keyHash = createHash('sha256')
-    .update(requiredString(input, 'idempotencyKey'))
-    .digest('hex');
+  execute: () => Promise<InboxToolResult>,
+): Promise<InboxToolResult> {
   const identity = {
     effectiveAccountId: context.principal.activeAccountId,
     appSlug: INBOX_CAPABILITY_CATALOG.appId,
     tool,
-    keyHash,
+    keyHash: createHash('sha256').update(idempotencyKey).digest('hex'),
   } as const;
   const reserved = await reserveCapabilityEffectFor({
     ...identity,
@@ -100,123 +97,32 @@ async function executeEffect(
   }
 }
 
-const handlers: Record<string, CatalogToolHandler> = {
-  async searchEmails(input, context) {
-    const result = await searchMessagesForUser(
-      context.principal.activeAccountId,
-      input as SearchEmailCommand,
-    );
-    return { structuredContent: result };
-  },
-
-  async getUnreadEmails(input, context) {
-    const result = await emailService.listMessages(
-      context.principal.activeAccountId,
-      null,
-      {
-        limit: integer(input, 'limit', 50),
-        offset: integer(input, 'offset', 0, Number.MAX_SAFE_INTEGER),
-        unseenOnly: true,
-      },
-    );
-    return {
-      structuredContent: {
-        data: result.data,
-        pagination: pagination(result),
-      },
-    };
-  },
-
-  async readEmail(input, context) {
-    const message = await emailService.getMessage(
-      context.principal.activeAccountId,
-      requiredString(input, 'messageId'),
-    );
-    if (!message) throw new NotFoundError('Message not found');
-    return { structuredContent: { data: message } };
-  },
-
-  async getEmailThread(input, context) {
-    const thread = await emailService.getThread(
-      context.principal.activeAccountId,
-      requiredString(input, 'messageId'),
-    );
-    return { structuredContent: { data: thread } };
-  },
-
-  async sendEmail(input, context) {
-    const result = await executeEffect('sendEmail', input, context, async () => {
-      const sent = await sendMessageForUser(
-        context.principal.activeAccountId,
-        sendCommand(input),
-        requiredString(input, 'idempotencyKey'),
-      );
-      return { data: sent.data };
+function handlerFor(tool: CatalogTool): CatalogToolHandler {
+  const run = INBOX_TOOLS[tool.name];
+  if (!run) throw new Error(`Inbox MCP tool ${tool.name} has no implementation`);
+  // An MCP connection acts as one whole account; mailbox-scoped authority
+  // exists only for capability tickets.
+  if (tool.idempotency !== 'required') {
+    return async (input, context) => ({
+      structuredContent: await run(input, { accountId: context.principal.activeAccountId }),
     });
-    return { structuredContent: result };
-  },
-
-  async listMailboxes(_input, context) {
-    await emailService.ensureMailboxes(context.principal.activeAccountId);
-    return {
-      structuredContent: {
-        data: await emailService.listMailboxes(context.principal.activeAccountId),
-      },
-    };
-  },
-
-  async listLabels(_input, context) {
-    return {
-      structuredContent: {
-        data: await emailService.listLabels(context.principal.activeAccountId),
-      },
-    };
-  },
-
-  async moveEmail(input, context) {
-    const result = await executeEffect('moveEmail', input, context, async () => ({
-      data: await emailService.moveMessage(
-        context.principal.activeAccountId,
-        requiredString(input, 'messageId'),
-        requiredString(input, 'mailboxId'),
-      ),
-    }));
-    return { structuredContent: result };
-  },
-
-  async updateEmailFlags(input, context) {
-    const flags = input.flags;
-    if (!flags || typeof flags !== 'object' || Array.isArray(flags)) {
-      throw new BadRequestError('flags object is required');
+  }
+  return async (rawInput, context) => {
+    const { [IDEMPOTENCY_ARGUMENT]: idempotencyKey, ...input } = rawInput;
+    if (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0) {
+      throw new BadRequestError(`${IDEMPOTENCY_ARGUMENT} is required`);
     }
-    const result = await executeEffect('updateEmailFlags', input, context, async () => ({
-      data: await emailService.updateMessageFlags(
-        context.principal.activeAccountId,
-        requiredString(input, 'messageId'),
-        flags as Record<string, boolean>,
-      ),
-    }));
-    return { structuredContent: result };
-  },
-
-  async getEmailQuota(_input, context) {
+    const accountId = context.principal.activeAccountId;
     return {
-      structuredContent: {
-        data: await emailService.getQuotaUsage(context.principal.activeAccountId),
-      },
+      structuredContent: await executeEffect(tool.name, idempotencyKey, context, () => (
+        run(input as InboxToolInput, { accountId, idempotencyKey })
+      )),
     };
-  },
-};
-
-const publicToolNames = INBOX_CAPABILITY_CATALOG.tools
-  .filter(({ exposure }) => exposure.includes('mcp'))
-  .map(({ name }) => name);
-const missingHandlers = publicToolNames.filter((name) => !handlers[name]);
-const extraHandlers = Object.keys(handlers).filter((name) => !publicToolNames.includes(name));
-if (missingHandlers.length > 0 || extraHandlers.length > 0) {
-  throw new Error(
-    `Inbox MCP handler mismatch: missing=${missingHandlers.join(',')} extra=${extraHandlers.join(',')}`,
-  );
+  };
 }
 
-export const INBOX_MCP_HANDLERS: CatalogToolHandlers = Object.freeze(handlers);
+export const INBOX_MCP_HANDLERS: CatalogToolHandlers = Object.freeze(Object.fromEntries(
+  INBOX_MCP_CATALOG.tools
+    .filter(({ exposure }) => exposure.includes('mcp'))
+    .map((tool) => [tool.name, handlerFor(tool)]),
+));

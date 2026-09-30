@@ -10,12 +10,17 @@ jest.mock('../../services/mcpOAuth.service', () => ({
   introspectMcpAccessToken: (...args: unknown[]) => mockIntrospectMcpAccessToken(...args),
   resolveMcpResource: (...args: unknown[]) => mockResolveMcpResource(...args),
 }));
-jest.mock('../inbox.handlers', () => ({ INBOX_MCP_HANDLERS: {} }));
+// A marked stand-in for the MCP view of the catalog, so the test proves the
+// service is built from THAT view (with MCP's retry-key argument), not the
+// canonical catalog it derives from.
+jest.mock('../inbox.handlers', () => ({
+  INBOX_MCP_CATALOG: { ...jest.requireActual('../inbox.catalog').INBOX_CAPABILITY_CATALOG, version: 'mcp-view' },
+  INBOX_MCP_HANDLERS: {},
+}));
 jest.mock('../../utils/logger', () => ({
   logger: { error: (...args: unknown[]) => mockLoggerError(...args) },
 }));
 
-import { INBOX_CAPABILITY_CATALOG } from '../inbox.catalog';
 import {
   createInboxMcpHttpService,
   parseInboxMcpAllowedOrigins,
@@ -65,7 +70,7 @@ describe('Inbox MCP HTTP service', () => {
     expect(mockCreateCatalogMcpHttpService).toHaveBeenCalledTimes(1);
     const options = mockCreateCatalogMcpHttpService.mock.calls[0][0];
     expect(options).toMatchObject({
-      catalog: INBOX_CAPABILITY_CATALOG,
+      catalog: expect.objectContaining({ appId: 'inbox', version: 'mcp-view' }),
       authorizationServer: 'https://api.example.test',
       allowedOrigins: [
         'https://chatgpt.com',

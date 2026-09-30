@@ -5,8 +5,7 @@ import {
   resolveMcpResource,
 } from '../services/mcpOAuth.service';
 import { logger } from '../utils/logger';
-import { INBOX_CAPABILITY_CATALOG } from './inbox.catalog';
-import { INBOX_MCP_HANDLERS } from './inbox.handlers';
+import { INBOX_MCP_CATALOG, INBOX_MCP_HANDLERS } from './inbox.handlers';
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://chatgpt.com',
@@ -24,7 +23,7 @@ export function parseInboxMcpAllowedOrigins(configured?: string): string[] {
 }
 
 export function createInboxMcpHttpService() {
-  const resource = INBOX_CAPABILITY_CATALOG.externalMcp?.resource;
+  const resource = INBOX_MCP_CATALOG.externalMcp?.resource;
   if (!resource) throw new Error('Inbox catalog is missing its external MCP resource');
 
   let applicationId: Promise<string> | undefined;
@@ -39,7 +38,7 @@ export function createInboxMcpHttpService() {
   };
 
   return createCatalogMcpHttpService({
-    catalog: INBOX_CAPABILITY_CATALOG,
+    catalog: INBOX_MCP_CATALOG,
     handlers: INBOX_MCP_HANDLERS,
     authorizationServer: process.env.OXY_API_URL ?? 'https://api.oxy.so',
     introspectToken: async (token) => {

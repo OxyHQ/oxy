@@ -7,7 +7,7 @@
 
 import type { Request, Response } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
-import { rfcMessageIdSchema, type CapabilityTicketClaims } from '@oxy.so/contracts';
+import { rfcMessageIdSchema } from '@oxy.so/contracts';
 import { emailService } from '../services/email.service';
 import { smtpOutbound } from '../services/smtp.outbound';
 import { findSuppressed } from '../services/emailSuppression.service';
@@ -222,7 +222,6 @@ async function resolveReplyThreading(
 
 interface AuthRequest extends Request {
   user?: { id: string };
-  capabilityTicket?: CapabilityTicketClaims;
 }
 
 // ─── Mailboxes ────────────────────────────────────────────────────
@@ -310,11 +309,7 @@ export async function getThread(req: AuthRequest, res: Response): Promise<void> 
   const { messageId } = req.params;
 
   const thread = await emailService.getThread(userId, messageId);
-  const resource = req.capabilityTicket?.resource;
-  const scopedThread = resource?.resourceType === 'mailbox'
-    ? thread.filter((message) => String(message.mailboxId) === resource.resourceId)
-    : thread;
-  res.json({ data: scopedThread });
+  res.json({ data: thread });
 }
 
 export async function updateMessageFlags(req: AuthRequest, res: Response): Promise<void> {
@@ -492,6 +487,29 @@ export async function deleteLabel(req: AuthRequest, res: Response): Promise<void
 
 // ─── Compose & Send ─────────────────────────────────────────────
 
+/**
+ * The address and display name this account sends from. Throws the same 400
+ * a send always answered with for an account that has no username, since
+ * without one there is no address.
+ */
+export async function senderIdentityFor(userId: string): Promise<{ address: string; name: string }> {
+  const [user] = await getDb()
+    .select({ username: users.username, first: users.nameFirst, last: users.nameLast })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user?.username) {
+    throw new BadRequestError('User must have a username to send email');
+  }
+  return {
+    address: resolveEmailAddress(user.username),
+    name: resolveEmailFromName({
+      name: { first: user.first, last: user.last },
+      username: user.username,
+    }),
+  };
+}
+
 export interface SendEmailCommand {
   to: RecipientInput[];
   cc?: RecipientInput[];
@@ -536,20 +554,7 @@ export async function sendMessageForUser(
 
   await emailService.enforceSendLimit(userId);
 
-  const [user] = await getDb()
-    .select({ username: users.username, first: users.nameFirst, last: users.nameLast })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  if (!user?.username) {
-    throw new BadRequestError('User must have a username to send email');
-  }
-
-  const fromAddress = resolveEmailAddress(user.username);
-  const fromName = resolveEmailFromName({
-    name: { first: user.first, last: user.last },
-    username: user.username,
-  });
+  const { address: fromAddress, name: fromName } = await senderIdentityFor(userId);
 
   const allRecipients = [...to, ...(cc ?? []), ...(bcc ?? [])];
 
@@ -675,9 +680,29 @@ export async function sendMessage(req: AuthRequest, res: Response): Promise<void
   res.status(result.status).json({ data: result.data });
 }
 
-export async function saveDraft(req: AuthRequest, res: Response): Promise<void> {
-  const userId = req.user!.id;
-  const { to, cc, bcc, subject, text, html, inReplyTo, references, attachments, existingDraftId, expectedRevision } = req.body;
+export interface SaveDraftCommand {
+  to?: RecipientInput[];
+  cc?: RecipientInput[];
+  bcc?: RecipientInput[];
+  subject?: string;
+  text?: string;
+  html?: string;
+  inReplyTo?: string;
+  references?: string[];
+  attachments?: AttachmentInput[];
+  existingDraftId?: string;
+  expectedRevision?: number;
+}
+
+/**
+ * One domain entry point for saving a draft, shared by REST and the Inbox
+ * capability tools. Attachments go through the same ownership check as a send.
+ */
+export async function saveDraftForUser(
+  userId: string,
+  command: SaveDraftCommand,
+): Promise<Awaited<ReturnType<typeof emailService.saveDraft>>> {
+  const { to, cc, bcc, subject, text, html, inReplyTo, references, attachments, existingDraftId, expectedRevision } = command;
   const { resolved: resolvedAttachments, files: attachedFiles } = attachments?.length
     ? await resolveAttachmentInputs(attachments, userId)
     : { resolved: [] as MessageAttachment[], files: [] as FileRecord[] };
@@ -699,7 +724,11 @@ export async function saveDraft(req: AuthRequest, res: Response): Promise<void> 
   if (attachedFiles.length > 0) {
     await linkAttachmentsToMessage(attachedFiles, draft._id, userId);
   }
+  return draft;
+}
 
+export async function saveDraft(req: AuthRequest, res: Response): Promise<void> {
+  const draft = await saveDraftForUser(req.user!.id, req.body as SaveDraftCommand);
   res.status(201).json({ data: draft });
 }
 
@@ -743,6 +772,8 @@ export interface SearchEmailCommand {
   dateBefore?: string;
   starred?: boolean;
   label?: string;
+  /** true: only unread; false: only read. The same filter `is:unread` / `is:read` in `q` express. */
+  unread?: boolean;
   limit?: number;
   offset?: number;
   cursor?: string;
@@ -753,7 +784,12 @@ export async function searchMessagesForUser(
   command: SearchEmailCommand,
 ): Promise<Record<string, unknown>> {
   const rawQuery = command.q;
-  const { query: q, seen } = parseSeenSearchOperator(rawQuery || '');
+  const { query: q, seen: seenOperator } = parseSeenSearchOperator(rawQuery || '');
+  const seenFilter = command.unread === undefined ? undefined : !command.unread;
+  if (seenOperator !== undefined && seenFilter !== undefined && seenOperator !== seenFilter) {
+    throw new BadRequestError('Search cannot combine is:read and is:unread');
+  }
+  const seen = seenOperator ?? seenFilter;
   const {
     mailboxId,
     from,
@@ -997,12 +1033,23 @@ export async function deleteReminder(req: AuthRequest, res: Response): Promise<v
 // ─── Contacts ──────────────────────────────────────────────────────
 
 export async function suggestContacts(req: AuthRequest, res: Response): Promise<void> {
-  const userId = req.user!.id;
-  const q = (req.query.q as string || '').trim().toLowerCase();
+  res.json({ data: await suggestContactsForUser(req.user!.id, req.query.q as string || '') });
+}
+
+/**
+ * Up to fifteen addresses matching a name or address fragment, address book
+ * first, then the people this account has corresponded with. Shared by REST
+ * and the Inbox capability tools; a fragment under two characters matches
+ * nothing rather than everything.
+ */
+export async function suggestContactsForUser(
+  userId: string,
+  fragment: string,
+): Promise<Array<{ name: string | null; address: string }>> {
+  const q = fragment.trim().toLowerCase();
 
   if (!q || q.length < 2) {
-    res.json({ data: [] });
-    return;
+    return [];
   }
 
   // Search both the address book and message history in parallel.
@@ -1065,7 +1112,7 @@ export async function suggestContacts(req: AuthRequest, res: Response): Promise<
     }
   }
 
-  res.json({ data: merged.slice(0, 15) });
+  return merged.slice(0, 15);
 }
 
 export async function listContacts(req: AuthRequest, res: Response): Promise<void> {

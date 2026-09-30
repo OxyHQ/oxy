@@ -5,6 +5,7 @@ import {
   buildOperation,
   parseRoutesFromFile,
 } from '../../scripts/generate-openapi';
+import { catalogInvocationTemplatesEquivalent } from '@oxy.so/contracts';
 import { INBOX_CAPABILITY_CATALOG } from '../capabilities/inbox.catalog';
 
 /**
@@ -182,10 +183,8 @@ describe('the generated Inbox contract preserves both authentication lanes', () 
   };
 
   it('publishes only the two explicit email ingress/proxy operations as public', () => {
-    const capabilityOperations = new Set(
-      INBOX_CAPABILITY_CATALOG.tools.map(
-        (tool) => `${tool.invocation.method.toLowerCase()} ${tool.invocation.path}`,
-      ),
+    const acceptsTicket = (method: string, route: string) => INBOX_CAPABILITY_CATALOG.tools.some(
+      (tool) => catalogInvocationTemplatesEquivalent(tool.invocation, { method, path: route }),
     );
     const operations = Object.entries(document.paths)
       .filter(([route]) => route.startsWith('/email'))
@@ -200,7 +199,7 @@ describe('the generated Inbox contract preserves both authentication lanes', () 
       expect({ route, method, security: operation.security }).toEqual({
         route,
         method,
-        security: capabilityOperations.has(operationKey)
+        security: acceptsTicket(method, route)
           ? [{ capabilityTicketAuth: [] }, { bearerAuth: [] }]
           : deliberatelyPublic.has(operationKey)
             ? [{}]
