@@ -153,11 +153,33 @@ describe('Commons (registers the identity signer store)', () => {
 
   it('syncSharedIdentity fills an empty signer store', async () => {
     const signer = memorySigner();
-    await KeyManager.importKeyPair(KEY_A);
     KeyManager.setIdentitySignerStore(signer);
+    await KeyManager.importKeyPair(KEY_A);
+    signer.pair = null; // e.g. a mirror write that did not land
 
     await expect(KeyManager.syncSharedIdentity()).resolves.toBe(true);
     expect(signer.pair?.privateKey).toBe(KEY_A);
+  });
+
+  it('finishes an interrupted rotation from the signer store instead of reverting it', async () => {
+    const signer = memorySigner();
+    KeyManager.setIdentitySignerStore(signer);
+    await KeyManager.importKeyPair(KEY_A);
+    const publicB = KeyManager.derivePublicKey(KEY_B);
+    // A rotation: the server now holds B, the signer store was written, and
+    // the primary write failed.
+    await KeyManager.beginKeyRotation(publicB);
+    await KeyManager.importSharedIdentity(KEY_B);
+    resetCaches();
+
+    await expect(KeyManager.syncSharedIdentity()).resolves.toBe(true);
+
+    expect(signer.pair?.privateKey).toBe(KEY_B);
+    await expect(KeyManager.getPrivateKey()).resolves.toBe(KEY_B);
+    // The marker is gone, so a later genuine disagreement repairs as usual.
+    signer.pair = { privateKey: KEY_A, publicKey: KeyManager.derivePublicKey(KEY_A) };
+    await expect(KeyManager.syncSharedIdentity()).resolves.toBe(true);
+    expect(signer.pair?.privateKey).toBe(KEY_B);
   });
 
   it('recovers a lost identity from the signer store', async () => {
@@ -219,6 +241,48 @@ describe('every other app (no signer store, no key)', () => {
     expect(bridge.signSocialReceive).toHaveBeenCalledWith(7, DIGEST);
     const state = await KeyManager.getIdentityKeyState();
     expect(state).toEqual({ primaryPublicKey: null, sharedPublicKey: publicA, activePublicKey: publicA, inSync: true });
+  });
+
+  it('never caches the public key: a rotation in Commons is seen at once', async () => {
+    const publicA = KeyManager.derivePublicKey(KEY_A);
+    const publicB = KeyManager.derivePublicKey(KEY_B);
+    let current = publicA;
+    mockBridge.current = {
+      describe: jest.fn(async () => ({ v: 2, publicKey: current })),
+      proveIdentity: jest.fn(async () => null),
+      deriveScopedSeed: jest.fn(async () => null),
+      signSocialReceive: jest.fn(async () => null),
+    };
+    await expect(KeyManager.getSharedPublicKey()).resolves.toBe(publicA);
+    current = publicB;
+    await expect(KeyManager.getSharedPublicKey()).resolves.toBe(publicB);
+    expect((await KeyManager.getIdentityKeyState()).activePublicKey).toBe(publicB);
+    current = '';
+    mockBridge.current.describe = jest.fn(async () => null);
+    await expect(KeyManager.hasSharedIdentity()).resolves.toBe(false);
+  });
+
+  it('cannot hold an identity, and never derives from a local key', async () => {
+    await expect(KeyManager.importKeyPair(KEY_A)).rejects.toThrow('only Commons holds the Oxy identity');
+    await expect(KeyManager.createIdentity()).rejects.toThrow('only Commons holds the Oxy identity');
+
+    // Even with a key left in its storage (written while it had a store), an
+    // app without a signer store asks Commons.
+    const signer = memorySigner();
+    KeyManager.setIdentitySignerStore(signer);
+    await KeyManager.importKeyPair(KEY_A);
+    KeyManager.setIdentitySignerStore(null);
+    const bridge: CommonsIdentityBridge = {
+      describe: jest.fn(async () => null),
+      proveIdentity: jest.fn(async () => null),
+      deriveScopedSeed: jest.fn(async () => null),
+      signSocialReceive: jest.fn(async () => null),
+    };
+    mockBridge.current = bridge;
+    await expect(KeyManager.deriveScopedSeed('peable/faircoin/v1')).resolves.toBeNull();
+    await expect(KeyManager.signSocialReceive(0, DIGEST)).resolves.toBeNull();
+    expect(bridge.deriveScopedSeed).toHaveBeenCalled();
+    expect(bridge.signSocialReceive).toHaveBeenCalled();
   });
 
   it('has nothing when Commons is absent or refuses', async () => {

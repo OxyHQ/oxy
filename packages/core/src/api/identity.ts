@@ -359,9 +359,15 @@ export class IdentityApi {
           ? KeyManager.hasIdentitySignerStore()
           : await KeyManager.hasSharedIdentity();
         if (holdsSharedSlot) {
+          // Marked first: if the primary write below fails, the next launch's
+          // `syncSharedIdentity` knows the shared slot holds the CURRENT key
+          // (the server's) and finishes the rotation from it, instead of
+          // "repairing" it back to the replaced one.
+          await KeyManager.beginKeyRotation(newPublicKey);
           await KeyManager.importSharedIdentity(pending.privateKey);
         }
         await KeyManager.importKeyPair(pending.privateKey, { overwrite: true });
+        await KeyManager.completeKeyRotation();
       } catch (persistError) {
         localPersistFailed = true;
         logger.warn(

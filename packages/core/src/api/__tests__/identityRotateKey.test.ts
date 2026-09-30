@@ -244,8 +244,8 @@ describe('OxyServices.rotateKey', () => {
     // app. It is written first whenever this app has one (Commons), whether or
     // not it already holds a key, and never probed over IPC.
     it.each([
-      [true, ['shared', 'primary']],
-      [false, ['primary']],
+      [true, ['begin', 'shared', 'primary', 'complete']],
+      [false, ['primary', 'complete']],
     ])('on Android, a signer store (%s) decides the shared write', async (hasSigner, expected) => {
       setPlatformOS('android');
       try {
@@ -255,6 +255,11 @@ describe('OxyServices.rotateKey', () => {
         jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
         jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
         jest.spyOn(KeyManager, 'hasIdentitySignerStore').mockReturnValue(hasSigner);
+        jest.spyOn(KeyManager, 'beginKeyRotation').mockImplementation(async (key) => {
+          expect(key).toBe(NEW_PUBLIC);
+          order.push('begin');
+        });
+        jest.spyOn(KeyManager, 'completeKeyRotation').mockImplementation(async () => { order.push('complete'); });
         const probe = jest.spyOn(KeyManager, 'hasSharedIdentity');
         jest
           .spyOn(KeyManager, 'importSharedIdentity')

@@ -234,6 +234,15 @@ const RECOVERY_MNEMONIC_STORAGE_KEY = 'oxy_identity_mnemonic_v1';
 const SLOTS_MIGRATED_FLAG_KEY = 'oxy_identity_slots_migrated_v2';
 
 /**
+ * The public key a key rotation is installing, set before the shared slot is
+ * written and cleared once the primary holds it too. While it is set, a shared
+ * slot holding THIS key is the current one (the server already has it), so
+ * {@link KeyManager.syncSharedIdentity} repairs the primary from the shared
+ * slot instead of the other way round. Not a secret; AsyncStorage.
+ */
+const ROTATION_PENDING_KEY = 'oxy_identity_rotation_pending_v1';
+
+/**
  * The resolved set of storage key names + keychain services a session reads and
  * writes. Normally {@link V2_SLOT_LAYOUT}; degrades to {@link LEGACY_SLOT_LAYOUT}
  * for the current session only when a v2 migration write could not be verified
@@ -999,6 +1008,11 @@ export class KeyManager {
    * the key a relying party signs in with, and the one Peable's social-receive
    * watch window derives from.
    *
+   * Never cached on Android: Commons can rotate or re-import its key at any
+   * time, and every other answer Commons gives (`deriveScopedSeed`,
+   * `signSocialReceive`) is fresh, so a cached key here would let a caller
+   * compare a new seed against an old key.
+   *
    * @returns Shared public key or null if no shared identity exists
    */
   static async getSharedPublicKey(): Promise<string | null> {
@@ -1006,8 +1020,8 @@ export class KeyManager {
       return null;
     }
 
-    // Return cached value if available
-    if (KeyManager.cachedSharedPublicKey !== null) {
+    // Return cached value if available (iOS only; see above).
+    if (!isAndroid() && KeyManager.cachedSharedPublicKey !== null) {
       return KeyManager.cachedSharedPublicKey;
     }
 
@@ -1028,8 +1042,8 @@ export class KeyManager {
         }
       }
 
-      // Cache result
-      KeyManager.cachedSharedPublicKey = publicKey;
+      // Cache result (iOS only; see above)
+      KeyManager.cachedSharedPublicKey = isAndroid() ? null : publicKey;
 
       return publicKey;
     } catch (error) {
@@ -1121,8 +1135,8 @@ export class KeyManager {
       return false;
     }
 
-    // Return cached value if available
-    if (KeyManager.cachedHasSharedIdentity !== null) {
+    // Return cached value if available (iOS only, like the public key)
+    if (!isAndroid() && KeyManager.cachedHasSharedIdentity !== null) {
       return KeyManager.cachedHasSharedIdentity;
     }
 
@@ -1131,8 +1145,8 @@ export class KeyManager {
         ? (await KeyManager.getSharedPrivateKey()) !== null
         : (await KeyManager.getSharedPublicKey()) !== null;
 
-      // Cache result
-      KeyManager.cachedHasSharedIdentity = present;
+      // Cache result (iOS only)
+      KeyManager.cachedHasSharedIdentity = isAndroid() ? null : present;
 
       return present;
     } catch (error) {
@@ -1212,8 +1226,19 @@ export class KeyManager {
     try {
       KeyManager.invalidateSharedCache();
       const state = await KeyManager.getIdentityKeyState();
+      const pending = await KeyManager._readRotationPending();
+      if (pending !== null && pending === state.primaryPublicKey) {
+        // The rotation finished; only the marker was left behind.
+        await KeyManager.completeKeyRotation();
+      }
       if (state.sharedPublicKey !== null && (state.inSync || state.primaryPublicKey === null)) {
         return true;
+      }
+      if (pending !== null && pending === state.sharedPublicKey) {
+        // A rotation wrote the shared slot and then failed to write the
+        // primary. The server already holds the shared slot's key, so the
+        // primary is the stale one: repair it, never the shared slot.
+        return await KeyManager._finishRotationFromSharedSlot(pending);
       }
 
       const privateKey = await KeyManager.getPrivateKey();
@@ -1243,6 +1268,66 @@ export class KeyManager {
       }
       return false;
     }
+  }
+
+  /**
+   * Record that a key rotation is about to install `newPublicKey`. Call before
+   * writing the shared slot; {@link completeKeyRotation} once the primary holds
+   * it. See {@link ROTATION_PENDING_KEY}.
+   */
+  static async beginKeyRotation(newPublicKey: string): Promise<void> {
+    const storage = await KeyManager._advisoryStorage();
+    await storage?.setItem(ROTATION_PENDING_KEY, KeyManager.canonicalPublicKey(newPublicKey));
+  }
+
+  /** Clear the pending-rotation marker. Best-effort: never throws. */
+  static async completeKeyRotation(): Promise<void> {
+    try {
+      const storage = await KeyManager._advisoryStorage();
+      await storage?.setItem(ROTATION_PENDING_KEY, '');
+    } catch (error) {
+      logger.warn('Failed to clear the pending key rotation marker', { component: 'KeyManager' }, error);
+    }
+  }
+
+  /** The canonical public key a rotation is installing, or null. Never throws. @internal */
+  private static async _readRotationPending(): Promise<string | null> {
+    try {
+      const storage = await KeyManager._advisoryStorage();
+      const value = await storage?.getItem(ROTATION_PENDING_KEY);
+      return value ? KeyManager.canonicalPublicKey(value) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Finish an interrupted rotation: copy the shared slot's key (the one the
+   * server holds) into the primary. @internal
+   */
+  private static async _finishRotationFromSharedSlot(pending: string): Promise<boolean> {
+    let pair: { privateKey: string; publicKey: string } | null = null;
+    if (isAndroid()) {
+      pair = (await KeyManager.identitySignerStore?.read()) ?? null;
+    } else {
+      const privateKey = await KeyManager.getSharedPrivateKey();
+      pair = privateKey ? { privateKey, publicKey: KeyManager.derivePublicKey(privateKey) } : null;
+    }
+    if (
+      !pair ||
+      !KeyManager._isHealthyPair(pair.privateKey, pair.publicKey) ||
+      KeyManager.canonicalPublicKey(pair.publicKey) !== pending
+    ) {
+      return false;
+    }
+    await KeyManager._persistIdentityAtomic(pair.privateKey, pair.publicKey.toLowerCase(), 'import');
+    KeyManager.invalidateCache();
+    await KeyManager.completeKeyRotation();
+    logger.warn(
+      'A key rotation left the primary slot on the replaced key: finished it from the shared slot.',
+      { component: 'KeyManager', method: 'syncSharedIdentity' },
+    );
+    return true;
   }
 
   // ==================== END SHARED IDENTITY METHODS ====================
@@ -1280,6 +1365,15 @@ export class KeyManager {
     publicKey: string,
     origin: IdentityMarker['origin'],
   ): Promise<void> {
+    // On Android only Commons holds the identity, and only Commons registers a
+    // signer store. Any other app writing a key here would be a second holder
+    // the identity host knows nothing about.
+    if (isAndroid() && !KeyManager.identitySignerStore) {
+      throw new IdentityPersistError(
+        'On Android only Commons holds the Oxy identity; this app has no identity signer store.',
+      );
+    }
+
     const store = await initSecureStore();
 
     // Resolve the active slot layout (normally v2; legacy only in the rare
@@ -2826,8 +2920,9 @@ export class KeyManager {
    * Key source (native only):
    * - iOS: the shared identity in `group.so.oxy.shared`, then this device's
    *   primary identity.
-   * - Android: this app's own primary identity (Commons), else Commons computes
-   *   it over IPC. Commons allows each app only its own labels, so an app not on
+   * - Android: Commons (the one app with a signer store) uses its own primary
+   *   identity; every other app asks Commons over IPC and never reads a local
+   *   key. Commons allows each app only its own labels, so an app not on
    *   its list gets `null`.
    * Both reproduce from the user's Oxy recovery phrase, so the seed is
    * recoverable, and the IPC answer is byte-identical to the local one.
@@ -2841,9 +2936,10 @@ export class KeyManager {
       return null;
     }
     if (isAndroid()) {
-      const local = await KeyManager.getPrivateKey();
-      if (local) {
-        return deriveScopedSeedFromKey(local, info);
+      if (KeyManager.identitySignerStore) {
+        // Commons: its own key.
+        const local = await KeyManager.getPrivateKey();
+        return local ? deriveScopedSeedFromKey(local, info) : null;
       }
       const bridge = await loadCommonsIdentityBridge();
       const seed = (await bridge?.deriveScopedSeed(info)) ?? null;
@@ -2874,17 +2970,15 @@ export class KeyManager {
     if (isWebPlatform()) {
       return null;
     }
+    if (isAndroid() && !KeyManager.identitySignerStore) {
+      // Every app but Commons: Commons signs.
+      const bridge = await loadCommonsIdentityBridge();
+      return (await bridge?.signSocialReceive(index, digest)) ?? null;
+    }
     const local = isAndroid()
       ? await KeyManager.getPrivateKey()
       : ((await KeyManager.getSharedPrivateKey()) ?? (await KeyManager.getPrivateKey()));
-    if (local) {
-      return signSocialReceiveDigest(local, index, digest);
-    }
-    if (!isAndroid()) {
-      return null;
-    }
-    const bridge = await loadCommonsIdentityBridge();
-    return (await bridge?.signSocialReceive(index, digest)) ?? null;
+    return local ? signSocialReceiveDigest(local, index, digest) : null;
   }
 
   /**

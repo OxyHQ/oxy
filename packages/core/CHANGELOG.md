@@ -21,6 +21,13 @@ unchanged (keychain access group `group.so.oxy.shared`).
 - On Android `importSharedIdentity` / `createSharedIdentity` write the identity
   signer store and throw in any app that has not registered one (only Commons
   does).
+- On Android an app without a signer store (every app but Commons) cannot
+  persist an identity (`createIdentity`/`importKeyPair` throw), always asks
+  Commons for seeds and social-receive signatures, and never caches the shared
+  public key.
+- `KeyManager.beginKeyRotation` / `completeKeyRotation`: `rotateKey` marks the
+  new key before writing the shared slot, so `syncSharedIdentity` finishes an
+  interrupted rotation from the shared slot instead of reverting it.
 - Removed: `KeyManager.migrateToSharedIdentity` (use `syncSharedIdentity`),
   `storeSharedSession`, `getSharedSession`, `clearSharedSession`.
 - Requires `@oxy.so/protocol` ^1.2.0.

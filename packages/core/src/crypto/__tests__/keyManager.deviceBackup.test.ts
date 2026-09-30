@@ -115,12 +115,31 @@ describe('KeyManager device backup', () => {
     km.cachedHasSharedIdentity = null;
   };
 
-  /** What a sibling's `pm clear` does to this app: every keystore-wrapped copy dies. */
+  /**
+   * What "Clear storage" on Commons (or a reinstall) does: every keystore-wrapped
+   * copy dies, the identity signer store included.
+   */
   const wipeUidKeystore = () => {
     for (const service of ALL_SERVICES) {
       ss.__simulateKeystoreDeath__(service);
     }
+    signerPair = null;
     resetCaches();
+  };
+
+  // Commons' identity signer store (an androidx encrypted file under the same
+  // keystore): on Android only an app with one may hold the identity.
+  let signerPair: { privateKey: string; publicKey: string } | null = null;
+  const signer = {
+    name: 'memory-signer',
+    read: async () => signerPair,
+    write: async (privateKey: string, publicKey: string) => {
+      signerPair = { privateKey, publicKey };
+      return true;
+    },
+    clear: async () => {
+      signerPair = null;
+    },
   };
 
   const record = () => (store.value ? JSON.parse(store.value) : null);
@@ -139,6 +158,8 @@ describe('KeyManager device backup', () => {
     clearIdentityMarker = (await import('../identityMarker')).clearIdentityMarker;
     store = createFakeStore();
     KeyManager.setDeviceBackupStore(store);
+    signerPair = null;
+    KeyManager.setIdentitySignerStore(signer);
     resetCaches();
   });
 
