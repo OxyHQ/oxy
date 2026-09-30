@@ -239,6 +239,42 @@ describe('OxyServices.rotateKey', () => {
       expect(sharedSpy).not.toHaveBeenCalled();
     });
 
+    // Android: the shared slot is Commons' identity signer store — what the
+    // identity host signs with and derives Peable's seed from for every other
+    // app. It is written first whenever this app has one (Commons), whether or
+    // not it already holds a key, and never probed over IPC.
+    it.each([
+      [true, ['shared', 'primary']],
+      [false, ['primary']],
+    ])('on Android, a signer store (%s) decides the shared write', async (hasSigner, expected) => {
+      setPlatformOS('android');
+      try {
+        const order: string[] = [];
+        jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+        jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+        jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
+        jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
+        jest.spyOn(KeyManager, 'hasIdentitySignerStore').mockReturnValue(hasSigner);
+        const probe = jest.spyOn(KeyManager, 'hasSharedIdentity');
+        jest
+          .spyOn(KeyManager, 'importSharedIdentity')
+          .mockImplementation(async () => { order.push('shared'); return NEW_PUBLIC; });
+        jest
+          .spyOn(KeyManager, 'importKeyPair')
+          .mockImplementation(async () => { order.push('primary'); return NEW_PUBLIC; });
+        makeRequestSpy
+          .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
+          .mockResolvedValueOnce({ success: true, publicKey: NEW_PUBLIC, message: 'ok' });
+
+        await oxy.identity.rotateKey({ proof: 'device' });
+
+        expect(order).toEqual(expected);
+        expect(probe).not.toHaveBeenCalled();
+      } finally {
+        setPlatformOS('ios');
+      }
+    });
+
     it('throws (no network) when the device holds no identity', async () => {
       jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
       jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(null);
