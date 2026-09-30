@@ -156,6 +156,12 @@ export interface KaanaDeploymentDescriptor {
   readonly provider: string;
   /** Empty means the execution/residency region is unattested, never global. */
   readonly regions: readonly string[];
+  /**
+   * The request controls this exact deployment's upstream accepts, when Kaana
+   * reports them per deployment. Absent is unknown. Identity attestation never
+   * compares it.
+   */
+  readonly acceptedParameters?: readonly string[];
 }
 
 /** Atomic identity evidence for every deployment the edge may authorize. */

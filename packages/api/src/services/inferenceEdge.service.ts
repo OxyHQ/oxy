@@ -145,6 +145,8 @@ import {
   exceedsAmount,
   resolveCatalogueViewer,
   resolveEdgeRoute,
+  firstUnacceptedParameter,
+  requestParametersOf,
   resolveRoutingProfileForEdge,
   resolveRoutingProfileForEdgeById,
   routingConstraintsOf,
@@ -969,6 +971,20 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   /** Efforts advertised by models whose routes were dropped for lacking the requested one. */
   const effortsOfExcludedRoutes = new Set<string>();
   let sawUnsupportedEffort = false;
+  /**
+   * The request controls the envelope will make Kaana send, and the first one
+   * each dropped route's KNOWN accepted set lacked. A route Kaana's Translate
+   * would refuse on this ground is never signed: its `invalid_request` ends the
+   * request before any other authorized route is tried (OxyHQ/Kaana#124).
+   */
+  const carriedParameters = requestParametersOf(request);
+  const unacceptedParameters = new Set<string>();
+  const acceptsCarriedParameters = (route: EdgeRoute): boolean => {
+    const unaccepted = firstUnacceptedParameter(route.acceptedParameters, carriedParameters);
+    if (unaccepted === undefined) return true;
+    unacceptedParameters.add(unaccepted);
+    return false;
+  };
   let concreteFailure: Exclude<
     Awaited<ReturnType<typeof resolveEdgeRoute>>,
     { readonly status: 'resolved' }
@@ -990,8 +1006,11 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   const qualifyPriority = async (
     resolutions: readonly ResolvedRoutes[]
   ): Promise<Admission | undefined> => {
+    // A route that cannot take the request's controls neither fixes the
+    // implicit output ceiling nor is quoted: it will never be signed.
     const rankedAtPriority = resolutions
       .flatMap((resolution) => [resolution.route, ...resolution.alternates])
+      .filter(acceptsCarriedParameters)
       .sort((left, right) =>
         compareQualifiedRoutes(left, right, routingConstraints.byokPreference === 'prefer')
       );
@@ -1210,6 +1229,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         for (const effort of route.reasoningEfforts) effortsOfExcludedRoutes.add(effort);
         continue;
       }
+      if (!acceptsCarriedParameters(route)) continue;
       if (requestedOutput !== undefined && requestedOutput > route.maxOutputTokens) {
         sawOutputLimit = true;
         continue;
@@ -1326,6 +1346,20 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
           ? `${refusedReference} does not accept a reasoning effort.`
           : `${refusedReference} does not support reasoning effort "${requestedEffort}". Supported efforts: ${supported.join(', ')}.`,
         { param: 'reasoning.effort', reason: 'unsupported_reasoning_effort' }
+      );
+    }
+    const unaccepted = carriedParameters.find((parameter) => unacceptedParameters.has(parameter));
+    if (unaccepted !== undefined) {
+      const refusedReference =
+        requestedModelReference ||
+        routeGroups[0]?.resolution.route.modelReference ||
+        requestedTargetReference;
+      return refuse(
+        'invalid_request',
+        unaccepted === 'maxOutputTokens'
+          ? `No available route for ${refusedReference} accepts an output limit, which every completion carries.`
+          : `No available route for ${refusedReference} accepts ${unaccepted}. Omit it to use the model’s own behaviour.`,
+        { param: unaccepted, reason: 'unsupported_parameter' }
       );
     }
     if (sawOutputLimit) {

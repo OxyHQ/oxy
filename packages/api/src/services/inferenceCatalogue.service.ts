@@ -61,6 +61,8 @@ import {
 import type { SelectedRow } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
 import {
+  DEPLOYMENT_REQUEST_PARAMETERS,
+  type DeploymentRequestParameter,
   inferenceDeployments,
   inferenceDeploymentRoutingScores,
   type InferenceFundingClass,
@@ -959,6 +961,8 @@ export const INTERNAL_DEPLOYMENT_COLUMNS: Readonly<Record<string, string>> = {
   platformFeePriceVersionId:
     'The ledger’s identifier for a BYOK platform fee. It is operational billing configuration, not a public catalogue field.',
   internalRouteId: 'PROTECTED. The data plane’s own route identifier.',
+  acceptedParameters:
+    'Which request controls one concrete route’s upstream accepts, as Kaana observed it. A routing input the edge filters on, per deployment; the customer-facing statement of a model’s controls is the catalogue entry’s `capabilities`, not one route’s observation.',
   autoApprovalPolicyId:
     'Which automatic approval policy (the Kaana sync) approved the route. Part of the approval workflow, like `permissionState`; never customer-facing.',
   upstreamWholesaleCostAmount: 'PROTECTED. What Oxy pays upstream.',
@@ -1670,8 +1674,74 @@ export interface EdgeRoute {
    * request naming an effort outside this list rather than forwarding it.
    */
   readonly reasoningEfforts: readonly string[];
+  /**
+   * The request controls THIS deployment's upstream accepts, as Kaana's
+   * inventory reported them. `null` is unknown and filters nothing; a list is a
+   * complete statement. See {@link firstUnacceptedParameter}.
+   */
+  readonly acceptedParameters: readonly string[] | null;
   /** The model's declared `apiFormats`; absent means undeclared, never "every". */
   readonly apiFormats?: readonly string[];
+}
+
+/**
+ * The request controls a one-shot request will make Kaana send upstream, in
+ * {@link DEPLOYMENT_REQUEST_PARAMETERS} order — exactly what Kaana's Translate
+ * compares against a route's accepted set (OxyHQ/Kaana#124).
+ *
+ * It mirrors what Translate encodes, not what the caller typed: a `text`
+ * response format and an empty stop list send nothing, and `maxOutputTokens`
+ * is carried whenever the envelope bounds output, which the edge does for
+ * every completion (the hold is sized against it) whether or not the caller
+ * named one. Only a completion carries these controls; speech, embeddings,
+ * images and realtime sessions are not checked against the set by Kaana.
+ */
+export function requestParametersOf(request: {
+  readonly operation: { readonly kind: string };
+  readonly sampling: {
+    readonly temperature?: number;
+    readonly topP?: number;
+    readonly frequencyPenalty?: number;
+    readonly presencePenalty?: number;
+    readonly seed?: number;
+    readonly stopSequences?: readonly string[];
+  };
+  readonly reasoning?: unknown;
+  readonly tools: readonly unknown[];
+  readonly toolChoice?: unknown;
+  readonly responseFormat?: { readonly type: string };
+}): readonly DeploymentRequestParameter[] {
+  if (request.operation.kind !== 'completion') return [];
+  const { sampling } = request;
+  const carried: Record<DeploymentRequestParameter, boolean> = {
+    maxOutputTokens: true,
+    'reasoning.effort': request.reasoning !== undefined,
+    responseFormat: request.responseFormat !== undefined && request.responseFormat.type !== 'text',
+    'sampling.frequencyPenalty': sampling.frequencyPenalty !== undefined,
+    'sampling.presencePenalty': sampling.presencePenalty !== undefined,
+    'sampling.seed': sampling.seed !== undefined,
+    'sampling.stopSequences': (sampling.stopSequences?.length ?? 0) > 0,
+    'sampling.temperature': sampling.temperature !== undefined,
+    'sampling.topP': sampling.topP !== undefined,
+    toolChoice: request.toolChoice !== undefined,
+    tools: request.tools.length > 0,
+  };
+  return DEPLOYMENT_REQUEST_PARAMETERS.filter((parameter) => carried[parameter]);
+}
+
+/**
+ * The first of `carried` (vocabulary order) that a route's KNOWN accepted set
+ * does not name, or `undefined` when the route accepts them all. A route whose
+ * set is unknown (`null`) accepts everything: absent is "nobody said", never
+ * "nothing". The same rule as Kaana's `Route.UnacceptedParameter`, so the edge
+ * never signs a route Kaana would refuse on this ground.
+ */
+export function firstUnacceptedParameter(
+  acceptedParameters: readonly string[] | null,
+  carried: readonly DeploymentRequestParameter[]
+): DeploymentRequestParameter | undefined {
+  if (acceptedParameters === null) return undefined;
+  return carried.find((parameter) => !acceptedParameters.includes(parameter));
 }
 
 /**
@@ -1996,6 +2066,7 @@ export async function resolveEdgeRoute(
       maxContextTokens: inferenceModels.maxContextTokens,
       maxOutputTokens: inferenceModels.maxOutputTokens,
       reasoningEfforts: inferenceModels.reasoningEfforts,
+      acceptedParameters: inferenceDeployments.acceptedParameters,
       inputModalities: inferenceModels.inputModalities,
       outputModalities: inferenceModels.outputModalities,
       apiFormats: inferenceModels.apiFormats,
@@ -2289,6 +2360,7 @@ export async function resolveEdgeRoute(
     inputModalities: row.inputModalities,
     outputModalities: row.outputModalities,
     reasoningEfforts: row.reasoningEfforts,
+    acceptedParameters: row.acceptedParameters,
     ...(row.apiFormats === null ? {} : { apiFormats: row.apiFormats }),
   });
 

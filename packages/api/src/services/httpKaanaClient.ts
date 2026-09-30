@@ -164,6 +164,13 @@ const kaanaDeploymentAttestationSchema = z
             modelReference: modelReferenceSchema,
             provider: inferenceProviderSlugSchema,
             regions: z.array(inferenceRegionSchema),
+            /**
+             * The deployment's own accepted request controls, when Kaana's
+             * descriptor carries them. Optional and read leniently (unknown
+             * words are dropped by the sync) so the field can arrive without a
+             * coordinated release; absent is unknown.
+             */
+            acceptedParameters: z.array(z.string().max(64)).max(64).optional(),
           })
           .strict()
       )
