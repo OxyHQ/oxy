@@ -167,6 +167,9 @@ export const USAGE_UNIT_LABELS: Readonly<Record<UsageUnit, string>> = {
   video_milliseconds: 'Video (ms)',
   characters: 'Characters',
   embeddings: 'Embeddings',
+  audio_input_tokens: 'Audio input tokens',
+  cached_audio_input_tokens: 'Cached audio input tokens',
+  audio_output_tokens: 'Audio output tokens',
 }
 
 /** A short line per constraint, for the read-only summary on the overview. */

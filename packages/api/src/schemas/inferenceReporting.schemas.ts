@@ -112,6 +112,9 @@ export const usageUnitTotalsSchema = z
     video_milliseconds: z.number().int().nonnegative(),
     characters: z.number().int().nonnegative(),
     embeddings: z.number().int().nonnegative(),
+    audio_input_tokens: z.number().int().nonnegative(),
+    cached_audio_input_tokens: z.number().int().nonnegative(),
+    audio_output_tokens: z.number().int().nonnegative(),
   })
   .strict();
 

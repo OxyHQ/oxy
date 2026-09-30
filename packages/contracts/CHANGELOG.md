@@ -1,5 +1,40 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.4.0
+
+Inference contract set **3.2.0** (from 3.1.0): audio chat, audio-token metering,
+capability-declared request shapes and realtime sessions (OxyHQ/Kaana#90). Every
+change is additive; no shape's `schemaVersion` moved. A 3.1 consumer refuses the
+new members and fields, which is what the MINOR bump announces.
+
+### Added
+
+- `USAGE_UNITS` gains `audio_input_tokens`, `cached_audio_input_tokens` and
+  `audio_output_tokens` — siblings of the text-token units under the partition
+  rule, never inside them. `money.ts` states the subtraction a data plane applies
+  to an OpenAI-style report. oxy-api migration `0124_audio_token_units` adds the
+  ledger columns.
+- `inferenceApiFormatSchema`: the public dialects, named. `clientRequestMetadataSchema.apiFormat`
+  now references it (same members, same wire bytes).
+- `inferenceAudioOutputParametersSchema` and the envelope's optional
+  `audioOutput` (`{ voice, format }`): spoken output from a conversational model
+  (`gpt-audio-*`). Refined to `chat_completions`, `audio` modality and a
+  messages input; a streamed request must ask for `pcm`.
+- `inferenceStreamDeltaEventSchema.channel` gains `output_audio_transcript`.
+- `modelCapabilitiesSchema.apiFormats` (optional; absent means undeclared, never
+  "every format") and `.realtime` (`modelRealtimeCapabilitiesSchema`:
+  `transports`, `sessionKinds`), with `realtimeSessionKindSchema`
+  (`conversation` | `transcription` | `translation`) and
+  `realtimeSessionTransportSchema` (`websocket`).
+- `inference/realtime`: the realtime session family. `realtimeSessionRequestSchema`
+  (the signed first frame: model, kind, transport, config, limits, authorized
+  `same_model` routes), eleven client commands (`realtimeClientCommandSchema`),
+  twenty-two server events (`realtimeServerEventSchema`), their embedded config,
+  item and content shapes, and the bounds `MAX_REALTIME_AUDIO_FRAME_BASE64_LENGTH`,
+  `MAX_REALTIME_SESSION_DURATION_MS`, `MAX_REALTIME_SESSION_AUDIO_BYTES`,
+  `MAX_REALTIME_RESUME_WINDOW_MS`. The module header states the framing,
+  at-most-once command, reconnect and settlement rules.
+
 ## 4.3.0
 
 ### Added

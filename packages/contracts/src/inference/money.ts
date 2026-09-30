@@ -123,6 +123,26 @@ export const moneySchema = z
  * output_tokens = completion_tokens - completion_tokens_details.reasoning_tokens
  * ```
  *
+ * **Audio tokens are siblings too** (added in contract set 3.2.0). A model that
+ * consumes or produces audio AS TOKENS — OpenAI's audio chat and Realtime
+ * models — reports them inside the same totals, and they are priced several
+ * times higher than text tokens, so folding them into `input_tokens` would
+ * under-charge by exactly the audio. They are subtracted out the same way:
+ *
+ * ```text
+ * cached_audio_input_tokens = prompt_tokens_details.cached_tokens_details.audio_tokens
+ * audio_input_tokens        = prompt_tokens_details.audio_tokens - cached_audio_input_tokens
+ * input_tokens              = prompt_tokens - (text AND audio cached) - audio_input_tokens
+ * audio_output_tokens       = completion_tokens_details.audio_tokens
+ * output_tokens             = completion_tokens - reasoning_tokens - audio_output_tokens
+ * ```
+ *
+ * `audio_input_milliseconds` and `audio_output_milliseconds` remain the units
+ * for audio metered by DURATION (file transcription, speech synthesis). A
+ * report carries one reading of a given audio, never both: the same audio
+ * reported as tokens and as milliseconds is the double charge this rule exists
+ * to prevent.
+ *
  * No refinement in this package can enforce it, and saying so is part of the
  * rule: a nested report and a disjoint one are the same four non-negative
  * integers, so no predicate over a single report can tell them apart. The two
@@ -156,6 +176,9 @@ export const USAGE_UNITS = [
   'video_milliseconds',
   'characters',
   'embeddings',
+  'audio_input_tokens',
+  'cached_audio_input_tokens',
+  'audio_output_tokens',
 ] as const;
 
 export const usageUnitSchema = z.enum(USAGE_UNITS);

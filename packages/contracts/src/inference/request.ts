@@ -26,7 +26,11 @@
 
 import { z } from "zod";
 import { inferenceAttributionSchema } from "./attribution";
-import { inferenceModalitySchema, reasoningEffortSchema } from "./catalogue";
+import {
+  inferenceApiFormatSchema,
+  inferenceModalitySchema,
+  reasoningEffortSchema,
+} from "./catalogue";
 import { idempotencyKeySchema, inferenceTimestampSchema } from "./identifiers";
 import {
   authorizedRouteSchema,
@@ -312,16 +316,7 @@ export const inferenceReasoningSchema = z
 export const clientRequestMetadataSchema = z
   .object({
     /** The public dialect the customer called. The response is rendered in it. */
-    apiFormat: z.enum([
-      "responses",
-      "chat_completions",
-      "embeddings",
-      "images_generations",
-      "audio_transcriptions",
-      "audio_speech",
-      "rerank",
-      "batches",
-    ]),
+    apiFormat: inferenceApiFormatSchema,
     /** The public path, e.g. `/v1/responses`. */
     endpoint: z.string().min(1).max(256),
     /** The customer's own correlation id, when they sent one. */
@@ -357,6 +352,30 @@ export const inferenceSpeechParametersSchema = z.object({
 export type InferenceSpeechParameters = z.infer<typeof inferenceSpeechParametersSchema>;
 
 /**
+ * Spoken output from a CONVERSATIONAL model (contract set 3.2.0) — an audio chat
+ * model answering in its own voice, as opposed to `speech`, which reads given
+ * text aloud. Presence is the request: a chat request carrying this asks for
+ * the answer as audio AND its transcript, which is the only combination the
+ * audio chat models produce (OpenAI's `modalities: ["text", "audio"]`).
+ *
+ * The audio streams as `audio` events and the words as `delta` events on the
+ * `output_audio_transcript` channel — never as `output_text`, because a
+ * transcript of speech the customer is already hearing is not a second answer.
+ * `pcm` is the only format an audio chat model can STREAM; the refinement on the
+ * envelope holds that rather than leaving a provider to refuse it mid-flight.
+ */
+export const inferenceAudioOutputParametersSchema = z
+  .object({
+    voice: z.string().min(1).max(64),
+    format: z.enum(["wav", "mp3", "flac", "opus", "pcm"]),
+  })
+  .strict();
+
+export type InferenceAudioOutputParameters = z.infer<
+  typeof inferenceAudioOutputParametersSchema
+>;
+
+/**
  * The canonical internal request Oxy forwards to the data plane.
  *
  * `target` distinguishes the two questions a caller can ask — "serve THIS
@@ -378,6 +397,8 @@ export const inferenceRequestSchema = z
     /** Absent means the route's own default reasoning behaviour. */
     reasoning: inferenceReasoningSchema.optional(),
     speech: inferenceSpeechParametersSchema.optional(),
+    /** Spoken output from a conversational model. Contract set 3.2.0. */
+    audioOutput: inferenceAudioOutputParametersSchema.optional(),
     tools: z.array(toolDefinitionSchema).default([]),
     toolChoice: toolChoiceSchema.optional(),
     responseFormat: responseFormatSchema.optional(),
@@ -426,6 +447,17 @@ export const inferenceRequestSchema = z
     }
     if (!isSpeech && request.speech !== undefined) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["speech"], message: "speech parameters require the audio_speech API format" });
+    }
+    if (request.audioOutput !== undefined) {
+      if (request.client.apiFormat !== "chat_completions") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["audioOutput"], message: "spoken output from a conversational model requires the chat_completions API format" });
+      }
+      if (request.modality !== "audio" || request.input.format !== "messages") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["audioOutput"], message: "spoken output requires audio modality and a messages input" });
+      }
+      if (request.stream && request.audioOutput.format !== "pcm") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["audioOutput", "format"], message: "streamed spoken output is pcm; the other formats exist only whole" });
+      }
     }
     if (request.toolChoice !== undefined && request.tools.length === 0) {
       ctx.addIssue({

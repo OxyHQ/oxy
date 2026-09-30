@@ -46,6 +46,7 @@ import * as modelDocumentation from "../inference/modelDocumentation";
 import * as money from "../inference/money";
 import * as priceVersion from "../inference/priceVersion";
 import * as providerConnection from "../inference/providerConnection";
+import * as realtime from "../inference/realtime";
 import * as request from "../inference/request";
 import * as routingPolicy from "../inference/routingPolicy";
 import * as streamEvents from "../inference/streamEvents";
@@ -71,6 +72,7 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   money,
   priceVersion,
   providerConnection,
+  realtime,
   request,
   routingPolicy,
   streamEvents,
@@ -210,6 +212,42 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   inferenceErrorSchema: 1,
   embeddingSuccessSchema: 1,
   embeddingFailureSchema: 1,
+  // Realtime sessions (contract set 3.2.0): the signed session request, every
+  // client command and every server event is a whole message on the wire.
+  realtimeSessionRequestSchema: 1,
+  realtimeSessionUpdateCommandSchema: 1,
+  realtimeItemCreateCommandSchema: 1,
+  realtimeItemDeleteCommandSchema: 1,
+  realtimeItemTruncateCommandSchema: 1,
+  realtimeInputAudioAppendCommandSchema: 1,
+  realtimeInputAudioCommitCommandSchema: 1,
+  realtimeInputAudioClearCommandSchema: 1,
+  realtimeResponseCreateCommandSchema: 1,
+  realtimeResponseCancelCommandSchema: 1,
+  realtimeSessionResumeCommandSchema: 1,
+  realtimeSessionCloseCommandSchema: 1,
+  realtimeSessionCreatedEventSchema: 1,
+  realtimeSessionUpdatedEventSchema: 1,
+  realtimeSessionResumedEventSchema: 1,
+  realtimeCommandAcceptedEventSchema: 1,
+  realtimeItemAddedEventSchema: 1,
+  realtimeItemDoneEventSchema: 1,
+  realtimeItemDeletedEventSchema: 1,
+  realtimeItemTruncatedEventSchema: 1,
+  realtimeSpeechStartedEventSchema: 1,
+  realtimeSpeechStoppedEventSchema: 1,
+  realtimeInputAudioCommittedEventSchema: 1,
+  realtimeInputAudioClearedEventSchema: 1,
+  realtimeResponseCreatedEventSchema: 1,
+  realtimeOutputAudioDeltaEventSchema: 1,
+  realtimeOutputAudioDoneEventSchema: 1,
+  realtimeTranscriptDeltaEventSchema: 1,
+  realtimeTranscriptDoneEventSchema: 1,
+  realtimeTextDeltaEventSchema: 1,
+  realtimeToolCallEventSchema: 1,
+  realtimeResponseDoneEventSchema: 1,
+  realtimeErrorEventSchema: 1,
+  realtimeSessionClosedEventSchema: 1,
 };
 
 /**
@@ -241,6 +279,7 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
   "inferenceMessageSchema",
   "inferenceReasoningSchema",
   "inferenceSpeechParametersSchema",
+  "inferenceAudioOutputParametersSchema",
   "inferenceToolCallSchema",
   "kaanaCredentialIdentitySchema",
   "modelCapabilitiesSchema",
@@ -251,6 +290,7 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
   "modelLicenseSchema",
   "modelLineDeclarationSchema",
   "modelProvenanceSchema",
+  "modelRealtimeCapabilitiesSchema",
   "modelSafetyMetadataSchema",
   "externalPaymentSchema",
   "moneySchema",
@@ -261,6 +301,13 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
   "providerConnectionValidationSchema",
   "providerCredentialValidationDeploymentSchema",
   "providerErrorPassthroughSchema",
+  "realtimeClientMetadataSchema",
+  "realtimeInputTranscriptionSchema",
+  "realtimeResponseParametersSchema",
+  "realtimeSessionConfigSchema",
+  "realtimeSessionConfigUpdateSchema",
+  "realtimeSessionLimitsSchema",
+  "realtimeTranslationSchema",
   "routingFallbackPolicySchema",
   "routingPolicyReferenceSchema",
   "routingProfileCandidateSchema",
@@ -299,6 +346,11 @@ const FROZEN_UNION_SHAPES: string[] = [
   "kaanaCredentialOutcomeRequestSchema",
   "kaanaCredentialOutcomeSchema",
   "providerConnectionScopeSchema",
+  "realtimeClientCommandSchema",
+  "realtimeContentPartSchema",
+  "realtimeConversationItemSchema",
+  "realtimeServerEventSchema",
+  "realtimeTurnDetectionSchema",
   "responseFormatSchema",
   "routingPolicyScopeSchema",
   "routingTargetSchema",
@@ -470,7 +522,264 @@ const ALIA_RELEASE_MANIFEST = {
   ],
 };
 
+/* Realtime fixtures: one session, one conversation, every command and event. */
+const RT_REQUEST = "req_rt_01H8ZB0000";
+const RT_AUDIO = "AAAAAAAAAAA=";
+const RT_CONFIG = {
+  instructions: "Answer briefly, in the caller's language.",
+  outputModalities: ["audio"],
+  voice: "marin",
+  inputAudioFormat: "pcm16_24khz",
+  outputAudioFormat: "pcm16_24khz",
+  turnDetection: {
+    type: "server_vad",
+    threshold: 0.5,
+    prefixPaddingMs: 300,
+    silenceDurationMs: 500,
+    createResponse: true,
+    interruptResponse: true,
+  },
+  inputAudioTranscription: { language: "en" },
+  tools: [
+    {
+      type: "function",
+      name: "lookup_order",
+      description: "Fetch an order by id",
+      parameters: { type: "object", properties: { id: { type: "string" } } },
+    },
+  ],
+  toolChoice: "auto",
+  temperature: 0.8,
+  maxOutputTokens: 4096,
+};
+const RT_LIMITS = {
+  maxDurationMs: 1_800_000,
+  idleTimeoutMs: 120_000,
+  maxInputAudioBytes: 86_400_000,
+  maxOutputAudioBytes: 86_400_000,
+  maxResponses: 200,
+};
+const RT_ITEM = {
+  type: "message",
+  itemId: "item_01",
+  role: "user",
+  content: [{ type: "input_audio", format: "pcm16_24khz", transcript: "Where is my order?" }],
+};
+const rtCommand = (type: string, fields: Record<string, unknown> = {}) => ({
+  schemaVersion: 1,
+  requestId: RT_REQUEST,
+  commandId: `cmd_${type}`,
+  type,
+  ...fields,
+});
+let rtSequence = 0;
+const rtEvent = (type: string, fields: Record<string, unknown> = {}) => ({
+  schemaVersion: 1,
+  requestId: RT_REQUEST,
+  sequence: rtSequence++,
+  type,
+  ...fields,
+});
+
+const REALTIME_FIXTURES: Record<string, unknown> = {
+  realtimeSessionRequestSchema: {
+    schemaVersion: 1,
+    attribution: { ...ATTRIBUTION, requestId: RT_REQUEST },
+    modelReference: "openai/gpt-realtime-2.1",
+    kind: "conversation",
+    transport: "websocket",
+    config: RT_CONFIG,
+    limits: RT_LIMITS,
+    client: {
+      endpoint: "/v1/realtime",
+      clientSessionId: "sess_client_7",
+      receivedAt: "2026-09-30T10:00:00.000Z",
+      labels: { team: "support" },
+    },
+    routingPolicy: { routingPolicyId: "rp_voice_prod", policyVersion: 4 },
+    authorizedRoutes: [
+      {
+        substitution: "same_model",
+        modelReference: "openai/gpt-realtime-2.1@2026-08-28",
+        provider: "openai",
+        deploymentId: "dep_openai_realtime_1",
+        regions: ["us-east-1"],
+      },
+    ],
+  },
+  realtimeSessionUpdateCommandSchema: rtCommand("session.update", {
+    config: { instructions: "Be warmer.", temperature: 0.9 },
+  }),
+  realtimeItemCreateCommandSchema: rtCommand("conversation.item.create", {
+    previousItemId: "item_00",
+    item: {
+      type: "message",
+      role: "user",
+      content: [
+        { type: "input_text", text: "My order id is 42." },
+        { type: "input_audio", format: "pcm16_24khz", data: RT_AUDIO },
+      ],
+    },
+  }),
+  realtimeItemDeleteCommandSchema: rtCommand("conversation.item.delete", { itemId: "item_01" }),
+  realtimeItemTruncateCommandSchema: rtCommand("conversation.item.truncate", {
+    itemId: "item_02",
+    contentIndex: 0,
+    audioEndMs: 1_250,
+  }),
+  realtimeInputAudioAppendCommandSchema: rtCommand("input_audio.append", { data: RT_AUDIO }),
+  realtimeInputAudioCommitCommandSchema: rtCommand("input_audio.commit"),
+  realtimeInputAudioClearCommandSchema: rtCommand("input_audio.clear"),
+  realtimeResponseCreateCommandSchema: rtCommand("response.create", {
+    response: {
+      instructions: "Confirm the order status.",
+      outputModalities: ["audio", "text"],
+      maxOutputTokens: 512,
+      toolChoice: { type: "function", name: "lookup_order" },
+    },
+  }),
+  realtimeResponseCancelCommandSchema: rtCommand("response.cancel", { responseId: "resp_01" }),
+  realtimeSessionResumeCommandSchema: rtCommand("session.resume", { afterSequence: 17 }),
+  realtimeSessionCloseCommandSchema: rtCommand("session.close"),
+  realtimeSessionCreatedEventSchema: rtEvent("session.created", {
+    resolvedModelReference: "openai/gpt-realtime-2.1@2026-08-28",
+    servingProvider: "openai",
+    deploymentId: "dep_openai_realtime_1",
+    kind: "conversation",
+    config: RT_CONFIG,
+    limits: RT_LIMITS,
+    resumeWindowMs: 30_000,
+    startedAt: "2026-09-30T10:00:00.200Z",
+    expiresAt: "2026-09-30T10:30:00.200Z",
+  }),
+  realtimeSessionUpdatedEventSchema: rtEvent("session.updated", {
+    commandId: "cmd_session.update",
+    config: { ...RT_CONFIG, instructions: "Be warmer.", temperature: 0.9 },
+  }),
+  realtimeSessionResumedEventSchema: rtEvent("session.resumed", {
+    commandId: "cmd_session.resume",
+    afterSequence: 17,
+  }),
+  realtimeCommandAcceptedEventSchema: rtEvent("command.accepted", {
+    commandId: "cmd_input_audio.append",
+    duplicate: false,
+  }),
+  realtimeItemAddedEventSchema: rtEvent("conversation.item.added", {
+    itemId: "item_01",
+    previousItemId: "item_00",
+    item: RT_ITEM,
+  }),
+  realtimeItemDoneEventSchema: rtEvent("conversation.item.done", {
+    itemId: "item_02",
+    item: {
+      type: "message",
+      itemId: "item_02",
+      role: "assistant",
+      content: [{ type: "output_audio", format: "pcm16_24khz", transcript: "It ships today." }],
+    },
+  }),
+  realtimeItemDeletedEventSchema: rtEvent("conversation.item.deleted", { itemId: "item_01" }),
+  realtimeItemTruncatedEventSchema: rtEvent("conversation.item.truncated", {
+    itemId: "item_02",
+    contentIndex: 0,
+    audioEndMs: 1_250,
+  }),
+  realtimeSpeechStartedEventSchema: rtEvent("input_audio.speech_started", {
+    itemId: "item_03",
+    audioStartMs: 4_020,
+  }),
+  realtimeSpeechStoppedEventSchema: rtEvent("input_audio.speech_stopped", {
+    itemId: "item_03",
+    audioEndMs: 6_480,
+  }),
+  realtimeInputAudioCommittedEventSchema: rtEvent("input_audio.committed", {
+    itemId: "item_03",
+    previousItemId: "item_02",
+  }),
+  realtimeInputAudioClearedEventSchema: rtEvent("input_audio.cleared", {
+    commandId: "cmd_input_audio.clear",
+  }),
+  realtimeResponseCreatedEventSchema: rtEvent("response.created", { responseId: "resp_02" }),
+  realtimeOutputAudioDeltaEventSchema: rtEvent("output_audio.delta", {
+    responseId: "resp_02",
+    itemId: "item_04",
+    contentIndex: 0,
+    format: "pcm16_24khz",
+    data: RT_AUDIO,
+  }),
+  realtimeOutputAudioDoneEventSchema: rtEvent("output_audio.done", {
+    responseId: "resp_02",
+    itemId: "item_04",
+    contentIndex: 0,
+  }),
+  realtimeTranscriptDeltaEventSchema: rtEvent("transcript.delta", {
+    source: "output_audio",
+    itemId: "item_04",
+    contentIndex: 0,
+    responseId: "resp_02",
+    text: "It ships ",
+  }),
+  realtimeTranscriptDoneEventSchema: rtEvent("transcript.done", {
+    source: "input_audio",
+    itemId: "item_03",
+    contentIndex: 0,
+    transcript: "When does it ship?",
+  }),
+  realtimeTextDeltaEventSchema: rtEvent("text.delta", {
+    responseId: "resp_03",
+    itemId: "item_05",
+    contentIndex: 0,
+    text: "Order 42",
+  }),
+  realtimeToolCallEventSchema: rtEvent("tool_call", {
+    responseId: "resp_03",
+    itemId: "item_06",
+    toolCallId: "call_1",
+    name: "lookup_order",
+    argumentsDelta: '{"id":"42"}',
+    complete: true,
+  }),
+  realtimeResponseDoneEventSchema: rtEvent("response.done", {
+    responseId: "resp_02",
+    status: "completed",
+    finishReason: "stop",
+    deploymentId: "dep_openai_realtime_1",
+    units: [
+      { unit: "audio_input_tokens", quantity: 212 },
+      { unit: "cached_audio_input_tokens", quantity: 64 },
+      { unit: "input_tokens", quantity: 480 },
+      { unit: "audio_output_tokens", quantity: 318 },
+      { unit: "output_tokens", quantity: 41 },
+    ],
+    usageSource: "provider_reported",
+  }),
+  realtimeErrorEventSchema: rtEvent("error", {
+    commandId: "cmd_conversation.item.delete",
+    fatal: false,
+    error: {
+      schemaVersion: 1,
+      code: "invalid_request",
+      message: "No conversation item has that id.",
+      retryable: false,
+      requestId: RT_REQUEST,
+    },
+  }),
+  realtimeSessionClosedEventSchema: rtEvent("session.closed", {
+    reason: "client_closed",
+    deploymentId: "dep_openai_realtime_1",
+    units: [
+      { unit: "audio_input_tokens", quantity: 4_212 },
+      { unit: "audio_output_tokens", quantity: 6_318 },
+      { unit: "input_tokens", quantity: 9_480 },
+      { unit: "output_tokens", quantity: 841 },
+    ],
+    usageSource: "provider_reported",
+    closedAt: "2026-09-30T10:12:40.000Z",
+  }),
+};
+
 const FIXTURES: Record<string, unknown> = {
+  ...REALTIME_FIXTURES,
   embeddingSuccessSchema: {
     schemaVersion: 1,
     requestId: "req_embedding_1",
@@ -1315,7 +1624,10 @@ describe("inference contract versioning", () => {
     // to a platform audience. MINOR 1: the envelope gained optional `reasoning`,
     // and the strict capabilities leaf gained `reasoningEfforts` — an older
     // consumer refuses those bytes, which is exactly what MINOR signals.
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.1.0");
+    // MINOR 2: audio-token units, the `output_audio_transcript` channel, the
+    // envelope's `audioOutput`, capability `apiFormats`/`realtime`, and the
+    // realtime session family — all additive, all refused by a 3.1 consumer.
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.2.0");
   });
 
   it("matches the frozen schema version map exactly", () => {

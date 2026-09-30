@@ -24,7 +24,7 @@
  *
  * ## Why fixed unit COLUMNS rather than a child table or `jsonb`
  *
- * `USAGE_UNITS` is a closed vocabulary of eleven values that changes only by
+ * `USAGE_UNITS` is a closed vocabulary of fourteen values that changes only by
  * contract change. Fixed columns make three things true that a child table does
  * not:
  *
@@ -136,6 +136,9 @@ export const usageUnitColumns = () => ({
   videoMilliseconds: bigint({ mode: 'number' }).notNull().default(0),
   characters: bigint({ mode: 'number' }).notNull().default(0),
   embeddings: bigint({ mode: 'number' }).notNull().default(0),
+  audioInputTokens: bigint({ mode: 'number' }).notNull().default(0),
+  cachedAudioInputTokens: bigint({ mode: 'number' }).notNull().default(0),
+  audioOutputTokens: bigint({ mode: 'number' }).notNull().default(0),
 });
 
 /** The property name each contract unit is stored under. */
@@ -162,6 +165,9 @@ export const USAGE_UNIT_COLUMN_KEYS: Readonly<Record<UsageUnit, UsageUnitColumnK
   video_milliseconds: 'videoMilliseconds',
   characters: 'characters',
   embeddings: 'embeddings',
+  audio_input_tokens: 'audioInputTokens',
+  cached_audio_input_tokens: 'cachedAudioInputTokens',
+  audio_output_tokens: 'audioOutputTokens',
 };
 
 /**
@@ -203,6 +209,9 @@ export function zeroUsageUnits(): Record<UsageUnitColumnKey, number> {
     videoMilliseconds: 0,
     characters: 0,
     embeddings: 0,
+    audioInputTokens: 0,
+    cachedAudioInputTokens: 0,
+    audioOutputTokens: 0,
   };
 }
 
