@@ -288,6 +288,9 @@ const parseExcludeTypesQuery = (excludeTypesRaw: unknown): ExcludableUserType[] 
     .filter(isExcludableUserType);
 };
 
+/** Every character a local username may carry on the read path (#1116). */
+const LOCAL_USERNAME_LOOKUP = /^[a-zA-Z0-9._-]+$/;
+
 /**
  * @openapi
  * /profiles/username/{username}:
@@ -353,12 +356,16 @@ router.get(
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
     const raw = req.params.username;
 
-    // Federated handles (user@domain) are looked up as-is;
-    // local usernames are sanitised to alphanumeric + underscores/hyphens/dots.
+    // Federated handles (user@domain) are looked up as-is. A local username is
+    // a LOOKUP KEY: one with a character outside the lookup grammar names no
+    // profile, so it is a 404 — never stripped down to a different handle that
+    // does exist (#1116). The grammar is deliberately looser than the write
+    // policy (`usernameSchema`), so rows written under earlier rules resolve.
     const isFedHandle = isFediverseHandle(raw);
-    const username = isFedHandle
-      ? raw.replace(/^@/, '').toLowerCase()
-      : raw.replace(/[^a-zA-Z0-9._-]/g, '');
+    if (!isFedHandle && !LOCAL_USERNAME_LOOKUP.test(raw)) {
+      throw new NotFoundError('Profile not found');
+    }
+    const username = isFedHandle ? raw.replace(/^@/, '').toLowerCase() : raw;
 
     if (!username || username.length < MIN_USERNAME_LENGTH) {
       throw new BadRequestError(

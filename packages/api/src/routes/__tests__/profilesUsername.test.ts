@@ -162,6 +162,18 @@ describe('GET /profiles/username/:username — eligibility gate', () => {
     expect(res.status).toBe(404);
   });
 
+  it('never serves a different account for a handle with characters stripped out (#1116)', async () => {
+    const name = handle('alice');
+    await account({ username: name });
+
+    for (const coerced of [`${name.slice(0, 3)} ${name.slice(3)}`, `${name}!`, name.split('').join('!')]) {
+      const res = await lookup(coerced);
+      expect(res.status).toBe(404);
+      expect(res.raw).not.toContain(name);
+    }
+    expect((await lookup(name)).status).toBe(200);
+  });
+
   it('rejects a username shorter than the 3-character minimum', async () => {
     const res = await lookup('ab');
 
