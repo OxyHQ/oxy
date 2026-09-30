@@ -121,7 +121,8 @@ requireMatch(
 );
 
 for (const exact of [
-	"snap_37548e4f1f8ec610",
+	"snap_8801d0c4e843149f",
+	"dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_09_30",
 	"openai/gpt-oss-120b",
 	"openai/gpt-oss-120b@observed-2026-09-01",
 	"dep_cerebras_gpt_oss_120b_observed_2026_09_01",

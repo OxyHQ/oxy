@@ -59,7 +59,7 @@ env:
   NETWORK_SERVICE: kaana-publisher
   LIVE_CONTAINER: oxy-api
   BOOTSTRAP_CONTAINER: kaana-catalogue-bootstrap
-  INVENTORY_SNAPSHOT_ID: snap_37548e4f1f8ec610
+  INVENTORY_SNAPSHOT_ID: snap_8801d0c4e843149f
   MODEL_ID: openai/gpt-oss-120b
   MODEL_REFERENCE: openai/gpt-oss-120b@observed-2026-09-01
   CEREBRAS_DEPLOYMENT_ID: dep_cerebras_gpt_oss_120b_observed_2026_09_01
@@ -75,7 +75,7 @@ env:
   # two values, in the same change, as KAANA_VOICE_OBSERVATION in
   # packages/api/src/config/kaanaInitialCatalogue.ts (a test holds them equal).
   # The revision is derived from the id's date, never written separately.
-  VOICE_DEPLOYMENT_ID: ''
+  VOICE_DEPLOYMENT_ID: 'dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_09_30'
   REVIEWER_USER_ID_EXPECTED: 6981c9178fcdefaf81988ffb
   PROFILE_DEFAULT_ID: 01a06477-94f5-74f0-bc25-4c5c13b93ccd
   # Alia's speech-only profile, reserved by Alia before this catalogue existed.
@@ -174,7 +174,7 @@ jobs:
 
           # Independent exact-value assertions keep a changed env entry from
           # silently widening the reviewed catalogue in a manual workflow.
-          [ "$INVENTORY_SNAPSHOT_ID" = 'snap_37548e4f1f8ec610' ]
+          [ "$INVENTORY_SNAPSHOT_ID" = 'snap_8801d0c4e843149f' ]
           [ "$MODEL_ID" = 'openai/gpt-oss-120b' ]
           [ "$MODEL_REFERENCE" = 'openai/gpt-oss-120b@observed-2026-09-01' ]
           [ "$CEREBRAS_DEPLOYMENT_ID" = 'dep_cerebras_gpt_oss_120b_observed_2026_09_01' ]
@@ -183,7 +183,7 @@ jobs:
           [ "$SPEECH_MODEL_ID" = 'x-ai/text-to-speech' ]
           [ "$SPEECH_MODEL_REFERENCE" = 'x-ai/text-to-speech@observed-2026-09-24' ]
           [ "$XAI_DEPLOYMENT_ID" = 'dep_xai_tts_observed_2026_09_24' ]
-          [ "$VOICE_DEPLOYMENT_ID" = '' ]
+          [ "$VOICE_DEPLOYMENT_ID" = 'dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_09_30' ]
           [ "$PROFILE_SPEECH_ID" = 'cc2471c8-807e-46ec-b5da-b6f3b39d2db5' ]
           [ "$REVIEWER_USER_ID_EXPECTED" = '6981c9178fcdefaf81988ffb' ]
           [ "$PROFILE_DEFAULT_ID" = '01a06477-94f5-74f0-bc25-4c5c13b93ccd' ]
