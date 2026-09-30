@@ -36,8 +36,10 @@ fi
 
 worker_service="oxy-asset-variant-worker"
 worker_container="oxy-asset-variant-worker"
-attempts="${WORKER_ROLLOUT_ATTEMPTS:-40}"
-poll_seconds="${WORKER_ROLLOUT_POLL_SECONDS:-15}"
+# 120 x 5 s: the same 600 s budget as the 40 x 15 s it replaced, observed at
+# 5 s so neither phase overshoots the state it waits for by up to 15 s.
+attempts="${WORKER_ROLLOUT_ATTEMPTS:-120}"
+poll_seconds="${WORKER_ROLLOUT_POLL_SECONDS:-5}"
 
 describe_worker() {
   aws ecs describe-services --cluster "$CLUSTER" --services "$worker_service"

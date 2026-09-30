@@ -352,6 +352,12 @@ jobs:
           # 100. At desired=2 the serial rollout took 416s (run 36505794567:
           # two waves of start, 2 x 30s health checks and a 60s drain).
           ROLLOUT_MAX_PERCENT: "200"
+          # Poll ECS every 5 s, not the script's default 15 s. Every wait in this
+          # step (pre-migration, worker consumers, API rollout, post tasks) ends
+          # on a poll, so each one overshot what it waited for by up to 15 s:
+          # the API rollout completed at 12:58:19 and was seen at 12:58:30 (run
+          # 36716875305). The wait budgets are in seconds, so they are unchanged.
+          POLL_INTERVAL: "5"
           # Plain operational configuration, never provider credentials. The
           # Kaana hop is fully named here so an image deploy cannot silently
           # discard Terraform's task bindings. Kaana is the canonical signed
