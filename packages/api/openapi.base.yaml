@@ -135,8 +135,12 @@ components:
       description: >
         Short-lived, signed and audience-bound authority for one exact actor,
         account, resource and tool. Send as `Authorization: Capability <ticket>`.
-        It is accepted only by routes whose app catalog exposes that tool and is
-        re-authorized immediately before execution so revocation takes effect.
+        It is accepted only at the address of the tool it names in the app's
+        capability catalog, and is re-authorized immediately before execution
+        so revocation takes effect. A ticket request is a call of that catalog
+        tool: its input and response are the tool's (see the Inbox capability
+        catalog), not those of the session operation documented at the same
+        address.
   schemas:
     Error:
       type: object

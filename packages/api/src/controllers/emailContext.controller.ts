@@ -1,13 +1,12 @@
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import {
   emailAgentContextSchema,
-  type CapabilityTicketClaims,
+  type EmailAgentContext,
   type EmailContextMessage,
 } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { messages as messagesTable } from '../db/schema/messages';
-import type { EmailCapabilityRequest } from '../middleware/emailCapabilityAuth';
 import { emailService } from '../services/email.service';
 
 function contextMessage(message: {
@@ -31,13 +30,19 @@ function contextMessage(message: {
   };
 }
 
-export async function getEmailAgentContext(request: EmailCapabilityRequest, response: Response): Promise<void> {
-  const accountId = request.user!.id;
-  const ticket: CapabilityTicketClaims | undefined = request.capabilityTicket;
-  const resourceMailboxId = ticket?.resource.resourceType === 'mailbox'
-    ? ticket.resource.resourceId
-    : typeof request.query.mailbox === 'string' ? request.query.mailbox : null;
-  const limit = Math.min(Math.max(Number.parseInt(String(request.query.limit ?? '20'), 10) || 20, 1), 50);
+/**
+ * The planning snapshot behind `GET /email/ai-context` and the catalog's
+ * `getEmailContext`: the account's mailboxes (or just `mailboxId`) with their
+ * counters, the newest unread messages, and those among them nobody has
+ * answered yet. The capability tool passes the ticket's mailbox; the REST route
+ * passes the `mailbox` query parameter of the signed-in owner.
+ */
+export async function buildEmailAgentContext(
+  accountId: string,
+  options: { mailboxId?: string | null; limit?: number } = {},
+): Promise<EmailAgentContext> {
+  const resourceMailboxId = options.mailboxId ?? null;
+  const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
   const accountMailboxes = await emailService.listMailboxes(accountId);
   const selectedMailboxes = resourceMailboxId
     ? accountMailboxes.filter((mailbox) => mailbox.id === resourceMailboxId)
@@ -64,7 +69,7 @@ export async function getEmailAgentContext(request: EmailCapabilityRequest, resp
     .orderBy(desc(messagesTable.receivedAt))
     .limit(limit);
   const recentUnread = unreadMessages.map(contextMessage);
-  const context = emailAgentContextSchema.parse({
+  return emailAgentContextSchema.parse({
     accountId,
     resourceMailboxId,
     generatedAt: new Date().toISOString(),
@@ -77,6 +82,16 @@ export async function getEmailAgentContext(request: EmailCapabilityRequest, resp
     })),
     recentUnread,
     needsResponse: unreadMessages.filter((message) => !message.answered && !message.draft).map(contextMessage),
+  });
+}
+
+export async function getEmailAgentContext(
+  request: Request & { user?: { id: string } },
+  response: Response,
+): Promise<void> {
+  const context = await buildEmailAgentContext(request.user!.id, {
+    mailboxId: typeof request.query.mailbox === 'string' ? request.query.mailbox : null,
+    limit: Number.parseInt(String(request.query.limit ?? '20'), 10) || 20,
   });
   response.json({ data: context });
 }

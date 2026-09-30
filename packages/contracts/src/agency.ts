@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+    catalogInvocationPathParameters,
+    findOverlappingCatalogInvocations,
+} from './capabilityInvocation';
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 const identifierSchema = z.string().trim().min(1).max(255);
@@ -374,6 +378,43 @@ export const catalogToolSchema = z.object({
             path: ['invocation', 'method'],
         });
     }
+
+    // The invocation template is how a coordinator turns arguments into a
+    // request (`resolveCatalogInvocation`). A `{param}` the input schema does
+    // not declare as a REQUIRED property can never be filled, and a GET input
+    // that is not a scalar has no query-string form — both are refused here so
+    // the builder never has to guess.
+    const declared = typeof tool.inputSchema.properties === 'object'
+        && tool.inputSchema.properties !== null
+        && !Array.isArray(tool.inputSchema.properties)
+        ? tool.inputSchema.properties as Record<string, unknown>
+        : {};
+    const required = Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required : [];
+    const parameters = catalogInvocationPathParameters(tool.invocation.path);
+    requireUnique(parameters, 'invocation.path parameters');
+    for (const parameter of parameters) {
+        if (!Object.prototype.hasOwnProperty.call(declared, parameter) || !required.includes(parameter)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `Path parameter {${parameter}} must be a required input property`,
+                path: ['invocation', 'path'],
+            });
+        }
+    }
+    if (tool.invocation.method === 'GET') {
+        for (const [key, property] of Object.entries(declared)) {
+            const type = typeof property === 'object' && property !== null
+                ? (property as Record<string, unknown>).type
+                : undefined;
+            if (type !== 'string' && type !== 'number' && type !== 'integer' && type !== 'boolean') {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: `GET input ${key} must be a string, number, integer or boolean`,
+                    path: ['inputSchema', 'properties', key],
+                });
+            }
+        }
+    }
 });
 
 export const catalogEventSchema = z.object({
@@ -442,6 +483,19 @@ export const appCapabilityCatalogSchema = z.object({
             });
         }
         names.add(tool.name);
+    }
+
+    // Matching an incoming request back to its tool must have ONE answer that
+    // does not depend on the order tools are listed in — see
+    // `matchCatalogInvocation`. Two templates that one request could satisfy
+    // (`/messages/{id}` beside `/messages/unread`) make that impossible.
+    for (const [left, right] of findOverlappingCatalogInvocations(catalog.tools)) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Tools ${left.name} and ${right.name} have overlapping invocations `
+                + `(${left.invocation.method} ${left.invocation.path} / ${right.invocation.method} ${right.invocation.path})`,
+            path: ['tools'],
+        });
     }
 
     const eventTypes = new Set<string>();

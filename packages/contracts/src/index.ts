@@ -1373,6 +1373,21 @@ export type {
 } from './agency';
 
 export {
+    catalogInvocationPathParameters,
+    catalogInvocationsOverlap,
+    catalogInvocationTemplatesEquivalent,
+    findOverlappingCatalogInvocations,
+    matchCatalogInvocation,
+    resolveCatalogInvocation,
+} from './capabilityInvocation';
+
+export type {
+    CatalogInvocationMatch,
+    CatalogInvocationTemplate,
+    ResolvedCatalogInvocation,
+} from './capabilityInvocation';
+
+export {
     emailContextAddressSchema,
     emailContextMailboxSchema,
     emailContextMessageSchema,
