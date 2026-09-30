@@ -55,16 +55,21 @@
  *        anything else, including a missing result, fails. Unknown is not good
  *                  news.
  *
- *   4. The event. `pull_request` runs are PR-LIGHT: the API suite may be
- *      skipped when scripts/ci-api-scope.mjs proved the pull request cannot
- *      reach it — and a skip of a SCOPED job passes only when the scope job
- *      itself succeeded and said `false`, so a scope job that failed, was
- *      skipped or printed nothing can never excuse one. Every other event —
+ *   4. The event. `pull_request` runs are PR-LIGHT: a scoped suite (the API,
+ *      platform or apps jobs) may be skipped when scripts/ci-scope.mjs proved
+ *      the pull request cannot reach it — and a skip of a SCOPED job passes
+ *      only when the scope job itself succeeded and said `false` for THAT
+ *      suite, so a scope job that failed, was skipped or printed nothing can
+ *      never excuse one. Every other event —
  *      `merge_group`, `push`, and any event this file has not heard of — is
  *      QUEUE-FULL: a single `skipped` job fails the gate, whatever the reason.
  *      That is the whole safety argument for PR-light: nothing reaches main
  *      without the complete suite passing on the exact merged tree, because the
  *      merge queue's `CI complete` cannot go green over a skipped job.
+ *   5. The wiring of every scoped job, on every event: it `needs` the scope
+ *      job and its `if:` consults its own suite's output. A job wired to the
+ *      wrong output would be skipped on another suite's word; one wired to none
+ *      would be an unexplained conditional.
  *
  * WHAT IS NOT CHECKED, AND CANNOT BE
  *
@@ -80,6 +85,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { SUITE_JOBS } from './ci-scope.mjs';
 
 const WORKFLOW_PATH = join('.github', 'workflows', 'ci.yml');
 
@@ -94,14 +100,19 @@ const GATE_JOB_ID = 'ci-complete';
  */
 const MINIMUM_JOBS = 5;
 
+/** The job that decides the pull-request scope (scripts/ci-scope.mjs). */
+const SCOPE_JOB = 'scope';
+
 /**
  * Jobs a pull request may skip on the scope job's word, and only on it:
  * job id -> the scope job and the output that must read exactly `false`.
- * `api-coverage` is not listed: it needs `api-test` and inherits its skip.
+ * Derived from ci-scope.mjs's own suite map, so the two cannot disagree about
+ * which job belongs to which suite. `api-coverage` is not listed: it needs
+ * `api-test` and inherits its skip.
  */
-const SCOPED_JOBS = {
-  'api-test': { scopeJob: 'api-scope', output: 'api-tests' },
-};
+const SCOPED_JOBS = Object.fromEntries(
+  Object.entries(SUITE_JOBS).flatMap(([suite, ids]) => ids.map((id) => [id, { scopeJob: SCOPE_JOB, output: suite }]))
+);
 
 /** The only event allowed to skip anything. Everything else must run it all. */
 const LIGHT_EVENT = 'pull_request';
@@ -195,6 +206,25 @@ if (triggers !== null && typeof triggers === 'object' && !('merge_group' in trig
     `${WORKFLOW_PATH} no longer declares an \`on.merge_group\` trigger. The merge queue is the only ` +
     'place the complete suite is guaranteed to run on the tree that lands.'
   );
+}
+
+// ── 5. Every scoped job is wired to its own suite's output ────────────────
+for (const [id, { scopeJob, output }] of Object.entries(SCOPED_JOBS)) {
+  const job = jobs[id];
+  if (!job || typeof job !== 'object') {
+    fail(`\`${id}\` is a scoped job in scripts/ci-scope.mjs but not a job in ${WORKFLOW_PATH}.`);
+    continue;
+  }
+  const declaredNeeds = typeof job.needs === 'string' ? [job.needs] : Array.isArray(job.needs) ? job.needs : [];
+  const condition = typeof job.if === 'string' ? job.if.replace(/\s+/g, ' ') : '';
+  const expected = `needs.${scopeJob}.outputs.${output} != 'false'`;
+  if (!declaredNeeds.includes(scopeJob) || !condition.includes(expected) || !condition.includes("github.event_name != 'pull_request'")) {
+    fail(
+      `\`${id}\` must need \`${scopeJob}\` and run unless a pull request's scope said its own suite is out: ` +
+        `its \`if:\` must contain \`github.event_name != 'pull_request' || ${expected}\` (found ` +
+        `${JSON.stringify(job.if ?? null)}, needs ${JSON.stringify(declaredNeeds)}).`
+    );
+  }
 }
 
 // ── The event this run is for ──────────────────────────────────────────────

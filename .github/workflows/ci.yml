@@ -41,42 +41,73 @@ concurrency:
 # pull requests merged before 2026-09-29 touched only services, app-preset,
 # accounts, create-oxy-app or stickers (plus bun.lock). Now:
 #
-#   pull_request   guards, API build, lint/typecheck, every package suite, and
-#                  the API suite ONLY when `api-scope` finds the change can reach
-#                  it (scripts/ci-api-scope.mjs; it fails toward running).
+#   pull_request   `guards` always; each SCOPED suite only when `scope` finds
+#                  the change can reach it (scripts/ci-scope.mjs; it fails
+#                  toward running):
+#                    api       `api-test` (+ `api-coverage`) and `api-build`
+#                    platform  `packages-platform`
+#                    apps      `packages-apps`
 #   merge_group    everything, unconditionally. `CI complete` refuses to pass
 #   (and push)     there if ANY job was skipped (scripts/check-ci-complete.mjs),
 #                  so nothing reaches main without the complete suite passing on
 #                  the exact merged tree — the same guarantee as before, now
 #                  paid once instead of twice.
 #
-# Jobs per run (each holds one of the org's 20 concurrent runners): before this
-# change, 12 on every event (6 API shards + 6). Now 13 on merge_group/push and
-# on a pull request that reaches the API (6 shards + 7), and 6 on a pull request
-# that does not (a skipped matrix holds no runner).
+# Jobs per run (each holds one of the org's 20 concurrent runners): 14 on
+# merge_group/push and on a pull request that reaches everything (6 shards + 8);
+# a pull request that touches one package runs `scope`, `guards`,
+# `android-kotlin` (which decides in its own steps), the one suite that reaches
+# it and `CI complete` — 5 — and a docs-only one runs 4 (a skipped job or matrix
+# holds no runner). Of the 19 pull requests merged before
+# 2026-09-30, the scope skipped `packages-platform` on 10 and `packages-apps` on
+# 9 (`bun scripts/ci-scope.mjs --base <merge>^1 --head <merge>`).
+#
+# THE TURBO BUILD CACHE. The workspace builds every job needs (contracts,
+# protocol, core, federation, mcp, db, the API itself, Console's dependency
+# tree) run through `turbo run build`, and each job first restores the Turbo
+# cache that `.github/workflows/ci-build-cache.yml` built from the latest main.
+# A hit restores `dist/` byte-for-byte instead of compiling it (~66s -> seconds
+# per API shard). What makes that safe:
+#
+#   * Only builds are cached. No test ever runs through Turbo here, so a cache
+#     hit can skip a compile, never a test (scripts/check-ci-build-cache.mjs).
+#   * The hash covers every input: all of the package's files, its workspace
+#     dependencies' hashes, and `bun.lock`, the root package.json, bunfig.toml
+#     and tsconfig.json as global inputs (turbo.json). Turbo's strict env mode
+#     hides every undeclared variable from the build, so none can change it.
+#   * Nothing in THIS workflow can write the cache. Every job uses
+#     `actions/cache/restore`, which has no save; the only writer is the
+#     push-to-main workflow, building the tree the queue already verified. And
+#     GitHub scopes cache entries by ref: a pull_request run's entries live in
+#     `refs/pull/<n>/merge` and a queue run reads only its own ref and main's,
+#     so even a write from a pull request could not reach the queue.
 jobs:
-  # Whether a PULL REQUEST needs the API suite. Every other event gets `true`
-  # without looking, and `CI complete` independently refuses a skip on those
-  # events, so this job can only ever make a pull request's feedback lighter.
+  # Which suites a PULL REQUEST needs. Every other event gets `true` for all of
+  # them without looking, and `CI complete` independently refuses a skip on
+  # those events, so this job can only ever make a pull request's feedback
+  # lighter.
   #
-  # The decision and everything it considers are in scripts/ci-api-scope.mjs;
-  # its fixture tests run in `guards`. It diffs GitHub's PR merge commit against
-  # its first parent — exactly what the PR adds to the tree the queue will test —
-  # so the checkout needs depth 2 and nothing more. Written to the step summary
-  # with the paths that decided it.
-  api-scope:
-    name: API scope
+  # The decision and everything it considers are in scripts/ci-scope.mjs; its
+  # fixture tests run in `guards`. It reads each suite's packages from this
+  # file's own steps, and diffs GitHub's PR merge commit against its first
+  # parent — exactly what the PR adds to the tree the queue will test — so the
+  # checkout needs depth 2 and nothing more. Written to the step summary with
+  # the paths that decided it.
+  scope:
+    name: Scope
     runs-on: ubuntu-latest
     permissions:
       contents: read
     timeout-minutes: 5
     outputs:
-      api-tests: ${{ steps.full.outputs.api-tests || steps.scope.outputs.api-tests }}
+      api: ${{ steps.full.outputs.api || steps.scope.outputs.api }}
+      platform: ${{ steps.full.outputs.platform || steps.scope.outputs.platform }}
+      apps: ${{ steps.full.outputs.apps || steps.scope.outputs.apps }}
     steps:
       - name: Not a pull request, so the complete suite runs
         id: full
         if: ${{ github.event_name != 'pull_request' }}
-        run: echo "api-tests=true" >> "$GITHUB_OUTPUT"
+        run: printf 'api=true\nplatform=true\napps=true\n' >> "$GITHUB_OUTPUT"
       - name: Checkout code
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/checkout@v7
@@ -87,10 +118,10 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
-      - name: Decide whether this pull request reaches the API suite
+      - name: Decide which suites this pull request reaches
         id: scope
         if: ${{ github.event_name == 'pull_request' }}
-        run: bun scripts/ci-api-scope.mjs
+        run: bun scripts/ci-scope.mjs
 
   # API Package Tests
   #
@@ -117,12 +148,12 @@ jobs:
   # two runners unnoticed.
   api-test:
     name: API Tests (${{ matrix.shard }}/${{ strategy.job-total }})
-    needs: api-scope
+    needs: scope
     # Skipped ONLY on a pull request whose scope said exactly `false`. `!cancelled()`
     # so a failed or empty scope RUNS the suite rather than skipping it (and
     # `CI complete` still goes red on the failed scope). On merge_group and push
     # the first clause is always true.
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.api-scope.outputs.api-tests != 'false') }}
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -152,7 +183,7 @@ jobs:
         #     seconds and cost runners.
         #   * The org's free plan runs at most 20 jobs at once across EVERY
         #     repository, and oxy runs have waited up to 9.7m for a runner. A
-        #     full run is 6 shards + 7 other jobs = 13 (12 before `api-scope`);
+        #     full run is 6 shards + 7 other jobs = 13 (12 before `scope`);
         #     twelve shards, tried first here, made it 19.
         #
         # jest.shardSequencer.cjs deals files by measured duration
@@ -347,14 +378,18 @@ jobs:
       # The reconciliation CLI lifecycle test also spawns Bun; its real bridge
       # policy imports federation outside Jest's source mapper. Build that package
       # too, so a fresh checkout exercises the same entry point as the image.
+      # Read-only: see "THE TURBO BUILD CACHE" at the top of this file.
+      - name: Restore the Turbo build cache (read-only)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-build-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: turbo-build-${{ runner.os }}-${{ runner.arch }}-
       - name: Build core SDK, federation, MCP + db (for resolution in api tests)
-        run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-          bun run --filter @oxy.so/federation build
-          bun run --filter @oxy.so/mcp build
-          bun run --filter @oxy.so/db build
+        run: >-
+          bunx turbo run build
+          --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
+          --filter=@oxy.so/federation --filter=@oxy.so/mcp --filter=@oxy.so/db
 
       # `jest.config.js` sizes its worker pool from this machine's cores and RAM,
       # because a fixed count that fits a 32-core workstation exhausts a
@@ -506,9 +541,12 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # Build check
+  # Build check. Scoped with the API suite: it builds exactly packages/api and
+  # its workspace closure, which is what `scope` decides `api` on.
   api-build:
     name: API Build
+    needs: scope
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
     runs-on: ubuntu-latest
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
@@ -530,8 +568,18 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0
+      # Read-only: see "THE TURBO BUILD CACHE" at the top of this file.
+      - name: Restore the Turbo build cache (read-only)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-build-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: turbo-build-${{ runner.os }}-${{ runner.arch }}-
+      # Through Turbo, so each workspace dependency and the API itself come from
+      # the cache when their inputs are unchanged. A hit is a byte-identical
+      # `dist/` of the same inputs, which only a successful build ever produced.
       - name: Build TypeScript
-        run: bun run build
+        run: bunx turbo run build --filter=@oxy.so/api
         working-directory: ./packages/api
 
       # `packages/api/scripts/**` (the seed / credential / codegen one-shots) is
@@ -621,13 +669,24 @@ jobs:
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: bun scripts/check-lockfile-sync.mjs
 
-      # The pull-request scope for the API suite (see scripts/ci-api-scope.mjs):
-      # throwaway repos built from the real manifests and bun.lock, mutated the
-      # way a pull request would be, asserting every must-run change runs and
-      # that the scope can still say no. No install: git, Bun and builtins.
-      - name: 'API Scope: fixture tests'
+      # The pull-request scope for every scoped suite (see scripts/ci-scope.mjs):
+      # throwaway repos built from the real manifests, bun.lock and this file,
+      # mutated the way a pull request would be, asserting every must-run change
+      # runs and that each suite can still say no. No install: git, Bun and
+      # builtins.
+      - name: 'CI Scope: fixture tests'
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
-        run: bun scripts/test-ci-api-scope.mjs
+        run: bun scripts/test-ci-scope.mjs
+
+      # Nothing a pull request or queue run does can write the Turbo build
+      # cache, and nothing but builds is ever served from it (see
+      # scripts/check-ci-build-cache.mjs). No install: it reads YAML and JSON.
+      - name: 'CI Build Cache: fixture tests'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/test-check-ci-build-cache.mjs
+      - name: 'CI Build Cache: check'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/check-ci-build-cache.mjs
 
       # Whether the merge-queue image job builds (merge-queue-image.yml), read
       # from deploy-aws.yml's own `on.push.paths`. No install.
@@ -907,6 +966,16 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun scripts/check-no-raw-ip-keys.mjs
 
+      # Contracts' username-policy census walks EVERY source file in the
+      # repository, so no suite's dependency closure contains all of its inputs.
+      # It also runs here, in the one job that is never scoped, so a pull
+      # request that skips `packages-platform` still runs it (REPO_WIDE_TESTS in
+      # scripts/ci-scope.mjs, whose fixture test requires this step).
+      - name: 'Repository-wide census: username policy has one source'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bunx jest src/__tests__/usernamePolicySingleSource.test.ts
+        working-directory: ./packages/contracts
+
       # ONE build for every guard below, a superset of what each needs:
       #   * API Checks' lint: type-aware lint (`parserOptions.project`) resolves the
       #     same workspace packages the API suite does — all six.
@@ -919,16 +988,20 @@ jobs:
       #     protocol's dist, and the generator then dies importing auth.schemas.ts.
       #     A build-order list derived from what compiles is not the same list as
       #     what runs.
+      - name: Restore the Turbo build cache (read-only)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-build-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: turbo-build-${{ runner.os }}-${{ runner.arch }}-
       - name: Build core SDK, federation, MCP + db (lint, schema policy, OpenAPI)
         id: build
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-          bun run --filter @oxy.so/federation build
-          bun run --filter @oxy.so/mcp build
-          bun run --filter @oxy.so/db build
+        run: >-
+          bunx turbo run build
+          --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
+          --filter=@oxy.so/federation --filter=@oxy.so/mcp --filter=@oxy.so/db
 
       - name: 'API Checks: run linter'
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
@@ -1002,6 +1075,8 @@ jobs:
   # happens once, at the first suite that needs it.
   packages-platform:
     name: Package Tests (platform)
+    needs: scope
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.platform != 'false') }}
     runs-on: ubuntu-latest
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
@@ -1040,6 +1115,13 @@ jobs:
       - name: Install dependencies
         id: install
         run: bun install --frozen-lockfile --minimum-release-age=0
+      # Read-only: see "THE TURBO BUILD CACHE" at the top of this file.
+      - name: Restore the Turbo build cache (read-only)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-build-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: turbo-build-${{ runner.os }}-${{ runner.arch }}-
 
       # Contracts package tests (Jest — no MongoDB), against nothing built.
       - name: 'Contracts Tests: test'
@@ -1071,7 +1153,7 @@ jobs:
       - name: Build contracts
         id: build-contracts
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run --filter @oxy.so/contracts build
+        run: bunx turbo run build --filter=@oxy.so/contracts
       - name: 'Protocol Tests: test'
         if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
         run: bun run test
@@ -1086,7 +1168,7 @@ jobs:
       - name: Build protocol
         id: build-protocol
         if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
-        run: bun run --filter @oxy.so/protocol build
+        run: bunx turbo run build --filter=@oxy.so/protocol
       - name: 'Core Tests: test'
         if: ${{ !cancelled() && steps.build-protocol.outcome == 'success' }}
         run: bun run test
@@ -1097,7 +1179,7 @@ jobs:
       - name: Build core
         id: build-core
         if: ${{ !cancelled() && steps.build-protocol.outcome == 'success' }}
-        run: bun run --filter @oxy.so/core build
+        run: bunx turbo run build --filter=@oxy.so/core
       - name: 'Ship Tests: test'
         if: ${{ !cancelled() && steps.build-core.outcome == 'success' }}
         run: bun run test
@@ -1119,6 +1201,8 @@ jobs:
   # services' own tests run before services is built, as they always did.
   packages-apps:
     name: Package Tests (apps)
+    needs: scope
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.apps != 'false') }}
     runs-on: ubuntu-latest
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
@@ -1135,14 +1219,18 @@ jobs:
       - name: Install dependencies
         id: install
         run: bun install --frozen-lockfile --minimum-release-age=0
+      # Read-only: see "THE TURBO BUILD CACHE" at the top of this file.
+      - name: Restore the Turbo build cache (read-only)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-build-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: turbo-build-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build contracts, protocol, core
         id: build-core
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: |
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
+        run: bunx turbo run build --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
 
       # Services SDK tests (Jest — build workspace deps first)
       - name: 'Services Tests: test'
@@ -1334,7 +1422,7 @@ jobs:
   ci-complete:
     name: CI complete
     needs:
-      - api-scope
+      - scope
       - guards
       - api-test
       - api-coverage
@@ -1361,7 +1449,7 @@ jobs:
       - name: Require every CI job to have passed
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
-          # pull_request may skip the scoped API suite; every other event may
-          # skip nothing.
+          # pull_request may skip a scoped suite; every other event may skip
+          # nothing.
           EVENT_NAME: ${{ github.event_name }}
         run: bun scripts/check-ci-complete.mjs

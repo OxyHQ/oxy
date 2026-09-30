@@ -1,0 +1,71 @@
+name: CI build cache
+
+# The ONLY writer of the Turbo build cache that `ci.yml` restores.
+#
+# `ci.yml` runs no push on main (the queue already tested the exact tree), so
+# without this nothing would ever write the one cache scope every pull request
+# and merge-queue run can read: GitHub scopes cache entries by ref, and a run
+# reads its own ref's entries and the default branch's. This job builds the
+# workspaces CI builds, from the tree that just landed through the queue, and
+# saves Turbo's local cache under main's scope.
+#
+# Why this is the whole write path, and why that is safe:
+#
+#   * `ci.yml` only ever RESTORES (actions/cache/restore has no save), so no
+#     pull request code — and no merge-queue run, whose tree is not main yet —
+#     writes an entry. scripts/check-ci-build-cache.mjs holds both files to it.
+#   * The code built here is main after the merge queue passed it, with
+#     `contents: read` and no secrets.
+#   * Built from an EMPTY cache every time (no restore step): the saved entry is
+#     exactly this commit's builds, not an accumulation, so an entry can never
+#     carry an artifact that this tree did not produce. ~12 MB.
+#   * Each entry is keyed by commit; consumers take the newest by prefix and
+#     Turbo then matches task by task on its content hash, so a stale entry
+#     costs misses, never wrong output.
+#
+# One runner for ~2 minutes per merge; superseded by the next push to main.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-build-cache
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    name: Build and save the Turbo build cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --minimum-release-age=0
+
+      # Every workspace ci.yml builds through Turbo: the API (and so contracts,
+      # protocol, core, federation, mcp, db and their own dependencies) and
+      # Console with its dependency tree. check-ci-build-cache.mjs fails if
+      # ci.yml asks Turbo for a build outside this set.
+      - name: Build the workspaces CI builds
+        run: bunx turbo run build --filter=@oxy.so/api --filter=oxy-console...
+
+      - name: Save the Turbo build cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-build-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
