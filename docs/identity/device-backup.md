@@ -2,8 +2,10 @@
 
 > Phase 1 of [OxyHQ/oxy#1388](https://github.com/OxyHQ/oxy/issues/1388). Commons
 > keeps a copy of the self-custody identity outside the Android Keystore, so a
-> Keystore wipe no longer loses the identity. On the next launch Commons restores it
-> without asking for the recovery phrase.
+> wipe of Commons' Keystore (Clear storage on Commons, or a reinstall) no longer
+> loses the identity. On the next launch Commons restores it without asking for
+> the recovery phrase. Phase 2 ([phase-2-shared-uid-migration.md](phase-2-shared-uid-migration.md))
+> gave every Oxy app its own UID, so other apps can no longer cause that wipe.
 >
 > Code: `packages/core/src/crypto/deviceBackup.ts` and the device-backup paths in
 > `KeyManager` · `packages/commons/lib/identity-backup/` ·
@@ -15,35 +17,33 @@
 
 ## The problem
 
-Every Oxy Android app declares `android:sharedUserId="so.oxy.shared"`, so they all
-run as one Linux UID. The Android Keystore belongs to the UID, not to each package:
+The Android Keystore belongs to the app's Linux UID. Every copy the SDK keeps
+of the identity in Commons is wrapped by it: expo-secure-store's aliases (the
+`oxy_identity`, `oxy_identity_backup` and `oxy_identity_mnemonic` services) and
+androidx's `_androidx_security_master_key_`, which wraps the identity signer
+store. `clearApplicationUserData` on Commons (`adb shell pm clear
+so.oxy.commons`, or *Settings › Apps › Commons › Storage › Clear storage*), or an
+uninstall and reinstall, wipes that Keystore, and every copy dies together: the
+recovery ladder shows "We couldn't restore automatically".
 
-- expo-secure-store's aliases (the key for the `oxy_identity`, `oxy_identity_backup`,
-  `oxy_identity_mnemonic` and default `key_v1` services) and androidx's
-  `_androidx_security_master_key_` are each ONE entry shared by every Oxy app.
-- `clearApplicationUserData` on any member of the UID wipes the Keystore of the
-  whole UID. That includes `adb shell pm clear` and a user tapping
-  *Settings › Apps › Alia › Storage › Clear storage*. The keys are gone, but Commons'
-  own files survive and still hold ciphertext that nothing can decrypt.
-
-Every copy the SDK kept of the identity was wrapped by that Keystore: the primary,
-the backup slot, the phrase slot and the cross-app shared slot. So all four died
-together, and the recovery ladder showed "We couldn't restore automatically".
-This was observed on a Pixel 8a after `pm clear onl.alia.app`.
+Until Phase 2 every Oxy app shared the UID `so.oxy.shared`, so clearing ANY Oxy
+app wiped Commons' keys too (observed on a Pixel 8a after `pm clear
+onl.alia.app`). Each app now has its own UID, so that case is gone; the backup
+now covers Commons' own storage.
 
 ## The decision
 
 Commons stores the identity in **Android Block Store** as well. Block Store data
 lives in Google Play services' own private storage and is keyed to Commons'
-package name and signing certificate. A Keystore wipe of `so.oxy.shared` cannot
-reach it, and reading it back is a local call.
+package name and signing certificate. A wipe of Commons' Keystore cannot reach
+it, and reading it back is a local call.
 
 | Requirement | Block Store |
 |---|---|
 | The user types nothing | Yes. The read is silent and needs no prompt. |
 | Oxy's servers cannot decrypt it | Yes. Oxy's servers never receive it. The cloud copy exists only when Block Store's end-to-end encryption is available, and that encryption is keyed by the device screen lock. |
 | The restore check works offline | Yes. `retrieveBytes` reads the local copy. |
-| It survives a wipe of the shared-UID Keystore | Yes. The data is in Play services' storage, not in the UID's Keystore. |
+| It survives a wipe of Commons' Keystore | Yes. The data is in Play services' storage, not in Commons' Keystore. |
 | It survives reinstalling Commons | Yes, when Backup is on (*Settings › Google › Backup*). |
 
 ### Options considered
@@ -78,8 +78,8 @@ and create or replace that Oxy backup.
 
 **iOS.** No change is needed. The identity is in the keychain, in items shared
 through the `group.so.oxy.shared` access group. iOS has no "clear storage" for an
-app, and removing one app from the group does not remove the group's items. No
-sibling app can wipe them. Commons registers no device backup on iOS.
+app, and removing one app from the group does not remove the group's items.
+Commons registers no device backup on iOS.
 
 ## How it works
 
@@ -105,7 +105,7 @@ could no longer reveal its phrase.
 | Create, import, restore or key rotation | `_persistIdentityAtomic`, which every identity write goes through, writes the record after the key is durable. The phrase is kept only when the identity is unchanged, so a rotation drops the old phrase. A failed write is logged and never fails the identity write. |
 | `storeRecoveryMnemonic` | Adds the phrase to the record when it derives the current key. |
 | Each launch, when the identity is present | `KeyManager.ensureDeviceBackup()` is one read and usually no write. It backfills identities that were created before this change, and it repairs a record left stale by a failed write, such as the old key after a rotation. |
-| Launch with the keys gone | The boot probe (`readIdentityVerdictWithSilentRestore`) runs `attemptIdentityRecovery` before routing. The backup slot, then the shared slot, then the device backup: the first healthy copy that matches the marker is restored. Routing then sees `present` and the user sees no recovery screen. |
+| Launch with the keys gone | The boot probe (`readIdentityVerdictWithSilentRestore`) runs `attemptIdentityRecovery` before routing. The backup slot, then the shared slot (the identity signer store), then the device backup: the first healthy copy that matches the marker is restored. Routing then sees `present` and the user sees no recovery screen. |
 | Launch with the keys and the marker gone (Commons' own data was cleared, or it was reinstalled) | The device backup is the only copy, so it is restored. Without this, onboarding would create a new identity and overwrite the backup. |
 | Every `deleteIdentity` (forced or not), "Start over", account deletion | The record is cleared, so a deleted identity is never restored. |
 | Nothing restorable | The recovery screen and the phrase paths work as before. |
@@ -146,7 +146,7 @@ What it protects: the secp256k1 identity key, and the phrase when it is known.
   leaves the device.
 - **Someone who has the unlocked device, or root on it.** They could read Play
   services' data. They could also already sign as the identity through Commons,
-  and could use the Keystore as the UID, so this adds no new capability for
+  and could use Commons' Keystore, so this adds no new capability for
   them. Compared with keystore-only storage, the difference is this: the key is
   no longer bound to this device's hardware Keystore, and a rooted attacker can
   copy it off the device. Oxy accepts this in exchange for surviving a Keystore
@@ -181,70 +181,59 @@ Settings until the user confirms they saved the phrase.
   public key they were set for, so a key rotation brings the warning back.
 - It needs no new native code: an OTA reaches every binary that has the module.
 
-This is a mitigation, not a fix. The fix for these devices is to stop sharing the
-UID (Phase 2 of #1388).
+With Phase 2 the warning is about Commons' own storage only: on these devices,
+clearing Commons' storage or reinstalling it still ends at the phrase.
 
 ## The rule for people and agents
 
-**Never `pm clear` an Oxy Android app (or use Settings › Apps › Storage › Clear
-storage) on a device that holds a real identity. Uninstall that app instead.**
-Clearing storage wipes the Keystore of the whole `so.oxy.shared` UID, for every
-Oxy app. Uninstalling a package does not, as long as another package still
-belongs to the UID. The device backup makes Commons recover from the mistake.
-The other apps still lose their encrypted prefs and have to sign in again. See
+**Never `pm clear` Commons, clear its storage or uninstall it on a device that
+holds a real identity.** That wipes Commons' Keystore; the device backup brings
+the identity back only where Google Play services exist. Other Oxy apps have
+their own UIDs: clearing them costs only their own session. See
 [on-device testing safety](../engineering/platform-features.md#on-device-testing-safety).
 
 ## Master key rule (services)
 
 `OxyEncryptedPrefs` never deletes the androidx master key
-(`_androidx_security_master_key_`). Every store, including `OxyIdentityStore`,
-opens with `RecoveryPolicy.RebuildFileOnly`. An unreadable file is deleted and
-rebuilt on its own. If the rebuild fails, the store reports the data as absent.
+(`_androidx_security_master_key_`). Every store opens with
+`RecoveryPolicy.RebuildFileOnly`: an unreadable file is deleted and rebuilt on
+its own, and if the rebuild fails the store reports the data as absent.
 `RegenerateSharedMasterKey` was removed. It deleted the one master key that
-wraps the encrypted prefs of every Oxy app, so one app could break all the
-others. The shared identity slot needs no escalation. It is a derived copy that
-Commons refills from the primary identity on every launch, with
-`syncSharedIdentity`. `packages/services/__tests__/android/encryptedPrefsRecoveryPolicy.test.ts`
+wraps every encrypted prefs file of the app (under the shared UID, of every Oxy
+app), so one store could break all the others. Commons' identity signer store
+follows the same rule: it is a copy Commons refills from the primary identity
+(`syncSharedIdentity`). `packages/services/__tests__/android/encryptedPrefsRecoveryPolicy.test.ts`
 enforces both points: the policy has one value, and no Kotlin source calls
 `deleteEntry`.
 
 ## Device test plan (manual)
 
-The coordinator runs this plan on a device holding a **disposable** identity only.
-It needs a Commons store build that contains the native module, Google Play
-services, a screen lock, and one other Oxy app in `so.oxy.shared` (for example
-Alia).
+Run on a device holding a **disposable** identity only, with a Commons build that
+contains the native module, Google Play services, a screen lock, and one other
+Oxy app (for example Alia).
 
-1. Install the new Commons build and open it. Create an identity or keep the
-   existing one, and write the phrase down.
+1. Install Commons and open it. Create an identity and write the phrase down.
    `adb logcat | grep -i -E "KeyManager|identity|Blockstore"` should show no
    `Failed to write the identity device backup` line.
-2. Wipe the shared Keystore: `adb shell pm clear onl.alia.app`.
-3. Force-stop and reopen Commons. **Expected:** the ID tab appears after the
-   splash, with no recovery or phrase screen, and the public key matches the one
-   from step 1. Logcat shows the expo-secure-store "no corresponding KeyStore key"
-   lines, followed by a normal boot.
-4. *Settings › Recovery phrase* reveals the same 12 words (this checks the
-   `mnemonic` round trip).
-5. Sign in with Oxy from Mention or Alia. It works again once Commons has
-   refilled the shared slot.
-6. Rotate the key (*Settings › Rotate key*). Then repeat steps 2 and 3.
+2. Isolation (the #1388 case): `adb shell pm clear onl.alia.app`, reopen Commons.
+   **Expected:** nothing happens to Commons; no recovery screen, same key.
+3. Commons' own data: `adb shell pm clear so.oxy.commons`, then reopen.
+   **Expected:** the identity is restored silently; the public key matches step 1.
+   Onboarding may resume at the username step until the session is minted. It
+   must never show the welcome or create screen.
+4. *Settings › Recovery phrase* reveals the same 12 words (the `mnemonic` round trip).
+5. Sign in with Oxy from Alia: Commons answers again once its signer store is
+   refilled (`syncSharedIdentity`).
+6. Rotate the key (*Settings › Rotate key*), then repeat step 3.
    **Expected:** the NEW key is restored.
-7. Commons' own data: `adb shell pm clear so.oxy.commons`, then reopen.
-   **Expected:** the identity is restored. Onboarding may resume at the username
-   step until the session is minted. It must never show the welcome or create
-   screen.
-8. Deletion: *Settings › Delete account* (or "Start over" on the recovery screen)
-   on the disposable identity. Then `pm clear` any sibling and reopen.
-   **Expected:** the welcome screen. The deleted identity does not come back.
-9. Over-the-air behaviour: an older Commons binary that receives this JavaScript
-   through Oxy Updates boots normally. It logs nothing about Block Store, and
-   after step 2 it still shows the phrase screen (the old behaviour).
-10. Master key: after step 2, Mention and Alia start without an
-    `OxyEncryptedPrefs … deleting master key` line. That line no longer exists.
-    Each app rebuilds only its own file.
+7. Deletion: *Settings › Delete account* (or "Start over") on the disposable
+   identity, then `pm clear so.oxy.commons` and reopen. **Expected:** the welcome
+   screen. The deleted identity does not come back.
+8. Over-the-air behaviour: an older Commons binary that receives this JavaScript
+   through Oxy Updates boots normally, logs nothing about Block Store, and after
+   step 3 shows the phrase screen.
 
 Open question for the device run: Block Store's documentation does not say
 whether Play services clears a package's Block Store data when that package's
-own storage is cleared. Step 7 answers it. Steps 2 and 3, the case in the issue,
-do not depend on the answer, because clearing Alia never clears Commons' package.
+own storage is cleared. Step 3 answers it; if it does, only a reinstall with
+Backup on is covered, and Clear storage on Commons ends at the phrase.

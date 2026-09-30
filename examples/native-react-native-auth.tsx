@@ -1,47 +1,84 @@
 /**
- * React Native example: cross-app shared cryptographic identity
+ * React Native example: one Oxy identity across apps, held by Commons
  *
- * Shows the LOW-LEVEL identity primitives that Commons by Oxy uses under the
- * hood: create/import a keypair, promote it to the shared keychain, register it
- * with the server, and sign in with it. Most apps do NOT need this — they mount
- * `<OxyProvider>` and the device-first cold boot + shared keychain handle
- * everything automatically (see `expo-54-universal-auth.tsx`). This example is
- * for building an identity/vault surface like Commons.
+ * Shows the LOW-LEVEL identity primitives. Most apps do NOT need this — they
+ * mount `<OxyProvider>` and the device-first cold boot signs them in by itself
+ * (its `commons-proof-signin` lane calls the same method as part A below; see
+ * `expo-54-universal-auth.tsx`).
  *
- * Apps that share one identity (illustrative bundle ids):
- * - Homiio (com.homiio.app)
- * - Mention (com.mention.app)
- * - Alia (com.alia.app)
+ * A. Any Oxy app: sign in as the identity the device already holds.
+ *    - Android: Commons is the only holder of the private key. The app asks
+ *      Commons, over signature-protected IPC, for its public key and a signed
+ *      server challenge. The key never enters this app.
+ *    - iOS: the identity lives in the keychain access group
+ *      `group.so.oxy.shared` and signs the challenge in-process.
+ * B. The identity holder (Commons): create or import the key, keep the shared
+ *    slot in step (`syncSharedIdentity`), register it with the server.
  *
- * Setup required:
- * - iOS: enable Keychain Sharing with access group "group.so.oxy.shared"
- * - Android: configure the shared identity store under "so.oxy.shared"
+ * Setup required (the `@oxy.so/app-preset` config plugin does both):
+ * - iOS: Keychain Sharing with access group "group.so.oxy.shared"
+ * - Android: `@oxy.so/services/plugins/withOxySharedPermissions` (signature
+ *   permissions `so.oxy.permission.IDENTITY` / `so.oxy.permission.DEVICE_SESSION`
+ *   plus `<queries>`). Never `android:sharedUserId`: each Oxy app has its own
+ *   UID. The app must be signed with the Oxy certificate and be on Commons'
+ *   caller allow-list.
  */
 
-import React, { useEffect, useState, createContext, useContext } from 'react';
-import { View, Text, Button, ActivityIndicator, Alert, TextInput, Platform } from 'react-native';
-import {
-  OxyServices,
-  KeyManager,
-  SignatureService,
-  RecoveryPhraseService,
-} from '@oxy.so/core';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Button, Text, TextInput, View } from 'react-native';
+import { OxyServices } from '@oxy.so/core';
 import type { User } from '@oxy.so/core';
+import { KeyManager, RecoveryPhraseService, SignatureService } from '@oxy.so/core/crypto';
 
-// ==================== 1. Setup ====================
+const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
 
-const oxyServices = new OxyServices({
-  baseURL: 'https://api.oxy.so',
-});
+// ==================== A. Sign in as the device's identity ====================
 
-// ==================== 2. Auth Context ====================
+/**
+ * `signInWithCommonsIdentity()` resolves `null` on web, when Commons is not
+ * installed or holds no identity, or when it refuses this app. Otherwise it
+ * has minted a session and planted the tokens.
+ */
+async function signInAsDeviceIdentity(): Promise<{ user: User; sessionId: string } | null> {
+  const session = await oxy.auth.signInWithCommonsIdentity();
+  if (!session) return null;
+  return { user: await oxy.users.me(), sessionId: session.sessionId };
+}
+
+// ==================== B. Holding the identity (Commons) ====================
+
+/** Register the local key if the server does not know it yet. */
+async function registerIfNeeded(publicKey: string): Promise<void> {
+  const { registered } = await oxy.auth.isKeyRegistered(publicKey);
+  if (registered) return;
+  const registration = await SignatureService.createRegistrationSignature();
+  await oxy.auth.registerKey(registration.publicKey, registration.signature, registration.timestamp);
+}
+
+async function createIdentity(): Promise<string[]> {
+  // Writes the key to this app's own secure storage (and, in Commons on
+  // Android, to the identity signer store its identity host signs with).
+  const { words, publicKey } = await RecoveryPhraseService.generateIdentityWithRecovery();
+  // Fill the shared slot (the iOS keychain group other apps read).
+  await KeyManager.syncSharedIdentity();
+  await registerIfNeeded(publicKey);
+  return words;
+}
+
+async function importIdentity(phrase: string): Promise<void> {
+  const publicKey = await RecoveryPhraseService.restoreFromPhrase(phrase);
+  await KeyManager.syncSharedIdentity();
+  await registerIfNeeded(publicKey);
+}
+
+// ==================== Auth context ====================
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  hasIdentity: boolean;
-  createIdentity: () => Promise<string[]>; // Returns recovery phrase words
-  importIdentity: (phrase: string) => Promise<void>;
+  signIn: () => Promise<void>;
+  create: () => Promise<string[]>;
+  importPhrase: (phrase: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -49,310 +86,117 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hasIdentity, setHasIdentity] = useState(false);
+
+  const signIn = async () => {
+    const result = await signInAsDeviceIdentity();
+    setUser(result?.user ?? null);
+    setSessionId(result?.sessionId ?? null);
+  };
 
   useEffect(() => {
-    initializeAuth();
+    signIn()
+      .catch((error) => console.error('Sign-in failed:', error))
+      .finally(() => setLoading(false));
   }, []);
 
-  const initializeAuth = async () => {
-    try {
-      // 1. Reuse a warm shared session planted by another Oxy app.
-      const sharedSession = await KeyManager.getSharedSession();
-      if (sharedSession) {
-        oxyServices.setTokens(sharedSession.accessToken);
-        try {
-          setUser(await oxyServices.getCurrentUser());
-          setHasIdentity(true);
-          return;
-        } catch {
-          // Shared session is stale — fall through to key-based sign-in.
-        }
-      }
-
-      // 2. A shared identity exists (this or another app created it): the SDK
-      //    runs the whole challenge → sign → verify exchange and plants tokens.
-      if (await KeyManager.hasSharedIdentity()) {
-        setHasIdentity(true);
-        await signInWithSharedIdentity();
-        return;
-      }
-
-      // 3. Only a LOCAL (app-private) identity exists: promote it to the shared
-      //    keychain so every Oxy app can use it, then sign in.
-      if (await KeyManager.hasIdentity()) {
-        const migrated = await KeyManager.migrateToSharedIdentity();
-        if (migrated) {
-          setHasIdentity(true);
-          await signInWithSharedIdentity();
-        }
-      }
-    } catch (error) {
-      console.error('Auth initialization failed:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // `signInWithSharedIdentity()` requests a challenge for the shared public key,
-  // signs it with the shared private key, verifies it, and plants the tokens —
-  // returns null on web or when no shared identity is present. We then read the
-  // full profile for display.
-  const signInWithSharedIdentity = async (): Promise<void> => {
-    const session = await oxyServices.signInWithSharedIdentity();
-    if (session) {
-      setUser(await oxyServices.getCurrentUser());
-    }
-  };
-
-  const createIdentity = async (): Promise<string[]> => {
+  const withLoading = async <T,>(run: () => Promise<T>): Promise<T> => {
     setLoading(true);
     try {
-      // Generate a new keypair + recovery phrase (written to the local keychain).
-      const { words } = await RecoveryPhraseService.generateIdentityWithRecovery();
-
-      // Promote it to the shared keychain so all Oxy apps can use it.
-      await KeyManager.migrateToSharedIdentity();
-
-      // Register the identity with the server (signature over the current key).
-      const registration = await SignatureService.createRegistrationSignature();
-      await oxyServices.register(
-        registration.publicKey,
-        registration.signature,
-        registration.timestamp,
-      );
-
-      // Sign in with the freshly registered shared identity.
-      await signInWithSharedIdentity();
-      setHasIdentity(true);
-
-      return words;
-    } catch (error) {
-      console.error('Identity creation failed:', error);
-      throw error;
+      return await run();
     } finally {
       setLoading(false);
     }
   };
 
-  const importIdentity = async (phrase: string): Promise<void> => {
-    setLoading(true);
-    try {
-      // Restore the keypair from the recovery phrase (written to the local
-      // keychain) and promote it to the shared keychain.
-      const publicKey = await RecoveryPhraseService.restoreFromPhrase(phrase);
-      await KeyManager.migrateToSharedIdentity();
-
-      // Register only if the server hasn't seen this key before.
-      const { registered } = await oxyServices.checkPublicKeyRegistered(publicKey);
-      if (!registered) {
-        const registration = await SignatureService.createRegistrationSignature();
-        await oxyServices.register(
-          registration.publicKey,
-          registration.signature,
-          registration.timestamp,
-        );
-      }
-
-      await signInWithSharedIdentity();
-      setHasIdentity(true);
-    } catch (error) {
-      console.error('Identity import failed:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+  const value: AuthContextType = {
+    user,
+    loading,
+    signIn: () => withLoading(signIn),
+    create: () =>
+      withLoading(async () => {
+        const words = await createIdentity();
+        await signIn();
+        return words;
+      }),
+    importPhrase: (phrase) =>
+      withLoading(async () => {
+        await importIdentity(phrase);
+        await signIn();
+      }),
+    signOut: () =>
+      withLoading(async () => {
+        if (sessionId) await oxy.session.logout(sessionId);
+        oxy.session.clear();
+        setUser(null);
+        setSessionId(null);
+      }),
   };
 
-  const signOut = async () => {
-    setLoading(true);
-    try {
-      // Revoke the server session, then clear the shared session (signs out of
-      // EVERY Oxy app on this device).
-      const sharedSession = await KeyManager.getSharedSession();
-      if (sharedSession) {
-        await oxyServices.logoutSession(sharedSession.sessionId);
-      }
-      await KeyManager.clearSharedSession();
-
-      oxyServices.clearTokens();
-      setUser(null);
-    } catch (error) {
-      console.error('Sign out failed:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{ user, loading, hasIdentity, createIdentity, importIdentity, signOut }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }
 
-// ==================== 3. Screens ====================
+// ==================== Screens ====================
 
 function WelcomeScreen() {
-  const { createIdentity, importIdentity, loading } = useAuth();
-  const [showImport, setShowImport] = useState(false);
-  const [recoveryPhrase, setRecoveryPhrase] = useState('');
+  const { create, importPhrase, signIn } = useAuth();
+  const [phrase, setPhrase] = useState('');
 
-  const handleCreateIdentity = async () => {
+  const handleCreate = async () => {
     try {
-      const phrase = await createIdentity();
-
-      // Show recovery phrase to user
-      Alert.alert(
-        'Identity Created!',
-        'Save your recovery phrase:\n\n' + phrase.join(' '),
-        [
-          {
-            text: 'I saved it',
-            style: 'default',
-          },
-        ]
-      );
+      const words = await create();
+      Alert.alert('Identity created', `Save your recovery phrase:\n\n${words.join(' ')}`);
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to create identity');
     }
   };
 
-  const handleImportIdentity = async () => {
-    if (!recoveryPhrase.trim()) {
-      Alert.alert('Error', 'Please enter your recovery phrase');
-      return;
-    }
-
+  const handleImport = async () => {
     try {
-      await importIdentity(recoveryPhrase.trim());
-      Alert.alert('Success', 'Identity imported successfully!');
+      await importPhrase(phrase.trim());
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to import identity');
     }
   };
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-        <Text>Checking for existing identity...</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={{ flex: 1, justifyContent: 'center', padding: 20 }}>
-      <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 10 }}>
-        Welcome to Oxy
-      </Text>
-      <Text style={{ marginBottom: 20 }}>
-        Create an identity or import from another Oxy app
-      </Text>
-
-      {!showImport ? (
-        <>
-          <Button title="Create New Identity" onPress={handleCreateIdentity} />
-          <View style={{ height: 10 }} />
-          <Button title="Import Existing Identity" onPress={() => setShowImport(true)} />
-        </>
-      ) : (
-        <>
-          <Text style={{ marginBottom: 10 }}>Enter your 12 or 24 word recovery phrase:</Text>
-          <TextInput
-            style={{
-              borderWidth: 1,
-              borderColor: '#ccc',
-              padding: 10,
-              marginBottom: 10,
-              minHeight: 100,
-            }}
-            multiline
-            value={recoveryPhrase}
-            onChangeText={setRecoveryPhrase}
-            placeholder="word1 word2 word3 ..."
-          />
-          <Button title="Import" onPress={handleImportIdentity} />
-          <View style={{ height: 10 }} />
-          <Button title="Back" onPress={() => setShowImport(false)} color="#999" />
-        </>
-      )}
-
-      <Text style={{ marginTop: 30, fontSize: 12, color: '#666', textAlign: 'center' }}>
-        Your identity is shared across all Oxy apps{'\n'}
-        (Homiio, Mention, Alia, etc.)
-      </Text>
+      <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 20 }}>Welcome to Oxy</Text>
+      <Button title="Sign in with Commons" onPress={signIn} />
+      <View style={{ height: 20 }} />
+      <Text style={{ marginBottom: 10 }}>Or hold the identity in this app (Commons only):</Text>
+      <Button title="Create new identity" onPress={handleCreate} />
+      <TextInput
+        style={{ borderWidth: 1, borderColor: '#ccc', padding: 10, marginVertical: 10, minHeight: 80 }}
+        multiline
+        value={phrase}
+        onChangeText={setPhrase}
+        placeholder="Recovery phrase"
+      />
+      <Button title="Import" onPress={handleImport} disabled={!phrase.trim()} />
     </View>
   );
 }
 
-function DashboardScreen() {
-  const { user, signOut, loading } = useAuth();
-
-  if (!user) return null;
-
-  // Render `name.displayName` when present; otherwise fall back to the handle.
+function DashboardScreen({ user }: { user: User }) {
+  const { signOut, loading } = useAuth();
+  // `name.displayName` when present; otherwise the handle.
   const displayName = user.name?.displayName?.trim() || user.username;
 
   return (
     <View style={{ flex: 1, padding: 20 }}>
-      <View style={{ alignItems: 'center', marginVertical: 20 }}>
-        <View
-          style={{
-            width: 80,
-            height: 80,
-            borderRadius: 40,
-            backgroundColor: '#ddd',
-            marginBottom: 10,
-          }}
-        />
-        <Text style={{ fontSize: 20, fontWeight: 'bold' }}>{displayName}</Text>
-        {user.email ? <Text style={{ color: '#666' }}>{user.email}</Text> : null}
-      </View>
-
-      <View
-        style={{
-          backgroundColor: '#f0f9ff',
-          padding: 15,
-          borderRadius: 8,
-          marginBottom: 20,
-        }}
-      >
-        <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 10 }}>
-          Signed in across all Oxy apps
-        </Text>
-        <Text style={{ color: '#666' }}>
-          Your identity is shared via {Platform.OS === 'ios' ? 'iOS Keychain' : 'the Android identity store'}.
-          Open any other Oxy app and you'll be automatically signed in!
-        </Text>
-      </View>
-
-      <Button title={loading ? 'Signing out...' : 'Sign Out'} onPress={signOut} disabled={loading} />
-
-      <View style={{ marginTop: 30 }}>
-        <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 5 }}>
-          Shared Identity Status:
-        </Text>
-        <Text style={{ color: '#666' }}>Identity stored in the shared keychain</Text>
-        <Text style={{ color: '#666' }}>Session accessible to all Oxy apps</Text>
-        <Text style={{ color: '#666' }}>No re-authentication needed</Text>
-      </View>
+      <Text style={{ fontSize: 20, fontWeight: 'bold', marginVertical: 20 }}>{displayName}</Text>
+      <Button title={loading ? 'Signing out...' : 'Sign out'} onPress={signOut} disabled={loading} />
     </View>
   );
 }
-
-// ==================== 4. Main App ====================
 
 export default function App() {
   return (
@@ -363,8 +207,7 @@ export default function App() {
 }
 
 function AppContent() {
-  const { user, loading, hasIdentity } = useAuth();
-
+  const { user, loading } = useAuth();
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -372,76 +215,22 @@ function AppContent() {
       </View>
     );
   }
-
-  if (!hasIdentity || !user) {
-    return <WelcomeScreen />;
-  }
-
-  return <DashboardScreen />;
-}
-
-// ==================== 5. Utility Hooks ====================
-
-/**
- * Hook to check if user is signed in via another Oxy app
- */
-export function useSharedSession() {
-  const [hasSharedSession, setHasSharedSession] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const checkSharedSession = async () => {
-      const session = await KeyManager.getSharedSession();
-      setHasSharedSession(!!session);
-      setLoading(false);
-    };
-
-    checkSharedSession();
-  }, []);
-
-  return { hasSharedSession, loading };
+  return user ? <DashboardScreen user={user} /> : <WelcomeScreen />;
 }
 
 /**
- * Hook to check if shared identity exists
+ * The device's shared Oxy identity, as this app sees it: the public key only
+ * (Commons' `describe` on Android, the keychain group on iOS).
  */
 export function useSharedIdentity() {
-  const [hasSharedIdentity, setHasSharedIdentity] = useState(false);
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkSharedIdentity = async () => {
-      const has = await KeyManager.hasSharedIdentity();
-      setHasSharedIdentity(has);
-
-      if (has) {
-        const key = await KeyManager.getSharedPublicKey();
-        setPublicKey(key);
-      }
-
-      setLoading(false);
-    };
-
-    checkSharedIdentity();
+    KeyManager.getSharedPublicKey()
+      .then(setPublicKey)
+      .finally(() => setLoading(false));
   }, []);
 
-  return { hasSharedIdentity, publicKey, loading };
-}
-
-// Usage example:
-function ExampleComponent() {
-  const { hasSharedSession, loading } = useSharedSession();
-
-  if (loading) return <ActivityIndicator />;
-
-  if (hasSharedSession) {
-    return (
-      <Text>
-        You're already signed in from another Oxy app! (Homiio, Mention, or Alia)
-      </Text>
-    );
-  }
-
-  return <Text>No shared session found. Create a new identity.</Text>;
+  return { publicKey, loading };
 }

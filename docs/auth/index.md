@@ -66,21 +66,24 @@ accepted gap with a named reason, not an oversight:
 - **The native shared DeviceSession credential is BUILT and UNVERIFIED ON A
   DEVICE.** A sibling official app's `deviceId` + `deviceSecret` now lives in a
   dedicated cross-app slot — its own `keychainService` inside the approved access
-  group on iOS, a signature-protected `OxyDeviceSession` broker on Android — and
-  the cold boot's `shared-device-adopt` step joins it before falling back to
-  `shared-key-signin`. That is what separates the self-custody identity key from
+  group on iOS; on Android the device-session hosts (Commons, Accounts), reached
+  through the signature-protected `OxyDeviceSession` provider — and the cold
+  boot's `shared-device-adopt` step joins it before falling back to
+  `commons-proof-signin`. That is what separates the self-custody identity key from
   ordinary session transport: an ordinary app never needs identity-key access.
 
-  **What has not happened is a device run.** There is no gradle job in CI, the
-  Kotlin is not compiled here, and a real ContentProvider needs an instrumented
+  **What has not happened is a device run.** There is no gradle job in CI (the
+  Kotlin compiles in a local Commons prebuild, and the identity host's crypto has
+  a JVM unit test against `vectors.json`), and a real ContentProvider needs an instrumented
   test — so the Android and manifest invariants are held by source-level gates
   that run on every `bun run test` instead, each mutation-tested. Those gates
   read source; they cannot tell you the broker answers on a phone.
 
   Deliberately still out of scope: the identity vault is excluded from both the
   mirror and the adoption (a background persist inside the vault must not decide
-  which session five other apps boot into), and `shared-key-signin` is retained
-  as the last-resort recovery lane for devices where nothing has published a
+  which session five other apps boot into), and `commons-proof-signin` (Commons
+  signs a server challenge; the key never leaves it) is retained as the
+  last-resort recovery lane for devices where nothing has published a
   credential yet.
 - **Third-party OAuth token exchange still returns `deviceId`/`deviceSecret` from
   the API.** The client half landed: `exchangeOAuthCode` no longer REQUIRES the

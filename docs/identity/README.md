@@ -6,7 +6,7 @@
 > engine is in `@oxy.so/api`; the crypto + SDK surface is in `@oxy.so/core`; wire
 > types are in `@oxy.so/contracts`.
 >
-> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Identity device backup](device-backup.md) · [Phase 2: stop sharing the Android UID (plan)](phase-2-shared-uid-migration.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
+> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Identity device backup](device-backup.md) · [Phase 2: every Android app on its own UID](phase-2-shared-uid-migration.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
 > [External identities and aliases](external-identities.md) · [Linked accounts](linked-accounts.md) · [Account events (deletion → relying parties)](account-events.md) · [Deleted accounts' stored uploads](account-storage-deletion.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
 
 ---
@@ -265,14 +265,18 @@ Commons handoff, username + password, and social login. Two cryptographic
 mechanisms back the QR/handoff path. (The device-first session model and
 cross-domain restore are covered in [auth/README.md](../auth/README.md).)
 
-### Mechanism A — same-device shared-keychain SSO (native only)
+### Mechanism A — same-device Commons identity (native only)
 
-Commons writes a shared identity to the platform keychain at creation. Any sibling
-native app calls `oxy.auth.signInWithSharedIdentity()`: request a challenge for
-the shared public key → sign it with the shared key → `auth.verifyChallenge` plants
-tokens. This runs as the `shared-key-signin` cold-boot step on native; returns
-`null` on web. Each native app must declare the iOS `keychain-access-groups`
-(incl. `group.so.oxy.shared`, same Team ID) + Android shared-store config.
+Commons is the only holder of the identity key. Any sibling native app calls
+`oxy.auth.signInWithCommonsIdentity()`: on Android it asks Commons for its public
+key (`describe`), requests a challenge, has Commons sign it (`proveIdentity`, over
+signature-protected IPC; the key never leaves Commons) and `auth.verifyChallenge`
+plants tokens; on iOS the identity in the keychain access group
+`group.so.oxy.shared` signs it in-process. This runs as the `commons-proof-signin`
+cold-boot step on native; returns `null` on web. Each native app declares the iOS
+`keychain-access-groups` (same Team ID) and, on Android,
+`withOxySharedPermissions`; `@oxy.so/app-preset` does both. See
+[phase-2-shared-uid-migration.md](phase-2-shared-uid-migration.md).
 
 ### Mechanism B — cross-device QR handoff
 

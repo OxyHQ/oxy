@@ -214,7 +214,7 @@ flowchart TB
 ### Native — sin QR
 
 1. Cold boot: app group deviceId → `GET /session/device/state` → mint silencioso
-2. Fallback: `signInWithSharedIdentity()` si hay clave Commons
+2. Fallback: `signInWithCommonsIdentity()` si Commons tiene identidad (Android: Commons firma el challenge por IPC; iOS: llave del keychain group)
 3. Si logged-out → ProfileButton → `OxySignInDialog` (deep-link Commons + password colapsado)
 
 ### Web — QR sí
