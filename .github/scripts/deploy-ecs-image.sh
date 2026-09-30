@@ -362,6 +362,21 @@ wait_for_task_stop() {
     if [[ "$last_status" == "STOPPED" ]]; then
       return 0
     fi
+    # The one-shot's work is over once its command's container has STOPPED with
+    # an exit code: the process ended, so its transaction committed or rolled
+    # back and its connections (the migration advisory lock among them) closed.
+    # What follows is Fargate DEPROVISIONING the task's network interface,
+    # ~15s per one-shot on oxy-api (run 36716875305: RUNNING 12:53:09,
+    # DEPROVISIONING 12:53:25, STOPPED 12:53:40), which nothing downstream waits
+    # on. A container that stopped WITHOUT an exit code never ran its command
+    # (an image pull or secret failure) and still waits for the task to stop.
+    if jq -e --arg name "$CONTAINER_NAME" '
+      any(.tasks[0].containers[]?;
+        .name == $name and .lastStatus == "STOPPED" and (.exitCode | type) == "number")
+    ' <<<"$task_json" >/dev/null; then
+      echo "$label container exited; not waiting for Fargate to deprovision task $task_arn."
+      return 0
+    fi
     sleep "$POLL_INTERVAL"
     elapsed=$((elapsed + POLL_INTERVAL))
   done

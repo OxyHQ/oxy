@@ -450,17 +450,25 @@ aws() {
             "$described_run_task_count" == "$DEPLOY_TEST_TASK_FAILURE_NUMBER" ]]; then
         reported_exit_code="$DEPLOY_TEST_TASK_EXIT_CODE"
       fi
-      printf '{
-        "failures": [],
-        "tasks": [{
-          "lastStatus": "STOPPED",
-          "stoppedReason": "Essential container exited",
-          "containers": [{
-            "name": "deploy-test",
-            "exitCode": %s
+      # DEPLOY_TEST_TASK_LAST_STATUS holds the TASK at a status short of
+      # STOPPED (Fargate still deprovisioning it) while its container has
+      # already stopped; DEPLOY_TEST_CONTAINER_EXIT_CODE_MISSING drops the
+      # container's exit code, as for a container that never ran its command.
+      jq -n \
+        --arg taskStatus "${DEPLOY_TEST_TASK_LAST_STATUS:-STOPPED}" \
+        --argjson exitCode "$reported_exit_code" \
+        --arg missingExit "${DEPLOY_TEST_CONTAINER_EXIT_CODE_MISSING:-false}" '
+        {
+          failures: [],
+          tasks: [{
+            lastStatus: $taskStatus,
+            stoppedReason: "Essential container exited",
+            containers: [
+              {name: "deploy-test", lastStatus: "STOPPED"}
+              + (if $missingExit == "true" then {} else {exitCode: $exitCode} end)
+            ]
           }]
-        }]
-      }\n' "$reported_exit_code"
+        }'
       ;;
     "logs get-log-events")
       printf 'tasklogs\n' >>"$DEPLOY_TEST_LOG"
@@ -1107,6 +1115,60 @@ printf '%s\n' \
 diff -u \
   "$test_directory/reconciliation-failure/expected.log" \
   "$test_directory/reconciliation-failure/aws.log"
+
+# ── A one-shot is done when its container has exited, not when Fargate has
+# finished deprovisioning the task. The task below never reaches STOPPED.
+# The pre-deploy migration's exit code still gates the rollout, and a failed
+# post-deploy task still rolls back.
+export DEPLOY_TEST_TASK_LAST_STATUS=DEPROVISIONING
+run_release deprovisioning-success true true
+printf '%s\n' \
+  'migration:node packages/api/dist/db/migrate.js --phase=pre' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
+  smoke \
+  reconcile \
+  >"$test_directory/deprovisioning-success/expected.log"
+diff -u \
+  "$test_directory/deprovisioning-success/expected.log" \
+  "$test_directory/deprovisioning-success/aws.log"
+grep -F 'Migration container exited; not waiting for Fargate to deprovision' \
+  "$test_directory/deprovisioning-success/output.log" >/dev/null
+
+run_release deprovisioning-migration-failure false true false 1
+printf '%s\n' \
+  'migration:node packages/api/dist/db/migrate.js --phase=pre' \
+  tasklogs \
+  >"$test_directory/deprovisioning-migration-failure/expected.log"
+diff -u \
+  "$test_directory/deprovisioning-migration-failure/expected.log" \
+  "$test_directory/deprovisioning-migration-failure/aws.log"
+
+run_release deprovisioning-reconciliation-failure false false false 1
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
+  smoke \
+  reconcile \
+  tasklogs \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1:surge=200' \
+  >"$test_directory/deprovisioning-reconciliation-failure/expected.log"
+diff -u \
+  "$test_directory/deprovisioning-reconciliation-failure/expected.log" \
+  "$test_directory/deprovisioning-reconciliation-failure/aws.log"
+
+# A container that stopped WITHOUT an exit code never ran its command. That is
+# not a finished migration: the script keeps waiting for the task, and here
+# (the task never stops) fails on the wait budget without touching the service.
+export DEPLOY_TEST_CONTAINER_EXIT_CODE_MISSING=true
+run_release deprovisioning-no-exit-code false true
+printf '%s\n' \
+  'migration:node packages/api/dist/db/migrate.js --phase=pre' \
+  >"$test_directory/deprovisioning-no-exit-code/expected.log"
+diff -u \
+  "$test_directory/deprovisioning-no-exit-code/expected.log" \
+  "$test_directory/deprovisioning-no-exit-code/aws.log"
+grep -F 'Migration task did not stop within' \
+  "$test_directory/deprovisioning-no-exit-code/output.log" >/dev/null
+unset DEPLOY_TEST_TASK_LAST_STATUS DEPLOY_TEST_CONTAINER_EXIT_CODE_MISSING
 
 run_release migration-failure false true false 1
 printf '%s\n' \
