@@ -150,11 +150,11 @@ A count here is a fact about a commit, so re-measure before quoting it.
 ### `AI_LABELING_MODEL` was removed
 
 The labelling feature no longer chooses an Alia tier or holds an Alia key. It
-uses Inbox's exact application id and an exact
-`INBOX_INFERENCE_ROUTING_PROFILE_ID` through the authenticated Oxy inference
-edge. `AI_LABELING_ENABLED` still controls whether automatic labelling runs;
-when it does, model and provider selection are owned by the referenced routing
-profile rather than an environment alias.
+uses Inbox's exact application id and the `instant` power level
+(`power-instant`) through the authenticated Oxy inference edge.
+`AI_LABELING_ENABLED` still controls whether automatic labelling runs; when it
+does, model and provider selection are owned by that level rather than an
+environment alias ([inbox-point-inference.md](./inbox-point-inference.md)).
 
 ---
 

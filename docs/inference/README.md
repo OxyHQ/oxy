@@ -103,8 +103,8 @@ Name a level with `routingProfile` (slug), `routingProfileId` (exact ID), or
 `model` on either chat dialect (`"model": "instant"`). `GET
 /v1/models/routing-profiles` lists each level with its current candidates,
 `powerLevel` and `reasoningEffort`. The older product-specific profiles
-(`kaana-v1` for Inbox, `kaana-v1-speech` for Alia speech) are not power
-levels.
+(`kaana-v1`, which Inbox used before `instant`, and `kaana-v1-speech` for Alia
+speech) are not power levels.
 
 **Proposed** profiles (not available): cheapest/free, fastest, capability
 profiles (vision, code, long context), data or region constraints, and

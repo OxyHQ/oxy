@@ -94,9 +94,9 @@ resale. Staff-classified `first_party`, `internal` and `system` applications see
 that scope ([catalogue.md](../inference/catalogue.md#reads-are-audience-scoped));
 third-party applications and plain user bearers do not. A successful bootstrap
 and exact-PK readback prove the profile identity and candidate, not that a
-given product may route through it. Before setting
-`INBOX_INFERENCE_ROUTING_PROFILE_ID` or enabling execution, prove the exact
-profile resolves to at least one route for the real Inbox principal.
+given product may route through it. Inbox no longer routes through `kaana-v1`;
+it targets the `instant` power level
+([inbox-point-inference.md](../inference/inbox-point-inference.md)).
 
 Do not relabel an application's tier and do not rewrite an approved
 deployment's scope as a shortcut.
