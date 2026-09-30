@@ -1,44 +1,19 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["bun.lock", "package.json", "bunfig.toml", "tsconfig.json"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", "lib/**", ".next/**", ".output/**"],
-      "inputs": [
-        "src/**",
-        "app/**",
-        "components/**",
-        "server/**",
-        "lib/**",
-        "public/**",
-        "tsconfig*.json",
-        "package.json",
-        "next.config.*",
-        "vite.config.*",
-        "scripts/**"
-      ]
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/core/scripts/**"]
     },
-    "build:js": {
-      "dependsOn": ["^build"],
-      "outputs": ["lib/commonjs/**", "lib/module/**"],
-      "inputs": ["src/**", "tsconfig.json", "package.json"]
+    "lint": {
+      "cache": false
     },
-    "build:cjs": {
-      "outputs": ["dist/cjs/**"],
-      "inputs": ["src/**", "tsconfig.cjs.json", "tsconfig.json"]
-    },
-    "build:esm": {
-      "outputs": ["dist/esm/**"],
-      "inputs": ["src/**", "tsconfig.esm.json", "tsconfig.json", "scripts/fix-esm-imports.mjs"]
-    },
-    "build:types": {
-      "outputs": ["dist/types/**"],
-      "inputs": ["src/**", "tsconfig.types.json", "tsconfig.json"]
-    },
-    "lint": {},
     "test": {
       "dependsOn": ["^build"],
-      "env": ["DATABASE_URL", "TEST_DATABASE_URL"]
+      "env": ["DATABASE_URL", "TEST_DATABASE_URL"],
+      "cache": false
     },
     "dev": {
       "cache": false,
