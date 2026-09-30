@@ -1,0 +1,65 @@
+# Weekly: rebuild the oxy-api production image from scratch, into the cache.
+#
+# The deploy's fallback build and the merge-queue image build
+# (merge-queue-image.yml) both read the `type=gha` cache scope `oxy-api-backend`.
+# A cached layer is reused for as long as its inputs do not change, and the
+# inputs of an OS-package layer (`apk add`, `apt-get update`) are the command
+# text and the base image, not the package index: once cached, such a layer
+# never picks up a security fix again. Nor does a base image named by tag
+# (node:24-alpine, alpine:3.22) unless something pulls it.
+#
+# So once a week this rebuilds with `--pull --no-cache` and writes every fresh
+# layer to the same scope. It runs on main (the default branch), whose caches
+# every later run can read, including the merge queue's. The image is built
+# and discarded (`type=cacheonly`): nothing is pushed, nothing is deployed, and
+# the job holds no AWS credentials. The next release picks the fresh layers up
+# through the cache.
+name: Refresh image cache
+
+on:
+  schedule:
+    # Mondays 04:17 UTC: off the hour, before the working day's merges.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-image-cache
+  cancel-in-progress: false
+
+env:
+  APP: oxy-api
+  DOCKERFILE: Dockerfile
+
+jobs:
+  rebuild:
+    name: Rebuild oxy-api without cache
+    # Only main's cache is readable by the deploy and the merge queue.
+    if: github.ref == 'refs/heads/main' && github.repository == 'OxyHQ/oxy'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # `type=gha` needs the Actions runtime token and cache URL, which only
+      # JavaScript actions receive (see deploy-aws.yml).
+      - name: Expose the Actions cache to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
+
+      - name: Rebuild (linux/arm64, no cache) into the shared cache scope
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            --pull \
+            --no-cache \
+            --cache-to type=gha,scope=$APP-backend,mode=max \
+            -f "$DOCKERFILE" \
+            --output type=cacheonly \
+            .

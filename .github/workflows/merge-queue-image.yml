@@ -1,0 +1,122 @@
+# Build the oxy-api production image ONCE, in the merge queue.
+#
+# main moves only through the merge queue (ruleset 24004899: squash, one entry
+# built at a time), and the commit a `merge_group` run tests is the commit main
+# is then fast-forwarded to, SHA for SHA (checked on every entry up to #1444:
+# each gh-readonly-queue head SHA is the main commit). So the image built here
+# from `github.sha` is the image `Deploy to AWS` would build on the push to
+# main. This job pushes it as `oxy/oxy-api:mq-<sha>`, in parallel with CI, and
+# the deploy (.github/scripts/resolve-queue-image.sh) rolls that exact image
+# out by digest instead of spending ~5 minutes rebuilding it.
+#
+# NOT a required check, and not part of ci.yml: `CI complete` is the only
+# check the queue requires, and it cannot see jobs in another workflow. That is
+# deliberate. This job needs AWS, and an AWS or runner hiccup here must never
+# hold the queue: when the image is missing, the deploy builds it itself,
+# exactly as before, so a failure here costs one build and nothing else.
+#
+# CREDENTIALS. Only `merge_group` triggers this, never pull_request or push, so
+# no pull request's code and no fork ever reaches the AWS step. The role,
+# `oxy-github-queue-image-oxy` (oxy-infra iam-github-queue-image.tf), trusts
+# only `...:ref:refs/heads/gh-readonly-queue/main/*` and can do exactly one
+# thing: push to oxy/oxy-api. No ECS, no SSM, no task definitions. Releasing
+# stays with `oxy-github-deploy`, which only main can assume.
+#
+# LIFECYCLE. `mq-*` images expire three days after the push unless a deploy
+# re-tagged them `deployed-<sha>` (ecr.tf, in oxy-infra), so entries the queue
+# ejects do not pile up, and a released image is never counted out by them.
+#
+# BUILD CACHE: the same `type=gha` scope as the deploy (`oxy-api-backend`).
+# An Actions cache is readable from the ref that wrote it and from the default
+# branch, so this job reads what main wrote: the deploy's fallback builds and
+# the weekly no-cache rebuild (refresh-image-cache.yml), which also keeps OS
+# package layers from going stale behind the cache.
+name: Merge queue image
+
+on:
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One per queue entry; a re-queued entry supersedes its own earlier run.
+  group: merge-queue-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
+  APP: oxy-api
+  DOCKERFILE: Dockerfile
+
+jobs:
+  image:
+    name: Production image (oxy-api)
+    if: github.event_name == 'merge_group' && github.repository == 'OxyHQ/oxy'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The queue entry and its base: all the scope below diffs.
+          fetch-depth: 2
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      # Deploy to AWS only runs when the push touches its `on.push.paths`; an
+      # image for a commit it will not deploy is a wasted runner.
+      - name: Does Deploy to AWS ship this entry?
+        id: scope
+        run: bun scripts/deploy-image-scope.mjs "${{ github.event.merge_group.base_sha }}" "$GITHUB_SHA"
+
+      - name: Configure AWS credentials (OIDC, ECR push only)
+        if: steps.scope.outputs.build == 'true'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-queue-image-oxy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        if: steps.scope.outputs.build == 'true'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        if: steps.scope.outputs.build == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      # `type=gha` needs the Actions runtime token and cache URL, which only
+      # JavaScript actions receive; without this buildx silently skips the
+      # cache (see deploy-aws.yml).
+      - name: Expose the Actions cache to buildx
+        if: steps.scope.outputs.build == 'true'
+        uses: crazy-max/ghaction-github-runtime@v4
+
+      # The same build as deploy-aws.yml's fallback: same Dockerfile, context,
+      # platform, runner architecture and cache scope. Only the tag differs
+      # (`mq-<sha>`, never `latest`: the deploy moves that when it releases).
+      - name: Build and push (linux/arm64)
+        if: steps.scope.outputs.build == 'true'
+        run: |
+          IMG=$ECR_REGISTRY/oxy/$APP
+          docker buildx build \
+            --platform linux/arm64 \
+            --cache-from type=gha,scope=$APP-backend \
+            --cache-to type=gha,scope=$APP-backend,mode=max \
+            -f "$DOCKERFILE" \
+            -t "$IMG:mq-$GITHUB_SHA" \
+            --metadata-file "$RUNNER_TEMP/build-metadata.json" \
+            --push \
+            .
+          DIGEST=$(jq -r '.["containerimage.digest"] // empty' "$RUNNER_TEMP/build-metadata.json")
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::buildx produced no usable image digest (got: ${DIGEST:-<empty>})"
+            exit 1
+          fi
+          echo "Built $IMG:mq-$GITHUB_SHA -> $DIGEST" | tee -a "$GITHUB_STEP_SUMMARY"

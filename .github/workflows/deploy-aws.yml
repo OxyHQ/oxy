@@ -25,11 +25,15 @@ on:
       - ".github/scripts/smoke-inbox-mcp.sh"
       - ".github/scripts/smoke-oxy-api.sh"
       - ".github/scripts/smoke-service-token-jwks.sh"
+      - ".github/scripts/resolve-queue-image.sh"
+      - ".github/scripts/tag-ecr-image.sh"
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
+  # resolve-queue-image.sh reads this commit's merge-queue image run.
+  actions: read
 
 concurrency:
   # Serialize production rollouts. Two overlapping runs each register a task
@@ -176,7 +180,23 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+      # The merge queue already built this commit's image (merge-queue-image.yml
+      # pushes `oxy/oxy-api:mq-<sha>` in parallel with CI, and the queue's
+      # tested commit IS this push's commit). Reuse it by digest when the
+      # queue run for exactly this SHA succeeded; wait for that run if it is
+      # still going. Anything else — a manual dispatch, a failed or skipped
+      # queue build, an API error — comes back empty and the build below runs
+      # exactly as before. The script's header has the full contract.
+      - name: Find the image the merge queue built
+        id: queue_image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: oxy/${{ env.APP }}
+          SHA: ${{ github.sha }}
+        run: bash .github/scripts/resolve-queue-image.sh
+
       - name: Set up Docker Buildx
+        if: steps.queue_image.outputs.digest == ''
         uses: docker/setup-buildx-action@v4
 
       # `--cache-from/--cache-to type=gha` below need the Actions runtime token
@@ -186,35 +206,27 @@ jobs:
       # buildkit cache entry at all (`gh cache list`, 2026-09-29), while Clarity,
       # which builds through docker/build-push-action, reuses 22 layers per build.
       - name: Expose the Actions cache to buildx
+        if: steps.queue_image.outputs.digest == ''
         uses: crazy-max/ghaction-github-runtime@v4
 
       - name: Build and push (linux/arm64)
         id: build
+        if: steps.queue_image.outputs.digest == ''
         env:
           COMMIT_TAG: ${{ github.sha }}
         run: |
           IMG=$ECR_REGISTRY/oxy/$APP
-          # --metadata-file is the only addition to this build: the digest comes
-          # out of the build itself. Resolving it afterwards with
-          # `aws ecr describe-images` is not an option here: oxy-github-deploy
-          # has no ecr:DescribeImages, confirmed with
-          # `aws iam simulate-principal-policy` (implicitDeny), so that call
-          # fails at deploy time behind a green build.
+          # --metadata-file: the digest comes out of the build itself.
           docker buildx build \
             --platform linux/arm64 \
             --cache-from type=gha,scope=$APP-backend \
             --cache-to type=gha,scope=$APP-backend,mode=max \
             -f "$DOCKERFILE" \
             -t "$IMG:$COMMIT_TAG" \
-            -t "$IMG:latest" \
             --metadata-file "$RUNNER_TEMP/build-metadata.json" \
             --push \
             .
 
-          # :latest is still moved, but nothing that deploys reads it. It exists
-          # so a from-scratch `terraform apply` -- whose app-service module
-          # declares `<repo>:latest` as the task definition's bootstrap image --
-          # creates the service on a current build rather than an ancient one.
           DIGEST=$(jq -r '.["containerimage.digest"] // empty' "$RUNNER_TEMP/build-metadata.json")
           if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "::error::buildx produced no usable image digest (got: ${DIGEST:-<empty>})"
@@ -222,6 +234,35 @@ jobs:
           fi
           echo "digest=$DIGEST" >>"$GITHUB_OUTPUT"
           echo "Built $COMMIT_TAG -> $DIGEST"
+
+      # One digest from here on, whichever step produced it, and the tags that
+      # say it is released:
+      #   `<sha>`           the commit tag, as every release has always had;
+      #   `latest`          still moved, but nothing that deploys reads it. It
+      #                     exists so a from-scratch `terraform apply` -- whose
+      #                     app-service module declares `<repo>:latest` as the
+      #                     task definition's bootstrap image -- creates the
+      #                     service on a current build rather than an ancient one;
+      #   `deployed-<sha>`  what the ECR lifecycle policy keeps (the last ten):
+      #                     the running image and its rollback targets. A queue
+      #                     image without it expires three days after its push.
+      # A re-tag by digest (tag-ecr-image.sh), never a push: ECR refuses the
+      # write unless the manifest still hashes to this digest.
+      - name: Release the image
+        id: image
+        env:
+          QUEUE_DIGEST: ${{ steps.queue_image.outputs.digest }}
+          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          DIGEST="${QUEUE_DIGEST:-$BUILT_DIGEST}"
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::no image digest to release (queue: ${QUEUE_DIGEST:-<none>}, build: ${BUILT_DIGEST:-<none>})"
+            exit 1
+          fi
+          bash .github/scripts/tag-ecr-image.sh "oxy/$APP" "$DIGEST" "$GITHUB_SHA" "deployed-$GITHUB_SHA" latest
+          echo "digest=$DIGEST" >>"$GITHUB_OUTPUT"
+          echo "Releasing oxy/$APP@$DIGEST ($([[ -n "$QUEUE_DIGEST" ]] && echo 'built in the merge queue' || echo 'built here'))" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Whether this release contains a migration that must run AFTER the rollout.
       #
@@ -275,7 +316,7 @@ jobs:
 
       - name: Register immutable task definition and deploy
         env:
-          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.image.outputs.digest }}
           # Applies pending additive migrations on the NEW image, inside the VPC,
           # BEFORE the service update — so the schema a rollout needs is never
           # behind the image that reads it. This is the whole fix for the
@@ -383,5 +424,5 @@ jobs:
       # getAssetVariantQueueConnectionOptions (QUEUE_REDIS_URL).
       - name: Confirm the asset-variant worker rollout
         env:
-          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.image.outputs.digest }}
         run: bash .github/scripts/deploy-asset-variant-worker.sh wait
