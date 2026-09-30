@@ -110,7 +110,7 @@ devices: { mintToken: jest.fn(async () => ({
           updatedAt: Date.now(),
         },
       })) },
-      auth: { signInWithSharedIdentity: jest.fn(async () => null) },
+      auth: { signInWithCommonsIdentity: jest.fn(async () => null) },
       users: { me: jest.fn(async (): Promise<User> => ({ id: USER_ID, username: 'cbuser' } as User)), getMany: jest.fn(async () => []) },
       accounts: { list: jest.fn(async () => []) },
       ...overrides,

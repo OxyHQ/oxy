@@ -21,7 +21,7 @@
  *    this loop in a sign-out — so a real revocation still signs out.
  *  - No credential, but a key-based lane can still re-establish (the native
  *    shared identity, or an identity-bound client's own key) → try that a few
- *    times, as the cold boot's shared-key step would, then sign out.
+ *    times, as the cold boot's Commons-proof step would, then sign out.
  *  - Neither → the session is over. Sign out now, as before.
  *
  * Framework-free and clock-injectable so the policy is unit tested without a

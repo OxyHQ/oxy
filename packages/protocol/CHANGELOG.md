@@ -1,5 +1,24 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.2.0
+
+### Added
+
+- `loadCommonsIdentityBridge()` and the `CommonsIdentityBridge` type: the
+  client of the identity Commons holds on Android (`describe`,
+  `proveIdentity`, `deriveScopedSeed`, `signSocialReceive`), over the
+  `OxyIdentity` native module in `@oxy.so/services` 11. Every native answer is
+  narrowed to its exact shape; anything else is `null`. Web and Node always
+  resolve `null`.
+- `tweakAddSecp256k1PrivateKey` in `@oxy.so/protocol/secp256k1`: the scalar
+  step of BIP32 non-hardened child derivation.
+
+### Removed
+
+- `loadSharedIdentityBridge` and `SharedIdentityBridge`. The raw-key export
+  they read (`getShared`) no longer exists: no Oxy app shares a UID, and
+  Commons never hands out the private key (OxyHQ/oxy#1388).
+
 ## 1.1.4
 
 ### Changed

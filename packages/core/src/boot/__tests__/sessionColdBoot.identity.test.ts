@@ -6,7 +6,7 @@
  *     the boot falls through to the PINNED mint instead;
  *   - the mint carries the pinned `accountId`, and the resolved session is the
  *     pinned account even while the device is switched elsewhere;
- *   - `identity-key-signin` (the PRIMARY local key) replaces `shared-key-signin`
+ *   - `identity-key-signin` (the PRIMARY local key) replaces `commons-proof-signin`
  *     (the CROSS-APP shared slot) — and the reverse in account mode;
  *   - with no verified pin the (unpinned) mint lane is skipped entirely rather
  *     than adopting whichever account the device is currently switched to.
@@ -84,7 +84,7 @@ const SHARED_SESSION: SessionLoginResponse = {
 
 interface OxyOverrides {
   mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
-  signInWithSharedIdentity?: OxyServices['auth']['signInWithSharedIdentity'];
+  signInWithCommonsIdentity?: OxyServices['auth']['signInWithCommonsIdentity'];
   requestChallenge?: OxyServices['auth']['requestChallenge'];
   verifyChallenge?: OxyServices['auth']['verifyChallenge'];
 }
@@ -104,7 +104,7 @@ function makeOxy(overrides: OxyOverrides = {}): { oxy: OxyServices; setTokens: j
       }),
     },
     auth: {
-      signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null),
+      signInWithCommonsIdentity: overrides.signInWithCommonsIdentity ?? (async () => null),
       requestChallenge: overrides.requestChallenge
       ?? (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
       verifyChallenge: overrides.verifyChallenge ?? (async () => IDENTITY_SESSION),
@@ -294,16 +294,16 @@ describe('runSessionColdBoot — identity mode: device-secret-mint', () => {
   });
 });
 
-describe('runSessionColdBoot — identity-key-signin vs shared-key-signin', () => {
-  it('identity mode runs identity-key-signin and NEVER the shared-keychain lane', async () => {
+describe('runSessionColdBoot — identity-key-signin vs commons-proof-signin', () => {
+  it('identity mode runs identity-key-signin and NEVER the Commons-proof lane', async () => {
     const store = createMemoryAuthStateStore(); // no mint credential
-    const signInWithSharedIdentity = jest.fn(async () => SHARED_SESSION);
+    const signInWithCommonsIdentity = jest.fn(async () => SHARED_SESSION);
     const requestChallenge = jest.fn(async () => ({
       challenge: 'chal-1',
       expiresAt: '2030-01-01T00:00:00.000Z',
     }));
     const verifyChallenge = jest.fn(async () => IDENTITY_SESSION);
-    const { oxy } = makeOxy({ signInWithSharedIdentity, requestChallenge, verifyChallenge });
+    const { oxy } = makeOxy({ signInWithCommonsIdentity, requestChallenge, verifyChallenge });
     const binding = await makeBinding();
     const onSession = jest.fn();
 
@@ -316,7 +316,7 @@ describe('runSessionColdBoot — identity-key-signin vs shared-key-signin', () =
       onSession,
     });
 
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
     expect(outcome).toMatchObject({ kind: 'session', via: 'identity-key-signin' });
     expect(onSession).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -341,16 +341,16 @@ describe('runSessionColdBoot — identity-key-signin vs shared-key-signin', () =
     expect(await store.load()).toMatchObject({ userId: 'vault-user', deviceSecret: 'ds-identity' });
   });
 
-  it('account mode runs shared-key-signin and NEVER the identity lane (unchanged)', async () => {
+  it('account mode runs commons-proof-signin and NEVER the identity lane (unchanged)', async () => {
     const store = createMemoryAuthStateStore();
-    const signInWithSharedIdentity = jest.fn(async () => SHARED_SESSION);
+    const signInWithCommonsIdentity = jest.fn(async () => SHARED_SESSION);
     const requestChallenge = jest.fn(async () => ({ challenge: 'c', expiresAt: 'e' }));
-    const { oxy } = makeOxy({ signInWithSharedIdentity, requestChallenge });
+    const { oxy } = makeOxy({ signInWithCommonsIdentity, requestChallenge });
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
-    expect(outcome).toMatchObject({ kind: 'session', via: 'shared-key-signin' });
-    expect(signInWithSharedIdentity).toHaveBeenCalledWith({ requestOptions: { retry: false } });
+    expect(outcome).toMatchObject({ kind: 'session', via: 'commons-proof-signin' });
+    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({ requestOptions: { retry: false } });
     expect(requestChallenge).not.toHaveBeenCalled();
   });
 

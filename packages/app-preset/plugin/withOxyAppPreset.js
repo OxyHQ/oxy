@@ -1,9 +1,9 @@
 /**
  * Expo Config Plugin: withOxyAppPreset
  *
- * The single config-plugin entry every Oxy app adds in place of the four
- * copy-pasted plugin entries (`withSharedUserId`, keychain entitlement,
- * `expo-build-properties`, `@oxy.so/services/plugins/withSharedIdentityReader`).
+ * The single config-plugin entry every Oxy app adds in place of the copy-pasted
+ * plugin entries (iOS keychain entitlement, `expo-build-properties`,
+ * `@oxy.so/services/plugins/withOxySharedPermissions`).
  *
  * In app.config.js / app.json:
  *
@@ -12,43 +12,55 @@
  *     ['@oxy.so/app-preset', {}],
  *   ]
  *
- * Each piece is individually disableable by passing its option as `false`:
+ * Options:
  *
  *   ['@oxy.so/app-preset', {
- *     sharedUserId: 'so.oxy.shared',        // false → skip android:sharedUserId
  *     keychainGroup: 'group.so.oxy.shared', // false → skip iOS keychain entitlement
  *     ios: { deploymentTarget: '17.0' },    // false → skip iOS build properties
  *     android: { targetSdkVersion: 34 },    // false → skip Android build properties
- *     sharedIdentityReader: true,           // false → skip @oxy.so/services reader plugin
  *   }]
+ *
+ * Android never gets `android:sharedUserId`: each Oxy app has its own UID and
+ * shares the identity and the device session with Commons over
+ * signature-protected IPC. `withOxySharedPermissions` (always applied) declares
+ * and requests the two Oxy signature permissions and the `<queries>` for the
+ * host authorities. The removed `sharedUserId` and `sharedIdentityReader`
+ * options throw, so an app config that still passes them fails loudly instead
+ * of silently doing something else.
  *
  * @param {import('expo/config').ExpoConfig} config
  * @param {object} [options]
- * @param {string|false} [options.sharedUserId='so.oxy.shared']
  * @param {string|false} [options.keychainGroup='group.so.oxy.shared']
  * @param {object|false}  [options.ios]
  * @param {object|false}  [options.android]
- * @param {boolean}       [options.sharedIdentityReader=true]
  */
-const withSharedUserId = require('./withSharedUserId');
 const withOxyKeychain = require('./withOxyKeychain');
 const withOxyBuildProperties = require('./withOxyBuildProperties');
 const { projectRootOf, requireFromProject } = require('./requireFromProject');
 
+const REMOVED_OPTIONS = {
+  sharedUserId:
+    'Oxy Android apps no longer share a UID: they share the identity and the session with Commons '
+    + 'over signature-protected IPC. Remove the option (and any android:sharedUserId).',
+  sharedIdentityReader:
+    'the reader plugin is gone; every Oxy app now applies @oxy.so/services/plugins/withOxySharedPermissions, '
+    + 'which the preset always does. Remove the option.',
+};
+
 module.exports = function withOxyAppPreset(config, options = {}) {
+  for (const [name, reason] of Object.entries(REMOVED_OPTIONS)) {
+    if (Object.hasOwn(options, name)) {
+      throw new Error(`[@oxy.so/app-preset] The \`${name}\` option was removed: ${reason}`);
+    }
+  }
+
   const {
-    sharedUserId = 'so.oxy.shared',
     keychainGroup = 'group.so.oxy.shared',
     ios = {},
     android = {},
-    sharedIdentityReader = true,
   } = options;
 
   let next = config;
-
-  if (sharedUserId !== false) {
-    next = withSharedUserId(next, sharedUserId);
-  }
 
   if (keychainGroup !== false) {
     next = withOxyKeychain(next, keychainGroup);
@@ -58,18 +70,19 @@ module.exports = function withOxyAppPreset(config, options = {}) {
     next = withOxyBuildProperties(next, { ios, android });
   }
 
-  if (sharedIdentityReader !== false) {
-    let withSharedIdentityReader;
-    try {
-      withSharedIdentityReader = requireFromProject('@oxy.so/services/plugins/withSharedIdentityReader', projectRootOf(config));
-    } catch (error) {
-      throw new Error(
-        "[@oxy.so/app-preset] sharedIdentityReader is enabled but the peer dependency '@oxy.so/services' "
-          + 'is not installed. Install it, or pass `{ sharedIdentityReader: false }` to the preset.',
-      );
-    }
-    next = withSharedIdentityReader(next);
+  let withOxySharedPermissions;
+  try {
+    withOxySharedPermissions = requireFromProject(
+      '@oxy.so/services/plugins/withOxySharedPermissions',
+      projectRootOf(config),
+    );
+  } catch (error) {
+    throw new Error(
+      "[@oxy.so/app-preset] needs '@oxy.so/services' 11 or later (for plugins/withOxySharedPermissions). "
+        + `Install it in the app. (${error instanceof Error ? error.message : String(error)})`,
+    );
   }
+  next = withOxySharedPermissions(next);
 
   return next;
 };

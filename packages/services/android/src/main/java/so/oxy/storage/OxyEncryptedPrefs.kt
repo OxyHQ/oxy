@@ -18,11 +18,11 @@ import java.security.GeneralSecurityException
  *
  * It used to have a second value, `RegenerateSharedMasterKey`, which deleted the
  * androidx master key (`_androidx_security_master_key_`) when a rebuild failed.
- * That key is ONE Keystore entry for the whole `so.oxy.shared` UID and wraps the
- * keyset of every Oxy prefs file in every Oxy app, so deleting it let one app
- * make every sibling's encrypted prefs unreadable. It was removed for
- * OxyHQ/oxy#1388 and must not come back: no store in any Oxy app deletes a
- * UID-shared key.
+ * That key is ONE Keystore entry for the whole app and wraps the keyset of every
+ * encrypted prefs file in it, so deleting it to heal one file made every other
+ * file unreadable (when Oxy apps still shared a UID, every OTHER app's files
+ * too). It was removed for OxyHQ/oxy#1388 and must not come back: no store
+ * deletes a Keystore entry.
  */
 internal enum class RecoveryPolicy {
   /**
@@ -37,9 +37,9 @@ internal enum class RecoveryPolicy {
  * The ONE way this package opens a hardware-backed [EncryptedSharedPreferences]
  * file.
  *
- * Two stores are built on it — the cross-app identity keypair
- * (`so.oxy.identity.OxyIdentityStore`) and the background session credential
- * (`so.oxy.session.OxyBackgroundSessionStore`) — and both need the same two
+ * The stores built on it — the device session credential
+ * (`so.oxy.devicesession.OxyDeviceSessionStore`) and the background session
+ * credential (`so.oxy.session.OxyBackgroundSessionStore`) — all need the same two
  * non-obvious properties below. They are implemented once here rather than per
  * store: a second copy would be a copy of exactly the reasoning that is easiest
  * to get wrong, and the failure mode of getting it wrong is silent (every read
@@ -67,9 +67,9 @@ internal enum class RecoveryPolicy {
  * ## Keyset self-heal (CRITICAL)
  *
  * The androidx master key that wraps each file's Tink keyset lives under the
- * UID-scoped default alias [MasterKey.DEFAULT_MASTER_KEY_ALIAS] — ONE entry for
- * the whole `so.oxy.shared` UID. When a NEW package joins that shared UID, that
- * master key can be rotated/regenerated, leaving keysets already written on disk
+ * default alias [MasterKey.DEFAULT_MASTER_KEY_ALIAS] — ONE entry for the whole
+ * app. When that master key is regenerated (a Keystore invalidation, a restore
+ * from a device-to-device transfer), keysets already written on disk stay
  * wrapped under the OLD key. `create()` then fails GCM verification
  * (`AEADBadTag` -> `GeneralSecurityException`, or an unreadable keyset ->
  * `IOException`) on EVERY read/write, and `EncryptedSharedPreferences` never
@@ -81,14 +81,13 @@ internal enum class RecoveryPolicy {
  * keysets. If a fresh keyset still cannot be built, the failure propagates and
  * the `runCatching {}` at every call site degrades to "absent".
  *
- * The master key itself is NEVER deleted here. It is shared by the whole UID, so
- * deleting it would make every other Oxy app's prefs file unreadable (and each
- * would then wipe itself on its next open). When the master key is gone — the
- * Keystore of the UID was wiped because some Oxy app's storage was cleared —
- * androidx creates a new one on the next `MasterKey.Builder.build()` and each
+ * The master key itself is NEVER deleted here. It is shared by every file of the
+ * app, so deleting it would make every other one unreadable (and each would then
+ * wipe itself on its next open). When the master key is gone — the app's
+ * Keystore was wiped with its storage — androidx creates a new one on the next `MasterKey.Builder.build()` and each
  * file heals itself through the file-only rebuild above. What was IN those
  * files is lost with the Keystore either way; for the self-custody identity,
- * the keystore-independent device backup brings it back (docs/identity/device-backup.md).
+ * Commons' keystore-independent device backup brings it back (docs/identity/device-backup.md).
  *
  * None of this touches the app's device session, which lives in expo-secure-store
  * under a DISTINCT prefs file ("SecureStore") and DISTINCT keystore aliases
@@ -164,7 +163,7 @@ internal object OxyEncryptedPrefs {
     Log.w(
       TAG,
       "'$prefsName' is still unreadable after a file reset ($recovery). Giving up " +
-        "without touching the UID-shared master key; its owner re-creates it.",
+        "without touching the app-wide master key; its owner re-creates it.",
       cause
     )
     throw cause

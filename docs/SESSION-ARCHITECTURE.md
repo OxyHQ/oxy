@@ -234,8 +234,9 @@ PRIMARY identity key owns the session PERMANENTLY, independent of the device's m
    `no_active_session` 401 is an authoritative signed-out; an `invalid_device_secret` 401
    drops the (diverged) secret and falls through.
 3. **`shared-device-adopt`** (native, `'account'` mode) — read the cross-app shared slot
-   (a dedicated `keychainService` inside the app group on iOS; the signature-protected
-   `OxyDeviceSession` broker on Android) and, if it holds a `deviceId` + `deviceSecret`
+   (a dedicated `keychainService` inside the app group on iOS; on Android the
+   device-session hosts, Commons then Accounts, through the signature-protected
+   `OxyDeviceSession` provider — a non-host app keeps no copy of its own) and, if it holds a `deviceId` + `deviceSecret`
    this app does not already have one of, adopt it and prove it with an ordinary mint.
    What travels here is an individually revocable SESSION credential, never the Commons
    private key — that separation is the point of the lane. `decideSharedDeviceJoin`
@@ -244,12 +245,13 @@ PRIMARY identity key owns the session PERMANENTLY, independent of the device's m
    lane can sign nobody out in either upgrade order. A failed mint reverts the store to
    exactly what it held before. In `'identity'` mode this lane does not run — the vault
    never lets a background credential decide which session its siblings boot into.
-4. **`shared-key-signin`** (native, `'account'` mode) — the RECOVERY lane, and now the
-   LAST one: sign a challenge with the shared Commons identity key in the app-group
-   keychain to re-mint a session. Using a self-custody identity key to obtain an
+4. **`commons-proof-signin`** (native, `'account'` mode) — the RECOVERY lane, and the
+   LAST one: prove the device's Oxy identity to re-mint a session
+   (`oxy.auth.signInWithCommonsIdentity`). On Android Commons signs the server
+   challenge over signature-protected IPC and the private key never leaves it; on iOS
+   the identity in the app-group keychain signs it. Using a self-custody identity key to obtain an
    ordinary session is the over-sharing issue #937 exists to end, so it is reachable
-   only where step 3 found nothing — an install predating the shared slot, or a slot
-   that is unreadable. Its own persist seeds the slot, so the first boot that needs it
+   only where step 3 found nothing — a fresh device, or a slot that is unreadable. Its own persist seeds the slot, so the first boot that needs it
    is the last one that does. It is **replaced by `identity-key-signin`** in
    `'identity'` mode, which re-mints from THIS device's PRIMARY key
    (`KeyManager.getPublicKey()` → challenge → sign → `verifyChallenge`) and
@@ -294,8 +296,8 @@ flowchart TD
   Secret -->|no| Slot{"native, account mode: shared device credential in the cross-app slot?"}
   Slot -->|yes| Adopt["shared-device-adopt — adopt + prove by mint"]
   Adopt --> In
-  Slot -->|"no / unreadable"| Native{"account mode: native + Commons key? / identity mode: primary key"}
-  Native -->|yes| Shared["shared-key-signin (account, recovery) / identity-key-signin (identity)"]
+  Slot -->|"no / unreadable"| Native{"account mode: native + Commons identity? / identity mode: primary key"}
+  Native -->|yes| Shared["commons-proof-signin (account, recovery) / identity-key-signin (identity)"]
   Shared --> In
   Native -->|"no / web"| Out["Signed out — silent, no navigation"]
   Out --> Btn["User taps Continue with Oxy -> OxyAccountDialog / OxySignInButton"]

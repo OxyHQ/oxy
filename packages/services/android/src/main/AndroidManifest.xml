@@ -1,10 +1,10 @@
 <manifest>
   <!--
-    Intentionally empty. The signature-protected <permission> and the
-    <provider> that hosts the shared identity are declared per-app by the
-    Commons config plugin (`withSharedIdentityProvider.js`), NOT here — only
-    Commons (the identity vault) should host the provider, and its authority is
-    the app's own ${applicationId}.identity. Reader apps add only the matching
-    <uses-permission> via `withSharedIdentityReader.js`.
+    Intentionally empty. The config plugins inject everything per app:
+    `withOxySharedPermissions` declares and requests the signature-level
+    `so.oxy.permission.IDENTITY` and `so.oxy.permission.DEVICE_SESSION` in EVERY
+    Oxy app and adds the `<queries>` for the provider authorities;
+    `withSharedDeviceSessionProvider` hosts the device-session provider in the
+    host apps (Commons, Accounts). The identity provider is Commons' own module.
   -->
 </manifest>

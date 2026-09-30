@@ -1,0 +1,34 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'so.oxy.commons.identityhost'
+version = '0.1.0'
+
+android {
+  namespace "so.oxy.commons.identityhost"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  testOptions {
+    unitTests.all {
+      // The cross-implementation vectors shared with @oxy.so/core's tests.
+      systemProperty 'oxy.identityHost.vectors', file('../vectors.json').absolutePath
+    }
+  }
+}
+
+dependencies {
+  // The Commons-only signer copy of the identity key, in hardware-backed
+  // EncryptedSharedPreferences (file `oxy_identity_signer`).
+  implementation "androidx.security:security-crypto:1.1.0-alpha06"
+  // secp256k1 ECDSA with RFC 6979 nonces (HMacDSAKCalculator), byte-identical
+  // to @noble/curves. See docs/identity/phase-2-shared-uid-migration.md.
+  implementation "org.bouncycastle:bcprov-jdk18on:1.80"
+
+  testImplementation "junit:junit:4.13.2"
+  // android.jar's org.json is a stub that throws in JVM unit tests.
+  testImplementation "org.json:json:20240303"
+}

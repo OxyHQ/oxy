@@ -2,14 +2,14 @@
  * The device backup of the self-custody identity: a copy that lives OUTSIDE this
  * app's own keystore, so a keystore wipe cannot take it along with the keys.
  *
- * Why it exists (OxyHQ/oxy#1388): on Android every Oxy app shares the Linux UID
- * `so.oxy.shared`, and the Android Keystore is per UID. Clearing the storage of
- * ANY sibling app (`pm clear`, or Settings › Apps › Storage › Clear storage)
- * wipes the Keystore of the whole UID. Every copy the SDK keeps in
- * expo-secure-store (primary, backup slot, phrase slot) and in the androidx
- * encrypted prefs (the cross-app shared slot) is wrapped by a key in that
- * Keystore, so they all die together, and until now the only way back was the
- * recovery phrase.
+ * Why it exists (OxyHQ/oxy#1388): on Android the Keystore belongs to the app's
+ * Linux UID, and every copy the SDK keeps in Commons — expo-secure-store
+ * (primary, backup slot, phrase slot) and the androidx encrypted prefs (the
+ * identity signer store) — is wrapped by a key in that Keystore. "Clear storage"
+ * on Commons (`pm clear`, or Settings › Apps › Storage › Clear storage) or an
+ * uninstall and reinstall takes all of them together. Oxy apps no longer share
+ * a UID, so clearing any OTHER app cannot reach Commons' Keystore; this copy is
+ * for Commons' own storage. Without it the only way back is the recovery phrase.
  *
  * `@oxy.so/core` never imports a native module, so the store is injected by the
  * app that owns the identity ({@link KeyManager.setDeviceBackupStore}). Commons

@@ -347,11 +347,17 @@ Wrap your app with `<OxyProvider>` from `@oxy.so/services` (all platforms).
 2. A brand-new browser origin is logged out until the user signs in there once
 3. Verify your `clientId` is a registered, active credential in the [Oxy Console](https://console.oxy.so)
 
-### Native keychain issues
+### Native cross-app sign-in issues
 
 1. iOS: Enable "Keychain Sharing" in Xcode with group `group.so.oxy.shared`
-2. Android: Add `android:sharedUserId="so.oxy.shared"` to manifest
-3. Both: Apps must be signed with same certificate/team
+   (`@oxy.so/app-preset` does it).
+2. Android: apply `@oxy.so/services/plugins/withOxySharedPermissions` (the
+   preset does it). It declares and requests `so.oxy.permission.IDENTITY` and
+   `so.oxy.permission.DEVICE_SESSION` and adds the `<queries>` for Commons and
+   Accounts. Never add `android:sharedUserId`: each Oxy app has its own UID, and
+   Commons answers over signature-protected IPC.
+3. Both: Apps must be signed with the same certificate/team, and on Android
+   the package must be on Commons' caller allow-list.
 
 ---
 

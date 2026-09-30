@@ -76,24 +76,62 @@ export interface ExpoSecureStoreLike {
   readonly WHEN_UNLOCKED: number;
 }
 
+/** What Commons says about the identity it holds (`describe`). */
+export interface CommonsIdentityDescription {
+  /** Protocol version of the Commons identity host. */
+  v: number;
+  /** The identity's public key, lowercase uncompressed SEC1 hex. */
+  publicKey: string;
+}
+
 /**
- * Structural interface for the `@oxy.so/expo-oxy-identity` native module — the
- * cross-app shared Oxy identity bridge.
- *
- * On Android the keypair crosses the process boundary through a
- * signature-protected `ContentProvider` hosted by Commons; on iOS every method
- * is a no-op (the Keychain Access Group path in `@oxy.so/core`'s `KeyManager`
- * owns iOS sharing). Typed structurally here so `@oxy.so/protocol` and
- * `@oxy.so/core` can reference the bridge without a hard dependency on the
- * optional native module.
+ * A signed server challenge from Commons (`proveIdentity`). The fields plug
+ * straight into `POST /auth/verify`: Commons signed
+ * `sha256("auth:${publicKey}:${challenge}:${timestamp}")`, DER hex.
  */
-export interface SharedIdentityBridge {
-  /** Read the shared keypair, or null when none is available on this device. */
-  getShared(): Promise<{ privateKey: string; publicKey: string } | null>;
-  /** Persist the shared keypair into this app's hardware-backed store (Commons only). */
-  putShared(privateKey: string, publicKey: string): Promise<void>;
-  /** Whether a shared identity is readable on this device. */
-  hasShared(): Promise<boolean>;
-  /** Remove the shared identity from this app's local store (best-effort). */
-  clearShared(): Promise<void>;
+export interface CommonsIdentityProof {
+  publicKey: string;
+  signature: string;
+  timestamp: number;
+}
+
+/** A social-receive input signature from Commons (`signSocialReceive`). */
+export interface CommonsSocialReceiveSignature {
+  /** DER hex, low-S, over the 32-byte digest the caller sent. */
+  signature: string;
+  /** The child key's compressed SEC1 public key, for the scriptSig. */
+  publicKey: string;
+}
+
+/**
+ * Structural interface for the `OxyIdentity` native module in
+ * `@oxy.so/services`: the client side of the identity Commons holds.
+ *
+ * On Android every method is one signature-protected `ContentProvider.call()`
+ * into Commons (`so.oxy.commons[.dev].identity`). Commons is the only app that
+ * holds the private key, and no method returns it or anything it can be
+ * recovered from: callers get the public key, signatures and domain-separated
+ * derivations, the way apps get tokens from `AccountManager`. Every method
+ * resolves `null` when Commons is not installed, holds no identity, or refuses
+ * the caller.
+ *
+ * On iOS the module is a stub that resolves `null`: the Keychain Access Group
+ * path in `@oxy.so/core`'s `KeyManager` owns iOS sharing.
+ */
+export interface CommonsIdentityBridge {
+  /** The public key of the identity Commons holds. */
+  describe(): Promise<CommonsIdentityDescription | null>;
+  /** Sign a server challenge (64 lowercase hex) for `POST /auth/verify`. */
+  proveIdentity(challenge: string): Promise<CommonsIdentityProof | null>;
+  /**
+   * HKDF-SHA256 over the identity key, 32 bytes as lowercase hex, identical to
+   * `KeyManager.deriveScopedSeed(info)` on the device that holds the key.
+   * Commons allows each caller package only its own `info` labels.
+   */
+  deriveScopedSeed(info: string): Promise<string | null>;
+  /**
+   * Sign a 32-byte digest (64 hex) with the social-receive child key `index`
+   * of the identity. Allowed for the wallet app only.
+   */
+  signSocialReceive(index: number, digest: string): Promise<CommonsSocialReceiveSignature | null>;
 }

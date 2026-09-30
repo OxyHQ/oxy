@@ -2,29 +2,37 @@ package so.oxy.devicesession
 
 import android.content.ContentProvider
 import android.content.ContentValues
-import android.content.Context
-import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
+import so.oxy.security.OxyCallerPolicy
 
 /**
- * Cross-process READ surface for the shared DeviceSession credential, declared
- * per-app by the `withSharedDeviceSession` config plugin at authority
- * `${applicationId}.devicesession` behind a `signature`-level permission.
+ * The device's shared DeviceSession credential, hosted by the HOST apps
+ * (Commons and Accounts, prod and dev) at `${applicationId}.devicesession`,
+ * declared by the `withSharedDeviceSessionProvider` config plugin behind the
+ * `signature`-level `so.oxy.permission.DEVICE_SESSION`.
  *
- * The signature check below is belt-and-suspenders on top of that permission:
- * even if the manifest gate were ever misconfigured, a differently-signed caller
- * still gets nothing. Same-signature is the whole trust boundary — an
- * incorrectly-signed app cannot read this slot, and there is no other way in.
+ * Oxy apps do not share a UID, so each app's files are its own: the credential
+ * lives ONCE per host, in the host's own [OxyDeviceSessionStore], and every
+ * other app reads and writes it through this provider
+ * ([OxyDeviceSessionModule] sweeps and fans out across the hosts).
  *
- * READ-ONLY across the process boundary, deliberately. A caller may join the
- * device's session; it may not seed or overwrite another app's. Writes happen
- * only in-process via [OxyDeviceSessionModule], against this app's own store.
+ * | method  | extras                     | answer                                   |
+ * |---------|----------------------------|------------------------------------------|
+ * | `read`  | –                          | `status` (+ `deviceId`, `deviceSecret`)  |
+ * | `write` | `deviceId`, `deviceSecret` | `ok`: whether a read-back confirmed it   |
+ * | `clear` | –                          | `ok`: whether a read-back found it empty |
  *
- * What crosses the boundary is a session credential — never the identity
- * keypair, which lives behind `so.oxy.identity.OxyIdentityProvider` under a
- * different permission. That separation is the point.
+ * The manifest permission is necessary but not sufficient: inside `call()`,
+ * [OxyCallerPolicy] takes the caller from the Binder (never from the request)
+ * and requires an allow-listed Oxy package signed with this app's certificate.
+ * Anything else gets `null`.
+ *
+ * What crosses the boundary is a session credential — ordinary, rotatable and
+ * server-revocable — and nothing else. The identity key is not in this app's
+ * reach at all: Commons holds it, and answers for it through a different
+ * provider, under a different permission. That separation is the point.
  *
  * All standard CRUD operations are no-ops; this provider exists solely for the
  * `call()` channel.
@@ -33,11 +41,27 @@ class OxyDeviceSessionProvider : ContentProvider() {
   override fun onCreate(): Boolean = true
 
   override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-    if (method != METHOD_READ) return null
     val ctx = context ?: return null
-    if (!callerSignatureMatches(ctx)) return null
+    if (method != METHOD_READ && method != METHOD_WRITE && method != METHOD_CLEAR) return null
+    OxyCallerPolicy.resolveCaller(ctx, "devicesession.$method") ?: return null
 
-    return when (val read = OxyDeviceSessionStore.read(ctx)) {
+    return when (method) {
+      METHOD_READ -> readBundle(OxyDeviceSessionStore.read(ctx))
+      METHOD_WRITE -> {
+        val deviceId = extras?.getString(OxyDeviceSessionStore.KEY_DEVICE_ID)
+        val deviceSecret = extras?.getString(OxyDeviceSessionStore.KEY_DEVICE_SECRET)
+        val ok = !deviceId.isNullOrEmpty() && !deviceSecret.isNullOrEmpty() &&
+          OxyDeviceSessionStore.write(ctx, deviceId, deviceSecret)
+        Bundle().apply { putBoolean(KEY_OK, ok) }
+      }
+      else -> {
+        Bundle().apply { putBoolean(KEY_OK, OxyDeviceSessionStore.clear(ctx)) }
+      }
+    }
+  }
+
+  private fun readBundle(read: DeviceSessionRead): Bundle =
+    when (read) {
       is DeviceSessionRead.Present -> Bundle().apply {
         putString(KEY_STATUS, STATUS_PRESENT)
         putString(OxyDeviceSessionStore.KEY_DEVICE_ID, read.deviceId)
@@ -52,20 +76,6 @@ class OxyDeviceSessionProvider : ContentProvider() {
         putString(KEY_REASON, read.reason)
       }
     }
-  }
-
-  /**
-   * True when the calling package shares this app's signing certificate. Uses
-   * `checkSignatures` (deprecated but still the simplest correct cross-package
-   * signature comparison; returns SIGNATURE_MATCH only for same-cert apps).
-   */
-  private fun callerSignatureMatches(ctx: Context): Boolean {
-    val caller = callingPackage ?: return false
-    return runCatching {
-      @Suppress("DEPRECATION")
-      ctx.packageManager.checkSignatures(caller, ctx.packageName) == PackageManager.SIGNATURE_MATCH
-    }.getOrDefault(false)
-  }
 
   override fun query(
     uri: Uri,
@@ -90,6 +100,9 @@ class OxyDeviceSessionProvider : ContentProvider() {
 
   companion object {
     const val METHOD_READ = "read"
+    const val METHOD_WRITE = "write"
+    const val METHOD_CLEAR = "clear"
+    const val KEY_OK = "ok"
     const val KEY_STATUS = "status"
     const val KEY_REASON = "reason"
     const val STATUS_PRESENT = "present"

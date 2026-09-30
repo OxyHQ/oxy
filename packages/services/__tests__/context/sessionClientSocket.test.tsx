@@ -189,7 +189,7 @@ devices: { mintToken: jest.fn(async () => ({
           updatedAt: Date.now(),
         },
       })) },
-      auth: { signInWithSharedIdentity: jest.fn(async () => null) },
+      auth: { signInWithCommonsIdentity: jest.fn(async () => null) },
       users: { me: jest.fn(async (): Promise<User> => ({ id: ACCOUNT_A1, username: 'user-a1' } as User)), bySession: jest.fn(async (): Promise<User> => ({ id: ACCOUNT_A1, username: 'user-a1' } as User)), getMany: getUsersByIds },
       accounts: { list: jest.fn(async () => []) },
     },

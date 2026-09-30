@@ -296,9 +296,22 @@ jobs:
       - name: Prebuild android + assert shared identity wiring
         working-directory: ${{ runner.temp }}/smoke-app/packages/frontend
         run: |
+          set -euo pipefail
           bunx expo prebuild --platform android --no-install
-          grep -q 'android:sharedUserId="so.oxy.shared"' android/app/src/main/AndroidManifest.xml
-          grep -q 'so.oxy.shared.permission.READ_IDENTITY' android/app/src/main/AndroidManifest.xml
+          manifest=android/app/src/main/AndroidManifest.xml
+          # No Oxy app shares a UID (OxyHQ/oxy#1388): identity and session reach
+          # Commons over signature-protected IPC instead.
+          if grep -q 'sharedUserId' "$manifest"; then
+            echo "::error::the scaffolded app declares android:sharedUserId"; exit 1
+          fi
+          # Every Oxy app declares AND requests both signature permissions.
+          for permission in so.oxy.permission.IDENTITY so.oxy.permission.DEVICE_SESSION; do
+            grep -Eq "<permission [^>]*android:name=\"$permission\"[^>]*android:protectionLevel=\"signature\"" "$manifest" \
+              || { echo "::error::$permission is not declared at signature level"; exit 1; }
+            grep -Eq "<uses-permission [^>]*android:name=\"$permission\"" "$manifest" \
+              || { echo "::error::$permission is not requested"; exit 1; }
+          done
+          grep -q 'android:authorities="so.oxy.commons.identity"' "$manifest"
           grep -q 'android.compileSdkVersion=36' android/gradle.properties
 
       - name: Prebuild ios + assert keychain group

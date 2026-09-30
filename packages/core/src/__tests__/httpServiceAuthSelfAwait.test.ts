@@ -1,7 +1,7 @@
 /**
  * Auth self-await regression.
  *
- * The refresh handler (arm 2 shared-key sign-in) calls PRE-SESSION public
+ * The refresh handler (arm 2 Commons-identity sign-in) calls PRE-SESSION public
  * endpoints (`/auth/challenge`, `/auth/verify`, the commons-signin surface, …)
  * from INSIDE the single-flight `tokenRefreshPromise`. If any of those carried
  * an auth preflight (no `skipAuth`), its `getAuthHeader` would call

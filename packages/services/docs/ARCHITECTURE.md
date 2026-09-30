@@ -72,7 +72,7 @@ Key props (`OxyProviderProps`):
 
 ### Device-first cold boot
 
-On mount every app runs `runProviderColdBoot` → `runSessionColdBoot` from `@oxy.so/core` — an ordered step chain: `warm-token-plant` (replay a still-valid persisted access token, no network), then `device-secret-mint` (persisted `{deviceId, deviceSecret}` → `POST /session/device/token`, web + native), then `shared-key-signin` (native; `identity-key-signin` instead under `sessionMode: 'identity'`).
+On mount every app runs `runProviderColdBoot` → `runSessionColdBoot` from `@oxy.so/core` — an ordered step chain: `warm-token-plant` (replay a still-valid persisted access token, no network), then `device-secret-mint` (persisted `{deviceId, deviceSecret}` → `POST /session/device/token`, web + native), then `shared-device-adopt` (native: join the device session a host app holds), then `commons-proof-signin` (native: Commons signs a server challenge on Android, the keychain-group key on iOS; `identity-key-signin` instead under `sessionMode: 'identity'`).
 
 **Cold boot never navigates the top-level window.** An origin with no local credential resolves signed OUT and waits for the user's "Continue with Oxy" — there is no silent `prompt=none` restore and no post-login hub sync in any mode. Both were removed (issue #691 phase 7b) precisely because they moved the tab without a gesture, destroying in-page state on every cold boot. Do not reintroduce either, nor a `hubSync` prop.
 
@@ -88,7 +88,7 @@ The SDK contains no session logic of its own — it binds UI to the shared sessi
 | `accountSwitchTargets` | `isSwitchTargetAccount` / `canSwitchIntoAccount` — the switch-target predicates over the account GRAPH (what a caller can manage), asked by the Console's workspace tree and the Accounts app's managed-account rows. Not the device switcher. |
 | `accountDialogController` | Headless state machine for the account dialog (views, sign-in flow phases). Framework-agnostic; bound via `useSyncExternalStore`. |
 | `authStateStore`, `refresh` | Persisted auth state + the unified token-refresh handler/scheduler. |
-| `boot/sessionColdBoot` | `runSessionColdBoot` — ordered cold-boot runner (`device-secret-mint` then `shared-key-signin`). |
+| `boot/sessionColdBoot` | `runSessionColdBoot` — ordered cold-boot runner (`device-secret-mint`, `shared-device-adopt`, then `commons-proof-signin`). |
 
 **Server authority:** the `DeviceSession` document (Mongo collection `devicesessions`: `deviceId`, `accounts[{ accountId, sessionId, authuser, operatedByUserId? }]`, `activeAccountId`, `secretHash`, `revision`) behind `/session/device/{token,state,add,switch,signout}`. Every mutation bumps `revision` and broadcasts a token-free `session_state` event to the Socket.IO room `device:<deviceId>`, so all apps on the same device converge instantly. See [device-session.md](../../../docs/auth/device-session.md).
 

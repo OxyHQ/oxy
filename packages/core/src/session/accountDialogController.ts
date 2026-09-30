@@ -19,8 +19,8 @@
  *   - `activateContext` (the ADR 0002 switch, keyed on the `principal acting as
  *     account` pair) and the two removals an account id cannot name —
  *     `signOutContext` and `signOutPrincipal`;
- *   - the "Sign in with Oxy" device flow (same-device shared-keychain via
- *     `oxy.auth.signInWithSharedIdentity`, else the cross-device QR handoff
+ *   - the "Sign in with Oxy" device flow (same-device Commons identity via
+ *     `oxy.auth.signInWithCommonsIdentity`, else the cross-device QR handoff
  *     via `oxy.auth.commons.start` → poll → `oxy.auth.claimSession`);
  *   - AUTOMATIC delivery selection for that flow (issue #691): the user presses
  *     ONE primary action and the controller — not the user — picks how the
@@ -38,7 +38,7 @@
  *     offer a "Get Commons" fallback instead of a same-device dead end.
  *
  * Sign-in is by email (a code or a link), an optional password and an
- * optional authenticator, or the Commons QR / shared-keychain handoff. Account
+ * optional authenticator, or the Commons QR / same-device Commons identity. Account
  * creation (`signup` view) is a username and a confirmed email, or a
  * Commons-created identity.
  *
@@ -154,7 +154,7 @@ export type SignInFailureReason =
   | 'unknown';
 
 /**
- * State of the "Sign in with Oxy" (shared-key / QR) device flow.
+ * State of the "Sign in with Oxy" (Commons identity / QR) device flow.
  *
  * Everything here is safe to render. The flow's SECRET credential (the
  * device-flow `sessionToken`) is deliberately absent — it never leaves the
@@ -1014,13 +1014,14 @@ export class AccountDialogController {
   }
 
   // =========================================================================
-  // Sign in with Oxy (device flow — shared keychain, else cross-device QR)
+  // Sign in with Oxy (device flow — same-device Commons identity, else cross-device QR)
   // =========================================================================
 
   /**
-   * Start "Sign in with Oxy". Native devices with a shared identity mint a
-   * session silently (`signInWithSharedIdentity`); everything else (web, or a
-   * native device without a shared identity) falls through to the cross-device
+   * Start "Sign in with Oxy". Native devices with an Oxy identity (Commons on
+   * Android, the keychain group on iOS) mint a session silently
+   * (`signInWithCommonsIdentity`); everything else (web, or a native device
+   * without one) falls through to the cross-device
    * QR handoff — as the SAME attempt, so cancelling during either half stops both.
    */
   async signInWithOxy(): Promise<void> {
@@ -1030,7 +1031,7 @@ export class AccountDialogController {
     try {
       // Minted WITHOUT planting the bearer: `completeSignIn` installs it only if
       // this attempt is still the current one when the mint returns.
-      const session = await this.oxyServices.auth.signInWithSharedIdentity({ plantTokens: false });
+      const session = await this.oxyServices.auth.signInWithCommonsIdentity({ plantTokens: false });
       if (!this.isCurrentAttempt(attempt)) return;
       if (session) {
         await this.completeSignIn(attempt, session, session.user);
@@ -1038,9 +1039,9 @@ export class AccountDialogController {
       }
     } catch (error) {
       if (!this.isCurrentAttempt(attempt)) return;
-      // Shared-key mint failed — log and fall through to the QR handoff rather
+      // The identity mint failed — log and fall through to the QR handoff rather
       // than dead-ending the sign-in.
-      logger.warn('[AccountDialogController] signInWithSharedIdentity failed', { component: 'AccountDialogController' }, error);
+      logger.warn('[AccountDialogController] signInWithCommonsIdentity failed', { component: 'AccountDialogController' }, error);
     }
     await this.startDeviceFlowSession(attempt, { deliver: true });
   }
@@ -1497,7 +1498,7 @@ export class AccountDialogController {
 
   /**
    * Install an authorized session, notify, and return to the account list.
-   * Shared by the shared-key and QR paths so they cannot drift.
+   * Shared by the Commons-identity and QR paths so they cannot drift.
    *
    * THE install point, and so the last place an abandoned attempt is stopped:
    * the bearer is planted and the session committed only while `attempt` is

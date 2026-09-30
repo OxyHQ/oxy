@@ -1,5 +1,46 @@
 # Changelog
 
+## [11.0.0] - 2026-09-30
+
+Android apps no longer share the `so.oxy.shared` UID (OxyHQ/oxy#1388). They
+share the identity and the device session with Commons (and Accounts) over
+signature-protected ContentProvider `call()` IPC instead, the way apps use
+`AccountManager`. Commons is the only holder of the identity private key. iOS
+is unchanged.
+
+### Breaking changes
+
+- New plugin `@oxy.so/services/plugins/withOxySharedPermissions`, required in
+  EVERY Oxy Android app (`@oxy.so/app-preset` 3 applies it): declares and
+  requests the signature-level `so.oxy.permission.IDENTITY` and
+  `so.oxy.permission.DEVICE_SESSION`, and adds `<queries>` for
+  `so.oxy.commons[.dev].identity`, `so.oxy.commons[.dev].devicesession` and
+  `so.oxy.accounts[.dev].devicesession`. Never declare `android:sharedUserId`.
+- Removed `plugins/withSharedIdentityProvider`, `withSharedIdentityReader` and
+  `withSharedDeviceSessionReader`, the `OxyIdentityProvider`/`OxyIdentityStore`
+  native classes and the `oxy_shared_identity` file. The raw-key export
+  (`getShared`/`putShared`/`hasShared`/`clearShared`) is gone.
+- The `OxyIdentity` native module is a client of Commons' identity host:
+  `describe`, `proveIdentity`, `deriveScopedSeed`, `signSocialReceive` (the iOS
+  stub resolves `nil`). Use it through `@oxy.so/core` 4.
+- `withSharedDeviceSessionProvider` (hosts only: Commons, Accounts) declares no
+  permission any more and guards the provider with `so.oxy.permission.DEVICE_SESSION`.
+- Requires `@oxy.so/core` ^4.0.0.
+
+### Changed
+
+- The device-session provider answers `read`, `write` and `clear`, and checks
+  the caller itself: the package comes from `Binder.getCallingUid()` and must be
+  an allow-listed Oxy app signed with the host's certificate
+  (`hasSigningCertificate` on API 28+, `checkSignatures` below).
+- `OxyDeviceSession`: a host app reads and writes its own store; every other
+  app sweeps the hosts (Commons, then Accounts) to read and publishes to every
+  installed host, and keeps no copy of its own. A publish succeeds only when no
+  installed host is left holding an older credential: a host that refuses the
+  write is cleared, so the sweep never hands out a stale secret.
+- Comments that said UID members share one data directory are corrected: each
+  package always had its own; only the Keystore was shared.
+
 ## [10.0.0] - 2026-09-29
 
 ### Breaking changes

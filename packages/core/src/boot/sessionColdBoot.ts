@@ -20,11 +20,13 @@
  *      slot: adopt it and mint. This is how a newly installed official app joins
  *      the device's existing session WITHOUT another QR and without ever touching
  *      the Commons private key.
- *   4. `shared-key-signin` (native, ACCOUNT mode) — the legacy lane: re-mint by
- *      signing with the shared-keychain IDENTITY key. Retained as a recovery /
- *      compatibility path for devices whose apps have not yet published a shared
- *      device credential — OR `identity-key-signin` (IDENTITY mode) — re-mint
- *      from THIS device's primary identity key.
+ *   4. `commons-proof-signin` (native, ACCOUNT mode) — sign in as the Oxy
+ *      identity the device holds: on Android, Commons signs a server challenge
+ *      over signature-protected IPC (the key never leaves Commons); on iOS, the
+ *      identity in the keychain access group signs it. The recovery path for a
+ *      device where no sibling app has published a shared device credential —
+ *      OR `identity-key-signin` (IDENTITY mode) — re-mint from THIS device's
+ *      primary identity key.
  *   5. Signed out.
  *
  * Two session modes (see {@link RunSessionColdBootOptions.sessionMode}):
@@ -32,9 +34,9 @@
  *     Oxy app but the identity vault boots this way; behaviour is unchanged.
  *   - `identity` — the owner of the local PRIMARY identity key owns the session,
  *     permanently, regardless of which account the device is switched to. Each
- *     step above is bound to the persisted identity pin, and the shared-keychain
- *     lane is replaced by the primary-key one (the shared slot is a CROSS-APP
- *     slot that may hold a different identity).
+ *     step above is bound to the persisted identity pin, and the Commons-proof
+ *     lane is replaced by the primary-key one (the device's shared identity may
+ *     be a different one).
  *
  * ESM-safe (no `require()`); no react/react-native/expo imports.
  */
@@ -104,7 +106,7 @@ export interface RunSessionColdBootOptions {
   onStepDeadline?: (stepId: string) => void;
   /**
    * Best-effort connectivity hint. When it returns `true` the two NETWORK steps
-   * (`device-secret-mint`, `shared-key-signin`) are skipped — an offline device
+   * (`device-secret-mint`, `commons-proof-signin`) are skipped — an offline device
    * cannot mint, and attempting to would burn the whole deadline on a doomed
    * request before routing settles. The pure-local `warm-token-plant` step is
    * NEVER gated by this: an offline returning user with an unexpired persisted
@@ -286,7 +288,7 @@ export async function runSessionColdBoot(
           };
         case 'invalid-secret': {
           // Stale/diverged secret — drop it so the mint lane stops firing. On
-          // native the shared-key step below can still recover; on web this ends
+          // native the Commons-proof step below can still recover; on web this ends
           // signed out. Setting it undefined drops the key on the store's JSON
           // serialization, and the mint guard treats undefined as absent.
           const persisted = await store.load();
@@ -338,9 +340,9 @@ export async function runSessionColdBoot(
   if (identityBinding !== null) {
     // 3-identity. identity-key-signin — re-mint from THIS device's PRIMARY
     //    identity key (`getPublicKey` → challenge → sign → verify). It REPLACES
-    //    `shared-key-signin`, which reads the CROSS-APP shared keychain slot and
-    //    may therefore hold a different identity than the device's primary — the
-    //    one thing an identity-bound client must never adopt. The server resolves
+    //    `commons-proof-signin`, whose shared identity may be a different one
+    //    than the device's primary — the one thing an identity-bound client must
+    //    never adopt. The server resolves
     //    the account from the verified signer, so the winning session is
     //    identity-authoritative and the pin is (re)written from it.
     //
@@ -464,26 +466,29 @@ export async function runSessionColdBoot(
   }
 
   if (identityBinding === null) {
-    // 4. shared-key-signin (native) — the RECOVERY / COMPATIBILITY lane: sign a
-    //    challenge with the shared-keychain IDENTITY key to re-mint a session.
+    // 4. commons-proof-signin (native) — the RECOVERY lane: prove the device's
+    //    Oxy identity to re-mint a session. On Android Commons signs the server
+    //    challenge (`describe` → challenge → `proveIdentity` → verify) and the
+    //    private key never enters this app; on iOS the keychain-group identity
+    //    signs it here.
     //
     //    It runs LAST on purpose. Using the self-custody key to obtain an ordinary
-    //    session is the over-sharing #937 sets out to end, so it is now reachable
-    //    only on a device where no sibling app has published a shared device
-    //    credential yet — an install that predates this lane, or one where the
-    //    shared slot is unreadable. Its own `store.save` below feeds the shared
-    //    slot through the mirroring store, so the FIRST boot that takes this lane
-    //    is also the last one that needs to: every later app joins by credential.
+    //    session is the over-sharing #937 sets out to end, so it is reachable only
+    //    on a device where no sibling app has published a shared device
+    //    credential yet — a fresh device, or one where the shared slot is
+    //    unreadable. Its own `store.save` below feeds the shared slot through the
+    //    mirroring store, so the FIRST boot that takes this lane is also the last
+    //    one that needs to: every later app joins by credential.
     //
     //    Native AND online: it is a network step (challenge + verify round-trips),
     //    so it is gated by the same offline hint as the mint lane. `{ retry: false }`
     //    keeps the two round-trips as single attempts — the refresh scheduler /
     //    401 lane own later retries — so this step cannot multiply boot latency.
     steps.push({
-      id: 'shared-key-signin',
+      id: 'commons-proof-signin',
       enabled: () => isNative && !isOffline(),
       run: async () => {
-        const session = await oxy.auth.signInWithSharedIdentity({ requestOptions: { retry: false } });
+        const session = await oxy.auth.signInWithCommonsIdentity({ requestOptions: { retry: false } });
         if (!session?.accessToken) {
           return { kind: 'skip' };
         }

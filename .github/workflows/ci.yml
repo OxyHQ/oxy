@@ -1231,6 +1231,85 @@ jobs:
         run: bun run test
         working-directory: ./packages/console
 
+  # The Android Kotlin nothing else compiles: Commons' identity host
+  # (modules/oxy-identity-host: the key-holding provider, its crypto and the
+  # JVM test that pins it to vectors.json, the same file @oxy.so/core's tests
+  # check) and @oxy.so/services' native modules (device-session hosts, the
+  # Commons client). A throwaway `expo prebuild` of Commons gives Gradle a real
+  # project; only the two library modules compile, and only the host's JVM unit
+  # test runs — no app, no NDK, no emulator.
+  #
+  # Always runs (no job-level `if`, so `CI complete` never sees it skipped); on
+  # a pull request that touches none of these paths its steps are skipped
+  # after the checkout. The merge queue always runs it all.
+  android-kotlin:
+    name: Android Kotlin (Commons identity host + services)
+    runs-on: ubuntu-latest
+    # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - name: Does this change reach the Android Kotlin?
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # The PR merge commit against its first parent: what the PR adds.
+          if git diff --name-only HEAD^1 HEAD | grep -Eq '^(packages/services/(android/|plugins/|expo-module\.config\.json|package\.json)|packages/commons/(modules/|plugins/|app\.config\.js|package\.json)|packages/app-preset/plugin/|packages/expo-splash/|bun\.lock|\.github/workflows/ci\.yml)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No Android Kotlin or manifest-plugin change; nothing to compile." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - if: ${{ steps.scope.outputs.run == 'true' }}
+        uses: gradle/actions/setup-gradle@v4
+      - name: Install dependencies
+        if: ${{ steps.scope.outputs.run == 'true' }}
+        run: bun install --frozen-lockfile --minimum-release-age=0
+      - name: Build expo-splash (Commons' app.config.js loads its plugin)
+        if: ${{ steps.scope.outputs.run == 'true' }}
+        run: bun run --filter @oxy.so/expo-splash build
+      - name: Prebuild Commons (Android)
+        if: ${{ steps.scope.outputs.run == 'true' }}
+        working-directory: ./packages/commons
+        run: bunx expo prebuild --platform android --no-install
+      - name: Compile the identity host and services, run the host's JVM tests
+        if: ${{ steps.scope.outputs.run == 'true' }}
+        working-directory: ./packages/commons/android
+        run: >-
+          ./gradlew --no-daemon -PreactNativeArchitectures=arm64-v8a
+          :oxy-identity-host:compileDebugKotlin
+          :oxy-identity-host:testDebugUnitTest
+          :oxy-so-services:compileDebugKotlin
+      - name: The merged manifest declares no shared UID and hosts both providers
+        if: ${{ steps.scope.outputs.run == 'true' }}
+        working-directory: ./packages/commons/android
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon -PreactNativeArchitectures=arm64-v8a :app:processDebugMainManifest
+          merged=app/build/intermediates/merged_manifest/debug/processDebugMainManifest/AndroidManifest.xml
+          if grep -q 'sharedUserId' "$merged"; then
+            echo "::error::Commons declares android:sharedUserId"; exit 1
+          fi
+          grep -q 'so.oxy.commons.identityhost.OxyIdentityHostProvider' "$merged"
+          grep -q 'so.oxy.devicesession.OxyDeviceSessionProvider' "$merged"
+
   # THE one status check `main` requires. Everything above it reports here.
   #
   # Requiring the test jobs by name cannot work: a required check that never
@@ -1255,6 +1334,7 @@ jobs:
       - api-build
       - packages-platform
       - packages-apps
+      - android-kotlin
     if: always()
     runs-on: ubuntu-latest
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).

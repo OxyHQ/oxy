@@ -50,7 +50,7 @@ jest.mock('@oxy.so/protocol', () => ({
   loadExpoCrypto: async () => require('expo-crypto'),
   loadSecureStore: async () => require('expo-secure-store'),
   loadNodeCrypto: async () => require('node:crypto'),
-  loadSharedIdentityBridge: async () => null,
+  loadCommonsIdentityBridge: async () => null,
 }));
 
 const KEY_A = 'aa'.repeat(32);

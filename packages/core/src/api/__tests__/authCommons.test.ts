@@ -4,7 +4,8 @@
  * Stubs `makeRequest` (and the shared challenge/sign primitives) so the tests
  * run with no network. We assert the exact request bodies the RP and the
  * approver send — these are the load-bearing coordination points with the C2
- * server endpoints — plus the native-vs-web behaviour of the shared-key SSO.
+ * server endpoints — plus the Android (Commons proof) / iOS (keychain group) / web behaviour of
+ * same-device sign-in.
  *
  * Also covers Phase 4 (automatic delivery, issue #691): push-token
  * registration, the bearer-authenticated `deliver` call, the un-authenticated
@@ -21,6 +22,16 @@ import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
 import { SignatureService } from '../../crypto/signatureService';
 import { selectCommonsDelivery, pushTargetsFromDelivery } from '../../utils/commonsDelivery';
+import { setPlatformOS } from '../../utils/platform';
+import type { CommonsIdentityBridge } from '@oxy.so/protocol';
+
+// The Android Commons bridge each test installs (`null`: Commons absent).
+const mockCommonsBridge: { current: CommonsIdentityBridge | null } = { current: null };
+jest.mock('@oxy.so/protocol', () => ({
+  __esModule: true,
+  ...jest.requireActual('@oxy.so/protocol'),
+  loadCommonsIdentityBridge: async () => mockCommonsBridge.current,
+}));
 
 const challengeFixture: ChallengeResponse = {
   challenge: 'chal-xyz',
@@ -846,8 +857,8 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
     });
   });
 
-  describe('signInWithSharedIdentity (Mechanism A — same-device SSO)', () => {
-    it('mints a session from the shared key when one exists (native)', async () => {
+  describe('signInWithCommonsIdentity on iOS / web (Mechanism A — keychain group)', () => {
+    it('mints a session from the shared key when one exists (iOS)', async () => {
       jest.spyOn(KeyManager, 'hasSharedIdentity').mockResolvedValue(true);
       jest.spyOn(KeyManager, 'getSharedPublicKey').mockResolvedValue('shared-pub');
       const requestChallengeSpy = jest
@@ -862,7 +873,7 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
         .spyOn(oxy.auth, 'verifyChallenge')
         .mockResolvedValue(sessionFixture);
 
-      const result = await oxy.auth.signInWithSharedIdentity({
+      const result = await oxy.auth.signInWithCommonsIdentity({
         deviceName: 'iPad',
         deviceFingerprint: 'fp-1',
       });
@@ -899,12 +910,12 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
         .spyOn(oxy.auth, 'verifyChallenge')
         .mockResolvedValue(sessionFixture);
 
-      const result = await oxy.auth.signInWithSharedIdentity({
+      const result = await oxy.auth.signInWithCommonsIdentity({
         requestOptions: { retry: false },
       });
 
       // The SAME requestOptions object is forwarded to both calls — this is how
-      // the cold-boot `shared-key-signin` step keeps its two round-trips as
+      // the cold-boot `commons-proof-signin` step keeps its two round-trips as
       // single attempts without changing interactive defaults.
       expect(requestChallengeSpy).toHaveBeenCalledWith('shared-pub', { retry: false });
       expect(verifyChallengeSpy).toHaveBeenCalledWith(
@@ -926,7 +937,7 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       const requestChallengeSpy = jest.spyOn(oxy.auth, 'requestChallenge');
       const verifyChallengeSpy = jest.spyOn(oxy.auth, 'verifyChallenge');
 
-      const result = await oxy.auth.signInWithSharedIdentity();
+      const result = await oxy.auth.signInWithCommonsIdentity();
 
       expect(result).toBeNull();
       expect(requestChallengeSpy).not.toHaveBeenCalled();
@@ -938,9 +949,82 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       jest.spyOn(KeyManager, 'getSharedPublicKey').mockResolvedValue(null);
       const verifyChallengeSpy = jest.spyOn(oxy.auth, 'verifyChallenge');
 
-      const result = await oxy.auth.signInWithSharedIdentity();
+      const result = await oxy.auth.signInWithCommonsIdentity();
 
       expect(result).toBeNull();
+      expect(verifyChallengeSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('signInWithCommonsIdentity on Android (Mechanism A — Commons proves)', () => {
+    const PUB = `04${'ab'.repeat(64)}`;
+    const CHALLENGE = 'c'.repeat(64);
+
+    beforeEach(() => {
+      setPlatformOS('android');
+    });
+
+    afterEach(() => {
+      mockCommonsBridge.current = null;
+      setPlatformOS('web');
+    });
+
+    function bridge(overrides: Partial<CommonsIdentityBridge> = {}): CommonsIdentityBridge {
+      return {
+        describe: jest.fn(async () => ({ v: 2, publicKey: PUB })),
+        proveIdentity: jest.fn(async () => ({ publicKey: PUB, signature: '3044beef', timestamp: 1700000000789 })),
+        deriveScopedSeed: jest.fn(async () => null),
+        signSocialReceive: jest.fn(async () => null),
+        ...overrides,
+      };
+    }
+
+    it('describe → challenge → Commons proof → verify, never touching a local key', async () => {
+      const commons = bridge();
+      mockCommonsBridge.current = commons;
+      const sharedPrivate = jest.spyOn(KeyManager, 'getSharedPrivateKey');
+      const signShared = jest.spyOn(SignatureService, 'signChallengeWithSharedKey');
+      const requestChallengeSpy = jest
+        .spyOn(oxy.auth, 'requestChallenge')
+        .mockResolvedValue({ challenge: CHALLENGE, expiresAt: '2026-06-26T00:05:00.000Z' });
+      const verifyChallengeSpy = jest.spyOn(oxy.auth, 'verifyChallenge').mockResolvedValue(sessionFixture);
+
+      const result = await oxy.auth.signInWithCommonsIdentity({ requestOptions: { retry: false }, plantTokens: false });
+
+      expect(requestChallengeSpy).toHaveBeenCalledWith(PUB, { retry: false });
+      expect(commons.proveIdentity).toHaveBeenCalledWith(CHALLENGE);
+      expect(verifyChallengeSpy).toHaveBeenCalledWith(
+        PUB,
+        CHALLENGE,
+        '3044beef',
+        1700000000789,
+        undefined,
+        undefined,
+        { retry: false },
+        { plantTokens: false },
+      );
+      expect(result).toEqual(sessionFixture);
+      expect(sharedPrivate).not.toHaveBeenCalled();
+      expect(signShared).not.toHaveBeenCalled();
+    });
+
+    it('returns null with no network when Commons is absent or holds no identity', async () => {
+      const requestChallengeSpy = jest.spyOn(oxy.auth, 'requestChallenge');
+      await expect(oxy.auth.signInWithCommonsIdentity()).resolves.toBeNull();
+
+      mockCommonsBridge.current = bridge({ describe: jest.fn(async () => null) });
+      await expect(oxy.auth.signInWithCommonsIdentity()).resolves.toBeNull();
+      expect(requestChallengeSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns null without verifying when Commons refuses the proof', async () => {
+      mockCommonsBridge.current = bridge({ proveIdentity: jest.fn(async () => null) });
+      jest
+        .spyOn(oxy.auth, 'requestChallenge')
+        .mockResolvedValue({ challenge: CHALLENGE, expiresAt: '2026-06-26T00:05:00.000Z' });
+      const verifyChallengeSpy = jest.spyOn(oxy.auth, 'verifyChallenge');
+
+      await expect(oxy.auth.signInWithCommonsIdentity()).resolves.toBeNull();
       expect(verifyChallengeSpy).not.toHaveBeenCalled();
     });
   });

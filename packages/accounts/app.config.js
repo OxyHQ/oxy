@@ -105,22 +105,18 @@ module.exports = {
       'expo-sharing',
       'expo-status-bar',
       'expo-web-browser',
-      // Production joins the shared Android UID for sign-in-once-use-everywhere.
-      // Development builds must stay outside that UID so a lower-trust build
-      // cannot access production apps' private data or identity credentials.
-      ...(!IS_DEV_VARIANT ? ['./plugins/withSharedUserId'] : []),
-      // Requests the signature-level READ_IDENTITY permission + provider queries
-      // so this app can READ the shared identity Commons hosts (the native
-      // module now ships inside @oxy.so/services). Reader-only: it never hosts
-      // the provider.
-      '@oxy.so/services/plugins/withSharedIdentityReader',
+      // Every Oxy app declares AND requests so.oxy.permission.IDENTITY and
+      // so.oxy.permission.DEVICE_SESSION (signature level) and queries the
+      // Commons and Accounts providers. No Oxy app shares a UID: this app signs
+      // in by asking Commons for a proof, never by reading its key.
+      '@oxy.so/services/plugins/withOxySharedPermissions',
       // Hosts the signature-protected OxyDeviceSessionProvider for the SHARED
-      // DEVICE SESSION credential — a different secret from the identity key, on
-      // its own permission and its own encrypted file. Accounts is a hub because
-      // it is inside the so.oxy.shared UID, so the file it serves is the one
-      // every UID sibling already sees. This is what lets a newly installed
-      // official app join the device's session without a QR and without ever
-      // reading the Commons private key.
+      // DEVICE SESSION credential — a different secret from the identity key,
+      // on its own permission and its own encrypted file. Accounts is a host:
+      // the credential lives in its own storage and every other Oxy app reads
+      // and publishes it through this provider. That is what lets a newly
+      // installed official app join the device's session without a QR and
+      // without the Commons private key.
       '@oxy.so/services/plugins/withSharedDeviceSessionProvider',
       // Oxy Updates (OTA). Points expo-updates at this app's manifest endpoint on
       // the self-hosted update server in oxy-api, sets the runtimeVersion policy

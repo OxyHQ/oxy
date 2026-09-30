@@ -21,6 +21,7 @@ export type { KeyPair, IdentityStatus, IdentityRecoveryResult } from './keyManag
 export { readIdentityMarker, updateIdentityMarker } from './identityMarker';
 export type { IdentityMarker } from './identityMarker';
 export type { IdentityDeviceBackupStore } from './deviceBackup';
+export type { IdentitySignerStore } from './identitySigner';
 export { SignatureService } from './signatureService';
 export type { SignedMessage, AuthChallenge } from './signatureService';
 export { RecoveryPhraseService } from './recoveryPhrase';
@@ -31,6 +32,18 @@ export { hkdfSha256 } from './kdf';
 export { encryptAead, decryptAead, AEAD_KEY_LENGTH, AEAD_NONCE_LENGTH } from './aead';
 export type { AeadResult } from './aead';
 export { deriveSharedSecret } from './ecdh';
+
+// What the identity key computes without leaving its holder: the same functions
+// Commons' identity host implements natively on Android.
+export {
+    SCOPED_SEED_KDF_SALT,
+    SOCIAL_RECEIVE_CHAIN_CODE_KEY,
+    MAX_SOCIAL_RECEIVE_INDEX,
+    deriveScopedSeedFromKey,
+    deriveSocialReceiveKey,
+    signSocialReceiveDigest,
+    authChallengeDigest,
+} from './identityDerivations';
 
 // Identity proofs — the one signed format for operations on a personal root
 // (docs/adr/0024-one-oxy-account-root-holders.md D7)

@@ -11,13 +11,14 @@ import {
 /**
  * The "this identity is not backed up on this device" warning (OxyHQ/oxy#1388).
  *
- * Every Oxy Android app shares the UID `so.oxy.shared`, so "Clear storage" on any
- * of them wipes the Keystore that holds the Commons identity. The Block Store
- * device backup restores it silently, but only where Google Play services exist.
- * Where they don't (LineageOS, GrapheneOS without sandboxed Play, Huawei/HMS),
- * or on a binary built before the native module, nothing on the device survives
- * that wipe, and the recovery phrase or the phrase-keyed encrypted backup is the
- * only way back. The warning says so and points at both.
+ * "Clear storage" on Commons itself, or an uninstall and reinstall, wipes the
+ * Keystore that holds the Commons identity (no other app can reach it: Oxy apps
+ * do not share a UID). The Block Store device backup restores it silently, but
+ * only where Google Play services exist. Where they don't (LineageOS, GrapheneOS
+ * without sandboxed Play, Huawei/HMS), or on a binary built before the native
+ * module, nothing on the device survives that wipe, and the recovery phrase or
+ * the phrase-keyed encrypted backup is the only way back. The warning says so
+ * and points at both.
  *
  * It is shown twice over, both non-blocking:
  *   - once, on the ID tab after onboarding, until the user acts on it or taps

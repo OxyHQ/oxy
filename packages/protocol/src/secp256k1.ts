@@ -190,6 +190,33 @@ export function verifySecp256k1Digest(
   });
 }
 
+/**
+ * `(privateKey + tweak) mod n`, the scalar step of BIP32 non-hardened child
+ * derivation (`CKDpriv`: the tweak is `IL`, the left half of the HMAC-SHA512).
+ *
+ * Throws, as BIP32 requires, when the tweak is not below the curve order or
+ * the sum is zero: that child is invalid and the caller must not use it.
+ */
+export function tweakAddSecp256k1PrivateKey(
+  privateKeyHex: string,
+  tweakHex: string,
+): string {
+  const n = secp256k1.Point.Fn.ORDER;
+  const key = BigInt(`0x${normalizeSecp256k1PrivateKey(privateKeyHex)}`);
+  if (typeof tweakHex !== "string" || tweakHex.length !== 64 || !HEX.test(tweakHex)) {
+    throw new Error("secp256k1 tweak must be exactly 32 bytes of hexadecimal data");
+  }
+  const tweak = BigInt(`0x${tweakHex}`);
+  if (tweak >= n) {
+    throw new Error("secp256k1 tweak is not below the curve order");
+  }
+  const child = (key + tweak) % n;
+  if (child === 0n) {
+    throw new Error("secp256k1 tweaked private key is zero");
+  }
+  return child.toString(16).padStart(64, "0");
+}
+
 /** Derive the fixed-width 32-byte ECDH x-coordinate shared secret. */
 export function deriveSecp256k1SharedSecret(
   privateKeyHex: string,

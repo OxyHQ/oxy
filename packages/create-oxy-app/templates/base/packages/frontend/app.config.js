@@ -50,8 +50,9 @@ module.exports = {
       // '@oxy.so/expo-splash' plugin, which MUST stay immediately after it.
       oxySplashScreenPlugin({ image: './assets/images/splash-logo.png' }),
       '@oxy.so/expo-splash',
-      // Shared Oxy native config: android:sharedUserId, iOS keychain group,
-      // expo-build-properties defaults, and the shared-identity reader.
+      // Shared Oxy native config: iOS keychain group, expo-build-properties
+      // defaults, and the Android signature permissions + <queries> that let
+      // this app sign in silently through Commons.
       ['@oxy.so/app-preset', {}],
     ],
     extra: {

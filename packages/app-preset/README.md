@@ -14,7 +14,7 @@ and JSON.
 
 | Piece | Import | Replaces |
 | --- | --- | --- |
-| Config plugin | `['@oxy.so/app-preset', {}]` | `withSharedUserId` + iOS keychain entitlement + `expo-build-properties` + `@oxy.so/services/plugins/withSharedIdentityReader` |
+| Config plugin | `['@oxy.so/app-preset', {}]` | iOS keychain entitlement + `expo-build-properties` + `@oxy.so/services/plugins/withOxySharedPermissions` |
 | Android release build | `@oxy.so/app-preset/plugin/withOxyAndroidRelease` | R8 `-optimize` ProGuard file + shared-keystore release signing (opt-in, see below) |
 | Android WebP resources | `@oxy.so/app-preset/plugin/withOxyAndroidWebp` | re-encoding generated mipmaps/splash bitmaps to real lossless WebP (opt-in, needs `sharp`) |
 | Oxy Updates (OTA) | `@oxy.so/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate (opt-in, see below) |
@@ -35,24 +35,28 @@ plugins: [
 ]
 ```
 
-This adds `android:sharedUserId="so.oxy.shared"`, the iOS
-`keychain-access-groups` entitlement (`$(AppIdentifierPrefix)group.so.oxy.shared`),
-the Oxy `expo-build-properties` defaults (iOS `deploymentTarget 16.4`; Android
-`compileSdk 36` / `targetSdk 35` / ProGuard + resource shrinking), and the
-`@oxy.so/services` shared-identity reader plugin (Android signature permission +
-`<queries>` for silent "Sign in with Oxy").
+This adds the iOS `keychain-access-groups` entitlement
+(`$(AppIdentifierPrefix)group.so.oxy.shared`), the Oxy `expo-build-properties`
+defaults (iOS `deploymentTarget 16.4`; Android `compileSdk 36` / `targetSdk 35` /
+ProGuard + resource shrinking), and `@oxy.so/services/plugins/withOxySharedPermissions`:
+the app declares and requests the signature-level `so.oxy.permission.IDENTITY` and
+`so.oxy.permission.DEVICE_SESSION`, with `<queries>` for the Commons and Accounts
+providers. That is how silent "Sign in with Oxy" works on Android: each Oxy app
+has its own UID, and Commons — the only holder of the identity key — answers over
+signature-protected IPC. **Never add `android:sharedUserId`.**
 
-Each piece is individually disableable and overridable:
+The iOS and build-property pieces are overridable:
 
 ```js
 ['@oxy.so/app-preset', {
-  sharedUserId: 'so.oxy.shared',        // false → skip android:sharedUserId
   keychainGroup: 'group.so.oxy.shared', // false → skip iOS keychain entitlement
   ios: { deploymentTarget: '17.0' },    // deep-merges over defaults; false → skip iOS build props
   android: { targetSdkVersion: 34 },    // deep-merges over defaults; false → skip Android build props
-  sharedIdentityReader: true,           // false → skip @oxy.so/services reader plugin
 }]
 ```
+
+The `sharedUserId` and `sharedIdentityReader` options were removed in 3.0.0 and
+throw if passed. `@oxy.so/services` 11+ is a required peer.
 
 #### Android release-build plugins (opt-in)
 

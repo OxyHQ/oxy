@@ -1,5 +1,18 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 3.0.0
+
+### Breaking changes
+
+- No Oxy Android app shares a UID any more (OxyHQ/oxy#1388): the preset no
+  longer writes `android:sharedUserId`, and `plugin/withSharedUserId` is
+  deleted. The `sharedUserId` and `sharedIdentityReader` options throw if
+  passed.
+- The preset always applies `@oxy.so/services/plugins/withOxySharedPermissions`
+  (declares and requests `so.oxy.permission.IDENTITY` and
+  `so.oxy.permission.DEVICE_SESSION`, `<queries>` for the Commons and Accounts
+  providers). `@oxy.so/services` ^11.0.0 is a required peer.
+
 ## 2.2.1
 
 ### Changed

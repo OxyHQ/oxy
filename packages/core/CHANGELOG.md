@@ -1,5 +1,54 @@
 # Changelog — `@oxy.so/core`
 
+## 4.0.0
+
+Android apps no longer share the `so.oxy.shared` UID, and Commons is the only
+holder of the identity private key (OxyHQ/oxy#1388). Every other app gets what
+it needs from Commons over signature-protected IPC, never the key. iOS is
+unchanged (keychain access group `group.so.oxy.shared`).
+
+### Breaking changes
+
+- `oxy.auth.signInWithSharedIdentity()` is `oxy.auth.signInWithCommonsIdentity()`.
+  On Android it asks Commons for its public key (`describe`), requests a
+  challenge, has Commons sign it (`proveIdentity`) and verifies; on iOS it signs
+  with the keychain-group key as before.
+- The cold-boot lane `shared-key-signin` is `commons-proof-signin`, and
+  `RefreshDeps.allowSharedKeyFallback` is `allowCommonsIdentityFallback`.
+- On Android `KeyManager.getSharedPrivateKey()` always resolves `null`;
+  `getSharedPublicKey()` reads Commons' `describe`. Use `deriveScopedSeed`,
+  the new `signSocialReceive` or `signInWithCommonsIdentity` instead of the key.
+- On Android `importSharedIdentity` / `createSharedIdentity` write the identity
+  signer store and throw in any app that has not registered one (only Commons
+  does).
+- On Android an app without a signer store (every app but Commons) cannot
+  persist an identity (`createIdentity`/`importKeyPair` throw), always asks
+  Commons for seeds and social-receive signatures, and never caches the shared
+  public key.
+- `KeyManager.beginKeyRotation` / `completeKeyRotation`: `rotateKey` marks the
+  new key before writing the shared slot, so `syncSharedIdentity` finishes an
+  interrupted rotation from the shared slot instead of reverting it.
+- Removed: `KeyManager.migrateToSharedIdentity` (use `syncSharedIdentity`),
+  `storeSharedSession`, `getSharedSession`, `clearSharedSession`.
+- Requires `@oxy.so/protocol` ^1.2.0.
+
+### Added
+
+- `KeyManager.setIdentitySignerStore(store)` / `hasIdentitySignerStore()` and the
+  `IdentitySignerStore` type: Commons registers the native copy of the key its
+  identity host signs with. Every persist writes it, every delete clears it,
+  `syncSharedIdentity` repairs it, and it is the `shared` rung of
+  `attemptIdentityRecovery` on Android.
+- `KeyManager.signSocialReceive(index, digest)`: a low-S DER signature by the
+  identity's social-receive child key (Peable's wallet), locally or from Commons.
+- `KeyManager.deriveScopedSeed` on Android: the app's own primary key (Commons),
+  else Commons computes it over IPC (byte-identical; Commons allows each app
+  only its own labels).
+- `@oxy.so/core/crypto` exports the pure derivations Commons implements
+  natively (`deriveScopedSeedFromKey`, `deriveSocialReceiveKey`,
+  `signSocialReceiveDigest`, `authChallengeDigest`), pinned against the Commons
+  identity host's vectors.
+
 ## 3.2.0
 
 ### Added

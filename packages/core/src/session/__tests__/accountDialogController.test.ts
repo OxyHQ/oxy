@@ -136,7 +136,7 @@ interface OxyMock {
   pollCommonsSignIn: jest.Mock;
   denyCommonsSignIn: jest.Mock;
   claimSessionByToken: jest.Mock;
-  signInWithSharedIdentity: jest.Mock;
+  signInWithCommonsIdentity: jest.Mock;
   /** Plant / clear the bearer — both fire `onTokensChanged`, like `OxyServices`. */
   setTokens: jest.Mock;
   clearTokens: jest.Mock;
@@ -144,7 +144,7 @@ interface OxyMock {
   baseURL: string;
   session: { readonly accessToken: string | null; onChange: jest.Mock; setAccessToken: jest.Mock; clear: jest.Mock };
   auth: {
-    signInWithSharedIdentity: jest.Mock;
+    signInWithCommonsIdentity: jest.Mock;
     claimSession: jest.Mock;
     commons: { start: jest.Mock; poll: jest.Mock; deliver: jest.Mock; deny: jest.Mock };
   };
@@ -187,7 +187,7 @@ function makeOxy(): OxyMock {
     deliverCommonsSignIn: jest.fn().mockResolvedValue({ delivered: false, targets: 0 }),
     denyCommonsSignIn: jest.fn().mockResolvedValue({ success: true }),
     claimSessionByToken: jest.fn(),
-    signInWithSharedIdentity: jest.fn().mockResolvedValue(null),
+    signInWithCommonsIdentity: jest.fn().mockResolvedValue(null),
     setTokens: jest.fn((token: string) => emitTokenChange(token)),
     clearTokens: jest.fn(() => emitTokenChange(null)),
     emitTokenChange,
@@ -204,7 +204,7 @@ function makeOxy(): OxyMock {
       clear: mock.clearTokens,
     },
     auth: {
-      signInWithSharedIdentity: mock.signInWithSharedIdentity,
+      signInWithCommonsIdentity: mock.signInWithCommonsIdentity,
       claimSession: mock.claimSessionByToken,
       commons: {
         start: mock.startCommonsSignIn,
@@ -552,7 +552,7 @@ describe('AccountDialogController — sign in with Oxy', () => {
       accessToken: 'access-shared',
       user: { id: 'a1', username: 'user_a1', name: { displayName: 'User a1' } },
     };
-    oxy.signInWithSharedIdentity.mockResolvedValue(session);
+    oxy.signInWithCommonsIdentity.mockResolvedValue(session);
 
     await controller.signInWithOxy();
 
@@ -573,7 +573,7 @@ describe('AccountDialogController — sign in with Oxy', () => {
 
   it('falls through to the QR handoff when no shared identity is present', async () => {
     const { controller, oxy } = makeHarness();
-    oxy.signInWithSharedIdentity.mockResolvedValue(null);
+    oxy.signInWithCommonsIdentity.mockResolvedValue(null);
     oxy.startCommonsSignIn.mockResolvedValue({
       sessionToken: 'secret-tok',
       authorizeCode: 'AUTH-CODE',
@@ -2099,11 +2099,11 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
   it('never installs a shared-identity session that was minted after the user cancelled', async () => {
     const { controller, oxy, commitSession, onSignedIn } = makeHarness();
     const minted = deferred<SessionLoginResponse>();
-    oxy.signInWithSharedIdentity.mockReturnValue(minted.promise);
+    oxy.signInWithCommonsIdentity.mockReturnValue(minted.promise);
 
     const running = controller.signInWithOxy();
     // Minted without planting: the controller decides whether to install it.
-    expect(oxy.signInWithSharedIdentity).toHaveBeenCalledWith({ plantTokens: false });
+    expect(oxy.signInWithCommonsIdentity).toHaveBeenCalledWith({ plantTokens: false });
     controller.cancelSignIn();
     minted.resolve({
       sessionId: 'sess-shared',
@@ -2195,7 +2195,7 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
     const { controller, oxy, commitSession } = makeHarness();
     const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
     commitSession.mockRejectedValue(new Error('persist failed'));
-    oxy.signInWithSharedIdentity.mockResolvedValue({
+    oxy.signInWithCommonsIdentity.mockResolvedValue({
       sessionId: 'sess-shared',
       deviceId: 'device-1',
       expiresAt: '2030-01-01T00:00:00Z',
@@ -2250,7 +2250,7 @@ describe('AccountDialogController — "Try again" repeats the user\'s choice', (
     oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
     await controller.retrySignIn();
 
-    expect(oxy.signInWithSharedIdentity).toHaveBeenCalledTimes(2);
+    expect(oxy.signInWithCommonsIdentity).toHaveBeenCalledTimes(2);
     expect(controller.getSnapshot().signIn.phase).toBe('waiting');
     controller.cancelSignIn();
   });
@@ -2472,13 +2472,13 @@ describe('AccountDialogController — choosing a device account row (OxyHQ/oxy#1
 
   it('signed out, choosing the listed account signs in through the shared identity, like "Continue with Oxy"', async () => {
     const { controller, oxy, urls, commitSession, onSignedIn } = await signedOutDevice();
-    oxy.signInWithSharedIdentity.mockResolvedValue(sharedSession);
+    oxy.signInWithCommonsIdentity.mockResolvedValue(sharedSession);
 
     // It used to short-circuit on "already the active row" and report success,
     // closing the sheet on an app that was still signed out.
     expect(await controller.chooseContext('ctx-qa')).toBe('signing-in');
 
-    expect(oxy.signInWithSharedIdentity).toHaveBeenCalledWith({ plantTokens: false });
+    expect(oxy.signInWithCommonsIdentity).toHaveBeenCalledWith({ plantTokens: false });
     expect(commitSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-shared' }));
     expect(onSignedIn).toHaveBeenCalledWith(expect.objectContaining({ id: 'qa' }));
     expect(controller.getSnapshot().hasSession).toBe(true);
@@ -2490,7 +2490,7 @@ describe('AccountDialogController — choosing a device account row (OxyHQ/oxy#1
 
   it('signed out with no shared identity, choosing the account starts the same request "Continue with Oxy" does', async () => {
     const { controller, oxy, onSignedIn } = await signedOutDevice();
-    oxy.signInWithSharedIdentity.mockResolvedValue(null);
+    oxy.signInWithCommonsIdentity.mockResolvedValue(null);
     oxy.startCommonsSignIn.mockResolvedValue({
       sessionToken: 'secret-tok',
       authorizeCode: 'AUTH-CODE',
@@ -2510,11 +2510,11 @@ describe('AccountDialogController — choosing a device account row (OxyHQ/oxy#1
 
   it('signed out, choosing an organization row signs in and then activates that row', async () => {
     const { controller, oxy, urls } = await signedOutDevice({ withOrg: true });
-    oxy.signInWithSharedIdentity.mockResolvedValue(sharedSession);
+    oxy.signInWithCommonsIdentity.mockResolvedValue(sharedSession);
 
     expect(await controller.chooseContext('ctx-qa-org')).toBe('switched');
 
-    expect(oxy.signInWithSharedIdentity).toHaveBeenCalledTimes(1);
+    expect(oxy.signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
     expect(urls).toContain('/session/device/activate');
     expect(controller.getSnapshot().activeContext?.contextId).toBe('ctx-qa-org');
     controller.destroy();
@@ -2532,7 +2532,7 @@ describe('AccountDialogController — choosing a device account row (OxyHQ/oxy#1
 
     expect(await controller.chooseContext('ctx-qa-org')).toBe('switched');
     expect(urls).toContain('/session/device/activate');
-    expect(oxy.signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(oxy.signInWithCommonsIdentity).not.toHaveBeenCalled();
     controller.destroy();
   });
 });

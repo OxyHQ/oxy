@@ -16,6 +16,6 @@ android {
 
 dependencies {
   // Hardware-backed EncryptedSharedPreferences (MasterKey AES256_GCM) for the
-  // cross-app shared identity keypair.
+  // device-session and background-session credentials.
   implementation "androidx.security:security-crypto:1.1.0-alpha06"
 }

@@ -5,9 +5,10 @@
  * button work everywhere; the SDK picks the right restore path per platform:
  *
  *   - Native (iOS/Android): device-first cold boot restores a session silently
- *     from the on-device deviceId, and the shared keychain (`group.so.oxy.shared`)
- *     lets a user already signed into another Oxy app carry that session over —
- *     both automatic, no code here.
+ *     from the on-device deviceId, joins the device session another Oxy app
+ *     holds, or signs in as the device's Oxy identity (Commons proves it over
+ *     signature-protected IPC on Android; the keychain group
+ *     `group.so.oxy.shared` on iOS) — all automatic, no code here.
  *   - Web: device-first cold boot (persisted `{deviceId, deviceSecret}` →
  *     `POST /session/device/token`) restores the session via react-native-web.
  *     No FedCM, no `/sso` bounce, no cookies you manage.

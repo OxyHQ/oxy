@@ -140,28 +140,27 @@ module.exports = {
           cameraPermission: 'Allow $(PRODUCT_NAME) to scan sign-in QR codes.',
         },
       ],
-      // Android sharedUserId 'so.oxy.shared' — Commons is the identity vault; it
-      // must be in the same shared-keychain UID as the other Oxy apps so
-      // "Sign in with Oxy" shares the session across apps (requires all Oxy apps
-      // to be signed with the same key — the oxy-ecosystem release keystore).
-      './plugins/withSharedUserId',
       // Release buildType bits expo-build-properties cannot express: the R8
       // -optimize proguard file, and the real release signing config
-      // (credentials come from Gradle properties, never the repo). Commons
-      // shares the so.oxy.shared UID, so the artefact MUST carry the shared Oxy
-      // ecosystem certificate — verify it, never assume it.
+      // (credentials come from Gradle properties, never the repo). The artefact
+      // MUST carry the shared Oxy ecosystem certificate: the other Oxy apps reach
+      // Commons through signature permissions — verify it, never assume it.
       '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
-      // Hosts the signature-protected OxyIdentityProvider (the native module
-      // now ships inside @oxy.so/services) that lets same-key Oxy apps read the
-      // shared identity keypair Commons writes. Commons is the ONLY app that
-      // hosts it.
-      '@oxy.so/services/plugins/withSharedIdentityProvider',
-      // Also hosts the OxyDeviceSessionProvider — a SEPARATE provider, permission
-      // and encrypted file for the shared DEVICE SESSION credential. Commons is
-      // identity-bound and never publishes into that slot itself; it hosts the
-      // provider because, as a member of the so.oxy.shared UID, it serves the
-      // same file its UID siblings write, so a same-signature app outside the UID
-      // can join the device session even when Accounts is not installed.
+      // Every Oxy app declares AND requests so.oxy.permission.IDENTITY and
+      // so.oxy.permission.DEVICE_SESSION (signature level) and queries the host
+      // authorities. No Oxy app shares a UID: identity and session cross apps
+      // only through the providers below.
+      '@oxy.so/services/plugins/withOxySharedPermissions',
+      // The identity host (modules/oxy-identity-host): Commons is the ONLY
+      // holder of the identity private key, and this provider answers the other
+      // Oxy apps with the public key, challenge proofs and scoped derivations —
+      // never the key.
+      './plugins/withOxyIdentityHost',
+      // The device-session host: the shared DeviceSession credential (a
+      // separate provider, permission and encrypted file from the identity).
+      // Commons never publishes into it itself (it boots identity-bound); it
+      // hosts it so a device with Commons and no Accounts still has one place
+      // every Oxy app joins the device session through.
       '@oxy.so/services/plugins/withSharedDeviceSessionProvider',
       // Oxy Updates (OTA). Points expo-updates at this app's manifest endpoint on
       // the self-hosted update server in oxy-api, sets the runtimeVersion policy

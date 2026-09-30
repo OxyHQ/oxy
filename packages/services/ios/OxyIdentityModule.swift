@@ -1,33 +1,32 @@
 import ExpoModulesCore
 
 /**
- * iOS no-op implementation of the shared Oxy identity bridge.
+ * iOS stub of the Commons identity bridge.
  *
- * On Apple platforms the cross-app identity share is handled directly by
- * `@oxy.so/core`'s `KeyManager` via the Keychain Access Group
- * (`group.so.oxy.shared`) — there is no ContentProvider equivalent to wrap. So
- * every function here resolves to `nil` / no-op, which makes the JS
- * `loadSharedIdentityBridge()` seam a pass-through on iOS: `KeyManager`'s iOS
- * branches keep using `expo-secure-store` with the keychain group untouched.
+ * On Apple platforms the Oxy identity is shared through the Keychain Access
+ * Group `group.so.oxy.shared`, which `@oxy.so/core`'s `KeyManager` reads
+ * directly; there is no Commons provider to call. Every function resolves `nil`,
+ * so `loadCommonsIdentityBridge()` answers "Commons could not help" and
+ * `KeyManager`'s iOS branches keep using the keychain group.
  */
 public class OxyIdentityModule: Module {
   public func definition() -> ModuleDefinition {
     Name("OxyIdentity")
 
-    AsyncFunction("getShared") { () -> [String: String]? in
+    AsyncFunction("describe") { () -> [String: String]? in
       return nil
     }
 
-    AsyncFunction("putShared") { (_ privateKey: String, _ publicKey: String) in
-      // No-op on iOS: the keychain-access-group path in KeyManager owns writes.
+    AsyncFunction("proveIdentity") { (_ challenge: String) -> [String: String]? in
+      return nil
     }
 
-    AsyncFunction("hasShared") { () -> Bool in
-      return false
+    AsyncFunction("deriveScopedSeed") { (_ info: String) -> String? in
+      return nil
     }
 
-    AsyncFunction("clearShared") { () in
-      // No-op on iOS.
+    AsyncFunction("signSocialReceive") { (_ index: Int, _ digest: String) -> [String: String]? in
+      return nil
     }
   }
 }

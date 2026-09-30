@@ -102,7 +102,7 @@ describe('token loss recovery', () => {
   });
 
   it('re-establishes through the shared identity when the credential is gone, like the cold boot does', async () => {
-    const h = harness([null, 'from-shared-key']);
+    const h = harness([null, 'from-commons-proof']);
     h.state.credential = false;
     h.state.keyed = true;
     const recovery = createTokenLossRecovery(h.deps);
@@ -111,7 +111,7 @@ describe('token loss recovery', () => {
     await runToCompletion(recovery);
 
     expect(h.signOutLocally).not.toHaveBeenCalled();
-    expect(h.state.token).toBe('from-shared-key');
+    expect(h.state.token).toBe('from-commons-proof');
   });
 
   it('gives the key-based lane a bounded number of tries, then signs out', async () => {

@@ -66,7 +66,7 @@ export const METHOD_MAP: Record<string, Entry> = {
   verifyChallenge: e('auth.verifyChallenge'),
   checkPublicKeyRegistered: e('auth.isKeyRegistered'),
   claimSessionByToken: e('auth.claimSession'),
-  signInWithSharedIdentity: e('auth.signInWithSharedIdentity'),
+  signInWithSharedIdentity: e('auth.signInWithCommonsIdentity'),
   checkUsernameAvailability: e('auth.checkUsername'),
   startEmailVerification: e('auth.email.startVerification'),
   confirmEmailVerification: e('auth.email.confirmVerification'),
