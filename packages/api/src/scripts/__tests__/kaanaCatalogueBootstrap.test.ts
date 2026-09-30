@@ -18,9 +18,16 @@ import {
   type KaanaInitialProvider,
   type KaanaReviewedModelCatalogue,
   kaanaReviewedCatalogueOperations,
+  kaanaVoiceCatalogue,
+  requireKaanaVoiceCatalogue,
 } from "../../config/kaanaInitialCatalogue";
 import { closePostgres, connectPostgres, getDb } from "../../config/postgres";
-import { inferenceDeployments, users } from "../../db/schema";
+import {
+  inferenceDeployments,
+  inferenceModels,
+  priceVersionUnitPrices,
+  users,
+} from "../../db/schema";
 
 type BootstrapWriter = typeof import("../../../scripts/bootstrap-kaana-catalogue");
 type Transaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
@@ -221,6 +228,87 @@ describe("the reviewed catalogue bootstrap over production's legacy-scope text r
 
       await expect(writer.ensureCatalogue(tx, text, [])).rejects.toThrow(
         `deployment:${first.deploymentId}.permissionStateNote differs from the reviewed bootstrap`,
+      );
+    });
+  });
+});
+
+describe("the reviewed realtime voice catalogue, once Kaana's observation is recorded", () => {
+  // A candidate observation: the real reviewed facts under synthetic
+  // identities, exactly as the other cases use.
+  const voice = (): KaanaReviewedModelCatalogue =>
+    synthetic(
+      requireKaanaVoiceCatalogue(
+        kaanaVoiceCatalogue({
+          deploymentId: "dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_10_02",
+          inventorySnapshotId: "snap_0123456789abcdef",
+        }),
+      ),
+    );
+
+  it("writes the realtime declarations and duration prices the 0126 and 0125 CHECKs accept, then is a no-op", async () => {
+    const catalogue = voice();
+    await rolledBack(async (tx) => {
+      const inserted: string[] = [];
+      await writer.ensureCatalogue(tx, catalogue, inserted);
+      expect(inserted).toEqual(kaanaReviewedCatalogueOperations(catalogue));
+
+      const [model] = await tx
+        .select({
+          apiFormats: inferenceModels.apiFormats,
+          realtimeTransports: inferenceModels.realtimeTransports,
+          realtimeSessionKinds: inferenceModels.realtimeSessionKinds,
+          inputModalities: inferenceModels.inputModalities,
+          outputModalities: inferenceModels.outputModalities,
+        })
+        .from(inferenceModels)
+        .where(eq(inferenceModels.modelId, catalogue.modelId));
+      expect(model).toEqual({
+        apiFormats: null,
+        realtimeTransports: ["websocket"],
+        realtimeSessionKinds: ["conversation"],
+        inputModalities: ["text", "audio"],
+        outputModalities: ["text", "audio"],
+      });
+
+      const [deployment] = await tx
+        .select({
+          priceVersionId: inferenceDeployments.priceVersionId,
+          scope: inferenceDeployments.availabilityScope,
+        })
+        .from(inferenceDeployments)
+        .where(eq(inferenceDeployments.internalRouteId, catalogue.providers[0].deploymentId));
+      expect(deployment.scope).toBe("platform_internal");
+      const prices = await tx
+        .select({
+          unit: priceVersionUnitPrices.unit,
+          amount: priceVersionUnitPrices.amount,
+          per: priceVersionUnitPrices.per,
+        })
+        .from(priceVersionUnitPrices)
+        .where(eq(priceVersionUnitPrices.priceVersionId, deployment.priceVersionId!));
+      expect(prices.sort((a, b) => (a.unit < b.unit ? -1 : 1))).toEqual([
+        { unit: "audio_input_milliseconds", amount: "0.080000000000", per: 60_000 },
+        { unit: "audio_output_milliseconds", amount: "0.080000000000", per: 60_000 },
+        { unit: "requests", amount: "0.004000000000", per: 1 },
+      ]);
+
+      const again: string[] = [];
+      await writer.ensureCatalogue(tx, catalogue, again);
+      expect(again).toEqual([]);
+    });
+  });
+
+  it("refuses a stored voice model whose realtime declaration drifted", async () => {
+    const catalogue = voice();
+    await rolledBack(async (tx) => {
+      await writer.ensureCatalogue(tx, catalogue, []);
+      await tx
+        .update(inferenceModels)
+        .set({ realtimeSessionKinds: ["conversation", "transcription"] })
+        .where(eq(inferenceModels.modelId, catalogue.modelId));
+      await expect(writer.ensureCatalogue(tx, catalogue, [])).rejects.toThrow(
+        `model:${catalogue.modelId}.realtimeSessionKinds differs from the reviewed bootstrap`,
       );
     });
   });

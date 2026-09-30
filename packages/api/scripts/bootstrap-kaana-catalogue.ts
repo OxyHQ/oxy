@@ -1,7 +1,10 @@
 #!/usr/bin/env bun
 /**
  * Bootstrap the reviewed Oxy catalogue backed by exact Kaana deployments: the
- * gpt-oss text routes and Alia's xAI text-to-speech route.
+ * gpt-oss text routes, Alia's xAI text-to-speech route and — once Kaana's
+ * production observation of it is recorded in `KAANA_VOICE_OBSERVATION` — the
+ * xAI realtime Voice Agent route. Until then the voice catalogue is reported as
+ * `voice: null` and nothing of it is written.
  *
  * Safe by default: without APPLY=1 the complete transaction is exercised and
  * rolled back. Existing identities are never overwritten; any factual drift is
@@ -65,6 +68,7 @@ import {
   KAANA_SPEECH_REVISION,
   KAANA_SPEECH_ROUTING_PROFILES,
   KAANA_TEXT_CATALOGUE,
+  KAANA_VOICE_CATALOGUE_STATUS,
   type KaanaInitialProvider,
   type KaanaReviewedCatalogueProjection,
   type KaanaReviewedModelCatalogue,
@@ -136,6 +140,18 @@ const REVIEWED_CATALOGUE_FACTS = {
     providers: KAANA_SPEECH_PROVIDERS,
     routingProfiles: KAANA_SPEECH_ROUTING_PROFILES,
   },
+  // Reviewed 2026-09-30; present only once Kaana's observation (deployment id
+  // and inventory snapshot) is recorded. Every policy below applies unchanged.
+  voice:
+    KAANA_VOICE_CATALOGUE_STATUS.status === "ready"
+      ? {
+          publisher: KAANA_VOICE_CATALOGUE_STATUS.catalogue.publisher,
+          model: KAANA_VOICE_CATALOGUE_STATUS.catalogue.model,
+          revision: KAANA_VOICE_CATALOGUE_STATUS.catalogue.revision,
+          providers: KAANA_VOICE_CATALOGUE_STATUS.catalogue.providers,
+          routingProfiles: KAANA_VOICE_CATALOGUE_STATUS.catalogue.routingProfiles,
+        }
+      : null,
   deploymentPolicy: {
     availabilityScope: "platform_internal",
     commercialPermission: "standard_application_use",
@@ -180,7 +196,8 @@ class DryRunRollback extends Error {}
 
 /**
  * The text model keeps its original top-level projection; the speech model is
- * the same projection under `speech`.
+ * the same projection under `speech`, and the realtime voice model under
+ * `voice` (`null` until its observation is recorded).
  */
 interface BootstrapSummary extends KaanaReviewedCatalogueProjection {
   inventorySnapshotId: string;
@@ -188,6 +205,7 @@ interface BootstrapSummary extends KaanaReviewedCatalogueProjection {
   inventoryVersionId: string;
   reviewedFactsSha256: string;
   speech: KaanaReviewedCatalogueProjection;
+  voice: KaanaReviewedCatalogueProjection | null;
   inserted: string[];
   planSha256: string;
 }
@@ -363,12 +381,28 @@ async function ensureModel(
     .for("update");
   let row = requireAtMostOne(`Model ID ${catalogue.modelId}`, existingRows);
   if (row === undefined) {
+    // The realtime pair (migration 0126) is written only for a model that
+    // declares it; every other model leaves both columns NULL (undeclared).
+    const {
+      realtimeTransports,
+      realtimeSessionKinds,
+      ...modelFacts
+    }: typeof model & {
+      readonly realtimeTransports?: readonly string[];
+      readonly realtimeSessionKinds?: readonly string[];
+    } = model;
     const createdRows = await tx
       .insert(inferenceModels)
       .values({
-        ...model,
+        ...modelFacts,
         inputModalities: [...model.inputModalities],
         outputModalities: [...model.outputModalities],
+        ...(realtimeTransports === undefined || realtimeSessionKinds === undefined
+          ? {}
+          : {
+              realtimeTransports: [...realtimeTransports],
+              realtimeSessionKinds: [...realtimeSessionKinds],
+            }),
       })
       .returning();
     row = requireExactlyOne(`Model ID ${catalogue.modelId}`, createdRows);
@@ -856,6 +890,14 @@ async function bootstrap(): Promise<BootstrapSummary> {
         KAANA_SPEECH_CATALOGUE,
         inserted,
       );
+      const voice =
+        KAANA_VOICE_CATALOGUE_STATUS.status === "ready"
+          ? await ensureCatalogue(
+              tx,
+              KAANA_VOICE_CATALOGUE_STATUS.catalogue,
+              inserted,
+            )
+          : null;
       const summaryWithoutPlan = {
         inventorySnapshotId: inventory.snapshotId,
         inventoryIssuedAt: inventory.issuedAt,
@@ -863,6 +905,7 @@ async function bootstrap(): Promise<BootstrapSummary> {
         reviewedFactsSha256,
         ...text,
         speech,
+        voice,
         inserted,
       };
       const { planSha256 } = createKaanaCatalogueBootstrapPlan({
@@ -877,6 +920,7 @@ async function bootstrap(): Promise<BootstrapSummary> {
         deployments: summaryWithoutPlan.deployments,
         routingProfileIds: summaryWithoutPlan.routingProfileIds,
         speech: summaryWithoutPlan.speech,
+        voice: summaryWithoutPlan.voice,
         wouldInsert: summaryWithoutPlan.inserted,
       });
       requireKaanaCatalogueBootstrapApplyAuthorization({

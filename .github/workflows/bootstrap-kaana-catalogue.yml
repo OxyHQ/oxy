@@ -68,6 +68,14 @@ env:
   SPEECH_MODEL_ID: x-ai/text-to-speech
   SPEECH_MODEL_REFERENCE: x-ai/text-to-speech@observed-2026-09-24
   XAI_DEPLOYMENT_ID: dep_xai_tts_observed_2026_09_24
+  # xAI's realtime Voice Agent (x-ai/grok-voice-think-fast-2.0 on Kaana's
+  # `xai-realtime`). EMPTY until Kaana's publisher first observes it in
+  # production. The enabling follow-up sets this to the exact published id AND
+  # moves INVENTORY_SNAPSHOT_ID to the live snapshot that carries it — the same
+  # two values, in the same change, as KAANA_VOICE_OBSERVATION in
+  # packages/api/src/config/kaanaInitialCatalogue.ts (a test holds them equal).
+  # The revision is derived from the id's date, never written separately.
+  VOICE_DEPLOYMENT_ID: ''
   REVIEWER_USER_ID_EXPECTED: 6981c9178fcdefaf81988ffb
   PROFILE_DEFAULT_ID: 01a06477-94f5-74f0-bc25-4c5c13b93ccd
   # Alia's speech-only profile, reserved by Alia before this catalogue existed.
@@ -175,9 +183,21 @@ jobs:
           [ "$SPEECH_MODEL_ID" = 'x-ai/text-to-speech' ]
           [ "$SPEECH_MODEL_REFERENCE" = 'x-ai/text-to-speech@observed-2026-09-24' ]
           [ "$XAI_DEPLOYMENT_ID" = 'dep_xai_tts_observed_2026_09_24' ]
+          [ "$VOICE_DEPLOYMENT_ID" = '' ]
           [ "$PROFILE_SPEECH_ID" = 'cc2471c8-807e-46ec-b5da-b6f3b39d2db5' ]
           [ "$REVIEWER_USER_ID_EXPECTED" = '6981c9178fcdefaf81988ffb' ]
           [ "$PROFILE_DEFAULT_ID" = '01a06477-94f5-74f0-bc25-4c5c13b93ccd' ]
+
+          # The voice route is part of the plan only once its observed id is
+          # pinned above; its revision is the id's observation date.
+          voice_revision=''
+          if [ -n "$VOICE_DEPLOYMENT_ID" ]; then
+            if [[ ! "$VOICE_DEPLOYMENT_ID" =~ ^dep_xai_realtime_grok_voice_think_fast_2_0_observed_([0-9]{4})_([0-9]{2})_([0-9]{2})$ ]]; then
+              echo '::error::VOICE_DEPLOYMENT_ID is not a Kaana xai-realtime grok-voice-think-fast-2.0 deployment id'
+              exit 64
+            fi
+            voice_revision="x-ai/grok-voice-think-fast-2.0@observed-${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}"
+          fi
 
           live_service_json=$(aws ecs describe-services \
             --cluster "$CLUSTER" --services "$LIVE_SERVICE" \
@@ -356,6 +376,17 @@ jobs:
             "scorecard:dep_xai_tts_observed_2026_09_24",
             "profile:kaana-v1-speech", ("profile-candidate:kaana-v1-speech:" + $speechRevision)
           ]')
+          if [ -n "$voice_revision" ]; then
+            # No profile: a realtime session names its model, never a profile.
+            allowed_operations=$(jq -c --arg voiceRevision "$voice_revision" --arg voiceDeployment "$VOICE_DEPLOYMENT_ID" '. + [
+              "model:x-ai/grok-voice-think-fast-2.0",
+              ("revision:" + $voiceRevision),
+              "provider:xai-realtime",
+              ("price:" + $voiceRevision + ":xai-realtime"),
+              ("deployment:" + $voiceDeployment),
+              ("scorecard:" + $voiceDeployment)
+            ]' <<<"$allowed_operations")
+          fi
 
           validate_bootstrap_result() {
             local result="$1"
@@ -373,12 +404,14 @@ jobs:
               --arg speechRevision "$SPEECH_MODEL_REFERENCE" \
               --arg xai "$XAI_DEPLOYMENT_ID" \
               --arg speechProfile "$PROFILE_SPEECH_ID" \
+              --arg voiceRevision "$voice_revision" \
+              --arg voiceDeployment "$VOICE_DEPLOYMENT_ID" \
               --argjson allowed "$allowed_operations" '
                 (keys | sort) == [
                   "applied","candidate","database","deployments","inserted",
                   "inventoryIssuedAt","inventorySnapshotId","inventoryVersionId",
                   "model","planSha256","providers","publisher","reviewedFactsSha256","revision",
-                  "routingProfileIds","schemaVersion","speech"
+                  "routingProfileIds","schemaVersion","speech","voice"
                 ] and
                 .schemaVersion == 1 and
                 .database == {engine:"postgresql"} and
@@ -403,6 +436,15 @@ jobs:
                   deployments:[$xai],
                   routingProfileIds:[$speechProfile]
                 } and
+                .voice == (if $voiceDeployment == "" then null else {
+                  publisher:"x-ai",
+                  model:"x-ai/grok-voice-think-fast-2.0",
+                  revision:$voiceRevision,
+                  candidate:{modelReference:$voiceRevision,priority:100},
+                  providers:["xai-realtime"],
+                  deployments:[$voiceDeployment],
+                  routingProfileIds:[]
+                } end) and
                 (.planSha256 | test("^[a-f0-9]{64}$")) and
                 (.inserted | type == "array") and
                 (.inserted | all(type == "string")) and
@@ -454,7 +496,7 @@ jobs:
           observed_plan=$(jq -r '.planSha256' <<<"$dry_result")
 
           echo '──────── Kaana catalogue dry run (operator-safe) ────────'
-          jq '{database,inventorySnapshotId,reviewedFactsSha256,model,candidate,deployments,routingProfileIds,speech,inserted,planSha256}' <<<"$dry_result"
+          jq '{database,inventorySnapshotId,reviewedFactsSha256,model,candidate,deployments,routingProfileIds,speech,voice,inserted,planSha256}' <<<"$dry_result"
           echo '──────────────────────────────────────────────────────────'
           {
             echo '### Reviewed Kaana catalogue dry run'
@@ -571,6 +613,11 @@ jobs:
             echo "- Exact Inbox profile PK present: \`$PROFILE_DEFAULT_ID\`"
             echo "- Exact candidate: \`$MODEL_REFERENCE\` at priority \`100\`"
             echo "- Speech profile PK \`$PROFILE_SPEECH_ID\` and route \`$XAI_DEPLOYMENT_ID\` proven equal by the no-op dry run"
+            if [ -n "$VOICE_DEPLOYMENT_ID" ]; then
+              echo "- Realtime voice route \`$VOICE_DEPLOYMENT_ID\` (\`$voice_revision\`) proven equal by the no-op dry run"
+            else
+              echo '- Realtime voice route: not enabled (VOICE_DEPLOYMENT_ID is empty)'
+            fi
             echo '- SELECT-only readback writes: 0'
             echo '- Idempotency dry-run committed writes: 0; planned operations: 0'
             echo '- Routing eligibility was not asserted; application audience remains a separate launch gate.'

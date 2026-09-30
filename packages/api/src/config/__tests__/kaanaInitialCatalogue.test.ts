@@ -20,6 +20,12 @@ import {
   KAANA_SPEECH_ROUTING_PROFILE_ID,
   KAANA_SPEECH_ROUTING_PROFILES,
   KAANA_TEXT_CATALOGUE,
+  KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID,
+  KAANA_VOICE_CATALOGUE_STATUS,
+  KAANA_VOICE_MODEL,
+  KAANA_VOICE_OBSERVATION,
+  kaanaVoiceCatalogue,
+  requireKaanaVoiceCatalogue,
   kaanaCurrentScorecardReview,
   kaanaReviewedCatalogueOperations,
   kaanaReviewedCatalogueProjection,
@@ -197,12 +203,17 @@ describe("Alia's reviewed text-to-speech catalogue", () => {
   const [xai] = KAANA_SPEECH_PROVIDERS;
 
   it("pins the live snapshot that carries every reviewed route", () => {
-    expect(KAANA_INITIAL_INVENTORY_SNAPSHOT_ID).toBe("snap_37548e4f1f8ec610");
+    // The pre-voice snapshot, until the voice observation moves the pin.
+    expect(KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID).toBe("snap_37548e4f1f8ec610");
+    expect(KAANA_INITIAL_INVENTORY_SNAPSHOT_ID).toBe(
+      KAANA_VOICE_OBSERVATION?.inventorySnapshotId ?? "snap_37548e4f1f8ec610",
+    );
     expect(KAANA_REVIEWED_PROVIDERS.map((provider) => provider.deploymentId)).toEqual([
       "dep_cerebras_gpt_oss_120b_observed_2026_09_01",
       "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
       "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
       "dep_xai_tts_observed_2026_09_24",
+      ...(KAANA_VOICE_OBSERVATION === null ? [] : [KAANA_VOICE_OBSERVATION.deploymentId]),
     ]);
   });
 
@@ -380,6 +391,134 @@ describe("the reviewed bootstrap projection", () => {
         : `"${operation}"`;
     for (const operation of kaanaReviewedCatalogueOperations(KAANA_SPEECH_CATALOGUE)) {
       expect(workflow).toContain(workflowSpelling(operation));
+    }
+  });
+});
+
+describe("xAI's reviewed realtime voice catalogue", () => {
+  const OBSERVED = {
+    deploymentId: "dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_10_02",
+    inventorySnapshotId: "snap_0123456789abcdef",
+  };
+  const workflow = (): string =>
+    readFileSync(
+      join(__dirname, "../../../../../.github/workflows/bootstrap-kaana-catalogue.yml"),
+      "utf8",
+    );
+
+  it("is gated until Kaana's observation is recorded, and a recorded one must be valid", () => {
+    // Either nothing is recorded (the route is defined but not bootstrapped),
+    // or what is recorded builds: a malformed follow-up cannot merge.
+    if (KAANA_VOICE_OBSERVATION === null) {
+      expect(KAANA_VOICE_CATALOGUE_STATUS.status).toBe("pending");
+      expect(() => requireKaanaVoiceCatalogue()).toThrow(
+        /not yet published its deployment id and inventory snapshot/,
+      );
+      expect(KAANA_REVIEWED_CATALOGUES).toHaveLength(2);
+    } else {
+      expect(KAANA_VOICE_CATALOGUE_STATUS.status).toBe("ready");
+      expect(KAANA_REVIEWED_CATALOGUES.at(-1)?.modelId).toBe("x-ai/grok-voice-think-fast-2.0");
+    }
+  });
+
+  it("refuses an id that is not Kaana's xai-realtime grok-voice id, or a date that cannot be it", () => {
+    for (const deploymentId of [
+      "dep_xai_realtime_grok_voice_latest_observed_2026_10_02",
+      "dep_xai_grok_voice_think_fast_2_0_observed_2026_10_02",
+      "dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_13_02",
+      "dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_09_29",
+      " dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_10_02",
+    ]) {
+      expect(kaanaVoiceCatalogue({ ...OBSERVED, deploymentId }).status).toBe("pending");
+    }
+    for (const inventorySnapshotId of ["snap_exact", "snap_37548e4f1f8ec610", ""]) {
+      expect(kaanaVoiceCatalogue({ ...OBSERVED, inventorySnapshotId }).status).toBe("pending");
+    }
+  });
+
+  it("derives the revision from the observation date and binds the exact Kaana route identity", () => {
+    const status = kaanaVoiceCatalogue(OBSERVED);
+    expect(status.status).toBe("ready");
+    const catalogue = requireKaanaVoiceCatalogue(status);
+    expect(catalogue.modelReference).toBe("x-ai/grok-voice-think-fast-2.0@observed-2026-10-02");
+    expect(catalogue.revision).toMatchObject({
+      revision: "observed-2026-10-02",
+      releasedAt: "2026-10-02T00:00:00.000Z",
+      contentFilteringDefault: "provider_default",
+      provenanceMarking: "none",
+    });
+    expect(catalogue.publisher.slug).toBe("x-ai");
+    expect(catalogue.routingProfiles).toEqual([]);
+    // session.created is matched on deployment id, model and servingProvider:
+    // the provider row is Kaana's own slug for the realtime adapter.
+    expect(catalogue.providers).toHaveLength(1);
+    expect(catalogue.providers[0]).toMatchObject({
+      slug: "xai-realtime",
+      deploymentId: OBSERVED.deploymentId,
+      upstreamModelId: "grok-voice-think-fast-2.0",
+      retainsPayloads: true,
+      retentionDays: 30,
+      trainsOnCustomerData: false,
+    });
+    expect(kaanaReviewedCatalogueOperations(catalogue)).toEqual([
+      "publisher:x-ai",
+      "model:x-ai/grok-voice-think-fast-2.0",
+      "revision:x-ai/grok-voice-think-fast-2.0@observed-2026-10-02",
+      "provider:xai-realtime",
+      "price:x-ai/grok-voice-think-fast-2.0@observed-2026-10-02:xai-realtime",
+      `deployment:${OBSERVED.deploymentId}`,
+      `scorecard:${OBSERVED.deploymentId}`,
+    ]);
+  });
+
+  it("prices xAI's list price with no markup, in duration and per-item units only", () => {
+    const [route] = requireKaanaVoiceCatalogue(kaanaVoiceCatalogue(OBSERVED)).providers;
+    expect(route?.unitPrices).toEqual([
+      { unit: "audio_input_milliseconds", amount: "0.08", per: 60_000 },
+      { unit: "audio_output_milliseconds", amount: "0.08", per: 60_000 },
+      { unit: "requests", amount: "0.004", per: 1 },
+    ]);
+    // No token unit: the edge holds this route from the signed audio caps and
+    // the text-item cap, and a one-shot request to it fails to quote.
+    expect(route?.unitPrices.some((price) => price.unit.endsWith("_tokens"))).toBe(false);
+    expect(route?.priceEvidenceRef).toBe("https://docs.x.ai/developers/models/speech-to-speech");
+  });
+
+  it("declares a push-to-talk conversation over WebSocket, audio in (0126 CHECK) and no one-shot dialect", () => {
+    expect(KAANA_VOICE_MODEL).toMatchObject({
+      inputModalities: ["text", "audio"],
+      outputModalities: ["text", "audio"],
+      realtimeTransports: ["websocket"],
+      realtimeSessionKinds: ["conversation"],
+      releaseKind: "third_party_hosted",
+    });
+    expect(KAANA_VOICE_MODEL).not.toHaveProperty("apiFormats");
+    expect(KAANA_VOICE_MODEL.inputModalities).toContain("audio");
+  });
+
+  it("keeps the workflow's two pinned production facts equal to the catalogue's", () => {
+    const text = workflow();
+    expect(text).toContain(`  INVENTORY_SNAPSHOT_ID: ${KAANA_INITIAL_INVENTORY_SNAPSHOT_ID}\n`);
+    expect(text).toContain(`[ "$INVENTORY_SNAPSHOT_ID" = '${KAANA_INITIAL_INVENTORY_SNAPSHOT_ID}' ]`);
+    const voiceId = KAANA_VOICE_OBSERVATION?.deploymentId ?? "";
+    expect(text).toContain(`  VOICE_DEPLOYMENT_ID: '${voiceId}'\n`);
+    expect(text).toContain(`[ "$VOICE_DEPLOYMENT_ID" = '${voiceId}' ]`);
+  });
+
+  it("matches the voice operation allow-list the manual workflow composes", () => {
+    const text = workflow();
+    const catalogue = requireKaanaVoiceCatalogue(kaanaVoiceCatalogue(OBSERVED));
+    const spelled = (operation: string): string => {
+      if (operation.startsWith("publisher:") || operation.startsWith("model:") || operation.startsWith("provider:")) {
+        return `"${operation}"`;
+      }
+      if (operation.startsWith("revision:")) return `("revision:" + $voiceRevision)`;
+      if (operation.startsWith("price:")) return `("price:" + $voiceRevision + ":xai-realtime")`;
+      const [kind] = operation.split(":");
+      return `("${kind}:" + $voiceDeployment)`;
+    };
+    for (const operation of kaanaReviewedCatalogueOperations(catalogue)) {
+      expect(text).toContain(spelled(operation));
     }
   });
 });

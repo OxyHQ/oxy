@@ -4,10 +4,12 @@
  * NOT the production catalogue writer. Since 2026-09-25 the model catalogue is
  * written by the automatic Kaana sync (`services/kaanaCatalogueSync.service.ts`),
  * which never rewrites the reviewed rows declared here. This file remains the
- * reviewed source for exactly two things the sync does not own: Inbox's
- * `kaana-v1` routing profile over the gpt-oss routes, and Alia's xAI speech
+ * reviewed source for exactly three things the sync does not own: Inbox's
+ * `kaana-v1` routing profile over the gpt-oss routes, Alia's xAI speech
  * route and its `kaana-v1-speech` profile (non-text output needs a reviewed
- * provenance declaration the sync cannot make).
+ * provenance declaration the sync cannot make), and xAI's realtime Voice Agent
+ * route (audio output, and the realtime capability columns the sync never
+ * writes) — the last gated on Kaana's first production observation of it.
  *
  * Kaana's discovery snapshot proves only that an exact deployment exists. Oxy
  * still owns the model identity, commercial scope, customer price and routing
@@ -49,13 +51,36 @@ export const KAANA_SCORE_RENEWAL_2026_09_24 = {
 export const KAANA_INITIAL_MODEL_ID = "openai/gpt-oss-120b";
 export const KAANA_INITIAL_MODEL_REFERENCE = `${KAANA_INITIAL_MODEL_ID}@observed-2026-09-01`;
 /**
- * Routing-content hash of the exact live inventory the bootstrap accepts.
- *
- * Re-pinned on 2026-09-24 to the schema-0013 cutover snapshot (334
- * deployments). It still carries the three reviewed gpt-oss deployments with
- * byte-identical identity facts, and adds the reviewed xAI speech deployment.
+ * The snapshot the bootstrap accepted before the realtime voice route: the
+ * schema-0013 cutover snapshot (334 deployments), pinned on 2026-09-24. It
+ * carries the three reviewed gpt-oss deployments with byte-identical identity
+ * facts and the reviewed xAI speech deployment.
  */
-export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID = "snap_37548e4f1f8ec610";
+export const KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID = "snap_37548e4f1f8ec610";
+
+/**
+ * The two production facts only Kaana's publisher can supply for the xAI
+ * realtime Voice Agent route, and the ONLY thing the follow-up that enables it
+ * fills in (docs/runbooks/kaana-catalogue-bootstrap.md, "Enabling the xAI
+ * realtime voice route"):
+ *
+ *  - `deploymentId` — the exact opaque id Kaana published, which names the day
+ *    its publisher first observed `grok-voice-think-fast-2.0` in production
+ *    (`dep_xai_realtime_grok_voice_think_fast_2_0_observed_<YYYY_MM_DD>`); the
+ *    revision `observed-<YYYY-MM-DD>` is derived from it, never written apart;
+ *  - `inventorySnapshotId` — the live inventory snapshot that carries it, which
+ *    becomes the snapshot the whole bootstrap pins.
+ *
+ * `null` until then: the voice catalogue is defined but is not part of the
+ * bootstrap, and {@link requireKaanaVoiceCatalogue} refuses. Never invent either
+ * value; both are read back from the live inventory object.
+ */
+export interface KaanaVoiceObservation {
+  readonly deploymentId: string;
+  readonly inventorySnapshotId: string;
+}
+export const KAANA_VOICE_OBSERVATION: KaanaVoiceObservation | null = null;
+
 
 export const KAANA_INITIAL_PUBLISHER = {
   slug: "openai",
@@ -110,6 +135,8 @@ export interface KaanaInitialUnitPrice {
     | "output_tokens"
     | "reasoning_tokens"
     | "characters"
+    | "audio_input_milliseconds"
+    | "audio_output_milliseconds"
     | "requests";
   readonly amount: string;
   readonly per: number;
@@ -130,7 +157,7 @@ export interface KaanaScoreRenewal {
 }
 
 export interface KaanaInitialProvider {
-  readonly slug: "groq" | "cerebras" | "openrouter" | "xai";
+  readonly slug: "groq" | "cerebras" | "openrouter" | "xai" | "xai-realtime";
   readonly displayName: string;
   readonly websiteUrl: string;
   readonly statusPageUrl?: string;
@@ -516,8 +543,246 @@ export const KAANA_SPEECH_ROUTING_PROFILES = [
 ] as const;
 
 /* -------------------------------------------------------------------------- */
+/*  Realtime voice: xAI's Voice Agent (speech-to-speech)                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Primary-source review, 2026-09-30, of xAI's Voice Agent as Kaana serves it:
+ * provider slug `xai-realtime` (the WebSocket session adapter in xAI's
+ * dialect; `xai` is the request adapter, and a slug resolves to one adapter),
+ * upstream model `grok-voice-think-fast-2.0`, attributed by Kaana to
+ * `x-ai/grok-voice-think-fast-2.0` with first-observation revision semantics.
+ * Push-to-talk `conversation` sessions over WebSocket only: Kaana refuses any
+ * turn detection but `none` (xAI bills `server_vad` sessions for wall-clock
+ * duration, which no contract unit carries).
+ *
+ * Sources: https://docs.x.ai/developers/models/speech-to-speech (pricing,
+ * limits), https://x.ai/news/grok-voice-think-fast-2 ($0.08/min for 2.0),
+ * https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech.
+ */
+export const KAANA_VOICE_REVIEWED_AT = "2026-09-30T00:00:00.000Z";
+export const KAANA_VOICE_MODEL_ID = "x-ai/grok-voice-think-fast-2.0";
+export const KAANA_VOICE_UPSTREAM_MODEL_ID = "grok-voice-think-fast-2.0";
+/** Kaana's published id: provider slug, upstream id, and the observation day. */
+export const KAANA_VOICE_DEPLOYMENT_ID_PATTERN =
+  /^dep_xai_realtime_grok_voice_think_fast_2_0_observed_(\d{4})_(\d{2})_(\d{2})$/;
+/** Kaana's inventory routing-content snapshot id. */
+export const KAANA_INVENTORY_SNAPSHOT_ID_PATTERN = /^snap_[0-9a-f]{16}$/;
+
+/**
+ * The capacity gate's input ceiling, not a claim about the model: xAI publishes
+ * no context window for the Voice Agent. A duration-priced route's hold never
+ * reads it; the edge only compares it with the instructions and tools estimate
+ * (characters + 8), and the signed first frame that carries them is bounded at
+ * 64 KiB (`MAX_KAANA_REALTIME_FIRST_FRAME_BYTES`). 65,536 + 8 + the one output
+ * token below admits every session Kaana can be signed for.
+ */
+export const KAANA_VOICE_MAX_CONTEXT_TOKENS = 65_536 + 8 + 1;
+
+export const KAANA_VOICE_MODEL = {
+  publisherSlug: KAANA_SPEECH_PUBLISHER.slug,
+  slug: "grok-voice-think-fast-2.0",
+  displayName: "Grok Voice Think Fast 2.0",
+  description:
+    "Hosted speech-to-speech voice agent served as push-to-talk realtime conversation sessions.",
+  // A session takes text items and audio, and answers in text and speech.
+  inputModalities: ["text", "audio"],
+  outputModalities: ["text", "audio"],
+  // xAI documents function tools on the Voice Agent; Kaana relays them.
+  supportsTools: true,
+  supportsParallelToolCalls: false,
+  supportsStructuredOutput: false,
+  supportsJsonMode: false,
+  // A "think" model: xAI's `reasoning.effort` defaults to `high` and Kaana
+  // sends no override. No reasoning control is exposed on a session.
+  supportsReasoning: true,
+  supportsStreaming: true,
+  supportsPromptCaching: false,
+  maxContextTokens: KAANA_VOICE_MAX_CONTEXT_TOKENS,
+  // Kaana refuses `max_output_tokens` for xAI (no documented field), and a
+  // duration-priced hold never reads it. The column requires a positive value;
+  // 1 is the smallest, as for the speech route.
+  maxOutputTokens: 1,
+  licenseId: "xAI-Enterprise-Terms",
+  licenseDisplayName: "xAI Enterprise Terms of Service",
+  licenseUrl: "https://x.ai/legal/terms-of-service-enterprise",
+  commercialUseAllowed: true,
+  requiresAttribution: false,
+  baseModelAttributionRequired: false,
+  acceptableUsePolicyUrl: null,
+  releaseKind: "third_party_hosted",
+  trainingOrganization: "xAI",
+  knowledgeCutoff: null,
+  releasedOn: null,
+  deprecationStatus: "active",
+  // Migration 0126: the realtime pair (with audio among the input
+  // modalities). `api_formats` stays NULL: its CHECK names no realtime dialect,
+  // and a one-shot request to this model fails to quote (no token unit is
+  // priced) and is refused before any hold.
+  realtimeTransports: ["websocket"],
+  realtimeSessionKinds: ["conversation"],
+} as const;
+
+const KAANA_VOICE_SCORECARD_REASON =
+  "Primary-source xAI list-price review of the single exact realtime voice route with neutral unmeasured latency and throughput; sessions name the model and make no provider performance claim.";
+
+export type KaanaVoiceCatalogueStatus =
+  | { readonly status: "pending"; readonly reason: string }
+  | {
+      readonly status: "ready";
+      readonly catalogue: KaanaReviewedModelCatalogue;
+      readonly inventorySnapshotId: string;
+    };
+
+/**
+ * The voice catalogue for one production observation, or why it cannot be
+ * built. Pure, so the gate is testable with any candidate observation; the
+ * bootstrap reads it only through {@link KAANA_VOICE_CATALOGUE_STATUS}.
+ */
+export function kaanaVoiceCatalogue(
+  observation: KaanaVoiceObservation | null,
+): KaanaVoiceCatalogueStatus {
+  if (observation === null) {
+    return {
+      status: "pending",
+      reason:
+        "The xAI realtime voice route is not enabled: Kaana has not yet published its deployment id and inventory snapshot (KAANA_VOICE_OBSERVATION is null).",
+    };
+  }
+  const match = KAANA_VOICE_DEPLOYMENT_ID_PATTERN.exec(observation.deploymentId);
+  if (match === null) {
+    return {
+      status: "pending",
+      reason: `${observation.deploymentId} is not a Kaana xai-realtime grok-voice-think-fast-2.0 deployment id`,
+    };
+  }
+  const [, year, month, day] = match;
+  const observedOn = `${year}-${month}-${day}`;
+  const observedAt = `${observedOn}T00:00:00.000Z`;
+  if (
+    Number.isNaN(Date.parse(observedAt)) ||
+    new Date(observedAt).toISOString().slice(0, 10) !== observedOn
+  ) {
+    return { status: "pending", reason: `${observedOn} is not a calendar date` };
+  }
+  if (observedAt < KAANA_VOICE_REVIEWED_AT) {
+    return {
+      status: "pending",
+      reason: `${observation.deploymentId} predates the ${KAANA_VOICE_REVIEWED_AT.slice(0, 10)} review; it cannot be the route that review priced`,
+    };
+  }
+  if (!KAANA_INVENTORY_SNAPSHOT_ID_PATTERN.test(observation.inventorySnapshotId)) {
+    return {
+      status: "pending",
+      reason: `${observation.inventorySnapshotId} is not a Kaana inventory snapshot id`,
+    };
+  }
+  if (observation.inventorySnapshotId === KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID) {
+    return {
+      status: "pending",
+      reason: `${KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID} predates the voice route and cannot carry it`,
+    };
+  }
+
+  const revision = {
+    revision: `observed-${observedOn}`,
+    isCurrent: true,
+    // xAI publishes no release instant for this id; this is the Kaana
+    // observation that names the revision, exactly as for the speech route.
+    releasedAt: observedAt,
+    modelCardUrl: "https://docs.x.ai/developers/models/speech-to-speech",
+    // Audio output must declare its provenance (migration 0050). xAI's Voice
+    // Agent documentation publishes no watermark or C2PA marking and Kaana
+    // stamps none; moderation is xAI's default under its usage policy.
+    contentFilteringDefault: "provider_default",
+    provenanceMarking: "none",
+  } as const;
+  const provider: KaanaInitialProvider = {
+    slug: "xai-realtime",
+    displayName: "xAI Voice Agent",
+    websiteUrl: "https://x.ai/",
+    // The same xAI team and data policy as the speech route: 30-day abuse
+    // retention, no training, ZDR available but not asserted for Oxy's team.
+    retainsPayloads: true,
+    retentionDays: 30,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: true,
+    policyUrl: "https://docs.x.ai/developers/faq/security",
+    deploymentId: observation.deploymentId,
+    upstreamModelId: KAANA_VOICE_UPSTREAM_MODEL_ID,
+    legalEvidenceRef:
+      "primary-source-review-2026-09-30:https://x.ai/legal/terms-of-service-enterprise;https://docs.x.ai/developers/faq/security;https://docs.x.ai/developers/models/speech-to-speech;scope=internal-alia-standard-application-use-not-api-resale",
+    // Customer price is the provider list price with no markup, as for every
+    // reviewed route: $0.08 per minute of audio each way (per 60,000 ms, so no
+    // rounding enters the rate) and $0.004 per billed text item (`requests`).
+    priceEvidenceRef: "https://docs.x.ai/developers/models/speech-to-speech",
+    performanceEvidenceRef: "not-measured:xai-realtime-exact-deployment-2026-09-30",
+    reviewedAt: KAANA_VOICE_REVIEWED_AT,
+    scoreValidUntil: KAANA_INITIAL_SCORE_VALID_UNTIL,
+    priceEffectiveFrom: KAANA_VOICE_REVIEWED_AT,
+    scorecardReason: KAANA_VOICE_SCORECARD_REASON,
+    permissionStateNote:
+      "Primary-source review 2026-09-30 of the single exact xAI realtime voice route; internal Alia use; not approved for API resale.",
+    unitPrices: [
+      { unit: "audio_input_milliseconds", amount: "0.08", per: 60_000 },
+      { unit: "audio_output_milliseconds", amount: "0.08", per: 60_000 },
+      { unit: "requests", amount: "0.004", per: 1 },
+    ],
+    // One route: neutral 500s and the shared balanced formula, as for speech.
+    scores: { price: 1_000, latency: 500, throughput: 500, balanced: 750 },
+  };
+  return {
+    status: "ready",
+    inventorySnapshotId: observation.inventorySnapshotId,
+    catalogue: {
+      publisher: KAANA_SPEECH_PUBLISHER,
+      model: KAANA_VOICE_MODEL,
+      modelId: KAANA_VOICE_MODEL_ID,
+      modelReference: `${KAANA_VOICE_MODEL_ID}@${revision.revision}`,
+      revision,
+      providers: [provider],
+      // A realtime session names a model and never a routing profile.
+      routingProfiles: [],
+    },
+  };
+}
+
+/** The voice catalogue as this build reviews it. */
+export const KAANA_VOICE_CATALOGUE_STATUS: KaanaVoiceCatalogueStatus =
+  kaanaVoiceCatalogue(KAANA_VOICE_OBSERVATION);
+
+/**
+ * Routing-content hash of the exact live inventory the bootstrap accepts: the
+ * snapshot that carries the voice route once its observation is recorded and
+ * valid, else the pre-voice snapshot. (A recorded but invalid observation keeps
+ * the old pin and fails the catalogue tests, so it cannot merge.)
+ */
+export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID: string =
+  KAANA_VOICE_CATALOGUE_STATUS.status === "ready"
+    ? KAANA_VOICE_CATALOGUE_STATUS.inventorySnapshotId
+    : KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID;
+
+/** The voice catalogue, or the refusal that says what production fact is missing. */
+export function requireKaanaVoiceCatalogue(
+  status: KaanaVoiceCatalogueStatus = KAANA_VOICE_CATALOGUE_STATUS,
+): KaanaReviewedModelCatalogue {
+  if (status.status !== "ready") throw new Error(status.reason);
+  return status.catalogue;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Every reviewed model the bootstrap owns                                   */
 /* -------------------------------------------------------------------------- */
+
+/** A reviewed model's own revision row: observed identity plus, for non-text output, provenance. */
+export interface KaanaReviewedRevision {
+  readonly revision: string;
+  readonly isCurrent: boolean;
+  readonly releasedAt: string;
+  readonly modelCardUrl: string;
+  readonly contentFilteringDefault?: "provider_default";
+  readonly provenanceMarking?: "none";
+}
 
 export interface KaanaReviewedModelCatalogue {
   readonly publisher: {
@@ -525,10 +790,13 @@ export interface KaanaReviewedModelCatalogue {
     readonly displayName: string;
     readonly websiteUrl: string;
   };
-  readonly model: typeof KAANA_INITIAL_MODEL | typeof KAANA_SPEECH_MODEL;
+  readonly model:
+    | typeof KAANA_INITIAL_MODEL
+    | typeof KAANA_SPEECH_MODEL
+    | typeof KAANA_VOICE_MODEL;
   readonly modelId: string;
   readonly modelReference: string;
-  readonly revision: typeof KAANA_INITIAL_REVISION | typeof KAANA_SPEECH_REVISION;
+  readonly revision: KaanaReviewedRevision;
   readonly providers: readonly KaanaInitialProvider[];
   readonly routingProfiles: readonly {
     readonly id: string;
@@ -558,11 +826,17 @@ export const KAANA_SPEECH_CATALOGUE: KaanaReviewedModelCatalogue = {
   routingProfiles: KAANA_SPEECH_ROUTING_PROFILES,
 };
 
-/** Bootstrap order: text first, exactly as before speech existed. */
-export const KAANA_REVIEWED_CATALOGUES = [
+/**
+ * Bootstrap order: text first, exactly as before speech existed, then speech,
+ * then the realtime voice route once Kaana's observation of it is recorded.
+ */
+export const KAANA_REVIEWED_CATALOGUES: readonly KaanaReviewedModelCatalogue[] = [
   KAANA_TEXT_CATALOGUE,
   KAANA_SPEECH_CATALOGUE,
-] as const;
+  ...(KAANA_VOICE_CATALOGUE_STATUS.status === "ready"
+    ? [KAANA_VOICE_CATALOGUE_STATUS.catalogue]
+    : []),
+];
 
 /** Every reviewed route, for the inventory gate and the score renewal. */
 export const KAANA_REVIEWED_PROVIDERS: readonly KaanaInitialProvider[] =

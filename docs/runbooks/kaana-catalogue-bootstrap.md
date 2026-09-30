@@ -4,7 +4,11 @@ This is the production-safe path for creating the exact Oxy catalogue facts
 already reviewed in `kaanaInitialCatalogue.ts`: the gpt-oss text routes and
 their eight profiles, and Alia's text-to-speech route (`x-ai/text-to-speech`
 on `dep_xai_tts_observed_2026_09_24`) with its speech-only profile
-`cc2471c8-807e-46ec-b5da-b6f3b39d2db5` (`kaana-v1-speech`, ranked on price). It does not enable an inference
+`cc2471c8-807e-46ec-b5da-b6f3b39d2db5` (`kaana-v1-speech`, ranked on price) — and,
+once Kaana has published it, xAI's realtime Voice Agent route
+(`x-ai/grok-voice-think-fast-2.0` on provider `xai-realtime`; see
+[Enabling the xAI realtime voice route](#enabling-the-xai-realtime-voice-route)).
+It does not enable an inference
 audience, change an application's classification, create a reviewer or move a
 provider key.
 
@@ -32,10 +36,11 @@ the live `oxy-api` task.
    to the one-shot, including `assignPublicIp`. Both public-subnet `ENABLED`
    and private-subnet `DISABLED` are valid; never force a public IP after the
    publisher moves behind NAT.
-5. Verify the current Kaana inventory content snapshot remains
-   `snap_37548e4f1f8ec610`. The task role can read only the versioned
-   `inventory/current.json` object and the writer refuses stale or mismatched
-   content.
+5. Verify the current Kaana inventory content snapshot is the one pinned by
+   `KAANA_INITIAL_INVENTORY_SNAPSHOT_ID` (and the workflow's
+   `INVENTORY_SNAPSHOT_ID`): `snap_37548e4f1f8ec610` until the voice route is
+   enabled. The task role can read only the versioned `inventory/current.json`
+   object and the writer refuses stale or mismatched content.
 
 The task definition is also checked before every run: one ARM64 Fargate
 container, exact command and image, exact inventory object and task role, and
@@ -118,3 +123,62 @@ default. Bootstrap preserves that historical marker for those exact deployment
 IDs only. It still checks every other reviewed field and requires the matching
 immutable event to carry the same marker; it never rewrites either row. Newly
 created scorecards, including OpenRouter, require the reviewed price URL.
+
+## Enabling the xAI realtime voice route
+
+The reviewed voice catalogue — model `x-ai/grok-voice-think-fast-2.0` with
+`realtime_transports = {websocket}`, `realtime_session_kinds = {conversation}`,
+text+audio in and out, `api_formats` NULL; provider `xai-realtime` (Kaana's own
+slug, which `session.created.servingProvider` must equal); price version at
+xAI's list price with no markup: `audio_input_milliseconds` and
+`audio_output_milliseconds` at `0.08` per `60000`, `requests` at `0.004` per `1`;
+a single-route scorecard; no routing profile (a session names its model) — is
+source-reviewed in `packages/api/src/config/kaanaInitialCatalogue.ts`
+(`kaanaVoiceCatalogue`). It is **gated**: `KAANA_VOICE_OBSERVATION` is `null`,
+the dry run reports `voice: null`, nothing of it is planned or written, and
+`requireKaanaVoiceCatalogue()` refuses.
+
+Two production facts do not exist until Kaana's publisher observes the model in
+production, after the Kaana/oxy-infra rollout of `xai-realtime`
+(`kaana_xai_realtime_enabled`, the credential row, the discovery key id). Never
+invent either; read both from the live inventory object:
+
+| Fact | Where it comes from | Shape |
+|---|---|---|
+| deployment id | the `deployments[]` entry with `provider: "xai-realtime"`, `upstreamModelId: "grok-voice-think-fast-2.0"`, `modelReference: "x-ai/grok-voice-think-fast-2.0@observed-<YYYY-MM-DD>"`, `current: true` | `dep_xai_realtime_grok_voice_think_fast_2_0_observed_<YYYY_MM_DD>` |
+| inventory snapshot id | that object's top-level `snapshotId` | `snap_<16 hex>` |
+
+The same snapshot must still carry the four existing reviewed routes with their
+exact facts — the writer refuses it otherwise.
+
+**The follow-up commit** (one PR, nothing else changes):
+
+1. `kaanaInitialCatalogue.ts`: set
+   `KAANA_VOICE_OBSERVATION = { deploymentId: "<id>", inventorySnapshotId: "<snap>" }`.
+   The revision (`observed-<YYYY-MM-DD>`), model reference, operations and the
+   bootstrap-wide snapshot pin (`KAANA_INITIAL_INVENTORY_SNAPSHOT_ID`) are all
+   derived from it. An id that is not Kaana's `xai-realtime` grok-voice id, a
+   date before the 2026-09-30 review, or a malformed or pre-voice snapshot keeps
+   the gate closed and fails `kaanaInitialCatalogue.test.ts`.
+2. `.github/workflows/bootstrap-kaana-catalogue.yml`: set `INVENTORY_SNAPSHOT_ID`
+   to `<snap>` and `VOICE_DEPLOYMENT_ID` to `'<id>'`, and the two matching exact
+   assertions (`[ "$INVENTORY_SNAPSHOT_ID" = … ]`, `[ "$VOICE_DEPLOYMENT_ID" = … ]`).
+   A test fails unless both files carry the same two values.
+3. CI green, merge, deploy that `main` image and renew the dedicated bootstrap
+   task definition to the same digest (Prerequisite 2).
+
+Then run the workflow exactly as above: `dry-run` — confirm
+`inventorySnapshotId` is `<snap>`, `voice.deployments == ["<id>"]`,
+`voice.providers == ["xai-realtime"]`, and that `inserted` is exactly the voice
+operations (`model:x-ai/grok-voice-think-fast-2.0`, `revision:…@observed-<date>`,
+`provider:xai-realtime`, `price:…:xai-realtime`, `deployment:<id>`,
+`scorecard:<id>`; `publisher:x-ai` exists already) — retain `planSha256`, then
+`apply` with it. The post-apply no-op dry run proves the route equal.
+
+The route is `platform_internal` like every reviewed route: first-party staff
+applications (Alia) can open sessions on it; nothing else can. Its scorecard
+carries the shared `KAANA_INITIAL_SCORE_VALID_UNTIL`; renew it with the others.
+Before announcing it, run the realtime signed canary against `<id>`
+([kaana-signed-canary](../../.github/workflows/kaana-signed-canary.yml),
+`probe_mode: realtime`) and one push-to-talk session through `/v1/realtime`
+whose receipt carries `audio_*_milliseconds` and `requests` at these prices.

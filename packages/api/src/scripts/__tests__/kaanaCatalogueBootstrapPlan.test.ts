@@ -36,6 +36,7 @@ const INPUT: KaanaCatalogueBootstrapPlanInput = {
 		deployments: ["dep_xai_tts_observed_2026_09_24"],
 		routingProfileIds: ["cc2471c8-807e-46ec-b5da-b6f3b39d2db5"],
 	},
+	voice: null,
 	wouldInsert: ["profile:profile-exact"],
 };
 
@@ -57,6 +58,24 @@ describe("Kaana catalogue bootstrap plan authorization", () => {
 			routingProfileIds: ["different-profile"],
 		});
 		expect(changed.planSha256).not.toBe(first.planSha256);
+
+		// A plan names whether the realtime voice route is part of it.
+		const withVoice = createKaanaCatalogueBootstrapPlan({
+			...INPUT,
+			voice: {
+				publisher: "x-ai",
+				model: "x-ai/grok-voice-think-fast-2.0",
+				revision: "x-ai/grok-voice-think-fast-2.0@observed-2026-10-02",
+				candidate: {
+					modelReference: "x-ai/grok-voice-think-fast-2.0@observed-2026-10-02",
+					priority: 100,
+				},
+				providers: ["xai-realtime"],
+				deployments: ["dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_10_02"],
+				routingProfileIds: [],
+			},
+		});
+		expect(withVoice.planSha256).not.toBe(first.planSha256);
 	});
 
 	it("binds the speech profile, route and candidate into the plan hash", () => {

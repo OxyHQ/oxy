@@ -20,7 +20,9 @@ export interface KaanaCatalogueBootstrapModelPlan {
 
 /**
  * The text model's identities stay at the top level, as every earlier plan
- * bound them; Alia's speech model is bound under `speech`.
+ * bound them; Alia's speech model is bound under `speech`, and the xAI realtime
+ * voice model under `voice` — `null` while its observation is not recorded, so
+ * a plan names exactly which of the two states it was computed in.
  */
 export interface KaanaCatalogueBootstrapPlanInput
 	extends KaanaCatalogueBootstrapModelPlan {
@@ -28,6 +30,7 @@ export interface KaanaCatalogueBootstrapPlanInput
 	readonly inventorySnapshotId: string;
 	readonly reviewedFactsSha256: string;
 	readonly speech: KaanaCatalogueBootstrapModelPlan;
+	readonly voice: KaanaCatalogueBootstrapModelPlan | null;
 	readonly wouldInsert: readonly string[];
 }
 
