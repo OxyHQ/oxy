@@ -334,7 +334,7 @@ router.get(
   catalogueServiceReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
-    const profiles = access.served ? await listRoutingProfiles() : [];
+    const profiles = access.served ? await listRoutingProfiles(access.viewer, await servableAvailability()) : [];
     const body: z.infer<typeof routingProfileListResponse> = { data: profiles, count: profiles.length };
     res.json(body);
   })

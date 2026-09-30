@@ -52,7 +52,8 @@ renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
 | The `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
 | Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. The reviewed exact-route writer is `packages/api/scripts/bootstrap-kaana-catalogue.ts`; its main-only dry-run/SHA/apply lane is `.github/workflows/bootstrap-kaana-catalogue.yml`. Source presence is not evidence that either ran in production, and public visibility remains gated by `INFERENCE_CATALOGUE_AUDIENCE` |
 | Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out, **once charging is authorized**. Unset, it shadow meters: prices the request, records the amount, writes no financial record |
-| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (thirteen controls, the two price ceilings included; only `optimiseFor` is not) |
+| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (thirteen controls, the two price ceilings included; only `optimiseFor` is not). `allowedRoutingProfileIds` restricts which power levels a request may name |
+| Power levels (routing profiles with a `powerLevel`) and the `auto` rule | `packages/api/src/services/inferencePowerLevels.service.ts`, `inference_model_power_classes` | Yes — [power-levels.md](./power-levels.md) |
 | BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts`, `.../services/kaanaCredentialControl.ts` | Yes when the signed Kaana control lane is configured; every uncertain mutation is quarantined and recovered under the same operation ID |
 | Usage, spend, balance, charges, budgets | `packages/api/src/routes/inferenceReporting.ts` | Yes |
 | Account billing profile, Stripe boundary, entitlements | `packages/api/src/routes/accountBilling.ts` | Yes |
@@ -130,18 +131,23 @@ statement of that order is
 [routing.md](./routing.md#ranking-after-qualification); this page does not
 repeat it.
 
-### Power levels and per-app allowed levels — rolling out
+### Power levels and per-app allowed levels — live in source
 
-The mechanism a power level rides on is on `main`: a routing-profile slug
-(`routingProfile`) or exact ID (`routingProfileId`) as the request target, a
-per-application `defaultTarget`, `GET /v1/models/routing-profiles`, and a
-response that names the concrete model that ran. **Not on `main`:** the seven
-power-level profiles (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`,
-`ultra`) and their reasoning efforts, `auto`'s per-request choice, a per-app
-allowed-levels list, naming a level in `model`, Alia's level picker, and Kaana
-withholding deployments whose keys are all retired or that fail persistently.
-The [developer guide](./README.md#what-is-live-and-what-is-rolling-out) is the
-table of record for these.
+On `main`: the seven power-level profiles (`auto`, `instant`, `medium`,
+`high`, `xhigh`, `pro`, `ultra`, fixed ids `power-<level>`) with their
+reasoning efforts, reviewed per-model power classes with cited benchmark
+sources, `auto`'s deterministic per-request choice, cross-model failover inside
+a level recorded against the profile, a per-app `allowedRoutingProfileIds`
+list, naming a level in `model` on both chat dialects, same-model deployment
+failover on by default, and only servable models listed or chosen
+([power-levels.md](./power-levels.md), migration
+`0129_power_routing_profiles`). **Not in Oxy:** Alia's level picker, each
+product's own policy rows (Inbox's `instant`-only policy is configuration to
+write), and Kaana withholding deployments whose keys are all retired or that
+fail persistently. Source is not production: verify the migration ran, the
+seven preset rows exist and a real request at a level completed before calling
+it deployed. The [developer guide](./README.md#what-is-live-and-what-is-rolling-out)
+is the table of record.
 
 ### Kaana BYOK custody — workstream 10, [ADR 0019](../adr/0019-kaana-byok-custody.md)
 

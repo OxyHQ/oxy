@@ -40,7 +40,7 @@ forbid(
 );
 requireMatch(
   edge,
-  /admittedRoutingTarget = \{[\s\S]*?kind: 'routing_profile_id',[\s\S]*?routingProfileId: profile\.routingProfileId/,
+  /admittedRoutingTarget = \{[\s\S]*?kind: 'routing_profile_id',[\s\S]*?routingProfileId: (?:profile\.routingProfileId|resolvedProfileId)/,
   'Oxy must normalize both public selectors to a routing-profile PK before the envelope',
 );
 requireMatch(

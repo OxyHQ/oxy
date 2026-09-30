@@ -99,6 +99,7 @@ export * from './inferenceModelReleaseSignatures';
 export * from './inferenceModelReleases';
 export * from './inferenceModelRevisions';
 export * from './inferenceModels';
+export * from './inferenceModelPowerClasses';
 export * from './inferenceProviderConnectionAuditEvents';
 export * from './inferenceProviderConnections';
 export * from './inferenceProviderCredentialOperations';

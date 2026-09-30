@@ -906,7 +906,7 @@ describe('routing profiles are a separate collection', () => {
       .insert(inferenceRoutingProfileCandidates)
       .values({ routingProfileId: profile.id, modelId: modelRow.id, priority: 0 });
 
-    const profiles = await listRoutingProfiles();
+    const profiles = await listRoutingProfiles(INTERNAL_VIEWER, CATALOGUED);
     const mine = profiles.find((candidate) => candidate.slug === slug);
     expect(mine).toBeDefined();
     // The UNPINNED form resolves to the model line, not to a revision.

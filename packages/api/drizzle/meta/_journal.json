@@ -897,6 +897,13 @@
       "when": 1790796673071,
       "tag": "0128_inference_deployment_accepted_parameters",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1790799700909,
+      "tag": "0129_power_routing_profiles",
+      "breakpoints": true
     }
   ]
 }

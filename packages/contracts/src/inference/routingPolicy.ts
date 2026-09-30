@@ -102,10 +102,29 @@ export const routingPolicyScopeSchema = z.discriminatedUnion("kind", [
 export const routingFallbackPolicySchema = z
   .object({
     disabled: z.boolean(),
-    sameModelDeployment: z.boolean(),
+    /**
+     * Same-model deployment failover. OPTIONAL since contract set 3.4.0, and
+     * absent means ON unless `disabled` is set: serving the same weights from
+     * another deployment of the same revision is an availability decision, not
+     * a substitution. A policy opts out with an explicit `false` (or
+     * `disabled: true`). See `effectiveSameModelDeployment`.
+     */
+    sameModelDeployment: z.boolean().optional(),
     authorizedCrossModel: z.array(modelReferenceSchema).default([]),
   })
   .strict();
+
+/**
+ * Whether a fallback block authorizes same-model deployment failover: an
+ * explicit `sameModelDeployment` wins; absent means on unless `disabled`.
+ */
+export function effectiveSameModelDeployment(fallback: {
+  readonly disabled: boolean;
+  readonly sameModelDeployment?: boolean;
+}): boolean {
+  if (fallback.disabled) return false;
+  return fallback.sameModelDeployment ?? true;
+}
 
 /**
  * A versioned routing policy.
@@ -154,6 +173,15 @@ export const routingPolicySchema = z
     requireCommercialUseRights: z.boolean(),
 
     fallback: routingFallbackPolicySchema,
+
+    /**
+     * The routing profiles (power levels) this scope may target, by exact id
+     * (contract set 3.4.0). Empty means no restriction. A request naming a
+     * profile outside a non-empty list is refused with `policy_violation`, and
+     * `auto` only climbs to levels on the list. Concrete model targets are
+     * governed by the other controls, not by this list.
+     */
+    allowedRoutingProfileIds: z.array(routingProfileIdSchema).default([]),
 
     /** Whether the customer's own provider credentials may or must be used. */
     byokPreference: z.enum(["disabled", "prefer", "require"]),
@@ -247,6 +275,28 @@ export const routingPolicySchema = z
           });
         }
       }
+    }
+
+    const allowedProfiles = policy.allowedRoutingProfileIds;
+    if (new Set(allowedProfiles).size !== allowedProfiles.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["allowedRoutingProfileIds"],
+        message: "each routing profile is allowed at most once",
+      });
+    }
+    // A default the policy itself forbids would refuse every request that
+    // names no model — a policy that cannot serve its own default.
+    if (
+      allowedProfiles.length > 0 &&
+      policy.defaultTarget?.kind === "routing_profile_id" &&
+      !allowedProfiles.includes(policy.defaultTarget.routingProfileId)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["defaultTarget", "routingProfileId"],
+        message: "the default routing profile must be one of allowedRoutingProfileIds",
+      });
     }
   });
 
