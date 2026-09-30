@@ -179,7 +179,7 @@ export function RoutingPolicySection({ application, access }: RoutingPolicySecti
         <div>
           <h2 className="text-sm font-semibold text-foreground">Routing policy</h2>
           <p className="text-sm text-muted-foreground">
-            Which providers, regions, licences and prices this application will accept. Oxy's data
+            Which power levels, providers, regions, licences and prices this application will accept. Oxy's data
             plane executes it; a request records the exact version it ran under.
           </p>
         </div>
@@ -241,7 +241,7 @@ export function RoutingPolicySection({ application, access }: RoutingPolicySecti
               </span>
             </div>
             <dl className="divide-y divide-border">
-              {routingPolicyHighlights(stored.policy).map((highlight) => (
+              {routingPolicyHighlights(stored.policy, routingProfiles).map((highlight) => (
                 <div
                   key={highlight.label}
                   className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2.5"

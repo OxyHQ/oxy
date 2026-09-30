@@ -13,7 +13,10 @@ import type {
   UnitPrice,
   UsageUnit,
 } from '@oxy.so/contracts'
-import type { RoutingPolicyControls } from '@/lib/routing-policy'
+import type {
+  RoutingPolicyControls,
+  RoutingProfileOption,
+} from '@/lib/routing-policy'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -22,7 +25,9 @@ import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -34,6 +39,10 @@ import {
   USAGE_UNIT_LABELS,
   catalogueLicences,
   catalogueModelReferences,
+  isRoutingProfileAllowed,
+  routingPolicyControlIssues,
+  routingProfileOptions,
+  toggleAllowedRoutingProfile,
 } from '@/lib/routing-policy'
 
 /**
@@ -42,16 +51,17 @@ import {
  * Three rules shape it, and each one shows up as a structural property of the
  * form rather than as a warning somebody has to read:
  *
- *  - **A contradiction is unexpressible, not validated.** Turning fallback off
+ *  - **A contradiction is unexpressible where it can be.** Turning fallback off
  *    disables the same-model switch and clears the cross-model list, because the
  *    contract rejects a policy that disables fallback and then configures one.
- *    The client does not re-implement `routingPolicySchema`'s refinement — a
- *    second copy of a rule is how two copies come to disagree — so anything that
- *    still reaches the API is answered by the API's own issue list.
+ *    A power level outside a non-empty allowed list is disabled in the default
+ *    picker. What the form cannot prevent (un-ticking the level that is already
+ *    the default) is caught before saving by running the CONTRACT's own schema
+ *    (`routingPolicyControlIssues`) — never a second copy of its rule.
  *  - **Nothing is invented.** Providers, regions, licences and model references
- *    all come from `GET /models`. The catalogue is empty today, so those
- *    controls render an empty state instead of a text box that would write an id
- *    Oxy cannot serve.
+ *    all come from `GET /models`; power levels and routing profiles from
+ *    `GET /models/routing-profiles`. An empty catalogue renders an empty state
+ *    instead of a text box that would write an id Oxy cannot serve.
  *  - **Money is exact.** Amounts are edited as text and parsed with the
  *    contract's own `exactDecimalSchema` — the same schema the ledger's NUMERIC
  *    columns are declared against — so a value that would silently become a
@@ -114,6 +124,39 @@ export function RoutingPolicyForm({
   const facets = catalogueFacets(catalogue)
   const licences = catalogueLicences(catalogue)
   const modelReferences = catalogueModelReferences(catalogue)
+  const profileOptions = routingProfileOptions(routingProfiles, [
+    ...initial.allowedRoutingProfileIds,
+    ...(initial.defaultTarget?.kind === 'routing_profile_id'
+      ? [initial.defaultTarget.routingProfileId]
+      : []),
+  ])
+  const powerLevelOptions = profileOptions.filter(
+    (option) => option.powerLevel !== undefined || !option.listed,
+  )
+  const otherProfileOptions = profileOptions.filter(
+    (option) => option.powerLevel === undefined && option.listed,
+  )
+  const defaultProfileId =
+    controls.defaultTarget?.kind === 'routing_profile_id'
+      ? controls.defaultTarget.routingProfileId
+      : undefined
+  const defaultOutsideAllowed =
+    defaultProfileId !== undefined &&
+    !isRoutingProfileAllowed(
+      controls.allowedRoutingProfileIds,
+      defaultProfileId,
+    )
+
+  const toggleAllowedProfile = (routingProfileId: string) => {
+    setControls((current) => ({
+      ...current,
+      allowedRoutingProfileIds: toggleAllowedRoutingProfile(
+        current.allowedRoutingProfileIds,
+        routingProfileId,
+        profileOptions,
+      ),
+    }))
+  }
 
   const patch = (next: Partial<RoutingPolicyControls>) => {
     setControls((current) => ({ ...current, ...next }))
@@ -257,17 +300,24 @@ export function RoutingPolicyForm({
       }
     }
 
+    const next: RoutingPolicyControls = {
+      ...controls,
+      maxPricePerUnit: ceilings,
+      maxPricePerRequest: perRequestCeiling,
+    }
+    // Only once every field parsed: a half-built draft would be reported
+    // twice, once in the field's own words and once in the contract's.
+    if (problems.length === 0) {
+      problems.push(...routingPolicyControlIssues(next))
+    }
+
     if (problems.length > 0) {
       setErrors(problems)
       return
     }
 
     setErrors([])
-    onSubmit({
-      ...controls,
-      maxPricePerUnit: ceilings,
-      maxPricePerRequest: perRequestCeiling,
-    })
+    onSubmit(next)
   }
 
   const unusedUnits = USAGE_UNITS.filter(
@@ -290,41 +340,131 @@ export function RoutingPolicyForm({
       )}
 
       <FormSection
-        title="Default target"
-        description="What a request resolves to when the caller names no model. A routing profile is a strategy for choosing among routes; it is never a model."
+        title="Power levels"
+        description="Which power levels this application may request. A power level asks Oxy to choose a model of that strength; the response always names the model that ran."
       >
-        {modelReferences.length === 0 && routingProfiles.length === 0 ? (
+        {powerLevelOptions.length === 0 && otherProfileOptions.length === 0 ? (
           <EmptyControl>
-            No model or routing profile is published yet, so there is nothing to
+            No power level is published yet, so there is nothing to restrict.
+            Requests may name any power level Oxy publishes later.
+          </EmptyControl>
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground">
+              {controls.allowedRoutingProfileIds.length === 0
+                ? 'Nothing ticked means unrestricted: the application may request every power level, including ones published later.'
+                : 'Only the ticked levels may be requested. A request naming any other is refused with policy_violation (403) before it is charged, and auto only climbs to ticked levels.'}
+            </p>
+            <ProfileCheckboxGroup
+              label="Allowed power levels"
+              options={powerLevelOptions}
+              selected={controls.allowedRoutingProfileIds}
+              onToggle={toggleAllowedProfile}
+            />
+            {otherProfileOptions.length > 0 && (
+              <ProfileCheckboxGroup
+                label="Other routing profiles"
+                options={otherProfileOptions}
+                selected={controls.allowedRoutingProfileIds}
+                onToggle={toggleAllowedProfile}
+              />
+            )}
+            {controls.allowedRoutingProfileIds.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => patch({ allowedRoutingProfileIds: [] })}
+              >
+                Clear (allow every level)
+              </Button>
+            )}
+          </>
+        )}
+      </FormSection>
+
+      <FormSection
+        title="Default target"
+        description="What a request resolves to when the caller names no model: a power level (Oxy chooses a model of that strength) or one exact model."
+      >
+        {modelReferences.length === 0 && profileOptions.length === 0 ? (
+          <EmptyControl>
+            No model or power level is published yet, so there is nothing to
             default to. Every request will have to name its own model.
           </EmptyControl>
         ) : (
-          <Select value={defaultTargetValue} onValueChange={setDefaultTarget}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">
-                Every request must name its own model
-              </SelectItem>
-              {routingProfiles.map((profile) => (
-                <SelectItem
-                  key={`profile:${profile.routingProfileId}`}
-                  value={`profile:${profile.routingProfileId}`}
-                >
-                  Routing profile — {profile.displayName}
+          <div className="space-y-2">
+            <Select value={defaultTargetValue} onValueChange={setDefaultTarget}>
+              <SelectTrigger
+                className="w-full"
+                aria-label="Default target"
+                aria-invalid={defaultOutsideAllowed || undefined}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  Every request must name its own model
                 </SelectItem>
-              ))}
-              {modelReferences.map((reference) => (
-                <SelectItem
-                  key={`model:${reference}`}
-                  value={`model:${reference}`}
-                >
-                  {reference}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                {powerLevelOptions.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>Power levels</SelectLabel>
+                    {powerLevelOptions.map((option) => (
+                      <SelectItem
+                        key={`profile:${option.routingProfileId}`}
+                        value={`profile:${option.routingProfileId}`}
+                        disabled={
+                          !isRoutingProfileAllowed(
+                            controls.allowedRoutingProfileIds,
+                            option.routingProfileId,
+                          ) && option.routingProfileId !== defaultProfileId
+                        }
+                      >
+                        Power level — {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {otherProfileOptions.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>Routing profiles</SelectLabel>
+                    {otherProfileOptions.map((option) => (
+                      <SelectItem
+                        key={`profile:${option.routingProfileId}`}
+                        value={`profile:${option.routingProfileId}`}
+                        disabled={
+                          !isRoutingProfileAllowed(
+                            controls.allowedRoutingProfileIds,
+                            option.routingProfileId,
+                          ) && option.routingProfileId !== defaultProfileId
+                        }
+                      >
+                        Routing profile — {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {modelReferences.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>Exact models</SelectLabel>
+                    {modelReferences.map((reference) => (
+                      <SelectItem
+                        key={`model:${reference}`}
+                        value={`model:${reference}`}
+                      >
+                        {reference}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+              </SelectContent>
+            </Select>
+            {defaultOutsideAllowed && (
+              <p role="alert" className="text-xs text-destructive">
+                The default power level is not one of the allowed power levels.
+                Allow it above, or pick an allowed level as the default.
+              </p>
+            )}
+          </div>
         )}
       </FormSection>
 
@@ -622,7 +762,9 @@ export function RoutingPolicyForm({
         <ToggleRow
           label="Same-model deployment failover"
           description="Move between deployments of the identical revision when one is unavailable."
-          checked={controls.fallback.sameModelDeployment ?? !controls.fallback.disabled}
+          checked={
+            controls.fallback.sameModelDeployment ?? !controls.fallback.disabled
+          }
           disabled={controls.fallback.disabled}
           onCheckedChange={(checked) =>
             setControls((current) => ({
@@ -796,5 +938,68 @@ function TokenGroup({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * The allowed-list checkboxes, over options DERIVED from
+ * `GET /models/routing-profiles` (plus any id the stored policy already names,
+ * so a save never silently drops it).
+ */
+function ProfileCheckboxGroup({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string
+  options: ReadonlyArray<RoutingProfileOption>
+  selected: ReadonlyArray<string>
+  onToggle: (routingProfileId: string) => void
+}) {
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-medium text-foreground">{label}</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((option) => {
+          const id = `routing-allowed-${option.routingProfileId}`
+          return (
+            <label
+              key={option.routingProfileId}
+              htmlFor={id}
+              className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5"
+            >
+              <input
+                id={id}
+                type="checkbox"
+                checked={selected.includes(option.routingProfileId)}
+                onChange={() => onToggle(option.routingProfileId)}
+                className="mt-0.5 size-4 accent-foreground"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm text-foreground">
+                  {option.label}{' '}
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {option.routingProfileId}
+                  </span>
+                </span>
+                {option.listed ? (
+                  option.description && (
+                    <span className="block text-xs text-muted-foreground">
+                      {option.description}
+                    </span>
+                  )
+                ) : (
+                  <span className="block text-xs text-muted-foreground">
+                    Not currently published (no servable model right now). Kept
+                    as saved.
+                  </span>
+                )}
+              </span>
+            </label>
+          )
+        })}
+      </div>
+    </fieldset>
   )
 }

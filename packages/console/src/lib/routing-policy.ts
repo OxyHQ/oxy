@@ -1,5 +1,13 @@
-import { effectiveSameModelDeployment } from '@oxy.so/contracts'
-import type { RoutingPolicy, UsageUnit } from '@oxy.so/contracts'
+import {
+  effectiveSameModelDeployment,
+  powerLevelSchema,
+  routingPolicySchema,
+} from '@oxy.so/contracts'
+import type {
+  RoutingPolicy,
+  RoutingProfile,
+  UsageUnit,
+} from '@oxy.so/contracts'
 
 /**
  * Routing policy, as Console reads and writes it.
@@ -16,11 +24,14 @@ import type { RoutingPolicy, UsageUnit } from '@oxy.so/contracts'
  *  - It does not re-implement `routingPolicySchema`'s refinement. The contract
  *    owns which combinations are contradictory, and a second copy in the client
  *    is how the two come to disagree. The form makes a contradiction
- *    unexpressible instead (a fallback switch that is off disables the
- *    same-model switch beneath it), and anything that still gets through is
- *    answered by the API's own issue list.
+ *    unexpressible where it can (a fallback switch that is off disables the
+ *    same-model switch beneath it), and {@link routingPolicyControlIssues} runs
+ *    the CONTRACT's own schema before a save, so a contradiction the form cannot
+ *    prevent (a default power level outside the allowed list) is named before
+ *    the request rather than after it.
  *  - It does not invent catalogue values. Every provider, region, licence and
- *    model reference the editor offers is derived from `GET /models`; with an
+ *    model reference the editor offers is derived from `GET /models`, and every
+ *    power level / routing profile from `GET /models/routing-profiles`; with an
  *    empty catalogue the corresponding control renders an empty state rather
  *    than a free-text box that would write an id nobody can serve.
  */
@@ -194,13 +205,14 @@ function listOrNone(values: ReadonlyArray<string>, none: string): string {
  */
 export function routingPolicyHighlights(
   policy: RoutingPolicy,
+  profiles: ReadonlyArray<RoutingProfile> = [],
 ): Array<RoutingPolicyHighlight> {
   const target =
     policy.defaultTarget === undefined
       ? 'Every request must name its own model'
       : policy.defaultTarget.kind === 'model'
         ? policy.defaultTarget.modelReference
-        : `Routing profile ID: ${policy.defaultTarget.routingProfileId}`
+        : routingProfileLabel(policy.defaultTarget.routingProfileId, profiles)
 
   const fallback = policy.fallback.disabled
     ? 'Disabled — a request that cannot be served on its route fails'
@@ -227,6 +239,15 @@ export function routingPolicyHighlights(
 
   return [
     { label: 'Default target', value: target },
+    {
+      label: 'Power levels allowed',
+      value:
+        policy.allowedRoutingProfileIds.length > 0
+          ? policy.allowedRoutingProfileIds
+              .map((id) => routingProfileLabel(id, profiles))
+              .join(', ')
+          : 'Any (unrestricted)',
+    },
     { label: 'Optimise for', value: policy.optimiseFor },
     {
       label: 'Providers allowed',
@@ -313,4 +334,166 @@ export function catalogueModelReferences(
     }
   }
   return references
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Power levels (routing profiles) an application may use                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * How a routing profile id reads on the overview.
+ *
+ * A power level reads as `Power level: Instant (power-instant)`, any other
+ * profile as `Routing profile: <name> (<id>)`. An id the catalogue does not
+ * list right now (a level with no servable model at the moment) keeps its
+ * bare id, so the summary never pretends to know more than it does.
+ */
+export function routingProfileLabel(
+  routingProfileId: string,
+  profiles: ReadonlyArray<RoutingProfile>,
+): string {
+  const profile = profiles.find(
+    (candidate) => candidate.routingProfileId === routingProfileId,
+  )
+  if (profile === undefined) return `Routing profile ID: ${routingProfileId}`
+  const kind =
+    profile.powerLevel === undefined ? 'Routing profile' : 'Power level'
+  return `${kind}: ${profile.displayName} (${routingProfileId})`
+}
+
+/** One checkbox in the "Power levels" control. */
+export interface RoutingProfileOption {
+  readonly routingProfileId: string
+  readonly label: string
+  readonly description?: string
+  /** Present when the profile IS a power level. */
+  readonly powerLevel?: RoutingProfile['powerLevel']
+  /**
+   * False for an id the policy already names but `GET /models/routing-profiles`
+   * does not list right now — a level whose models are all momentarily
+   * unservable is omitted there. It is still offered, so saving a new version
+   * never silently drops it.
+   */
+  readonly listed: boolean
+}
+
+function ladderRank(profile: { powerLevel?: RoutingProfile['powerLevel'] }) {
+  if (profile.powerLevel === undefined) return Number.MAX_SAFE_INTEGER
+  return powerLevelSchema.options.indexOf(profile.powerLevel)
+}
+
+/**
+ * The routing profiles the allowed-list control offers, in ladder order.
+ *
+ * Power levels come first in the contract's own order (`auto`, `instant`, …,
+ * `ultra` — `powerLevelSchema.options`, not a list restated here), then any
+ * other profile by slug, then every id the policy already references that the
+ * catalogue does not list at the moment.
+ */
+export function routingProfileOptions(
+  profiles: ReadonlyArray<RoutingProfile>,
+  referenced: ReadonlyArray<string> = [],
+): Array<RoutingProfileOption> {
+  const listed = [...profiles]
+    .sort(
+      (left, right) =>
+        ladderRank(left) - ladderRank(right) ||
+        left.slug.localeCompare(right.slug),
+    )
+    .map((profile): RoutingProfileOption => ({
+      routingProfileId: profile.routingProfileId,
+      label: profile.displayName,
+      description: profile.description,
+      powerLevel: profile.powerLevel,
+      listed: true,
+    }))
+  const known = new Set(listed.map((option) => option.routingProfileId))
+  const unlisted = [...new Set(referenced)]
+    .filter((id) => !known.has(id))
+    .map((id): RoutingProfileOption => ({
+      routingProfileId: id,
+      label: id,
+      listed: false,
+    }))
+  return [...listed, ...unlisted]
+}
+
+/**
+ * Toggle one profile in the allowed list, keeping it duplicate-free and in the
+ * order the options are shown — so a saved version reads the same way the
+ * editor displayed it, and two saves of the same choice are byte-identical.
+ */
+export function toggleAllowedRoutingProfile(
+  allowed: ReadonlyArray<string>,
+  routingProfileId: string,
+  order: ReadonlyArray<RoutingProfileOption>,
+): Array<string> {
+  const next = new Set(allowed)
+  if (next.has(routingProfileId)) next.delete(routingProfileId)
+  else next.add(routingProfileId)
+  const position = (id: string) => {
+    const index = order.findIndex((option) => option.routingProfileId === id)
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index
+  }
+  return [...next].sort((left, right) => position(left) - position(right))
+}
+
+/**
+ * Whether a profile may be chosen as the default under the current allowed
+ * list: always when the list is empty (unrestricted), otherwise only when it
+ * is on it.
+ */
+export function isRoutingProfileAllowed(
+  allowed: ReadonlyArray<string>,
+  routingProfileId: string,
+): boolean {
+  return allowed.length === 0 || allowed.includes(routingProfileId)
+}
+
+/** Human wording for the contract issues the editor can surface by path. */
+const ISSUE_WORDING: ReadonlyArray<{
+  readonly path: string
+  readonly message: string
+}> = [
+  {
+    path: 'defaultTarget.routingProfileId',
+    message:
+      'The default power level is not one of the allowed power levels. Allow it, or pick an allowed level as the default.',
+  },
+  {
+    path: 'allowedRoutingProfileIds',
+    message: 'Each power level can be allowed only once.',
+  },
+]
+
+/**
+ * The contract's own verdict on a set of controls, as sentences.
+ *
+ * Runs `routingPolicySchema` itself — refinements included — over the controls
+ * with placeholder server-owned fields, so the client check cannot disagree
+ * with the API: it IS the API's rule. Identity fields are placeholders the
+ * server overwrites and are never reported on. An empty result means the
+ * contract accepts the controls; the API may still refuse for reasons only it
+ * can know (an id it does not serve, a permission).
+ */
+export function routingPolicyControlIssues(
+  controls: RoutingPolicyControls,
+): Array<string> {
+  const result = routingPolicySchema.safeParse({
+    ...controls,
+    schemaVersion: 2,
+    routingPolicyId: 'draft',
+    policyVersion: 1,
+    scope: { kind: 'account', accountId: 'draft' },
+    updatedAt: new Date(0).toISOString(),
+  })
+  if (result.success) return []
+  const messages = result.error.issues.map((issue) => {
+    const path = issue.path.join('.')
+    const worded = ISSUE_WORDING.find(
+      (entry) => path === entry.path || path.startsWith(`${entry.path}.`),
+    )
+    return worded ? worded.message : `${path || 'policy'}: ${issue.message}`
+  })
+  return [...new Set(messages)]
 }
