@@ -70,6 +70,7 @@ export const AUDIO_PRICES: Readonly<Partial<Record<UsageUnit, string>>> = {
 export const XAI_REALTIME_PRICES: Readonly<Partial<Record<UsageUnit, FixturePrice>>> = {
   audio_input_milliseconds: { amount: '0.08', per: 60_000 },
   audio_output_milliseconds: { amount: '0.08', per: 60_000 },
+  session_milliseconds: { amount: '0.08', per: 60_000 },
   requests: { amount: '0.004', per: 1 },
 };
 

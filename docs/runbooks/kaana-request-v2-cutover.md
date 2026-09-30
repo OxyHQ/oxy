@@ -126,7 +126,7 @@ admission, reservation or settlement path and performs zero Oxy ledger writes.
 `probe_mode: realtime` (with `confirm_one_realtime_session: true` and
 `confirm_two_provider_requests: false`; each mode refuses the other's
 confirmation) runs `run-kaana-signed-canary.mjs realtime` against Kaana's
-`/internal/v1/realtime`, signing contract set `3.2.0`. The same health check,
+`/internal/v1/realtime`, signing contract set `3.3.0`. The same health check,
 exact signed lookup and snapshot binding run first. Then two signed sessions:
 
 1. a session authorized only for an unknown `dep_canary_unknown_…` id, which

@@ -476,6 +476,7 @@ describe("xAI's reviewed realtime voice catalogue", () => {
     expect(route?.unitPrices).toEqual([
       { unit: "audio_input_milliseconds", amount: "0.08", per: 60_000 },
       { unit: "audio_output_milliseconds", amount: "0.08", per: 60_000 },
+      { unit: "session_milliseconds", amount: "0.08", per: 60_000 },
       { unit: "requests", amount: "0.004", per: 1 },
     ]);
     // No token unit: the edge holds this route from the signed audio caps and

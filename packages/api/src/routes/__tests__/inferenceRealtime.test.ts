@@ -983,8 +983,9 @@ describe('a duration-priced (xAI-shaped) route', () => {
       });
       expect(request.config.turnDetection).toEqual({ type: 'none' });
       const [reservation] = await reservationsFor(fixture.accountId);
-      // 60 000 ms in + 60 000 ms out at $0.08/min, + 3 text items at $0.004.
-      expect(reservation.reservedAmount).toBe('0.172000000000');
+      // 60 000 ms in + 60 000 ms out at $0.08/min, + 3 text items at $0.004,
+      // + 120 000 session ms (60 s duration + the 60 s bounded open) at $0.08/min.
+      expect(reservation.reservedAmount).toBe('0.332000000000');
       emit.closed([], 'client_closed', 'oxy_measured');
       emit.report([], 'failed', 'oxy_measured');
       await customer.closed;
@@ -1008,8 +1009,9 @@ describe('a duration-priced (xAI-shaped) route', () => {
       );
       const [reservation] = await reservationsFor(fixture.accountId);
       // 480 000 bytes ÷ 8 = 60 000 ms each way (no output format signed:
-      // G.711's rate, the one that makes the most of a byte), no text items.
-      expect(reservation.reservedAmount).toBe('0.160000000000');
+      // G.711's rate, the one that makes the most of a byte), no text items,
+      // + 120 000 session ms at $0.08/min.
+      expect(reservation.reservedAmount).toBe('0.320000000000');
       g711.emit.closed([]);
       g711.emit.report([], 'failed');
       await g711.customer.closed;

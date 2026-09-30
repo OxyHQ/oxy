@@ -291,6 +291,7 @@ describe("the reviewed realtime voice catalogue, once Kaana's observation is rec
         { unit: "audio_input_milliseconds", amount: "0.080000000000", per: 60_000 },
         { unit: "audio_output_milliseconds", amount: "0.080000000000", per: 60_000 },
         { unit: "requests", amount: "0.004000000000", per: 1 },
+        { unit: "session_milliseconds", amount: "0.080000000000", per: 60_000 },
       ]);
 
       const again: string[] = [];

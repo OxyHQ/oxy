@@ -26,6 +26,7 @@ function operation(overrides: Partial<RealtimeOperation> = {}): RealtimeOperatio
     sessionKind: 'conversation',
     transport: 'websocket',
     maxResponses: 20,
+    maxSessionMilliseconds: 660_000,
     requiredOutput: 'audio',
     reservationTtlSeconds: 900,
     audio: {
@@ -51,12 +52,14 @@ function request(op: RealtimeOperation): NormalizedEdgeRequest {
 }
 
 describe('realtimeDurationCeiling', () => {
-  it('is the signed byte caps at the signed formats’ rates, plus the text-item cap', () => {
-    // The defaults: ten minutes of PCM16 each way, twenty text items.
+  it('is the signed byte caps at the signed formats’ rates, plus the text-item cap and the session clock', () => {
+    // The defaults: ten minutes of PCM16 each way, twenty text items, and the
+    // ten-minute session plus the bounded open (contract set 3.3.0).
     expect(realtimeDurationCeiling(operation())).toEqual({
       audio_input_milliseconds: 600_000,
       audio_output_milliseconds: 600_000,
       requests: 20,
+      session_milliseconds: 660_000,
     });
   });
 
@@ -84,7 +87,12 @@ describe('realtimeDurationCeiling', () => {
           audio: { inputFormat: 'pcm16_24khz', maxInputAudioBytes: 48, maxOutputAudioBytes: 4_800 },
         })
       )
-    ).toEqual({ audio_input_milliseconds: 1, audio_output_milliseconds: 600, requests: 20 });
+    ).toEqual({
+      audio_input_milliseconds: 1,
+      audio_output_milliseconds: 600,
+      requests: 20,
+      session_milliseconds: 660_000,
+    });
   });
 
   it('rounds up once, as Kaana rounds the session total', () => {
@@ -111,8 +119,17 @@ describe('routeCeilingPlans', () => {
     expect(plans.map((plan) => plan.metering)).toEqual(['tokens_and_duration', 'tokens', 'duration']);
     const [both, tokens, duration] = plans;
     expect(duration.scenarios).toEqual([
-      { audio_input_milliseconds: 600_000, audio_output_milliseconds: 600_000, requests: 20 },
+      {
+        audio_input_milliseconds: 600_000,
+        audio_output_milliseconds: 600_000,
+        requests: 20,
+        session_milliseconds: 660_000,
+      },
     ]);
+    // Every plan holds the session clock, the token vertices included.
+    for (const plan of plans) {
+      for (const scenario of plan.scenarios) expect(scenario.session_milliseconds).toBe(660_000);
+    }
     // Twelve token vertices (4 input × 3 output), each carrying the duration too.
     expect(tokens.scenarios).toHaveLength(12);
     expect(both.scenarios).toHaveLength(12);

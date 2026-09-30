@@ -105,12 +105,16 @@ browser-safe ephemeral token, are follow-ups.
 **Turn detection is Kaana's to refuse.** `config.turnDetection` is signed
 verbatim. The catalogue declares no per-model set of supported turn detections,
 so the edge has no capability to check it against (and a provider-name
-allow-list is not a capability). Kaana refuses one its adapter cannot bill — for
-xAI, anything but `{"type":"none"}` (push-to-talk: `server_vad` is billed for
-wall-clock session time, which no contract unit carries) — at open, before it
-dials (the hold is released with a zero `estimated` receipt), and in
-`session.update` as a non-fatal command error. A declared supported set on the
-catalogue row is the follow-up that would let the edge refuse it first.
+allow-list is not a capability). Kaana refuses one its adapter cannot bill,
+at open, before it dials (the hold is released with a zero `estimated`
+receipt), and in `session.update` as a non-fatal command error. For xAI, Kaana
+serves `{"type":"none"}` (push-to-talk, billed for audio sent and received) and
+`server_vad` (billed for the session's wall clock, reported as
+`session_milliseconds`, contract set 3.3.0, and then with no audio units). The
+edge cannot know which one a session will end up billed for, so a
+duration-priced route is held for both and settled on what Kaana measured. A
+declared supported set on the catalogue row is the follow-up that would let the
+edge refuse an unsupported mode first.
 
 ## Duration-priced routes (xAI Voice Agent)
 
@@ -124,9 +128,13 @@ the signed limits, exactly (`realtimeDurationCeiling`,
 | `audio_input_milliseconds` | ⌈`maxInputAudioBytes` ÷ input bytes/ms⌉ | Kaana refuses a command that would pass the signed input byte cap and meters written bytes at the signed `inputAudioFormat` (fixed at open) |
 | `audio_output_milliseconds` | ⌈`maxOutputAudioBytes` ÷ output bytes/ms⌉ | likewise for provider audio; with no `outputAudioFormat` signed, the format with the most milliseconds per byte (G.711) is assumed, never PCM16 |
 | `requests` | `maxTextItems` | enforced by the edge (below); no signed limit bounds text items |
+| `session_milliseconds` | `maxDurationMs + 60 000` | held on every realtime plan (contract set 3.3.0); xAI reports it instead of audio for a `server_vad` session |
 
 PCM16 24 kHz is 48 bytes/ms, G.711 8 bytes/ms. With the default limits that is
-600 000 ms each way (PCM16) and 20 items: $1.68 at xAI's list prices.
+600 000 ms each way (PCM16), 20 items and 660 000 session ms: $2.56 at xAI's
+list prices. Holding the session clock beside the audio over-holds a
+push-to-talk session by at most its duration; the settlement charges only the
+units Kaana measured.
 
 **The text-item cap.** xAI bills $0.004 per client `conversation.item.create`
 except a `function_call_output` and an item whose content is audio with data

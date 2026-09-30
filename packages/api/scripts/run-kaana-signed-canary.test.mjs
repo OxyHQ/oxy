@@ -753,7 +753,7 @@ function realtimeRuntime() {
     KAANA_BASE_URL: 'https://kaana.ai',
     KAANA_EDGE_SIGNING_KEY_ID: 'oxy-edge-test',
     KAANA_EDGE_SIGNING_PRIVATE_KEY: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
-    CANARY_CONTRACT_VERSION: '3.2.0',
+    CANARY_CONTRACT_VERSION: '3.3.0',
     CANARY_EXPECTED_SNAPSHOT_ID: 'snap-live-exact',
     CANARY_DEPLOYMENT_ID: VOICE_DEPLOYMENT_ID,
     CANARY_ROUTING_POLICY_ID: ROUTING_POLICY_ID,
@@ -771,7 +771,7 @@ function realtimeFetch(publicKey, { snapshotId = 'snap-live-exact', provider = '
     readAndVerifyRequest(publicKey, url, init);
     const path = new URL(url).pathname;
     calls.push(path);
-    if (path === '/internal/v1/health') return json({ contractVersion: '3.2.0' });
+    if (path === '/internal/v1/health') return json({ contractVersion: '3.3.0' });
     assert.equal(path, '/internal/v1/deployments/query');
     return json({
       snapshotId,

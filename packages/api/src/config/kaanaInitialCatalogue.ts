@@ -137,6 +137,7 @@ export interface KaanaInitialUnitPrice {
     | "characters"
     | "audio_input_milliseconds"
     | "audio_output_milliseconds"
+    | "session_milliseconds"
     | "requests";
   readonly amount: string;
   readonly per: number;
@@ -715,6 +716,9 @@ export function kaanaVoiceCatalogue(
     // Customer price is the provider list price with no markup, as for every
     // reviewed route: $0.08 per minute of audio each way (per 60,000 ms, so no
     // rounding enters the rate) and $0.004 per billed text item (`requests`).
+    // A `server_vad` session is billed for its wall clock instead of its audio
+    // at the same $0.08/min (contract set 3.3.0 `session_milliseconds`); Kaana
+    // reports one or the other for a session, never both for the same span.
     priceEvidenceRef: "https://docs.x.ai/developers/models/speech-to-speech",
     performanceEvidenceRef: "not-measured:xai-realtime-exact-deployment-2026-09-30",
     reviewedAt: KAANA_VOICE_REVIEWED_AT,
@@ -726,6 +730,7 @@ export function kaanaVoiceCatalogue(
     unitPrices: [
       { unit: "audio_input_milliseconds", amount: "0.08", per: 60_000 },
       { unit: "audio_output_milliseconds", amount: "0.08", per: 60_000 },
+      { unit: "session_milliseconds", amount: "0.08", per: 60_000 },
       { unit: "requests", amount: "0.004", per: 1 },
     ],
     // One route: neutral 500s and the shared balanced formula, as for speech.
