@@ -217,6 +217,24 @@ function signEnvelope(
   return `${KAANA_SIGNATURE_VERSION}=${signature.toString('base64')}`;
 }
 
+/**
+ * The three edge signature headers over `body`, for a caller outside this module
+ * that sends the bytes itself — the realtime client signs the FIRST FRAME of a
+ * WebSocket with exactly the inference domain the envelope uses
+ * (`services/kaanaRealtimeClient.ts`). One signer, so the two cannot drift.
+ */
+export function kaanaSignatureHeaders(
+  config: Pick<KaanaDataPlaneConfig, 'keyId' | 'privateKey'>,
+  body: Buffer,
+  timestampMillis: number = Date.now()
+): Record<string, string> {
+  return {
+    [KAANA_KEY_ID_HEADER]: config.keyId,
+    [KAANA_TIMESTAMP_HEADER]: String(timestampMillis),
+    [KAANA_SIGNATURE_HEADER]: signEnvelope(config.privateKey, config.keyId, timestampMillis, body),
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /*  The client                                                                */
 /* -------------------------------------------------------------------------- */

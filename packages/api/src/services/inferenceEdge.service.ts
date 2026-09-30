@@ -106,7 +106,9 @@
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { and, asc, desc, eq, or } from 'drizzle-orm';
+import type { z } from 'zod';
 import {
+  inferenceAttributionSchema,
   inferenceRequestSchema,
   INFERENCE_SCOPES,
   normalizedUsageReportSchema,
@@ -368,7 +370,9 @@ export type EdgeAuthentication =
  *
  * Every refusal is the same answer to the caller. `reason` is for the log.
  */
-export async function authenticateEdgeCaller(req: Request): Promise<EdgeAuthentication> {
+export async function authenticateEdgeCaller(
+  req: Pick<Request, 'headers'>
+): Promise<EdgeAuthentication> {
   const token = extractTokenFromRequest(req);
   if (!token) {
     return { ok: false, reason: 'no_bearer' };
@@ -2836,7 +2840,7 @@ function buildEnvelope(
   admitted: AdmittedRequest,
   stream: boolean
 ): InferenceRequest {
-  const { principal, request } = context;
+  const { request } = context;
   const { route, routingTarget, authorizedRoutes, maxOutputTokens, routingPolicy } = admitted;
   const apiFormat = context.apiFormat;
   if (apiFormat === undefined || request.operation.kind === 'realtime_session') {
@@ -2850,19 +2854,7 @@ function buildEnvelope(
 
   return inferenceRequestSchema.parse({
     schemaVersion: 2,
-    attribution: {
-      principal: {
-        billing: { accountId: principal.ownerAccountId },
-        applicationId: principal.applicationId,
-        credentialId: principal.credentialId,
-        environment: principal.environment,
-        inferenceScopes: principal.scopes.filter(isInferenceScope),
-      },
-      ...(context.delegatedUserId === undefined
-        ? {}
-        : { userId: context.delegatedUserId }),
-      requestId: context.requestId,
-    },
+    attribution: attributionFor(context),
     // The signed route list pins every executable destination. Preserve a
     // profile, and preserve an unpinned concrete target only when its versioned
     // policy authorized a cross-model fallback; otherwise pin the admitted
@@ -2939,6 +2931,28 @@ function buildEnvelope(
     }),
     routingPolicy,
   });
+}
+
+/**
+ * The attribution block every signed hop to the data plane carries — the
+ * one-shot envelope and the realtime session request alike, so the two cannot
+ * name a request's payer differently.
+ */
+export function attributionFor(
+  context: EdgeExecutionContext
+): z.input<typeof inferenceAttributionSchema> {
+  const { principal } = context;
+  return {
+    principal: {
+      billing: { accountId: principal.ownerAccountId },
+      applicationId: principal.applicationId,
+      credentialId: principal.credentialId,
+      environment: principal.environment,
+      inferenceScopes: principal.scopes.filter(isInferenceScope),
+    },
+    ...(context.delegatedUserId === undefined ? {} : { userId: context.delegatedUserId }),
+    requestId: context.requestId,
+  };
 }
 
 const INFERENCE_SCOPE_SET: ReadonlySet<string> = new Set<string>(INFERENCE_SCOPES);

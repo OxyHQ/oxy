@@ -38,7 +38,9 @@ import {
   inferenceMessageSchema,
   inferenceReasoningSchema,
   modelReferenceSchema,
+  realtimeSessionConfigSchema,
   realtimeSessionKindSchema,
+  realtimeSessionLimitsSchema,
   realtimeSessionTransportSchema,
   reasoningEffortSchema,
   responseFormatSchema,
@@ -451,6 +453,41 @@ export const imageGenerationsRequestSchema = z
   .strict();
 
 export type ImageGenerationsRequest = z.infer<typeof imageGenerationsRequestSchema>;
+
+/* -------------------------------------------------------------------------- */
+/*  GET /v1/realtime — the customer's first frame                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The first frame a customer sends on `GET /v1/realtime?model=…` to OPEN a
+ * session (a reconnection instead sends the contract's own `session.resume`
+ * command).
+ *
+ * Everything in it is a contract shape the customer already speaks: `kind`,
+ * `transport` and `config` are the ones the signed `realtimeSessionRequestSchema`
+ * carries verbatim, and `limits` is a PARTIAL request for its limits — each one
+ * the edge fills from its defaults when omitted, and every one bounded by the
+ * contract. What the customer cannot write is everything Oxy owns: the
+ * attribution, the routing policy and the authorized routes.
+ *
+ * `.strict()` for the reason every public request schema here is: a field this
+ * edge does not implement is refused rather than silently ignored.
+ */
+export const realtimeOpenFrameSchema = z
+  .object({
+    type: z.literal('session.open'),
+    kind: realtimeSessionKindSchema,
+    /** Absent means `websocket`, the only transport there is. */
+    transport: realtimeSessionTransportSchema.optional(),
+    config: realtimeSessionConfigSchema,
+    limits: realtimeSessionLimitsSchema.partial().optional(),
+    /** The caller's own correlation id, echoed into the signed request. */
+    clientSessionId: z.string().min(1).max(128).optional(),
+    labels: labelsSchema.optional(),
+  })
+  .strict();
+
+export type RealtimeOpenFrame = z.infer<typeof realtimeOpenFrameSchema>;
 
 export const generationReceiptSchema = z
   .object({
