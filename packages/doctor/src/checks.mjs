@@ -3,6 +3,15 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 export const FIRST_PARTY_SCOPES = ['@oxy.so/'];
+
+/**
+ * Days an app may stay behind a newly published `@oxy.so/*` release before
+ * `--ci` fails. A release is a warning inside this window and an error after
+ * it, so one publish never turns every app's CI (and every deploy gated on it)
+ * red at the same moment; the upgrade still has to land within the window.
+ */
+export const DEFAULT_GRACE_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1000;
 export const isFirstPartyPackage = (name) => FIRST_PARTY_SCOPES.some((scope) => name.startsWith(scope));
 
 export function compareVersions(left, right) {
@@ -69,7 +78,12 @@ async function collectManifests(directory, depth = 0) {
   return manifests;
 }
 
-export async function inspectRepository(root, fetchLatest) {
+/**
+ * @param {string} root
+ * @param {(name: string) => Promise<{ version: string, publishedAt: string }>} fetchLatest
+ * @param {{ graceDays?: number, now?: Date }} [options]
+ */
+export async function inspectRepository(root, fetchLatest, { graceDays = DEFAULT_GRACE_DAYS, now = new Date() } = {}) {
   const manifestPaths = await collectManifests(root);
   const usages = new Map();
   for (const path of manifestPaths) {
@@ -88,20 +102,32 @@ export async function inspectRepository(root, fetchLatest) {
   const findings = [];
   if (!lockfile) findings.push({ severity: 'error', code: 'missing-lockfile', message: 'bun.lock is missing' });
   await Promise.all([...usages].map(async ([name, rows]) => {
-    const latest = await fetchLatest(name);
+    const { version: latest, publishedAt } = await fetchLatest(name);
+    const published = new Date(publishedAt);
+    if (Number.isNaN(published.getTime())) throw new Error(`Registry returned no publish time for ${name}@${latest}`);
+    const deadline = new Date(published.getTime() + graceDays * DAY_MS);
+    const overdue = now >= deadline;
     const installed = lockfile ? [...new Set(lockfileVersions(lockfile, name))] : [];
     if (installed.length > 1) findings.push({ severity: 'error', code: 'duplicate-version', package: name, installed, message: `${name} has multiple locked versions: ${installed.join(', ')}` });
     for (const row of rows) {
-      if (!rangeIncludesVersion(row.range, latest)) findings.push({ severity: 'warning', code: 'outdated', package: name, latest, ...row, message: `${name} ${row.range} does not include ${latest} in ${row.manifest}` });
+      if (rangeIncludesVersion(row.range, latest)) continue;
+      const due = deadline.toISOString().slice(0, 10);
+      findings.push(overdue
+        ? { severity: 'error', code: 'outdated', package: name, latest, publishedAt, ...row, message: `${name} ${row.range} does not include ${latest} in ${row.manifest} (published ${publishedAt.slice(0, 10)}; the ${graceDays}-day upgrade window closed ${due})` }
+        : { severity: 'warning', code: 'outdated', package: name, latest, publishedAt, ...row, message: `${name} ${row.range} does not include ${latest} in ${row.manifest} (upgrade by ${due})` });
     }
   }));
   return { root, manifests: manifestPaths.length, packages: usages.size, findings };
 }
 
-export async function fetchLatestVersion(name) {
-  const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/latest`, { headers: { accept: 'application/json' } });
+/** The `latest` dist-tag of `name` and when that version was published. */
+export async function fetchLatestRelease(name) {
+  const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, { headers: { accept: 'application/json' } });
   if (!response.ok) throw new Error(`Registry returned ${response.status} for ${name}`);
   const metadata = await response.json();
-  if (typeof metadata.version !== 'string') throw new Error(`Registry returned no version for ${name}`);
-  return metadata.version;
+  const version = metadata['dist-tags']?.latest;
+  if (typeof version !== 'string') throw new Error(`Registry returned no latest version for ${name}`);
+  const publishedAt = metadata.time?.[version];
+  if (typeof publishedAt !== 'string') throw new Error(`Registry returned no publish time for ${name}@${version}`);
+  return { version, publishedAt };
 }
