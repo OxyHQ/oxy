@@ -1,5 +1,14 @@
 # Changelog: `create-oxy-app`
 
+## 0.5.0
+
+### Changed
+
+- A generated app starts on `@oxy.so/services` `^11.0.0` with `@oxy.so/bloom`
+  `^6.2.0`, `@oxy.so/core` `^4.0.0` and `@oxy.so/app-preset` `^3.0.0`. Its
+  Android app gets its own UID and shares the Oxy identity and session with
+  Commons over signature-protected IPC (OxyHQ/oxy#1388).
+
 ## 0.4.0
 
 ### Changed
