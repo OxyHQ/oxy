@@ -26,11 +26,14 @@
 # re-tagged them `deployed-<sha>` (ecr.tf, in oxy-infra), so entries the queue
 # ejects do not pile up, and a released image is never counted out by them.
 #
-# BUILD CACHE: the same `type=gha` scope as the deploy (`oxy-api-backend`).
-# An Actions cache is readable from the ref that wrote it and from the default
-# branch, so this job reads what main wrote: the deploy's fallback builds and
-# the weekly no-cache rebuild (refresh-image-cache.yml), which also keeps OS
-# package layers from going stale behind the cache.
+# BUILD CACHE: READ-ONLY, from the same `type=gha` scope as the deploy
+# (`oxy-api-backend`). An Actions cache is readable from the ref that wrote it
+# and from the default branch, so this reads what main wrote: the deploy's
+# fallback builds and the weekly no-cache rebuild (refresh-image-cache.yml).
+# It writes nothing back: every queue entry has its own ref
+# (`gh-readonly-queue/main/pr-<n>-<base>`), so an export from here could be
+# read by no later run, and it would only push the repository past its 10 GB
+# Actions cache quota and evict main's entries (least recently used first).
 name: Merge queue image
 
 on:
@@ -99,8 +102,9 @@ jobs:
         uses: crazy-max/ghaction-github-runtime@v4
 
       # The same build as deploy-aws.yml's fallback: same Dockerfile, context,
-      # platform, runner architecture and cache scope. Only the tag differs
-      # (`mq-<sha>`, never `latest`: the deploy moves that when it releases).
+      # platform, runner architecture and cache scope (read, not written; see
+      # the header). Only the tag differs (`mq-<sha>`, never `latest`: the
+      # deploy moves that when it releases).
       - name: Build and push (linux/arm64)
         if: steps.scope.outputs.build == 'true'
         run: |
@@ -108,7 +112,6 @@ jobs:
           docker buildx build \
             --platform linux/arm64 \
             --cache-from type=gha,scope=$APP-backend \
-            --cache-to type=gha,scope=$APP-backend,mode=max \
             -f "$DOCKERFILE" \
             -t "$IMG:mq-$GITHUB_SHA" \
             --metadata-file "$RUNNER_TEMP/build-metadata.json" \
