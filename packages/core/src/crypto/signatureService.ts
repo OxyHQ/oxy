@@ -153,19 +153,18 @@ export class SignatureService {
 
   /**
    * Create a signed authentication challenge response using the SHARED identity
-   * key (the cross-app `group.so.oxy.shared` keychain key), not the primary
+   * key in the iOS keychain access group `group.so.oxy.shared`, not the primary
    * device key.
    *
    * Mirrors {@link signChallenge} exactly — same message format
    * (`auth:${publicKey}:${challenge}:${timestamp}`) so the server verification
    * path is unchanged — but sources the shared public/private key from
    * `KeyManager` and signs with the protocol's explicit-key {@link signMessage}.
-   * Used by "Sign in with Oxy" same-device shared-keychain SSO (Mechanism A): a
-   * sibling native app proves control of the shared identity to mint its own
-   * session.
+   * Used by `oxy.auth.signInWithCommonsIdentity()` on iOS. On Android the key
+   * never leaves Commons, which signs the challenge itself (`proveIdentity`),
+   * so this throws there.
    *
-   * Throws if no shared identity exists (native-only; the shared keychain is
-   * unavailable on web).
+   * Throws if no shared identity is readable in this app.
    */
   static async signChallengeWithSharedKey(challenge: string): Promise<AuthChallenge> {
     const publicKey = await KeyManager.getSharedPublicKey();

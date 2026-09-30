@@ -53,13 +53,27 @@
  */
 
 import { requireOptionalNativeModule } from 'expo-modules-core';
-import type { ExpoCryptoLike, ExpoSecureStoreLike, SharedIdentityBridge } from './expoTypes';
+import type {
+  CommonsIdentityBridge,
+  CommonsIdentityDescription,
+  CommonsIdentityProof,
+  CommonsSocialReceiveSignature,
+  ExpoCryptoLike,
+  ExpoSecureStoreLike,
+} from './expoTypes';
 import { missingOptionalPeerError } from './optionalPeer';
 import { requireExpoCrypto } from './random.native';
 
 // Re-export the interfaces so consumers can import them from the same
 // entry-point they use for the loaders (mirrors the default variant).
-export type { ExpoCryptoLike, ExpoSecureStoreLike, SharedIdentityBridge };
+export type {
+  CommonsIdentityBridge,
+  CommonsIdentityDescription,
+  CommonsIdentityProof,
+  CommonsSocialReceiveSignature,
+  ExpoCryptoLike,
+  ExpoSecureStoreLike,
+};
 
 // ---------------------------------------------------------------------------
 // Optional peer resolution.
@@ -170,44 +184,98 @@ export async function loadAsyncStorage(): Promise<{ default: AsyncStorageLike }>
 export { getRandomBytesRN } from './random.native';
 
 // ---------------------------------------------------------------------------
-// Shared identity bridge — `@oxy.so/expo-oxy-identity` (native-only, OPTIONAL).
+// Commons identity bridge — the `OxyIdentity` native module in
+// `@oxy.so/services` (native-only, OPTIONAL).
 //
-// `@oxy.so/expo-oxy-identity` is the in-repo Expo module autolinked into the
-// identity apps (Commons + the reader RPs). We resolve its NATIVE module
-// directly via expo-modules-core's `requireOptionalNativeModule('OxyIdentity')`
-// — a static import Metro always resolves — instead of dynamically importing the
-// module's JS wrapper. A runtime-computed `import(moduleName)` compiled to a
-// `require(variable)` in the CJS build, which Metro cannot resolve in a consuming
-// repo (the bridge silently resolved `null` there — the cross-app SSO bug). Since
-// the native module is what actually holds the shared identity, going through the
-// native registry is both correct and Metro-safe. `requireOptionalNativeModule`
-// returns `null` (never throws) when the module is not autolinked (web, or apps
-// that don't ship it), so `@oxy.so/core`'s `KeyManager` cleanly falls back to its
-// package-private store.
+// Resolved through expo-modules-core's `requireOptionalNativeModule`, a static
+// import Metro always resolves, never through a runtime-computed
+// `import(moduleName)`: that compiles to `require(variable)` in the CJS build,
+// which Metro cannot resolve in a consuming repo (the bridge silently resolved
+// `null` there once). `requireOptionalNativeModule` returns `null` when the
+// module is not autolinked (web, or an app without `@oxy.so/services`).
+//
+// Everything the native side returns is UNTRUSTED here: it crossed a process
+// boundary. Each answer is narrowed to its exact shape, and anything else is
+// `null` ("Commons could not help"), never a partial value.
 // ---------------------------------------------------------------------------
 
-let sharedIdentityBridgePromise: Promise<SharedIdentityBridge | null> | null = null;
+interface OxyIdentityNativeModule {
+  describe(): Promise<unknown>;
+  proveIdentity(challenge: string): Promise<unknown>;
+  deriveScopedSeed(info: string): Promise<unknown>;
+  signSocialReceive(index: number, digest: string): Promise<unknown>;
+}
 
-export function loadSharedIdentityBridge(): Promise<SharedIdentityBridge | null> {
-  if (!sharedIdentityBridgePromise) {
-    sharedIdentityBridgePromise = Promise.resolve().then(() => {
-      const native = requireOptionalNativeModule<Partial<SharedIdentityBridge>>('OxyIdentity');
+const LOWER_HEX = /^[0-9a-f]+$/;
+
+function record(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function hexField(value: unknown, length?: number): string | null {
+  if (typeof value !== 'string' || !LOWER_HEX.test(value)) return null;
+  if (length !== undefined && value.length !== length) return null;
+  return value;
+}
+
+function narrowDescription(value: unknown): CommonsIdentityDescription | null {
+  const r = record(value);
+  const publicKey = hexField(r?.publicKey, 130);
+  const v = typeof r?.v === 'number' ? r.v : Number(r?.v);
+  if (!publicKey || !Number.isInteger(v)) return null;
+  return { v, publicKey };
+}
+
+function narrowProof(value: unknown): CommonsIdentityProof | null {
+  const r = record(value);
+  const publicKey = hexField(r?.publicKey, 130);
+  const signature = hexField(r?.signature);
+  const timestamp = typeof r?.timestamp === 'number' ? r.timestamp : Number(r?.timestamp);
+  if (!publicKey || !signature || !Number.isSafeInteger(timestamp) || timestamp <= 0) return null;
+  return { publicKey, signature, timestamp };
+}
+
+function narrowSocialReceive(value: unknown): CommonsSocialReceiveSignature | null {
+  const r = record(value);
+  const signature = hexField(r?.signature);
+  const publicKey = hexField(r?.publicKey, 66);
+  if (!signature || !publicKey) return null;
+  return { signature, publicKey };
+}
+
+/** Run one native call; a rejection or an unexpected shape is `null`. */
+async function ask<T>(call: () => Promise<unknown>, narrow: (value: unknown) => T | null): Promise<T | null> {
+  try {
+    return narrow(await call());
+  } catch {
+    return null;
+  }
+}
+
+let commonsIdentityBridgePromise: Promise<CommonsIdentityBridge | null> | null = null;
+
+export function loadCommonsIdentityBridge(): Promise<CommonsIdentityBridge | null> {
+  if (!commonsIdentityBridgePromise) {
+    commonsIdentityBridgePromise = Promise.resolve().then(() => {
+      const native = requireOptionalNativeModule<Partial<OxyIdentityNativeModule>>('OxyIdentity');
       if (
-        native &&
-        typeof native.getShared === 'function' &&
-        typeof native.putShared === 'function' &&
-        typeof native.hasShared === 'function' &&
-        typeof native.clearShared === 'function'
+        !native ||
+        typeof native.describe !== 'function' ||
+        typeof native.proveIdentity !== 'function' ||
+        typeof native.deriveScopedSeed !== 'function' ||
+        typeof native.signSocialReceive !== 'function'
       ) {
-        return {
-          getShared: native.getShared.bind(native),
-          putShared: native.putShared.bind(native),
-          hasShared: native.hasShared.bind(native),
-          clearShared: native.clearShared.bind(native),
-        } satisfies SharedIdentityBridge;
+        return null;
       }
-      return null;
+      const m = native as OxyIdentityNativeModule;
+      return {
+        describe: () => ask(() => m.describe(), narrowDescription),
+        proveIdentity: (challenge: string) => ask(() => m.proveIdentity(challenge), narrowProof),
+        deriveScopedSeed: (info: string) => ask(() => m.deriveScopedSeed(info), (v) => hexField(v, 64)),
+        signSocialReceive: (index: number, digest: string) =>
+          ask(() => m.signSocialReceive(index, digest), narrowSocialReceive),
+      } satisfies CommonsIdentityBridge;
     });
   }
-  return sharedIdentityBridgePromise;
+  return commonsIdentityBridgePromise;
 }

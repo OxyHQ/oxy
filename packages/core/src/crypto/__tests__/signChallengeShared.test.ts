@@ -1,7 +1,7 @@
 /**
  * `signChallengeWithSharedKey` tests.
  *
- * Verifies the shared-key challenge signer mirrors `signChallenge` exactly —
+ * Verifies the iOS keychain-group challenge signer mirrors `signChallenge` exactly —
  * same `auth:${publicKey}:${challenge}:${timestamp}` message format so the
  * server verification path is unchanged — but sources the SHARED key from
  * `KeyManager` (not the primary device key). We mock the shared key access with

@@ -67,7 +67,7 @@ function makeMintSingleFlight(): (mint: () => Promise<DeviceSecretMintOutcome>) 
 
 interface OxyOverrides {
   mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
-  signInWithSharedIdentity?: OxyServices['auth']['signInWithSharedIdentity'];
+  signInWithCommonsIdentity?: OxyServices['auth']['signInWithCommonsIdentity'];
   requestChallenge?: OxyServices['auth']['requestChallenge'];
   verifyChallenge?: OxyServices['auth']['verifyChallenge'];
 }
@@ -83,7 +83,7 @@ function makeOxy(overrides: OxyOverrides = {}): { oxy: OxyServices; setTokens: j
       mintToken: overrides.mintFromDeviceSecret ?? (async () => MINT_WHILE_SWITCHED),
     },
     auth: {
-      signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null),
+      signInWithCommonsIdentity: overrides.signInWithCommonsIdentity ?? (async () => null),
       requestChallenge: overrides.requestChallenge
       ?? (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
       verifyChallenge: overrides.verifyChallenge ?? (async () => IDENTITY_SESSION),
@@ -193,12 +193,12 @@ describe('refreshDeviceSecretArm — pinned', () => {
 });
 
 describe('refreshPersistedSession — pinned', () => {
-  it('never runs the shared-keychain arm; re-establishes from the primary key instead', async () => {
+  it('never runs the Commons-identity arm; re-establishes from the primary key instead', async () => {
     const store = createMemoryAuthStateStore();
     await store.save(STORED);
-    const signInWithSharedIdentity = jest.fn(async () => null);
+    const signInWithCommonsIdentity = jest.fn(async () => null);
     const { oxy } = makeOxy({
-      signInWithSharedIdentity,
+      signInWithCommonsIdentity,
       mintFromDeviceSecret: async () => {
         throw mint401('invalid_device_secret');
       },
@@ -207,11 +207,11 @@ describe('refreshPersistedSession — pinned', () => {
     const token = await refreshPersistedSession({
       oxy,
       store,
-      allowSharedKeyFallback: true, // explicitly requested — and explicitly ignored when pinned
+      allowCommonsIdentityFallback: true, // explicitly requested — and explicitly ignored when pinned
       identity: await makeBinding(),
     });
 
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
     expect(token).toBe('access-reestablished');
     // The identity sign-in repopulated the fast lane for the pinned account.
     expect(await store.load()).toMatchObject({

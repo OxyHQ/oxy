@@ -7,8 +7,9 @@
  *
  *  - `refreshPersistedSession` — arm 1 mints a fresh access token from the
  *    persisted `deviceId` + `deviceSecret` (`POST /session/device/token`),
- *    planting + persisting the rotated secret; arm 2 (native only) re-mints via
- *    the shared-keychain identity when there is no usable secret. It is used BOTH
+ *    planting + persisting the rotated secret; arm 2 (native only) re-mints by
+ *    proving the device's Oxy identity (`signInWithCommonsIdentity`) when there
+ *    is no usable secret. It is used BOTH
  *    reactively (wrapped as the `AuthRefreshHandler` installed on `HttpService`)
  *    AND proactively (the scheduler below calls it).
  *  - `createAuthRefreshHandler` / `installAuthRefreshHandler` wire arm 1+2 into
@@ -82,19 +83,20 @@ export interface RefreshDeps {
   oxy: OxyServices;
   store: AuthStateStore;
   /**
-   * Whether to fall back to the native shared-keychain re-mint (arm 2) when the
-   * persisted secret is absent / rejected. Defaults to `isNative()` — web has no
-   * shared keychain. Exposed for tests. IGNORED when {@link identity} is set: an
-   * identity-bound client must never adopt the CROSS-APP shared slot, which may
-   * hold a different identity than this device's primary key.
+   * Whether to fall back to the native Commons-identity re-mint (arm 2,
+   * `signInWithCommonsIdentity`) when the persisted secret is absent / rejected.
+   * Defaults to `isNative()` — web has neither Commons nor the keychain group.
+   * Exposed for tests. IGNORED when {@link identity} is set: an identity-bound
+   * client must never adopt the device's SHARED identity, which may be a
+   * different one than this device's primary key.
    */
-  allowSharedKeyFallback?: boolean;
+  allowCommonsIdentityFallback?: boolean;
   /**
    * Identity-bound (pinned) mode. When present, every re-mint targets the
    * PINNED account — resolved fresh from the pin store on each call, since a
    * re-established session can move it — instead of the device's active
    * account, and arm 2 becomes the PRIMARY-key identity sign-in rather than the
-   * shared-keychain one.
+   * Commons-identity one.
    */
   identity?: IdentityBinding;
 }
@@ -269,24 +271,25 @@ export async function refreshDeviceSecretArm(deps: {
  * or the device has no live session: drop the secret so the mint lane stops (or
  * clear the store on web, where there is no fallback), then fall to arm 2 on
  * native. A transient error — or a durable-persist failure — leaves the store and
- * returns `null` WITHOUT falling to shared-key (those are not bad-secret signals).
+ * returns `null` WITHOUT falling to arm 2 (those are not bad-secret signals).
  *
- * Arm 2 (native shared-keychain): when the secret is absent or was just rejected,
- * re-mint via `signInWithSharedIdentity` (which plants tokens). On success the
- * recovered `{deviceId, deviceSecret, …}` is PERSISTED so the fast device-secret
- * lane is repopulated (mirrors the cold boot's `shared-key-signin` step) — an
- * in-session shared-key recovery must not leave the fast-lane credential empty.
+ * Arm 2 (native Commons identity): when the secret is absent or was just
+ * rejected, re-mint via `signInWithCommonsIdentity` (Commons proves on Android,
+ * the keychain group signs on iOS). On success the recovered
+ * `{deviceId, deviceSecret, …}` is PERSISTED so the fast device-secret lane is
+ * repopulated (mirrors the cold boot's `commons-proof-signin` step) — an
+ * in-session recovery must not leave the fast-lane credential empty.
  *
  * IDENTITY-BOUND clients (`deps.identity`) run a different arm 2: the
- * shared-keychain lane is DISABLED (its cross-app slot may hold a different
- * identity) and replaced by {@link establishIdentitySession}, which re-signs a
+ * Commons-identity lane is DISABLED (the shared identity may be a different
+ * one) and replaced by {@link establishIdentitySession}, which re-signs a
  * challenge with the PRIMARY local key and rewrites the pin. Arm 1 is pinned.
  */
 export async function refreshPersistedSession(deps: RefreshDeps): Promise<string | null> {
   const { oxy, store } = deps;
   const identity = deps.identity ?? null;
-  // The shared keychain is never an identity-bound client's recovery path.
-  const allowSharedKeyFallback = identity ? false : (deps.allowSharedKeyFallback ?? isNative());
+  // The shared identity is never an identity-bound client's recovery path.
+  const allowCommonsIdentityFallback = identity ? false : (deps.allowCommonsIdentityFallback ?? isNative());
   const epoch = oxy.http.getSessionEpoch();
   // Resolved per call: a re-established identity session can move the pin, and a
   // replaced/removed local key clears it (in which case arm 1 must NOT mint —
@@ -310,7 +313,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
       return null;
     case 'persist-failed':
       // The server rotated the secret but it did not durably persist. Do NOT fall
-      // to shared-key and do NOT plant — a later attempt re-mints (the process
+      // to arm 2 and do NOT plant — a later attempt re-mints (the process
       // mirror still holds the rotated secret the server accepts) and can persist
       // once storage recovers. Never advertise a session on an unsaved secret.
       logger.error(
@@ -322,11 +325,11 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
     case 'invalid-secret':
     case 'no-session': {
       // 401: secret diverged or no live session. When a key-based arm 2 can still
-      // recover (native shared key, or an identity-bound client's own primary
-      // key) drop ONLY the secret and keep the deviceId; otherwise (web) the
+      // recover (the native Commons identity, or an identity-bound client's own
+      // primary key) drop ONLY the secret and keep the deviceId; otherwise (web) the
       // session is over.
       const persisted = await store.load();
-      if (allowSharedKeyFallback || identity) {
+      if (allowCommonsIdentityFallback || identity) {
         if (persisted) {
           await store.save({ ...persisted, deviceSecret: undefined });
         }
@@ -357,19 +360,19 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
     return recoverIdentitySession(oxy, store, identity);
   }
 
-  // Never after a sign-out: the shared keychain holds an identity KEY, not a
-  // session, and using it here would sign the user straight back in.
-  if (allowSharedKeyFallback && !oxy.http.hasSessionEnded()) {
+  // Never after a sign-out: the shared identity is a KEY, not a session, and
+  // proving it here would sign the user straight back in.
+  if (allowCommonsIdentityFallback && !oxy.http.hasSessionEnded()) {
     try {
       // Planted here, not by the sign-in: a sign-out that lands while the
-      // challenge round-trips must win, or the shared keychain signs the user
+      // challenge round-trips must win, or the identity proof signs the user
       // straight back in.
-      const session = await oxy.auth.signInWithSharedIdentity({ plantTokens: false });
+      const session = await oxy.auth.signInWithCommonsIdentity({ plantTokens: false });
       if (session?.accessToken) {
         if (oxy.http.getSessionEpoch() !== epoch) {
           return null;
         }
-        // Repopulate the fast device-secret lane from the shared-key re-mint.
+        // Repopulate the fast device-secret lane from the identity re-mint.
         if (session.deviceId && session.deviceSecret) {
           await store.save({
             sessionId: session.sessionId,
@@ -388,7 +391,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
       }
     } catch (error) {
       logger.debug(
-        'Shared-key re-mint fallback failed',
+        'Commons-identity re-mint fallback failed',
         { component: 'refresh', method: 'refreshPersistedSession' },
         error,
       );
@@ -405,7 +408,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
  *
  * Returns `null` — never throws — when there is no local identity, the verify
  * yielded no token, or the exchange failed: the caller treats that as "could not
- * refresh", exactly like the shared-key arm. A locked keychain therefore ends
+ * refresh", exactly like the Commons-identity arm. A locked keychain therefore ends
  * signed out rather than falling back to the device's active account.
  */
 async function recoverIdentitySession(

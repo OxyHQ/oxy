@@ -73,11 +73,25 @@
  */
 
 import { isReactNative } from './platform';
-import type { ExpoCryptoLike, ExpoSecureStoreLike, SharedIdentityBridge } from './expoTypes';
+import type {
+  CommonsIdentityBridge,
+  CommonsIdentityDescription,
+  CommonsIdentityProof,
+  CommonsSocialReceiveSignature,
+  ExpoCryptoLike,
+  ExpoSecureStoreLike,
+} from './expoTypes';
 
 // Re-export the interfaces so consumers can import them from the same
 // entry-point they use for the loaders.
-export type { ExpoCryptoLike, ExpoSecureStoreLike, SharedIdentityBridge };
+export type {
+  CommonsIdentityBridge,
+  CommonsIdentityDescription,
+  CommonsIdentityProof,
+  CommonsSocialReceiveSignature,
+  ExpoCryptoLike,
+  ExpoSecureStoreLike,
+};
 
 // ---------------------------------------------------------------------------
 // Node `crypto` — Node built-in
@@ -154,14 +168,11 @@ export async function loadAsyncStorage(): Promise<{
 export { getRandomBytesRN } from './random';
 
 // ---------------------------------------------------------------------------
-// Shared identity bridge — `@oxy.so/expo-oxy-identity` (native-only).
+// Commons identity bridge — the `OxyIdentity` native module (native-only).
 //
-// The default (web / Node) variant has no cross-app identity channel, so this
-// always resolves to `null`. `@oxy.so/core`'s `KeyManager` treats `null` as "no
-// bridge" and falls back to its package-private store — which is correct on web
-// (there is no shared identity there).
+// Web and Node have no Commons to ask, so this always resolves to `null`.
 // ---------------------------------------------------------------------------
 
-export function loadSharedIdentityBridge(): Promise<SharedIdentityBridge | null> {
+export function loadCommonsIdentityBridge(): Promise<CommonsIdentityBridge | null> {
   return Promise.resolve(null);
 }

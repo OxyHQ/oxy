@@ -46,11 +46,13 @@ import type { PublicApplication } from './apps';
 import { OxyAuthenticationError } from '../OxyServices.errors';
 import { logger } from '../logger';
 import { normalizeUserIdentity } from '../utils/userIdentity';
+import { isAndroid } from '../utils/platform';
 
 // The identity key, signatures and the registration proof-of-work load on first
 // use: an app that never signs anything must not ship secp256k1.
 const loadKeyManager = async () => (await import('../crypto/internal')).KeyManager;
 const loadSignatureService = async () => (await import('../crypto/internal')).SignatureService;
+const loadCommonsBridge = async () => (await import('../crypto/internal')).loadCommonsIdentityBridge();
 
 /**
  * Default lifetime of a "Sign in with Oxy" device-flow session / authorize code.
@@ -1216,7 +1218,7 @@ export class AuthApi {
    * @param publicKey - The user's public key
    * @param requestOptions - Optional per-call transport overrides (`retry`,
    *   `timeout`). Interactive callers omit it (defaults keep retries); the
-   *   cold-boot `shared-key-signin` step passes `{ retry: false }` so a slow
+   *   cold-boot `commons-proof-signin` step passes `{ retry: false }` so a slow
    *   network cannot multiply boot latency via the inner retry loop.
    */
   async requestChallenge(
@@ -1239,7 +1241,7 @@ export class AuthApi {
    * @param deviceFingerprint - Optional device fingerprint
    * @param requestOptions - Optional per-call transport overrides (`retry`,
    *   `timeout`). Interactive callers omit it (defaults keep retries); the
-   *   cold-boot `shared-key-signin` step passes `{ retry: false }` so a slow
+   *   cold-boot `commons-proof-signin` step passes `{ retry: false }` so a slow
    *   network cannot multiply boot latency via the inner retry loop.
    * @param options.plantTokens - Install the returned bearer on this client
    *   (default `true`). A caller that must decide LATER whether the session is
@@ -1343,27 +1345,29 @@ export class AuthApi {
   }
 
   /**
-   * MECHANISM A — same-device shared-keychain SSO.
+   * MECHANISM A — sign in as the Oxy identity this device already holds.
    *
-   * Native-only. If this device holds a shared identity (the cross-app
-   * `group.so.oxy.shared` keychain key), prove control of it and mint a
-   * session: `requestChallenge(sharedPublicKey)` → `signChallengeWithSharedKey`
-   * → `verifyChallenge` (which plants the tokens). Returns `null` on web or
-   * when no shared identity is present — never throws for the absent-identity
-   * case, so a cold-boot caller can fall through to the next step.
+   * Native-only, and the private key never enters this app:
+   * - Android: Commons holds the identity. `describe` gives its public key,
+   *   `requestChallenge` gets a server challenge, Commons signs it
+   *   (`proveIdentity`, over signature-protected IPC), and `verifyChallenge`
+   *   mints the session (and plants the tokens).
+   * - iOS: the identity in the keychain access group `group.so.oxy.shared`
+   *   signs the challenge in-process (`signChallengeWithSharedKey`).
    *
-   * The cold-boot wiring that CALLS this lives in `OxyContext`
-   * (`@oxy.so/services`); this method just performs the exchange.
+   * Returns `null` on web, when Commons is not installed or holds no identity,
+   * or when it refuses this app — never throws for those, so a cold-boot caller
+   * can fall through to the next step. Network failures do throw.
    *
    * @param opts.requestOptions - Optional per-call transport overrides
    *   (`retry`, `timeout`) forwarded to BOTH the `requestChallenge` and
    *   `verifyChallenge` round-trips. Interactive flows omit it (defaults keep
-   *   retries); the cold-boot `shared-key-signin` step passes `{ retry: false }`
+   *   retries); the cold-boot `commons-proof-signin` step passes `{ retry: false }`
    *   so this network step cannot multiply boot latency via the inner retry
    *   loop. The token-refresh scheduler / 401 lane still retry later.
    * @param opts.plantTokens - Forwarded to `verifyChallenge` (default `true`).
    */
-  async signInWithSharedIdentity(
+  async signInWithCommonsIdentity(
     opts: {
       deviceName?: string;
       deviceFingerprint?: string;
@@ -1371,9 +1375,30 @@ export class AuthApi {
       plantTokens?: boolean;
     } = {}
   ): Promise<SessionLoginResponse | null> {
-    // `hasSharedIdentity()` already returns false on web (the shared
-    // keychain is native-only), so this short-circuits the web case without
-    // a wasted challenge round-trip.
+    if (isAndroid()) {
+      const bridge = await loadCommonsBridge();
+      const described = bridge ? await bridge.describe() : null;
+      if (!bridge || !described) {
+        return null;
+      }
+      const { challenge } = await this.requestChallenge(described.publicKey, opts.requestOptions);
+      const proof = await bridge.proveIdentity(challenge);
+      if (!proof) {
+        return null;
+      }
+      return await this.verifyChallenge(
+        proof.publicKey,
+        challenge,
+        proof.signature,
+        proof.timestamp,
+        opts.deviceName,
+        opts.deviceFingerprint,
+        opts.requestOptions,
+        { plantTokens: opts.plantTokens },
+      );
+    }
+
+    // iOS (and web, where `hasSharedIdentity()` is false without a round-trip).
     const KeyManager = await loadKeyManager();
     if (!(await KeyManager.hasSharedIdentity())) {
       return null;

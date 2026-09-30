@@ -65,15 +65,15 @@ function mint401(body: string): Error & { status: number } {
 
 function makeOxy(overrides: {
   mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
-  signInWithSharedIdentity?: OxyServices['auth']['signInWithSharedIdentity'];
+  signInWithCommonsIdentity?: OxyServices['auth']['signInWithCommonsIdentity'];
 } = {}) {
   const setTokens = jest.fn();
   const mintFromDeviceSecret = jest.fn(
     overrides.mintFromDeviceSecret ?? (async () => MINT),
   ) as unknown as OxyServices['devices']['mintToken'];
-  const signInWithSharedIdentity = jest.fn(
-    overrides.signInWithSharedIdentity ?? (async () => null),
-  ) as unknown as OxyServices['auth']['signInWithSharedIdentity'];
+  const signInWithCommonsIdentity = jest.fn(
+    overrides.signInWithCommonsIdentity ?? (async () => null),
+  ) as unknown as OxyServices['auth']['signInWithCommonsIdentity'];
   const oxy = {
     get baseURL() { return 'https://api.oxy.so'; },
     http: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
@@ -84,10 +84,10 @@ function makeOxy(overrides: {
       mintToken: mintFromDeviceSecret,
     },
     auth: {
-      signInWithSharedIdentity: signInWithSharedIdentity,
+      signInWithCommonsIdentity: signInWithCommonsIdentity,
     },
   } as unknown as OxyServices;
-  return { oxy, setTokens, mintFromDeviceSecret, signInWithSharedIdentity };
+  return { oxy, setTokens, mintFromDeviceSecret, signInWithCommonsIdentity };
 }
 
 function makeSharedSlot(initial: SharedDeviceCredentialRead) {
@@ -140,7 +140,7 @@ describe('cold boot — shared-device-adopt', () => {
     // The whole point of the separation: an ordinary app joins the device session
     // without ever asking for the key that signs identity approvals.
     const slot = makeSharedSlot({ state: 'present', credential: SHARED_CRED });
-    const { oxy, signInWithSharedIdentity } = makeOxy();
+    const { oxy, signInWithCommonsIdentity } = makeOxy();
 
     await runSessionColdBoot({
       oxy,
@@ -149,7 +149,7 @@ describe('cold boot — shared-device-adopt', () => {
       sharedDeviceCredential: slot.store,
     });
 
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
 
   test('an app that already holds its own credential is not moved onto the shared one', async () => {
@@ -180,7 +180,7 @@ describe('cold boot — shared-device-adopt', () => {
 
   test('an UNREADABLE shared slot is not treated as a fresh device', async () => {
     // A locked keystore must never authorise anything. The lane skips, the store
-    // is untouched, and the legacy identity lane still gets its turn — which is
+    // is untouched, and the Commons-proof lane still gets its turn — which is
     // what keeps a momentarily-locked device from silently onboarding again.
     const store = createMemoryAuthStateStore();
     const slot = makeSharedSlot({ state: 'unavailable', cause: new Error('keystore locked') });
@@ -192,8 +192,8 @@ describe('cold boot — shared-device-adopt', () => {
       deviceId: 'dev-legacy',
       deviceSecret: 'ds-legacy',
     } as unknown as SessionLoginResponse;
-    const { oxy, signInWithSharedIdentity } = makeOxy({
-      signInWithSharedIdentity: (async () => sharedKeySession) as unknown as OxyServices['auth']['signInWithSharedIdentity'],
+    const { oxy, signInWithCommonsIdentity } = makeOxy({
+      signInWithCommonsIdentity: (async () => sharedKeySession) as unknown as OxyServices['auth']['signInWithCommonsIdentity'],
     });
 
     const outcome = await runSessionColdBoot({
@@ -205,13 +205,13 @@ describe('cold boot — shared-device-adopt', () => {
 
     expect(slot.publish).not.toHaveBeenCalled();
     expect(slot.clear).not.toHaveBeenCalled();
-    expect(signInWithSharedIdentity).toHaveBeenCalled();
-    expect(outcome).toMatchObject({ kind: 'session', via: 'shared-key-signin' });
+    expect(signInWithCommonsIdentity).toHaveBeenCalled();
+    expect(outcome).toMatchObject({ kind: 'session', via: 'commons-proof-signin' });
   });
 
-  test('an empty shared slot falls through to the legacy identity lane', async () => {
+  test('an empty shared slot falls through to the Commons-proof lane', async () => {
     const slot = makeSharedSlot({ state: 'absent' });
-    const { oxy, signInWithSharedIdentity } = makeOxy();
+    const { oxy, signInWithCommonsIdentity } = makeOxy();
 
     const outcome = await runSessionColdBoot({
       oxy,
@@ -220,7 +220,7 @@ describe('cold boot — shared-device-adopt', () => {
       sharedDeviceCredential: slot.store,
     });
 
-    expect(signInWithSharedIdentity).toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).toHaveBeenCalled();
     expect(outcome).toEqual({ kind: 'unauthenticated' });
   });
 
@@ -320,12 +320,12 @@ describe('cold boot — shared-device-adopt', () => {
 
   test('omitting the slot leaves the boot chain exactly as it was', async () => {
     const slot = makeSharedSlot({ state: 'present', credential: SHARED_CRED });
-    const { oxy, signInWithSharedIdentity } = makeOxy();
+    const { oxy, signInWithCommonsIdentity } = makeOxy();
 
     const outcome = await runSessionColdBoot({ oxy, store: createMemoryAuthStateStore(), platform: NATIVE });
 
     expect(slot.read).not.toHaveBeenCalled();
-    expect(signInWithSharedIdentity).toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).toHaveBeenCalled();
     expect(outcome).toEqual({ kind: 'unauthenticated' });
   });
 });

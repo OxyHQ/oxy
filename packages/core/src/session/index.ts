@@ -98,7 +98,7 @@ export type {
 // Headless controller for the unified account dialog. Framework-agnostic
 // state machine + subscribe/getSnapshot store (bind via `useSyncExternalStore`)
 // — sign-in runs through `oxy.auth` (email, password, authenticator, the
-// Commons QR / shared-keychain handoff). Reuses `SessionClient.switchAccount` /
+// Commons QR / same-device Commons identity). Reuses `SessionClient.switchAccount` /
 // `oxy.accounts.actAs` for the uniform switch.
 export {
     AccountDialogController,

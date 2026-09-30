@@ -12,9 +12,8 @@
  *  - {@link establishIdentitySession} — mint a session from the PRIMARY local
  *    key (`getPublicKey` → `requestChallenge` → `signChallenge` →
  *    `verifyChallenge`), persist the resulting device credential, and write the
- *    pin. This is the identity-mode replacement for the shared-keychain lane,
- *    which reads the CROSS-APP shared slot and may therefore hold a different
- *    identity than this device's primary.
+ *    pin. This is the identity-mode replacement for the Commons-proof lane,
+ *    whose shared identity may be a different one than this device's primary.
  *
  * Both take their key/signature functions from an injectable {@link IdentityBinding}
  * (defaulting to `KeyManager` / `SignatureService`) so the lanes above stay
@@ -163,7 +162,7 @@ export async function establishIdentitySession(args: {
     throw new Error('Identity sign-in aborted: the signing key does not match the device identity key');
   }
 
-  // `signed.challenge` carries the SIGNATURE (mirrors `signChallengeWithSharedKey`).
+  // `signed.challenge` carries the SIGNATURE (mirrors `signChallenge`).
   const session = await oxy.auth.verifyChallenge(
     signed.publicKey,
     challenge,

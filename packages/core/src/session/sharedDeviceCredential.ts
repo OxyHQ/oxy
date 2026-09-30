@@ -15,11 +15,11 @@
  *                                    context, and is individually rotatable and
  *                                    revocable server-side.
  *
- * An ordinary app needs the second one. Handing it the first — which is what the
- * `shared-key-signin` lane does today — gives every sibling app the ability to
- * sign as the user's cryptographic identity to obtain something as mundane as a
- * session. That lane stays as a recovery/compatibility path; this one supersedes
- * it for the ordinary case.
+ * An ordinary app needs the second one. Using the first — which is what the
+ * `commons-proof-signin` lane does, by asking Commons to sign as the user's
+ * cryptographic identity — spends the self-custody key on something as mundane
+ * as a session. That lane stays as the recovery path; this one supersedes it
+ * for the ordinary case.
  *
  * ## Why sharing one credential is safe against the server
  *
@@ -290,7 +290,7 @@ export async function publishProvenDeviceCredential(deps: {
  *
  *  - Mirroring on write is the right place because `save()` is where a proven
  *    credential lands, on every lane there is — interactive sign-in, the cold
- *    boot mint, the refresh scheduler, the 401 re-mint, shared-key recovery. One
+ *    boot mint, the refresh scheduler, the 401 re-mint, Commons-identity recovery. One
  *    seam, no lane left out, and no new call site to forget.
  *  - Adopting on read would hide a change of WHO THIS APP IS SIGNED IN AS inside
  *    a storage primitive, and would run on every `load()`. Adoption is an

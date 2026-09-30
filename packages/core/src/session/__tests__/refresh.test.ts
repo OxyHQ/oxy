@@ -54,7 +54,7 @@ const MINT: DeviceTokenMintResponse = {
 
 interface RefreshMockOverrides {
   mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
-  signInWithSharedIdentity?: OxyServices['auth']['signInWithSharedIdentity'];
+  signInWithCommonsIdentity?: OxyServices['auth']['signInWithCommonsIdentity'];
 }
 
 function makeOxy(
@@ -86,7 +86,7 @@ function makeOxy(
       mintToken: overrides.mintFromDeviceSecret ?? (async () => MINT),
     },
     auth: {
-      signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null),
+      signInWithCommonsIdentity: overrides.signInWithCommonsIdentity ?? (async () => null),
     },
   } as unknown as OxyServices;
   return { oxy, setTokens, noteRefreshRateLimited, epoch, ended };
@@ -98,7 +98,7 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
     await store.save(STORED);
     const { oxy, setTokens } = makeOxy();
 
-    const token = await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+    const token = await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
 
     expect(token).toBe('access-new');
     expect(setTokens).toHaveBeenCalledWith('access-new');
@@ -118,12 +118,12 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
     const mintFromDeviceSecret = jest.fn(async () => MINT);
     const { oxy } = makeOxy({ mintFromDeviceSecret });
 
-    await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+    await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
 
     expect(mintFromDeviceSecret).toHaveBeenCalledWith('dev-mint', 'ds-secret-orig');
   });
 
-  it('drops only the secret (keeps deviceId) on a 401 and falls to shared-key when native', async () => {
+  it('drops only the secret (keeps deviceId) on a 401 and falls to the Commons identity when native', async () => {
     const store = createMemoryAuthStateStore();
     await store.save(STORED);
     const SHARED: SessionLoginResponse = {
@@ -133,24 +133,24 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
       user: { id: 'user-1', username: 'u', name: {}, avatar: undefined },
       accessToken: 'access-shared',
     };
-    const signInWithSharedIdentity = jest.fn(async () => SHARED);
+    const signInWithCommonsIdentity = jest.fn(async () => SHARED);
     const { oxy } = makeOxy({
       mintFromDeviceSecret: async () => {
         throw Object.assign(new Error('invalid_device_secret'), { status: 401 });
       },
-      signInWithSharedIdentity,
+      signInWithCommonsIdentity,
     });
 
-    const token = await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true });
+    const token = await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true });
 
     expect(token).toBe('access-shared');
-    expect(signInWithSharedIdentity).toHaveBeenCalledTimes(1);
+    expect(signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
     const persisted = await store.load();
     expect(persisted?.deviceSecret).toBeUndefined();
     expect(persisted?.deviceId).toBe('dev-mint');
   });
 
-  it('clears the store on a 401 invalid_device_secret when there is no shared-key fallback (web)', async () => {
+  it('clears the store on a 401 invalid_device_secret when there is no Commons-identity fallback (web)', async () => {
     const store = createMemoryAuthStateStore();
     await store.save(STORED);
     const { oxy } = makeOxy({
@@ -159,7 +159,7 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
       },
     });
 
-    const token = await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+    const token = await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
 
     expect(token).toBeNull();
     expect(await store.load()).toBeNull();
@@ -174,7 +174,7 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
       },
     });
 
-    const token = await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+    const token = await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
 
     // The browser's device still knows this holder: a sign-in in any app lands
     // on it, and this app follows without opening the bridge again.
@@ -190,24 +190,24 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
   it('KEEPS the store and returns null on a transient (500 / network) error', async () => {
     const store = createMemoryAuthStateStore();
     await store.save(STORED);
-    const signInWithSharedIdentity = jest.fn(async () => null);
+    const signInWithCommonsIdentity = jest.fn(async () => null);
     const { oxy } = makeOxy({
       mintFromDeviceSecret: async () => {
         throw Object.assign(new Error('server'), { status: 500 });
       },
-      signInWithSharedIdentity,
+      signInWithCommonsIdentity,
     });
 
-    // A transient failure must NOT drop the credential nor fall through to shared-key.
-    expect(await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true })).toBeNull();
+    // A transient failure must NOT drop the credential nor fall through to the Commons identity.
+    expect(await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).toBeNull();
     expect(await store.load()).toEqual(STORED);
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
 
   it('KEEPS the store on an UNRECOGNIZED 401 (proxy / middleware / deploy-window) — never wipes the credential on an ambiguous 401', async () => {
     const store = createMemoryAuthStateStore();
     await store.save(STORED);
-    const signInWithSharedIdentity = jest.fn(async () => null);
+    const signInWithCommonsIdentity = jest.fn(async () => null);
     const { oxy } = makeOxy({
       mintFromDeviceSecret: async () => {
         // A 401 whose body is NEITHER `invalid_device_secret` NOR `no_active_session`
@@ -216,28 +216,28 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
         // credential must survive (treated as transient) and a later attempt self-heals.
         throw Object.assign(new Error('Unauthorized'), { status: 401 });
       },
-      signInWithSharedIdentity,
+      signInWithCommonsIdentity,
     });
 
-    expect(await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true })).toBeNull();
+    expect(await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).toBeNull();
     expect(await store.load()).toEqual(STORED);
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
 
-  it('KEEPS the store on a 429 and does NOT fall through to shared-key — a rationed mint never judged the secret', async () => {
+  it('KEEPS the store on a 429 and does NOT fall through to the Commons identity — a rationed mint never judged the secret', async () => {
     const store = createMemoryAuthStateStore();
     await store.save(STORED);
-    const signInWithSharedIdentity = jest.fn(async () => null);
+    const signInWithCommonsIdentity = jest.fn(async () => null);
     const { oxy } = makeOxy({
       mintFromDeviceSecret: async () => {
         throw Object.assign(new Error('Too many requests'), { status: 429 });
       },
-      signInWithSharedIdentity,
+      signInWithCommonsIdentity,
     });
 
-    expect(await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true })).toBeNull();
+    expect(await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).toBeNull();
     expect(await store.load()).toEqual(STORED);
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
 
   it('tells HttpService to lengthen the refresh cooldown when the mint is rate limited', async () => {
@@ -249,7 +249,7 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
       },
     });
 
-    await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+    await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
 
     expect(noteRefreshRateLimited).toHaveBeenCalledTimes(1);
   });
@@ -263,13 +263,13 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
       },
     });
 
-    await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+    await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
 
     expect(noteRefreshRateLimited).not.toHaveBeenCalled();
   });
 });
 
-describe('refreshPersistedSession — arm 2 (native shared-key fallback)', () => {
+describe('refreshPersistedSession — arm 2 (native Commons-identity fallback)', () => {
   const SHARED_SESSION: SessionLoginResponse = {
     sessionId: 'sess-shared',
     deviceId: 'dev-1',
@@ -280,35 +280,35 @@ describe('refreshPersistedSession — arm 2 (native shared-key fallback)', () =>
 
   it('re-mints via shared identity when there is no persisted secret', async () => {
     const store = createMemoryAuthStateStore(); // no stored device secret
-    const signInWithSharedIdentity = jest.fn(async () => SHARED_SESSION);
-    const { oxy } = makeOxy({ signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => SHARED_SESSION);
+    const { oxy } = makeOxy({ signInWithCommonsIdentity });
 
-    const token = await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true });
+    const token = await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true });
 
     expect(token).toBe('access-shared');
-    expect(signInWithSharedIdentity).toHaveBeenCalledTimes(1);
+    expect(signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
   });
 
-  it('does NOT try shared-key when the fallback is disabled (web)', async () => {
+  it('does NOT try the Commons identity when the fallback is disabled (web)', async () => {
     const store = createMemoryAuthStateStore();
-    const signInWithSharedIdentity = jest.fn(async () => SHARED_SESSION);
-    const { oxy } = makeOxy({ signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => SHARED_SESSION);
+    const { oxy } = makeOxy({ signInWithCommonsIdentity });
 
-    expect(await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false })).toBeNull();
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false })).toBeNull();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
 
-  it('returns null when the shared-key re-mint yields no session', async () => {
+  it('returns null when the Commons-identity re-mint yields no session', async () => {
     const store = createMemoryAuthStateStore();
-    const signInWithSharedIdentity = jest.fn(async () => null);
-    const { oxy } = makeOxy({ signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => null);
+    const { oxy } = makeOxy({ signInWithCommonsIdentity });
 
-    expect(await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true })).toBeNull();
-    expect(signInWithSharedIdentity).toHaveBeenCalledTimes(1);
+    expect(await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).toBeNull();
+    expect(signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
   });
 
-  it('persists the recovered credential from the shared-key re-mint (repopulates the fast lane)', async () => {
-    // Bug #3: an in-session shared-key recovery must repopulate the durable
+  it('persists the recovered credential from the Commons-identity re-mint (repopulates the fast lane)', async () => {
+    // Bug #3: an in-session Commons-identity recovery must repopulate the durable
     // device credential, not leave the fast device-secret lane empty.
     const store = createMemoryAuthStateStore(); // no persisted secret → arm 1 skips
     const RECOVERED: SessionLoginResponse = {
@@ -319,9 +319,9 @@ describe('refreshPersistedSession — arm 2 (native shared-key fallback)', () =>
       user: { id: 'user-shared', username: 'u', name: {}, avatar: undefined },
       accessToken: 'access-shared',
     };
-    const { oxy } = makeOxy({ signInWithSharedIdentity: jest.fn(async () => RECOVERED) });
+    const { oxy } = makeOxy({ signInWithCommonsIdentity: jest.fn(async () => RECOVERED) });
 
-    const token = await refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true });
+    const token = await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true });
 
     expect(token).toBe('access-shared');
     expect(await store.load()).toEqual({
@@ -347,7 +347,7 @@ describe('refreshPersistedSession — a sign-out mid-refresh', () => {
         }),
     });
 
-    const pending = refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true });
+    const pending = refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true });
     await new Promise((resolve) => setTimeout(resolve, 0));
     // The sign-out: the credential is dropped and the session epoch moves.
     await store.clear();
@@ -370,7 +370,7 @@ describe('refreshPersistedSession — a sign-out mid-refresh', () => {
         }),
     });
 
-    const pending = refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+    const pending = refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
     await new Promise((resolve) => setTimeout(resolve, 0));
     // A local teardown that keeps the store (so a reload can restore): the
     // server rotated the secret, and the store must not be left holding the old one.
@@ -382,10 +382,10 @@ describe('refreshPersistedSession — a sign-out mid-refresh', () => {
     expect((await store.load())?.deviceSecret).toBe('ds-next-secret');
   });
 
-  it('arm 2: the shared keychain does not sign the user back in', async () => {
+  it('arm 2: the Commons identity does not sign the user back in', async () => {
     const store = createMemoryAuthStateStore();
     let respond!: () => void;
-    const signInWithSharedIdentity = jest.fn(
+    const signInWithCommonsIdentity = jest.fn(
       (_opts?: { plantTokens?: boolean }) =>
         new Promise<SessionLoginResponse>((resolve) => {
           respond = () =>
@@ -399,29 +399,29 @@ describe('refreshPersistedSession — a sign-out mid-refresh', () => {
             });
         }),
     );
-    const { oxy, setTokens, epoch } = makeOxy({ signInWithSharedIdentity });
+    const { oxy, setTokens, epoch } = makeOxy({ signInWithCommonsIdentity });
 
-    const pending = refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true });
+    const pending = refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true });
     await new Promise((resolve) => setTimeout(resolve, 0));
     epoch.current += 1;
     respond();
 
     await expect(pending).resolves.toBeNull();
-    expect(signInWithSharedIdentity).toHaveBeenCalledWith({ plantTokens: false });
+    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({ plantTokens: false });
     expect(setTokens).not.toHaveBeenCalled();
     expect(await store.load()).toBeNull();
   });
 });
 
 describe('refreshPersistedSession — after a sign-out', () => {
-  it('does not re-sign-in with the shared keychain', async () => {
+  it('does not re-sign-in with the Commons identity', async () => {
     const store = createMemoryAuthStateStore();
-    const signInWithSharedIdentity = jest.fn(async () => null);
-    const { oxy, setTokens, ended } = makeOxy({ signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => null);
+    const { oxy, setTokens, ended } = makeOxy({ signInWithCommonsIdentity });
     ended.current = true;
 
-    await expect(refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true })).resolves.toBeNull();
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    await expect(refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).resolves.toBeNull();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
     expect(setTokens).not.toHaveBeenCalled();
   });
 
@@ -431,7 +431,7 @@ describe('refreshPersistedSession — after a sign-out', () => {
     const { oxy, setTokens, ended } = makeOxy();
     ended.current = true;
 
-    await expect(refreshPersistedSession({ oxy, store, allowSharedKeyFallback: true })).resolves.toBe('access-new');
+    await expect(refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).resolves.toBe('access-new');
     expect(setTokens).toHaveBeenCalledWith('access-new');
   });
 });
@@ -457,8 +457,8 @@ describe('refreshPersistedSession — single-flight (no double-rotation)', () =>
     });
     const { oxy, setTokens } = makeOxy({ mintFromDeviceSecret });
 
-    const first = refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
-    const second = refreshPersistedSession({ oxy, store, allowSharedKeyFallback: false });
+    const first = refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
+    const second = refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
     // Both callers entered while the mint is in flight.
     release?.();
     const [t1, t2] = await Promise.all([first, second]);
@@ -490,7 +490,7 @@ describe('refreshPersistedSession — durable persist failure is fatal to the mi
     const token = await refreshPersistedSession({
       oxy,
       store: failingStore,
-      allowSharedKeyFallback: false,
+      allowCommonsIdentityFallback: false,
     });
 
     // The mint ran (the server rotated) but the token was NOT planted…
@@ -500,22 +500,22 @@ describe('refreshPersistedSession — durable persist failure is fatal to the mi
     expect(token).toBeNull();
   });
 
-  it('does NOT fall through to the shared-key arm on a persist failure', async () => {
+  it('does NOT fall through to the Commons-identity arm on a persist failure', async () => {
     const failingStore: AuthStateStore = {
       load: async () => STORED,
       save: async () => false,
       clear: async () => undefined,
     };
-    const signInWithSharedIdentity = jest.fn(async () => null);
+    const signInWithCommonsIdentity = jest.fn(async () => null);
     const { oxy } = makeOxy({
       mintFromDeviceSecret: async () => MINT,
-      signInWithSharedIdentity,
+      signInWithCommonsIdentity,
     });
 
-    await refreshPersistedSession({ oxy, store: failingStore, allowSharedKeyFallback: true });
+    await refreshPersistedSession({ oxy, store: failingStore, allowCommonsIdentityFallback: true });
 
-    // A storage failure is not a bad-secret signal — the shared-key arm must not run.
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    // A storage failure is not a bad-secret signal — the Commons-identity arm must not run.
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
 });
 

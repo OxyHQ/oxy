@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.2.1
+
+### Changed
+
+- Accepts `@oxy.so/core` 4.x. Federation uses only the `User` type and the
+  error helpers, which 4.0.0 did not change.
+
 ## 2.2.0
 
 ### Added

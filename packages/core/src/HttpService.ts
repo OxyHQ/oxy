@@ -389,7 +389,7 @@ export class HttpService {
   private sessionEpoch = 0;
   /**
    * Set by {@link endSession}, cleared by the next {@link setTokens}. Read by the
-   * native shared-keychain re-mint arm: after a sign-out a 401 is the expected
+   * native Commons-identity re-mint arm: after a sign-out a 401 is the expected
    * answer, not a cue to sign back in with the identity key. The device-secret
    * arm is NOT gated on it — minting from a credential the store still holds is
    * how a signed-out tab joins a sign-in made in another tab.
@@ -1377,7 +1377,7 @@ export class HttpService {
    * all receive its result.
    *
    * Distinct from {@link tokenRefreshPromise} (which dedups the FULL re-mint
-   * handler incl. the native shared-key arm + the failure cooldown): this inner
+   * handler incl. the native Commons-identity arm + the failure cooldown): this inner
    * guard serializes the rotation itself across BOTH the handler and the
    * handler-independent cold boot, which never runs through `refreshAccessToken`.
    */

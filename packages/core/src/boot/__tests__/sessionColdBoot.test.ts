@@ -3,7 +3,7 @@
  * boot. Only two ordered steps remain:
  *   1. `device-secret-mint` (web + native) — mint an access token from the
  *      persisted `deviceId` + `deviceSecret`.
- *   2. `shared-key-signin` (native) — re-mint from the shared-keychain identity.
+ *   2. `commons-proof-signin` (native) — re-mint by proving the device's Oxy identity (Commons on Android, the keychain group on iOS).
  * Anything unresolved ends signed out (never a redirect).
  */
 import type { OxyServices } from '../../OxyServices';
@@ -14,7 +14,7 @@ import type { DeviceSecretMintOutcome } from '../../session/refresh';
 import { createMemoryAuthStateStore, type PersistedAuthState } from '../../session/authStateStore';
 
 interface OxyOverrides {
-  signInWithSharedIdentity?: OxyServices['auth']['signInWithSharedIdentity'];
+  signInWithCommonsIdentity?: OxyServices['auth']['signInWithCommonsIdentity'];
   mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
 }
 
@@ -36,7 +36,7 @@ function makeOxy(overrides: OxyOverrides = {}): { oxy: OxyServices; setTokens: j
   const oxy = {
     baseURL: 'https://api.oxy.so',
     session: { setAccessToken: setTokens },
-    auth: { signInWithSharedIdentity: overrides.signInWithSharedIdentity ?? (async () => null) },
+    auth: { signInWithCommonsIdentity: overrides.signInWithCommonsIdentity ?? (async () => null) },
     devices: {
       // Default: no persisted secret in these fixtures, so the mint step skips
       // before ever calling this. Tests that exercise the mint pass an override.
@@ -126,15 +126,15 @@ describe('runSessionColdBoot — warm-token-plant', () => {
     const { store, seed } = seedCredStore({ accessToken: 'warm-access', expiresAt: farFuture() });
     await seed();
     const mintFromDeviceSecret = jest.fn(async () => MINT);
-    const signInWithSharedIdentity = jest.fn(async () => null);
-    const { oxy, setTokens } = makeOxy({ mintFromDeviceSecret, signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => null);
+    const { oxy, setTokens } = makeOxy({ mintFromDeviceSecret, signInWithCommonsIdentity });
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
     expect(outcome).toMatchObject({ kind: 'session', via: 'warm-token-plant' });
     expect(setTokens).toHaveBeenCalledWith('warm-access');
     expect(mintFromDeviceSecret).not.toHaveBeenCalled();
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -228,15 +228,15 @@ describe('runSessionColdBoot — device-secret-mint', () => {
     const { store, seed } = seedCredStore();
     await seed();
     const mintFromDeviceSecret = jest.fn(async () => MINT);
-    const signInWithSharedIdentity = jest.fn(async () => null);
-    const { oxy, setTokens } = makeOxy({ mintFromDeviceSecret, signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => null);
+    const { oxy, setTokens } = makeOxy({ mintFromDeviceSecret, signInWithCommonsIdentity });
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
     expect(outcome).toMatchObject({ kind: 'session', via: 'device-secret-mint' });
     expect(setTokens).toHaveBeenCalledWith('access-minted');
-    // The mint won first — the shared-key fallback was never reached.
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    // The mint won first — the Commons-proof fallback was never reached.
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
 
   it('skips (no mint) when only one of deviceId / deviceSecret is persisted', async () => {
@@ -279,8 +279,8 @@ describe('runSessionColdBoot — device-secret-mint', () => {
     const mintFromDeviceSecret = jest.fn(async () => {
       throw mint401('no_active_session');
     });
-    const signInWithSharedIdentity = jest.fn(async () => null);
-    const { oxy } = makeOxy({ mintFromDeviceSecret, signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => null);
+    const { oxy } = makeOxy({ mintFromDeviceSecret, signInWithCommonsIdentity });
     const onSignedOut = jest.fn();
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: WEB, onSignedOut });
@@ -289,8 +289,8 @@ describe('runSessionColdBoot — device-secret-mint', () => {
     expect(onSignedOut).toHaveBeenCalledWith('no_session');
     // The known-signed-out device retains its secret (it may sign in again).
     expect((await store.load())?.deviceSecret).toBe('ds-secret-orig');
-    // Web has no shared-key lane.
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    // Web has no Commons-proof lane.
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
 
   it('classifies a PLAIN-OBJECT 401 (no Error prototype) — no_active_session still keeps the secret', async () => {
@@ -328,7 +328,7 @@ describe('runSessionColdBoot — device-secret-mint', () => {
     expect((await store.load())?.deviceSecret).toBe('ds-secret-orig');
   });
 
-  it('a dropped secret (401) on native falls through to the shared-key lane', async () => {
+  it('a dropped secret (401) on native falls through to the Commons-proof lane', async () => {
     const { store, seed } = seedCredStore();
     await seed();
     const sharedSession: SessionLoginResponse = {
@@ -341,13 +341,13 @@ describe('runSessionColdBoot — device-secret-mint', () => {
     const mintFromDeviceSecret = jest.fn(async () => {
       throw mint401('invalid_device_secret');
     });
-    const signInWithSharedIdentity = jest.fn(async () => sharedSession);
-    const { oxy, setTokens } = makeOxy({ mintFromDeviceSecret, signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => sharedSession);
+    const { oxy, setTokens } = makeOxy({ mintFromDeviceSecret, signInWithCommonsIdentity });
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
-    expect(outcome).toEqual({ kind: 'session', via: 'shared-key-signin', session: expect.any(Object) });
-    expect(signInWithSharedIdentity).toHaveBeenCalledTimes(1);
+    expect(outcome).toEqual({ kind: 'session', via: 'commons-proof-signin', session: expect.any(Object) });
+    expect(signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
     // The mint lane still dropped the stale secret before falling through.
     expect((await store.load())?.deviceSecret).toBeUndefined();
     // Shared-key plants tokens itself (via verifyChallenge); the cold boot does not.
@@ -355,7 +355,7 @@ describe('runSessionColdBoot — device-secret-mint', () => {
   });
 });
 
-describe('runSessionColdBoot — shared-key-signin (native)', () => {
+describe('runSessionColdBoot — commons-proof-signin (native)', () => {
   const sharedSession: SessionLoginResponse = {
     sessionId: 'sess-shared',
     deviceId: 'dev-1',
@@ -366,26 +366,26 @@ describe('runSessionColdBoot — shared-key-signin (native)', () => {
 
   it('re-mints via the shared identity when there is no persisted mint credential', async () => {
     const store = createMemoryAuthStateStore(); // no deviceId/deviceSecret
-    const signInWithSharedIdentity = jest.fn(async () => sharedSession);
-    const { oxy } = makeOxy({ signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => sharedSession);
+    const { oxy } = makeOxy({ signInWithCommonsIdentity });
     const onSession = jest.fn();
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE, onSession });
 
-    expect(outcome).toEqual({ kind: 'session', via: 'shared-key-signin', session: expect.any(Object) });
-    expect(signInWithSharedIdentity).toHaveBeenCalledTimes(1);
+    expect(outcome).toEqual({ kind: 'session', via: 'commons-proof-signin', session: expect.any(Object) });
+    expect(signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
     expect(onSession).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: 'sess-shared', userId: 'user-shared', via: 'shared-key-signin' }),
+      expect.objectContaining({ sessionId: 'sess-shared', userId: 'user-shared', via: 'commons-proof-signin' }),
     );
   });
 
-  it('persists deviceSecret from shared-key verifyChallenge for the next mint lane', async () => {
+  it('persists deviceSecret from the Commons-proof verifyChallenge for the next mint lane', async () => {
     const store = createMemoryAuthStateStore();
-    const signInWithSharedIdentity = jest.fn(async () => ({
+    const signInWithCommonsIdentity = jest.fn(async () => ({
       ...sharedSession,
       deviceSecret: 'shared-mint-secret',
     }));
-    const { oxy } = makeOxy({ signInWithSharedIdentity });
+    const { oxy } = makeOxy({ signInWithCommonsIdentity });
 
     await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
@@ -399,45 +399,45 @@ describe('runSessionColdBoot — shared-key-signin (native)', () => {
     });
   });
 
-  it('does NOT run the shared-key lane on web', async () => {
+  it('does NOT run the Commons-proof lane on web', async () => {
     const store = createMemoryAuthStateStore();
-    const signInWithSharedIdentity = jest.fn(async () => sharedSession);
-    const { oxy } = makeOxy({ signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => sharedSession);
+    const { oxy } = makeOxy({ signInWithCommonsIdentity });
     const onSignedOut = jest.fn();
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: WEB, onSignedOut });
 
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
     expect(outcome).toEqual({ kind: 'unauthenticated' });
     expect(onSignedOut).toHaveBeenCalledWith('no_session');
   });
 
   it('reports signed out when the shared identity yields no session', async () => {
     const store = createMemoryAuthStateStore();
-    const signInWithSharedIdentity = jest.fn(async () => null);
-    const { oxy } = makeOxy({ signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => null);
+    const { oxy } = makeOxy({ signInWithCommonsIdentity });
     const onSignedOut = jest.fn();
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE, onSignedOut });
 
-    expect(signInWithSharedIdentity).toHaveBeenCalledTimes(1);
+    expect(signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
     expect(outcome).toEqual({ kind: 'unauthenticated' });
     expect(onSignedOut).toHaveBeenCalledWith('no_session');
   });
 
   it('reports a step error (onStepError + signed-out reason `error`) when the shared identity throws', async () => {
     const store = createMemoryAuthStateStore();
-    const signInWithSharedIdentity = jest.fn(async () => {
+    const signInWithCommonsIdentity = jest.fn(async () => {
       throw new Error('keychain locked');
     });
-    const { oxy } = makeOxy({ signInWithSharedIdentity });
+    const { oxy } = makeOxy({ signInWithCommonsIdentity });
     const onSignedOut = jest.fn();
     const onStepError = jest.fn();
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE, onSignedOut, onStepError });
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
-    expect(onStepError).toHaveBeenCalledWith('shared-key-signin', expect.any(Error));
+    expect(onStepError).toHaveBeenCalledWith('commons-proof-signin', expect.any(Error));
     expect(onSignedOut).toHaveBeenCalledWith('error');
   });
 });
@@ -470,14 +470,14 @@ describe('runSessionColdBoot — offline gating (isOffline)', () => {
     accessToken: 'access-shared',
   };
 
-  it('offline: skips BOTH network steps (no mint, no shared-key) → signed out', async () => {
+  it('offline: skips BOTH network steps (no mint, no Commons proof) → signed out', async () => {
     // Credential present, no warm token — the ONLY things that could resolve are
     // the two network steps, which the offline hint must gate off.
     const { store, seed } = seedCredStore();
     await seed();
     const mintFromDeviceSecret = jest.fn(async () => MINT);
-    const signInWithSharedIdentity = jest.fn(async () => sharedSession);
-    const { oxy } = makeOxy({ mintFromDeviceSecret, signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => sharedSession);
+    const { oxy } = makeOxy({ mintFromDeviceSecret, signInWithCommonsIdentity });
     const onSignedOut = jest.fn();
 
     const outcome = await runSessionColdBoot({
@@ -490,7 +490,7 @@ describe('runSessionColdBoot — offline gating (isOffline)', () => {
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
     expect(mintFromDeviceSecret).not.toHaveBeenCalled();
-    expect(signInWithSharedIdentity).not.toHaveBeenCalled();
+    expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
     expect(onSignedOut).toHaveBeenCalledWith('no_session');
   });
 
@@ -530,15 +530,15 @@ describe('runSessionColdBoot — offline gating (isOffline)', () => {
     expect(mintFromDeviceSecret).toHaveBeenCalledWith('dev-mint', 'ds-secret-orig');
   });
 
-  it('shared-key-signin passes { requestOptions: { retry: false } } (cold-boot single-attempt)', async () => {
+  it('commons-proof-signin passes { requestOptions: { retry: false } } (cold-boot single-attempt)', async () => {
     const store = createMemoryAuthStateStore(); // no mint credential → mint step no-secret skip
-    const signInWithSharedIdentity = jest.fn(async () => sharedSession);
-    const { oxy } = makeOxy({ signInWithSharedIdentity });
+    const signInWithCommonsIdentity = jest.fn(async () => sharedSession);
+    const { oxy } = makeOxy({ signInWithCommonsIdentity });
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
-    expect(outcome).toMatchObject({ kind: 'session', via: 'shared-key-signin' });
-    expect(signInWithSharedIdentity).toHaveBeenCalledWith({ requestOptions: { retry: false } });
+    expect(outcome).toMatchObject({ kind: 'session', via: 'commons-proof-signin' });
+    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({ requestOptions: { retry: false } });
   });
 });
 

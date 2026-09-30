@@ -6,7 +6,18 @@
  */
 
 import { isWeb, isIOS, isAndroid } from '../utils/platform';
-import { type ExpoCryptoLike, type ExpoSecureStoreLike, isReactNative, isNodeJS, loadAsyncStorage, loadExpoCrypto, loadNodeCrypto, loadSecureStore, loadSharedIdentityBridge } from '@oxy.so/protocol';
+import {
+  type CommonsSocialReceiveSignature,
+  type ExpoCryptoLike,
+  type ExpoSecureStoreLike,
+  isReactNative,
+  isNodeJS,
+  loadAsyncStorage,
+  loadCommonsIdentityBridge,
+  loadExpoCrypto,
+  loadNodeCrypto,
+  loadSecureStore,
+} from '@oxy.so/protocol';
 import {
   deriveSecp256k1PublicKey,
   generateSecp256k1KeyPair,
@@ -18,7 +29,8 @@ import {
   verifySecp256k1Digest,
 } from '@oxy.so/protocol/secp256k1';
 import { isDev, logger } from '../logger';
-import { hkdfSha256 } from './kdf';
+import { deriveScopedSeedFromKey, signSocialReceiveDigest } from './identityDerivations';
+import type { IdentitySignerStore } from './identitySigner';
 import {
   type IdentityMarker,
   clearIdentityMarker,
@@ -146,35 +158,15 @@ export type IdentityStatus =
  * `reason` distinguishes "wasn't lost", "no surviving source", "a source held a
  * DIFFERENT account" (never silently switched), and "storage unavailable".
  *
+ * `shared` is the cross-app copy: the iOS keychain access group, or on Android
+ * Commons' identity signer store ({@link KeyManager.setIdentitySignerStore}).
  * `device-backup` is the copy held outside this app's keystore (Android Block
  * Store in Commons, see {@link KeyManager.setDeviceBackupStore}); it is the only
- * source that survives a wipe of the whole shared-UID keystore.
+ * source that survives "Clear storage" on Commons itself, or a reinstall.
  */
 export type IdentityRecoveryResult =
   | { recovered: true; source: 'backup' | 'shared' | 'device-backup'; publicKey: string }
   | { recovered: false; reason: 'not-lost' | 'no-sources' | 'mismatch' | 'unavailable' };
-
-/**
- * HKDF salt that domain-separates every identity-scoped seed produced by
- * {@link KeyManager.deriveScopedSeed}. Versioned so a future scheme change is a
- * new, non-colliding tag. The per-app domain (e.g. Peable's FairCoin wallet)
- * is carried by the caller's `info` string, not this salt.
- */
-const SCOPED_SEED_KDF_SALT = 'oxy-identity-scoped-seed-v1';
-
-/** UTF-8 encode an ASCII label to bytes (HKDF salt/info). */
-function utf8ToBytes(label: string): Uint8Array {
-  return new TextEncoder().encode(label);
-}
-
-/** Decode a hex string to bytes. Inverse of {@link uint8ArrayToHex}. */
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return out;
-}
 
 const STORAGE_KEYS = {
   PRIVATE_KEY: 'oxy_identity_private_key',
@@ -182,11 +174,9 @@ const STORAGE_KEYS = {
   BACKUP_PRIVATE_KEY: 'oxy_identity_backup_private_key',
   BACKUP_PUBLIC_KEY: 'oxy_identity_backup_public_key',
   BACKUP_TIMESTAMP: 'oxy_identity_backup_timestamp',
-  // Shared keys accessible across all Oxy apps (iOS Keychain Group / Android Account Manager)
+  // The cross-app identity in the iOS keychain access group (iOS only).
   SHARED_PRIVATE_KEY: 'oxy_shared_identity_private_key',
   SHARED_PUBLIC_KEY: 'oxy_shared_identity_public_key',
-  SHARED_SESSION_TOKEN: 'oxy_shared_session_token',
-  SHARED_SESSION_ID: 'oxy_shared_session_id',
 } as const;
 
 /**
@@ -297,12 +287,6 @@ type SlotMigrationResult =
 const IOS_KEYCHAIN_GROUP = 'group.so.oxy.shared';
 
 /**
- * Android Account Manager type for shared authentication
- * Used with sharedUserId to share sessions across apps
- */
-const ANDROID_ACCOUNT_TYPE = 'com.oxy.account';
-
-/**
  * Initialize React Native specific modules
  *
  * Delegates to `@oxy.so/protocol`'s `platform/crypto`, a per-platform module
@@ -343,6 +327,15 @@ function uint8ArrayToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+/** Decode a lowercase hex string to bytes. Inverse of {@link uint8ArrayToHex}. */
+function hexToBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
 }
 
 /**
@@ -423,6 +416,32 @@ export class KeyManager {
    */
   static setDeviceBackupStore(store: IdentityDeviceBackupStore | null): void {
     KeyManager.deviceBackupStore = store;
+  }
+
+  /**
+   * The native copy of the identity key that Commons' identity host signs with
+   * on Android. `null` in every other app and on iOS. See `./identitySigner`.
+   */
+  private static identitySignerStore: IdentitySignerStore | null = null;
+
+  /**
+   * Register (or, with `null`, unregister) the identity signer store. Call once
+   * at startup, before the first identity read, ONLY from Commons on Android:
+   * Commons is the one app that holds the identity there, and its identity host
+   * answers every other Oxy app from this copy.
+   *
+   * From then on every create, import, rotation and restore writes it, every
+   * delete clears it, {@link syncSharedIdentity} repairs it, and it is a rung of
+   * {@link attemptIdentityRecovery}.
+   */
+  static setIdentitySignerStore(store: IdentitySignerStore | null): void {
+    KeyManager.identitySignerStore = store;
+    KeyManager.invalidateSharedCache();
+  }
+
+  /** Whether this app registered an identity signer store (Commons on Android). */
+  static hasIdentitySignerStore(): boolean {
+    return KeyManager.identitySignerStore !== null;
   }
 
   /**
@@ -793,9 +812,10 @@ export class KeyManager {
   }
 
   /**
-   * Clear the cross-app shared identity slot (force-delete only) so a deleted
-   * identity cannot be resurrected via the recovery ladder's shared rung.
-   * Best-effort — the shared slot is a redundant convenience copy.
+   * Clear the iOS keychain-group copy of the identity (force-delete only) so a
+   * deleted identity cannot be resurrected via the recovery ladder's shared
+   * rung. Best-effort — the shared slot is a redundant convenience copy. The
+   * Android signer store is cleared on every delete, in {@link deleteIdentity}.
    */
   private static async _clearSharedSlot(
     store: Awaited<ReturnType<typeof initSecureStore>>,
@@ -805,18 +825,60 @@ export class KeyManager {
         const opts: OxySecureStoreOptions = { keychainAccessGroup: IOS_KEYCHAIN_GROUP };
         await store.deleteItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, opts);
         await store.deleteItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, opts);
-      } else if (isAndroid()) {
-        const bridge = await loadSharedIdentityBridge();
-        if (bridge) {
-          await bridge.clearShared();
-        } else {
-          await store.deleteItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY);
-          await store.deleteItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY);
-        }
       }
       KeyManager.invalidateSharedCache();
     } catch (error) {
       logger.warn('Failed to clear shared identity slot during force delete', { component: 'KeyManager' }, error);
+    }
+  }
+
+  /** Write the Android signer store, or throw when this app has none. @internal */
+  private static async _writeIdentitySigner(privateKey: string, publicKey: string): Promise<void> {
+    const signer = KeyManager.identitySignerStore;
+    if (!signer) {
+      throw new Error(
+        'On Android only Commons holds the Oxy identity; this app has no identity signer store.',
+      );
+    }
+    if (!(await signer.write(privateKey, publicKey))) {
+      throw new IdentityPersistError(`The identity signer store (${signer.name}) did not confirm the write.`);
+    }
+  }
+
+  /** Clear the Android signer store. Best-effort: never throws. @internal */
+  private static async _clearIdentitySigner(): Promise<void> {
+    const signer = KeyManager.identitySignerStore;
+    if (!signer) {
+      return;
+    }
+    try {
+      await signer.clear();
+    } catch (error) {
+      logger.warn(`Failed to clear the identity signer store (${signer.name})`, { component: 'KeyManager' }, error);
+    } finally {
+      KeyManager.invalidateSharedCache();
+    }
+  }
+
+  /**
+   * Mirror a durable identity into the Android signer store, so Commons'
+   * identity host answers for the key Commons now holds. Best-effort like the
+   * device backup: {@link syncSharedIdentity} repairs a failed write on the next
+   * launch. @internal
+   */
+  private static async _mirrorIdentitySigner(privateKey: string, publicKey: string): Promise<void> {
+    const signer = KeyManager.identitySignerStore;
+    if (!signer || !isAndroid()) {
+      return;
+    }
+    try {
+      if (!(await signer.write(privateKey, publicKey))) {
+        logger.warn(`The identity signer store (${signer.name}) did not confirm the write`, { component: 'KeyManager' });
+      }
+    } catch (error) {
+      logger.warn(`Failed to write the identity signer store (${signer.name})`, { component: 'KeyManager' }, error);
+    } finally {
+      KeyManager.invalidateSharedCache();
     }
   }
 
@@ -865,33 +927,38 @@ export class KeyManager {
   }
 
   // ==================== SHARED IDENTITY METHODS ====================
-  // These methods enable cross-app session sharing (like Google)
-  // iOS: Uses Keychain Access Groups
-  // Android: Uses Account Manager with shared user ID
+  // One Oxy identity across every Oxy app on a device.
+  //
+  // iOS: the keychain access group `group.so.oxy.shared`. Every Oxy app reads
+  //   the same keychain item, and no app can wipe another's keychain.
+  // Android: every app has its own UID, so nothing is shared through storage.
+  //   Commons is the ONLY holder of the private key. It keeps the identity
+  //   signer store (`setIdentitySignerStore`) for its identity host, and every
+  //   other app asks Commons over signature-protected IPC
+  //   (`loadCommonsIdentityBridge`) for the public key, challenge proofs and
+  //   scoped derivations. No method there returns the private key.
   // =================================================================
 
   /**
-   * Create a shared identity accessible across all Oxy apps
+   * Create a new shared identity.
    *
-   * iOS: Stores in shared keychain group (requires entitlement configuration)
-   * Android: Stores in Account Manager (requires sharedUserId in manifest)
-   *
-   * This enables true cross-app SSO - when user signs in to one Oxy app,
-   * they're automatically signed in to all other Oxy apps.
+   * iOS: stores a fresh key pair in the shared keychain group (requires the
+   * Keychain Sharing entitlement). Android: writes it to Commons' identity
+   * signer store, so it only works inside Commons.
    *
    * @returns Public key of the shared identity
-   * @throws Error if not on native platform or if sharing is not configured
+   * @throws on web, when iOS keychain sharing is not configured, or on Android
+   *         outside Commons
    */
   static async createSharedIdentity(): Promise<string> {
     if (isWebPlatform()) {
       throw new Error('Shared identity is only available on native platforms (iOS/Android).');
     }
 
-    const store = await initSecureStore();
     const { privateKey, publicKey } = await KeyManager.generateKeyPair();
 
     if (isIOS()) {
-      // iOS: Store in shared keychain group
+      const store = await initSecureStore();
       // Note: keychainAccessGroup requires Keychain Sharing capability in Xcode
       try {
         const privateOpts: OxySecureStoreOptions = {
@@ -910,20 +977,7 @@ export class KeyManager {
         );
       }
     } else if (isAndroid()) {
-      // Android: write through the cross-app bridge (`@oxy.so/expo-oxy-identity`)
-      // when present — it persists into Commons's hardware-backed
-      // EncryptedSharedPreferences behind a signature-protected ContentProvider,
-      // so same-key Oxy apps can read it. When the bridge is not linked, fall
-      // back to the package-private secure store (no cross-app sharing).
-      const bridge = await loadSharedIdentityBridge();
-      if (bridge) {
-        await bridge.putShared(privateKey, publicKey);
-      } else {
-        await store.setItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, privateKey, {
-          keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-        });
-        await store.setItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, publicKey);
-      }
+      await KeyManager._writeIdentitySigner(privateKey, publicKey);
     }
 
     // Update cache
@@ -938,7 +992,12 @@ export class KeyManager {
   }
 
   /**
-   * Get the shared public key (accessible across all Oxy apps)
+   * The public key of the device's shared Oxy identity.
+   *
+   * iOS: the keychain access group. Android: Commons' own signer store inside
+   * Commons, and everywhere else Commons' identity host (`describe`). This is
+   * the key a relying party signs in with, and the one Peable's social-receive
+   * watch window derives from.
    *
    * @returns Shared public key or null if no shared identity exists
    */
@@ -953,20 +1012,19 @@ export class KeyManager {
     }
 
     try {
-      const store = await initSecureStore();
       let publicKey: string | null = null;
 
       if (isIOS()) {
+        const store = await initSecureStore();
         const opts: OxySecureStoreOptions = { keychainAccessGroup: IOS_KEYCHAIN_GROUP };
         publicKey = await store.getItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, opts);
       } else if (isAndroid()) {
-        // Android reads through the cross-app bridge; when it is not linked, fall
-        // back to the package-private store the fallback write path used.
-        const bridge = await loadSharedIdentityBridge();
-        if (bridge) {
-          publicKey = (await bridge.getShared())?.publicKey ?? null;
+        const signer = KeyManager.identitySignerStore;
+        if (signer) {
+          publicKey = (await signer.read())?.publicKey ?? null;
         } else {
-          publicKey = await store.getItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY);
+          const bridge = await loadCommonsIdentityBridge();
+          publicKey = (await bridge?.describe())?.publicKey ?? null;
         }
       }
 
@@ -984,37 +1042,25 @@ export class KeyManager {
   }
 
   /**
-   * Get the shared private key (for signing operations)
+   * The shared private key, where this app may hold it: iOS only.
+   *
+   * On Android it is always `null`: the key never leaves Commons, and Commons'
+   * own code uses {@link getPrivateKey}. Use {@link deriveScopedSeed},
+   * {@link signSocialReceive} or `oxy.auth.signInWithCommonsIdentity()` instead,
+   * which work on both platforms.
    *
    * WARNING: Only use this for signing operations within the app.
    * The private key should NEVER be transmitted or exposed.
-   *
-   * @returns Shared private key or null if no shared identity exists
    */
   static async getSharedPrivateKey(): Promise<string | null> {
-    if (isWebPlatform()) {
+    if (isWebPlatform() || !isIOS()) {
       return null;
     }
 
     try {
       const store = await initSecureStore();
-      let privateKey: string | null = null;
-
-      if (isIOS()) {
-        const opts: OxySecureStoreOptions = { keychainAccessGroup: IOS_KEYCHAIN_GROUP };
-        privateKey = await store.getItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, opts);
-      } else if (isAndroid()) {
-        // Android reads through the cross-app bridge; when it is not linked, fall
-        // back to the package-private store the fallback write path used.
-        const bridge = await loadSharedIdentityBridge();
-        if (bridge) {
-          privateKey = (await bridge.getShared())?.privateKey ?? null;
-        } else {
-          privateKey = await store.getItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY);
-        }
-      }
-
-      return privateKey;
+      const opts: OxySecureStoreOptions = { keychainAccessGroup: IOS_KEYCHAIN_GROUP };
+      return await store.getItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, opts);
     } catch (error) {
       if (isDev()) {
         logger.warn('Failed to get shared private key', { component: 'KeyManager' }, error);
@@ -1026,18 +1072,18 @@ export class KeyManager {
   /**
    * Which identity key this device is actually acting as, per slot.
    *
-   * There are two slots and they can disagree. The shared slot is what every
-   * cross-app reader takes first — `deriveScopedSeed` (so: the FairCoin wallet
-   * Peable derives) and `getSharedPrivateKey` — while the primary slot is what
-   * signing and the server-facing identity use. A disagreement is invisible to
-   * both sides on its own, and it is money: a wallet derived from a stale
-   * shared key watches addresses that the key published in the DID will never
-   * produce, so payments land where the recipient cannot see them.
+   * There are two slots and they can disagree. The shared one is what every
+   * other Oxy app sees (the iOS keychain group; on Android, Commons' signer
+   * store), while the primary slot is what Commons signs with and publishes. A
+   * disagreement is invisible to both sides on its own, and it is money: a
+   * wallet derived from a stale key watches addresses that the key published in
+   * the DID will never produce, so payments land where the recipient cannot see
+   * them.
    *
-   * `activePublicKey` is the one money derives from — the same `shared ?? primary`
-   * order `deriveScopedSeed` uses, so a caller can compare it against the key
-   * published for the account and refuse to receive rather than watch the wrong
-   * addresses.
+   * `activePublicKey` is the one money derives from — the order
+   * {@link deriveScopedSeed} uses (iOS: shared, then primary; Android: primary,
+   * then Commons), so a caller can compare it against the key published for
+   * the account and refuse to receive rather than watch the wrong addresses.
    *
    * Public keys are canonicalized, so two encodings of the same key compare
    * equal. On web both slots are null and `inSync` is true: nothing is stored,
@@ -1058,7 +1104,7 @@ export class KeyManager {
     return {
       primaryPublicKey,
       sharedPublicKey,
-      activePublicKey: sharedPublicKey ?? primaryPublicKey,
+      activePublicKey: isAndroid() ? (primaryPublicKey ?? sharedPublicKey) : (sharedPublicKey ?? primaryPublicKey),
       // Only a real disagreement is out of sync. A device with just one slot
       // populated has nothing to contradict.
       inSync:
@@ -1067,9 +1113,8 @@ export class KeyManager {
   }
 
   /**
-   * Check if a shared identity exists (accessible across all Oxy apps)
-   *
-   * @returns True if shared identity exists, false otherwise
+   * Whether this device has a shared Oxy identity this app can use (iOS: the
+   * keychain group; Android: Commons holds one).
    */
   static async hasSharedIdentity(): Promise<boolean> {
     if (isWebPlatform()) {
@@ -1082,13 +1127,14 @@ export class KeyManager {
     }
 
     try {
-      const privateKey = await KeyManager.getSharedPrivateKey();
-      const hasShared = privateKey !== null;
+      const present = isIOS()
+        ? (await KeyManager.getSharedPrivateKey()) !== null
+        : (await KeyManager.getSharedPublicKey()) !== null;
 
       // Cache result
-      KeyManager.cachedHasSharedIdentity = hasShared;
+      KeyManager.cachedHasSharedIdentity = present;
 
-      return hasShared;
+      return present;
     } catch (error) {
       if (isDev()) {
         logger.warn('Failed to check shared identity', { component: 'KeyManager' }, error);
@@ -1099,12 +1145,8 @@ export class KeyManager {
   }
 
   /**
-   * Import an existing key pair as shared identity
-   *
-   * This is used when:
-   * 1. User signs in to a new Oxy app for the first time
-   * 2. User has existing identity on another Oxy app
-   * 3. We want to sync the identity across apps
+   * Put a key pair into the shared slot: the iOS keychain group, or on Android
+   * Commons' identity signer store (Commons only; it throws elsewhere).
    *
    * @param privateKey - Private key in hex format
    * @returns Public key
@@ -1114,7 +1156,6 @@ export class KeyManager {
       throw new Error('Shared identity import is only available on native platforms.');
     }
 
-    const store = await initSecureStore();
     // Canonicalize incoming key BEFORE storage so the stored value is always
     // in canonical 64-hex-char lowercase form going forward. Without this,
     // legacy short keys would derive a different public key on the read path.
@@ -1122,6 +1163,7 @@ export class KeyManager {
     const publicKey = deriveSecp256k1PublicKey(canonicalPrivate);
 
     if (isIOS()) {
+      const store = await initSecureStore();
       const privateOpts: OxySecureStoreOptions = {
         keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
         keychainAccessGroup: IOS_KEYCHAIN_GROUP,
@@ -1133,17 +1175,7 @@ export class KeyManager {
       };
       await store.setItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, publicKey, publicOpts);
     } else if (isAndroid()) {
-      // Android: write through the cross-app bridge when present; otherwise the
-      // package-private store (kept consistent with the read fallback).
-      const bridge = await loadSharedIdentityBridge();
-      if (bridge) {
-        await bridge.putShared(canonicalPrivate, publicKey);
-      } else {
-        await store.setItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, canonicalPrivate, {
-          keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-        });
-        await store.setItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, publicKey);
-      }
+      await KeyManager._writeIdentitySigner(canonicalPrivate, publicKey);
     }
 
     // Update cache
@@ -1158,140 +1190,27 @@ export class KeyManager {
   }
 
   /**
-   * Store session information in shared storage
-   *
-   * This allows all Oxy apps to access the same session without
-   * re-authenticating. When user signs in to one app, all apps
-   * get the session automatically.
-   *
-   * @param sessionId - Session ID from authentication
-   * @param accessToken - Access token for API calls
-   */
-  static async storeSharedSession(sessionId: string, accessToken: string): Promise<void> {
-    if (isWebPlatform()) {
-      return; // Not supported on web
-    }
-
-    try {
-      const store = await initSecureStore();
-
-      if (isIOS()) {
-        const sessionIdOpts: OxySecureStoreOptions = {
-          keychainAccessGroup: IOS_KEYCHAIN_GROUP,
-        };
-        await store.setItemAsync(STORAGE_KEYS.SHARED_SESSION_ID, sessionId, sessionIdOpts);
-
-        const tokenOpts: OxySecureStoreOptions = {
-          keychainAccessible: store.WHEN_UNLOCKED,
-          keychainAccessGroup: IOS_KEYCHAIN_GROUP,
-        };
-        await store.setItemAsync(STORAGE_KEYS.SHARED_SESSION_TOKEN, accessToken, tokenOpts);
-      } else if (isAndroid()) {
-        await store.setItemAsync(STORAGE_KEYS.SHARED_SESSION_ID, sessionId);
-        await store.setItemAsync(STORAGE_KEYS.SHARED_SESSION_TOKEN, accessToken);
-      }
-
-      if (isDev()) {
-        logger.debug('Shared session stored successfully', { component: 'KeyManager' });
-      }
-    } catch (error) {
-      if (isDev()) {
-        logger.error('Failed to store shared session', error, { component: 'KeyManager' });
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Get shared session information
-   *
-   * This allows any Oxy app to check if user is already signed in
-   * via another Oxy app. Enables instant cross-app SSO.
-   *
-   * @returns Session data or null if no shared session exists
-   */
-  static async getSharedSession(): Promise<{ sessionId: string; accessToken: string } | null> {
-    if (isWebPlatform()) {
-      return null;
-    }
-
-    try {
-      const store = await initSecureStore();
-      let sessionId: string | null = null;
-      let accessToken: string | null = null;
-
-      if (isIOS()) {
-        const opts: OxySecureStoreOptions = { keychainAccessGroup: IOS_KEYCHAIN_GROUP };
-        sessionId = await store.getItemAsync(STORAGE_KEYS.SHARED_SESSION_ID, opts);
-        accessToken = await store.getItemAsync(STORAGE_KEYS.SHARED_SESSION_TOKEN, opts);
-      } else if (isAndroid()) {
-        sessionId = await store.getItemAsync(STORAGE_KEYS.SHARED_SESSION_ID);
-        accessToken = await store.getItemAsync(STORAGE_KEYS.SHARED_SESSION_TOKEN);
-      }
-
-      if (!sessionId || !accessToken) {
-        return null;
-      }
-
-      return { sessionId, accessToken };
-    } catch (error) {
-      if (isDev()) {
-        logger.warn('Failed to get shared session', { component: 'KeyManager' }, error);
-      }
-      return null;
-    }
-  }
-
-  /**
-   * Clear shared session (on logout)
-   *
-   * This signs out the user from ALL Oxy apps simultaneously.
-   * Call this when user explicitly logs out.
-   */
-  static async clearSharedSession(): Promise<void> {
-    if (isWebPlatform()) {
-      return;
-    }
-
-    try {
-      const store = await initSecureStore();
-
-      if (isIOS()) {
-        const opts: OxySecureStoreOptions = { keychainAccessGroup: IOS_KEYCHAIN_GROUP };
-        await store.deleteItemAsync(STORAGE_KEYS.SHARED_SESSION_ID, opts);
-        await store.deleteItemAsync(STORAGE_KEYS.SHARED_SESSION_TOKEN, opts);
-      } else if (isAndroid()) {
-        await store.deleteItemAsync(STORAGE_KEYS.SHARED_SESSION_ID);
-        await store.deleteItemAsync(STORAGE_KEYS.SHARED_SESSION_TOKEN);
-      }
-
-      if (isDev()) {
-        logger.debug('Shared session cleared successfully', { component: 'KeyManager' });
-      }
-    } catch (error) {
-      if (isDev()) {
-        logger.error('Failed to clear shared session', error, { component: 'KeyManager' });
-      }
-    }
-  }
-
-  /**
    * Make the shared slot hold THIS device's identity key.
    *
-   * The shared slot is the one every Oxy app on the device reads, so it has to
-   * agree with the primary slot. This creates it when it is empty (the original
-   * migration, for apps that predate the shared identity) and repairs it when it
-   * holds a different key.
+   * The shared slot is what every other Oxy app on the device sees (the iOS
+   * keychain group; on Android, the signer store Commons' identity host signs
+   * with), so it has to agree with the primary slot. This fills it when it is
+   * empty and repairs it when it holds a different key. On Android it does
+   * anything only inside Commons, the one app with a signer store.
    *
    * @returns True when the shared slot ends up holding the device's key, false
-   *          when there is no identity to share.
+   *          when there is no identity to share or the write failed.
    */
   static async syncSharedIdentity(): Promise<boolean> {
     if (isWebPlatform()) {
       return false;
     }
+    if (isAndroid() && !KeyManager.identitySignerStore) {
+      return false;
+    }
 
     try {
+      KeyManager.invalidateSharedCache();
       const state = await KeyManager.getIdentityKeyState();
       if (state.sharedPublicKey !== null && (state.inSync || state.primaryPublicKey === null)) {
         return true;
@@ -1307,9 +1226,9 @@ export class KeyManager {
       await KeyManager.importSharedIdentity(privateKey);
 
       // A slot that held a DIFFERENT key is the dangerous case, so it is said
-      // out loud rather than debug-logged: until this write, cross-app readers
-      // (`deriveScopedSeed`, so Peable's wallet) were deriving from one key
-      // while signing and the server used another.
+      // out loud rather than debug-logged: until this write, other Oxy apps
+      // (`deriveScopedSeed`, so Peable's wallet) were served one key while
+      // signing and the server used another.
       if (state.sharedPublicKey !== null) {
         logger.warn(
           'Shared identity held a different key than this device: repaired it from the primary slot.',
@@ -1324,11 +1243,6 @@ export class KeyManager {
       }
       return false;
     }
-  }
-
-  /** @deprecated Renamed to {@link KeyManager.syncSharedIdentity}. */
-  static async migrateToSharedIdentity(): Promise<boolean> {
-    return KeyManager.syncSharedIdentity();
   }
 
   // ==================== END SHARED IDENTITY METHODS ====================
@@ -1562,6 +1476,11 @@ export class KeyManager {
     // identity change (create, import, rotation, restore) flows through here.
     // Best-effort like the marker: `ensureDeviceBackup` retries on next launch.
     await KeyManager._writeDeviceBackup(canonicalPrivate, canonicalPublic);
+
+    // Android, Commons only: the identity host signs for whatever key Commons
+    // holds, so it follows every identity change too. Best-effort;
+    // `syncSharedIdentity` repairs it on the next launch.
+    await KeyManager._mirrorIdentitySigner(canonicalPrivate, canonicalPublic);
   }
 
   /**
@@ -2355,6 +2274,10 @@ export class KeyManager {
     // launch. Best-effort, like the other recovery sources.
     await KeyManager._clearDeviceBackup();
 
+    // Same for the Android signer store: Commons' identity host must stop
+    // answering for a deleted identity, forced or not.
+    await KeyManager._clearIdentitySigner();
+
     // Clear the marker AFTER key deletion succeeds — a marker must never outlive
     // its identity (a leftover marker would route a truly-absent device to
     // `recovery` instead of `welcome`).
@@ -2614,11 +2537,12 @@ export class KeyManager {
    * marker.publicKey`, so a source holding a DIFFERENT account is SKIPPED, never
    * restored):
    *   1. the v2 backup slot (independent keychain key from the primary),
-   *   2. the cross-app shared slot (Android bridge `getShared` / iOS keychain
-   *      group) — the copy that survives a primary+backup `key_v1` death,
+   *   2. the cross-app shared slot (iOS keychain group; on Android, Commons'
+   *      identity signer store, {@link setIdentitySignerStore}) — a copy under
+   *      a different key than the primary and backup slots,
    *   3. the device backup ({@link setDeviceBackupStore}; Android Block Store in
-   *      Commons) — the only copy that survives a wipe of the whole shared-UID
-   *      Android Keystore, which takes rungs 1 and 2 with it (oxy#1388).
+   *      Commons) — the only copy that survives "Clear storage" on Commons or a
+   *      reinstall, which take rungs 1 and 2 with them.
    *
    * For an `absent` verdict (no keys AND no marker: this app's own data was
    * cleared, or it was reinstalled) only rung 3 applies: a device backup there
@@ -2767,11 +2691,23 @@ export class KeyManager {
     }
   }
 
-  /** Read the cross-app shared slot as a healthy candidate, or null. @internal */
+  /**
+   * Read the cross-app shared slot as a healthy candidate, or null: the iOS
+   * keychain group, or on Android Commons' own signer store (read in-process;
+   * Commons never gets it back over IPC). @internal
+   */
   private static async _readSharedCandidate(): Promise<{ privateKey: string; publicKey: string } | null> {
     try {
-      const privateKey = await KeyManager.getSharedPrivateKey();
-      const publicKey = await KeyManager.getSharedPublicKey();
+      let privateKey: string | null = null;
+      let publicKey: string | null = null;
+      if (isAndroid()) {
+        const pair = (await KeyManager.identitySignerStore?.read()) ?? null;
+        privateKey = pair?.privateKey ?? null;
+        publicKey = pair?.publicKey ?? null;
+      } else {
+        privateKey = await KeyManager.getSharedPrivateKey();
+        publicKey = await KeyManager.getSharedPublicKey();
+      }
       if (KeyManager._isHealthyPair(privateKey, publicKey) && privateKey && publicKey) {
         return { privateKey, publicKey };
       }
@@ -2877,37 +2813,78 @@ export class KeyManager {
   }
 
   /**
-   * Derive a 32-byte, domain-separated seed from the on-device Oxy identity
-   * private key via HKDF-SHA256, WITHOUT ever exposing the raw private key.
+   * Derive a 32-byte, domain-separated seed from the Oxy identity private key
+   * via HKDF-SHA256, WITHOUT ever exposing the raw private key.
    *
-   * The domain separation is carried by `info` (e.g. `"oxypay/faircoin/v1"`),
+   * The domain separation is carried by `info` (e.g. `"peable/faircoin/v1"`),
    * so distinct apps/purposes get independent seeds from the same identity.
-   * That legacy Peable tag is a cryptographic contract and must not be renamed:
-   * changing it would derive a different wallet for every existing user.
+   * The label is part of the derivation: changing it derives a different wallet.
    * The output is HKDF keying material, never the private key itself — a
    * consumer (e.g. Peable's FairCoin HD wallet) can feed it straight into
    * `HDKey.fromMasterSeed` and never touches the identity key.
    *
-   * Key source (native only): prefers the shared ecosystem identity written to
-   * `group.so.oxy.shared` (what a Relying Party like Peable reads), then falls
-   * back to this device's primary identity (Commons/Accounts). Both reproduce
-   * from the user's Oxy recovery phrase, so the derived seed is recoverable.
+   * Key source (native only):
+   * - iOS: the shared identity in `group.so.oxy.shared`, then this device's
+   *   primary identity.
+   * - Android: this app's own primary identity (Commons), else Commons computes
+   *   it over IPC. Commons allows each app only its own labels, so an app not on
+   *   its list gets `null`.
+   * Both reproduce from the user's Oxy recovery phrase, so the seed is
+   * recoverable, and the IPC answer is byte-identical to the local one.
    *
    * @param info Context/domain-binding label (distinct labels → independent seeds).
    * @returns 32 bytes of derived keying material, or `null` on web / when no
-   *          identity key is available on this device.
+   *          identity key is available to this app.
    */
   static async deriveScopedSeed(info: string): Promise<Uint8Array | null> {
     if (isWebPlatform()) {
       return null;
+    }
+    if (isAndroid()) {
+      const local = await KeyManager.getPrivateKey();
+      if (local) {
+        return deriveScopedSeedFromKey(local, info);
+      }
+      const bridge = await loadCommonsIdentityBridge();
+      const seed = (await bridge?.deriveScopedSeed(info)) ?? null;
+      return seed ? hexToBytes(seed) : null;
     }
     const privateKey =
       (await KeyManager.getSharedPrivateKey()) ?? (await KeyManager.getPrivateKey());
     if (!privateKey) {
       return null;
     }
-    const ikm = hexToBytes(KeyManager.canonicalPrivateKey(privateKey));
-    return hkdfSha256(ikm, utf8ToBytes(SCOPED_SEED_KDF_SALT), utf8ToBytes(info), 32);
+    return deriveScopedSeedFromKey(privateKey, info);
+  }
+
+  /**
+   * Sign a 32-byte digest (a transaction sighash, lowercase hex) with the
+   * identity's social-receive child key `index`: the non-hardened BIP32 child
+   * that `@fairco.in/core`'s `deriveSocialReceiveSpendingKey` derives. The
+   * signature is RFC 6979, low-S, DER hex; `publicKey` is the child's
+   * compressed public key for the scriptSig.
+   *
+   * Key source: as {@link deriveScopedSeed}. On Android outside Commons the
+   * signature comes from Commons, which allows it for the wallet app only.
+   *
+   * @returns the signature, or `null` on web / when no identity key is
+   *          available to this app.
+   */
+  static async signSocialReceive(index: number, digest: string): Promise<CommonsSocialReceiveSignature | null> {
+    if (isWebPlatform()) {
+      return null;
+    }
+    const local = isAndroid()
+      ? await KeyManager.getPrivateKey()
+      : ((await KeyManager.getSharedPrivateKey()) ?? (await KeyManager.getPrivateKey()));
+    if (local) {
+      return signSocialReceiveDigest(local, index, digest);
+    }
+    if (!isAndroid()) {
+      return null;
+    }
+    const bridge = await loadCommonsIdentityBridge();
+    return (await bridge?.signSocialReceive(index, digest)) ?? null;
   }
 
   /**

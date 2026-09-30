@@ -3,7 +3,7 @@
  * authentication resolution.
  *
  * On a fresh page load / app launch the SDK may have several ways to recover an
- * existing session (a persisted refresh-token family, a shared-keychain
+ * existing session (a persisted device secret, the device's shared
  * identity, a cross-domain boot-fragment return, ...). They must be attempted
  * in a deterministic order, and the FIRST one that yields a session wins —
  * every later step is skipped. This module encodes exactly that contract and

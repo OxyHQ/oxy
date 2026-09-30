@@ -43,7 +43,7 @@ import type {
 } from '@oxy.so/contracts';
 import type { OxyContext } from '../client/context';
 import type { PendingIdentityResult } from '../crypto/recoveryPhrase';
-import { isWeb } from '../utils/platform';
+import { isAndroid, isWeb } from '../utils/platform';
 import { logger } from '../logger';
 
 /** Short-TTL read cache for public identity reads. */
@@ -343,9 +343,10 @@ export class IdentityApi {
     //    must NOT throw and swallow the phrase — the caller needs it to re-import
     //    the now-live key (`localPersistFailed: true`).
     //
-    //    The SHARED slot is written FIRST, and that order is load-bearing: every
-    //    cross-app reader takes the shared slot before the primary
-    //    (`deriveScopedSeed`, which is where Peable's FairCoin wallet comes from).
+    //    The SHARED slot is written FIRST, and that order is load-bearing: it is
+    //    what every other Oxy app is served (iOS: the keychain group; Android:
+    //    the signer store Commons' identity host answers from), including
+    //    `deriveScopedSeed`, which is where Peable's FairCoin wallet comes from.
     //    Leaving the replaced key there was silent money loss — payers derive the
     //    recipient's address from the key in the DID (now the new one) while the
     //    recipient's wallet still watches addresses from the old one. Shared first
@@ -354,7 +355,10 @@ export class IdentityApi {
     let localPersistFailed = false;
     if (!isWeb()) {
       try {
-        if (await KeyManager.hasSharedIdentity()) {
+        const holdsSharedSlot = isAndroid()
+          ? KeyManager.hasIdentitySignerStore()
+          : await KeyManager.hasSharedIdentity();
+        if (holdsSharedSlot) {
           await KeyManager.importSharedIdentity(pending.privateKey);
         }
         await KeyManager.importKeyPair(pending.privateKey, { overwrite: true });

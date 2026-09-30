@@ -60,7 +60,7 @@ jest.mock('@oxy.so/protocol', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     loadSecureStore: async () => require('expo-secure-store'),
     loadAsyncStorage: async () => ({ default: asyncStorage }),
-    loadSharedIdentityBridge: async () => null,
+    loadCommonsIdentityBridge: async () => null,
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     loadNodeCrypto: async () => require('node:crypto'),
     // eslint-disable-next-line @typescript-eslint/no-require-imports

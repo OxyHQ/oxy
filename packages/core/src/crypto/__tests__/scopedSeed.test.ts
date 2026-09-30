@@ -38,11 +38,13 @@ jest.mock('@oxy.so/protocol', () => ({
   loadExpoCrypto: async () => require('expo-crypto'),
   loadSecureStore: async () => require('expo-secure-store'),
   loadNodeCrypto: async () => require('node:crypto'),
-  loadSharedIdentityBridge: async () => null,
+  loadCommonsIdentityBridge: async () => null,
 }));
 
 const FIXED_PRIV = 'aa'.repeat(32);
 const EXPECTED_FAIR = '4b90d900a11b0a1737ed643db3446e5f28035d86f1a4fda92474ea8ab152adf5';
+// Peable's wallet label today (`PEABLE_SEED_INFO` in Peable).
+const EXPECTED_PEABLE = '3282e7b8585d3de14fc8856debc352b7b238eccd5c861ec33c92a443857e6040';
 const EXPECTED_OTHER = 'cdedf1f076b0f4766c769e55bc1e90c5bf44d8630f6e5fb147615ee7c330c905';
 const toHex = (b: Uint8Array): string => Buffer.from(b).toString('hex');
 
@@ -67,6 +69,12 @@ describe('KeyManager.deriveScopedSeed', () => {
     if (!seed) throw new Error('expected a seed');
     expect(seed).toHaveLength(32);
     expect(toHex(seed)).toBe(EXPECTED_FAIR);
+  });
+
+  it('derives the pinned Peable wallet seed (`peable/faircoin/v1`)', async () => {
+    const seed = await KeyManager.deriveScopedSeed('peable/faircoin/v1');
+    if (!seed) throw new Error('expected a seed');
+    expect(toHex(seed)).toBe(EXPECTED_PEABLE);
   });
 
   it('is deterministic (same identity + info → identical seed)', async () => {
