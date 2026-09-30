@@ -217,6 +217,24 @@ function signEnvelope(
   return `${KAANA_SIGNATURE_VERSION}=${signature.toString('base64')}`;
 }
 
+/**
+ * The three edge signature headers over `body`, for a caller outside this module
+ * that sends the bytes itself — the realtime client signs the FIRST FRAME of a
+ * WebSocket with exactly the inference domain the envelope uses
+ * (`services/kaanaRealtimeClient.ts`). One signer, so the two cannot drift.
+ */
+export function kaanaSignatureHeaders(
+  config: Pick<KaanaDataPlaneConfig, 'keyId' | 'privateKey'>,
+  body: Buffer,
+  timestampMillis: number = Date.now()
+): Record<string, string> {
+  return {
+    [KAANA_KEY_ID_HEADER]: config.keyId,
+    [KAANA_TIMESTAMP_HEADER]: String(timestampMillis),
+    [KAANA_SIGNATURE_HEADER]: signEnvelope(config.privateKey, config.keyId, timestampMillis, body),
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /*  The client                                                                */
 /* -------------------------------------------------------------------------- */
@@ -489,6 +507,7 @@ async function foldStream(
   frames: AsyncIterable<KaanaStreamFrame>
 ): Promise<KaanaCompletion> {
   const texts = new Map<number, string>();
+  const transcripts = new Map<number, string>();
   const audio = new Map<number, { mediaType: string; chunks: Buffer[] }>();
   let audioBytes = 0;
   const toolCalls = new Map<string, { name: string; args: string }>();
@@ -531,6 +550,11 @@ async function foldStream(
         case 'delta':
           if (event.channel === 'output_text') {
             texts.set(event.outputIndex, (texts.get(event.outputIndex) ?? '') + event.text);
+          } else if (event.channel === 'output_audio_transcript') {
+            transcripts.set(
+              event.outputIndex,
+              (transcripts.get(event.outputIndex) ?? '') + event.text
+            );
           }
           break;
         case 'audio': {
@@ -633,9 +657,11 @@ async function foldStream(
     );
   }
 
+  const folded = foldedOutput(texts, toolCalls, audio, transcripts);
   return {
     ...(generationId === undefined ? {} : { generationId }),
-    output: foldedOutput(texts, toolCalls, audio),
+    output: folded.output,
+    ...(transcripts.size === 0 ? {} : { outputAudioTranscripts: folded.transcripts }),
     finishReason,
     usage: report,
     routeSwitchEvents,
@@ -672,21 +698,24 @@ function usageEvidence(
 function foldedOutput(
   texts: ReadonlyMap<number, string>,
   toolCalls: ReadonlyMap<string, { name: string; args: string }>,
-  audio: ReadonlyMap<number, { mediaType: string; chunks: Buffer[] }>
-): InferenceMessage[] {
+  audio: ReadonlyMap<number, { mediaType: string; chunks: Buffer[] }>,
+  transcripts: ReadonlyMap<number, string>
+): { output: InferenceMessage[]; transcripts: (string | null)[] } {
   const calls: InferenceToolCall[] = [...toolCalls.entries()].map(([id, call]) => ({
     id,
     name: call.name,
     arguments: call.args,
   }));
 
-  const indexes = [...new Set([...texts.keys(), ...audio.keys()])].sort((left, right) => left - right);
+  const indexes = [...new Set([...texts.keys(), ...audio.keys(), ...transcripts.keys()])].sort(
+    (left, right) => left - right
+  );
   if (indexes.length === 0) {
-    if (calls.length === 0) return [];
-    return [{ role: 'assistant', content: [], toolCalls: calls }];
+    if (calls.length === 0) return { output: [], transcripts: [] };
+    return { output: [{ role: 'assistant', content: [], toolCalls: calls }], transcripts: [null] };
   }
 
-  return indexes.map((index, position) => {
+  const output = indexes.map((index, position) => {
     const text = texts.get(index);
     const clip = audio.get(index);
     return {
@@ -702,6 +731,7 @@ function foldedOutput(
       ...(position === 0 && calls.length > 0 ? { toolCalls: calls } : {}),
     };
   });
+  return { output, transcripts: indexes.map((index) => transcripts.get(index) ?? null) };
 }
 
 /* -------------------------------------------------------------------------- */

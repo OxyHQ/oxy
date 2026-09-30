@@ -62,7 +62,9 @@ import billingRoutes from './routes/billing';
 import accountBillingRoutes from './routes/accountBilling';
 import costCenterRoutes from './routes/costCenters';
 import inferenceCatalogueRoutes from './routes/inferenceCatalogue';
-import inferenceEdgeRoutes from './routes/inferenceEdge';
+import inferenceEdgeRoutes, { configuredKaanaClient } from './routes/inferenceEdge';
+import { attachRealtimeEdge } from './routes/inferenceRealtime';
+import { createKaanaRealtimeClient } from './services/kaanaRealtimeClient';
 import { startKaanaCatalogueSyncSchedule } from './services/kaanaCatalogueSync.service';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
 import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
@@ -315,6 +317,16 @@ app.use(createCorsMiddleware());
 
 // Create server for local development and testing
 const server = http.createServer(app);
+
+// `GET /v1/realtime` — the inference edge's realtime sessions (OxyHQ/Kaana#90).
+// A WebSocket upgrade on its own path, beside Socket.IO's: each listener handles
+// only its own path. Configured from the same Kaana binding as the `/v1` router,
+// and refusing with a typed `service_unavailable` when there is none.
+const realtimeKaanaClient = createKaanaRealtimeClient();
+attachRealtimeEdge(server, {
+  ...(configuredKaanaClient === undefined ? {} : { kaanaClient: configuredKaanaClient }),
+  ...(realtimeKaanaClient === undefined ? {} : { kaanaRealtimeClient: realtimeKaanaClient }),
+});
 
 // Setup Socket.IO with centralized CORS config
 const io = new SocketIOServer(server, {

@@ -272,7 +272,12 @@ wholesale cost can reach you by being nested one level deeper than anyone looked
 - **Capabilities** — input/output modalities, tools, parallel tool calls,
   structured output, JSON mode, reasoning, the `reasoningEfforts` a request may
   name (`low`/`medium`/`high`; empty means no effort control), streaming, prompt
-  caching, max context and max output tokens.
+  caching, max context and max output tokens — and, from contract set 3.2.0,
+  the request dialects routes can execute (`apiFormats`) and the realtime
+  sessions it holds (`realtime`), present only when declared. An undeclared
+  model is served under the rules that predate the declaration and is never
+  authorized for spoken output or a realtime session; see
+  [realtime.md](./realtime.md).
 - **`releasedAt`** — when the upstream provider reports it published the model;
   absent when no provider reported one. Never an Oxy or Kaana observation time.
 - **License** — SPDX id where one exists, whether commercial use is permitted,

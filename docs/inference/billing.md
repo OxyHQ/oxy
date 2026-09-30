@@ -155,6 +155,15 @@ disjoint numbers your receipt was priced from. Either view reconstructs the
 other; adding the OpenAI numbers to the Oxy ones does not, and is the one
 arithmetic that will disagree with your bill.
 
+**Audio tokens are three more siblings** (contract set 3.2.0):
+`audio_input_tokens`, `cached_audio_input_tokens` and `audio_output_tokens`,
+priced apart from text because they cost several times more. They nest back the
+same way on the chat surface (`prompt_tokens_details.audio_tokens`,
+`cached_tokens_details.audio_tokens`, `completion_tokens_details.audio_tokens`)
+and have their own `X-Oxy-Usage-Audio-*` headers. A request that can meter them
+is held at the dearest unit of each partition and refused before the hold when a
+route leaves any of them unpriced — see [realtime.md](./realtime.md).
+
 ## Price versions and snapshots
 
 Every priced route carries a price version, and every settled receipt stores a

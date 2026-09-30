@@ -43,7 +43,8 @@ renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
 
 | Capability | Where | Reachable by a caller? |
 |---|---|---|
-| The public inference edge | `packages/api/src/routes/inferenceEdge.ts` | Mounted — `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id`. Reachability is controlled by `INFERENCE_EDGE_AUDIENCE`; configured Kaana is the canonical execution path |
+| The public inference edge | `packages/api/src/routes/inferenceEdge.ts` | Mounted — `POST /v1/responses`, `POST /v1/chat/completions` (text, and spoken output on models that declare it), `GET /v1/generations/:id`. Reachability is controlled by `INFERENCE_EDGE_AUDIENCE`; configured Kaana is the canonical execution path |
+| Realtime sessions | `packages/api/src/routes/inferenceRealtime.ts` | `GET /v1/realtime` WebSocket, conversation sessions only, on models whose catalogue declares them — [realtime.md](./realtime.md) |
 | `oxy_sk_*` machine credentials — create, rotate, revoke, audit | `packages/api/src/routes/applications.ts`, `.../utils/machineCredentialToken.ts` | Yes |
 | The `oxy_sk_*` bearer middleware | `packages/api/src/middleware/machineCredential.ts` | Mounted on the edge with its per-credential and per-application limiters, and **the lane is shut by default** (`INFERENCE_MACHINE_CREDENTIAL_AUTH`) |
 | Native service tokens (`clientId + clientSecret` → 1h JWT) | `POST /auth/service-token` | Yes |
@@ -306,6 +307,7 @@ gives the two reasons.
 | [byok.md](./byok.md) | Kaana PostgreSQL/KMS custody, provider connections, exact-ID mutations, same-operation recovery and closure fencing |
 | [billing.md](./billing.md) | Reserve → settle → refund, exact amounts, price snapshots, and why dashboard usage is eventually consistent while a bill is not |
 | [streaming.md](./streaming.md) | Streaming, cancellation, retries and idempotency |
+| [realtime.md](./realtime.md) | Audio chat on chat completions, realtime sessions over `GET /v1/realtime`, capability declarations and how both are held and settled |
 | [data-policy.md](./data-policy.md) | What is retained, for how long, and where — plus what a route does with your payload |
 | [deprecation.md](./deprecation.md) | The deprecation policy, why no date is published, and what will need one |
 | [migration.md](./migration.md) | The scope migration, `oxy_dk_*`, `alia_sk_*`, and the retired `alia-*` model names |

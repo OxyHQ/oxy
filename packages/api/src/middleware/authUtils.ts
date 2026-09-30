@@ -48,7 +48,7 @@ export interface AuthenticatedRequest extends Request {
 /**
  * Extract bearer token from the Authorization header.
  */
-export function extractTokenFromRequest(req: Request): string | undefined {
+export function extractTokenFromRequest(req: Pick<Request, 'headers'>): string | undefined {
   const authHeader = req.headers.authorization;
   
   if (authHeader && authHeader.startsWith('Bearer ')) {
