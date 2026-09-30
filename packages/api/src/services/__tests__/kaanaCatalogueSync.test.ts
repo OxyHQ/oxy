@@ -38,6 +38,11 @@ import {
 } from '../inferenceCatalogue.service';
 import type { KaanaCatalogueReader } from '../httpKaanaClient';
 import {
+  assessInferenceRoutingReadiness,
+  earliestInferenceRoutingEvidenceExpiry,
+  readInferenceRoutingReadinessRows,
+} from '../inferenceRoutingReadiness.service';
+import {
   SYNCED_LICENSE,
   blockCatalogueModel,
   normalizeDecimal,
@@ -392,6 +397,19 @@ describe('syncing into the catalogue', () => {
       status: 'resolved',
       route: { deploymentId: world.route('alpha').deploymentId, reasoningEfforts: ['low', 'medium', 'high'] },
     });
+
+    // ...and the readiness census the daily expiry monitor runs accepts it at a
+    // seven-day horizon: a price score has no expiry cliff (issue #1379).
+    const census = (await readInferenceRoutingReadinessRows()).filter(
+      (row) => row.deploymentId === world.route('alpha').deploymentId
+    );
+    expect(census).toHaveLength(1);
+    expect(census[0].synced).toBe(true);
+    const now = new Date();
+    expect(
+      assessInferenceRoutingReadiness(census, now, new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000))
+    ).toEqual({ status: 'ready' });
+    expect(earliestInferenceRoutingEvidenceExpiry(census)).toBeUndefined();
 
     // ...and it is listed internally with its efforts and release date, never publicly.
     const internal = (await listCatalogueForViewer(INTERNAL_VIEWER)).find(

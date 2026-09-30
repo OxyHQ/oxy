@@ -58,12 +58,12 @@ async function main(): Promise<void> {
         )
         .join(', ');
       process.stderr.write(
-        `Kaana routing readiness FAILED: ${assessment.routes.length} selectable route(s) lack an exact deploymentId, an explicit requests unit price, a complete score, the current priceVersionId, or live non-future evidence. First identities: ${identities}\n`
+        `Kaana routing readiness FAILED: ${assessment.routes.length} selectable route(s) lack an exact deploymentId, an explicit requests unit price, the current priceVersionId, a price score, or (reviewed routes) all four scores with live non-future evidence; a synced price-only route also fails when it shares a model revision with a measured route. First identities: ${identities}\n`
       );
       process.exitCode = 1;
     } else {
       process.stdout.write(
-        'Kaana routing readiness passed: every selectable route has an exact deploymentId, an explicit requests unit price, all four explicit scores, the current priceVersionId and evidence covering INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS. Run this command periodically and alert on any failure before evidence expiry.\n'
+        'Kaana routing readiness passed: every selectable route has an exact deploymentId, an explicit requests unit price, the current priceVersionId and a price score; every measured route also has all four scores with evidence covering INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS. Run this command periodically and alert on any failure before evidence expiry.\n'
       );
     }
   } finally {
