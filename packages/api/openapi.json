@@ -20214,6 +20214,54 @@
                             "type": "integer",
                             "exclusiveMinimum": 0,
                             "maximum": 9007199254740991
+                          },
+                          "apiFormats": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "responses",
+                                "chat_completions",
+                                "embeddings",
+                                "images_generations",
+                                "audio_transcriptions",
+                                "audio_speech",
+                                "rerank",
+                                "batches"
+                              ]
+                            },
+                            "minItems": 1
+                          },
+                          "realtime": {
+                            "type": "object",
+                            "properties": {
+                              "transports": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "websocket"
+                                  ]
+                                },
+                                "minItems": 1
+                              },
+                              "sessionKinds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "conversation",
+                                    "transcription",
+                                    "translation"
+                                  ]
+                                },
+                                "minItems": 1
+                              }
+                            },
+                            "required": [
+                              "transports",
+                              "sessionKinds"
+                            ]
                           }
                         },
                         "required": [
@@ -24939,7 +24987,10 @@
                             "audio_output_milliseconds",
                             "video_milliseconds",
                             "characters",
-                            "embeddings"
+                            "embeddings",
+                            "audio_input_tokens",
+                            "cached_audio_input_tokens",
+                            "audio_output_tokens"
                           ]
                         },
                         "amount": {
@@ -24963,7 +25014,7 @@
                         "currency"
                       ]
                     },
-                    "maxItems": 11,
+                    "maxItems": 14,
                     "default": []
                   },
                   "maxPricePerRequest": {
@@ -25369,7 +25420,10 @@
                             "audio_output_milliseconds",
                             "video_milliseconds",
                             "characters",
-                            "embeddings"
+                            "embeddings",
+                            "audio_input_tokens",
+                            "cached_audio_input_tokens",
+                            "audio_output_tokens"
                           ]
                         },
                         "amount": {
@@ -25393,7 +25447,7 @@
                         "currency"
                       ]
                     },
-                    "maxItems": 11,
+                    "maxItems": 14,
                     "default": []
                   },
                   "maxPricePerRequest": {
@@ -26106,7 +26160,10 @@
                             "audio_output_milliseconds",
                             "video_milliseconds",
                             "characters",
-                            "embeddings"
+                            "embeddings",
+                            "audio_input_tokens",
+                            "cached_audio_input_tokens",
+                            "audio_output_tokens"
                           ]
                         },
                         "amount": {
@@ -26130,7 +26187,7 @@
                         "currency"
                       ]
                     },
-                    "maxItems": 11,
+                    "maxItems": 14,
                     "default": []
                   },
                   "maxPricePerRequest": {
@@ -27345,6 +27402,54 @@
                                 "type": "integer",
                                 "exclusiveMinimum": 0,
                                 "maximum": 9007199254740991
+                              },
+                              "apiFormats": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "responses",
+                                    "chat_completions",
+                                    "embeddings",
+                                    "images_generations",
+                                    "audio_transcriptions",
+                                    "audio_speech",
+                                    "rerank",
+                                    "batches"
+                                  ]
+                                },
+                                "minItems": 1
+                              },
+                              "realtime": {
+                                "type": "object",
+                                "properties": {
+                                  "transports": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "websocket"
+                                      ]
+                                    },
+                                    "minItems": 1
+                                  },
+                                  "sessionKinds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "conversation",
+                                        "transcription",
+                                        "translation"
+                                      ]
+                                    },
+                                    "minItems": 1
+                                  }
+                                },
+                                "required": [
+                                  "transports",
+                                  "sessionKinds"
+                                ]
                               }
                             },
                             "required": [
@@ -27587,7 +27692,10 @@
                                         "audio_output_milliseconds",
                                         "video_milliseconds",
                                         "characters",
-                                        "embeddings"
+                                        "embeddings",
+                                        "audio_input_tokens",
+                                        "cached_audio_input_tokens",
+                                        "audio_output_tokens"
                                       ]
                                     },
                                     "amount": {
@@ -28094,6 +28202,54 @@
                                 "type": "integer",
                                 "exclusiveMinimum": 0,
                                 "maximum": 9007199254740991
+                              },
+                              "apiFormats": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "responses",
+                                    "chat_completions",
+                                    "embeddings",
+                                    "images_generations",
+                                    "audio_transcriptions",
+                                    "audio_speech",
+                                    "rerank",
+                                    "batches"
+                                  ]
+                                },
+                                "minItems": 1
+                              },
+                              "realtime": {
+                                "type": "object",
+                                "properties": {
+                                  "transports": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "websocket"
+                                      ]
+                                    },
+                                    "minItems": 1
+                                  },
+                                  "sessionKinds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "conversation",
+                                        "transcription",
+                                        "translation"
+                                      ]
+                                    },
+                                    "minItems": 1
+                                  }
+                                },
+                                "required": [
+                                  "transports",
+                                  "sessionKinds"
+                                ]
                               }
                             },
                             "required": [
@@ -28336,7 +28492,10 @@
                                         "audio_output_milliseconds",
                                         "video_milliseconds",
                                         "characters",
-                                        "embeddings"
+                                        "embeddings",
+                                        "audio_input_tokens",
+                                        "cached_audio_input_tokens",
+                                        "audio_output_tokens"
                                       ]
                                     },
                                     "amount": {
@@ -28729,6 +28888,54 @@
                               "type": "integer",
                               "exclusiveMinimum": 0,
                               "maximum": 9007199254740991
+                            },
+                            "apiFormats": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "responses",
+                                  "chat_completions",
+                                  "embeddings",
+                                  "images_generations",
+                                  "audio_transcriptions",
+                                  "audio_speech",
+                                  "rerank",
+                                  "batches"
+                                ]
+                              },
+                              "minItems": 1
+                            },
+                            "realtime": {
+                              "type": "object",
+                              "properties": {
+                                "transports": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "websocket"
+                                    ]
+                                  },
+                                  "minItems": 1
+                                },
+                                "sessionKinds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "conversation",
+                                      "transcription",
+                                      "translation"
+                                    ]
+                                  },
+                                  "minItems": 1
+                                }
+                              },
+                              "required": [
+                                "transports",
+                                "sessionKinds"
+                              ]
                             }
                           },
                           "required": [
@@ -28971,7 +29178,10 @@
                                       "audio_output_milliseconds",
                                       "video_milliseconds",
                                       "characters",
-                                      "embeddings"
+                                      "embeddings",
+                                      "audio_input_tokens",
+                                      "cached_audio_input_tokens",
+                                      "audio_output_tokens"
                                     ]
                                   },
                                   "amount": {
@@ -36561,6 +36771,54 @@
                                 "type": "integer",
                                 "exclusiveMinimum": 0,
                                 "maximum": 9007199254740991
+                              },
+                              "apiFormats": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "responses",
+                                    "chat_completions",
+                                    "embeddings",
+                                    "images_generations",
+                                    "audio_transcriptions",
+                                    "audio_speech",
+                                    "rerank",
+                                    "batches"
+                                  ]
+                                },
+                                "minItems": 1
+                              },
+                              "realtime": {
+                                "type": "object",
+                                "properties": {
+                                  "transports": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "websocket"
+                                      ]
+                                    },
+                                    "minItems": 1
+                                  },
+                                  "sessionKinds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "conversation",
+                                        "transcription",
+                                        "translation"
+                                      ]
+                                    },
+                                    "minItems": 1
+                                  }
+                                },
+                                "required": [
+                                  "transports",
+                                  "sessionKinds"
+                                ]
                               }
                             },
                             "required": [
@@ -36803,7 +37061,10 @@
                                         "audio_output_milliseconds",
                                         "video_milliseconds",
                                         "characters",
-                                        "embeddings"
+                                        "embeddings",
+                                        "audio_input_tokens",
+                                        "cached_audio_input_tokens",
+                                        "audio_output_tokens"
                                       ]
                                     },
                                     "amount": {
@@ -37310,6 +37571,54 @@
                                 "type": "integer",
                                 "exclusiveMinimum": 0,
                                 "maximum": 9007199254740991
+                              },
+                              "apiFormats": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "responses",
+                                    "chat_completions",
+                                    "embeddings",
+                                    "images_generations",
+                                    "audio_transcriptions",
+                                    "audio_speech",
+                                    "rerank",
+                                    "batches"
+                                  ]
+                                },
+                                "minItems": 1
+                              },
+                              "realtime": {
+                                "type": "object",
+                                "properties": {
+                                  "transports": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "websocket"
+                                      ]
+                                    },
+                                    "minItems": 1
+                                  },
+                                  "sessionKinds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "conversation",
+                                        "transcription",
+                                        "translation"
+                                      ]
+                                    },
+                                    "minItems": 1
+                                  }
+                                },
+                                "required": [
+                                  "transports",
+                                  "sessionKinds"
+                                ]
                               }
                             },
                             "required": [
@@ -37552,7 +37861,10 @@
                                         "audio_output_milliseconds",
                                         "video_milliseconds",
                                         "characters",
-                                        "embeddings"
+                                        "embeddings",
+                                        "audio_input_tokens",
+                                        "cached_audio_input_tokens",
+                                        "audio_output_tokens"
                                       ]
                                     },
                                     "amount": {
@@ -37945,6 +38257,54 @@
                               "type": "integer",
                               "exclusiveMinimum": 0,
                               "maximum": 9007199254740991
+                            },
+                            "apiFormats": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "responses",
+                                  "chat_completions",
+                                  "embeddings",
+                                  "images_generations",
+                                  "audio_transcriptions",
+                                  "audio_speech",
+                                  "rerank",
+                                  "batches"
+                                ]
+                              },
+                              "minItems": 1
+                            },
+                            "realtime": {
+                              "type": "object",
+                              "properties": {
+                                "transports": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "websocket"
+                                    ]
+                                  },
+                                  "minItems": 1
+                                },
+                                "sessionKinds": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "conversation",
+                                      "transcription",
+                                      "translation"
+                                    ]
+                                  },
+                                  "minItems": 1
+                                }
+                              },
+                              "required": [
+                                "transports",
+                                "sessionKinds"
+                              ]
                             }
                           },
                           "required": [
@@ -38187,7 +38547,10 @@
                                       "audio_output_milliseconds",
                                       "video_milliseconds",
                                       "characters",
-                                      "embeddings"
+                                      "embeddings",
+                                      "audio_input_tokens",
+                                      "cached_audio_input_tokens",
+                                      "audio_output_tokens"
                                     ]
                                   },
                                   "amount": {
@@ -39160,7 +39523,10 @@
                               "audio_output_milliseconds",
                               "video_milliseconds",
                               "characters",
-                              "embeddings"
+                              "embeddings",
+                              "audio_input_tokens",
+                              "cached_audio_input_tokens",
+                              "audio_output_tokens"
                             ]
                           },
                           "quantity": {
