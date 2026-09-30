@@ -168,10 +168,36 @@ export async function resolveLiveAgencyServicePrincipal(
   };
 }
 
+/**
+ * The live coordinator a capability execution authorization or ticket names.
+ *
+ * The pair it is asked about is what `GET /capabilities/service-identity`
+ * handed the coordinator, which is {@link resolveLiveAgencyServicePrincipal}'s
+ * answer — so an ATTESTED coordinator (ADR 0026, a `wl_…` handle) must re-read
+ * through the same binding arm that answered it. Without that arm every
+ * execution authorization an attested Alia asked for was refused
+ * `coordinator_not_active_or_authorized`, and every native app tool it offered
+ * failed at the first call. The handle is also the materialised attribution
+ * row's id, so it satisfies the `coordinator_credential_id` foreign key.
+ *
+ * A workload ROW is still never read through `loadPrincipal`: that requires
+ * `type = 'service'`, and a handle is routed to the binding before it gets there.
+ */
 export async function resolveLiveAgencyCoordinator(
   applicationId: string,
   credentialId: string,
 ): Promise<LiveAgencyServicePrincipal | null> {
+  if (isWorkloadAttestationHandle(credentialId)) {
+    const binding = await resolveLiveAgencyWorkloadByHandle(applicationId, credentialId);
+    if (binding === null) return null;
+    return {
+      applicationId: binding.applicationId,
+      credentialId: binding.handle,
+      ownerAccountId: binding.ownerAccountId,
+      scopes: binding.scopes,
+      capabilities: binding.capabilities,
+    };
+  }
   const loaded = await loadPrincipal(applicationId, credentialId);
   if (!loaded) return null;
   return {
@@ -188,10 +214,10 @@ export async function resolveLiveAgencyCoordinator(
  *
  * `LiveAgencyServicePrincipal`'s counterpart for ADR 0026: same application,
  * trust, owner and closure-fence questions, asked of the row that actually
- * authorises an attested caller. A workload has no `ApplicationCredential`, so
- * `resolveLiveAgencyCoordinator` can answer nothing about it and must not be
- * asked a question about some other credential of the same application instead
- * — that would check a row the caller does not hold and call it a ceiling.
+ * authorises an attested caller. A workload has no service `ApplicationCredential`,
+ * so its liveness is never read from some other credential of the same
+ * application — that would check a row the caller does not hold and call it a
+ * ceiling. `resolveLiveAgencyCoordinator` routes a handle here instead.
  */
 export interface LiveAgencyWorkloadPrincipal {
   readonly applicationId: string;
