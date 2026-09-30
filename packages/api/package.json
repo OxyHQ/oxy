@@ -112,7 +112,7 @@
     "jsonwebtoken": "^9.0.2",
     "mailparser": "^3.9.23",
     "multer": "^2.3.0",
-    "nodemailer": "^10.0.1",
+    "nodemailer": "^10.0.10",
     "parse5": "7.3.0",
     "pino": "catalog:",
     "postgres": "catalog:",
