@@ -2,7 +2,8 @@
  * `storage_object_deletions` — S3 objects owed a delete because the account
  * that uploaded them was deleted (OxyHQ/Mention#1178), or because one asset was
  * deleted (`reason = 'file.deleted'`: `DELETE /assets/:id`, the federated media
- * delete, cache eviction).
+ * delete, cache eviction), or because one asset moved to the other key spelling
+ * on a visibility change (`reason = 'file.relocated'`).
  *
  * The per-asset deletes used to remove the objects inline, after tombstoning the
  * row, with no record: a failure left the bytes public and un-invalidated
@@ -38,9 +39,10 @@
  * holds every rendition AND the HLS segments no `file_variants` row lists).
  *
  * `sha256` is the content hash the target belongs to. Storage is content-
- * addressed and upload dedup is global, so the worker refuses to delete a
- * target a LIVE asset with the same hash still uses (someone re-uploaded the
- * same bytes after the deletion) and records `outcome = 'retained_shared'`.
+ * addressed and shared by every owner's row for the same bytes, so the worker
+ * refuses to delete a SPELLING of a target (the base key, or its `public/`
+ * copy) that a LIVE asset with the same hash still uses, and records
+ * `outcome = 'retained_shared'` when it kept one.
  *
  * ## `account_id` carries no foreign key, deliberately
  *
@@ -58,14 +60,21 @@ import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
  * Why the objects are owed a delete; a closed set so a new one is a decision.
  * `account.deleted`: every asset of a deleted account. `file.deleted`: one asset
  * was tombstoned; `account_id` is then its owner, or `system:<namespace>` for a
- * system-owned asset.
+ * system-owned asset. `file.relocated`: one asset's visibility changed and its
+ * objects were copied to the other spelling (`public/` or not); the spelling it
+ * left is owed a delete unless another live row still uses it — rows share
+ * content-addressed storage, so the old key may well be somebody else's.
  */
-export const STORAGE_OBJECT_DELETION_REASONS = ['account.deleted', 'file.deleted'] as const;
+export const STORAGE_OBJECT_DELETION_REASONS = ['account.deleted', 'file.deleted', 'file.relocated'] as const;
 
 /** `object`: one key. `prefix`: every key under a variant directory. */
 export const STORAGE_OBJECT_DELETION_KINDS = ['object', 'prefix'] as const;
 
-/** `deleted`: the objects are gone. `retained_shared`: a live asset with the same content still uses them. */
+/**
+ * `deleted`: the objects are gone. `retained_shared`: a live asset with the same
+ * content still uses at least one spelling of the target, which was kept (a
+ * spelling nobody uses is deleted either way).
+ */
 export const STORAGE_OBJECT_DELETION_OUTCOMES = ['deleted', 'retained_shared'] as const;
 
 export type StorageObjectDeletionKind = (typeof STORAGE_OBJECT_DELETION_KINDS)[number];

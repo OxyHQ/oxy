@@ -81,7 +81,13 @@ async function createUser(prefix: string) {
 
 async function createAsset(
   owner: { ownerUserId: string } | { systemOwner: '__federation_media_cache__' },
-  options: { sha256?: string; storageKey?: string; variants?: string[]; status?: 'active' | 'trash' | 'deleted' } = {},
+  options: {
+    sha256?: string;
+    storageKey?: string;
+    variants?: string[];
+    status?: 'active' | 'trash' | 'deleted';
+    visibility?: 'private' | 'public' | 'unlisted';
+  } = {},
 ) {
   const sha256 = options.sha256 ?? sha();
   const storageKey = options.storageKey ?? `content/2026/09/${sha256.slice(0, 2)}/${sha256}.jpg`;
@@ -94,6 +100,7 @@ async function createAsset(
       ext: 'jpg',
       storageKey,
       status: options.status ?? 'active',
+      ...(options.visibility ? { visibility: options.visibility } : {}),
       ...('ownerUserId' in owner
         ? { ownerUserId: owner.ownerUserId }
         : { systemOwner: owner.systemOwner, purpose: 'federation-media-cache' as const }),
@@ -381,17 +388,96 @@ describe('runStorageDeletionBatch', () => {
 
   it('keeps bytes a live asset with the same content still uses, and says so', async () => {
     const { person, asset } = await deletedAccountWith();
-    // Somebody uploads the same bytes after the deletion and is given the same key.
-    const reuploader = await createUser('reuploader');
-    await createAsset({ ownerUserId: reuploader }, { sha256: asset.sha256, storageKey: `public/${asset.storageKey}` });
+    // Another owner holds the same bytes on the same key (rows are per owner,
+    // storage is shared).
+    const other = await createUser('sharer');
+    await createAsset({ ownerUserId: other }, { sha256: asset.sha256, storageKey: asset.storageKey });
     const bucket = new FakeBucket();
-    bucket.put(`public/${asset.storageKey}`);
+    bucket.put(asset.storageKey);
 
     const result = await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket });
 
     expect(result).toMatchObject({ claimed: 1, deleted: 0, retainedShared: 1 });
-    expect(bucket.deleted).toEqual([]);
+    expect(bucket.objects.has(asset.storageKey)).toBe(true);
     expect((await rowsFor(person))[0]).toMatchObject({ outcome: 'retained_shared' });
+  });
+
+  describe('the shared-content guard is per SPELLING', () => {
+    it('keeps the `public/` copy a live public row uses, and deletes the bare key nobody uses', async () => {
+      const { asset } = await deletedAccountWith();
+      const other = await createUser('public-sharer');
+      await createAsset(
+        { ownerUserId: other },
+        { sha256: asset.sha256, storageKey: `public/${asset.storageKey}`, visibility: 'public' },
+      );
+      const bucket = new FakeBucket();
+      bucket.put(asset.storageKey, `public/${asset.storageKey}`);
+
+      const result = await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket });
+
+      expect(result).toMatchObject({ claimed: 1, retainedShared: 1 });
+      expect(bucket.deleted).toEqual([asset.storageKey]);
+      expect([...bucket.objects]).toEqual([`public/${asset.storageKey}`]);
+    });
+
+    it('does not let a PRIVATE row on the bare key keep a deleted owner\'s PUBLIC copy on the CDN', async () => {
+      const { person, asset } = await deletedAccountWith();
+      const other = await createUser('private-sharer');
+      await createAsset({ ownerUserId: other }, { sha256: asset.sha256, storageKey: asset.storageKey, visibility: 'private' });
+      const bucket = new FakeBucket();
+      bucket.put(asset.storageKey, `public/${asset.storageKey}`);
+
+      await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket });
+
+      expect(bucket.deleted).toEqual([`public/${asset.storageKey}`]);
+      expect([...bucket.objects]).toEqual([asset.storageKey]);
+      expect((await rowsFor(person))[0]).toMatchObject({ outcome: 'retained_shared' });
+    });
+
+    it('keeps the backfilled `public/` copy of a legacy PUBLIC row kept at the bare key', async () => {
+      const { asset } = await deletedAccountWith();
+      const other = await createUser('legacy-public');
+      await createAsset({ ownerUserId: other }, { sha256: asset.sha256, storageKey: asset.storageKey, visibility: 'public' });
+      const bucket = new FakeBucket();
+      bucket.put(asset.storageKey, `public/${asset.storageKey}`);
+
+      await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket });
+
+      expect(bucket.deleted).toEqual([]);
+    });
+
+    it('keeps a variant directory only in the spelling a live row\'s visibility writes to', async () => {
+      const { asset, directory } = await deletedAccountWith({ variants: true });
+      const other = await createUser('private-variants');
+      await createAsset({ ownerUserId: other }, { sha256: asset.sha256, storageKey: asset.storageKey, visibility: 'private' });
+      const bucket = new FakeBucket();
+      bucket.put(`${directory}thumb.webp`, `public/${directory}hls_master.m3u8`, `public/${directory}seg_0.ts`);
+
+      await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket });
+
+      // The private row keeps the bare directory; nobody public is left, so the
+      // CDN directory (and its HLS segments) goes.
+      expect(bucket.objects.has(`${directory}thumb.webp`)).toBe(true);
+      expect(bucket.objects.has(`public/${directory}hls_master.m3u8`)).toBe(false);
+      expect(bucket.objects.has(`public/${directory}seg_0.ts`)).toBe(false);
+    });
+
+    it('keeps a variant directory spelling a live row\'s recorded rendition sits under, whatever its visibility', async () => {
+      const { asset, directory } = await deletedAccountWith({ variants: true });
+      const other = await createUser('legacy-variants');
+      // A public row whose renditions predate the `public/` spelling.
+      await createAsset(
+        { ownerUserId: other },
+        { sha256: asset.sha256, storageKey: `public/${asset.storageKey}`, visibility: 'public', variants: [`${directory}thumb.webp`] },
+      );
+      const bucket = new FakeBucket();
+      bucket.put(`${directory}thumb.webp`, `public/${directory}hls_master.m3u8`);
+
+      await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket });
+
+      expect(bucket.objects.has(`${directory}thumb.webp`)).toBe(true);
+      expect(bucket.objects.has(`public/${directory}hls_master.m3u8`)).toBe(true);
+    });
   });
 
   it('retries a failure with backoff instead of giving up, then converges', async () => {

@@ -1,9 +1,9 @@
 /**
  * The tombstone → purge race, against a REAL Postgres.
  *
- * Deleting an asset tombstones its row (freeing its content hash) and removes
- * the objects afterwards. A fresh upload of the same bytes in that gap takes the
- * hash and — storage being content-addressed — the SAME keys; if the purge then
+ * Deleting an asset tombstones its row and removes the objects afterwards. A
+ * fresh upload of the same bytes in that gap — by anyone: rows are per owner,
+ * storage is shared — takes the SAME content-addressed keys; if the purge then
  * deletes them, the new upload is a permanent 404.
  *
  * The purge re-checks for a live row and deletes only under the content-hash
@@ -168,12 +168,12 @@ describe('the purge honours the lock and re-checks under it', () => {
       locked.open();
       await release.opened;
       await tx.insert(files).values({
-        sha256, size: 1, mime: 'image/png', ext: 'png', storageKey: `public/${target}`, ownerUserId: owner, status: 'active',
+        sha256, size: 1, mime: 'image/png', ext: 'png', storageKey: target, ownerUserId: owner, status: 'active',
       });
     }));
     await reach(locked.opened, upload, 'the upload took the lock');
 
-    const deleteObject = jest.fn((): Promise<void> => Promise.resolve());
+    const deleteObject = jest.fn((_key: string): Promise<void> => Promise.resolve());
     const store: StorageDeletionStore = { deleteObject, listKeys: async () => [] };
     const purge = track(runStorageDeletionBatch({ ownerId: 'race', ids: [ledgerId], store }));
 
@@ -185,7 +185,10 @@ describe('the purge honours the lock and re-checks under it', () => {
     const result = await purge;
 
     expect(result).toMatchObject({ claimed: 1, retainedShared: 1, deleted: 0 });
-    expect(deleteObject).not.toHaveBeenCalled();
+    // The key the new (private) row uses is kept; only the CDN spelling nobody
+    // uses goes.
+    expect(deleteObject).not.toHaveBeenCalledWith(target);
+    expect(deleteObject.mock.calls).toEqual([[`public/${target}`]]);
   });
 });
 
@@ -226,7 +229,9 @@ describe('every path that creates a live row waits for a purge in progress', () 
         events.push(`upload-wrote:${to}`);
       }),
       deleteFile: jest.fn(async () => undefined),
-      fileExists: jest.fn(async () => true),
+      // The purge under way is removing the only copy: nothing is stored, so
+      // the upload must write its bytes — after the purge.
+      fileExists: jest.fn(async () => false),
       getPresignedUploadUrl: jest.fn(async () => 'https://signed.example/put'),
       listFiles: jest.fn(async () => []),
     };

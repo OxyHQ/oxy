@@ -479,7 +479,8 @@ export function emitSessionUpdate(userId: string, payload: any) {
 // reconciliation that dropped the legacy global `sha256_1` index and recreated
 // the live-rows-only partial unique on every start — and CRASHED the API on a
 // fresh empty database, because `.indexes()` on a collection that does not exist
-// yet throws and this `.catch` exits the process. `files_sha256_live_key` is
+// yet throws and this `.catch` exits the process. The live-row uniques
+// (`files_sha256_owner_user_live_key`, `files_sha256_system_owner_live_key`) are
 // declared in the schema and created by a migration, which is what index
 // reconciliation is for; there is nothing left for a boot hook to do.
 

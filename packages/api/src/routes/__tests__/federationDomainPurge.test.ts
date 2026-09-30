@@ -245,8 +245,8 @@ async function seedFile(
   const [row] = await getDb()
     .insert(files)
     .values({
-      // `files_sha256_live_key` admits ONE live row per hash across the whole
-      // table, and suites run in parallel against one database.
+      // Rows for one hash share storage across the whole table, and suites
+      // run in parallel against one database.
       sha256: randomBytes(32).toString('hex'),
       size,
       mime: 'image/png',

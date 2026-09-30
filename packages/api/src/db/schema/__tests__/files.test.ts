@@ -1,7 +1,8 @@
 /**
  * `files` and its two child tables, against a REAL Postgres.
  *
- * This file owns the schema's FIRST partial unique index. `CONVENTIONS.md`
+ * This file owns the schema's FIRST partial unique indexes (per owner, per
+ * content hash). `CONVENTIONS.md`
  * documents the pattern — Mongo `partialFilterExpression` → drizzle
  * `uniqueIndex().where(...)` — and every later table that needs one will copy
  * what is verified here, so the checks are on the BEHAVIOUR rather than on the
@@ -90,10 +91,14 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('files — the partial unique index on sha256', () => {
-  it('refuses a second LIVE row with the same content hash', async () => {
+describe('files — the per-owner partial uniques on sha256', () => {
+  const OWNER_KEY = 'files_sha256_owner_user_live_key';
+  const SYSTEM_KEY = 'files_sha256_system_owner_live_key';
+
+  it('refuses a second LIVE row with the same content hash for the SAME owner', async () => {
     const sha256 = unique();
-    await insertFile({ sha256, status: 'active' });
+    const ownerUserId = await owner();
+    await insertFile({ sha256, ownerUserId, status: 'active' });
 
     const error = await rejection(
       getDb()
@@ -104,7 +109,7 @@ describe('files — the partial unique index on sha256', () => {
           mime: 'image/png',
           ext: 'png',
           storageKey: `assets/${unique()}`,
-          ownerUserId: await owner(),
+          ownerUserId,
           status: 'trash',
         })
     );
@@ -112,47 +117,75 @@ describe('files — the partial unique index on sha256', () => {
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
     // Naming the index is the point: a bare "some unique failed" would pass
     // just as well if the constraint that fired were the primary key.
-    expect(pgConstraint(error)).toBe('files_sha256_live_key');
+    expect(pgConstraint(error)).toBe(OWNER_KEY);
   });
 
-  it('treats `active` and `trash` as one live namespace', async () => {
+  it('lets a DIFFERENT owner hold its own live row for the same content', async () => {
+    // The whole change: identical bytes uploaded by two accounts are two rows,
+    // one each — never one row handed to both. They may share a storage key.
+    const sha256 = unique();
+    const storageKey = `assets/${unique()}`;
+    const first = await insertFile({ sha256, status: 'active', storageKey });
+    const second = await insertFile({ sha256, status: 'active', storageKey });
+
+    expect(second).not.toBe(first);
+    const rows = await getDb().select({ id: files.id }).from(files).where(eq(files.sha256, sha256));
+    expect(rows).toHaveLength(2);
+  });
+
+  it('treats `active` and `trash` as one live namespace per owner', async () => {
     // The predicate covers BOTH live statuses, so a trashed row still holds the
-    // hash — a `where status = 'active'` predicate would let this through and
-    // hand two rows the same content claim.
+    // owner's claim — a `where status = 'active'` predicate would let this
+    // through and give one owner two rows for the same content.
     const sha256 = unique();
-    await insertFile({ sha256, status: 'trash' });
+    const ownerUserId = await owner();
+    await insertFile({ sha256, ownerUserId, status: 'trash' });
 
-    const error = await rejection(
-      getDb()
-        .insert(files)
-        .values({
-          sha256,
-          size: 1,
-          mime: 'image/png',
-          ext: 'png',
-          storageKey: `assets/${unique()}`,
-          ownerUserId: await owner(),
-          status: 'active',
-        })
-    );
+    const error = await rejection(insertFile({ sha256, ownerUserId, status: 'active' }));
 
-    expect(pgConstraint(error)).toBe('files_sha256_live_key');
+    expect(pgConstraint(error)).toBe(OWNER_KEY);
   });
 
-  it('lets a tombstone coexist with a live row of the same content', async () => {
-    // The REASON the index is partial. A `deleted` row must not reserve its
-    // bytes forever and block a later upload of identical content by another
-    // user or by a federation cache flow.
+  it('gives each SYSTEM namespace one live row per content hash', async () => {
+    // A system namespace is an owner too. The cache namespace keeps one row per
+    // hash (its dedupe), while another namespace or an account may hold the
+    // same bytes alongside it.
     const sha256 = unique();
-    await insertFile({ sha256, status: 'deleted' });
+    const systemRow = (systemOwner: '__federation__' | '__federation_media_cache__') =>
+      getDb().insert(files).values({
+        sha256,
+        size: 1,
+        mime: 'image/png',
+        ext: 'png',
+        storageKey: `assets/${unique()}`,
+        ownerUserId: null,
+        systemOwner,
+        status: 'active',
+      });
 
+    await systemRow('__federation_media_cache__');
+    await expect(systemRow('__federation__')).resolves.toBeDefined();
     await expect(insertFile({ sha256, status: 'active' })).resolves.toBeDefined();
+
+    const error = await rejection(systemRow('__federation_media_cache__'));
+    expect(pgConstraint(error)).toBe(SYSTEM_KEY);
   });
 
-  it('lets any number of tombstones share one content hash', async () => {
+  it('lets a tombstone coexist with a live row of the same content and owner', async () => {
+    // The REASON the index is partial. A `deleted` row must not reserve its
+    // bytes forever and block a later upload of identical content.
     const sha256 = unique();
-    await insertFile({ sha256, status: 'deleted' });
-    await insertFile({ sha256, status: 'deleted' });
+    const ownerUserId = await owner();
+    await insertFile({ sha256, ownerUserId, status: 'deleted' });
+
+    await expect(insertFile({ sha256, ownerUserId, status: 'active' })).resolves.toBeDefined();
+  });
+
+  it('lets any number of tombstones share one content hash and owner', async () => {
+    const sha256 = unique();
+    const ownerUserId = await owner();
+    await insertFile({ sha256, ownerUserId, status: 'deleted' });
+    await insertFile({ sha256, ownerUserId, status: 'deleted' });
 
     const rows = await getDb()
       .select({ id: files.id })
@@ -162,40 +195,55 @@ describe('files — the partial unique index on sha256', () => {
     expect(rows).toHaveLength(2);
   });
 
-  it('releases the hash when a live row becomes a tombstone', async () => {
+  it('releases the owner\'s claim when its live row becomes a tombstone', async () => {
     const sha256 = unique();
-    const id = await insertFile({ sha256, status: 'active' });
+    const ownerUserId = await owner();
+    const id = await insertFile({ sha256, ownerUserId, status: 'active' });
 
     await getDb().update(files).set({ status: 'deleted' }).where(eq(files.id, id));
 
-    await expect(insertFile({ sha256, status: 'active' })).resolves.toBeDefined();
+    await expect(insertFile({ sha256, ownerUserId, status: 'active' })).resolves.toBeDefined();
   });
 
-  it('refuses to resurrect a tombstone whose hash is now live', async () => {
+  it('refuses to resurrect a tombstone whose owner holds the hash live again', async () => {
     // The other direction, which a plain unique index cannot express at all:
     // the constraint must be re-checked when a row ENTERS the predicate.
     const sha256 = unique();
-    const tombstone = await insertFile({ sha256, status: 'deleted' });
-    await insertFile({ sha256, status: 'active' });
+    const ownerUserId = await owner();
+    const tombstone = await insertFile({ sha256, ownerUserId, status: 'deleted' });
+    await insertFile({ sha256, ownerUserId, status: 'active' });
 
     const error = await rejection(
       getDb().update(files).set({ status: 'active' }).where(eq(files.id, tombstone))
     );
 
-    expect(pgConstraint(error)).toBe('files_sha256_live_key');
+    expect(pgConstraint(error)).toBe(OWNER_KEY);
   });
 
-  it('derives its predicate from FILE_LIVE_STATUSES, not a second copy', async () => {
+  it('no longer carries the global one-live-row-per-hash unique', async () => {
+    const [row] = await getDb().execute<{ count: number }>(sql`
+      select count(*)::int as count from pg_indexes
+      where schemaname = 'public' and indexname = 'files_sha256_live_key'
+    `);
+    expect(row.count).toBe(0);
+  });
+
+  it.each([
+    [OWNER_KEY, 'owner_user_id'],
+    [SYSTEM_KEY, 'system_owner'],
+  ])('%s derives its predicate from FILE_LIVE_STATUSES and keys on (sha256, %s)', async (indexName, column) => {
     // The index predicate and the constant must be one statement. Reading the
     // catalogue is what proves the derivation happened rather than a matching
     // literal being typed twice and later diverging.
     const [row] = await getDb().execute<{ indexdef: string }>(sql`
       select indexdef from pg_indexes
-      where schemaname = 'public' and indexname = 'files_sha256_live_key'
+      where schemaname = 'public' and indexname = ${indexName}
     `);
 
     expect(row).toBeDefined();
     expect(row.indexdef).toContain('CREATE UNIQUE INDEX');
+    expect(row.indexdef).toContain(`(sha256, ${column})`);
+    expect(row.indexdef).toContain(`${column} IS NOT NULL`);
     for (const status of FILE_LIVE_STATUSES) {
       expect(row.indexdef).toContain(`'${status}'`);
     }

@@ -970,8 +970,8 @@ describe('POST /assets/service/by-sha256', () => {
   const SHA_UNKNOWN = 'c'.repeat(64);
   const CDN_URL = `https://cloud.oxy.so/content/2026/06/aa/${'a'.repeat(8)}.png`;
 
-  function postBySha(sha256s: string[]): Promise<JsonResponse> {
-    const payload = Buffer.from(JSON.stringify({ sha256s }));
+  function postBySha(sha256s: string[], extra: Record<string, unknown> = {}): Promise<JsonResponse> {
+    const payload = Buffer.from(JSON.stringify({ sha256s, ...extra }));
     return requestRaw(
       server,
       'POST',
@@ -1032,7 +1032,8 @@ describe('POST /assets/service/by-sha256', () => {
     expect(res.status).toBe(200);
     expect(mockServiceAuthMiddleware).toHaveBeenCalledTimes(1);
     expect(mockAuthMiddleware).not.toHaveBeenCalled();
-    expect(mockFindActiveFilesBySha256).toHaveBeenCalledWith([SHA_PUBLIC, SHA_PRIVATE]);
+    // Legacy, unscoped: no owner is passed through.
+    expect(mockFindActiveFilesBySha256).toHaveBeenCalledWith([SHA_PUBLIC, SHA_PRIVATE], { ownerUserId: undefined });
 
     const data = res.body.data as AssetMetadataBySha[];
     expect(Array.isArray(data)).toBe(true);
@@ -1060,6 +1061,16 @@ describe('POST /assets/service/by-sha256', () => {
     expect(Object.keys(bySha[SHA_PUBLIC]).sort()).toEqual(['id', 'mime', 'sha256', 'size', 'status', 'url']);
   });
 
+
+  it('passes ownerUserId through, so each hash resolves to THAT account\'s own row', async () => {
+    grantFilesReadOnce();
+    mockFindActiveFilesBySha256.mockResolvedValueOnce([]);
+
+    const res = await postBySha([SHA_PUBLIC], { ownerUserId: 'owner-42' });
+
+    expect(res.status).toBe(200);
+    expect(mockFindActiveFilesBySha256).toHaveBeenCalledWith([SHA_PUBLIC], { ownerUserId: 'owner-42' });
+  });
   it('does not 500 the batch when one hash CDN resolution throws', async () => {
     grantFilesReadOnce();
     const publicFile = {

@@ -183,6 +183,9 @@ export const assetsBySha256BodySchema = z.object({
     .array(sha256Hex)
     .min(1, 'sha256s must not be empty')
     .max(MAX_ASSETS_BY_SHA256, `Cannot request more than ${MAX_ASSETS_BY_SHA256} hashes at once`),
+  // Resolve each hash to THIS account's own live row (rows are per owner).
+  // Omitted: the legacy answer, the oldest live row of any owner.
+  ownerUserId: z.string().trim().min(1).max(64).optional(),
 });
 
 // POST /assets/:id/link — attach a file to an app entity.

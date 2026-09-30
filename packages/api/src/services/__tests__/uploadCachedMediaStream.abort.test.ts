@@ -17,10 +17,10 @@
  * in-memory object. Both are now read back out of the database, so what is
  * checked is the row a victim actually still owns.
  *
- * Every case streams its OWN random bytes. `files_sha256_live_key` allows one
- * live row per content hash TABLE-WIDE, and Jest runs suites in parallel against
- * one database, so a shared or merely file-local-unique body would collide with
- * another case's fixture rather than exercising the path under test.
+ * Rows are per OWNER: the dedup only ever reuses the uploader's own row, and a
+ * different owner uploading the same bytes gets its own row sharing the stored
+ * object. Every case streams its OWN random bytes, so no case's hash collides
+ * with another case's fixture.
  */
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
@@ -241,12 +241,13 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
     const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
     const { service } = buildAssetService({ uploadStream, deleteFile });
 
-    // Dedup short-circuit: an existing live row for this content lets the
-    // success path resolve without creating anything new.
+    // Dedup short-circuit: the cache namespace's existing live row for this
+    // content lets the success path resolve without creating anything new.
     const content = uniqueBody();
     const existing = await insertFile({
       sha256: hashOf(content),
-      ownerUserId: await insertUser(),
+      ownerUserId: null,
+      systemOwner: '__federation_media_cache__',
       purpose: 'federation-media-cache',
     });
 
@@ -301,7 +302,8 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
     const content = uniqueBody();
     const existing = await insertFile({
       sha256: hashOf(content),
-      ownerUserId: await insertUser(),
+      ownerUserId: null,
+      systemOwner: '__federation_media_cache__',
       purpose: 'federation-media-cache',
     });
 
@@ -429,19 +431,29 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
     source.destroy();
   });
 
-  it('rejects durable federated dedupe against an ordinary private user file without mutating it', async () => {
+  /** Stream `content` through one of the service upload paths, letting the fake S3 upload finish. */
+  async function streamThrough(
+    fake: FakeS3Input,
+    start: (service: AssetService, source: Readable) => Promise<unknown>,
+    content: Buffer,
+  ) {
     let resolveUpload: ((info: FileInfo) => void) | undefined;
     let capturedTempKey: string | undefined;
+    const uploadStream = jest.fn((key: string, _body: Readable): Promise<FileInfo> => {
+      capturedTempKey = key;
+      return new Promise<FileInfo>((resolve) => { resolveUpload = resolve; });
+    });
+    const built = buildAssetService({ uploadStream, ...fake });
+    const source = bodySource(content);
+    const promise = start(built.service, source);
+    await new Promise((resolve) => setImmediate(resolve));
+    resolveUpload?.({ key: capturedTempKey || 'incoming/x', size: 4, contentType: 'image/png' } as FileInfo);
+    const value = await promise;
+    source.destroy();
+    return { value, fake: built.fake, tempKey: capturedTempKey };
+  }
 
-    const uploadStream = jest.fn(
-      (key: string, _body: Readable): Promise<FileInfo> => {
-        capturedTempKey = key;
-        return new Promise<FileInfo>((resolve) => { resolveUpload = resolve; });
-      }
-    );
-    const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
-    const { service } = buildAssetService({ uploadStream, deleteFile });
-
+  it('gives a federated owner its OWN row instead of another user\'s private file, which stays untouched', async () => {
     const content = uniqueBody();
     const existing = await insertFile({
       sha256: hashOf(content),
@@ -450,89 +462,58 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
       visibility: 'private',
       metadata: { ownerOnly: true },
     });
+    const federatedOwner = await insertUser();
 
-    const source = bodySource(content);
-
-    const promise = service.uploadFederatedMediaStream(
-      source,
-      'image/png',
-      'federated-post.png',
-      CACHE_MAX_BYTES,
-      await insertUser(),
-      'app-mention',
-      { sourceUri: 'https://remote.example/media/1' }
+    const { value, fake, tempKey } = await streamThrough(
+      { fileExists: jest.fn(() => Promise.resolve(false)) },
+      (service, source) => service.uploadFederatedMediaStream(
+        source, 'image/png', 'federated-post.png', CACHE_MAX_BYTES, federatedOwner, 'app-mention',
+        { sourceUri: 'https://remote.example/media/1' },
+      ),
+      content,
     );
 
-    await new Promise((resolve) => setImmediate(resolve));
-    resolveUpload?.({ key: capturedTempKey || 'federation/incoming/x', size: 4, contentType: 'image/png' } as FileInfo);
-
-    await expect(promise).rejects.toMatchObject({ statusCode: 409 });
-
-    // The victim's stored row is untouched — read back, not remembered.
+    const result = value as { file: typeof files.$inferSelect; deduplicated: boolean };
+    expect(result.deduplicated).toBe(false);
+    expect(result.file.id).not.toBe(existing.id);
+    expect(result.file).toMatchObject({ ownerUserId: federatedOwner, visibility: 'public', purpose: 'user' });
+    // Same bytes, the PUBLIC spelling of the existing key — written from this
+    // upload, since the private owner's object is not CDN-reachable.
+    expect(result.file.storageKey).toBe(`public/${existing.storageKey}`);
+    expect(fake.copyFile).toHaveBeenCalledWith(tempKey, `public/${existing.storageKey}`);
     expect(await readFile(existing.id)).toEqual(existing);
-    expect(deleteFile).toHaveBeenCalledWith(capturedTempKey);
-
-    source.destroy();
   });
 
-  it('rejects durable user-media dedupe against another user file without mutating it', async () => {
-    let resolveUpload: ((info: FileInfo) => void) | undefined;
-    let capturedTempKey: string | undefined;
-
-    const uploadStream = jest.fn(
-      (key: string, _body: Readable): Promise<FileInfo> => {
-        capturedTempKey = key;
-        return new Promise<FileInfo>((resolve) => { resolveUpload = resolve; });
-      }
-    );
-    const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
-    const { service } = buildAssetService({ uploadStream, deleteFile });
-
+  it('gives a user-media owner its OWN row sharing another user\'s stored object, which stays untouched', async () => {
     const content = uniqueBody();
     const existing = await insertFile({
       sha256: hashOf(content),
       ownerUserId: await insertUser(),
       purpose: 'user',
-      visibility: 'private',
+      visibility: 'public',
+      storageKey: `public/content/${hashOf(content)}.png`,
       metadata: { ownerOnly: true },
     });
+    const uploader = await insertUser();
 
-    const source = bodySource(content);
-
-    const promise = service.uploadUserMediaStream(
-      source,
-      'image/png',
-      'mention-post.png',
-      CACHE_MAX_BYTES,
-      await insertUser(),
-      { source: 'mention-service' }
+    const { value, fake, tempKey } = await streamThrough(
+      {},
+      (service, source) => service.uploadUserMediaStream(
+        source, 'image/png', 'mention-post.png', CACHE_MAX_BYTES, uploader, { source: 'mention-service' },
+      ),
+      content,
     );
 
-    await new Promise((resolve) => setImmediate(resolve));
-    resolveUpload?.({ key: capturedTempKey || 'user/incoming/x', size: 4, contentType: 'image/png' } as FileInfo);
-
-    await expect(promise).rejects.toMatchObject({ statusCode: 409 });
-
+    const file = value as typeof files.$inferSelect;
+    expect(file.id).not.toBe(existing.id);
+    expect(file).toMatchObject({ ownerUserId: uploader, storageKey: existing.storageKey });
+    // The object already exists: shared, not copied again.
+    expect(fake.copyFile).not.toHaveBeenCalled();
+    expect(fake.deleteFile).toHaveBeenCalledWith(tempKey);
     expect(await readFile(existing.id)).toEqual(existing);
-    expect(deleteFile).toHaveBeenCalledWith(capturedTempKey);
-
-    source.destroy();
   });
 
-  it('promotes a deduped federation cache record for durable federated media', async () => {
-    let resolveUpload: ((info: FileInfo) => void) | undefined;
-    let capturedTempKey: string | undefined;
-
-    const uploadStream = jest.fn(
-      (key: string, _body: Readable): Promise<FileInfo> => {
-        capturedTempKey = key;
-        return new Promise<FileInfo>((resolve) => { resolveUpload = resolve; });
-      }
-    );
-    const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
-    const fileExists = jest.fn((): Promise<boolean> => Promise.resolve(true));
-    const { service } = buildAssetService({ uploadStream, deleteFile, fileExists });
-
+  it('never promotes a federation-cache row: the federated owner gets its own row sharing the cached object', async () => {
     const content = uniqueBody();
     const existing = await insertFile({
       sha256: hashOf(content),
@@ -545,42 +526,30 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
     });
     const federatedOwnerId = await insertUser();
 
-    const source = bodySource(content);
-
-    const promise = service.uploadFederatedMediaStream(
-      source,
-      'image/png',
-      'federated-post.png',
-      CACHE_MAX_BYTES,
-      federatedOwnerId,
-      'app-mention',
-      { sourceUri: 'https://remote.example/media/1' }
+    const { value, fake } = await streamThrough(
+      {},
+      (service, source) => service.uploadFederatedMediaStream(
+        source, 'image/png', 'federated-post.png', CACHE_MAX_BYTES, federatedOwnerId, 'app-mention',
+        { sourceUri: 'https://remote.example/media/1' },
+      ),
+      content,
     );
 
-    await new Promise((resolve) => setImmediate(resolve));
-    resolveUpload?.({ key: capturedTempKey || 'federation/incoming/x', size: 4, contentType: 'image/png' } as FileInfo);
-
-    // An existing row was reused, so the caller is told the id may be shared.
-    await expect(promise).resolves.toMatchObject({ file: { id: existing.id }, deduplicated: true });
-
-    // The cache record is PROMOTED in place: it becomes an ordinary user-owned
-    // durable asset, so the cache eviction job can no longer delete it.
-    expect(await readFile(existing.id)).toMatchObject({
-      ownerUserId: federatedOwnerId,
-      systemOwner: null,
-      purpose: 'user',
-      visibility: 'public',
-      metadata: {
-        cached: true,
-        source: 'federation',
-        serviceAppId: 'app-mention',
-        sourceUri: 'https://remote.example/media/1',
-        promotedFromFederationCache: true,
+    const result = value as { file: typeof files.$inferSelect; deduplicated: boolean };
+    expect(result).toMatchObject({
+      deduplicated: false,
+      file: {
+        ownerUserId: federatedOwnerId,
+        systemOwner: null,
+        purpose: 'user',
+        storageKey: existing.storageKey,
+        metadata: { source: 'federation', serviceAppId: 'app-mention', sourceUri: 'https://remote.example/media/1' },
       },
     });
-    expect(deleteFile).toHaveBeenCalledWith(capturedTempKey);
-
-    source.destroy();
+    expect(result.file.id).not.toBe(existing.id);
+    expect(fake.copyFile).not.toHaveBeenCalled();
+    // The cache row keeps its namespace and its own eviction route.
+    expect(await readFile(existing.id)).toEqual(existing);
   });
 });
 
@@ -619,11 +588,10 @@ describe('AssetService.uploadFileDirect — empty-file guard', () => {
 });
 
 describe('AssetService visibility relocation', () => {
-  it('deletes legacy backfilled public CDN copies when a non-public DB key is downgraded', async () => {
-    const existingKeys = new Set([
-      'content/2026/06/legacy-avatar.jpg',
-      'public/content/2026/06/legacy-avatar.jpg',
-    ]);
+  it('owes the legacy backfilled public CDN copy a delete when a bare-key public row is downgraded', async () => {
+    const content = uniqueBody();
+    const bareKey = `content/2026/06/${hashOf(content)}.jpg`;
+    const existingKeys = new Set([bareKey, `public/${bareKey}`]);
     const deleteFile = jest.fn((key: string): Promise<void> => {
       existingKeys.delete(key);
       return Promise.resolve();
@@ -631,22 +599,43 @@ describe('AssetService visibility relocation', () => {
     const fileExists = jest.fn((key: string): Promise<boolean> => Promise.resolve(existingKeys.has(key)));
     const copyFile = jest.fn((): Promise<void> => Promise.resolve());
     const { service } = buildAssetService({ deleteFile, fileExists, copyFile });
+    const row = await insertFile({ sha256: hashOf(content), ownerUserId: await insertUser(), storageKey: bareKey, visibility: 'public' });
 
-    type RelocationHarness = {
-      relocateObjectForVisibility(key: string, visibility: 'private' | 'public' | 'unlisted'): Promise<string>;
-    };
+    const relocated = await service.updateFileVisibility(row.id, 'private');
 
-    const relocatedKey = await (service as unknown as RelocationHarness).relocateObjectForVisibility(
-      'content/2026/06/legacy-avatar.jpg',
-      'private'
-    );
-
-    expect(relocatedKey).toBe('content/2026/06/legacy-avatar.jpg');
+    expect(relocated.storageKey).toBe(bareKey);
     expect(copyFile).not.toHaveBeenCalled();
     expect(deleteFile).toHaveBeenCalledTimes(1);
-    expect(deleteFile).toHaveBeenCalledWith('public/content/2026/06/legacy-avatar.jpg');
-    expect(existingKeys.has('content/2026/06/legacy-avatar.jpg')).toBe(true);
-    expect(existingKeys.has('public/content/2026/06/legacy-avatar.jpg')).toBe(false);
+    expect(deleteFile).toHaveBeenCalledWith(`public/${bareKey}`);
+    expect(existingKeys.has(bareKey)).toBe(true);
+  });
+
+  it('keeps the public copy on a downgrade while ANOTHER owner\'s public row still serves it', async () => {
+    const content = uniqueBody();
+    const sha256 = hashOf(content);
+    const publicKey = `public/content/2026/06/${sha256}.jpg`;
+    const existingKeys = new Set([publicKey]);
+    const deleteFile = jest.fn((key: string): Promise<void> => {
+      existingKeys.delete(key);
+      return Promise.resolve();
+    });
+    const fileExists = jest.fn((key: string): Promise<boolean> => Promise.resolve(existingKeys.has(key)));
+    const copyFile = jest.fn((_from: string, to: string): Promise<void> => {
+      existingKeys.add(to);
+      return Promise.resolve();
+    });
+    const { service } = buildAssetService({ deleteFile, fileExists, copyFile });
+    const mine = await insertFile({ sha256, ownerUserId: await insertUser(), storageKey: publicKey, visibility: 'public' });
+    await insertFile({ sha256, ownerUserId: await insertUser(), storageKey: publicKey, visibility: 'public' });
+
+    const relocated = await service.updateFileVisibility(mine.id, 'private');
+
+    // Mine moved to the bare spelling by COPY; the shared public object stays
+    // for the other owner — nothing was moved out from under them.
+    expect(relocated.storageKey).toBe(publicKey.slice('public/'.length));
+    expect(copyFile).toHaveBeenCalledWith(publicKey, publicKey.slice('public/'.length));
+    expect(deleteFile).not.toHaveBeenCalled();
+    expect(existingKeys.has(publicKey)).toBe(true);
   });
 
   it('rewrites the stored keys of the original AND every variant when visibility flips', async () => {
@@ -734,8 +723,10 @@ describe('ensureOwnedAssetPublic — profile media is promoted to public', () =>
  * the second upload was a 409 and Mention dropped the post's media. The reuse is
  * narrow on purpose: only a row that is ALREADY this owner's federated media from
  * this application — the exact shape the federated delete route would let the
- * same caller delete — is handed back. Anything else stays a 409 with a code the
- * caller can branch on, and the other row is never touched.
+ * same caller delete — is handed back. The same owner's row of another shape
+ * stays a 409 with a code the caller can branch on (one live row per owner per
+ * hash leaves no second row to create); a DIFFERENT owner simply gets its own
+ * row. The other row is never touched.
  */
 describe('AssetService.uploadFederatedMediaStream — idempotent re-upload', () => {
   async function uploadOver(
@@ -819,13 +810,22 @@ describe('AssetService.uploadFederatedMediaStream — idempotent re-upload', () 
     expect(r.settled.value.deduplicated).toBe(false);
   });
 
-  it.each([
-    ['a DIFFERENT federated owner, same application', 'other-owner', 'app-mention'],
-    ['the same owner, a DIFFERENT application', 'same-owner', 'app-other'],
-  ])('refuses %s: 409 FEDERATED_MEDIA_OWNED_ELSEWHERE, the row untouched', async (_label, who, uploaderApp) => {
+  it('gives a DIFFERENT federated owner (same application) its OWN row sharing the object, the other row untouched', async () => {
     const owner = await insertUser();
-    const caller = who === 'same-owner' ? owner : await insertUser();
-    const r = await uploadOver(federatedRow(owner, 'app-mention'), { ownerUserId: caller, appId: uploaderApp });
+    const caller = await insertUser();
+    const r = await uploadOver(federatedRow(owner, 'app-mention'), { ownerUserId: caller, appId: 'app-mention' });
+
+    expect(r.settled.ok).toBe(true);
+    if (!r.settled.ok || !r.row) throw new Error('unreachable');
+    expect(r.settled.value.deduplicated).toBe(false);
+    expect(r.settled.value.file.id).not.toBe(r.row.id);
+    expect(r.settled.value.file).toMatchObject({ ownerUserId: caller, storageKey: r.row.storageKey });
+    expect(await readFile(r.row.id)).toEqual(r.row);
+  });
+
+  it('refuses the same owner, a DIFFERENT application: 409 FEDERATED_MEDIA_OWNED_ELSEWHERE, the row untouched', async () => {
+    const owner = await insertUser();
+    const r = await uploadOver(federatedRow(owner, 'app-mention'), { ownerUserId: owner, appId: 'app-other' });
 
     expect(r.settled.ok).toBe(false);
     if (r.settled.ok || !r.row) throw new Error('unreachable');

@@ -133,8 +133,9 @@ describe('every path that writes original_name normalises it', () => {
   it('completeUpload', async () => {
     const service = new AssetService(fakeS3());
     const content = uniqueBody();
+    const uploader = await insertUser();
     const init = await service.initUpload(
-      await insertUser(),
+      uploader,
       createHash('sha256').update(content).digest('hex'),
       content.length,
       'image/png',
@@ -145,7 +146,7 @@ describe('every path that writes original_name normalises it', () => {
       originalName: MESSY_NAME,
       size: content.length,
       mime: 'image/png',
-    });
+    }, uploader);
 
     expect(await storedName(init.fileId)).toBe(CLEAN_NAME);
   });

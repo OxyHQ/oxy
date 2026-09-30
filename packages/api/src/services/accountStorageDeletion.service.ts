@@ -111,15 +111,48 @@ export async function recordFileStorageDeletion(
   asset: { sha256: string; storageKey: string; ownerUserId: string | null; systemOwner: string | null },
   variantKeys: readonly string[],
 ): Promise<string[]> {
-  const accountId = asset.ownerUserId ?? `system:${asset.systemOwner ?? 'unknown'}`;
-  const targets = storageTargetsForAsset(asset, variantKeys);
+  return armStorageTargets(tx, 'file.deleted', assetAccountId(asset), storageTargetsForAsset(asset, variantKeys));
+}
+
+/**
+ * Record the keys ONE asset stopped using when a visibility change copied its
+ * objects to the other spelling (`public/` or not), inside the transaction that
+ * repointed the row. Each old key is an OBJECT target — never its directory:
+ * the directory also holds HLS segments the relocation did not move, and other
+ * owners' renditions. The worker then deletes each spelling no live row uses,
+ * so a key another owner's row shares is kept.
+ */
+export async function recordFileStorageRelocation(
+  tx: Transaction,
+  asset: { sha256: string; ownerUserId: string | null; systemOwner: string | null },
+  oldKeys: readonly string[],
+): Promise<string[]> {
+  if (oldKeys.length === 0) return [];
+  const targets = new Map<string, StorageDeletionTarget>();
+  for (const key of oldKeys) {
+    const target = stripPublicPrefix(key);
+    targets.set(target, { kind: 'object', target, sha256: asset.sha256 });
+  }
+  return armStorageTargets(tx, 'file.relocated', assetAccountId(asset), [...targets.values()]);
+}
+
+function assetAccountId(asset: { ownerUserId: string | null; systemOwner: string | null }): string {
+  return asset.ownerUserId ?? `system:${asset.systemOwner ?? 'unknown'}`;
+}
+
+async function armStorageTargets(
+  tx: Transaction,
+  reason: 'file.deleted' | 'file.relocated',
+  accountId: string,
+  targets: readonly StorageDeletionTarget[],
+): Promise<string[]> {
   const rows = await tx
     .insert(storageObjectDeletions)
-    .values(targets.map((target) => ({ reason: 'file.deleted' as const, accountId, ...target })))
+    .values(targets.map((target) => ({ reason, accountId, ...target })))
     .onConflictDoUpdate({
       target: [storageObjectDeletions.accountId, storageObjectDeletions.kind, storageObjectDeletions.target],
       set: {
-        reason: 'file.deleted',
+        reason: sql`excluded.reason`,
         sha256: sql`excluded.sha256`,
         attempts: 0,
         nextAttemptAt: sql`now()`,

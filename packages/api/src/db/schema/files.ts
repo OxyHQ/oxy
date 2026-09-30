@@ -3,28 +3,38 @@
  *
  * Ported from `models/File.ts`.
  *
- * ## The first PARTIAL UNIQUE in this schema
+ * ## One live row per OWNER per content hash
  *
- * Mongo:
- *
- * ```js
- * FileSchema.index({ sha256: 1 }, {
- *   unique: true,
- *   partialFilterExpression: { status: { $in: ['active', 'trash'] } },
- * })
- * ```
- *
- * Postgres:
+ * A row is an owner's claim on some bytes; the bytes themselves are
+ * content-addressed storage (`content/…/<sha256>.<ext>`, `variants/…/<sha256>/…`)
+ * that any number of rows may point at. Two partial uniques say so:
  *
  * ```ts
- * uniqueIndex('files_sha256_live_key').on(t.sha256).where(sql`...`)
+ * uniqueIndex('files_sha256_owner_user_live_key').on(t.sha256, t.ownerUserId).where(live and owner_user_id is not null)
+ * uniqueIndex('files_sha256_system_owner_live_key').on(t.sha256, t.systemOwner).where(live and system_owner is not null)
  * ```
  *
- * `partialFilterExpression` → `.where(...)` on a `uniqueIndex`, one for one.
- * The semantic that must survive is the REASON the filter exists: content-
- * addressed dedup must be unique among LIVE rows only, so a `deleted` tombstone
- * does not reserve its bytes forever and block a later upload of the same
- * content by another user or by a federation cache flow.
+ * Two indexes rather than one over `coalesce(owner_user_id, system_owner)`:
+ * `files_owner_exclusive_check` already makes exactly one of the two columns
+ * non-null, so each index covers one half of the table with a plain column
+ * list — no expression for a query to match, and the owner lookup
+ * (`sha256 = $1 and owner_user_id = $2`) is served by the index directly.
+ *
+ * It USED to be one live row per hash across the whole table
+ * (`files_sha256_live_key`, the port of Mongo's
+ * `{ sha256: 1 }, { unique: true, partialFilterExpression: … }`). That made
+ * content dedup hand an EXISTING row — and its id, its links and its delete
+ * authority — to whichever other account uploaded the same bytes, so owners
+ * ended up holding one another's files and one owner's delete removed another's
+ * media. Migration `0124_files_per_owner_live_key` replaced it.
+ *
+ * Storage is shared, rows are not: a second owner's upload of the same bytes
+ * gets its OWN row pointing at the same object, and the bytes go only when the
+ * last live row using them does (`accountStorageDeletion.worker.ts`, under the
+ * content-hash lock of `services/contentHashLock.ts`).
+ *
+ * The semantic that survives from Mongo is the REASON the filter is partial: a
+ * `deleted` tombstone is not a claim, so it never blocks a later upload.
  *
  * The predicate is derived from `FILE_LIVE_STATUSES` rather than spelled twice,
  * so widening the live set cannot leave the index behind. It is written with a
@@ -55,6 +65,7 @@
 
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   check,
   index,
@@ -116,11 +127,16 @@ export const FILE_SYSTEM_OWNERS = [
   '__stickers__',
 ] as const;
 
+/** `status in ('active', 'trash')`, as an IMMUTABLE literal list for an index predicate. */
+function liveStatusPredicate(status: AnyPgColumn) {
+  return sql`${status} in (${sql.raw(FILE_LIVE_STATUSES.map((value) => `'${value}'`).join(', '))})`;
+}
+
 export const files = pgTable(
   'files',
   {
     id: generatedId(),
-    /** SHA-256 hex of the content. Unique among live rows — see above. */
+    /** SHA-256 hex of the content. Unique among one owner's live rows — see above. */
     sha256: text().notNull(),
     /** Bytes. `bigint`: an asset is media, and media outgrows `int4`. */
     size: bigint({ mode: 'number' }).notNull(),
@@ -176,21 +192,22 @@ export const files = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    // ---- the partial unique -----------------------------------------------
-    uniqueIndex('files_sha256_live_key')
-      .on(t.sha256)
-      .where(
-        sql`${t.status} in (${sql.raw(
-          FILE_LIVE_STATUSES.map((value) => `'${value}'`).join(', ')
-        )})`
-      ),
+    // ---- the per-owner partial uniques (see the header) --------------------
+    uniqueIndex('files_sha256_owner_user_live_key')
+      .on(t.sha256, t.ownerUserId)
+      .where(sql`${liveStatusPredicate(t.status)} and ${t.ownerUserId} is not null`),
+    uniqueIndex('files_sha256_system_owner_live_key')
+      .on(t.sha256, t.systemOwner)
+      .where(sql`${liveStatusPredicate(t.status)} and ${t.systemOwner} is not null`),
 
     // ---- the compounds Mongo declared -------------------------------------
     index('files_owner_user_id_status_idx').on(t.ownerUserId, t.status),
     index('files_owner_user_id_visibility_status_idx').on(t.ownerUserId, t.visibility, t.status),
     index('files_visibility_status_idx').on(t.visibility, t.status),
-    // `assetService.ts:88` — dedup lookup across every status, including the
-    // tombstones the partial unique deliberately does not cover.
+    // Every row holding a hash, whoever owns it: the storage-sharing lookups
+    // (a new owner's row reuses an existing object), the purge's "does any live
+    // row still use these bytes" guard, and the tombstones the partial uniques
+    // deliberately do not cover.
     index('files_sha256_status_idx').on(t.sha256, t.status),
     index('files_purpose_owner_user_id_status_idx').on(t.purpose, t.ownerUserId, t.status),
     index('files_created_at_idx').on(t.createdAt.desc()),

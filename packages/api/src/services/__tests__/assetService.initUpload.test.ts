@@ -2,12 +2,13 @@
  * AssetService.initUpload — dedupe-signing authorization, against a REAL
  * Postgres.
  *
- * When a SHA-256 already maps to an existing file, initUpload must NOT hand a
- * presigned PUT URL for that object's storage key to an arbitrary caller:
- * signing a live deduplicated object's key would let any authenticated user who
- * knows the SHA-256 overwrite another user's asset bytes. A repair PUT URL is
- * issued only to the file's OWNER, and only when the underlying object is
- * actually missing.
+ * Rows are per owner. When another owner already holds the SHA-256, the caller
+ * gets its OWN new row — never the other owner's id — sharing that row's stored
+ * object when it exists, and never a presigned PUT URL for a key another owner
+ * serves: signing it would let any authenticated user who knows the SHA-256
+ * overwrite that owner's bytes. A repair PUT URL is issued only for the
+ * caller's own row, only when the object is missing, and only when no other
+ * live row stores its original at that key.
  *
  * The ownership comparison is what the port changed. It was
  * `existingFile.ownerUserId?.toString() === userId` against an ObjectId; it is
@@ -40,6 +41,7 @@ interface FakeS3 {
     Promise<string>,
     [string, { contentType: string; expiresIn: number }]
   >;
+  copyFile?: jest.Mock<Promise<void>, [string, string]>;
 }
 
 function buildAssetService(fake: FakeS3): AssetService {
@@ -47,9 +49,8 @@ function buildAssetService(fake: FakeS3): AssetService {
 }
 
 /**
- * A globally unique 64-hex content hash. Jest runs suites in PARALLEL against
- * ONE throwaway database and `files_sha256_live_key` spans the whole table, so a
- * per-file counter would collide with another suite's fixture rows.
+ * A globally unique 64-hex content hash, so this file's fixtures never share a
+ * hash with another suite's rows in the same throwaway database.
  */
 const sha = () => randomBytes(32).toString('hex');
 
@@ -90,7 +91,12 @@ afterAll(async () => {
 });
 
 describe('AssetService.initUpload dedupe signing', () => {
-  it('does not return a PUT URL for a live existing object owned by another user', async () => {
+  async function rowOf(id: string) {
+    const [row] = await getDb().select().from(files).where(eq(files.id, id)).limit(1);
+    return row;
+  }
+
+  it('gives another user its OWN row sharing a live existing object, with no PUT URL', async () => {
     const contentHash = sha();
     const victimId = await insertUser();
     const attackerId = await insertUser();
@@ -108,16 +114,19 @@ describe('AssetService.initUpload dedupe signing', () => {
       'image/png',
     );
 
-    expect(fakeS3.fileExists).toHaveBeenCalledWith(VICTIM_KEY);
     expect(fakeS3.getPresignedUploadUrl).not.toHaveBeenCalled();
-    expect(result).toEqual({ uploadUrl: '', fileId, sha256: contentHash });
+    expect(result.uploadUrl).toBe('');
+    // Its own row — never the victim's id — pointing at the same object.
+    expect(result.fileId).not.toBe(fileId);
+    expect(await rowOf(result.fileId)).toMatchObject({ ownerUserId: attackerId, storageKey: VICTIM_KEY, sha256: contentHash });
+    expect(await rowOf(fileId)).toMatchObject({ ownerUserId: victimId, status: 'active' });
   });
 
-  it('does not return a repair PUT URL for a missing object to a non-owner', async () => {
+  it('never signs another owner\'s key when its object is missing: the caller gets a key of its own', async () => {
     const contentHash = sha();
     const victimId = await insertUser();
     const attackerId = await insertUser();
-    await insertFile({ sha256: contentHash, ownerUserId: victimId });
+    const fileId = await insertFile({ sha256: contentHash, ownerUserId: victimId });
 
     const fakeS3: FakeS3 = {
       fileExists: jest.fn(() => Promise.resolve(false)),
@@ -131,14 +140,18 @@ describe('AssetService.initUpload dedupe signing', () => {
       'image/png',
     );
 
-    expect(fakeS3.fileExists).toHaveBeenCalledWith(VICTIM_KEY);
-    expect(fakeS3.getPresignedUploadUrl).not.toHaveBeenCalled();
-    expect(result.uploadUrl).toBe('');
+    expect(result.fileId).not.toBe(fileId);
+    const own = await rowOf(result.fileId);
+    expect(own.ownerUserId).toBe(attackerId);
+    expect(own.storageKey).not.toBe(VICTIM_KEY);
+    expect(own.storageKey).toMatch(new RegExp(`/${contentHash}-[0-9a-f]{16}\\.png$`));
+    expect(fakeS3.getPresignedUploadUrl).toHaveBeenCalledTimes(1);
+    expect(fakeS3.getPresignedUploadUrl.mock.calls[0][0]).toBe(own.storageKey);
+    expect(result.uploadUrl).toBe('signed-put-url');
   });
 
-  it('does not return a repair PUT URL for a SYSTEM-owned object', async () => {
-    // `owner_user_id` is NULL here, so no caller can be its owner. Worth its own
-    // case: this is the shape the ownership check compares against nothing.
+  it('never signs a SYSTEM-owned object\'s key either', async () => {
+    // `owner_user_id` is NULL here, so no caller can be its owner.
     const contentHash = sha();
     const callerId = await insertUser();
     await insertFile({
@@ -159,6 +172,47 @@ describe('AssetService.initUpload dedupe signing', () => {
       123,
       'image/png',
     );
+
+    const own = await rowOf(result.fileId);
+    expect(own.ownerUserId).toBe(callerId);
+    expect(fakeS3.getPresignedUploadUrl).not.toHaveBeenCalledWith(VICTIM_KEY, expect.anything());
+  });
+
+  it('copies a PUBLIC-spelled shared object to the private spelling the new row needs', async () => {
+    const contentHash = sha();
+    const publisher = await insertUser();
+    const callerId = await insertUser();
+    const publicKey = `public/content/2026/09/${contentHash.slice(0, 2)}/${contentHash}.png`;
+    await insertFile({ sha256: contentHash, ownerUserId: publisher, storageKey: publicKey, visibility: 'public' });
+
+    const present = new Set([publicKey]);
+    const fakeS3: FakeS3 = {
+      fileExists: jest.fn((key: string) => Promise.resolve(present.has(key))),
+      getPresignedUploadUrl: jest.fn(() => Promise.resolve('signed-put-url')),
+      copyFile: jest.fn(async (_from: string, to: string) => { present.add(to); }),
+    };
+
+    const result = await buildAssetService(fakeS3).initUpload(callerId, contentHash, 123, 'image/png');
+
+    const privateKey = publicKey.slice('public/'.length);
+    expect(fakeS3.copyFile).toHaveBeenCalledWith(publicKey, privateKey);
+    expect(await rowOf(result.fileId)).toMatchObject({ ownerUserId: callerId, storageKey: privateKey });
+    expect(result.uploadUrl).toBe('');
+  });
+
+  it('does not sign a repair URL for the caller\'s own row when another owner\'s row shares the key', async () => {
+    const contentHash = sha();
+    const ownerId = await insertUser();
+    const sharer = await insertUser();
+    await insertFile({ sha256: contentHash, ownerUserId: ownerId });
+    await insertFile({ sha256: contentHash, ownerUserId: sharer });
+
+    const fakeS3: FakeS3 = {
+      fileExists: jest.fn(() => Promise.resolve(false)),
+      getPresignedUploadUrl: jest.fn(() => Promise.resolve('owner-repair-url')),
+    };
+
+    const result = await buildAssetService(fakeS3).initUpload(ownerId, contentHash, 123, 'image/png');
 
     expect(fakeS3.getPresignedUploadUrl).not.toHaveBeenCalled();
     expect(result.uploadUrl).toBe('');
