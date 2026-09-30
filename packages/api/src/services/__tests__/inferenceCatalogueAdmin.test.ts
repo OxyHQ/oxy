@@ -43,6 +43,7 @@ import {
   setDeploymentRoutingScores,
 } from '../inferenceCatalogueAdmin.service';
 import {
+  CATALOGUED,
   listCatalogueForViewer,
   PUBLIC_CATALOGUE_VIEWER,
   selectRouteForViewer,
@@ -898,7 +899,7 @@ describe('the other three transitions', () => {
         selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)
       ).resolves.toBeUndefined();
       expect(
-        (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER)).map((entry) => entry.modelId)
+        (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).map((entry) => entry.modelId)
       ).not.toContain(modelId);
     }
   );

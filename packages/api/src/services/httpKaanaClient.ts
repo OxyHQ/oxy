@@ -178,6 +178,24 @@ const kaanaDeploymentAttestationSchema = z
   })
   .strict();
 
+/**
+ * The most deployments one full serving snapshot may describe. Far above any
+ * real inventory (hundreds); the bound only keeps a misbehaving intermediary
+ * from handing the publication cache an unbounded set.
+ */
+const MAX_KAANA_PUBLISHED_DEPLOYMENTS = 20_000;
+
+/**
+ * `POST /internal/v1/deployments/query` with the empty query `{}`: every
+ * deployment the serving snapshot publishes. Same descriptor shape as the exact
+ * attestation, without the 64-id bound that shape carries.
+ */
+const kaanaPublishedDeploymentsSchema = kaanaDeploymentAttestationSchema.extend({
+  deployments: kaanaDeploymentAttestationSchema.shape.deployments.element
+    .array()
+    .max(MAX_KAANA_PUBLISHED_DEPLOYMENTS),
+});
+
 /* -------------------------------------------------------------------------- */
 /*  Signing                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -291,6 +309,14 @@ export interface KaanaCatalogueReader {
     deploymentIds: readonly string[],
     options: KaanaExecuteOptions
   ): Promise<KaanaDeploymentAttestation>;
+  /**
+   * Every deployment Kaana's CURRENT serving snapshot publishes (the signed
+   * `{}` deployment query). A deployment Kaana withholds — exhausted
+   * credential, sustained failure — is absent from it. Read by the
+   * publication cache (`kaanaDeploymentPublication.service.ts`), never by a
+   * request as a selector.
+   */
+  listPublishedDeployments(signal: AbortSignal): Promise<KaanaDeploymentAttestation>;
 }
 
 /** `undefined` whenever the data plane is not fully configured. */
@@ -301,6 +327,7 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
   const client = new HttpKaanaClient(config);
   return {
     attestDeployments: (deploymentIds, options) => client.attestDeployments(deploymentIds, options),
+    listPublishedDeployments: (signal) => client.listPublishedDeployments(signal),
     async listModels(signal: AbortSignal): Promise<unknown> {
       // A GET signs the empty body, exactly as Kaana's readSignedBody verifies
       // it for the health and catalogue surfaces.
@@ -405,6 +432,48 @@ class HttpKaanaClient implements KaanaClient {
     if (!parsed.success) {
       throw new KaanaProtocolError(
         `The inference data plane returned deployment identity evidence Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
+      );
+    }
+    return parsed.data;
+  }
+
+  /** The whole serving snapshot: the signed empty query `{}`. */
+  async listPublishedDeployments(signal: AbortSignal): Promise<KaanaDeploymentAttestation> {
+    const body = Buffer.from('{}', 'utf8');
+    const timestamp = Date.now();
+    const response = await fetch(`${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'Cache-Control': 'no-store',
+        [KAANA_KEY_ID_HEADER]: this.config.keyId,
+        [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+        [KAANA_SIGNATURE_HEADER]: signEnvelope(this.config.privateKey, this.config.keyId, timestamp, body),
+      },
+      body,
+      cache: 'no-store',
+      signal,
+    });
+    if (!response.ok) {
+      await readBounded(response);
+      throw new KaanaProtocolError(
+        `The inference data plane refused the published-deployment read with HTTP ${response.status}.`
+      );
+    }
+    const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
+    let payload: unknown;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      throw new KaanaProtocolError(
+        'The inference data plane returned a published-deployment list that is not JSON.'
+      );
+    }
+    const parsed = kaanaPublishedDeploymentsSchema.safeParse(payload);
+    if (!parsed.success) {
+      throw new KaanaProtocolError(
+        `The inference data plane returned a published-deployment list Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
       );
     }
     return parsed.data;

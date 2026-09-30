@@ -109,6 +109,35 @@ The client is [sdk.md](./sdk.md).
 Types come from `@oxy.so/contracts` directly — `@oxy.so/services` does not
 re-export them, and neither does `@oxy.so/core`.
 
+### A listed model is a servable model
+
+`GET /v1/models`, `GET /models`, `/models/stats` and the detail read list a model
+only while at least one of its routes could be admitted by the edge **now**:
+
+1. Kaana's current serving snapshot publishes its exact `deploymentId`. Kaana
+   withholds a deployment it cannot serve (exhausted credential, sustained
+   failure); Oxy reads the whole snapshot with the signed empty deployment query
+   (`POST /internal/v1/deployments/query` `{}`), cached for 15 s and served stale
+   for at most 2 min when a read fails. Past that the catalogue lists nothing
+   rather than guessing (`kaanaDeploymentPublication.service.ts`);
+2. its price version is active, effective and names that exact model revision
+   and provider;
+3. its reviewed scorecard names the same exact id and price version; and
+4. its funding evidence is eligible — an `exhausted`, `rate_limited`, `unknown`,
+   zero-balance or expired free/promotional allocation is not (see
+   [routing.md](./routing.md#ranking-after-qualification)).
+
+The edge applies condition 1 too: an unpublished deployment is dropped from the
+candidate set before the authorized routes are signed (like capacity), instead
+of being signed and then failing the exact attestation for the whole request.
+When nothing published remains the edge answers `no_route_available` with
+reason `no_published_deployment`; when the snapshot cannot be read at all it
+answers `service_unavailable` (`routing_evidence:kaana-publication-unavailable`).
+
+A policy `defaultTarget` and the documentation read still check the broader
+*catalogued* set (every approved route), because "this model exists for you" is
+a different question from "a request would be admitted now".
+
 Three behaviours to code against:
 
 - **`[]` is a normal answer.** Render "no models available"; do not treat it as

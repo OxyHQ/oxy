@@ -57,6 +57,7 @@ import { errorHandler } from '../../middleware/errorHandler';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import catalogueRouter from '../inferenceCatalogue';
+import { attachServableEvidence } from '../../db/testServableEvidence';
 import type { ModelCatalogueEntry } from '@oxy.so/contracts';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
@@ -219,6 +220,13 @@ async function insertRoute(options: {
   });
 
   if (model.modelId === null) throw new Error('the generated model id did not compose');
+  // `/models` lists only what a request could be admitted on now, so a route
+  // that should be listed carries the complete price/score evidence.
+  await attachServableEvidence({
+    modelReference: `${model.modelId}@${revision}`,
+    providerSlug,
+    internalRouteId,
+  });
   return { modelId: model.modelId, revision, providerSlug, internalRouteId };
 }
 

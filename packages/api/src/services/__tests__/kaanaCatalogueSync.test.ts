@@ -28,6 +28,7 @@ import {
   priceVersions,
 } from '../../db/schema';
 import {
+  CATALOGUED,
   PUBLIC_CATALOGUE_VIEWER,
   UNCONSTRAINED_EDGE_CAPACITY,
   UNCONSTRAINED_ROUTING,
@@ -90,6 +91,15 @@ function reader(models: readonly WireModel[], routes: readonly WireRoute[]): Kaa
           modelReference: route.modelReference,
           regions: route.regions ?? [],
         })),
+    }),
+    listPublishedDeployments: async () => ({
+      snapshotId: 'snap_test',
+      deployments: routes.map((route) => ({
+        deploymentId: route.deploymentId,
+        provider: route.provider,
+        modelReference: route.modelReference,
+        regions: route.regions ?? [],
+      })),
     }),
   };
 }
@@ -470,14 +480,14 @@ describe('syncing into the catalogue', () => {
     });
 
     // ...and it is listed internally with its efforts and release date, never publicly.
-    const internal = (await listCatalogueForViewer(INTERNAL_VIEWER)).find(
+    const internal = (await listCatalogueForViewer(INTERNAL_VIEWER, CATALOGUED)).find(
       (entry) => entry.modelId === world.line('alpha')
     );
     expect(internal?.capabilities.reasoningEfforts).toEqual(['low', 'medium', 'high']);
     expect(internal?.releasedAt).toBe('2025-08-05T17:17:11.000Z');
     expect(internal?.availabilityScope).toBe('platform_internal');
     expect(
-      (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER)).some(
+      (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).some(
         (entry) => entry.modelId === world.line('alpha')
       )
     ).toBe(false);

@@ -38,6 +38,7 @@ import {
   users,
 } from '../../db/schema';
 import {
+  CATALOGUED,
   type CatalogueViewer,
   getCatalogueEntryForViewer,
   listCatalogueForViewer,
@@ -96,7 +97,7 @@ describe('the rolling availability-scope bridge', () => {
       );
     expect(oldReader).toEqual([{ deploymentId: legacy.deploymentId }]);
 
-    const entries = await listCatalogueForViewer(INTERNAL_VIEWER);
+    const entries = await listCatalogueForViewer(INTERNAL_VIEWER, CATALOGUED);
     const bridged = entries.find((entry) => entry.modelId === legacy.modelId);
     const native = entries.find((entry) => entry.modelId === current.modelId);
     expect(bridged?.availabilityScope).toBe('platform_internal');
@@ -112,7 +113,7 @@ describe('the rolling availability-scope bridge', () => {
     );
     expect(selected?.availabilityScope).toBe('platform_internal');
 
-    const publicEntries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER);
+    const publicEntries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED);
     expect(publicEntries.some((entry) => entry.modelId === legacy.modelId)).toBe(false);
 
     // Readiness does not expose availabilityScope, but its serving census must
@@ -464,14 +465,14 @@ describe('an internal-only route cannot be selected by a public credential', () 
       commercialPermission: 'public_resale_approved',
     });
 
-    const publicIds = (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER)).map(
+    const publicIds = (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).map(
       (entry) => entry.modelId
     );
     expect(publicIds).not.toContain(internalOnly.modelId);
     // Control, again scoped to a row this file owns rather than to a count.
     expect(publicIds).toContain(publicRoute.modelId);
 
-    const internalIds = (await listCatalogueForViewer(INTERNAL_VIEWER)).map(
+    const internalIds = (await listCatalogueForViewer(INTERNAL_VIEWER, CATALOGUED)).map(
       (entry) => entry.modelId
     );
     expect(internalIds).toContain(internalOnly.modelId);
@@ -486,10 +487,10 @@ describe('an internal-only route cannot be selected by a public credential', () 
     });
 
     await expect(
-      getCatalogueEntryForViewer(PUBLIC_CATALOGUE_VIEWER, internalOnly.modelId)
+      getCatalogueEntryForViewer(PUBLIC_CATALOGUE_VIEWER, internalOnly.modelId, CATALOGUED)
     ).resolves.toBeUndefined();
     await expect(
-      getCatalogueEntryForViewer(PUBLIC_CATALOGUE_VIEWER, `nobody/nothing${suffix()}`)
+      getCatalogueEntryForViewer(PUBLIC_CATALOGUE_VIEWER, `nobody/nothing${suffix()}`, CATALOGUED)
     ).resolves.toBeUndefined();
   });
 });
@@ -531,7 +532,7 @@ describe('a route’s published price reaches the catalogue entry', () => {
       unpriced: true,
     });
 
-    const entries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER);
+    const entries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED);
 
     const pricedEntry = entries.find((entry) => entry.modelId === priced.modelId);
     // Fixture control: if this row did not land, every assertion below would
@@ -574,7 +575,7 @@ describe('a route’s published price reaches the catalogue entry', () => {
     });
 
     for (const viewer of [PUBLIC_CATALOGUE_VIEWER, INTERNAL_VIEWER]) {
-      const ids = (await listCatalogueForViewer(viewer)).map((entry) => entry.modelId);
+      const ids = (await listCatalogueForViewer(viewer, CATALOGUED)).map((entry) => entry.modelId);
       expect(ids).not.toContain(byok.modelId);
       // CONTROL, per viewer: the listing is not simply empty. Without this, a
       // broken fixture or a predicate matching nothing reads the same way.
@@ -594,7 +595,7 @@ describe('a route’s published price reaches the catalogue entry', () => {
       price: { currency: 'USD', unitPrices: [] },
     });
 
-    const entries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER);
+    const entries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED);
     const entry = entries.find((candidate) => candidate.modelId === emptyPrice.modelId);
     expect(entry).toBeDefined();
     expect(entry?.pricing).toBeUndefined();
@@ -614,7 +615,7 @@ describe('a route’s published price reaches the catalogue entry', () => {
       },
     });
 
-    const entry = (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER)).find(
+    const entry = (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).find(
       (candidate) => candidate.modelId === priced.modelId
     );
     expect(entry).toBeDefined();
@@ -646,7 +647,7 @@ describe('catalogue terms are aggregates, never the terms of a name-sorted route
       policyUrl: 'https://example.test/sibling-policy',
     });
 
-    const entry = (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER)).find(
+    const entry = (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).find(
       (candidate) => candidate.modelId === route.modelId
     );
     expect(entry).toBeDefined();
@@ -758,7 +759,7 @@ describe('the audience is default-deny', () => {
     });
     const empty: CatalogueViewer = { scopes: [], label: 'test-empty' };
 
-    await expect(listCatalogueForViewer(empty)).resolves.toEqual([]);
+    await expect(listCatalogueForViewer(empty, CATALOGUED)).resolves.toEqual([]);
     await expect(selectRouteForViewer(empty, route.modelId, UNCONSTRAINED_ROUTING)).resolves.toBeUndefined();
 
     // Control: the route is genuinely selectable, so the two lines above are
@@ -823,7 +824,7 @@ describe('the customer view cannot carry an internal route id or a wholesale cos
       },
     });
 
-    const entries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER);
+    const entries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED);
     const entry = entries.find((candidate) => candidate.modelId === route.modelId);
 
     // Vacuity floor for the whole test: the entry EXISTS. Without it, a fixture
@@ -867,7 +868,7 @@ describe('the customer view cannot carry an internal route id or a wholesale cos
 
     expect(row.evidenceRef).not.toBeNull();
 
-    const entries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER);
+    const entries = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED);
     const entry = entries.find((candidate) => candidate.modelId === route.modelId);
     expect(entry).toBeDefined();
     expect(JSON.stringify(entry)).not.toContain(row.evidenceRef ?? 'unreachable');
@@ -915,7 +916,7 @@ describe('routing profiles are a separate collection', () => {
     // whether they asked for a concrete model or for Oxy to choose one.
     expect(mine?.slug).not.toContain('/');
 
-    const models = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER);
+    const models = await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED);
     expect(models.map((entry) => entry.modelId)).not.toContain(slug);
     // Control: the catalogue read is working, so the line above is not vacuous.
     expect(models.map((entry) => entry.modelId)).toContain(route.modelId);
