@@ -1002,6 +1002,7 @@ const CSV_COLUMNS = [
   'audio_input_tokens',
   'cached_audio_input_tokens',
   'audio_output_tokens',
+  'session_milliseconds',
 ] as const;
 
 /**
@@ -1054,6 +1055,7 @@ function renderChargesCsv(rows: readonly SettledChargeRow[]): string {
         String(row.units.audio_input_tokens),
         String(row.units.cached_audio_input_tokens),
         String(row.units.audio_output_tokens),
+        String(row.units.session_milliseconds),
       ]
         .map(csvCell)
         .join(',')

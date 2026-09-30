@@ -2,7 +2,7 @@
 
 Issue [#972](https://github.com/OxyHQ/oxy/issues/972) workstream 16
 (**Observability**) and the *Audit and controls* half of workstream 12. Status of
-the whole picture: [README.md](./README.md).
+the whole picture: [status.md](./status.md).
 
 **There is no metrics library in this repository, and that is a decision rather
 than a gap.** What exists instead is a durable, queryable record — one request id
@@ -46,7 +46,7 @@ agreed" are otherwise the same green.
 ### The data-plane leg is enforced, not merely sent
 
 Oxy cannot assert what the data plane writes in its own logs, because there is no
-data plane ([README.md](./README.md)). What it *can* assert, and does, is the
+data plane ([status.md](./status.md)). What it *can* assert, and does, is the
 enforcement: `validateCompletion` refuses a usage report whose `requestId` is not
 the one that was sent, with `internal_error`, and settles the hold at zero rather
 than charging it. A report about somebody else's request can therefore never

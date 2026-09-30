@@ -10,7 +10,7 @@ live rollout state and must be verified separately.
 | Cancellation | yes | client abort reaches the data-plane request context | upstream cancellation plus one exact settlement |
 | Retries and idempotency | yes | enforced by the edge and ledger | deployed retry with no duplicate charge |
 
-Status of the whole platform: [README.md](./README.md).
+Concepts and the calling modes: [developer guide](./README.md). Status of the whole platform: [status.md](./status.md).
 
 ---
 
@@ -24,7 +24,7 @@ of streaming and none of its point. The Oxy route and data-plane client implemen
 the validated SSE path when Kaana execution is configured. An unconfigured path
 refuses before opening a stream and keeps no charge.
 
-`OxyInferenceClient.stream()` is merged and published in `@oxy.so/core@23.1.0`
+`OxyInferenceClient.stream()` is merged and published in `@oxy.so/core`
 by [#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana
 runtime v2 source. It requests `stream: true`, decodes frames incrementally
 against the shared event contract, forwards `AbortSignal`, and exposes protocol
@@ -134,6 +134,18 @@ what OpenAI itself returns for a model refusal, and `X-Oxy-Finish-Reason` says
 
 ## Retries
 
+### The platform retries; callers do not
+
+Kaana retries the same route on transient failures (rate limit, overload,
+timeout, provider 5xx; up to 2 retries within a 15 s wait budget) and then fails
+over along the signed routes, all before the first output is delivered. After
+output has started nothing is retried, so a stream never splices two answers.
+The Kaana-side rules are in Kaana `docs/routing.md` ("Same-route retry"). An
+error you receive is therefore the platform's final answer for that request:
+apps and Alia add no retry loop, SDK auto-retry or model substitution of their
+own. What an error means and what to do is summarised in the
+[guide](./README.md#when-a-request-fails).
+
 ### `retryable` is the server's answer, not a status code
 
 Every refusal carries an explicit `retryable`, and the code constrains it: a
@@ -175,8 +187,10 @@ alone would suggest otherwise:
 `internal_error` is not retryable either — an unclassified failure is not one
 anybody has established a retry could resolve.
 
-So: **branch on `code` and `retryable`, never on the HTTP status**, and honour
-`retryAfterMs` when it is there.
+So: **branch on `code` and `retryable`, never on the HTTP status**. `retryable:
+true` means a *later* identical request may succeed — surface it to the user or
+reschedule background work after `retryAfterMs` — not that the client should
+retry in a loop.
 
 ### Idempotency is a charge guarantee, not a replay cache
 

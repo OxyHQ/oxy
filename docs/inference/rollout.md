@@ -5,7 +5,7 @@ Workstream 16 of [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972).
 **This document defines stages; it does not assert which one production is in.**
 The mechanisms below exist and are tested. Determine the current stage from the
 live staff readout and task configuration, not from an older empty/unset
-observation. Read [README.md](./README.md) for what is built, and
+observation. Read [status.md](./status.md) for what is built, and
 [billing.md](./billing.md) for the ledger this rollout is careful about.
 
 ---
@@ -339,7 +339,7 @@ production workflow and metadata-plus-live-ECS gate in
 **A stage is not reached by setting a variable.** Every stage above is also
 gated on things this repository cannot switch: a data plane to forward to, a
 catalogue with contents, anomaly and fraud controls, and the reconciliation the
-shadow period exists to produce. [README.md](./README.md#cutover-dependent-status) is
+shadow period exists to produce. [status.md](./status.md#cutover-dependent-status) is
 the list.
 
 ### Financial and protocol readiness before advancing a stage

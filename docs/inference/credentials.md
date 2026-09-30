@@ -9,7 +9,7 @@ interchangeable, so the first thing to establish is which one you hold.
 | **Machine API key** | `oxy_sk_…`, sent verbatim as a bearer | any application, self-serve | the inference edge — see below |
 | **OAuth client id** | `oxy_dk_…` | any application | nothing. It is an identifier, never a secret |
 
-Status of the whole picture: [README.md](./README.md).
+Status of the whole picture: [status.md](./status.md).
 
 ---
 

@@ -164,6 +164,14 @@ and have their own `X-Oxy-Usage-Audio-*` headers. A request that can meter them
 is held at the dearest unit of each partition and refused before the hold when a
 route leaves any of them unpriced — see [realtime.md](./realtime.md).
 
+**`session_milliseconds` is a realtime session's wall clock** (contract set
+3.3.0): the milliseconds the session was open with the upstream provider,
+reported only by a provider that bills session time (xAI's Voice Agent API under
+`server_vad`, $0.08/min) and never beside a per-audio reading of the same span.
+It is not an audio unit and belongs to no token partition: it is charged beside
+them. Every realtime route prices it — at zero where the provider bills no
+session time — because every session's hold includes it.
+
 ## Price versions and snapshots
 
 Every priced route carries a price version, and every settled receipt stores a

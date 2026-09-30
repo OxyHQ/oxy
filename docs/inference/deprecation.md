@@ -6,7 +6,7 @@ publish and inventing one would be worse than omitting it.** What it does
 publish is the policy a date will be issued under — **adopted 2026-08-17, and
 binding** — and the list of things that will need one.
 
-Status of the whole platform: [README.md](./README.md).
+Status of the whole platform: [status.md](./status.md).
 
 ---
 

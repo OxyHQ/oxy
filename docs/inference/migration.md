@@ -3,7 +3,7 @@
 Four things changed or turned out never to have been what people assumed. Each
 section says what to do, and what was done for you.
 
-Status of everything else: [README.md](./README.md).
+Status of everything else: [status.md](./status.md).
 
 ---
 
@@ -117,7 +117,7 @@ being removed.
 
 **What replaces them:** whichever of the six catalogue concepts each use actually
 meant — see [catalogue.md](./catalogue.md). A real `<publisher>/<model>` where a
-model was meant; a clearly labelled routing profile where a preset was meant.
+model was meant; a power level (routing profile) where a preset was meant.
 
 **What you need to do:** stop sending them. There is no drop-in replacement id to
 give you because a merged bootstrap is not proof that it was applied or that its

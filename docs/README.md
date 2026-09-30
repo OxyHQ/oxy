@@ -67,7 +67,8 @@ and in any third-party verifier — using the exact same `@oxy.so/core` code.
 | [identity/account-events.md](identity/account-events.md) | Account deletion → relying parties: signed `account.deleted` Security Event Token, webhook push with retries, `GET /account-events` pull feed, retention |
 | [reputation/README.md](reputation/README.md) | Oxy Trust ledger (tiers/influence), crypto-owned reputation, F2 real-life attestation + validator jury, F3 proof-of-personhood, F4 verifiable credentials |
 | [nodes/README.md](nodes/README.md) | The data-node model, `@oxy.so/node` server, registration, Oxy→node export, node→Oxy ingest (verify/LWW/fork/counter-sign), managed vault |
-| [inference/README.md](inference/README.md) | The Oxy control plane + Kaana inference data plane: credentials, attribution, the model catalogue, exact billing, migrations and deployment gates |
+| [inference/README.md](inference/README.md) | **Start here for inference.** The developer guide: exact model vs power level vs app default, who owns what (app / Alia / Oxy edge / Kaana), request examples, errors, glossary |
+| [inference/status.md](inference/status.md) | The inference status board: what is built, where, and the remaining rollout gates |
 | [inference/request-routing.md](inference/request-routing.md) | The canonical Kaana/Alia/Oxy boundary, product request paths, provider-key custody and cutover gates |
 | [telemetry.md](telemetry.md) | Anonymous activity headers, 60-second cardinality, collector/realtime boundaries and privacy contract |
 | [runbooks/README.md](runbooks/README.md) | Rotation and break-glass procedures for every credential Oxy issues — trigger, commands, how to verify the write took, rollback, and what to do when the normal path is unavailable. The AWS half stays in `oxy-infra`. |
@@ -84,9 +85,11 @@ and in any third-party verifier — using the exact same `@oxy.so/core` code.
 - **Integrating "Sign in with Oxy" into a third-party app?**
   [auth/integration-guide.md](auth/integration-guide.md) is the copy-paste
   OAuth + PKCE walkthrough.
-- **Building against Oxy inference?** Start at
-  [inference/request-routing.md](inference/request-routing.md), then use
-  [inference/README.md](inference/README.md) as the status board. Verify the
+- **Building against Oxy inference?** Start at the
+  [developer guide](inference/README.md), then
+  [inference/request-routing.md](inference/request-routing.md) for your
+  feature's path and [inference/status.md](inference/status.md) for the
+  status board. Verify the
   exact audience, catalogue route, signed Kaana binding and charging stage rather
   than inferring production reachability from merged code.
 - **Working on Oxy ID / Commons / civic features?** Read

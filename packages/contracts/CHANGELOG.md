@@ -1,5 +1,23 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.5.0
+
+Inference contract set **3.3.0** (from 3.2.0): session wall-clock metering for
+realtime providers that bill a session's duration (OxyHQ/Kaana#90). Additive; no
+shape's `schemaVersion` moved. A 3.2 consumer refuses the new unit, which is what
+the MINOR bump announces.
+
+### Added
+
+- `USAGE_UNITS` gains `session_milliseconds`: wall-clock milliseconds a realtime
+  session was open with the upstream provider; reported only by a provider that
+  bills session time, and never together with a per-audio reading of the same
+  span. xAI's Voice Agent API bills a `server_vad` session for its whole
+  duration ($0.08/min) rather than for the audio sent and received; that clock
+  is not `audio_input_milliseconds`, and reporting it there would misdescribe the
+  charge. `money.ts` states the rule. oxy-api migration
+  `0127_session_milliseconds_unit` adds the ledger columns.
+
 ## 4.4.0
 
 Inference contract set **3.2.0** (from 3.1.0): audio chat, audio-token metering,

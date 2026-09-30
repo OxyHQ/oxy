@@ -56,6 +56,9 @@ export const AUDIO_PRICES: Readonly<Partial<Record<UsageUnit, string>>> = {
   audio_input_tokens: '40',
   cached_audio_input_tokens: '4',
   audio_output_tokens: '80',
+  // Contract set 3.3.0: a realtime session holds its wall clock on every route,
+  // so a route whose provider bills no session time prices it explicitly at zero.
+  session_milliseconds: '0',
 };
 
 export interface AudioFixtureOptions {
@@ -261,6 +264,7 @@ export async function receiptsFor(accountId: string) {
       audioInputTokens: usageReceipts.audioInputTokens,
       cachedAudioInputTokens: usageReceipts.cachedAudioInputTokens,
       audioOutputTokens: usageReceipts.audioOutputTokens,
+      sessionMilliseconds: usageReceipts.sessionMilliseconds,
       servingProvider: usageReceipts.servingProvider,
     })
     .from(usageReceipts)
