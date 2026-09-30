@@ -76,8 +76,9 @@ An **official** application (first-party, internal or system — the
 `{ routingPolicyId: 'platform-internal-default', policyVersion: 1 }` instead.
 It lets such an application name a concrete `publisher/model` without owning a
 policy row: the model's routes are ranked by their `price` score — the one
-dimension the Kaana catalogue sync can derive for every route — and no failover
-is authorized. A third-party application with no policy still cannot name a
+dimension the Kaana catalogue sync can derive for every route — and same-model
+deployment failover is authorized (on by default since contract set 3.4.0);
+cross-model fallback is not. A third-party application with no policy still cannot name a
 concrete model (`routing_evidence:missing-versioned-optimisation`). See
 [ADR 0027](../adr/0027-automatic-internal-catalogue-from-kaana.md).
 
@@ -103,6 +104,7 @@ needs its own.
 | `oxyHostedOnly` | only Oxy's own hosting of open-weight models |
 | `allowedLicenseIds`, `requireCommercialUseRights` | licence and usage-right constraints |
 | `fallback` | see below |
+| `allowedRoutingProfileIds` | the routing profiles (power levels) a request may name, by exact id. Empty means unrestricted. See [power-levels.md](./power-levels.md#per-application-default-and-allowed-levels) |
 | `byokPreference` | `disabled`, `prefer` or `require` — your own provider credential |
 | `dedicatedCapacity` | `disabled`, `prefer` or `require` — reserved capacity rather than shared endpoints |
 
@@ -133,7 +135,9 @@ forbids.
 
 - **Same-model deployment failover** (`fallback.sameModelDeployment`) — a
   different deployment of the *same* revision. An availability decision; you got
-  what you asked for.
+  what you asked for. **On by default** (contract set 3.4.0): omitted means on
+  unless `fallback.disabled`; a policy opts out with an explicit `false`. The
+  stored version records the effective value.
 - **Cross-model fallback** (`fallback.authorizedCrossModel`) — a different model
   or revision. **A list of model references you named**, never a boolean:
   "allow fallback" without naming the destination is exactly the silent
@@ -150,10 +154,14 @@ Three rules hold above the configuration:
    `GET /applications/:applicationId/route-switches`.
 3. **An unauthorized cross-model switch has no representation.** The
    `route_switch` shape requires `authorizedByPolicy: true` as a literal for a
-   model-scope switch, and the server LOOKS THE AUTHORISATION UP against the
-   policy version's own authorisation rows rather than accepting the producer's
-   claim — a claim a caller makes about its own permission is not a permission
-   check.
+   model-scope switch, and the server LOOKS THE AUTHORISATION UP rather than
+   accepting the producer's claim — a claim a caller makes about its own
+   permission is not a permission check. For an exact-model request the
+   authority is the policy version's own authorisation rows; for a routing
+   profile (power level) it is the profile, and the destination must be a
+   model line the edge signed for that request (`routing_profile_id` on the
+   record). A same-model deployment switch under a platform default is
+   recorded with neither a version nor a profile; a model switch never is.
 
 `fallback` governs a SWITCH between routes rather than the qualification of one,
 so it is not a predicate over a single candidate and does not appear in the
@@ -165,21 +173,21 @@ filter below. It is enforced in two places instead:
   plane decides. `fallback.sameModelDeployment` is what puts the other
   deployments of your model in it; `fallback.disabled` is what leaves it holding
   only the route your request was admitted on. **An application with no routing
-  policy at all authorizes no failover**, because there is no policy version a
-  switch could be recorded against.
+  policy at all gets same-model failover only** (the platform default), never
+  cross-model fallback.
 - **When the switch is recorded**, as rule 3 describes.
 
 Which routes the signed list authorizes, by target:
 
 | Target | Same-model failover | Cross-model fallback |
 |---|---|---|
-| exact model, app has no policy | no | no |
-| exact model, app policy | when `fallback.sameModelDeployment` and not `fallback.disabled` | only to `fallback.authorizedCrossModel` and not `fallback.disabled`; never for a pinned `@revision` |
+| exact model, app has no policy | yes (platform default) | no |
+| exact model, app policy | unless `fallback.sameModelDeployment: false` or `fallback.disabled` | only to `fallback.authorizedCrossModel` and not `fallback.disabled`; never for a pinned `@revision` |
 | routing profile / power level | yes | among the profile's own candidates |
 | realtime session | yes, same model only | never |
 
-Rolling out: same-model provider failover **by default** for exact-model
-requests. Kaana then retries and fails over along that list on its own; callers
+Same-model provider failover is on **by default** for exact-model requests
+(live). Kaana retries and fails over along that list on its own; callers
 must not add their own retry or failover
 ([guide](./README.md#when-a-request-fails)).
 

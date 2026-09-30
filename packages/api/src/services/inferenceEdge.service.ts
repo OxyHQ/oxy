@@ -112,6 +112,16 @@ import {
   isDeploymentPublished,
 } from './kaanaDeploymentPublication.service';
 import {
+  autoLadder,
+  classifyAutoPowerLevel,
+  type AutoPowerLevelResolver,
+  type AutoRoutingFeatures,
+  type ConcretePowerLevel,
+  powerLevelEfforts,
+  powerLevelProfileIds,
+} from './inferencePowerLevels.service';
+import {
+  effectiveSameModelDeployment,
   inferenceAttributionSchema,
   inferenceRequestSchema,
   INFERENCE_SCOPES,
@@ -122,12 +132,15 @@ import {
   type InferenceErrorCode,
   type InferenceInput,
   type InferenceMessage,
+  type InferenceReasoning,
   type InferenceRequest,
   type InferenceScope,
   type InferenceStreamEvent,
   type InferenceStreamRouteSwitchEvent,
   type NormalizedUsageReport,
+  type ReasoningEffort,
   type RoutingPolicyReference,
+  type RoutingProfile,
   type RoutingTarget,
   type UsageSource,
   type UsageUnit,
@@ -147,6 +160,7 @@ import { verifyServiceToken } from '../middleware/serviceToken';
 import { resolveServiceTokenPrincipal } from './attribution.service';
 import {
   exceedsAmount,
+  powerLevelCandidates,
   resolveCatalogueViewer,
   resolveEdgeRoute,
   firstUnacceptedParameter,
@@ -258,26 +272,21 @@ export const PLATFORM_DEFAULT_ROUTING_POLICY: RoutingPolicyReference = {
 
 /**
  * Whether an application served under {@link PLATFORM_DEFAULT_ROUTING_POLICY}
- * authorizes same-model failover in its envelope — `false`, deliberately.
+ * (or the internal default) authorizes same-model failover — `true`, by owner
+ * decision (2026-09-30, contract set 3.4.0).
  *
- * A NAMED constant for the same reason {@link UNCONSTRAINED_ROUTING} is one: "the
- * platform default grants no failover" has to be a sentence somebody wrote, not a
- * branch somebody forgot. Two reasons, and the second is the one that decides it:
+ * Serving the SAME revision from another deployment is an availability
+ * decision, not a substitution: the caller gets exactly the weights it named.
+ * So an exact-model request gets it by default, and a policy opts out with an
+ * explicit `fallback.sameModelDeployment: false` or `fallback.disabled`
+ * (`effectiveSameModelDeployment`). Cross-model fallback is unaffected and
+ * still needs the policy's own authorization rows or a routing profile.
  *
- *  - Same-model failover is a CUSTOMER control (`fallback.sameModelDeployment`),
- *    and under the platform default nobody set it. Withholding it grants no
- *    authority implicitly; an explicit, versioned policy is what makes any
- *    failover eligible for an envelope.
- *  - A switch made under the platform default cannot be RECORDED.
- *    `inference_route_switch_events.routing_policy_version_id` is `NOT NULL` and
- *    there is no version row to name, so {@link recordEdgeRouteSwitch} skips the
- *    notice. Authorizing a failover Oxy could not account for would put a silent
- *    hole in the route-switch history of the platform's most common
- *    configuration. Closing this needs a real platform-default policy version
- *    somebody decides to seed — the same fix `recordEdgeRouteSwitch` already
- *    names — after which this constant is what should be revisited.
+ * A switch made under a default has no policy version row to name; it is
+ * recorded with neither a version nor a profile, which the route-switch table
+ * admits for a DEPLOYMENT switch only (`inference_route_switch_events_authority`).
  */
-export const PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER = false;
+export const PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER = true;
 
 /**
  * The reference recorded when an OFFICIAL Oxy application (first-party,
@@ -643,6 +652,11 @@ export interface AdmittedRequest {
    * this list can settle above it — see {@link admitRequest}.
    */
   readonly authorizedRoutes: readonly EdgeRoute[];
+  /**
+   * The reasoning effort the envelope carries: the caller's own, or a power
+   * level's default where every authorized route's model advertises it.
+   */
+  readonly reasoning?: InferenceReasoning;
   readonly requestedModelReference: string;
   readonly maxOutputTokens: number;
   readonly routingPolicy: RoutingPolicyReference;
@@ -909,7 +923,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     target.kind !== 'model'
       ? true
       : policy.status === 'resolved'
-      ? fallbackEnabled && policy.stored.policy.fallback.sameModelDeployment
+      ? effectiveSameModelDeployment(policy.stored.policy.fallback)
       : PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER;
   // Never for a realtime session: every authorized route of a session is
   // `same_model` (the contract refuses anything else at the signature), so a
@@ -972,6 +986,11 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   let sawContextLimit = false;
   let sawRequestPriceExclusion = false;
   const requestedEffort = request.reasoning?.effort;
+  /**
+   * For a power level: the reasoning effort each priority group's level asks
+   * for when the caller named none (`auto` has one group per level).
+   */
+  let powerEffortByPriority: ReadonlyMap<number, ReasoningEffort | undefined> | undefined;
   /** Efforts advertised by models whose routes were dropped for lacking the requested one. */
   const effortsOfExcludedRoutes = new Set<string>();
   let sawUnsupportedEffort = false;
@@ -1177,30 +1196,102 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     if (profileResolution.status === 'routing-evidence-unavailable') {
       return routingEvidenceRefusal(requestedTargetReference, profileResolution.reason);
     }
-    const { profile } = profileResolution;
+    const resolvedProfileId =
+      profileResolution.status === 'power-level'
+        ? profileResolution.routingProfileId
+        : profileResolution.profile.routingProfileId;
     // The deprecated public slug is resolved here and cannot cross the signed
     // boundary. Both public selectors emit the exact canonical catalogue PK.
-    admittedRoutingTarget = {
-      kind: 'routing_profile_id',
-      routingProfileId: profile.routingProfileId,
-    };
+    admittedRoutingTarget = { kind: 'routing_profile_id', routingProfileId: resolvedProfileId };
 
-    const priorities = [...new Set(profile.candidates.map((candidate) => candidate.priority))].sort(
+    // The application's allowed-profile list (power levels it may use). Checked
+    // before any route is resolved: naming a level the policy forbids is the
+    // caller's own setting to change, so it is a `policy_violation`, never a
+    // silent downgrade to an allowed level.
+    const allowedProfileIds =
+      policy.status === 'resolved' ? policy.stored.policy.allowedRoutingProfileIds : [];
+    const profileAllowed = (routingProfileId: string): boolean =>
+      allowedProfileIds.length === 0 || allowedProfileIds.includes(routingProfileId);
+    if (!profileAllowed(resolvedProfileId)) {
+      const slug =
+        profileResolution.status === 'power-level'
+          ? profileResolution.slug
+          : profileResolution.profile.slug;
+      await recordEdgeTelemetry(context, {
+        requestedModelReference: slug,
+        statusCode: inferenceErrorStatus('policy_violation'),
+        units: {},
+      });
+      return refuse(
+        'policy_violation',
+        `This application’s routing policy does not allow the routing profile "${slug}".`,
+        {
+          param: exactIdTarget ? 'routingProfileId' : 'routingProfile',
+          reason: 'policy_excluded:allowedRoutingProfileIds',
+        }
+      );
+    }
+
+    let profileCandidates: readonly { readonly modelReference: string; readonly priority: number }[];
+    let optimiseFor: RoutingProfile['optimiseFor'];
+    // A power level's membership is dynamic by definition, so a class member
+    // whose routing evidence is incomplete is NOT a member right now: it is
+    // skipped (and logged) instead of refusing the whole level. A fixed
+    // profile keeps the fail-closed rule — its author named every candidate.
+    let dynamicMembership = false;
+    if (profileResolution.status === 'power-level') {
+      dynamicMembership = true;
+      optimiseFor = profileResolution.optimiseFor;
+      const levelProfileIds = await powerLevelProfileIds();
+      const levelAllowed = (level: ConcretePowerLevel): boolean => {
+        const id = levelProfileIds.get(level);
+        return id !== undefined && profileAllowed(id);
+      };
+      let levels: ConcretePowerLevel[];
+      if (profileResolution.powerLevel === 'auto') {
+        const decision = autoPowerLevelResolver(autoRoutingFeaturesOf(request, estimatedInputTokens));
+        levels = autoLadder(decision.level, levelAllowed);
+        logger.info('inference.edge.auto_power_level', {
+          requestId,
+          decided: decision.level,
+          reasons: decision.reasons,
+          ladder: levels,
+        });
+      } else {
+        levels = [profileResolution.powerLevel];
+      }
+      const efforts = await powerLevelEfforts();
+      powerEffortByPriority = new Map(levels.map((level, index) => [index, efforts.get(level)]));
+      profileCandidates = await powerLevelCandidates(viewer, levels);
+    } else {
+      optimiseFor = profileResolution.profile.optimiseFor;
+      profileCandidates = profileResolution.profile.candidates;
+    }
+
+    const priorities = [...new Set(profileCandidates.map((candidate) => candidate.priority))].sort(
       (left, right) => left - right
     );
     for (const priority of priorities) {
       const resolvedAtPriority: ResolvedRoutes[] = [];
-      for (const candidate of profile.candidates.filter((entry) => entry.priority === priority)) {
+      for (const candidate of profileCandidates.filter((entry) => entry.priority === priority)) {
         const resolution = await resolveEdgeRoute(
           viewer,
           candidate.modelReference,
           routingConstraints,
           requiredModality,
-          profile.optimiseFor,
+          optimiseFor,
           capacityForNextPriority(),
           authenticatedRoutingContext
         );
         if (resolution.status === 'routing-evidence-unavailable') {
+          if (dynamicMembership) {
+            logger.warn('inference.edge.power_level_member_unservable', {
+              requestId,
+              modelReference: candidate.modelReference,
+              reason: resolution.reason,
+            });
+            continue;
+          }
           return routingEvidenceRefusal(candidate.modelReference, resolution.reason);
         }
         if (resolution.status === 'resolved') {
@@ -1421,10 +1512,36 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       candidate.route.maxContextTokens >= estimatedInputTokens + maxOutputTokens
   );
 
+  // A power level's reasoning effort, when the caller named none: applied only
+  // when the admitted route's model advertises it, and then every failover
+  // destination must advertise it too — the envelope carries ONE effort, and a
+  // route that cannot honour it is never signed (the same rule a caller-named
+  // effort gets above).
+  let effectiveReasoning = request.reasoning;
+  //
+  // "Accepts it" is two facts: the MODEL advertises the effort, and the exact
+  // DEPLOYMENT's known accepted parameters include `reasoning.effort` (a
+  // caller-named effort is already checked through `carriedParameters`; an
+  // injected one must pass the same Kaana Translate rule, OxyHQ/Kaana#124).
+  const honoursEffort = (candidate: EdgeRoute, effort: ReasoningEffort): boolean =>
+    candidate.reasoningEfforts.includes(effort) &&
+    firstUnacceptedParameter(candidate.acceptedParameters, ['reasoning.effort']) === undefined;
+  let levelEffort: ReasoningEffort | undefined;
+  if (request.reasoning === undefined && powerEffortByPriority !== undefined) {
+    const effort = powerEffortByPriority.get(primaryCandidate.priority);
+    if (effort !== undefined && honoursEffort(route, effort)) {
+      levelEffort = effort;
+      effectiveReasoning = { effort };
+    }
+  }
+
   const authorizedRoutes: EdgeRoute[] = [route];
   const admittedModelLine = modelLineOf(route.modelReference);
   const authorizedModelLines = new Set<string>([admittedModelLine]);
   for (const candidate of capacityCompatible.slice(1)) {
+    if (levelEffort !== undefined && !honoursEffort(candidate.route, levelEffort)) {
+      continue;
+    }
     const candidateModelLine = modelLineOf(candidate.route.modelReference);
     if (candidateModelLine === admittedModelLine) {
       if (authorizesSameModelFailover) authorizedRoutes.push(candidate.route);
@@ -1622,6 +1739,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       route,
       routingTarget: admittedRoutingTarget,
       authorizedRoutes,
+      ...(effectiveReasoning === undefined ? {} : { reasoning: effectiveReasoning }),
       requestedModelReference,
       maxOutputTokens,
       routingPolicy,
@@ -2230,15 +2348,17 @@ async function recordEdgeRouteSwitch(
   }
 
   const routingPolicyVersionId = admitted.routingPolicyVersionId;
-  if (routingPolicyVersionId === undefined) {
-    logger.warn('inference.edge.route_switch_unrecordable', {
-      requestId: context.requestId,
-      sequence: event.sequence,
-      scope: event.detail.scope,
-      reason: 'platform_default_policy_has_no_version_row',
-    });
-    return;
-  }
+  // A routing-profile (power-level) request: the profile authorized every
+  // model line it signed, so those lines are what a model switch may land on.
+  const routingProfile =
+    admitted.routingTarget.kind === 'routing_profile_id'
+      ? {
+          routingProfileId: admitted.routingTarget.routingProfileId,
+          authorizedModelLines: [
+            ...new Set(admitted.authorizedRoutes.map((route) => modelLineOf(route.modelReference))),
+          ],
+        }
+      : undefined;
 
   // `authorizedByPolicy` is deliberately NOT forwarded. On the wire it is a
   // `z.literal(true)` — a producer asserting its own permission — and
@@ -2269,7 +2389,8 @@ async function recordEdgeRouteSwitch(
       accountId: context.principal.ownerAccountId,
       applicationId: context.principal.applicationId,
       environment: context.principal.environment,
-      routingPolicyVersionId,
+      ...(routingPolicyVersionId === undefined ? {} : { routingPolicyVersionId }),
+      ...(routingProfile === undefined ? {} : { routingProfile }),
       reason: event.reason,
       detail,
       occurredAt: new Date(event.occurredAt),
@@ -2927,7 +3048,7 @@ function buildEnvelope(
     sampling: request.sampling,
     // Forwarded only after admission checked the admitted route's model
     // advertises this effort.
-    ...(request.reasoning === undefined ? {} : { reasoning: request.reasoning }),
+    ...(admitted.reasoning === undefined ? {} : { reasoning: admitted.reasoning }),
     ...(request.speech === undefined ? {} : { speech: request.speech }),
     // Forwarded only after admission found a route whose model DECLARES
     // spoken output on this dialect and prices every audio unit it can meter.
@@ -3329,6 +3450,31 @@ export function estimateInputTokens(request: NormalizedEdgeRequest): number {
 }
 
 /** The first non-text content part in an input, if there is one. */
+/**
+ * The request features `auto` decides on. Read from the NORMALIZED request so
+ * both dialects decide identically.
+ */
+function autoRoutingFeaturesOf(
+  request: NormalizedEdgeRequest,
+  estimatedInputTokens: number
+): AutoRoutingFeatures {
+  return {
+    toolCount: request.tools.length,
+    estimatedInputTokens,
+    ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
+    nonTextInput: firstNonTextPart(request.input) !== undefined,
+    ...(request.reasoning === undefined ? {} : { requestedEffort: request.reasoning.effort }),
+    structuredOutput:
+      request.responseFormat !== undefined && request.responseFormat.type !== 'text',
+  };
+}
+
+/**
+ * The `auto` decision in force. The deterministic v1 rule today; a trained
+ * classifier replaces it by satisfying the same {@link AutoPowerLevelResolver}.
+ */
+const autoPowerLevelResolver: AutoPowerLevelResolver = classifyAutoPowerLevel;
+
 function firstNonTextPart(input: InferenceInput): string | undefined {
   if (input.format !== 'messages') return undefined;
   for (const message of input.messages) {

@@ -474,7 +474,7 @@ entirely; existing routes keep serving until retired.
 A synced route carries only a `price` score, so it is selectable under
 `optimiseFor: 'price'`. An official application with no routing policy of its
 own is served under `platform-internal-default@1`, which ranks on `price` and
-authorizes no failover ([routing.md](./routing.md)). A policy optimising for
+authorizes same-model deployment failover only ([routing.md](./routing.md)). A policy optimising for
 latency, throughput or balanced finds no score on a synced route and refuses
 with `no_route_available` (`routing_evidence:missing-score`) until measured
 scores exist.

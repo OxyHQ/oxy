@@ -1,5 +1,33 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.6.0
+
+Inference contract set **3.4.0** (from 3.3.0): power levels, per-app allowed
+routing profiles, and same-model failover on by default. Every change is
+additive or loosens a refinement; no shape's `schemaVersion` moved. A 3.3
+consumer refuses the new members and fields, which is what the MINOR bump
+announces.
+
+### Added
+
+- `powerLevelSchema` (`auto`, `instant`, `medium`, `high`, `xhigh`, `pro`,
+  `ultra`) and `modelPowerClassSchema` (`instant`, `medium`, `high`, `pro`,
+  `ultra`), with `PowerLevel` and `ModelPowerClass` types.
+- `routingProfileSchema.powerLevel` and `.reasoningEffort` (both optional): a
+  profile that is a power level, and the effort it requests when a request
+  names none.
+- `modelCatalogueEntrySchema.powerClass` (optional): the model's reviewed class.
+- `routingPolicySchema.allowedRoutingProfileIds` (default `[]`, unrestricted),
+  refined so the default profile must be on a non-empty list and no id repeats.
+- `effectiveSameModelDeployment(fallback)`: the one reading of the fallback
+  block's same-model switch.
+
+### Changed
+
+- `routingFallbackPolicySchema.sameModelDeployment` is now OPTIONAL; absent
+  means on unless `disabled`. An explicit `false` still opts out, and an
+  explicit `true` with `disabled` is still refused.
+
 ## 4.5.0
 
 Inference contract set **3.3.0** (from 3.2.0): session wall-clock metering for

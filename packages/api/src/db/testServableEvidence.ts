@@ -15,6 +15,7 @@ import { getDb } from '../config/postgres';
 import {
   inferenceDeploymentRoutingScores,
   inferenceDeployments,
+  inferenceModelPowerClasses,
   inferenceModelRevisions,
   inferenceModels,
   inferenceProviders,
@@ -144,6 +145,8 @@ export async function insertCatalogueRoute(
     readonly maxContextTokens?: number;
     /** Reuse an existing model line (a second deployment of the same model). */
     readonly sameModelAs?: CatalogueRouteFixture;
+    /** `platform_internal` (default) or the public pay-as-you-go audience. */
+    readonly availabilityScope?: 'platform_internal' | 'public_payg';
   } = {}
 ): Promise<CatalogueRouteFixture> {
   const db = getDb();
@@ -218,8 +221,11 @@ export async function insertCatalogueRoute(
     retentionDays: 0,
     trainsOnCustomerData: false,
     zeroDataRetentionAvailable: true,
-    availabilityScope: 'platform_internal',
-    commercialPermission: 'standard_application_use',
+    availabilityScope: options.availabilityScope ?? 'platform_internal',
+    commercialPermission:
+      options.availabilityScope === 'public_payg'
+        ? 'public_resale_approved'
+        : 'standard_application_use',
     status: 'active',
     legalReviewStatus: 'approved',
     legalReviewedAt: new Date(),
@@ -236,4 +242,32 @@ export async function insertCatalogueRoute(
     });
   }
   return { modelRowId, modelId, revision, providerSlug, internalRouteId };
+}
+
+/** Give a fixture model line a reviewed power class (test evidence). */
+export async function setPowerClass(
+  modelId: string,
+  powerClass: 'instant' | 'medium' | 'high' | 'pro' | 'ultra'
+): Promise<void> {
+  await getDb()
+    .insert(inferenceModelPowerClasses)
+    .values({
+      modelId,
+      powerClass,
+      evidenceSource: 'test-fixture',
+      evidenceUrl: 'https://example.test/benchmark',
+      evidenceSummary: 'test fixture',
+      reviewedAt: new Date(),
+      reviewedBy: 'test-suite',
+    })
+    .onConflictDoUpdate({ target: inferenceModelPowerClasses.modelId, set: { powerClass } });
+}
+
+/**
+ * Remove every reviewed power class in THIS test database, so a power-level
+ * test sees only the classes it set. Never run against anything but a
+ * throwaway test database.
+ */
+export async function clearPowerClassesForTest(): Promise<void> {
+  await getDb().delete(inferenceModelPowerClasses);
 }

@@ -1629,7 +1629,11 @@ describe("inference contract versioning", () => {
     // realtime session family — all additive, all refused by a 3.1 consumer.
     // MINOR 3: the `session_milliseconds` usage unit (a closed enum gained a
     // member, which a 3.2 consumer refuses).
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.3.0");
+    // MINOR 4: power levels — `powerLevelSchema`, `modelPowerClassSchema`,
+    // `RoutingProfile.powerLevel`/`reasoningEffort`, `ModelCatalogueEntry.powerClass`,
+    // `RoutingPolicy.allowedRoutingProfileIds`, and an optional
+    // `sameModelDeployment` (a loosened refinement).
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.4.0");
   });
 
   it("matches the frozen schema version map exactly", () => {

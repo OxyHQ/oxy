@@ -62,6 +62,7 @@ import { inferenceRouteSwitchReasonSchema } from '@oxy.so/contracts';
 import { applications } from './applications';
 import { inferenceRoutingPolicyFallbacks } from './inferenceRoutingPolicyFallbacks';
 import { inferenceRoutingPolicyVersions } from './inferenceRoutingPolicyVersions';
+import { inferenceRoutingProfiles } from './inferenceRoutingProfiles';
 import { MODEL_ID_CHECK_PATTERN, MODEL_REFERENCE_CHECK_PATTERN } from './inferenceSlug';
 import { INFERENCE_ENVIRONMENTS } from './usageReservations';
 import { users } from './users';
@@ -115,9 +116,20 @@ export const inferenceRouteSwitchEvents = pgTable(
      * `RESTRICT`: a switch that cannot name the configuration that allowed it is
      * not an explanation of anything, so the version outlives the event.
      */
-    routingPolicyVersionId: text()
-      .notNull()
-      .references(() => inferenceRoutingPolicyVersions.id, { onDelete: 'restrict' }),
+    routingPolicyVersionId: text().references(() => inferenceRoutingPolicyVersions.id, {
+      onDelete: 'restrict',
+    }),
+
+    /**
+     * The routing profile (power level) the request targeted, when the switch
+     * was authorized by the PROFILE rather than by a policy's own fallback rows.
+     * A profile's candidate set is its authorization: the edge signs only
+     * candidates of that profile, and a model switch among them is recorded
+     * against this id. NULL for a concrete-model request.
+     */
+    routingProfileId: text().references(() => inferenceRoutingProfiles.id, {
+      onDelete: 'restrict',
+    }),
 
     scope: text({ enum: ROUTE_SWITCH_SCOPES }).notNull(),
     reason: text({ enum: ROUTE_SWITCH_REASONS }).notNull(),
@@ -232,9 +244,22 @@ export const inferenceRouteSwitchEvents = pgTable(
       'inference_route_switch_events_model_shape',
       sql`${t.scope} <> 'model' or (
         ${t.requestedModelId} is not null
-        and ${t.authorizationId} is not null
+        and (${t.authorizationId} is not null or ${t.routingProfileId} is not null)
         and ${t.fromModelReference} <> ${t.toModelReference}
       )`
+    ),
+
+    /**
+     * Every switch names what allowed it: a policy version, a routing profile,
+     * or — for a same-model DEPLOYMENT switch only — nothing, which is the
+     * platform default's same-model failover (on by default since contract set
+     * 3.4.0). A model switch with neither cannot be written.
+     */
+    check(
+      'inference_route_switch_events_authority',
+      sql`${t.routingPolicyVersionId} is not null
+        or ${t.routingProfileId} is not null
+        or ${t.scope} = 'deployment'`
     ),
 
     /** "Every switch on this account, newest first" — the customer's own read. */

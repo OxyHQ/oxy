@@ -25080,9 +25080,18 @@
                       }
                     },
                     "required": [
-                      "disabled",
-                      "sameModelDeployment"
+                      "disabled"
                     ]
+                  },
+                  "allowedRoutingProfileIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "maxItems": 64,
+                    "default": []
                   },
                   "byokPreference": {
                     "type": "string",
@@ -25514,9 +25523,18 @@
                       }
                     },
                     "required": [
-                      "disabled",
-                      "sameModelDeployment"
+                      "disabled"
                     ]
+                  },
+                  "allowedRoutingProfileIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "maxItems": 64,
+                    "default": []
                   },
                   "byokPreference": {
                     "type": "string",
@@ -26255,9 +26273,18 @@
                       }
                     },
                     "required": [
-                      "disabled",
-                      "sameModelDeployment"
+                      "disabled"
                     ]
+                  },
+                  "allowedRoutingProfileIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "maxItems": 64,
+                    "default": []
                   },
                   "byokPreference": {
                     "type": "string",
@@ -27863,6 +27890,16 @@
                             "type": "string",
                             "pattern": "^https:\\/\\/[^\\s]+$",
                             "maxLength": 2048
+                          },
+                          "powerClass": {
+                            "type": "string",
+                            "enum": [
+                              "instant",
+                              "medium",
+                              "high",
+                              "pro",
+                              "ultra"
+                            ]
                           }
                         },
                         "required": [
@@ -28001,6 +28038,26 @@
                           },
                           "isProductPreset": {
                             "type": "boolean"
+                          },
+                          "powerLevel": {
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "instant",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "pro",
+                              "ultra"
+                            ]
+                          },
+                          "reasoningEffort": {
+                            "type": "string",
+                            "enum": [
+                              "low",
+                              "medium",
+                              "high"
+                            ]
                           }
                         },
                         "required": [
@@ -28664,6 +28721,16 @@
                             "type": "string",
                             "pattern": "^https:\\/\\/[^\\s]+$",
                             "maxLength": 2048
+                          },
+                          "powerClass": {
+                            "type": "string",
+                            "enum": [
+                              "instant",
+                              "medium",
+                              "high",
+                              "pro",
+                              "ultra"
+                            ]
                           }
                         },
                         "required": [
@@ -29351,6 +29418,16 @@
                           "type": "string",
                           "pattern": "^https:\\/\\/[^\\s]+$",
                           "maxLength": 2048
+                        },
+                        "powerClass": {
+                          "type": "string",
+                          "enum": [
+                            "instant",
+                            "medium",
+                            "high",
+                            "pro",
+                            "ultra"
+                          ]
                         }
                       },
                       "required": [
@@ -35678,9 +35755,18 @@
                 "type": "object",
                 "properties": {
                   "model": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
-                    "maxLength": 194
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
+                        "maxLength": 194
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
+                        "maxLength": 64
+                      }
+                    ]
                   },
                   "messages": {
                     "type": "array",
@@ -37319,6 +37405,16 @@
                             "type": "string",
                             "pattern": "^https:\\/\\/[^\\s]+$",
                             "maxLength": 2048
+                          },
+                          "powerClass": {
+                            "type": "string",
+                            "enum": [
+                              "instant",
+                              "medium",
+                              "high",
+                              "pro",
+                              "ultra"
+                            ]
                           }
                         },
                         "required": [
@@ -37457,6 +37553,26 @@
                           },
                           "isProductPreset": {
                             "type": "boolean"
+                          },
+                          "powerLevel": {
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "instant",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "pro",
+                              "ultra"
+                            ]
+                          },
+                          "reasoningEffort": {
+                            "type": "string",
+                            "enum": [
+                              "low",
+                              "medium",
+                              "high"
+                            ]
                           }
                         },
                         "required": [
@@ -38120,6 +38236,16 @@
                             "type": "string",
                             "pattern": "^https:\\/\\/[^\\s]+$",
                             "maxLength": 2048
+                          },
+                          "powerClass": {
+                            "type": "string",
+                            "enum": [
+                              "instant",
+                              "medium",
+                              "high",
+                              "pro",
+                              "ultra"
+                            ]
                           }
                         },
                         "required": [
@@ -38807,6 +38933,16 @@
                           "type": "string",
                           "pattern": "^https:\\/\\/[^\\s]+$",
                           "maxLength": 2048
+                        },
+                        "powerClass": {
+                          "type": "string",
+                          "enum": [
+                            "instant",
+                            "medium",
+                            "high",
+                            "pro",
+                            "ultra"
+                          ]
                         }
                       },
                       "required": [
@@ -39731,9 +39867,18 @@
                 "type": "object",
                 "properties": {
                   "model": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
-                    "maxLength": 194
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
+                        "maxLength": 194
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
+                        "maxLength": 64
+                      }
+                    ]
                   },
                   "routingProfile": {
                     "type": "string",

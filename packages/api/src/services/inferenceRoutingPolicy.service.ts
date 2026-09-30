@@ -46,6 +46,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { uuidv7 } from '@oxy.so/db';
 import {
+  effectiveSameModelDeployment,
   routingPolicyScopeSchema,
   routingPolicySchema,
   type RoutingPolicy,
@@ -285,7 +286,10 @@ function versionValues(
     allowedLicenseIds: [...policy.allowedLicenseIds],
     requireCommercialUseRights: policy.requireCommercialUseRights,
     fallbackDisabled: policy.fallback.disabled,
-    sameModelDeploymentFallback: policy.fallback.sameModelDeployment,
+    // Stored as the EFFECTIVE value: an omitted `sameModelDeployment` means on
+    // unless `disabled` (contract set 3.4.0), and the row states what applied.
+    sameModelDeploymentFallback: effectiveSameModelDeployment(policy.fallback),
+    allowedRoutingProfileIds: [...policy.allowedRoutingProfileIds],
     byokPreference: policy.byokPreference,
     dedicatedCapacity: policy.dedicatedCapacity,
   };
@@ -376,6 +380,12 @@ async function resolveReferences(
         return { status: 'unknown', reference: declared.routingProfileId };
       }
       target = { kind: 'profile', id: profileId };
+    }
+  }
+
+  for (const routingProfileId of policy.allowedRoutingProfileIds) {
+    if ((await resolveRoutingProfileById(tx, routingProfileId)) === undefined) {
+      return { status: 'unknown', reference: routingProfileId };
     }
   }
 
@@ -676,6 +686,7 @@ async function readVersion(
       sameModelDeployment: row.sameModelDeploymentFallback,
       authorizedCrossModel: authorized,
     },
+    allowedRoutingProfileIds: row.allowedRoutingProfileIds,
     byokPreference: row.byokPreference,
     dedicatedCapacity: row.dedicatedCapacity,
     updatedAt: row.createdAt.toISOString(),
@@ -809,6 +820,7 @@ const VERSION_COLUMNS = {
   requireCommercialUseRights: inferenceRoutingPolicyVersions.requireCommercialUseRights,
   fallbackDisabled: inferenceRoutingPolicyVersions.fallbackDisabled,
   sameModelDeploymentFallback: inferenceRoutingPolicyVersions.sameModelDeploymentFallback,
+  allowedRoutingProfileIds: inferenceRoutingPolicyVersions.allowedRoutingProfileIds,
   byokPreference: inferenceRoutingPolicyVersions.byokPreference,
   dedicatedCapacity: inferenceRoutingPolicyVersions.dedicatedCapacity,
   createdAt: inferenceRoutingPolicyVersions.createdAt,
@@ -1064,7 +1076,22 @@ export interface RecordRouteSwitchInput {
   readonly accountId: string;
   readonly applicationId: string;
   readonly environment: 'development' | 'staging' | 'production';
-  readonly routingPolicyVersionId: string;
+  /**
+   * The policy version the request ran under. Absent under the platform
+   * defaults, which have no version row.
+   */
+  readonly routingPolicyVersionId?: string;
+  /**
+   * Present when the request targeted a routing profile (power level). The
+   * profile is then the authority for a model switch, and the switch must land
+   * on one of the model lines the edge signed for this request — the profile's
+   * candidates that qualified, which is exactly what it authorized.
+   */
+  readonly routingProfile?: {
+    readonly routingProfileId: string;
+    /** Unpinned `<publisher>/<model>` lines of every signed route. */
+    readonly authorizedModelLines: readonly string[];
+  };
   readonly reason: RouteSwitchReason;
   readonly detail: RouteSwitchDetail;
   readonly occurredAt: Date;
@@ -1115,6 +1142,59 @@ export async function recordRouteSwitch(
 ): Promise<RecordRouteSwitchResult> {
   const db = getDb();
 
+  // A PROFILE-authorized switch (power levels): the profile's signed candidate
+  // set is the authorization, so a model switch is recorded only when it lands
+  // on a model line the edge signed for this very request.
+  if (input.routingProfile !== undefined || input.routingPolicyVersionId === undefined) {
+    const profile = input.routingProfile;
+    let requestedModelId: string | null = null;
+    if (input.detail.scope === 'model') {
+      const toLine = modelLineOfReference(input.detail.toModelReference);
+      if (profile === undefined || !profile.authorizedModelLines.includes(toLine)) {
+        return {
+          status: 'unauthorized-substitution',
+          requestedModelId: input.detail.requestedModelId,
+          toModelReference: input.detail.toModelReference,
+        };
+      }
+      requestedModelId = modelLineOfReference(input.detail.fromModelReference);
+    }
+    const fromModelReference =
+      input.detail.scope === 'deployment'
+        ? input.detail.modelReference
+        : input.detail.fromModelReference;
+    const toModelReference =
+      input.detail.scope === 'deployment'
+        ? input.detail.modelReference
+        : input.detail.toModelReference;
+    const [row] = await db
+      .insert(inferenceRouteSwitchEvents)
+      .values({
+        requestId: input.requestId,
+        sequence: input.sequence,
+        accountId: input.accountId,
+        applicationId: input.applicationId,
+        environment: input.environment,
+        routingPolicyVersionId: input.routingPolicyVersionId ?? null,
+        routingProfileId: profile?.routingProfileId ?? null,
+        scope: input.detail.scope,
+        reason: input.reason,
+        fromModelReference,
+        toModelReference,
+        toProvider: input.detail.toProvider,
+        toDeploymentId: input.detail.toDeploymentId ?? null,
+        requestedModelId,
+        authorizationId: null,
+        occurredAt: input.occurredAt,
+      })
+      .onConflictDoNothing()
+      .returning({ id: inferenceRouteSwitchEvents.id });
+    return row
+      ? { status: 'recorded', eventId: row.id, scope: input.detail.scope }
+      : { status: 'already-recorded', requestId: input.requestId, sequence: input.sequence };
+  }
+  const routingPolicyVersionId = input.routingPolicyVersionId;
+
   const [version] = await db
     .select({
       id: inferenceRoutingPolicyVersions.id,
@@ -1123,13 +1203,13 @@ export async function recordRouteSwitch(
         inferenceRoutingPolicyVersions.sameModelDeploymentFallback,
     })
     .from(inferenceRoutingPolicyVersions)
-    .where(eq(inferenceRoutingPolicyVersions.id, input.routingPolicyVersionId))
+    .where(eq(inferenceRoutingPolicyVersions.id, routingPolicyVersionId))
     .limit(1);
 
   if (!version) {
     return {
       status: 'unknown-policy-version',
-      routingPolicyVersionId: input.routingPolicyVersionId,
+      routingPolicyVersionId,
     };
   }
   if (version.fallbackDisabled) {
@@ -1204,6 +1284,12 @@ export async function recordRouteSwitch(
   return { status: 'recorded', eventId: row.id, scope: input.detail.scope };
 }
 
+/** `<publisher>/<model>` of a possibly revision-pinned reference. */
+function modelLineOfReference(reference: string): string {
+  const separator = reference.indexOf('@');
+  return separator === -1 ? reference : reference.slice(0, separator);
+}
+
 /**
  * The authorisation row permitting a substitution TO `reference`, if any.
  *
@@ -1270,7 +1356,10 @@ export interface RouteSwitchEventView {
   readonly requestId: string;
   readonly sequence: number;
   readonly applicationId: string;
-  readonly routingPolicyVersionId: string;
+  /** Null when the switch was authorized by a routing profile or the platform default. */
+  readonly routingPolicyVersionId: string | null;
+  /** The routing profile (power level) that authorized the switch, if any. */
+  readonly routingProfileId: string | null;
   readonly scope: RouteSwitchScope;
   readonly reason: RouteSwitchReason;
   readonly requestedModelId: string | null;
@@ -1299,6 +1388,7 @@ export async function listRouteSwitchEventsForApplication(
       sequence: inferenceRouteSwitchEvents.sequence,
       applicationId: inferenceRouteSwitchEvents.applicationId,
       routingPolicyVersionId: inferenceRouteSwitchEvents.routingPolicyVersionId,
+      routingProfileId: inferenceRouteSwitchEvents.routingProfileId,
       scope: inferenceRouteSwitchEvents.scope,
       reason: inferenceRouteSwitchEvents.reason,
       requestedModelId: inferenceRouteSwitchEvents.requestedModelId,

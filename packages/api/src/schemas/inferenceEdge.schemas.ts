@@ -94,6 +94,21 @@ const responsesInputSchema = z.union([
   z.array(inferenceMessageSchema).min(1),
 ]);
 
+/**
+ * `model` on the two chat dialects: a concrete model reference, or a power
+ * level / routing-profile slug. Disjoint by construction — see
+ * `routingProfileSlugSchema` — so {@link targetOfModelField} decides by the
+ * presence of `/` alone.
+ */
+const modelOrRoutingProfileSchema = z.union([modelReferenceSchema, routingProfileSlugSchema]);
+
+/** The routing target a `model` field names. */
+function targetOfModelField(model: string): EdgeRoutingTarget {
+  return model.includes('/')
+    ? { kind: 'model', modelReference: model }
+    : { kind: 'routing_profile_legacy', routingProfile: model };
+}
+
 export const responsesRequestSchema = z
   .object({
     /**
@@ -113,7 +128,8 @@ export const responsesRequestSchema = z
      * model or routing profile". The edge resolves it and refuses only when
      * there is no policy default either.
      */
-    model: modelReferenceSchema.optional(),
+    /** A model reference, or a power level / routing-profile slug (no `/`). */
+    model: modelOrRoutingProfileSchema.optional(),
     routingProfile: routingProfileSlugSchema.optional(),
     /** Exact opaque database identity; never trimmed, normalized, or resolved by slug. */
     routingProfileId: routingProfileIdSchema.optional(),
@@ -250,12 +266,14 @@ const openAiResponseFormatSchema = z.union([
 export const chatCompletionsRequestSchema = z
   .object({
     /**
-     * The canonical Oxy model reference. An OpenAI vendor model name
-     * (`gpt-4o`) is not one and does not resolve — the catalogue's identifiers
-     * are `<publisher>/<model>`, and accepting a bare vendor name would mean
-     * Oxy guessing which publisher a customer meant.
+     * The canonical Oxy model reference (`<publisher>/<model>[@<revision>]`),
+     * OR a power level / routing-profile slug (`instant`, `auto`, …). The two
+     * are decidable from the string alone: a profile slug has no `/` and a
+     * model reference always has one, so this is never a guess. An OpenAI vendor
+     * model name (`gpt-4o`) is neither and does not resolve — it would be looked
+     * up as a profile slug and refused as unknown, never mapped to a publisher.
      */
-    model: modelReferenceSchema,
+    model: modelOrRoutingProfileSchema,
     messages: z.array(openAiMessageSchema).min(1),
     max_tokens: z.number().int().positive().safe().optional(),
     max_completion_tokens: z.number().int().positive().safe().optional(),
@@ -846,7 +864,7 @@ export function normalizeResponsesRequest(request: ResponsesRequest): Normalized
   // absent, which is the edge's signal to use the routing policy's default.
   const target: EdgeRoutingTarget | undefined =
     request.model !== undefined
-      ? { kind: 'model', modelReference: request.model }
+      ? targetOfModelField(request.model)
       : request.routingProfile !== undefined
         ? { kind: 'routing_profile_legacy', routingProfile: request.routingProfile }
         : request.routingProfileId !== undefined
@@ -919,7 +937,7 @@ export function normalizeChatCompletionsRequest(
     operation: spoken
       ? { kind: 'completion' as const, spokenOutput: true as const }
       : { kind: 'completion' as const },
-    target: { kind: 'model' as const, modelReference: request.model },
+    target: targetOfModelField(request.model),
     input: { format: 'messages' as const, messages },
     audioOutput:
       spoken && request.audio !== undefined

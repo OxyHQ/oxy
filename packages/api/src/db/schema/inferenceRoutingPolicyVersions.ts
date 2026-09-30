@@ -217,6 +217,23 @@ export const inferenceRoutingPolicyVersions = pgTable(
      */
     sameModelDeploymentFallback: boolean().notNull(),
 
+    // ---- routing-profile (power level) restriction --------------------------
+
+    /**
+     * The routing profiles this version may target, by exact id. EMPTY means no
+     * restriction. A plain array rather than a child table: the list only
+     * narrows what a request may name, and each id is resolved against
+     * `inference_routing_profiles` when the version is written.
+     *
+     * The DEFAULT stays in the schema on purpose: the image still serving during
+     * a rolling deploy writes versions without this column, and an empty list is
+     * exactly the unrestricted meaning those versions had.
+     */
+    allowedRoutingProfileIds: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+
     // ---- capacity and credentials -------------------------------------------
 
     /** Whether the customer's own provider credentials may or must be used. */

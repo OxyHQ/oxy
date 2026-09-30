@@ -1,3 +1,4 @@
+import { effectiveSameModelDeployment } from '@oxy.so/contracts'
 import type { RoutingPolicy, UsageUnit } from '@oxy.so/contracts'
 
 /**
@@ -69,9 +70,10 @@ export function controlsFromPolicy(
     requireCommercialUseRights: policy.requireCommercialUseRights,
     fallback: {
       disabled: policy.fallback.disabled,
-      sameModelDeployment: policy.fallback.sameModelDeployment,
+      sameModelDeployment: effectiveSameModelDeployment(policy.fallback),
       authorizedCrossModel: [...policy.fallback.authorizedCrossModel],
     },
+    allowedRoutingProfileIds: [...policy.allowedRoutingProfileIds],
     byokPreference: policy.byokPreference,
     dedicatedCapacity: policy.dedicatedCapacity,
   }
@@ -107,6 +109,7 @@ export function defaultRoutingPolicyControls(): RoutingPolicyControls {
       sameModelDeployment: true,
       authorizedCrossModel: [],
     },
+    allowedRoutingProfileIds: [],
     byokPreference: 'disabled',
     dedicatedCapacity: 'disabled',
   }
@@ -202,7 +205,7 @@ export function routingPolicyHighlights(
   const fallback = policy.fallback.disabled
     ? 'Disabled — a request that cannot be served on its route fails'
     : [
-        policy.fallback.sameModelDeployment
+        effectiveSameModelDeployment(policy.fallback)
           ? 'Same-model deployment failover'
           : 'No same-model failover',
         policy.fallback.authorizedCrossModel.length > 0

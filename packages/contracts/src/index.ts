@@ -897,6 +897,8 @@ export {
     // The six distinct catalogue objects + the customer-safe projection.
     inferenceModalitySchema,
     reasoningEffortSchema,
+    powerLevelSchema,
+    modelPowerClassSchema,
     inferenceApiFormatSchema,
     realtimeSessionKindSchema,
     realtimeSessionTransportSchema,
@@ -925,6 +927,8 @@ export {
 export type {
     InferenceModality,
     ReasoningEffort,
+    PowerLevel,
+    ModelPowerClass,
     InferenceApiFormat,
     RealtimeSessionKind,
     RealtimeSessionTransport,
@@ -958,6 +962,7 @@ export {
     routingFallbackPolicySchema,
     routingPolicySchema,
     routingPolicyReferenceSchema,
+    effectiveSameModelDeployment,
     // What the data plane actually receives: the routes the policy authorized.
     authorizedRouteSchema,
 } from './inference/routingPolicy';

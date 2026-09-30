@@ -54,10 +54,9 @@ openai/gpt-oss-120b@observed-2026-09-01      a revision: exactly these weights
 - Only that model runs. It is **never replaced by another model** (live).
 - Retries and failover stay on the same model. Kaana retries the same route,
   and can move to another provider of the **same** model only when that
-  provider is on the signed route list. Today the list includes the other
-  providers only when the app's routing policy sets
-  `fallback.sameModelDeployment` (live). Same-model provider failover on by
-  default for exact-model requests is **rolling out**. See
+  provider is on the signed route list. Other deployments of the same model
+  are on that list **by default** (live): an app opts out with
+  `fallback.sameModelDeployment: false` or `fallback.disabled: true`. See
   [routing.md](./routing.md#fallback-two-features-two-switches).
 - A model id always contains a `/`. A power level never does, so a request
   always shows which kind of target it names.
@@ -65,37 +64,47 @@ openai/gpt-oss-120b@observed-2026-09-01      a revision: exactly these weights
 ### 2. Power level — "run something good enough at this level"
 
 A power level (technical name: **routing profile**) is a slug with no `/`. The
-platform picks an available model of that level. **The level names are
-rolling out**:
+platform picks an available model of that level (**live**). Each level has a
+fixed `routingProfileId` (`power-<level>`, e.g. `power-instant`), the same in
+every environment:
 
-| Power level | Use it for |
-|---|---|
-| `auto` | the platform picks the cheapest level that is good enough, per request |
-| `instant` | the fastest, cheapest answers: short summaries, smart replies, labels |
-| `medium` | everyday assistant work |
-| `high` | harder reasoning and longer tasks |
-| `xhigh` | even harder reasoning |
-| `pro` | the most capable models, higher cost and latency |
-| `ultra` | the top tier, highest cost and latency |
+| Power level | Models | Reasoning effort | Use it for |
+|---|---|---|---|
+| `auto` | the cheapest level that suffices | that level's | the platform decides per request |
+| `instant` | very cheap, fast small models | none | short summaries, smart replies, labels |
+| `medium` | mid-size models | `low` | everyday assistant work |
+| `high` | strong models | `medium` | harder reasoning and longer tasks |
+| `xhigh` | the `high` models | `high` | even harder reasoning |
+| `pro` | frontier models | `high` | the most capable models, higher cost and latency |
+| `ultra` | the heaviest frontier models | `high` (the maximum) | the top tier, highest cost and latency |
+
+Which model belongs to which level is reviewed catalogue data with a cited
+public benchmark source, never guessed from a model's name. The table, the
+sources and the `auto` rules are in [power-levels.md](./power-levels.md).
 
 What a power level promises:
 
-- Each level sets a reasoning effort, so you normally don't send one yourself
-  (rolling out).
+- Each level sets a reasoning effort, applied only on a model that accepts it,
+  so you normally don't send one yourself (live). An effort you do send wins.
+- Only **servable** models are candidates: published by Kaana right now, with
+  complete price, score and funding evidence (live).
+- Candidates are ordered by cost to the platform (free allowance → discounted
+  pay-as-you-go → promotional credit → standard paid), then price.
 - Two requests at the same level can run on different models, and a failing
-  model can be replaced by **another model of the same level**. For routing
-  profiles this cross-model failover is live today. It comes to power levels
-  with the levels themselves.
+  model can be replaced by **another model of the same level** (live). The
+  switch is reported as a `route_switch` event and recorded against the
+  level.
 - The response always names the **concrete model that ran**: `model` in the
   body, `X-Oxy-Model` in the headers (live).
 - A realtime voice session is refused a power level. It must name an exact
   model (live).
 
-Live today: the `routingProfile` (slug) and `routingProfileId` (exact ID)
-request fields, the list at `GET /v1/models/routing-profiles`, and reporting
-the concrete model. The profiles in the database today are product-specific
-(`kaana-v1` for Inbox, `kaana-v1-speech` for Alia speech, and the retired Alia
-presets). They are not the power levels above.
+Name a level with `routingProfile` (slug), `routingProfileId` (exact ID), or
+`model` on either chat dialect (`"model": "instant"`). `GET
+/v1/models/routing-profiles` lists each level with its current candidates,
+`powerLevel` and `reasoningEffort`. The older product-specific profiles
+(`kaana-v1` for Inbox, `kaana-v1-speech` for Alia speech) are not power
+levels.
 
 **Proposed** profiles (not available): cheapest/free, fastest, capability
 profiles (vision, code, long context), data or region constraints, and
@@ -107,7 +116,11 @@ Send no target. The edge uses the app's routing policy `defaultTarget`, which
 can be an exact model or a power level (**live**). If the app has no default,
 the request is refused with `invalid_request` (400).
 
-Each app will also have an **allowed set of power levels** (**rolling out**):
+Each app can also restrict itself to an **allowed set of power levels** with
+the policy's `allowedRoutingProfileIds` (**live**). A request naming a level
+outside the set is refused with `policy_violation` (403) before anything is
+reserved; `auto` only climbs to allowed levels; and the default must be one of
+the allowed levels. Empty means no restriction:
 
 | App | Default | Allowed |
 |---|---|---|
@@ -123,7 +136,7 @@ See [routing.md](./routing.md#where-a-policy-lives).
 |---|---|
 | A background feature where the app decides the quality: summaries, smart replies, classification, translation | **App default** set to a power level. Send no target |
 | An assistant where the user picks "fast" vs "smart" | **Power level**, through Alia. Never show model names |
-| You don't know which level fits | **`auto`** (rolling out). Until then, use the app default |
+| You don't know which level fits | **`auto`** |
 | You need one specific model: a capability only it has, a contract, a customer's choice | **Exact model** `publisher/model` |
 | Evals, regression tests, reproducible output | **Exact model** pinned with `@revision` |
 | A realtime voice session | **Exact model** (a power level is refused) |
@@ -150,7 +163,7 @@ const inference = new OxyInferenceClient({ credential: process.env.OXY_API_KEY }
 // 1. Exact model
 await inference.respond({ model: 'openai/gpt-oss-120b', input: 'Translate to French: hello' });
 
-// 2. Power level (the field is live; the level names are rolling out)
+// 2. Power level
 await inference.respond({ routingProfile: 'instant', input: 'Summarise this thread: …' });
 
 // 3. App default: name nothing
@@ -183,9 +196,9 @@ curl https://api.oxy.so/v1/responses \
 ```
 
 The OpenAI-compatible `POST /v1/chat/completions` works with a stock OpenAI
-client, but its `model` field must be an exact model today. Naming a power
-level there (for example `"model": "instant"`) is **rolling out**. See
-[sdk.md](./sdk.md#the-openai-sdk-unmodified).
+client. Its `model` field takes an exact model **or** a power level
+(`"model": "instant"`, live): a value with no `/` is a level, never a guessed
+publisher. See [sdk.md](./sdk.md#the-openai-sdk-unmodified).
 
 ---
 
@@ -271,7 +284,7 @@ You only need this section when debugging. The full rules are in
 | **Deployment** | one concrete way to run a revision: revision × provider × region × data policy. It has an opaque `deploymentId` |
 | **Route** | a deployment as it appears in one request's signed, ordered list (`authorizedRoutes`) |
 | **Power level** / **routing profile** | a named way to *choose* a model (`instant`, `high`, …). "Power level" is the user-facing name; "routing profile" is the technical name used in the API (`routingProfile`, `routingProfileId`). A power level is not a model |
-| **Routing policy** | an app's or account's settings: default target, allowed levels (rolling out), data, region and price constraints, and fallback switches. See [routing.md](./routing.md) |
+| **Routing policy** | an app's or account's settings: default target, allowed levels, data, region and price constraints, and fallback switches. See [routing.md](./routing.md) |
 | **Default target** | the model or power level a request gets when it names neither |
 | **Retry** | Kaana trying the **same route** again after a transient failure |
 | **Failover** | moving to **another route** on the signed list. For an exact model, only another deployment of the same model |
@@ -292,12 +305,12 @@ You only need this section when debugging. The full rules are in
 | Per-app `defaultTarget` (model or routing profile) | Live |
 | Kaana same-route retry (2 retries, 15 s budget) and failover until the first output | Live ([Kaana#131](https://github.com/OxyHQ/Kaana/pull/131)) |
 | Funding-class ordering: free allowance → discounted pay-as-you-go → promotional credit → standard paid | Live in Oxy. Exact per-deployment key binding is in Kaana source. Its production cutover is tracked in Kaana `docs/schema-0013-cutover-2026-09-24.md` |
-| Same-model provider failover for exact-model requests | Live when the app policy sets `fallback.sameModelDeployment`. On by default: rolling out |
-| Power levels `auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`, with their reasoning efforts | Rolling out |
-| `auto` choosing the cheapest level that is good enough, per request | Rolling out |
-| Cross-model failover among a routing profile's candidates | Live for routing profiles. Arrives for power levels with the levels |
-| Per-app allowed levels (Inbox → `instant` only; Alia exposes levels, never model names) | Rolling out |
-| Naming a power level in `model` (for OpenAI-compatible clients) | Rolling out |
+| Same-model provider failover for exact-model requests | Live, on by default; a policy opts out with `fallback.sameModelDeployment: false` |
+| Power levels `auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`, with their reasoning efforts | Live ([power-levels.md](./power-levels.md)) |
+| `auto` choosing the cheapest level that is good enough, per request | Live (deterministic v1 rules) |
+| Cross-model failover among a routing profile's candidates | Live, power levels included |
+| Per-app allowed levels (Inbox → `instant` only; Alia exposes levels, never model names) | Live (`allowedRoutingProfileIds`); each app's policy is configuration to set |
+| Naming a power level in `model` (for OpenAI-compatible clients) | Live |
 | Only servable models listed or chosen (published by Kaana, complete price/score/funding evidence) | Live in Oxy. Kaana withholding exhausted or persistently failing deployments: rolling out in Kaana |
 | cheapest/free, fastest, capability, data/region and family-preference profiles | Proposed |
 

@@ -39,6 +39,7 @@ import {
   inferenceProviderSlugSchema,
   inferenceRegionSchema,
   routingFallbackPolicySchema,
+  routingProfileIdSchema,
   routingTargetSchema,
   unitPriceSchema,
   USAGE_UNITS,
@@ -95,6 +96,16 @@ export const routingPolicyControlsBody = z
     requireCommercialUseRights: z.boolean(),
 
     fallback: routingFallbackPolicySchema,
+
+    /**
+     * The routing profiles (power levels) this scope may target. Empty: no
+     * restriction. Each id must exist; see `allowedRoutingProfileIds` in the
+     * contract.
+     */
+    allowedRoutingProfileIds: z
+      .array(routingProfileIdSchema)
+      .max(MAX_LIST_CONTROL_ENTRIES)
+      .default([]),
 
     byokPreference: z.enum(['disabled', 'prefer', 'require']),
     dedicatedCapacity: z.enum(['disabled', 'prefer', 'require']),

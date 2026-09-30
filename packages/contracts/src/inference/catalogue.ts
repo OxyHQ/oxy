@@ -71,6 +71,40 @@ export const inferenceModalitySchema = z.enum([
 export const reasoningEffortSchema = z.enum(['low', 'medium', 'high']);
 
 /**
+ * A POWER LEVEL: the public name of a product-preset routing profile that asks
+ * Oxy to choose a model by capability tier instead of naming one (contract set
+ * 3.4.0). Ordered cheapest first; `auto` asks Oxy to pick the cheapest level
+ * that suffices for the request.
+ *
+ * - `instant` — very cheap, fast small models; no reasoning effort requested
+ * - `medium` — mid-size models, low reasoning effort
+ * - `high` — strong models, medium reasoning effort
+ * - `xhigh` — strong models, high reasoning effort
+ * - `pro` — frontier models, high reasoning effort
+ * - `ultra` — the heaviest frontier models, maximum reasoning effort
+ *
+ * A power level is a routing profile, never a model: its slug has no `/`, and
+ * the response always reports the concrete model that ran.
+ */
+export const powerLevelSchema = z.enum([
+  'auto',
+  'instant',
+  'medium',
+  'high',
+  'xhigh',
+  'pro',
+  'ultra',
+]);
+
+/**
+ * The reviewed capability tier of one MODEL, which power levels choose from.
+ * `xhigh` and `auto` are not classes: `xhigh` runs `high`-class models at a
+ * higher effort, and `auto` chooses a level. Reviewed catalogue data with a
+ * cited public benchmark source — never inferred from a model's name.
+ */
+export const modelPowerClassSchema = z.enum(['instant', 'medium', 'high', 'pro', 'ultra']);
+
+/**
  * The public dialects a request can arrive in — `client.apiFormat` on the
  * envelope, and the list a deployment declares it can execute.
  *
@@ -595,6 +629,18 @@ export const routingProfileSchema = z.object({
   candidates: z.array(routingProfileCandidateSchema).min(1),
   /** A product preset (Alia's "fast" toggle) rather than a customer's own profile. */
   isProductPreset: z.boolean(),
+  /**
+   * Present when this profile IS a power level (contract set 3.4.0). Its
+   * `candidates` are then the currently servable models of the level's class,
+   * and may change between reads; cross-model failover among them is
+   * authorized by the profile and reported with a `route_switch` event.
+   */
+  powerLevel: powerLevelSchema.optional(),
+  /**
+   * The reasoning effort a power level asks for when the request names none,
+   * applied only on a model that advertises it. Absent: none is requested.
+   */
+  reasoningEffort: reasoningEffortSchema.optional(),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -667,10 +713,18 @@ export const modelCatalogueEntrySchema = z.object({
   evaluations: z.array(modelEvaluationResultSchema).default([]),
   safety: modelSafetyMetadataSchema.optional(),
   modelCardUrl: inferenceHttpsUrlSchema.optional(),
+  /**
+   * The reviewed power class this model serves in, when one has been reviewed
+   * (contract set 3.4.0). Absent means the model is callable by name only and
+   * no power level chooses it.
+   */
+  powerClass: modelPowerClassSchema.optional(),
 });
 
 export type InferenceModality = z.infer<typeof inferenceModalitySchema>;
 export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
+export type PowerLevel = z.infer<typeof powerLevelSchema>;
+export type ModelPowerClass = z.infer<typeof modelPowerClassSchema>;
 export type InferenceApiFormat = z.infer<typeof inferenceApiFormatSchema>;
 export type RealtimeSessionKind = z.infer<typeof realtimeSessionKindSchema>;
 export type RealtimeSessionTransport = z.infer<typeof realtimeSessionTransportSchema>;

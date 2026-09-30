@@ -622,7 +622,7 @@ export function RoutingPolicyForm({
         <ToggleRow
           label="Same-model deployment failover"
           description="Move between deployments of the identical revision when one is unavailable."
-          checked={controls.fallback.sameModelDeployment}
+          checked={controls.fallback.sameModelDeployment ?? !controls.fallback.disabled}
           disabled={controls.fallback.disabled}
           onCheckedChange={(checked) =>
             setControls((current) => ({

@@ -71,6 +71,7 @@ export function neutralRoutingPolicy(
     allowedLicenseIds: [],
     requireCommercialUseRights: false,
     fallback: { disabled: false, sameModelDeployment: true, authorizedCrossModel: [] },
+    allowedRoutingProfileIds: [],
     byokPreference: 'disabled',
     dedicatedCapacity: 'disabled',
     ...overrides,

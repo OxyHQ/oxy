@@ -27,7 +27,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, check, pgTable, text } from 'drizzle-orm/pg-core';
+import { boolean, check, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, updatedAt } from '@oxy.so/db';
 import { SLUG_CHECK_PATTERN } from './inferenceSlug';
 
@@ -41,6 +41,26 @@ export const ROUTING_PROFILE_OPTIMISATIONS = [
 ] as const;
 
 export type RoutingProfileOptimisation = (typeof ROUTING_PROFILE_OPTIMISATIONS)[number];
+
+/**
+ * The power levels, cheapest first — `powerLevelSchema` in the contract. A
+ * profile carrying one chooses among the currently servable models of the
+ * level's reviewed class instead of a fixed candidate list.
+ */
+export const ROUTING_PROFILE_POWER_LEVELS = [
+  'auto',
+  'instant',
+  'medium',
+  'high',
+  'xhigh',
+  'pro',
+  'ultra',
+] as const;
+
+export type RoutingProfilePowerLevel = (typeof ROUTING_PROFILE_POWER_LEVELS)[number];
+
+/** `reasoningEffortSchema` in the contract. */
+export const ROUTING_PROFILE_REASONING_EFFORTS = ['low', 'medium', 'high'] as const;
 
 export const inferenceRoutingProfiles = pgTable(
   'inference_routing_profiles',
@@ -67,6 +87,18 @@ export const inferenceRoutingProfiles = pgTable(
      */
     isProductPreset: boolean().notNull(),
 
+    /**
+     * Set on the seven power-level presets and nowhere else. NULL keeps the
+     * profile on its fixed `inference_routing_profile_candidates` list.
+     */
+    powerLevel: text({ enum: ROUTING_PROFILE_POWER_LEVELS }),
+
+    /**
+     * The reasoning effort the level requests when the caller names none,
+     * applied only on a model that advertises it. NULL: none requested.
+     */
+    reasoningEffort: text({ enum: ROUTING_PROFILE_REASONING_EFFORTS }),
+
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -85,6 +117,18 @@ export const inferenceRoutingProfiles = pgTable(
       'inference_routing_profiles_optimise_for_check',
       sql`${t.optimiseFor} in (${sql.raw(inList(ROUTING_PROFILE_OPTIMISATIONS))})`
     ),
+    check(
+      'inference_routing_profiles_power_level_check',
+      sql`${t.powerLevel} is null or (${t.powerLevel} in (${sql.raw(inList(ROUTING_PROFILE_POWER_LEVELS))}) and ${t.isProductPreset})`
+    ),
+    check(
+      'inference_routing_profiles_reasoning_effort_check',
+      sql`${t.reasoningEffort} is null or (${t.reasoningEffort} in (${sql.raw(inList(ROUTING_PROFILE_REASONING_EFFORTS))}) and ${t.powerLevel} is not null)`
+    ),
+    /** One profile per power level. */
+    uniqueIndex('inference_routing_profiles_power_level_key')
+      .on(t.powerLevel)
+      .where(sql`${t.powerLevel} is not null`),
   ]
 );
 

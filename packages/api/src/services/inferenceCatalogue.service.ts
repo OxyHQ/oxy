@@ -47,6 +47,7 @@ import type {
   InferenceEnvironment,
   ModelCatalogueEntry,
   PriceSnapshot,
+  ReasoningEffort,
   RoutingPolicy,
   RoutingProfile,
   UnitPrice,
@@ -95,6 +96,15 @@ import {
 } from '../utils/applicationTier';
 import { resolveProviderConnectionForApplication } from './inferenceProviderConnection.service';
 import { type DeploymentLiveness, isDeploymentPublished } from './kaanaDeploymentPublication.service';
+import type { RoutingProfilePowerLevel } from '../db/schema/inferenceRoutingProfiles';
+import {
+  AUTO_CEILING,
+  CONCRETE_POWER_LEVELS,
+  type ConcretePowerLevel,
+  POWER_LEVEL_CLASS,
+  powerClassesOf,
+  powerClassModelIds,
+} from './inferencePowerLevels.service';
 
 /* -------------------------------------------------------------------------- */
 /*  1. The audience                                                           */
@@ -304,6 +314,8 @@ export const UNFILTERED_ROUTING_CONTROLS = {
     'ENFORCED, but at the edge rather than here: it decides WHICH model reference is resolved when the caller named none (`inferenceEdge.service.ts`), so it is an input to this resolution and never a filter over its candidates.',
   fallback:
     'ENFORCED, in two places and never here: `inferenceEdge.service.ts` decides from `fallback.disabled`/`sameModelDeployment` whether the envelope’s `authorizedRoutes` carries any failover destination at all (ADR 0017), and `inferenceRoutingPolicy.service.ts`’s `recordRouteSwitch` refuses to record a substitution whose destination is not named in the version’s authorisation rows. It governs a SWITCH between routes, not the qualification of one, so it cannot be expressed as a predicate over a single candidate — which is why `resolveEdgeRoute` returns every survivor and the edge, not this filter, applies it.',
+  allowedRoutingProfileIds:
+    'ENFORCED at the edge, before any route is resolved: a request naming a routing profile (power level) outside a non-empty list is refused with `policy_violation`, and `auto` climbs only to allowed levels. It restricts which PROFILE a request may name, not which route qualifies, so it is not a predicate over a candidate.',
   optimiseFor:
     'ENFORCED by the edge resolver as a ranking over reviewed scorecards after every filtering control has qualified the candidate. It never excludes a policy-conforming route; unavailable or stale ranking evidence makes the complete route set unavailable before reservation.',
 } as const satisfies Readonly<Partial<Record<keyof RoutingPolicy, string>>>;
@@ -1606,6 +1618,10 @@ export async function listCatalogueForViewer(
     ),
   ]);
 
+  const powerClasses = await powerClassesOf(
+    modelRows.flatMap((model) => (model.modelId === null ? [] : [model.modelId]))
+  );
+
   const entries: ModelCatalogueEntry[] = [];
   for (const model of modelRows) {
     const revisions = revisionRows.filter((revision) => revision.modelId === model.id);
@@ -1631,7 +1647,9 @@ export async function listCatalogueForViewer(
       evaluationRows.filter((row) => row.modelRevisionId === currentRevision.id),
       priceSnapshotsByVersionId
     );
-    if (entry !== null) entries.push(entry);
+    if (entry === null) continue;
+    const powerClass = powerClasses.get(entry.modelId);
+    entries.push(powerClass === undefined ? entry : { ...entry, powerClass });
   }
 
   return entries.sort((left, right) => left.modelId.localeCompare(right.modelId));
@@ -2702,14 +2720,80 @@ function sortedModalities(values: readonly string[]): readonly string[] {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Every routing profile, with its candidates.
+ * The candidates of a power level for one viewer, in priority order: every
+ * model of each level's reviewed class that has an approved route in the
+ * viewer's audience, one priority per level (index in `levels`). Whether a
+ * candidate is SERVABLE is decided by the caller — the catalogue by
+ * {@link servableDeploymentRowIds}, the edge by resolving it.
+ */
+export async function powerLevelCandidates(
+  viewer: CatalogueViewer,
+  levels: readonly ConcretePowerLevel[]
+): Promise<{ readonly modelReference: string; readonly priority: number; readonly level: ConcretePowerLevel }[]> {
+  if (viewer.scopes.length === 0) return [];
+  const candidates: {
+    readonly modelReference: string;
+    readonly priority: number;
+    readonly level: ConcretePowerLevel;
+  }[] = [];
+  const seen = new Set<string>();
+  for (const [priority, level] of levels.entries()) {
+    for (const modelId of await powerClassModelIds(
+      POWER_LEVEL_CLASS[level],
+      selectableDeploymentWhere(viewer)
+    )) {
+      // `xhigh` shares `high`'s class; a model is listed once, at its first level.
+      if (seen.has(modelId)) continue;
+      seen.add(modelId);
+      candidates.push({ modelReference: modelId, priority, level });
+    }
+  }
+  return candidates;
+}
+
+/** The levels a power-level profile draws from when listed (no request yet). */
+function listedLevelsOf(powerLevel: RoutingProfilePowerLevel): ConcretePowerLevel[] {
+  if (powerLevel !== 'auto') return [powerLevel];
+  return CONCRETE_POWER_LEVELS.slice(0, CONCRETE_POWER_LEVELS.indexOf(AUTO_CEILING) + 1);
+}
+
+/** Canonical model ids with at least one servable route for this viewer. */
+async function servableModelIds(
+  viewer: CatalogueViewer,
+  liveness: DeploymentLiveness
+): Promise<ReadonlySet<string>> {
+  const deploymentIds = await servableDeploymentRowIds(viewer, liveness);
+  if (deploymentIds.size === 0) return new Set();
+  const rows = await getDb()
+    .selectDistinct({ modelId: inferenceModels.modelId })
+    .from(inferenceDeployments)
+    .innerJoin(
+      inferenceModelRevisions,
+      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
+    )
+    .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
+    .where(inArray(inferenceDeployments.id, [...deploymentIds]));
+  return new Set(rows.flatMap((row) => (row.modelId === null ? [] : [row.modelId])));
+}
+
+/**
+ * Every routing profile this viewer can use, with its candidates.
  *
  * Served from its own collection with its own identifier space, and rendered in
  * its own section of Console. A profile is not a model and is never listed
  * among models — that separation is the whole of ADR 0008's sixth concept, and
  * merging the two lists is how `alia-lite` became a "model" in the first place.
+ *
+ * A power-level profile's candidates are the models of its level's reviewed
+ * class (for `auto`, every class it may climb to, one priority per level). Under
+ * a `servable` read, every profile's candidates are narrowed to models with a
+ * route the edge could admit now, and a profile left with none is omitted — the
+ * same rule `/v1/models` applies to models.
  */
-export async function listRoutingProfiles(): Promise<RoutingProfile[]> {
+export async function listRoutingProfiles(
+  viewer: CatalogueViewer,
+  availability: CatalogueAvailability
+): Promise<RoutingProfile[]> {
   const db = getDb();
 
   const profileRows = await db
@@ -2720,11 +2804,23 @@ export async function listRoutingProfiles(): Promise<RoutingProfile[]> {
       description: inferenceRoutingProfiles.description,
       optimiseFor: inferenceRoutingProfiles.optimiseFor,
       isProductPreset: inferenceRoutingProfiles.isProductPreset,
+      powerLevel: inferenceRoutingProfiles.powerLevel,
+      reasoningEffort: inferenceRoutingProfiles.reasoningEffort,
     })
     .from(inferenceRoutingProfiles)
     .orderBy(asc(inferenceRoutingProfiles.slug));
 
   if (profileRows.length === 0) return [];
+
+  const servable =
+    availability.kind === 'servable'
+      ? await servableModelIds(viewer, availability.liveness)
+      : undefined;
+  const isServable = (modelReference: string): boolean => {
+    if (servable === undefined) return true;
+    const separator = modelReference.indexOf('@');
+    return servable.has(separator === -1 ? modelReference : modelReference.slice(0, separator));
+  };
 
   const candidateRows = await db
     .select({
@@ -2776,31 +2872,40 @@ export async function listRoutingProfiles(): Promise<RoutingProfile[]> {
         ).map((row) => [row.id, row.modelId] as const)
   );
 
-  return profileRows.flatMap((profile) => {
-    const candidates = candidateRows
-      .filter((candidate) => candidate.routingProfileId === profile.id)
-      .flatMap((candidate) => {
-        const modelRowId = candidate.unpinnedModelId ?? candidate.pinnedRevisionModelId;
-        const canonicalModelId =
-          modelRowId === null ? undefined : canonicalModelIds.get(modelRowId);
-        if (canonicalModelId === undefined || canonicalModelId === null) return [];
-        return [
-          {
-            modelReference:
-              candidate.pinnedRevision === null
-                ? canonicalModelId
-                : composeModelReference(canonicalModelId, candidate.pinnedRevision),
-            priority: candidate.priority,
-          },
-        ];
-      });
+  const profiles: RoutingProfile[] = [];
+  for (const profile of profileRows) {
+    let candidates: { modelReference: string; priority: number }[];
+    if (profile.powerLevel !== null) {
+      candidates = (await powerLevelCandidates(viewer, listedLevelsOf(profile.powerLevel)))
+        .filter((candidate) => isServable(candidate.modelReference))
+        .map(({ modelReference, priority }) => ({ modelReference, priority }));
+    } else {
+      candidates = candidateRows
+        .filter((candidate) => candidate.routingProfileId === profile.id)
+        .flatMap((candidate) => {
+          const modelRowId = candidate.unpinnedModelId ?? candidate.pinnedRevisionModelId;
+          const canonicalModelId =
+            modelRowId === null ? undefined : canonicalModelIds.get(modelRowId);
+          if (canonicalModelId === undefined || canonicalModelId === null) return [];
+          return [
+            {
+              modelReference:
+                candidate.pinnedRevision === null
+                  ? canonicalModelId
+                  : composeModelReference(canonicalModelId, candidate.pinnedRevision),
+              priority: candidate.priority,
+            },
+          ];
+        })
+        .filter((candidate) => isServable(candidate.modelReference));
+    }
 
     // `routingProfileSchema` requires at least one candidate. A profile with
     // none cannot be served and is omitted rather than emitted malformed —
     // the same default-deny reading a model with no current revision gets.
-    if (candidates.length === 0) return [];
+    if (candidates.length === 0) continue;
 
-    return [
+    profiles.push(
       routingProfileSchema.parse({
         schemaVersion: 1 as const,
         routingProfileId: profile.id,
@@ -2810,12 +2915,29 @@ export async function listRoutingProfiles(): Promise<RoutingProfile[]> {
         optimiseFor: profile.optimiseFor,
         candidates,
         isProductPreset: profile.isProductPreset,
-      }),
-    ];
-  });
+        ...(profile.powerLevel === null ? {} : { powerLevel: profile.powerLevel }),
+        ...(profile.reasoningEffort === null ? {} : { reasoningEffort: profile.reasoningEffort }),
+      })
+    );
+  }
+  return profiles;
 }
+
 export type EdgeRoutingProfileResolution =
   | { readonly status: 'resolved'; readonly profile: RoutingProfile }
+  | {
+      /**
+       * A power-level preset. It has no stored candidates: the edge resolves
+       * them per request ({@link powerLevelCandidates}), after `auto` has chosen
+       * its ladder and the application's allowed-profile list has narrowed it.
+       */
+      readonly status: 'power-level';
+      readonly routingProfileId: string;
+      readonly slug: string;
+      readonly powerLevel: RoutingProfilePowerLevel;
+      readonly reasoningEffort?: ReasoningEffort;
+      readonly optimiseFor: RoutingProfile['optimiseFor'];
+    }
   | { readonly status: 'unknown-profile' }
   | {
       readonly status: 'routing-evidence-unavailable';
@@ -2831,6 +2953,10 @@ export type EdgeRoutingProfileResolution =
  * narrowing a named profile changes the set the caller authorized. Every stored
  * candidate is therefore converted explicitly here, and one unresolvable row
  * refuses the whole profile before a reservation or Kaana call.
+ *
+ * A POWER-LEVEL profile is the documented exception: its membership is dynamic
+ * by definition (the currently servable models of a reviewed class), so it is
+ * returned without candidates for the edge to resolve per request.
  */
 async function resolveRoutingProfileForEdgeWhere(
   profileWhere: SQL<unknown>
@@ -2844,11 +2970,24 @@ async function resolveRoutingProfileForEdgeWhere(
       description: inferenceRoutingProfiles.description,
       optimiseFor: inferenceRoutingProfiles.optimiseFor,
       isProductPreset: inferenceRoutingProfiles.isProductPreset,
+      powerLevel: inferenceRoutingProfiles.powerLevel,
+      reasoningEffort: inferenceRoutingProfiles.reasoningEffort,
     })
     .from(inferenceRoutingProfiles)
     .where(profileWhere)
     .limit(1);
   if (profile === undefined) return { status: 'unknown-profile' };
+
+  if (profile.powerLevel !== null) {
+    return {
+      status: 'power-level',
+      routingProfileId: profile.id,
+      slug: profile.slug,
+      powerLevel: profile.powerLevel,
+      ...(profile.reasoningEffort === null ? {} : { reasoningEffort: profile.reasoningEffort }),
+      optimiseFor: profile.optimiseFor,
+    };
+  }
 
   const candidateRows = await db
     .select({
