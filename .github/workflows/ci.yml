@@ -629,6 +629,12 @@ jobs:
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: bun scripts/test-ci-api-scope.mjs
 
+      # Whether the merge-queue image job builds (merge-queue-image.yml), read
+      # from deploy-aws.yml's own `on.push.paths`. No install.
+      - name: 'Deploy Image Scope: fixture tests'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/test-deploy-image-scope.mjs
+
       # Every secret the API needs at boot must actually reach SSM
       # (see scripts/check-deploy-secrets-sync.mjs).
       #
@@ -755,6 +761,7 @@ jobs:
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+          bash .github/scripts/test-resolve-queue-image.sh
           bash .github/scripts/test-verify-reused-service-credential.sh
           bash .github/scripts/test-put-secure-parameter.sh
           bash .github/scripts/test-run-native-product-agent-bootstrap.sh
