@@ -496,3 +496,8 @@ latency, throughput or balanced finds no score on a synced route and refuses
 with `no_route_available` (`routing_evidence:missing-score`) until measured
 scores exist.
 
+The readiness census (`verify-inference-routing-readiness.ts`, the daily expiry
+monitor) holds a synced price-only route to its price evidence alone: no expiry.
+It refuses one sharing a model revision with a measured route, because that
+candidate would make the whole set refuse any non-price objective.
+

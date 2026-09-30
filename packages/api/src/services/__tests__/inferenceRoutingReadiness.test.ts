@@ -10,6 +10,8 @@ const minimumValidUntil = new Date('2026-09-02T02:00:00.000Z');
 function completeRow(overrides: Partial<InferenceRoutingReadinessRow> = {}) {
   return {
     deploymentId: 'dep_ready',
+    modelRevisionId: 'rev_reviewed',
+    synced: false,
     currentPriceVersionId: 'price_current',
     requestUnitPriceVersionId: 'price_current',
     scorePriceVersionId: 'price_current',
@@ -78,6 +80,82 @@ describe('inference routing readiness decision', () => {
   });
 });
 
+/** What the Kaana sync writes: a price score, the three measured scores unscored and lapsed at write time. */
+function syncedPriceOnlyRow(overrides: Partial<InferenceRoutingReadinessRow> = {}) {
+  const writtenAt = new Date('2026-08-25T10:06:59.737Z');
+  return completeRow({
+    deploymentId: 'dep_synced',
+    modelRevisionId: 'rev_synced',
+    synced: true,
+    latency: null,
+    latencyMeasurementWindowEnd: writtenAt,
+    latencyValidUntil: writtenAt,
+    throughput: null,
+    throughputMeasurementWindowEnd: writtenAt,
+    throughputValidUntil: writtenAt,
+    balanced: null,
+    balancedValidUntil: writtenAt,
+    ...overrides,
+  });
+}
+
+describe('synced price-only routes', () => {
+  it('have no expiry cliff: a lapsed unscored window is not stale evidence', () => {
+    expect(
+      assessInferenceRoutingReadiness(
+        [completeRow(), syncedPriceOnlyRow()],
+        now,
+        minimumValidUntil
+      )
+    ).toEqual({ status: 'ready' });
+  });
+
+  it.each([
+    ['no price score', { price: null }],
+    ['a stale price version', { scorePriceVersionId: 'price_old' }],
+    ['a missing request unit price', { requestUnitPriceVersionId: null }],
+    ['an unmapped row', { deploymentId: null }],
+  ] as const)('still refuse %s', (_label, overrides) => {
+    expect(
+      assessInferenceRoutingReadiness(
+        [syncedPriceOnlyRow(overrides)],
+        now,
+        minimumValidUntil
+      )
+    ).toMatchObject({ status: 'incomplete' });
+  });
+
+  it('refuse sharing a model revision with a measured route', () => {
+    expect(
+      assessInferenceRoutingReadiness(
+        [completeRow(), syncedPriceOnlyRow({ modelRevisionId: 'rev_reviewed' })],
+        now,
+        minimumValidUntil
+      )
+    ).toMatchObject({ status: 'incomplete', routes: [{ deploymentId: 'dep_synced' }] });
+  });
+
+  it('never cover a reviewed route with missing scores', () => {
+    expect(
+      assessInferenceRoutingReadiness(
+        [syncedPriceOnlyRow({ synced: false })],
+        now,
+        minimumValidUntil
+      )
+    ).toMatchObject({ status: 'incomplete' });
+  });
+
+  it('keep the full check once a synced route carries any measured score', () => {
+    expect(
+      assessInferenceRoutingReadiness(
+        [syncedPriceOnlyRow({ balanced: 100 })],
+        now,
+        minimumValidUntil
+      )
+    ).toMatchObject({ status: 'incomplete' });
+  });
+});
+
 describe('earliest inference routing evidence expiry', () => {
   it('reports no expiry for an empty census', () => {
     expect(earliestInferenceRoutingEvidenceExpiry([])).toBeUndefined();
@@ -90,6 +168,7 @@ describe('earliest inference routing evidence expiry', () => {
         completeRow({ deploymentId: 'dep_later' }),
         completeRow({ deploymentId: 'dep_cliff', balancedValidUntil: cliff }),
         completeRow({ deploymentId: 'dep_unscored', latencyValidUntil: null }),
+        syncedPriceOnlyRow(),
       ])
     ).toEqual({ deploymentId: 'dep_cliff', validUntil: cliff });
   });
