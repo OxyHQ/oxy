@@ -125,6 +125,7 @@ import {
   type NormalizedUsageReport,
   type RoutingPolicyReference,
   type RoutingTarget,
+  type RealtimeAudioFormat,
   type UsageSource,
   type UsageUnit,
 } from '@oxy.so/contracts';
@@ -647,6 +648,13 @@ export interface AdmittedRequest {
   readonly ledgerAttribution: LedgerAttribution;
   /** Absent while shadow metering: nothing is held because nothing is charged. */
   readonly hold: ReservationView | undefined;
+  /**
+   * A realtime session held for DURATION units (`routeCeilingPlans`): the most
+   * billable text items it may send, which its `requests` ceiling was sized
+   * from and the session must therefore enforce. Absent for every token-held
+   * session and every one-shot request.
+   */
+  readonly realtimeTextItemCap?: number;
 }
 
 export type Admission =
@@ -993,7 +1001,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   const priceEligibleDeploymentIds = new Set<string>();
   const quotedCandidateCeilings = new Map<
     string,
-    { readonly amount: string; readonly currency: string }
+    Extract<RouteCeilingQuote, { readonly status: 'quoted' }>
   >();
 
   const capacityForNextPriority = (): typeof requiredCapacity =>
@@ -1037,33 +1045,16 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         request.operation,
         requestedOutput ?? route.maxOutputTokens
       );
-      let candidateQuote: { readonly amount: string; readonly currency: string } | undefined;
-      for (const units of routeCeilingScenarios(
-        request,
-        route,
-        estimatedInputTokens,
-        candidateMaxOutputTokens
-      )) {
-        const scenarioQuote = await quoteUnits(route.priceVersionId, units);
-        if (scenarioQuote.status !== 'quoted') {
-          logger.error(
-            'inference.edge.routing_evidence_unavailable',
-            new Error(`route ${route.deploymentId} could not be quoted: ${scenarioQuote.status}`),
-            { requestId, deploymentId: route.deploymentId, reason: scenarioQuote.status }
-          );
-          return routingEvidenceRefusal(
-            requestedModelReference || route.modelReference,
-            'missing-price'
-          );
-        }
-        if (
-          candidateQuote === undefined ||
-          exceedsAmount(scenarioQuote.amount, candidateQuote.amount)
-        ) {
-          candidateQuote = { amount: scenarioQuote.amount, currency: scenarioQuote.currency };
-        }
-      }
-      if (candidateQuote === undefined) {
+      const candidateQuote = await quoteRouteCeiling(
+        route.priceVersionId,
+        routeCeilingPlans(request, route, estimatedInputTokens, candidateMaxOutputTokens)
+      );
+      if (candidateQuote.status !== 'quoted') {
+        logger.error(
+          'inference.edge.routing_evidence_unavailable',
+          new Error(`route ${route.deploymentId} could not be quoted: ${candidateQuote.reason}`),
+          { requestId, deploymentId: route.deploymentId, reason: candidateQuote.reason }
+        );
         return routingEvidenceRefusal(
           requestedModelReference || route.modelReference,
           'missing-price'
@@ -1464,41 +1455,41 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   //     child price fail closed before a hold or Kaana call.
   const quotes = new Map<string, { readonly amount: string; readonly currency: string }>();
   let quoteCurrency: string | undefined;
+  // A realtime session any of whose routes is held for DURATION units must
+  // enforce the text-item cap its `requests` ceiling was sized from.
+  let heldForDuration = false;
   for (const authorized of authorizedRoutes) {
-    let routeQuote = quotedCandidateCeilings.get(authorized.deploymentId);
+    let routeQuote: RouteCeilingQuote | undefined = quotedCandidateCeilings.get(
+      authorized.deploymentId
+    );
     if (routeQuote === undefined || requestedOutput === undefined) {
-      routeQuote = undefined;
-      for (const units of routeCeilingScenarios(
-        request,
-        authorized,
-        estimatedInputTokens,
-        maxOutputTokens
-      )) {
-        const scenarioQuote = await quoteUnits(authorized.priceVersionId, units);
-        if (scenarioQuote.status !== 'quoted') {
-          logger.error(
-            'inference.edge.routing_evidence_unavailable',
-            new Error(
-              `route ${authorized.deploymentId} could not be quoted: ${scenarioQuote.status}`
-            ),
-            { requestId, deploymentId: authorized.deploymentId, reason: scenarioQuote.status }
-          );
-          return routingEvidenceRefusal(requestedModelReference, 'missing-price');
-        }
-        if (routeQuote === undefined || exceedsAmount(scenarioQuote.amount, routeQuote.amount)) {
-          routeQuote = { amount: scenarioQuote.amount, currency: scenarioQuote.currency };
-        }
-      }
+      routeQuote = await quoteRouteCeiling(
+        authorized.priceVersionId,
+        routeCeilingPlans(request, authorized, estimatedInputTokens, maxOutputTokens)
+      );
     }
-    if (routeQuote === undefined) {
+    if (routeQuote.status !== 'quoted') {
+      logger.error(
+        'inference.edge.routing_evidence_unavailable',
+        new Error(`route ${authorized.deploymentId} could not be quoted: ${routeQuote.reason}`),
+        { requestId, deploymentId: authorized.deploymentId, reason: routeQuote.reason }
+      );
       return routingEvidenceRefusal(requestedModelReference, 'missing-price');
     }
     if (quoteCurrency !== undefined && routeQuote.currency !== quoteCurrency) {
       return routingEvidenceRefusal(requestedModelReference, 'price-currency-mismatch');
     }
     quoteCurrency = routeQuote.currency;
-    quotes.set(authorized.deploymentId, routeQuote);
+    if (routeQuote.metering !== 'tokens') heldForDuration = true;
+    quotes.set(authorized.deploymentId, {
+      amount: routeQuote.amount,
+      currency: routeQuote.currency,
+    });
   }
+  const realtimeTextItemCap =
+    heldForDuration && request.operation.kind === 'realtime_session'
+      ? request.operation.maxTextItems
+      : undefined;
 
   const quote = quotes.get(route.deploymentId);
   if (quote === undefined) {
@@ -1607,6 +1598,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       ledgerKey,
       ledgerAttribution,
       hold,
+      ...(realtimeTextItemCap === undefined ? {} : { realtimeTextItemCap }),
     },
   };
 }
@@ -3114,7 +3106,9 @@ function outputTokenBudget(operation: EdgeOperation, resolved: number): number {
  *    An exact figure is a valid ceiling.
  *  - Nothing here is derived from a byte length. No unit on this list is priced in
  *    bytes, and `bytes ÷ an assumed rate` is precisely the reasoning that makes a
- *    transcription hold unsound.
+ *    transcription hold unsound. The one byte-derived bound in this file is
+ *    {@link realtimeDurationCeiling}, and its rate is not assumed: it is the
+ *    SIGNED audio format of a session whose byte caps Kaana enforces.
  */
 export function ceilingForOperation(
   operation: EdgeOperation,
@@ -3274,6 +3268,158 @@ export function routeCeilingScenarios(
     responses * route.maxContextTokens,
     responses * perResponseOutput
   );
+}
+
+/**
+ * Decoded bytes per millisecond of every contract realtime audio format: 24 kHz
+ * mono PCM16 is 48 000 bytes a second, 8 kHz G.711 (either law) 8 000 — the
+ * rates Kaana meters `audio_*_milliseconds` at.
+ */
+export const REALTIME_AUDIO_BYTES_PER_MS = {
+  pcm16_24khz: 48,
+  g711_ulaw: 8,
+  g711_alaw: 8,
+} as const satisfies Record<RealtimeAudioFormat, number>;
+
+/** The fewest bytes per millisecond any format carries: the most milliseconds a byte cap can meter. */
+const DENSEST_MS_BYTES_PER_MS = Math.min(...Object.values(REALTIME_AUDIO_BYTES_PER_MS));
+
+type RealtimeSessionOperation = Extract<EdgeOperation, { readonly kind: 'realtime_session' }>;
+
+/**
+ * The exact duration ceiling of one realtime session, for a route that is
+ * priced by audio DURATION and per text item (xAI's Voice Agent: audio per
+ * minute each way, a flat fee per text `conversation.item.create`) rather than
+ * by tokens.
+ *
+ * Every figure is a bound Kaana or the edge enforces, never an estimate:
+ *
+ *  - `audio_input_milliseconds` ≤ ⌈maxInputAudioBytes ÷ input bytes-per-ms⌉.
+ *    Kaana refuses any command that would pass the signed input byte cap, and
+ *    meters the bytes it wrote at the session's input format — which is signed
+ *    and cannot be changed by `session.update`. Rounding is once, over the total.
+ *  - `audio_output_milliseconds` ≤ ⌈maxOutputAudioBytes ÷ output bytes-per-ms⌉,
+ *    likewise, at the signed output format. A session that signed none is held
+ *    at the format with the most milliseconds per byte (G.711), never at PCM16.
+ *  - `requests` ≤ `maxTextItems`, the cap the edge enforces on billable text
+ *    items (`inferenceRealtime.service.ts`), since no signed limit bounds them.
+ *  - `session_milliseconds` ≤ `maxDurationMs` plus the bounded open
+ *    (`realtimeMaxSessionMilliseconds`), as on every realtime plan.
+ *
+ * No token figure appears: a route priced in tokens is sized by
+ * {@link routeCeilingScenarios}, and a route that prices neither shape fails to
+ * quote either plan and is refused — an unpriced unit is never a free one.
+ */
+export function realtimeDurationCeiling(
+  operation: RealtimeSessionOperation
+): Partial<Record<UsageUnit, number>> {
+  const { audio } = operation;
+  const outputBytesPerMs =
+    audio.outputFormat === undefined
+      ? DENSEST_MS_BYTES_PER_MS
+      : REALTIME_AUDIO_BYTES_PER_MS[audio.outputFormat];
+  return {
+    audio_input_milliseconds: Math.ceil(
+      audio.maxInputAudioBytes / REALTIME_AUDIO_BYTES_PER_MS[audio.inputFormat]
+    ),
+    audio_output_milliseconds: Math.ceil(audio.maxOutputAudioBytes / outputBytesPerMs),
+    requests: operation.maxTextItems,
+    // Contract set 3.3.0: held on every realtime plan, exactly as the token
+    // scenarios hold it. xAI bills a `server_vad` session's wall clock INSTEAD
+    // of its audio, and Oxy cannot know which Kaana will report, so both are
+    // held; the settlement charges only what was measured.
+    session_milliseconds: operation.maxSessionMilliseconds,
+  };
+}
+
+/**
+ * What a route's hold was sized over. `tokens` is every one-shot request and a
+ * token-priced realtime route; the other two are realtime only, and are what
+ * makes the session enforce its text-item cap.
+ */
+export type RouteCeilingMetering = 'tokens' | 'duration' | 'tokens_and_duration';
+
+export interface RouteCeilingPlan {
+  readonly metering: RouteCeilingMetering;
+  /** Every scenario must quote for the plan to hold; the dearest one is the ceiling. */
+  readonly scenarios: readonly Partial<Record<UsageUnit, number>>[];
+}
+
+/**
+ * The alternative ceilings a route may be held at, in order; the FIRST plan
+ * whose every scenario quotes is the route's ceiling.
+ *
+ * Every operation but a realtime session has one plan: its token (or
+ * character, image, embedding) scenarios, exactly as before. A realtime
+ * session is metered by whichever units its route's price version prices:
+ *
+ *  1. `tokens_and_duration` — a route pricing both shapes is held for both,
+ *     because Oxy does not know which one the data plane will report for it;
+ *  2. `tokens` — the token partition scenarios alone (OpenAI Realtime);
+ *  3. `duration` — {@link realtimeDurationCeiling} alone (xAI Voice Agent).
+ *
+ * A token-priced route fails plan 1 at its first quote (it prices no audio
+ * milliseconds) and is then held at exactly the ceiling it always was.
+ */
+export function routeCeilingPlans(
+  request: NormalizedEdgeRequest,
+  route: Pick<EdgeRoute, 'maxContextTokens' | 'maxOutputTokens'>,
+  estimatedInputTokens: number,
+  maxOutputTokens: number
+): readonly RouteCeilingPlan[] {
+  const tokens = routeCeilingScenarios(request, route, estimatedInputTokens, maxOutputTokens);
+  if (request.operation.kind !== 'realtime_session') {
+    return [{ metering: 'tokens', scenarios: tokens }];
+  }
+  const duration = realtimeDurationCeiling(request.operation);
+  return [
+    {
+      metering: 'tokens_and_duration',
+      scenarios: tokens.map((scenario) => ({
+        ...scenario,
+        ...duration,
+        requests: (scenario.requests ?? 0) + (duration.requests ?? 0),
+      })),
+    },
+    { metering: 'tokens', scenarios: tokens },
+    { metering: 'duration', scenarios: [duration] },
+  ];
+}
+
+type RouteCeilingQuote =
+  | {
+      readonly status: 'quoted';
+      readonly amount: string;
+      readonly currency: string;
+      readonly metering: RouteCeilingMetering;
+    }
+  | { readonly status: 'unquoted'; readonly reason: string };
+
+/** The first fully-quoted plan's dearest scenario, with the ledger's own arithmetic. */
+async function quoteRouteCeiling(
+  priceVersionId: string,
+  plans: readonly RouteCeilingPlan[]
+): Promise<RouteCeilingQuote> {
+  let reason = 'no-ceiling-plan';
+  for (const plan of plans) {
+    let dearest: { readonly amount: string; readonly currency: string } | undefined;
+    let quotedEvery = true;
+    for (const units of plan.scenarios) {
+      const quote = await quoteUnits(priceVersionId, units);
+      if (quote.status !== 'quoted') {
+        reason = quote.status;
+        quotedEvery = false;
+        break;
+      }
+      if (dearest === undefined || exceedsAmount(quote.amount, dearest.amount)) {
+        dearest = { amount: quote.amount, currency: quote.currency };
+      }
+    }
+    if (quotedEvery && dearest !== undefined) {
+      return { status: 'quoted', ...dearest, metering: plan.metering };
+    }
+  }
+  return { status: 'unquoted', reason };
 }
 
 export function estimateInputTokens(request: NormalizedEdgeRequest): number {

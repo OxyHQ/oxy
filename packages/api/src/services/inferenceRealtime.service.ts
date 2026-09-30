@@ -36,6 +36,27 @@
  * A declared audio-token rate per model (or a duration-priced route whose
  * milliseconds are exact from the signed byte caps) is what serves them.
  *
+ * ## A duration-priced route is held from the byte caps, and its text items capped
+ *
+ * A route priced by audio DURATION and per text item (xAI's Voice Agent) is
+ * held at `realtimeDurationCeiling`: the signed byte caps at the signed audio
+ * formats' rates, exactly, plus `requests` = the session's `maxTextItems`. No
+ * signed limit bounds text items, so the edge bounds them: every
+ * `conversation.item.create` Kaana would bill as a text input
+ * ({@link realtimeTextItemBilled}) counts once per `commandId`, and the one that
+ * would pass the cap is not forwarded — the session is closed through the data
+ * plane instead (1008), exactly as a customer protocol violation is. A
+ * token-priced session is held and relayed as before and has no such cap.
+ *
+ * ## Turn detection is the data plane's to refuse
+ *
+ * `config.turnDetection` is signed verbatim. The catalogue declares no
+ * supported turn-detection set per model, so the edge has no capability to
+ * check it against, and a provider-name allow-list is not one. Kaana refuses a
+ * turn detection its adapter cannot bill (xAI: anything but `none`) at open —
+ * before it dials, so the hold is released with a zero receipt — and in
+ * `session.update`, as a non-fatal command error.
+ *
  * ## Commands are never replayed, by this hop or any other
  *
  * The edge forwards each validated customer command once, on the connection it
@@ -190,6 +211,24 @@ export function realtimeMaxSessionMilliseconds(limits: RealtimeSessionLimits): n
   return limits.maxDurationMs + REALTIME_SESSION_OPEN_ALLOWANCE_MS;
 }
 
+/**
+ * Whether Kaana bills this command as one xAI text input (`requests`): every
+ * `conversation.item.create` except a `function_call_output` and an item whose
+ * content is audio carrying data (billed by the audio meter instead). An item
+ * carrying both is refused by Kaana; it is COUNTED here, the side of the
+ * ambiguity that can only over-hold. Mirrors Kaana's
+ * `internal/provider/openairealtime/meter.go` `measure`.
+ */
+export function realtimeTextItemBilled(command: RealtimeClientCommand): boolean {
+  if (command.type !== 'conversation.item.create') return false;
+  const { item } = command;
+  if (item.type === 'function_call_output') return false;
+  if (item.type !== 'message') return true;
+  const carriesAudio = item.content.some((part) => part.type === 'input_audio' && part.data !== undefined);
+  const carriesText = item.content.some((part) => part.type !== 'input_audio' && part.type !== 'output_audio');
+  return !carriesAudio || carriesText;
+}
+
 /** How long a session's hold must stand: the session, its resume window, and the report. */
 export function realtimeReservationTtlSeconds(limits: RealtimeSessionLimits): number {
   return Math.ceil(
@@ -339,6 +378,15 @@ export async function openRealtimeSession(input: OpenRealtimeSessionInput): Prom
       maxSessionMilliseconds: realtimeMaxSessionMilliseconds(limits),
       requiredOutput: frame.config.outputModalities?.includes('audio') === true ? 'audio' : 'text',
       reservationTtlSeconds: realtimeReservationTtlSeconds(limits),
+      audio: {
+        inputFormat: frame.config.inputAudioFormat,
+        ...(frame.config.outputAudioFormat === undefined
+          ? {}
+          : { outputFormat: frame.config.outputAudioFormat }),
+        maxInputAudioBytes: limits.maxInputAudioBytes,
+        maxOutputAudioBytes: limits.maxOutputAudioBytes,
+      },
+      maxTextItems: frame.limits?.maxTextItems ?? limits.maxResponses,
     },
     target: { kind: 'model', modelReference: input.model },
     // Only for the capacity check: the instructions and tools must fit the
@@ -550,6 +598,8 @@ export class RealtimeSession {
   private servedRoute: EdgeRoute | undefined;
   private resumeWindowMs = MAX_REALTIME_RESUME_WINDOW_MS;
   private readonly responseUnits: ResponseEvidence = new Map();
+  /** The distinct `commandId`s of billable text items forwarded, against `realtimeTextItemCap`. */
+  private readonly billedTextItems = new Set<string>();
   private responseUsageSource: UsageSource | undefined;
   private closedEvent: RealtimeSessionClosedEvent | undefined;
   /** An edge-initiated close in progress: the code the customer is closed with. */
@@ -768,6 +818,20 @@ export class RealtimeSession {
       // Outside the shape the session was admitted for; see the module header.
       this.closeFromEdge(REALTIME_CLOSE.policy, 'input audio transcription is not served');
       return;
+    }
+    const textItemCap = this.admitted.realtimeTextItemCap;
+    if (
+      textItemCap !== undefined &&
+      realtimeTextItemBilled(command) &&
+      !this.billedTextItems.has(command.commandId)
+    ) {
+      // A resend under the SAME commandId is not re-applied upstream, so it is
+      // not counted twice; a new one past the cap is never forwarded.
+      if (this.billedTextItems.size >= textItemCap) {
+        this.closeFromEdge(REALTIME_CLOSE.policy, 'the session text item limit was reached');
+        return;
+      }
+      this.billedTextItems.add(command.commandId);
     }
     if (command.type === 'session.close') this.customerClosedSession = true;
     this.upstream.send(command);

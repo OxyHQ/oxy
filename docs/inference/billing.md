@@ -172,6 +172,14 @@ It is not an audio unit and belongs to no token partition: it is charged beside
 them. Every realtime route prices it — at zero where the provider bills no
 session time — because every session's hold includes it.
 
+**Duration-priced realtime routes** (xAI's Voice Agent: audio per minute each
+way, a flat fee per text item) are priced in `audio_input_milliseconds`,
+`audio_output_milliseconds` and `requests` and no token unit. Their hold is
+exact from the signed audio byte caps at the signed formats plus the session's
+edge-enforced `maxTextItems`, and they settle from the milliseconds and item
+count Kaana measured (`usageSource: oxy_measured`) —
+[realtime.md](./realtime.md#duration-priced-routes-xai-voice-agent).
+
 ## Price versions and snapshots
 
 Every priced route carries a price version, and every settled receipt stores a

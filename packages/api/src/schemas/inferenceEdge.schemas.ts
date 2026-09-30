@@ -56,6 +56,7 @@ import {
   type InferenceMessage,
   type InferenceReasoning,
   type InferenceSpeechParameters,
+  type RealtimeAudioFormat,
   type ResponseFormat,
   type RoutingTarget,
   type SamplingParameters,
@@ -473,6 +474,29 @@ export type ImageGenerationsRequest = z.infer<typeof imageGenerationsRequestSche
  * `.strict()` for the reason every public request schema here is: a field this
  * edge does not implement is refused rather than silently ignored.
  */
+/**
+ * The most text `conversation.item.create` commands a session may be opened
+ * for. The contract bounds a session's responses, not its items; this is the
+ * edge's own bound on the one unit a duration-priced route bills per item.
+ */
+export const MAX_REALTIME_TEXT_ITEMS = 10_000;
+
+/**
+ * The customer's partial limits request: every contract limit, plus ONE edge
+ * limit the contract does not carry — `maxTextItems`, the most billable text
+ * `conversation.item.create` commands the session may send (see
+ * `realtimeTextItemBilled` in `services/inferenceRealtime.service.ts`). It is
+ * never signed: Kaana does not know it, the edge enforces it, and it is what a
+ * duration-priced route's `requests` hold is sized from. Absent, it defaults to
+ * the session's `maxResponses` — one text turn per response.
+ */
+export const realtimeOpenLimitsSchema = realtimeSessionLimitsSchema
+  .partial()
+  .extend({
+    maxTextItems: z.number().int().nonnegative().max(MAX_REALTIME_TEXT_ITEMS).optional(),
+  })
+  .strict();
+
 export const realtimeOpenFrameSchema = z
   .object({
     type: z.literal('session.open'),
@@ -480,7 +504,7 @@ export const realtimeOpenFrameSchema = z
     /** Absent means `websocket`, the only transport there is. */
     transport: realtimeSessionTransportSchema.optional(),
     config: realtimeSessionConfigSchema,
-    limits: realtimeSessionLimitsSchema.partial().optional(),
+    limits: realtimeOpenLimitsSchema.optional(),
     /** The caller's own correlation id, echoed into the signed request. */
     clientSessionId: z.string().min(1).max(128).optional(),
     labels: labelsSchema.optional(),
@@ -767,6 +791,21 @@ export type EdgeOperation =
       readonly requiredOutput: 'text' | 'audio';
       /** How long the hold must outlive admission: the session, its resume window and the report. */
       readonly reservationTtlSeconds: number;
+      /**
+       * The signed audio ceilings and the formats they are metered in. What a
+       * DURATION-priced route's hold is sized from: Kaana closes the session
+       * rather than exceed either byte cap, and the formats are fixed at open
+       * (`session.update` cannot change them), so the milliseconds are exact.
+       */
+      readonly audio: {
+        readonly inputFormat: RealtimeAudioFormat;
+        /** Absent when the session named none; the hold then assumes the densest-in-milliseconds format. */
+        readonly outputFormat?: RealtimeAudioFormat;
+        readonly maxInputAudioBytes: number;
+        readonly maxOutputAudioBytes: number;
+      };
+      /** The edge-enforced cap on billable text items (`realtimeOpenLimitsSchema.maxTextItems`). */
+      readonly maxTextItems: number;
     }
   /**
    * `POST /v1/embeddings`. `embeddings` is EXACT — the caller says how many inputs
