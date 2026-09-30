@@ -300,8 +300,16 @@ jobs:
       #     install observed on a passing run, so the retry only ever fires for
       #     something already anomalous, and `-k 15s` guarantees the locks are
       #     released rather than merely asked for.
-      #   * `timeout-minutes` as the backstop. 2 x (420s + 15s) + 30s backoff =
-      #     15m00s, so the 16m cap below can only fire if the loop itself wedges.
+      #   * `timeout-minutes` as the backstop. 2 x (420s + 15s) + 30s backoff +
+      #     (120s + 15s) dpkg repair = 17m15s, so the 18m cap below can only
+      #     fire if the loop itself wedges.
+      #
+      # The repair between attempts: an attempt the outer `timeout` kills while
+      # dpkg is unpacking leaves dpkg "interrupted", and every later apt-get
+      # refuses to run until `dpkg --configure -a` finishes it. Without it the
+      # retry could never succeed after exactly the slow run it exists for
+      # (merge-queue run 36736725444: killed at 420s mid-unpack, then "E: dpkg
+      # was interrupted" on attempt 2).
       #
       # It runs on EVERY shard, not just the one Jest happens to hand that file:
       # six more test files reach ffmpeg or `which ffmpeg` indirectly (variant
@@ -314,7 +322,7 @@ jobs:
       # fails as `failure` on a named step rather than as an ambiguous job-level
       # `cancelled`.
       - name: Install ffmpeg (video variant tests)
-        timeout-minutes: 16
+        timeout-minutes: 18
         run: |
           set -eu
           apt_opts='-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15'
@@ -332,6 +340,7 @@ jobs:
             echo "apt-get attempt $attempt failed or timed out; retrying once. apt/dpkg processes still alive:"
             ps -eo pid,user,etimes,stat,args | grep -E '[a]pt-get|[d]pkg|[u]nattended' || echo "  (none)"
             sleep 30
+            sudo timeout -k 15s 120s dpkg --configure -a || echo "dpkg --configure -a did not finish; the retry will say why"
           done
           ffmpeg -version | head -1
           ffprobe -version | head -1
