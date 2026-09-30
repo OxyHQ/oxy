@@ -143,6 +143,18 @@ export const moneySchema = z
  * reported as tokens and as milliseconds is the double charge this rule exists
  * to prevent.
  *
+ * **`session_milliseconds` is session wall-clock time** (added in contract set
+ * 3.3.0): wall-clock milliseconds a realtime session was open with the upstream
+ * provider; reported only by a provider that bills session time, and never
+ * together with a per-audio reading of the same span. xAI's Voice Agent API
+ * bills a session using server-side voice activity detection for its whole
+ * duration, speech or silence, which is neither audio sent nor audio received:
+ * reporting that clock as `audio_input_milliseconds` would misdescribe the
+ * charge, and reporting both would bill the same span twice. It is measured by
+ * the data plane from the upstream session's open to its close, never
+ * estimated from the audio, and a provider billed by the audio it carries (or
+ * by tokens) never reports it.
+ *
  * No refinement in this package can enforce it, and saying so is part of the
  * rule: a nested report and a disjoint one are the same four non-negative
  * integers, so no predicate over a single report can tell them apart. The two
@@ -179,6 +191,7 @@ export const USAGE_UNITS = [
   'audio_input_tokens',
   'cached_audio_input_tokens',
   'audio_output_tokens',
+  'session_milliseconds',
 ] as const;
 
 export const usageUnitSchema = z.enum(USAGE_UNITS);
