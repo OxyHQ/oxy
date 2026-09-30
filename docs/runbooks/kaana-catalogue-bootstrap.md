@@ -38,8 +38,8 @@ the live `oxy-api` task.
    publisher moves behind NAT.
 5. Verify the current Kaana inventory content snapshot is the one pinned by
    `KAANA_INITIAL_INVENTORY_SNAPSHOT_ID` (and the workflow's
-   `INVENTORY_SNAPSHOT_ID`): `snap_37548e4f1f8ec610` until the voice route is
-   enabled. The task role can read only the versioned `inventory/current.json`
+   `INVENTORY_SNAPSHOT_ID`): `snap_8801d0c4e843149f` since the voice route was
+   enabled (`snap_37548e4f1f8ec610` before it). The task role can read only the versioned `inventory/current.json`
    object and the writer refuses stale or mismatched content.
 
 The task definition is also checked before every run: one ARM64 Fargate

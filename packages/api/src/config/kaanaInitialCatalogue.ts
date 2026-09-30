@@ -79,7 +79,10 @@ export interface KaanaVoiceObservation {
   readonly deploymentId: string;
   readonly inventorySnapshotId: string;
 }
-export const KAANA_VOICE_OBSERVATION: KaanaVoiceObservation | null = null;
+export const KAANA_VOICE_OBSERVATION: KaanaVoiceObservation | null = {
+  deploymentId: "dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_09_30",
+  inventorySnapshotId: "snap_8801d0c4e843149f",
+};
 
 
 export const KAANA_INITIAL_PUBLISHER = {
