@@ -93,7 +93,6 @@ needs its own.
 | Control | Means |
 |---|---|
 | `defaultTarget` | the exact model or power level (routing profile) used when a request names none |
-| allowed power levels | **rolling out**: the power levels an application may request (Inbox: `instant` only). Not in the policy schema on `main` |
 | `providerAllowlist` / `providerDenylist` | which providers may serve. Empty allowlist means "no allowlist" |
 | `allowedRegions` / `deniedRegions` | data residency. Empty allowed list means "no constraint" |
 | `requireZeroDataRetention` | only routes that retain no payloads |

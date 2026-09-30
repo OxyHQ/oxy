@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { routingPolicySchema } from '@oxy.so/contracts'
-import type { ModelCatalogueEntry, RoutingPolicy } from '@oxy.so/contracts'
+import type {
+  ModelCatalogueEntry,
+  RoutingPolicy,
+  RoutingProfile,
+} from '@oxy.so/contracts'
 import type { StoredRoutingPolicy } from '@/lib/routing-policy'
 import {
   catalogueLicences,
@@ -8,7 +12,12 @@ import {
   controlsFromPolicy,
   defaultRoutingPolicyControls,
   effectivePolicyOrigin,
+  isRoutingProfileAllowed,
+  routingPolicyControlIssues,
   routingPolicyHighlights,
+  routingProfileLabel,
+  routingProfileOptions,
+  toggleAllowedRoutingProfile,
 } from '@/lib/routing-policy'
 
 /**
@@ -264,6 +273,7 @@ describe('routingPolicyHighlights', () => {
 
     expect(labels).toEqual([
       'Default target',
+      'Power levels allowed',
       'Optimise for',
       'Providers allowed',
       'Providers denied',
@@ -327,5 +337,192 @@ describe('catalogue-derived option lists', () => {
     // free-text box that would write an unservable id.
     expect(catalogueModelReferences([])).toEqual([])
     expect(catalogueLicences([])).toEqual([])
+  })
+})
+
+function profile(
+  slug: string,
+  overrides: Partial<RoutingProfile> = {},
+): RoutingProfile {
+  return {
+    schemaVersion: 1,
+    routingProfileId: `power-${slug}`,
+    slug,
+    displayName: slug.charAt(0).toUpperCase() + slug.slice(1),
+    optimiseFor: 'price',
+    candidates: [{ modelReference: 'publisher/model', priority: 0 }],
+    isProductPreset: true,
+    powerLevel: slug as RoutingProfile['powerLevel'],
+    ...overrides,
+  }
+}
+
+describe('allowed power levels', () => {
+  // Deliberately shuffled, as `GET /models/routing-profiles` orders by slug.
+  const profiles = [
+    profile('xhigh'),
+    profile('ultra'),
+    profile('auto'),
+    profile('pro'),
+    profile('instant'),
+    profile('high'),
+    profile('medium'),
+    profile('fast', {
+      routingProfileId: 'rpf_fast',
+      powerLevel: undefined,
+      displayName: 'Fast',
+    }),
+  ]
+
+  it('orders power levels on the contract ladder, then other profiles', () => {
+    expect(
+      routingProfileOptions(profiles).map((option) => option.routingProfileId),
+    ).toEqual([
+      'power-auto',
+      'power-instant',
+      'power-medium',
+      'power-high',
+      'power-xhigh',
+      'power-pro',
+      'power-ultra',
+      'rpf_fast',
+    ])
+  })
+
+  it('keeps a saved id the catalogue does not list right now', () => {
+    const options = routingProfileOptions(
+      [profile('instant')],
+      ['power-instant', 'power-ultra', 'power-ultra'],
+    )
+
+    expect(
+      options.map((option) => [option.routingProfileId, option.listed]),
+    ).toEqual([
+      ['power-instant', true],
+      ['power-ultra', false],
+    ])
+  })
+
+  it('toggles without duplicates and in ladder order', () => {
+    const order = routingProfileOptions(profiles)
+    let allowed = toggleAllowedRoutingProfile([], 'power-high', order)
+    allowed = toggleAllowedRoutingProfile(allowed, 'power-auto', order)
+    allowed = toggleAllowedRoutingProfile(allowed, 'power-instant', order)
+
+    expect(allowed).toEqual(['power-auto', 'power-instant', 'power-high'])
+    expect(toggleAllowedRoutingProfile(allowed, 'power-auto', order)).toEqual([
+      'power-instant',
+      'power-high',
+    ])
+  })
+
+  it('treats an empty list as unrestricted', () => {
+    expect(isRoutingProfileAllowed([], 'power-ultra')).toBe(true)
+    expect(isRoutingProfileAllowed(['power-instant'], 'power-ultra')).toBe(
+      false,
+    )
+    expect(isRoutingProfileAllowed(['power-instant'], 'power-instant')).toBe(
+      true,
+    )
+  })
+
+  it('labels a power level by name and id, and an unknown id by id alone', () => {
+    expect(routingProfileLabel('power-instant', profiles)).toBe(
+      'Power level: Instant (power-instant)',
+    )
+    expect(routingProfileLabel('rpf_fast', profiles)).toBe(
+      'Routing profile: Fast (rpf_fast)',
+    )
+    expect(routingProfileLabel('power-gone', profiles)).toBe(
+      'Routing profile ID: power-gone',
+    )
+  })
+
+  it('summarises the allowed list, or says it is unrestricted', () => {
+    const unrestricted = routingPolicyHighlights(policy(), profiles).find(
+      (entry) => entry.label === 'Power levels allowed',
+    )
+    const instantOnly = routingPolicyHighlights(
+      policy({
+        allowedRoutingProfileIds: ['power-instant'],
+        defaultTarget: {
+          kind: 'routing_profile_id',
+          routingProfileId: 'power-instant',
+        },
+      }),
+      profiles,
+    )
+
+    expect(unrestricted?.value).toBe('Any (unrestricted)')
+    expect(
+      instantOnly.find((entry) => entry.label === 'Power levels allowed')
+        ?.value,
+    ).toBe('Power level: Instant (power-instant)')
+    expect(
+      instantOnly.find((entry) => entry.label === 'Default target')?.value,
+    ).toBe('Power level: Instant (power-instant)')
+  })
+})
+
+describe("routingPolicyControlIssues (the contract's own verdict)", () => {
+  const base = defaultRoutingPolicyControls()
+
+  it('accepts Inbox: instant only, instant as the default', () => {
+    expect(
+      routingPolicyControlIssues({
+        ...base,
+        allowedRoutingProfileIds: ['power-instant'],
+        defaultTarget: {
+          kind: 'routing_profile_id',
+          routingProfileId: 'power-instant',
+        },
+      }),
+    ).toEqual([])
+  })
+
+  it('accepts an unrestricted list with any default level', () => {
+    expect(
+      routingPolicyControlIssues({
+        ...base,
+        defaultTarget: {
+          kind: 'routing_profile_id',
+          routingProfileId: 'power-auto',
+        },
+      }),
+    ).toEqual([])
+  })
+
+  it('refuses a default outside a non-empty allowed list', () => {
+    expect(
+      routingPolicyControlIssues({
+        ...base,
+        allowedRoutingProfileIds: ['power-instant'],
+        defaultTarget: {
+          kind: 'routing_profile_id',
+          routingProfileId: 'power-high',
+        },
+      }),
+    ).toEqual([
+      'The default power level is not one of the allowed power levels. Allow it, or pick an allowed level as the default.',
+    ])
+  })
+
+  it('refuses a duplicated level', () => {
+    expect(
+      routingPolicyControlIssues({
+        ...base,
+        allowedRoutingProfileIds: ['power-instant', 'power-instant'],
+      }),
+    ).toEqual(['Each power level can be allowed only once.'])
+  })
+
+  it('does not restrict an exact-model default by the allowed list', () => {
+    expect(
+      routingPolicyControlIssues({
+        ...base,
+        allowedRoutingProfileIds: ['power-instant'],
+        defaultTarget: { kind: 'model', modelReference: 'publisher/model' },
+      }),
+    ).toEqual([])
   })
 })

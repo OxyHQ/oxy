@@ -82,6 +82,11 @@ refused with `policy_violation` (403) before any reservation or Kaana call;
 at write time. Concrete model targets are governed by the other policy
 controls, not by this list.
 
+Staff set both in Console at `/apps/<appId>/inference`, **Routing policy**
+tab: the **Power levels** checkboxes are `allowedRoutingProfileIds` (none
+ticked = unrestricted) and **Default target** offers each level. Saving
+appends a new policy version; the editor runs the contract's own schema first.
+
 | App | `defaultTarget` | `allowedRoutingProfileIds` |
 |---|---|---|
 | Oxy Inbox (summaries) | `power-instant` | `["power-instant"]` |
