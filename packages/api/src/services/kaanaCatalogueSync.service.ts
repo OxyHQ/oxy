@@ -54,6 +54,7 @@ import {
 } from '@oxy.so/contracts';
 import { getDb, type Transaction } from '../config/postgres';
 import {
+  DEPLOYMENT_REQUEST_PARAMETERS,
   INFERENCE_MODALITIES,
   KAANA_SYNC_AUTO_APPROVAL_POLICY_ID,
   LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
@@ -70,6 +71,7 @@ import {
   inferencePublishers,
   priceVersionUnitPrices,
   priceVersions,
+  type DeploymentRequestParameter,
   type InferenceModalityValue,
 } from '../db/schema';
 import { logger } from '../utils/logger';
@@ -159,6 +161,8 @@ export interface KaanaDeploymentDescriptor {
   readonly provider: string;
   readonly modelReference: string;
   readonly regions: readonly string[];
+  /** This deployment's own accepted request controls, when Kaana reports them. */
+  readonly acceptedParameters?: readonly string[];
 }
 
 /** One `listPrices` observation: a provider's published price for one exact deployment. */
@@ -180,6 +184,13 @@ export interface KaanaCatalogueModel {
   readonly outputModalities?: readonly string[];
   readonly supportsTools?: boolean;
   readonly reasoningEfforts?: readonly string[];
+  /**
+   * The request controls every REPORTING deployment of the line accepts (the
+   * intersection). Absent means no deployment said.
+   */
+  readonly acceptedParameters?: readonly string[];
+  /** The distinct providers serving the line's current revision. */
+  readonly providers?: readonly string[];
   /** Kaana's `listPrices`: only deployments whose provider publishes a price. */
   readonly listPrices: readonly KaanaPricedRoute[];
   /** `listPrices` rows whose shape could not be read. */
@@ -226,6 +237,8 @@ const kaanaCatalogueEntrySchema = z
     outputModalities: nullish(z.array(z.string())),
     supportsTools: nullish(z.boolean()),
     reasoningEfforts: nullish(z.array(z.string())),
+    acceptedParameters: nullish(z.array(z.string())),
+    providers: nullish(z.array(z.string())),
     listPrices: nullish(z.array(z.unknown())),
   })
   .passthrough();
@@ -294,6 +307,8 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
       outputModalities: data.outputModalities,
       supportsTools: data.supportsTools,
       reasoningEfforts: data.reasoningEfforts,
+      acceptedParameters: data.acceptedParameters,
+      providers: data.providers,
       listPrices,
       invalidDeployments,
     });
@@ -315,6 +330,8 @@ export interface PlannedRoute {
   readonly provider: string;
   readonly regions: readonly string[];
   readonly price: KaanaListPrice;
+  /** `inference_deployments.accepted_parameters`; `null` is unknown. */
+  readonly acceptedParameters: readonly DeploymentRequestParameter[] | null;
 }
 
 export interface PlannedModel {
@@ -341,6 +358,45 @@ export type ModelPlan =
 
 const KNOWN_MODALITIES: ReadonlySet<string> = new Set(INFERENCE_MODALITIES);
 const KNOWN_EFFORTS: ReadonlySet<string> = new Set(MODEL_REASONING_EFFORTS);
+
+const KNOWN_REQUEST_PARAMETERS: ReadonlySet<string> = new Set(DEPLOYMENT_REQUEST_PARAMETERS);
+
+/**
+ * A reported accepted-parameter set in Oxy's vocabulary and order. `undefined`
+ * (nobody said) stays `null`, never `[]`. A word Oxy does not know is dropped:
+ * the edge never checks a control outside its vocabulary, so dropping one
+ * cannot make a route refuse anything.
+ */
+export function normalizeAcceptedParameters(
+  values: readonly string[] | undefined
+): DeploymentRequestParameter[] | null {
+  if (values === undefined) return null;
+  const reported = new Set(values.filter((value) => KNOWN_REQUEST_PARAMETERS.has(value)));
+  return DEPLOYMENT_REQUEST_PARAMETERS.filter((parameter) => reported.has(parameter));
+}
+
+/**
+ * Which accepted-parameter set one exact route is stored with.
+ *
+ * Per-deployment evidence from Kaana's signed descriptor wins. Otherwise the
+ * catalogue entry's set is an INTERSECTION over the line's reporting
+ * deployments, which proves what every reporter accepts but not what any one
+ * of them refuses; it describes a single route only when every deployment of
+ * the line is on one provider, whose one statement about the model is what
+ * each of them reported. Anything else is unknown, and unknown filters
+ * nothing: a wrong narrowing would refuse a request Kaana could serve.
+ */
+function acceptedParametersForRoute(
+  entry: KaanaCatalogueModel,
+  deployment: KaanaDeploymentDescriptor
+): DeploymentRequestParameter[] | null {
+  if (deployment.acceptedParameters !== undefined) {
+    return normalizeAcceptedParameters(deployment.acceptedParameters);
+  }
+  const providers = new Set(entry.providers ?? []);
+  if (providers.size !== 1 || !providers.has(deployment.provider)) return null;
+  return normalizeAcceptedParameters(entry.acceptedParameters);
+}
 
 function knownModalities(values: readonly string[] | undefined): InferenceModalityValue[] {
   return [...new Set((values ?? []).filter((value) => KNOWN_MODALITIES.has(value)))].sort() as InferenceModalityValue[];
@@ -427,6 +483,7 @@ export function planKaanaModel(
       provider: deployment.provider,
       regions: deployment.regions,
       price,
+      acceptedParameters: acceptedParametersForRoute(entry, deployment),
     });
   }
   if (routes.length === 0) return { status: 'skipped', reason: 'no_priced_route', routeSkips };
@@ -912,6 +969,7 @@ async function applyPlannedModel(
       dedicatedCapacity: false,
       priceVersionId,
       internalRouteId: route.deploymentId,
+      acceptedParameters: route.acceptedParameters === null ? null : [...route.acceptedParameters],
     };
     const approval = {
       permissionState: 'approved' as const,
@@ -1134,6 +1192,9 @@ export async function attestPricedDeployments(
         provider: descriptor.provider,
         modelReference: descriptor.modelReference,
         regions: [...new Set(descriptor.regions)].sort(),
+        ...(descriptor.acceptedParameters === undefined
+          ? {}
+          : { acceptedParameters: descriptor.acceptedParameters }),
       });
     }
   }

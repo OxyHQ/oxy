@@ -117,6 +117,30 @@ export const DEPLOYMENT_STATUSES = ['active', 'degraded', 'disabled', 'retired']
 
 export type DeploymentStatus = (typeof DEPLOYMENT_STATUSES)[number];
 
+/**
+ * The caller controls a route may be reported to accept, spelled as the
+ * contract request path a caller sets and a refusal names. Kaana's closed
+ * `provider.RequestParameter` vocabulary (OxyHQ/Kaana#124), restated here
+ * because it is a data-plane word list, not a contract enum: `maxOutputTokens`
+ * covers both `max_tokens` and `max_completion_tokens`, and `sampling.topK` is
+ * deliberately absent (no Kaana adapter sends it).
+ */
+export const DEPLOYMENT_REQUEST_PARAMETERS = [
+  'maxOutputTokens',
+  'reasoning.effort',
+  'responseFormat',
+  'sampling.frequencyPenalty',
+  'sampling.presencePenalty',
+  'sampling.seed',
+  'sampling.stopSequences',
+  'sampling.temperature',
+  'sampling.topP',
+  'toolChoice',
+  'tools',
+] as const;
+
+export type DeploymentRequestParameter = (typeof DEPLOYMENT_REQUEST_PARAMETERS)[number];
+
 export const APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX =
   'inference_deployments_approved_internal_route_id_key';
 
@@ -293,6 +317,20 @@ export const inferenceDeployments = pgTable(
     internalRouteId: text(),
 
     /**
+     * The caller controls this route's upstream accepts
+     * ({@link DEPLOYMENT_REQUEST_PARAMETERS}), as Kaana's inventory reported
+     * them for this exact deployment.
+     *
+     * NULL is UNKNOWN — nobody said — and filters nothing. An empty array is a
+     * statement: the route takes none of these controls. The edge never signs a
+     * route whose known set lacks a control the request carries, because
+     * Kaana's Translate would refuse it with `invalid_request` before any other
+     * authorized route is tried. Kept current by the Kaana sync on synced rows;
+     * a reviewed row stays NULL.
+     */
+    acceptedParameters: text().array(),
+
+    /**
      * The automatic approval policy this route was approved under, when the
      * Kaana sync wrote it. Null on every reviewed route. A non-null value is
      * what marks a row as the sync's to update and retire; the sync never
@@ -375,6 +413,10 @@ export const inferenceDeployments = pgTable(
     check(
       'inference_deployments_status_check',
       sql`${t.status} in (${sql.raw(inList(DEPLOYMENT_STATUSES))})`
+    ),
+    check(
+      'inference_deployments_accepted_parameters_check',
+      sql`${t.acceptedParameters} is null or ${t.acceptedParameters} <@ ${sql.raw(textArrayLiteral(DEPLOYMENT_REQUEST_PARAMETERS))}`
     ),
 
     /* ---- data-policy coherence ------------------------------------------ */

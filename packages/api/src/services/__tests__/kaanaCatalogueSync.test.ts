@@ -38,8 +38,10 @@ import {
 } from '../inferenceCatalogue.service';
 import type { KaanaCatalogueReader } from '../httpKaanaClient';
 import {
+  type KaanaDeploymentDescriptor,
   SYNCED_LICENSE,
   blockCatalogueModel,
+  normalizeAcceptedParameters,
   normalizeDecimal,
   parseKaanaCatalogue,
   planKaanaModel,
@@ -162,6 +164,7 @@ async function deploymentsOf(modelIdValue: string) {
       priceVersionId: inferenceDeployments.priceVersionId,
       regions: inferenceDeployments.regions,
       retentionDays: inferenceDeployments.retentionDays,
+      acceptedParameters: inferenceDeployments.acceptedParameters,
     })
     .from(inferenceDeployments)
     .innerJoin(inferenceModelRevisions, eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id))
@@ -306,6 +309,79 @@ describe('planning one model line', () => {
     });
   });
 
+  describe('accepted request parameters', () => {
+    const TWO_PROVIDER_LINE = parseKaanaCatalogue({
+      models: [
+        {
+          model: 'acme/chat',
+          modelReference: 'acme/chat@r1',
+          providers: ['p1', 'p2'],
+          contextTokens: 1000,
+          maxOutputTokens: 500,
+          inputModalities: ['text'],
+          outputModalities: ['text'],
+          acceptedParameters: ['maxOutputTokens', 'tools'],
+          listPrices: [
+            { deploymentId: 'dep_a', provider: 'p1', currency: 'USD', input: '1', output: '2' },
+            { deploymentId: 'dep_b', provider: 'p2', currency: 'USD', input: '1', output: '2' },
+          ],
+        },
+      ],
+    }).models[0];
+    const twoAttested = new Map<string, KaanaDeploymentDescriptor>([
+      ['dep_a', { deploymentId: 'dep_a', provider: 'p1', modelReference: 'acme/chat@r1', regions: [] }],
+      ['dep_b', { deploymentId: 'dep_b', provider: 'p2', modelReference: 'acme/chat@r1', regions: [] }],
+    ]);
+    const acceptedOf = (plan: ReturnType<typeof planKaanaModel>) =>
+      plan.status === 'planned' ? plan.model.routes.map((route) => route.acceptedParameters) : undefined;
+
+    it('normalizes into Oxy vocabulary order, dropping unknown words, and keeps absent as unknown', () => {
+      expect(normalizeAcceptedParameters(undefined)).toBeNull();
+      expect(normalizeAcceptedParameters([])).toEqual([]);
+      expect(
+        normalizeAcceptedParameters(['tools', 'sampling.topK', 'sampling.temperature', 'maxOutputTokens', 'tools'])
+      ).toEqual(['maxOutputTokens', 'sampling.temperature', 'tools']);
+    });
+
+    it('attributes a single-provider line’s set to its route', () => {
+      const entry = { ...base, providers: ['p1'], acceptedParameters: ['tools', 'maxOutputTokens'] };
+      expect(acceptedOf(planKaanaModel(entry, context))).toEqual([['maxOutputTokens', 'tools']]);
+    });
+
+    it('leaves the route unknown when the line reported nothing or names no providers', () => {
+      expect(acceptedOf(planKaanaModel({ ...base, providers: ['p1'] }, context))).toEqual([null]);
+      expect(acceptedOf(planKaanaModel({ ...base, acceptedParameters: ['tools'] }, context))).toEqual([null]);
+    });
+
+    it('never pins a multi-provider intersection on any one route', () => {
+      // The intersection proves what every reporter accepts, not what any one
+      // of them refuses; narrowing a route on it could refuse a servable request.
+      const plan = planKaanaModel(TWO_PROVIDER_LINE, {
+        ...context,
+        knownProviders: new Set(['p1', 'p2']),
+        attested: twoAttested,
+      });
+      expect(acceptedOf(plan)).toEqual([null, null]);
+    });
+
+    it('prefers the deployment’s own attested set', () => {
+      const attested = new Map(twoAttested);
+      attested.set('dep_b', {
+        deploymentId: 'dep_b',
+        provider: 'p2',
+        modelReference: 'acme/chat@r1',
+        regions: [],
+        acceptedParameters: ['sampling.temperature', 'maxOutputTokens'],
+      });
+      const plan = planKaanaModel(TWO_PROVIDER_LINE, {
+        ...context,
+        knownProviders: new Set(['p1', 'p2']),
+        attested,
+      });
+      expect(acceptedOf(plan)).toEqual([null, ['maxOutputTokens', 'sampling.temperature']]);
+    });
+  });
+
   it('refuses a non-USD price rather than converting it', () => {
     const eur = parseKaanaCatalogue({
       models: [
@@ -405,6 +481,36 @@ describe('syncing into the catalogue', () => {
         (entry) => entry.modelId === world.line('alpha')
       )
     ).toBe(false);
+  });
+
+  it('stores a route’s accepted parameters, keeps them current and lets the edge read them', async () => {
+    const world = await makeWorld();
+    await runKaanaCatalogueSync({
+      reader: reader(
+        [world.entry('params', { acceptedParameters: ['tools', 'maxOutputTokens'] })],
+        [world.route('params')]
+      ),
+    });
+    const [stored] = await deploymentsOf(world.line('params'));
+    expect(stored.acceptedParameters).toEqual(['maxOutputTokens', 'tools']);
+    const resolved = await resolveEdgeRoute(
+      INTERNAL_VIEWER,
+      world.line('params'),
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY,
+      'price',
+      UNCONSTRAINED_EDGE_CAPACITY,
+      undefined
+    );
+    expect(resolved).toMatchObject({
+      status: 'resolved',
+      route: { acceptedParameters: ['maxOutputTokens', 'tools'] },
+    });
+
+    // A later report that says nothing makes the route unknown again, never `[]`.
+    await runKaanaCatalogueSync({ reader: reader([world.entry('params')], [world.route('params')]) });
+    const [cleared] = await deploymentsOf(world.line('params'));
+    expect(cleared.acceptedParameters).toBeNull();
   });
 
   it('is idempotent: an unchanged report writes no new price or scorecard', async () => {

@@ -357,13 +357,16 @@ does it.
 1. `GET /internal/v1/models` (signed): per model line `model`,
    `modelReference`, `displayName?`, `createdAt?`, `contextTokens?`,
    `maxOutputTokens?`, `inputModalities?`, `outputModalities?`,
-   `supportsTools?`, `reasoningEfforts?` and `listPrices?` — one
+   `supportsTools?`, `reasoningEfforts?`, `acceptedParameters?`, `providers?`
+   and `listPrices?` — one
    `{ deploymentId, provider, currency, input, output }` per deployment whose
    provider publishes a price, in USD per million tokens.
 2. `POST /internal/v1/deployments/query` (signed, batches of 64): the exact
    provider, revision-pinned reference and region set of every priced
    deployment. This is the same evidence the edge's preflight later compares,
-   so the stored route is byte-for-byte what will be signed.
+   so the stored route is byte-for-byte what will be signed. A descriptor's
+   optional `acceptedParameters` (per deployment) is read when Kaana sends it;
+   the preflight never compares it.
 3. The provider's `inference_providers` row: the route's data policy
    (retention, training, zero-data-retention, policy URL). A provider without a
    row is not synced — adding one is the only manual step left.
@@ -375,7 +378,7 @@ does it.
 | `inference_publishers` | created from the model id's publisher slug when absent |
 | `inference_models` | `catalogue_source = 'kaana_sync'`; limits, modalities, tools and `reasoning_efforts` from Kaana; `provider_released_at` from `createdAt`; licence and provenance as below |
 | `inference_model_revisions` | Kaana's revision label, made current; `released_at` = first observation |
-| `inference_deployments` | `platform_internal`, `standard_application_use`, `approved`, `auto_approval_policy_id = 'kaana-sync'`, the attested regions, the provider's data policy |
+| `inference_deployments` | `platform_internal`, `standard_application_use`, `approved`, `auto_approval_policy_id = 'kaana-sync'`, the attested regions, the provider's data policy, `accepted_parameters` (below) |
 | `price_versions` | USD, from the list price: input, cached input (at the input rate), output, reasoning (at the output rate) per million tokens, `requests` at zero. A changed list price SUPERSEDES the active version |
 | `inference_deployment_routing_scores` | `price` score = minus the cost of 1M input + 1M output tokens in cents; latency, throughput and balanced unscored (`not-measured:kaana-sync`); `standard_payg`, `available` |
 
@@ -384,6 +387,26 @@ Synced licence and legal fields record the policy, not a review:
 asserted, so `requireCommercialUseRights` excludes these routes),
 `requiresAttribution: true`, `releaseKind: third_party_hosted`, legal evidence
 `auto-approval-policy:kaana-sync` with no reviewer. ADR 0027 has the table.
+
+### Accepted request parameters
+
+`inference_deployments.accepted_parameters` is the set of request controls
+(`maxOutputTokens`, `reasoning.effort`, `responseFormat`, `sampling.*`,
+`toolChoice`, `tools`; Kaana's closed vocabulary, OxyHQ/Kaana#124) that one
+route's upstream accepts. NULL is unknown and filters nothing; `[]` is a
+statement. The sync takes the deployment's own descriptor set when Kaana
+sends one; otherwise the catalogue entry's set, which is an intersection over
+the line's reporting deployments, is stored only when every deployment of the
+line is on one provider. A multi-provider intersection proves what every
+reporter accepts, not what any one refuses, so those routes stay unknown.
+
+The edge never signs a route whose known set lacks a control the request
+carries (Kaana's Translate would refuse it with `invalid_request` before any
+other authorized route is tried). Every completion carries `maxOutputTokens`,
+because the edge always bounds output to size the hold; a `text` response
+format and an empty stop list carry nothing. When no route remains the edge
+answers `400 invalid_request` with `param` naming the control
+(`reason: unsupported_parameter`), before any hold or Kaana call.
 
 ### What it refuses to do
 

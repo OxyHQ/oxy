@@ -210,6 +210,8 @@ interface FixtureOptions {
   readonly routingPolicy?: false | Partial<RoutingPolicyControls>;
   /** The efforts the fixture model advertises; none by default. */
   readonly reasoningEfforts?: string[];
+  /** The primary route's accepted request controls; unknown (NULL) by default. */
+  readonly acceptedParameters?: string[];
   /** Mint an official (`internal`) application instead of a third-party one. */
   readonly officialApplication?: boolean;
 }
@@ -342,6 +344,9 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       legalReviewEvidenceRef: `contract-register/${tag}`,
       permissionState: 'approved',
       ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
+      ...(options.acceptedParameters === undefined
+        ? {}
+        : { acceptedParameters: options.acceptedParameters }),
     });
 
   const now = Date.now();
@@ -437,6 +442,8 @@ async function addDeployment(
     readonly trainsOnCustomerData?: boolean;
     readonly regions?: string[];
     readonly routingScore?: number;
+    /** Accepted request controls; unknown (NULL) by default. */
+    readonly acceptedParameters?: string[];
   }
 ): Promise<{ providerSlug: string; deploymentId: string; priceVersionId: string }> {
   const db = getDb();
@@ -515,6 +522,9 @@ async function addDeployment(
       legalReviewEvidenceRef: `contract-register/${tag}`,
       permissionState: 'approved',
       priceVersionId: priceVersion.id,
+      ...(options.acceptedParameters === undefined
+        ? {}
+        : { acceptedParameters: options.acceptedParameters }),
     });
 
   const now = Date.now();
@@ -4259,6 +4269,161 @@ describe('reasoning effort', () => {
       );
       expect(knob.status).toBe(400);
     });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Accepted request parameters (OxyHQ/Kaana#124)                             */
+/* -------------------------------------------------------------------------- */
+
+describe('accepted request parameters', () => {
+  const EVERY_PARAMETER = [
+    'maxOutputTokens',
+    'reasoning.effort',
+    'responseFormat',
+    'sampling.frequencyPenalty',
+    'sampling.presencePenalty',
+    'sampling.seed',
+    'sampling.stopSequences',
+    'sampling.temperature',
+    'sampling.topP',
+    'toolChoice',
+    'tools',
+  ];
+  const WITHOUT_TEMPERATURE = EVERY_PARAMETER.filter((parameter) => parameter !== 'sampling.temperature');
+
+  it('never signs a route whose known set lacks a control the request carries', async () => {
+    // The primary is preferred (score 200) but refuses temperature; the
+    // alternate accepts it. Signing the primary would make Kaana refuse the
+    // request before the alternate is ever tried.
+    const fixture = await makeFixture({ fund: '10.00', acceptedParameters: WITHOUT_TEMPERATURE });
+    const alternate = await addDeployment(fixture, { rank: 'z', acceptedParameters: EVERY_PARAMETER });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: alternate.providerSlug }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 50, temperature: 0.2 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+    expect(seen).toHaveLength(1);
+    expect(seen[0].authorizedRoutes?.map((route) => route.deploymentId)).toEqual([alternate.deploymentId]);
+  });
+
+  it('keeps every route when the request carries nothing a route refuses', async () => {
+    const fixture = await makeFixture({ fund: '10.00', acceptedParameters: WITHOUT_TEMPERATURE });
+    await addDeployment(fixture, { rank: 'z', acceptedParameters: EVERY_PARAMETER });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 50 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+    expect(seen[0].authorizedRoutes?.[0]?.deploymentId).toBe(fixture.deploymentId);
+    expect(seen[0].authorizedRoutes).toHaveLength(2);
+  });
+
+  it('treats an unknown set as accepting everything', async () => {
+    // No `acceptedParameters` on the row: nobody said, so nothing is filtered.
+    const fixture = await makeFixture({ fund: '10.00' });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture, { temperature: 0.4, seed: 7 }),
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+    expect(seen).toHaveLength(1);
+    expect(seen[0].sampling).toMatchObject({ temperature: 0.4, seed: 7 });
+  });
+
+  it('refuses with invalid_request naming the parameter when no route accepts it, before any hold or Kaana call', async () => {
+    const fixture = await makeFixture({ fund: '10.00', acceptedParameters: WITHOUT_TEMPERATURE });
+    await addDeployment(fixture, { rank: 'z', acceptedParameters: ['maxOutputTokens'] });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture, { temperature: 0.4 }),
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(400);
+        const body = json(response) as { error: { code?: string; type?: string; param?: string; message: string } };
+        expect(JSON.stringify(body)).toContain('invalid_request');
+        expect(body.error.param).toBe('sampling.temperature');
+        expect(body.error.message).toContain('sampling.temperature');
+      }
+    );
+    expect(seen).toHaveLength(0);
+    const holds = await getDb()
+      .select({ id: usageReservations.id })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, fixture.accountId));
+    expect(holds).toHaveLength(0);
+  });
+
+  it('does not count a text response format or an absent tool list as carried', async () => {
+    const fixture = await makeFixture({ fund: '10.00', acceptedParameters: ['maxOutputTokens'] });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture, { response_format: { type: 'text' } }),
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+        const tools = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture, {
+            tools: [{ type: 'function', function: { name: 'lookup', parameters: { type: 'object' } } }],
+          }),
+          bearer(fixture.token)
+        );
+        expect(tools.status).toBe(400);
+        expect((json(tools) as { error: { param?: string } }).error.param).toBe('tools');
+      }
+    );
+    expect(seen).toHaveLength(1);
   });
 });
 

@@ -890,6 +890,13 @@
       "when": 1790783091933,
       "tag": "0127_session_milliseconds_unit",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1790796673071,
+      "tag": "0128_inference_deployment_accepted_parameters",
+      "breakpoints": true
     }
   ]
 }
