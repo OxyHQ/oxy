@@ -4,12 +4,19 @@ import {
   inferenceDeploymentRoutingScores,
   inferenceDeployments,
   inferenceModelRevisions,
+  KAANA_SYNC_AUTO_APPROVAL_POLICY_ID,
   LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
   priceVersionUnitPrices,
 } from '../db/schema';
 
 export interface InferenceRoutingReadinessRow {
   readonly deploymentId: string | null;
+  readonly modelRevisionId: string;
+  /**
+   * Written by the Kaana catalogue sync. A synced route carries only a `price`
+   * score, which never expires; see {@link isPriceOnlyRoute}.
+   */
+  readonly synced: boolean;
   readonly currentPriceVersionId: string | null;
   readonly requestUnitPriceVersionId: string | null;
   readonly scorePriceVersionId: string | null;
@@ -47,6 +54,8 @@ export async function readInferenceRoutingReadinessRows(): Promise<
   return getDb()
     .select({
       deploymentId: inferenceDeployments.internalRouteId,
+      modelRevisionId: inferenceDeployments.modelRevisionId,
+      synced: sql<boolean>`coalesce(${inferenceDeployments.autoApprovalPolicyId} = ${KAANA_SYNC_AUTO_APPROVAL_POLICY_ID}, false)`,
       currentPriceVersionId: BILLING_PRICE_VERSION_ID,
       requestUnitPriceVersionId: priceVersionUnitPrices.priceVersionId,
       scorePriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
@@ -95,6 +104,22 @@ export async function readInferenceRoutingReadinessRows(): Promise<
     );
 }
 
+/**
+ * A synced route with no measured score: selectable under `optimiseFor:
+ * 'price'` only, and refused with `missing-score` under any other objective
+ * (docs/inference/catalogue.md#routing-a-synced-model). Its price score has no
+ * validity window, so it has no expiry cliff. A reviewed route never qualifies:
+ * reviewed routes carry all four scores.
+ */
+function isPriceOnlyRoute(route: InferenceRoutingReadinessRow): boolean {
+  return (
+    route.synced &&
+    route.latency === null &&
+    route.throughput === null &&
+    route.balanced === null
+  );
+}
+
 /** Pure decision used by both the operator command and its non-vacuous tests. */
 export function assessInferenceRoutingReadiness(
   rows: readonly InferenceRoutingReadinessRow[],
@@ -112,6 +137,13 @@ export function assessInferenceRoutingReadiness(
   const collisions = [...identityCounts.entries()].filter(([, count]) => count > 1);
   if (collisions.length > 0) return { status: 'collision', collisions };
 
+  // Runtime refuses a model's COMPLETE route set when one candidate lacks the
+  // requested score, so a price-only route beside a measured one would take the
+  // measured route's latency, throughput and balanced ranking down with it.
+  const measuredRevisions = new Set(
+    rows.filter((route) => !isPriceOnlyRoute(route)).map((route) => route.modelRevisionId)
+  );
+
   const incomplete = rows.filter(
     (route) =>
       route.deploymentId === null ||
@@ -119,23 +151,35 @@ export function assessInferenceRoutingReadiness(
       route.currentPriceVersionId === null ||
       route.requestUnitPriceVersionId !== route.currentPriceVersionId ||
       route.scorePriceVersionId !== route.currentPriceVersionId ||
-      route.latency === null ||
-      route.latencyMeasurementWindowEnd === null ||
-      route.latencyMeasurementWindowEnd > now ||
-      route.latencyValidUntil === null ||
-      route.latencyValidUntil < minimumValidUntil ||
-      route.throughput === null ||
-      route.throughputMeasurementWindowEnd === null ||
-      route.throughputMeasurementWindowEnd > now ||
-      route.throughputValidUntil === null ||
-      route.throughputValidUntil < minimumValidUntil ||
-      route.balanced === null ||
-      route.balancedValidUntil === null ||
-      route.balancedValidUntil < minimumValidUntil
+      (isPriceOnlyRoute(route)
+        ? measuredRevisions.has(route.modelRevisionId)
+        : isMeasuredEvidenceIncomplete(route, now, minimumValidUntil))
   );
   return incomplete.length === 0
     ? { status: 'ready' }
     : { status: 'incomplete', routes: incomplete };
+}
+
+function isMeasuredEvidenceIncomplete(
+  route: InferenceRoutingReadinessRow,
+  now: Date,
+  minimumValidUntil: Date
+): boolean {
+  return (
+    route.latency === null ||
+    route.latencyMeasurementWindowEnd === null ||
+    route.latencyMeasurementWindowEnd > now ||
+    route.latencyValidUntil === null ||
+    route.latencyValidUntil < minimumValidUntil ||
+    route.throughput === null ||
+    route.throughputMeasurementWindowEnd === null ||
+    route.throughputMeasurementWindowEnd > now ||
+    route.throughputValidUntil === null ||
+    route.throughputValidUntil < minimumValidUntil ||
+    route.balanced === null ||
+    route.balancedValidUntil === null ||
+    route.balancedValidUntil < minimumValidUntil
+  );
 }
 
 /**
@@ -151,6 +195,7 @@ export function earliestInferenceRoutingEvidenceExpiry(
 ): { readonly deploymentId: string | null; readonly validUntil: Date } | undefined {
   let earliest: { deploymentId: string | null; validUntil: Date } | undefined;
   for (const route of rows) {
+    if (isPriceOnlyRoute(route)) continue;
     for (const validUntil of [
       route.latencyValidUntil,
       route.throughputValidUntil,
