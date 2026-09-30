@@ -296,11 +296,22 @@ describe('a workload row cannot authenticate as a credential', () => {
     await expect(resolveApplicationIdFromClientId(handle)).resolves.toBeNull();
   });
 
-  it('is not a service principal, so it cannot re-read as one on a control-plane call', async () => {
+  it('re-reads as a coordinator through its binding, never as a service credential', async () => {
     const { applicationId, handle } = await materialised();
-    // `loadPrincipal` requires `type = 'service'`. A workload row reaching it
-    // would be a caller acting on capabilities and provider connections with no
-    // credential behind it at all.
+    // `loadPrincipal` requires `type = 'service'` and never sees the row: a
+    // handle is routed to the live binding, the same arm that answered
+    // `service-identity`, so the coordinator is exactly what the binding says.
+    await expect(resolveLiveAgencyCoordinator(applicationId, handle)).resolves.toMatchObject({
+      applicationId,
+      credentialId: handle,
+    });
+  });
+
+  it('stops coordinating the moment its binding is deleted', async () => {
+    const { applicationId, handle } = await materialised();
+    await getDb()
+      .delete(applicationWorkloadIdentities)
+      .where(eq(applicationWorkloadIdentities.applicationId, applicationId));
     await expect(resolveLiveAgencyCoordinator(applicationId, handle)).resolves.toBeNull();
   });
 });
