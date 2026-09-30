@@ -23,6 +23,8 @@ import {
   autoLadder,
   classifyAutoPowerLevel,
   type AutoRoutingFeatures,
+  powerLevelEfforts,
+  resolvePowerLevelEffort,
 } from '../inferencePowerLevels.service';
 
 const INTERNAL_VIEWER = resolveCatalogueViewer({ type: 'internal', isInternal: true });
@@ -98,6 +100,41 @@ describe('autoLadder', () => {
   });
 });
 
+describe('resolvePowerLevelEffort', () => {
+  const ALL = ['low', 'medium', 'high'];
+
+  it('asks a reasoning model for the least it accepts when the level wants none', () => {
+    // The 2026-09-30 defect: `instant` sent nothing to gpt-oss, which then
+    // reasoned at its default and spent the whole output budget.
+    expect(resolvePowerLevelEffort('none', ALL)).toBe('low');
+    expect(resolvePowerLevelEffort('minimal', ALL)).toBe('low');
+    expect(resolvePowerLevelEffort('none', ['high', 'medium'])).toBe('medium');
+  });
+
+  it('sends the target itself when accepted', () => {
+    expect(resolvePowerLevelEffort('low', ALL)).toBe('low');
+    expect(resolvePowerLevelEffort('medium', ALL)).toBe('medium');
+    expect(resolvePowerLevelEffort('high', ALL)).toBe('high');
+  });
+
+  it('clamps up to the lowest accepted effort above the target', () => {
+    expect(resolvePowerLevelEffort('low', ['medium', 'high'])).toBe('medium');
+    expect(resolvePowerLevelEffort('medium', ['low', 'high'])).toBe('high');
+  });
+
+  it('falls back to the highest accepted effort when none reaches the target', () => {
+    expect(resolvePowerLevelEffort('high', ['low', 'medium'])).toBe('medium');
+    expect(resolvePowerLevelEffort('medium', ['low'])).toBe('low');
+  });
+
+  it('sends nothing to a model without effort control, and ignores words outside the contract', () => {
+    expect(resolvePowerLevelEffort('none', [])).toBeUndefined();
+    expect(resolvePowerLevelEffort('high', [])).toBeUndefined();
+    expect(resolvePowerLevelEffort('none', ['none', 'xhigh'])).toBeUndefined();
+    expect(resolvePowerLevelEffort('none', ['xhigh', 'medium'])).toBe('medium');
+  });
+});
+
 describe('the seeded power-level presets', () => {
   beforeAll(async () => {
     await connectPostgres();
@@ -139,6 +176,17 @@ describe('the seeded power-level presets', () => {
         optimiseFor: 'price',
       }))
     );
+  });
+
+  it('targets no reasoning for instant and each row effort for the others', async () => {
+    expect(Object.fromEntries(await powerLevelEfforts())).toEqual({
+      instant: 'none',
+      medium: 'low',
+      high: 'medium',
+      xhigh: 'high',
+      pro: 'high',
+      ultra: 'high',
+    });
   });
 
   it('refuses a power level on a non-preset profile and a second profile for one level', async () => {

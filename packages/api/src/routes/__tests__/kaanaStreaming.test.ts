@@ -853,11 +853,11 @@ function emitter(context: ScriptContext, provider: string) {
         type: 'error',
         error: { schemaVersion: 1, code, message, retryable: true, requestId },
       }),
-    done: () =>
+    done: (finishReason = 'stop') =>
       event({
         type: 'done',
         generationId,
-        finishReason: 'stop',
+        finishReason,
         completedAt: new Date().toISOString(),
       }),
     report: (
@@ -1232,6 +1232,76 @@ describe('a non-streaming request through the real client', () => {
       .from(inferenceUsageEvents)
       .where(eq(inferenceUsageEvents.accountId, fixture.accountId));
     expect(event.timeToFirstTokenMs).toBe(41);
+  });
+
+  /**
+   * A reasoning model that spends its whole output budget reasoning finishes
+   * `length` having produced nothing but reasoning deltas. The answer is still
+   * one (empty) assistant turn: `choices: []` is not an OpenAI completion.
+   */
+  it('answers a reasoning-only, truncated generation with one choice', async () => {
+    const fixture = await makeFixture();
+
+    await withEdge(
+      async (context) => {
+        const emit = emitter(context, fixture.provider);
+        emit.start();
+        emit.reasoning('The user wants a greeting in Spanish');
+        emit.usage(UNITS);
+        emit.done('length');
+        emit.report(UNITS, 'completed');
+      },
+      async ({ request }) => {
+        const chat = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture),
+          bearer(fixture.token)
+        );
+        expect(chat.status).toBe(200);
+        const body = JSON.parse(chat.body) as Record<string, unknown>;
+        expect(body.choices).toEqual([
+          {
+            index: 0,
+            message: { role: 'assistant', content: '' },
+            finish_reason: 'length',
+          },
+        ]);
+        expect(chat.headers['x-oxy-finish-reason']).toBe('length');
+        // The private reasoning is still never rendered as the answer.
+        expect(chat.body).not.toContain('greeting in Spanish');
+
+        const responses = await request(
+          'POST',
+          '/v1/responses',
+          responsesBody(fixture),
+          bearer(fixture.token)
+        );
+        expect(responses.status).toBe(200);
+        const native = JSON.parse(responses.body) as Record<string, unknown>;
+        expect(native.finishReason).toBe('length');
+        expect(native.output).toEqual([{ role: 'assistant', content: [] }]);
+      }
+    );
+  });
+
+  /** Control: a generation with text keeps exactly its one choice, unchanged. */
+  it('renders one choice per output for an ordinary completion', async () => {
+    const fixture = await makeFixture();
+
+    await withEdge(servesCompletely(fixture.provider), async ({ request }) => {
+      const response = await request(
+        'POST',
+        '/v1/chat/completions',
+        chatBody(fixture),
+        bearer(fixture.token)
+      );
+      expect(response.status).toBe(200);
+      const body = JSON.parse(response.body) as Record<string, unknown>;
+      expect(body.choices).toEqual([
+        { index: 0, message: { role: 'assistant', content: 'Hello.' }, finish_reason: 'stop' },
+      ]);
+    });
   });
 
   it('charges once when the same Idempotency-Key is retried', async () => {
@@ -1722,6 +1792,45 @@ describe('POST /v1/chat/completions with stream: true', () => {
     const receipts = await receiptsOf(fixture.accountId);
     expect(receipts).toHaveLength(1);
     expect(Number(receipts[0].billedAmount)).toBeCloseTo(EXPECTED_CHARGE, 9);
+  });
+
+  it('ends a reasoning-only, truncated stream on a chunk carrying finish_reason', async () => {
+    const fixture = await makeFixture();
+
+    await withEdge(
+      async (context) => {
+        const emit = emitter(context, fixture.provider);
+        emit.start();
+        emit.reasoning('The user wants a greeting in Spanish');
+        emit.usage(UNITS);
+        emit.done('length');
+        emit.report(UNITS, 'completed');
+      },
+      async ({ request }) => {
+        const response = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture, { stream: true }),
+          bearer(fixture.token)
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.frames[response.frames.length - 1].data).toBe('[DONE]');
+        expect(response.body).not.toContain('greeting in Spanish');
+        const chunks = chunksOf(response);
+        const withChoices = chunks.filter(
+          (chunk) => (chunk.choices as unknown[]).length > 0
+        );
+        // The role chunk opens choice 0 and the last chunk with a choice closes
+        // it: a stock client sees one choice that finished on `length`.
+        expect(withChoices[0]).toMatchObject({
+          choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }],
+        });
+        expect(withChoices[withChoices.length - 1]).toMatchObject({
+          choices: [{ index: 0, delta: {}, finish_reason: 'length' }],
+        });
+      }
+    );
   });
 
   /** Reported only, for the reason given on the `/v1/responses` case above. */

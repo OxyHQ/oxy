@@ -1810,6 +1810,12 @@ export interface EdgeRoute {
   readonly inputModalities: readonly string[];
   readonly outputModalities: readonly string[];
   /**
+   * Whether the route's MODEL reasons before it answers
+   * (`inference_models.supports_reasoning`), whether or not it takes an effort
+   * control. A power level asking for no reasoning prefers a model that does not.
+   */
+  readonly reasoning: boolean;
+  /**
    * The reasoning efforts the route's MODEL advertises. The edge refuses a
    * request naming an effort outside this list rather than forwarding it.
    */
@@ -2205,6 +2211,7 @@ export async function resolveEdgeRoute(
       resolvedModelId: inferenceModels.modelId,
       maxContextTokens: inferenceModels.maxContextTokens,
       maxOutputTokens: inferenceModels.maxOutputTokens,
+      supportsReasoning: inferenceModels.supportsReasoning,
       reasoningEfforts: inferenceModels.reasoningEfforts,
       acceptedParameters: inferenceDeployments.acceptedParameters,
       inputModalities: inferenceModels.inputModalities,
@@ -2499,6 +2506,7 @@ export async function resolveEdgeRoute(
     maxOutputTokens: row.maxOutputTokens,
     inputModalities: row.inputModalities,
     outputModalities: row.outputModalities,
+    reasoning: row.supportsReasoning,
     reasoningEfforts: row.reasoningEfforts,
     acceptedParameters: row.acceptedParameters,
     ...(row.apiFormats === null ? {} : { apiFormats: row.apiFormats }),

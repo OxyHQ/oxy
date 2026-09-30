@@ -33,7 +33,12 @@
  */
 
 import { and, eq, inArray, isNotNull, type SQL } from 'drizzle-orm';
-import type { ModelPowerClass, PowerLevel, ReasoningEffort } from '@oxy.so/contracts';
+import {
+  type ModelPowerClass,
+  type PowerLevel,
+  type ReasoningEffort,
+  reasoningEffortSchema,
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import {
   inferenceDeployments,
@@ -67,6 +72,46 @@ export const POWER_LEVEL_CLASS: Readonly<Record<ConcretePowerLevel, ModelPowerCl
 
 /** The highest level `auto` may climb to. */
 export const AUTO_CEILING: ConcretePowerLevel = 'xhigh';
+
+/* -------------------------------------------------------------------------- */
+/*  A level's reasoning effort                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What a level ASKS for, least reasoning first. Wider than the contract's
+ * {@link ReasoningEffort} (`low` / `medium` / `high`): `instant` asks for NO
+ * reasoning, and `none` and `minimal` name that intent even though no request
+ * can carry them today — a target is resolved against a deployment's accepted
+ * efforts before anything is sent ({@link resolvePowerLevelEffort}).
+ */
+export const POWER_EFFORT_TARGETS = ['none', 'minimal', 'low', 'medium', 'high'] as const;
+
+export type PowerEffortTarget = (typeof POWER_EFFORT_TARGETS)[number];
+
+/**
+ * The effort a level sends to one deployment: the LOWEST effort it accepts at
+ * or above the level's target, else (nothing accepted that high) the highest it
+ * accepts; `undefined` when it accepts none (a model without effort control,
+ * or a deployment whose upstream refuses the parameter).
+ *
+ * The direction matters most at the bottom: a reasoning model sent no effort
+ * reasons at its provider's DEFAULT (often `medium`), so `instant` (target
+ * `none`) sending nothing to `gpt-oss` spent a 30-token budget entirely on
+ * reasoning. Clamped, `instant` gets `low` there — the least the vocabulary can
+ * ask for — and `medium` (target `low`) gets `low` or the next effort up.
+ */
+export function resolvePowerLevelEffort(
+  target: PowerEffortTarget,
+  accepted: readonly string[]
+): ReasoningEffort | undefined {
+  const rank = (effort: string): number =>
+    POWER_EFFORT_TARGETS.indexOf(effort as PowerEffortTarget);
+  const expressible = accepted
+    .filter((effort): effort is ReasoningEffort => reasoningEffortSchema.safeParse(effort).success)
+    .sort((left, right) => rank(left) - rank(right));
+  const floor = rank(target);
+  return expressible.find((effort) => rank(effort) >= floor) ?? expressible.at(-1);
+}
 
 /* -------------------------------------------------------------------------- */
 /*  The auto heuristic                                                        */
@@ -186,9 +231,13 @@ export async function powerLevelProfileIds(): Promise<ReadonlyMap<PowerLevel, st
   return map;
 }
 
-/** The effort each concrete level requests, read from its preset row. */
+/**
+ * The effort each concrete level TARGETS, read from its preset row. A row with
+ * no effort (`instant`) asks for no reasoning: its target is `none`, which
+ * {@link resolvePowerLevelEffort} clamps to the least a deployment accepts.
+ */
 export async function powerLevelEfforts(): Promise<
-  ReadonlyMap<ConcretePowerLevel, ReasoningEffort | undefined>
+  ReadonlyMap<ConcretePowerLevel, PowerEffortTarget>
 > {
   const rows = await getDb()
     .select({
@@ -197,10 +246,10 @@ export async function powerLevelEfforts(): Promise<
     })
     .from(inferenceRoutingProfiles)
     .where(isNotNull(inferenceRoutingProfiles.powerLevel));
-  const map = new Map<ConcretePowerLevel, ReasoningEffort | undefined>();
+  const map = new Map<ConcretePowerLevel, PowerEffortTarget>();
   for (const row of rows) {
     if (row.powerLevel === null || row.powerLevel === 'auto') continue;
-    map.set(row.powerLevel, row.reasoningEffort ?? undefined);
+    map.set(row.powerLevel, row.reasoningEffort ?? 'none');
   }
   return map;
 }
