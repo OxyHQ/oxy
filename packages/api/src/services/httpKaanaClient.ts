@@ -769,7 +769,8 @@ function usageEvidence(
  * One message per output index, in index order, so a multi-output response is
  * rendered in the order the provider produced it rather than in `Map` insertion
  * order. A response that was nothing but tool calls still produces one message,
- * because an assistant turn that only calls a tool is a real and common message.
+ * because an assistant turn that only calls a tool is a real and common message,
+ * and so does one that produced nothing visible at all (see below).
  */
 function foldedOutput(
   texts: ReadonlyMap<number, string>,
@@ -787,8 +788,19 @@ function foldedOutput(
     (left, right) => left - right
   );
   if (indexes.length === 0) {
-    if (calls.length === 0) return { output: [], transcripts: [] };
-    return { output: [{ role: 'assistant', content: [], toolCalls: calls }], transcripts: [null] };
+    // A completed generation is always ONE assistant turn, even when it
+    // produced no visible content: a reasoning model whose whole output budget
+    // went to reasoning finishes `length` with nothing but reasoning deltas,
+    // which this fold drops. Folding that to `output: []` made every dialect
+    // render an answer with no choice at all (`choices: []`), which an
+    // OpenAI-compatible client reads as a malformed response rather than as a
+    // truncated one.
+    return {
+      output: [
+        { role: 'assistant', content: [], ...(calls.length === 0 ? {} : { toolCalls: calls }) },
+      ],
+      transcripts: [null],
+    };
   }
 
   const output = indexes.map((index, position) => {

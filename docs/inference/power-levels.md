@@ -10,10 +10,10 @@ Seeded by migration `0129_power_routing_profiles` with fixed ids, so a policy
 can name them identically in every environment. All are product presets that
 rank on `optimiseFor: price`.
 
-| Slug | `routingProfileId` | Chooses from class | Reasoning effort |
+| Slug | `routingProfileId` | Chooses from class | Target reasoning effort |
 |---|---|---|---|
 | `auto` | `power-auto` | see below | the chosen level's |
-| `instant` | `power-instant` | `instant` | none |
+| `instant` | `power-instant` | `instant` | none (sent as the least the model accepts) |
 | `medium` | `power-medium` | `medium` | `low` |
 | `high` | `power-high` | `high` | `medium` |
 | `xhigh` | `power-xhigh` | `high` | `high` |
@@ -35,11 +35,14 @@ rank on `optimiseFor: price`.
    ([catalogue.md](./catalogue.md#a-listed-model-is-a-servable-model)).
 3. **Order**: within one level, the edge's single ranking — funding class
    (free allowance → discounted pay-as-you-go → promotional credit → standard
-   paid), then price score, then exact deployment id.
-4. **Reasoning effort**: when the request names none, the level's effort is
-   sent only if the first-ranked model advertises it, and then every failover
-   destination must advertise it too (the envelope carries one effort). A
-   caller's own effort always wins and excludes routes that lack it.
+   paid), then price score, then exact deployment id. At a level whose target
+   effort is `none` (`instant`), a model that does not reason
+   (`supports_reasoning = false`) ranks ahead of one that does inside the same
+   funding class, before price: a reasoning model spends its output budget on
+   reasoning first, which at `instant`'s budgets can be all of it (see below).
+4. **Reasoning effort**: when the request names none, the level's target is
+   clamped to the chosen deployment — see [the effort rule](#the-effort-rule).
+   A caller's own effort always wins and excludes routes that lack it.
 5. **Failover across models** inside the level is authorized by the profile
    itself: every signed route is a candidate of the level. The data plane
    reports a switch as a `route_switch` event; Oxy records it in
@@ -49,6 +52,36 @@ rank on `optimiseFor: price`.
 
 An exact request (`publisher/model`, `@revision`) never takes part in any of
 this: it signs only deployments of that model.
+
+## The effort rule
+
+A level has a TARGET effort (the table above). Its vocabulary, least reasoning
+first, is `none` · `minimal` · `low` · `medium` · `high`; a request can carry
+only the contract's `low` / `medium` / `high`, so `none` and `minimal` exist
+only as targets. The effort sent to a deployment
+(`resolvePowerLevelEffort`, `packages/api/src/services/inferencePowerLevels.service.ts`) is:
+
+1. the **lowest** effort it accepts **at or above** the target;
+2. else (it accepts nothing that high) the **highest** effort it accepts;
+3. else nothing — the model takes no effort control, or the deployment's
+   accepted parameters exclude `reasoning.effort`.
+
+"Accepts" is the model's advertised `reasoningEfforts` AND the deployment's
+accepted parameters. So today `instant` sends `low` to a reasoning model and
+nothing to one without effort control, `medium` sends `low` (else `medium`,
+else `high`), and `high` sends `medium` (else `high`, else `low`). When the
+contract gains `none` / `minimal`, `instant` reaches them with no rule change.
+
+Why never leave it unsent: a reasoning model sent no effort reasons at its
+provider's default (typically `medium`). On 2026-09-30 `instant` sent nothing
+to `openai/gpt-oss-120b`, which spent 28 of a 30-token budget reasoning and
+answered nothing.
+
+**Failover** keeps one effort, because the envelope carries one: every signed
+route must resolve its own level's target to the SAME effort as the admitted
+route. A route that would refuse the effort is never signed, and neither is a
+reasoning model behind a route that sends none (it would run at its default).
+This narrows failover to routes that run the level as intended.
 
 ## `auto`
 

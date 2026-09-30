@@ -76,7 +76,8 @@ export const reasoningEffortSchema = z.enum(['low', 'medium', 'high']);
  * 3.4.0). Ordered cheapest first; `auto` asks Oxy to pick the cheapest level
  * that suffices for the request.
  *
- * - `instant` — very cheap, fast small models; no reasoning effort requested
+ * - `instant` — very cheap, fast small models; the least reasoning each model
+ *   accepts (`low` on a reasoning model, nothing on one without effort control)
  * - `medium` — mid-size models, low reasoning effort
  * - `high` — strong models, medium reasoning effort
  * - `xhigh` — strong models, high reasoning effort
@@ -638,7 +639,9 @@ export const routingProfileSchema = z.object({
   powerLevel: powerLevelSchema.optional(),
   /**
    * The reasoning effort a power level asks for when the request names none,
-   * applied only on a model that advertises it. Absent: none is requested.
+   * clamped to the nearest effort the chosen model accepts (the lowest at or
+   * above it, else the highest). Absent: the level asks for no reasoning, sent
+   * as the least effort a reasoning model accepts.
    */
   reasoningEffort: reasoningEffortSchema.optional(),
 });

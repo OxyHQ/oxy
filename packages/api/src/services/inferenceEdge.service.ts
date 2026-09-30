@@ -118,6 +118,8 @@ import {
   type AutoRoutingFeatures,
   type ConcretePowerLevel,
   powerLevelEfforts,
+  type PowerEffortTarget,
+  resolvePowerLevelEffort,
   powerLevelProfileIds,
 } from './inferencePowerLevels.service';
 import {
@@ -684,8 +686,20 @@ function compareExactDeploymentIds(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/** Keep every same-priority ranking site on the one reviewed ordering contract. */
-function compareQualifiedRoutes(left: EdgeRoute, right: EdgeRoute, preferByok: boolean): number {
+/**
+ * Keep every same-priority ranking site on the one reviewed ordering contract.
+ *
+ * `preferNonReasoning` is set for a power level that asks for NO reasoning
+ * (`instant`): inside one funding class a model that does not reason ranks
+ * ahead of one that does, before price, because a reasoning model's output
+ * budget is spent on reasoning first — at `instant`'s budgets, often all of it.
+ */
+function compareQualifiedRoutes(
+  left: EdgeRoute,
+  right: EdgeRoute,
+  preferByok: boolean,
+  preferNonReasoning = false
+): number {
   if (preferByok) {
     const leftIsByok = left.availabilityScope === 'byok_only';
     const rightIsByok = right.availabilityScope === 'byok_only';
@@ -693,6 +707,7 @@ function compareQualifiedRoutes(left: EdgeRoute, right: EdgeRoute, preferByok: b
   }
   const byFunding = left.fundingPriority - right.fundingPriority;
   if (byFunding !== 0) return byFunding;
+  if (preferNonReasoning && left.reasoning !== right.reasoning) return left.reasoning ? 1 : -1;
   const byScore = right.routingScore - left.routingScore;
   return byScore !== 0
     ? byScore
@@ -998,7 +1013,10 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
    * For a power level: the reasoning effort each priority group's level asks
    * for when the caller named none (`auto` has one group per level).
    */
-  let powerEffortByPriority: ReadonlyMap<number, ReasoningEffort | undefined> | undefined;
+  let powerEffortByPriority: ReadonlyMap<number, PowerEffortTarget | undefined> | undefined;
+  /** A priority whose level asks for no reasoning ranks non-reasoning models first. */
+  const prefersNonReasoning = (priority: number): boolean =>
+    request.reasoning === undefined && powerEffortByPriority?.get(priority) === 'none';
   /** Efforts advertised by models whose routes were dropped for lacking the requested one. */
   const effortsOfExcludedRoutes = new Set<string>();
   let sawUnsupportedEffort = false;
@@ -1035,7 +1053,8 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       : requiredCapacity;
 
   const qualifyPriority = async (
-    resolutions: readonly ResolvedRoutes[]
+    resolutions: readonly ResolvedRoutes[],
+    priority = 0
   ): Promise<Admission | undefined> => {
     // A route that cannot take the request's controls neither fixes the
     // implicit output ceiling nor is quoted: it will never be signed.
@@ -1043,7 +1062,12 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       .flatMap((resolution) => [resolution.route, ...resolution.alternates])
       .filter(acceptsCarriedParameters)
       .sort((left, right) =>
-        compareQualifiedRoutes(left, right, routingConstraints.byokPreference === 'prefer')
+        compareQualifiedRoutes(
+          left,
+          right,
+          routingConstraints.byokPreference === 'prefer',
+          prefersNonReasoning(priority)
+        )
       );
 
     // Without a request ceiling there is no price qualification to perform at
@@ -1293,7 +1317,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
           sawContextLimit ||= resolution.contextLimitExceeded;
         }
       }
-      const qualification = await qualifyPriority(resolvedAtPriority);
+      const qualification = await qualifyPriority(resolvedAtPriority, priority);
       if (qualification !== undefined) return qualification;
     }
   }
@@ -1356,7 +1380,8 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     return compareQualifiedRoutes(
       left.route,
       right.route,
-      routingConstraints.byokPreference === 'prefer'
+      routingConstraints.byokPreference === 'prefer',
+      prefersNonReasoning(left.priority)
     );
   });
 
@@ -1503,36 +1528,40 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       candidate.route.maxContextTokens >= estimatedInputTokens + maxOutputTokens
   );
 
-  // A power level's reasoning effort, when the caller named none: applied only
-  // when the admitted route's model advertises it, and then every failover
-  // destination must advertise it too — the envelope carries ONE effort, and a
-  // route that cannot honour it is never signed (the same rule a caller-named
-  // effort gets above).
+  // A power level's reasoning effort, when the caller named none: the level's
+  // target clamped to what the admitted route accepts
+  // (`resolvePowerLevelEffort` — the lowest accepted effort at or above the
+  // target), and then every failover destination must resolve ITS level to
+  // that same effort. The envelope carries ONE effort: a route that would
+  // refuse it is never signed (the same rule a caller-named effort gets
+  // above), and neither is one that would run the level at another effort —
+  // in particular a reasoning model sent no effort, which reasons at its
+  // provider's default.
   let effectiveReasoning = request.reasoning;
   //
-  // "Accepts it" is two facts: the MODEL advertises the effort, and the exact
+  // "Accepts" is two facts: the MODEL advertises the effort, and the exact
   // DEPLOYMENT's known accepted parameters include `reasoning.effort` (a
   // caller-named effort is already checked through `carriedParameters`; an
   // injected one must pass the same Kaana Translate rule, OxyHQ/Kaana#124).
-  const honoursEffort = (candidate: EdgeRoute, effort: ReasoningEffort): boolean =>
-    candidate.reasoningEfforts.includes(effort) &&
-    firstUnacceptedParameter(candidate.acceptedParameters, ['reasoning.effort']) === undefined;
-  let levelEffort: ReasoningEffort | undefined;
-  if (request.reasoning === undefined && powerEffortByPriority !== undefined) {
-    const effort = powerEffortByPriority.get(primaryCandidate.priority);
-    if (effort !== undefined && honoursEffort(route, effort)) {
-      levelEffort = effort;
-      effectiveReasoning = { effort };
-    }
-  }
+  const appliesLevelEffort = request.reasoning === undefined && powerEffortByPriority !== undefined;
+  const levelEffortOn = (candidate: RankedCandidate): ReasoningEffort | undefined => {
+    const target = powerEffortByPriority?.get(candidate.priority);
+    if (target === undefined) return undefined;
+    const accepted =
+      firstUnacceptedParameter(candidate.route.acceptedParameters, ['reasoning.effort']) ===
+      undefined
+        ? candidate.route.reasoningEfforts
+        : [];
+    return resolvePowerLevelEffort(target, accepted);
+  };
+  const levelEffort = appliesLevelEffort ? levelEffortOn(primaryCandidate) : undefined;
+  if (levelEffort !== undefined) effectiveReasoning = { effort: levelEffort };
 
   const authorizedRoutes: EdgeRoute[] = [route];
   const admittedModelLine = modelLineOf(route.modelReference);
   const authorizedModelLines = new Set<string>([admittedModelLine]);
   for (const candidate of capacityCompatible.slice(1)) {
-    if (levelEffort !== undefined && !honoursEffort(candidate.route, levelEffort)) {
-      continue;
-    }
+    if (appliesLevelEffort && levelEffortOn(candidate) !== levelEffort) continue;
     const candidateModelLine = modelLineOf(candidate.route.modelReference);
     if (candidateModelLine === admittedModelLine) {
       if (authorizesSameModelFailover) authorizedRoutes.push(candidate.route);

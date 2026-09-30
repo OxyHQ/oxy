@@ -9,8 +9,11 @@
  *    cross-model failover among them — while an EXACT request never signs a
  *    different model;
  *  - a model switch inside a level is recorded against the PROFILE;
- *  - the level's reasoning effort is applied only where the model advertises
- *    it, and failover never lands on a route that cannot honour it;
+ *  - the level's reasoning effort is clamped to the nearest effort the model
+ *    accepts (never left to a reasoning model's default), and failover never
+ *    lands on a route that would run the level at another effort;
+ *  - `instant` ranks a model that does not reason ahead of one that does,
+ *    inside one funding class;
  *  - `auto` chooses the cheapest sufficient level and climbs only upward;
  *  - an application's allowed-profile list refuses a forbidden level before
  *    any Kaana call, and its `defaultTarget` serves a request naming nothing;
@@ -458,21 +461,140 @@ describe('a power level', () => {
     });
   });
 
-  it('sends no effort when the chosen model takes none, and keeps every failover', async () => {
+  it('sends no effort when the chosen model takes none, and signs no failover that would reason at its default', async () => {
     const plain = await publicRoute({ tag: 'pl1', evidence: { priceScore: 900 } });
+    const plainToo = await publicRoute({ tag: 'pl2', evidence: { priceScore: 500 } });
     const reasons = await publicRoute({
       tag: 'rs1',
       reasoningEfforts: ['low'],
       evidence: { priceScore: 100 },
     });
-    await setPowerClass(plain.modelId, 'medium');
-    await setPowerClass(reasons.modelId, 'medium');
+    for (const model of [plain, plainToo, reasons]) await setPowerClass(model.modelId, 'medium');
     const caller = await makeCaller();
 
     await withEdge(async (stub, post) => {
       expect((await post('/v1/chat/completions', chat('medium'), caller.token)).status).toBe(200);
       expect(stub.received[0].reasoning).toBeUndefined();
-      expect(lines(stub.received[0])).toEqual([plain.modelId, reasons.modelId]);
+      // The envelope carries no effort, so the reasoning model — which the
+      // level would run at `low` — is not a failover: it would run at its
+      // provider's default instead. Another model without effort control is.
+      expect(lines(stub.received[0])).toEqual([plain.modelId, plainToo.modelId]);
+    });
+  });
+
+  it('asks a reasoning model at instant for the least effort it accepts, not its default', async () => {
+    const oss = await publicRoute({
+      tag: 'oss',
+      reasoningEfforts: ['low', 'medium', 'high'],
+      evidence: { priceScore: 900 },
+    });
+    await setPowerClass(oss.modelId, 'instant');
+    const caller = await makeCaller();
+
+    await withEdge(async (stub, post) => {
+      expect((await post('/v1/chat/completions', chat('instant'), caller.token)).status).toBe(200);
+      expect(stub.received[0].reasoning).toEqual({ effort: 'low' });
+    });
+  });
+
+  it('clamps a level effort the model lacks to the nearest one it accepts', async () => {
+    const upOnly = await publicRoute({
+      tag: 'upo',
+      reasoningEfforts: ['medium', 'high'],
+      evidence: { priceScore: 900 },
+    });
+    await setPowerClass(upOnly.modelId, 'medium');
+    const lowOnly = await publicRoute({
+      tag: 'lwo',
+      reasoningEfforts: ['low'],
+      evidence: { priceScore: 900 },
+    });
+    await setPowerClass(lowOnly.modelId, 'high');
+    const caller = await makeCaller();
+
+    await withEdge(async (stub, post) => {
+      // `medium` targets `low`: the lowest accepted effort above it.
+      expect((await post('/v1/chat/completions', chat('medium'), caller.token)).status).toBe(200);
+      expect(stub.received[0].reasoning).toEqual({ effort: 'medium' });
+      // `high` targets `medium`: nothing that high is accepted, so the highest
+      // accepted rather than the provider's unstated default.
+      expect((await post('/v1/chat/completions', chat('high'), caller.token)).status).toBe(200);
+      expect(stub.received[1].reasoning).toEqual({ effort: 'low' });
+    });
+  });
+
+  it('keeps the caller’s own effort over the level’s', async () => {
+    const oss = await publicRoute({
+      tag: 'own',
+      reasoningEfforts: ['low', 'medium', 'high'],
+      evidence: { priceScore: 900 },
+    });
+    await setPowerClass(oss.modelId, 'instant');
+    const caller = await makeCaller();
+
+    await withEdge(async (stub, post) => {
+      const answer = await post(
+        '/v1/chat/completions',
+        chat('instant', { reasoning_effort: 'high' }),
+        caller.token
+      );
+      expect(answer.status).toBe(200);
+      expect(stub.received[0].reasoning).toEqual({ effort: 'high' });
+    });
+  });
+
+  it('ranks a model that does not reason first at instant, within its funding class', async () => {
+    const reasonsCheap = await publicRoute({
+      tag: 'rcp',
+      reasoningEfforts: ['low', 'medium', 'high'],
+      evidence: { priceScore: 900 },
+    });
+    const plainDearer = await publicRoute({ tag: 'pdr', evidence: { priceScore: 500 } });
+    const plainDearest = await publicRoute({ tag: 'pdt', evidence: { priceScore: 100 } });
+    const reasonsFree = await publicRoute({
+      tag: 'rfr',
+      reasoningEfforts: ['low'],
+      evidence: { priceScore: 10, fundingClass: 'free_entitlement' },
+    });
+    for (const model of [reasonsCheap, plainDearer, plainDearest]) {
+      await setPowerClass(model.modelId, 'instant');
+    }
+    const caller = await makeCaller();
+
+    await withEdge(async (stub, post) => {
+      const answer = await post('/v1/chat/completions', chat('instant'), caller.token);
+      expect(answer.status).toBe(200);
+      // Non-reasoning first, then price; the reasoning model would run at
+      // `low`, which the no-effort envelope cannot carry, so it is not signed.
+      expect(lines(stub.received[0])).toEqual([plainDearer.modelId, plainDearest.modelId]);
+      expect(stub.received[0].reasoning).toBeUndefined();
+      expect(answer.body.model).toBe(`${plainDearer.modelId}@${plainDearer.revision}`);
+    });
+
+    // Funding still comes first: a free allowance outranks the preference.
+    await setPowerClass(reasonsFree.modelId, 'instant');
+    await withEdge(async (stub, post) => {
+      expect((await post('/v1/chat/completions', chat('instant'), caller.token)).status).toBe(200);
+      expect(lines(stub.received[0])[0]).toBe(reasonsFree.modelId);
+      expect(stub.received[0].reasoning).toEqual({ effort: 'low' });
+    });
+  });
+
+  it('ranks by price alone at a level that asks for reasoning (control)', async () => {
+    const reasonsCheap = await publicRoute({
+      tag: 'mrc',
+      reasoningEfforts: ['low', 'medium', 'high'],
+      evidence: { priceScore: 900 },
+    });
+    const plainDearer = await publicRoute({ tag: 'mpd', evidence: { priceScore: 500 } });
+    await setPowerClass(reasonsCheap.modelId, 'medium');
+    await setPowerClass(plainDearer.modelId, 'medium');
+    const caller = await makeCaller();
+
+    await withEdge(async (stub, post) => {
+      expect((await post('/v1/chat/completions', chat('medium'), caller.token)).status).toBe(200);
+      expect(lines(stub.received[0])).toEqual([reasonsCheap.modelId]);
+      expect(stub.received[0].reasoning).toEqual({ effort: 'low' });
     });
   });
 
