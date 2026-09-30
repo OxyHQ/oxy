@@ -4,7 +4,10 @@ name: Kaana signed production canary
 # exact live oxy-api image, strips
 # every Oxy/database secret, injects only the existing Ed25519 key through the
 # ECS secret binding, and makes exactly two one-token provider requests after
-# every fail-closed case passes. Merging this workflow does not run it.
+# every fail-closed case passes — or, with probe_mode realtime, exactly ONE
+# text-only push-to-talk session on /internal/v1/realtime (one text item, one
+# response, at most one second of output audio signed) after an unknown-route
+# session is refused. Merging this workflow does not run it.
 
 on:
   workflow_dispatch:
@@ -66,7 +69,18 @@ on:
         required: true
         type: string
       confirm_two_provider_requests:
-        description: Confirm two synthetic requests, each capped at one output token
+        description: Confirm two synthetic requests, each capped at one output token (inference mode only)
+        required: true
+        type: boolean
+      probe_mode:
+        description: inference (two one-token requests) or realtime (one push-to-talk session on the exact deployment)
+        required: true
+        type: choice
+        options:
+          - inference
+          - realtime
+      confirm_one_realtime_session:
+        description: Confirm ONE text-only push-to-talk realtime session (one text item, one response, at most 1 s of output audio) (realtime mode only)
         required: true
         type: boolean
       reason:
@@ -118,15 +132,41 @@ jobs:
           CANARY_APPLICATION_ID: ${{ inputs.application_id }}
           CANARY_CREDENTIAL_ID: ${{ inputs.credential_id }}
           CONFIRM_TWO_PROVIDER_REQUESTS: ${{ inputs.confirm_two_provider_requests }}
+          PROBE_MODE: ${{ inputs.probe_mode }}
+          CONFIRM_ONE_REALTIME_SESSION: ${{ inputs.confirm_one_realtime_session }}
           CANARY_REASON: ${{ inputs.reason }}
         run: |
           set -euo pipefail
           umask 077
 
-          if [ "$CONFIRM_TWO_PROVIDER_REQUESTS" != true ]; then
-            echo '::error::the operator must explicitly confirm the two one-token provider requests'
-            exit 64
-          fi
+          # Exactly the one confirmation that matches the mode: a run never
+          # spends what the operator did not confirm.
+          case "$PROBE_MODE" in
+            inference)
+              if [ "$CONFIRM_TWO_PROVIDER_REQUESTS" != true ]; then
+                echo '::error::the operator must explicitly confirm the two one-token provider requests'
+                exit 64
+              fi
+              if [ "$CONFIRM_ONE_REALTIME_SESSION" = true ]; then
+                echo '::error::the realtime session confirmation does not apply to inference mode'
+                exit 64
+              fi
+              ;;
+            realtime)
+              if [ "$CONFIRM_ONE_REALTIME_SESSION" != true ]; then
+                echo '::error::the operator must explicitly confirm the one push-to-talk realtime session'
+                exit 64
+              fi
+              if [ "$CONFIRM_TWO_PROVIDER_REQUESTS" = true ]; then
+                echo '::error::the two-request confirmation does not apply to realtime mode'
+                exit 64
+              fi
+              ;;
+            *)
+              echo '::error::unregistered canary probe mode'
+              exit 64
+              ;;
+          esac
           if [[ ! "$EXPECTED_LIVE_TASK_DEFINITION_ARN" =~ ^arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:[0-9]+$ ]]; then
             echo '::error::expected_live_task_definition_arn is not the exact production oxy-api ARN'
             exit 64
@@ -311,12 +351,13 @@ jobs:
             --arg account "$CANARY_ACCOUNT_ID" \
             --arg application "$CANARY_APPLICATION_ID" \
             --arg credential "$CANARY_CREDENTIAL_ID" \
+            --arg mode "$PROBE_MODE" \
             --arg candidate_ip "$CANDIDATE_PRIVATE_IP" '
               {containerOverrides:[{
                 name:$container,
                 command:["node","packages/api/scripts/run-kaana-signed-canary.mjs"],
                 environment:[
-                  {name:"CANARY_CONTRACT_VERSION",value:"3.1.0"},
+                  {name:"CANARY_CONTRACT_VERSION",value:(if $mode == "realtime" then "3.2.0" else "3.1.0" end)},
                   {name:"CANARY_KAANA_PRIVATE_ORIGIN",value:("http://" + $candidate_ip + ":8080")},
                   {name:"CANARY_EXPECTED_SNAPSHOT_ID",value:$snapshot},
                   {name:"CANARY_DEPLOYMENT_ID",value:$deployment},
@@ -328,6 +369,8 @@ jobs:
                   {name:"CANARY_CREDENTIAL_ID",value:$credential}
                 ]
               }]}
+              # realtime mode: the one fixed extra operation, nothing else.
+              | if $mode == "realtime" then .containerOverrides[0].command += ["realtime"] else . end
             ')
 
           run_json=$(aws ecs run-task \
@@ -392,7 +435,7 @@ jobs:
               .schemaVersion == 1 and
               .status == "failed" and
               (.code | type == "string" and test("^[a-z0-9][a-z0-9_-]{0,127}$")) and
-              ((.providerRequests == 0) or (.providerRequests == "at_most_2")) and
+              ((.providerRequests == 0) or (.providerRequests == "at_most_2") or (.providerRequests == "at_most_1_session")) and
               .oxyLedgerWrites == 0
             ' <<<"$result" >/dev/null; then
               echo '──────── signed canary failure (allowlisted fields only) ────────'
@@ -412,7 +455,27 @@ jobs:
           jq -e \
             --arg snapshot "$CANARY_EXPECTED_SNAPSHOT_ID" \
             --arg deployment "$CANARY_DEPLOYMENT_ID" \
-            --arg profile "$CANARY_ROUTING_PROFILE_ID" '
+            --arg profile "$CANARY_ROUTING_PROFILE_ID" \
+            --arg mode "$PROBE_MODE" '
+              if $mode == "realtime" then
+              .schemaVersion == 1 and
+              .status == "passed" and
+              .mode == "realtime" and
+              .contractVersion == "3.2.0" and
+              .snapshotId == $snapshot and
+              .deploymentId == $deployment and
+              (.modelReference | type == "string" and length > 0) and
+              .providerSessions == 1 and
+              .oxyLedgerWrites == 0 and
+              (.cases | length) == 2 and
+              ([.cases[].name] == [
+                "realtime-unknown-deployment_rejected",
+                "realtime-push-to-talk-text"
+              ]) and
+              ([.cases[].status] | all(. == "passed")) and
+              (.cases[1].outcome == "completed") and
+              (.cases[1].units | type == "array" and length > 0)
+              else
               .schemaVersion == 1 and
               .status == "passed" and
               .contractVersion == "3.1.0" and
@@ -433,6 +496,7 @@ jobs:
               ]) and
               ([.cases[].status] | all(. == "passed")) and
               ([.cases[] | select(.name == "v1-direct-model" or .name == "v2-profile-id-propagated-exact-route") | .receiptIdPresent] | all(. == false))
+              end
             ' <<<"$result" >/dev/null || {
               echo '::error::canary emitted an incomplete or mismatched result envelope'
               exit 1
@@ -453,7 +517,13 @@ jobs:
             echo "- Candidate transport: private RFC1918 task address on port 8080"
             echo "- Exact deployment: \`$CANARY_DEPLOYMENT_ID\`"
             echo "- Model derived from signed descriptor: \`$(jq -r '.modelReference' <<<"$result")\`"
-            echo '- Negative route/slug cases: passed before provider access'
-            echo '- Positive provider requests: 2, each capped at one output token'
+            if [ "$PROBE_MODE" = realtime ]; then
+              echo '- Negative case: an unknown-deployment session ended no_route_available without opening'
+              echo '- Realtime provider sessions: 1 (push-to-talk, text only, one item, one response)'
+              echo "- Measured units: \`$(jq -c '[.cases[1].units[] | "\(.unit)=\(.quantity)"]' <<<"$result")\`"
+            else
+              echo '- Negative route/slug cases: passed before provider access'
+              echo '- Positive provider requests: 2, each capped at one output token'
+            fi
             echo '- Oxy ledger writes: 0 (task has no DATABASE_URL)'
           } >> "$GITHUB_STEP_SUMMARY"

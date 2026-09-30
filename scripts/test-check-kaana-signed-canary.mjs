@@ -129,6 +129,36 @@ try {
   );
   verdict(weakenedSteadyState, 1);
 
+  const widerRealtimeSession = fixture();
+  roots.push(widerRealtimeSession);
+  mutate(
+    widerRealtimeSession,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    'maxResponses: 1,\n};',
+    'maxResponses: 5,\n};',
+  );
+  verdict(widerRealtimeSession, 1);
+
+  const voiceActivatedSession = fixture();
+  roots.push(voiceActivatedSession);
+  mutate(
+    voiceActivatedSession,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    "turnDetection: { type: 'none' },",
+    "turnDetection: { type: 'server_vad', createResponse: true, interruptResponse: true },",
+  );
+  verdict(voiceActivatedSession, 1);
+
+  const unconfirmedRealtime = fixture();
+  roots.push(unconfirmedRealtime);
+  mutate(
+    unconfirmedRealtime,
+    '.github/workflows/kaana-signed-canary.yml',
+    'if [ "$CONFIRM_ONE_REALTIME_SESSION" != true ]; then',
+    'if false; then',
+  );
+  verdict(unconfirmedRealtime, 1);
+
   const staleSnapshotAccepted = fixture();
   roots.push(staleSnapshotAccepted);
   mutate(
