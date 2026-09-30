@@ -45,6 +45,7 @@ import {
   useHideNativeSplashWhenReady,
 } from '@oxy.so/expo-splash';
 import { installIdentityDeviceBackup } from '@/lib/identity-backup';
+import { installIdentitySigner } from '@/lib/identity-signer';
 import { DEVICE_BACKUP_WARNING_QUERY_KEY } from '@/hooks/identity/useDeviceBackupWarning';
 
 // Reanimated 4 ships with a strict logger that surfaces `.value` reads during
@@ -72,10 +73,16 @@ configureReanimatedLogger({
 preventNativeSplashAutoHide();
 
 // The identity's device backup (Android Block Store), registered before the
-// first identity read so the boot probe can restore from it after a wipe of the
-// shared-UID Keystore (OxyHQ/oxy#1388). A no-op on iOS and on binaries built
-// without the native module.
+// first identity read so the boot probe can restore from it after Commons' own
+// storage is cleared or the app is reinstalled (OxyHQ/oxy#1388). A no-op on iOS
+// and on binaries built without the native module.
 installIdentityDeviceBackup();
+
+// The identity signer store: the Commons-only copy of the key that the identity
+// host signs with when other Oxy apps ask (OxyHQ/oxy#1388). Registered before
+// the first identity read too, so every persist writes it and the recovery
+// ladder can read it. A no-op on iOS and on binaries built without the module.
+installIdentitySigner();
 
 // Get API URL from environment variable with fallback
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.oxy.so';
@@ -355,16 +362,17 @@ function AppStackContent() {
   // offline→online reconnect heal. The app-local auto-connect driver that used
   // to live here was deleted — do not reintroduce one.
 
-  // Cross-app shared-identity sync (native only, one-shot per launch).
+  // Shared-identity sync (native only, one-shot per launch).
   //
-  // Commons is the ONLY app that writes the cross-app shared-identity slot other
-  // Oxy apps read for silent "Sign in with Oxy". `KeyManager.syncSharedIdentity()`
-  // fills it for users whose identity predates that write-through, AND repairs it
-  // when it holds a different key than this device. It is called unconditionally:
-  // an earlier `if (await hasSharedIdentity()) return` here meant a populated slot
-  // was never looked at again, which is precisely how a slot could keep a replaced
-  // key — and cross-app readers (`deriveScopedSeed`, so Peable's wallet) take that
-  // slot first. Gated on the shared identity probe reporting a healthy LOCAL
+  // Commons is the ONLY app that holds the identity. What the other Oxy apps are
+  // served is the shared slot: on iOS the keychain group they read, on Android
+  // the signer store the identity host signs with. `KeyManager.syncSharedIdentity()`
+  // fills it when it is empty AND repairs it when it holds a different key than
+  // this device. It is called unconditionally: an earlier
+  // `if (await hasSharedIdentity()) return` here meant a populated slot was never
+  // looked at again, which is precisely how a slot could keep a replaced key — and
+  // what other apps derive from (`deriveScopedSeed`, so Peable's wallet) is that
+  // slot. Gated on the shared identity probe reporting a healthy LOCAL
   // `present` verdict (`identityPresent`), so it never runs on a fresh install, a
   // `lost`/`unavailable` device, or during the possibly-locked cold-start window —
   // and it is never the app's first identity reader. Ref-guarded so it fires at
@@ -380,7 +388,7 @@ function AppStackContent() {
         const synced = await KeyManager.syncSharedIdentity();
         if (!synced) {
           // The probe already confirmed a healthy primary, so `false` here means
-          // the write itself failed (e.g. `OxyIdentityStore.write` threw) —
+          // the write itself failed (e.g. the signer store did not confirm it) —
           // surfaced distinctly so a real write failure is greppable in
           // production, not confused with "not attempted".
           logger.error(

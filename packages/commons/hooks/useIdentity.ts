@@ -191,12 +191,13 @@ export const useIdentity = (): UseIdentityResult => {
           setSynced(true);
           await persistIdentitySyncState(true);
 
-          // Commons is the ONLY app that writes the cross-app shared identity
-          // slot other Oxy apps read for silent "Sign in with Oxy". Mirror it
-          // now — after `signIn` — so the shared public key equals the
-          // server-registered primary. Idempotent (guarded by
-          // `hasSharedIdentity`), native-only (no-op on web), and swallows its
-          // own errors, so it can never regress identity creation.
+          // Commons is the ONLY app that holds the identity; the other Oxy apps
+          // are served its shared slot (the iOS keychain group, or on Android
+          // the signer store the identity host signs with) for silent "Sign in
+          // with Oxy". Mirror it now — after `signIn` — so the shared public key
+          // equals the server-registered primary. Idempotent, native-only (no-op
+          // on web), and swallows its own errors, so it can never regress
+          // identity creation.
           await KeyManager.syncSharedIdentity();
 
           return {
@@ -332,7 +333,7 @@ export const useIdentity = (): UseIdentityResult => {
           setSynced(true);
           await persistIdentitySyncState(true);
 
-          // Populate the cross-app shared identity slot (see createIdentity).
+          // Populate the shared identity slot (see createIdentity).
           // Idempotent, native-only, error-swallowing — never regresses import.
           await KeyManager.syncSharedIdentity();
 

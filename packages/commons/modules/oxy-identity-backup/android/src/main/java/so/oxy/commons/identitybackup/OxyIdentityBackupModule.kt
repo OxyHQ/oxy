@@ -15,12 +15,12 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * The self-custody identity's device backup, in Android Block Store
  * (OxyHQ/oxy#1388).
  *
- * Every Oxy app shares the Linux UID `so.oxy.shared`, and clearing the storage of
- * ANY of them wipes the Android Keystore of the whole UID, which takes every
- * keystore-wrapped copy of the identity with it. Block Store data lives in
- * Google Play services' own private storage, scoped to this package and its
- * signing certificate, so that wipe cannot reach it; reading it back is a local
- * call that needs no network.
+ * "Clear storage" on Commons, or an uninstall and reinstall, wipes Commons'
+ * Android Keystore, which takes every keystore-wrapped copy of the identity with
+ * it (Oxy apps do not share a UID, so no other app's storage reaches it). Block
+ * Store data lives in Google Play services' own private storage, scoped to this
+ * package and its signing certificate, so that wipe cannot reach it; reading it
+ * back is a local call that needs no network.
  *
  * Cloud backup is requested only when Block Store reports that it will be end-
  * to-end encrypted with the device screen lock. Without a screen lock the value

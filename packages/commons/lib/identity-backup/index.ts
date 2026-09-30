@@ -5,12 +5,12 @@ import { KeyManager, type IdentityDeviceBackupStore } from '@oxy.so/core/crypto'
 /**
  * The identity's device backup in Android Block Store (OxyHQ/oxy#1388).
  *
- * Every Oxy Android app shares the UID `so.oxy.shared`, and clearing the storage
- * of any of them wipes the Keystore of the whole UID, taking every copy of the
- * identity that `KeyManager` keeps with it. Block Store keeps this copy in
- * Google Play services' own storage, where that wipe cannot reach, and reads it
- * back without the network, so Commons restores the identity silently instead of
- * asking for the recovery phrase. Design and threat model:
+ * "Clear storage" on Commons, or an uninstall and reinstall, wipes Commons'
+ * Keystore and with it every copy of the identity that `KeyManager` keeps (Oxy
+ * apps do not share a UID, so no other app's storage can reach it). Block Store
+ * keeps this copy in Google Play services' own storage, where that wipe cannot
+ * reach, and reads it back without the network, so Commons restores the
+ * identity silently instead of asking for the recovery phrase. Design and threat model:
  * `docs/identity/device-backup.md`.
  */
 
@@ -75,12 +75,12 @@ export function installIdentityDeviceBackup(): void {
 /**
  * Whether this device can keep the identity's device backup at all.
  *
- * - `not-applicable`: not Android. iOS has no shared-UID Keystore to lose.
+ * - `not-applicable`: not Android. The iOS keychain survives what the backup is for.
  * - `unavailable`: Android, and the backup can never be written here: the binary
  *   predates the native module, or Block Store itself is missing (no Google Play
  *   services: LineageOS, GrapheneOS without sandboxed Play, Huawei/HMS, some
- *   enterprise builds). A sibling app's "Clear storage" still wipes the identity
- *   on this device, so the only protection left is the phrase (OxyHQ/oxy#1388).
+ *   enterprise builds). "Clear storage" on Commons still wipes the identity on
+ *   this device, so the only protection left is the phrase (OxyHQ/oxy#1388).
  * - `available`: Block Store answered.
  * - `unknown`: Block Store failed for some other, possibly transient, reason. It
  *   is not reported as `unavailable`, so a hiccup never shows the warning.

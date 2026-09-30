@@ -161,7 +161,7 @@ export function useOnboardingStatus(): OnboardingState {
     queryKey: ONBOARDING_IDENTITY_QUERY_KEY,
     queryFn: async (): Promise<IdentityVerdict> => {
       // Keys gone? Restore them silently from a phrase-free copy first (the
-      // device backup survives a wipe of the shared-UID Keystore); only when
+      // device backup survives Commons' own storage being cleared); only when
       // nothing can be restored does `lost`/`absent` reach routing.
       const verdict = await readIdentityVerdictWithSilentRestore();
       if (verdict.state === 'unavailable') {
