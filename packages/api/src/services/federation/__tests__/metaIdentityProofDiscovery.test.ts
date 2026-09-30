@@ -261,8 +261,8 @@ it('pinned source resolution withholds its ID during an own-page outage but reco
 
 test('reconciliation reports the same source failure without an additional fetch', async () => {
   mockSafeFetch.mockReset();
-  mockSafeFetch.mockResolvedValue({ ...response('https://bird.makeup/users/missing', {}), status: 404 });
-  expect(await inspectReconciliationActorResult('https://bird.makeup/users/missing', false)).toMatchObject({
+  mockSafeFetch.mockResolvedValue({ ...response('https://mastodon.example/users/missing', {}), status: 404 });
+  expect(await inspectReconciliationActorResult('https://mastodon.example/users/missing', false)).toMatchObject({
     ok: false, failure: { phase: 'actor_fetch', reason: 'http_status', httpStatus: 404 },
   });
   expect(mockSafeFetch).toHaveBeenCalledTimes(1);

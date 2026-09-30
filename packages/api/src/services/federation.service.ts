@@ -490,14 +490,6 @@ export async function signWithKeyId(keyId: string, signingString: string): Promi
 }
 
 /**
- * Fetch a URL with HTTP Signature authentication.
- * Required by servers that enforce authorized fetch (e.g., Threads).
- *
- * Follows redirects manually (bounded) and re-signs each hop — an HTTP
- * signature is bound to the `(request-target)` / `host` of one specific URL.
- * `safeFetch` cannot do this when it follows redirects internally.
- */
-/**
  * Bridges whose actor endpoint answers 404 intermittently for live mirrors. On
  * bird.makeup the same actor alternates 200/404 within seconds (measured
  * 2026-09-28 against cosmic_yolo_bot, t3chfalcon, melonfur_rim, leixida_sccl),
@@ -507,6 +499,14 @@ export async function signWithKeyId(keyId: string, signingString: string): Promi
 const TRANSIENT_NOT_FOUND_HOSTS = new Set(['bird.makeup']);
 const TRANSIENT_NOT_FOUND_RETRY_DELAYS_MS = [500, 1_500];
 
+/**
+ * Fetch a URL with HTTP Signature authentication.
+ * Required by servers that enforce authorized fetch (e.g., Threads).
+ *
+ * Follows redirects manually (bounded) and re-signs each hop — an HTTP
+ * signature is bound to the `(request-target)` / `host` of one specific URL.
+ * `safeFetch` cannot do this when it follows redirects internally.
+ */
 const SIGNED_FETCH_MAX_REDIRECTS = 3;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 
