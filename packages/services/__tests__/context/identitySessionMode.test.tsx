@@ -187,7 +187,7 @@ devices: { mintToken: jest.fn(async () => ({
       deviceId: 'dev_identity',
       deviceSecret: 'identity.reestablished.secret',
       user: { id: PINNED_ACCOUNT, username: 'pinned' },
-    })), signInWithSharedIdentity: jest.fn(async () => null) },
+    })), signInWithCommonsIdentity: jest.fn(async () => null) },
     users: { me: jest.fn(
       async (): Promise<User> => ({ id: PINNED_ACCOUNT, username: 'pinned' } as User),
     ), getMany: jest.fn(

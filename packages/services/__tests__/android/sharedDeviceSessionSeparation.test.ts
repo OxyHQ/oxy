@@ -9,9 +9,11 @@
  *   the DeviceSession credential      — an ordinary rotatable, server-revocable
  *                                       `deviceId` + `deviceSecret`.
  *
- * An ordinary app needs the second. This file fails if the two ever start
- * reaching into each other's storage, if the cross-process read stops being
- * signature-gated, or if the hand-maintained authority lists drift apart.
+ * An ordinary app needs the second, and on Android only Commons ever holds the
+ * first. This file fails if the two ever start reaching into each other's
+ * storage, if the cross-process calls stop being signature-gated or start
+ * trusting the caller's word for who it is, if a non-host app keeps its own
+ * copy, or if the hand-maintained authority and caller lists drift apart.
  *
  * ## Why this test reads source text
  *
@@ -35,18 +37,19 @@ const DEVICE_SESSION_SOURCES = [
   'android/src/main/java/so/oxy/devicesession/OxyDeviceSessionModule.kt',
 ];
 
-const IDENTITY_SOURCES = [
-  'android/src/main/java/so/oxy/identity/OxyIdentityStore.kt',
-  'android/src/main/java/so/oxy/identity/OxyIdentityProvider.kt',
-  'android/src/main/java/so/oxy/identity/OxyIdentityModule.kt',
-];
+const IDENTITY_SOURCES = ['android/src/main/java/so/oxy/identity/OxyIdentityModule.kt'];
 
 const PROVIDER_PLUGIN = 'plugins/withSharedDeviceSessionProvider.js';
-const READER_PLUGIN = 'plugins/withSharedDeviceSessionReader.js';
+const PERMISSIONS_PLUGIN = 'plugins/withOxySharedPermissions.js';
 const MODULE_KT = 'android/src/main/java/so/oxy/devicesession/OxyDeviceSessionModule.kt';
+const PROVIDER_KT = 'android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt';
+const CALLER_POLICY_KT = 'android/src/main/java/so/oxy/security/OxyCallerPolicy.kt';
+/** Commons' identity host keeps its own copy of the caller list. */
+const COMMONS_CALLER_POLICY_KT =
+  '../commons/modules/oxy-identity-host/android/src/main/java/so/oxy/commons/identityhost/OxyCallerPolicy.kt';
 
-const READ_DEVICE_SESSION_PERMISSION = 'so.oxy.shared.permission.READ_DEVICE_SESSION';
-const READ_IDENTITY_PERMISSION = 'so.oxy.shared.permission.READ_IDENTITY';
+const DEVICE_SESSION_PERMISSION = 'so.oxy.permission.DEVICE_SESSION';
+const IDENTITY_PERMISSION = 'so.oxy.permission.IDENTITY';
 
 function read(relative: string): string {
   return readFileSync(resolve(PKG_ROOT, relative), 'utf8');
@@ -99,16 +102,29 @@ function blockAfter(source: string, header: string): string {
  * plugins use `'`), so a list expressed as a template or a loop simply yields
  * nothing here — which the floor below turns into a failure rather than a pass.
  */
-function authoritiesIn(relative: string): string[] {
-  const matches = read(relative).match(/['"]so\.oxy\.[a-z.]*devicesession['"]/g) ?? [];
+function authoritiesIn(relative: string, kind = 'devicesession'): string[] {
+  const matches = read(relative).match(new RegExp(`['"]so\\.oxy\\.[a-z.]*${kind}['"]`, 'g')) ?? [];
   return Array.from(new Set(matches.map((m) => m.slice(1, -1)))).sort();
+}
+
+/** The string literals of the `OXY_PACKAGES` set in a caller policy. */
+function callerPackagesIn(relative: string): string[] {
+  const block = blockAfter(read(relative).replace('setOf(', 'setOf{').replace(/\n {2}\)\n/, '\n  }\n'), 'val OXY_PACKAGES');
+  return (block.match(/"[a-z.]+"/g) ?? []).map((m) => m.slice(1, -1)).sort();
 }
 
 describe('shared DeviceSession credential — Android wiring', () => {
   test('the files this suite asserts about are actually being read', () => {
     // Vacuity floor. A moved or renamed file must fail here rather than silently
     // turn every assertion below into a pass over an empty string.
-    for (const relative of [...DEVICE_SESSION_SOURCES, ...IDENTITY_SOURCES, PROVIDER_PLUGIN, READER_PLUGIN]) {
+    for (const relative of [
+      ...DEVICE_SESSION_SOURCES,
+      ...IDENTITY_SOURCES,
+      PROVIDER_PLUGIN,
+      PERMISSIONS_PLUGIN,
+      CALLER_POLICY_KT,
+      COMMONS_CALLER_POLICY_KT,
+    ]) {
       expect(read(relative).length).toBeGreaterThan(500);
     }
   });
@@ -118,7 +134,7 @@ describe('shared DeviceSession credential — Android wiring', () => {
     // app that only needs a session must not be able to obtain the key that
     // signs identity approvals, and the first sign of that boundary eroding is
     // one of these names appearing here.
-    const forbidden = ['OxyIdentityStore', 'OxyIdentityProvider', 'oxy_shared_identity', 'privateKey', 'publicKey'];
+    const forbidden = ['OxyIdentity', 'oxy_identity', 'identity.', 'privateKey', 'publicKey'];
     for (const relative of DEVICE_SESSION_SOURCES) {
       const source = readCode(relative);
       for (const name of forbidden) {
@@ -145,28 +161,59 @@ describe('shared DeviceSession credential — Android wiring', () => {
     }
   });
 
-  test('the two stores are different encrypted files', () => {
-    // Same androidx master key, different files — so a stage-1 keyset heal on the
-    // disposable one cannot take the identity keypair with it.
-    expect(read(DEVICE_SESSION_SOURCES[0])).toContain('"oxy_shared_device_session"');
-    expect(read(IDENTITY_SOURCES[0])).toContain('"oxy_shared_identity"');
+  test('this package holds no identity key at all', () => {
+    // Commons is the ONLY holder of the identity private key on Android. The
+    // identity module here is a client: it asks Commons for proofs and derived
+    // values, and nothing in it stores, reads or returns a key.
+    const module = readCode(IDENTITY_SOURCES[0]);
+    for (const name of ['OxyEncryptedPrefs', 'SharedPreferences', 'getShared', 'putShared', 'privateKey', '"priv"']) {
+      expect(module).not.toContain(name);
+    }
+    expect(module).toContain('contentResolver.call(');
   });
 
-  test('the cross-process read is signature-gated', () => {
-    const provider = read('android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt');
-    // Same-signature is the entire trust boundary for an Android app outside the
-    // shared UID. Without this an incorrectly-signed app reads the slot.
-    expect(provider).toContain('PackageManager.SIGNATURE_MATCH');
-    expect(provider).toContain('callingPackage ?: return false');
+  test('every cross-process call is gated by the caller the Binder reports', () => {
+    const provider = readCode(PROVIDER_KT);
+    // The manifest permission is necessary but not sufficient: the provider asks
+    // the policy, before any method runs, who is calling.
+    const resolve = provider.indexOf('OxyCallerPolicy.resolveCaller(ctx');
+    expect(resolve).toBeGreaterThanOrEqual(0);
+    expect(resolve).toBeLessThan(provider.indexOf('return when (method)'));
+    expect(provider).not.toContain('callingPackage');
+
+    const policy = readCode(CALLER_POLICY_KT);
+    // Who is calling comes from the kernel, never from the request.
+    expect(policy).toContain('Binder.getCallingUid()');
+    expect(policy).toContain('getPackagesForUid(uid)');
+    expect(policy).toContain('hasSigningCertificate(pkg, digest, PackageManager.CERT_INPUT_SHA256)');
+    expect(policy).toContain('checkSignatures(pkg, context.packageName) == PackageManager.SIGNATURE_MATCH');
+    expect(policy).not.toContain('extras');
   });
 
-  test('the provider is read-only across the process boundary', () => {
-    const provider = readCode('android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt');
-    // A sibling may JOIN the device session. Letting it write would let any
-    // same-signature app move every other app onto a session of its choosing.
-    expect(provider).toContain('if (method != METHOD_READ) return null');
-    expect(provider).not.toContain('OxyDeviceSessionStore.write');
-    expect(provider).not.toContain('OxyDeviceSessionStore.clear');
+  test('the provider answers read, write and clear, and nothing else', () => {
+    const provider = readCode(PROVIDER_KT);
+    // Every host keeps ONE copy, which every Oxy app reads AND publishes into:
+    // without a cross-process write, an app that signs in could not hand the
+    // device session to the others, because no app can see another's files.
+    expect(provider).toContain('if (method != METHOD_READ && method != METHOD_WRITE && method != METHOD_CLEAR) return null');
+    expect(provider).toContain('OxyDeviceSessionStore.write(ctx, deviceId, deviceSecret)');
+  });
+
+  test('an app that is not a host keeps no copy of its own', () => {
+    // Every store access in the module is for the host itself; a non-host goes
+    // through the hosts' providers only, so there is exactly one credential per
+    // host and no private mirror that could shadow it.
+    const module = readCode(MODULE_KT);
+    const storeCalls = module.split('\n').filter((line) => line.includes('OxyDeviceSessionStore.'));
+    expect(storeCalls.length).toBeGreaterThanOrEqual(3);
+    for (const line of storeCalls) {
+      const guarded =
+        line.includes('authority == selfAuthority') ||
+        line.includes('KEY_DEVICE_') ||
+        /^\s*OxyDeviceSessionStore\.(write|clear)\(context/.test(line);
+      expect({ line: line.trim(), guarded }).toEqual({ line: line.trim(), guarded: true });
+    }
+    expect(module).toContain('if (authority == selfAuthority) OxyDeviceSessionStore.read(context) else callProvider(authority)');
   });
 
   test('the provider maps each read outcome to its OWN status', () => {
@@ -176,7 +223,7 @@ describe('shared DeviceSession credential — Android wiring', () => {
     // nothing. Asserting per-arm rather than just "the file mentions
     // STATUS_UNAVAILABLE" — a collapsed arm leaves the constant in the file.
     const provider = readCode('android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt');
-    const when = blockAfter(provider, 'return when (val read = OxyDeviceSessionStore.read(ctx))');
+    const when = blockAfter(provider, 'private fun readBundle(read: DeviceSessionRead)');
     const arms: [string, string][] = [
       ['Present', 'STATUS_PRESENT'],
       ['Absent', 'STATUS_ABSENT'],
@@ -229,27 +276,29 @@ describe('shared DeviceSession credential — Android wiring', () => {
 
   test('the manifest gate uses its OWN signature-level permission', () => {
     const plugin = readCode(PROVIDER_PLUGIN);
-    expect(plugin).toContain(READ_DEVICE_SESSION_PERMISSION);
-    expect(plugin).toContain("'android:protectionLevel': 'signature'");
-    expect(plugin).toContain("'android:permission': READ_DEVICE_SESSION_PERMISSION");
+    expect(plugin).toContain(DEVICE_SESSION_PERMISSION);
+    expect(plugin).toContain("'android:permission': DEVICE_SESSION_PERMISSION");
     // Distinct from the identity permission: granting an app the right to join a
-    // device session must not grant it the right to read an identity key.
-    expect(READ_DEVICE_SESSION_PERMISSION).not.toBe(READ_IDENTITY_PERMISSION);
-    expect(plugin).not.toContain(READ_IDENTITY_PERMISSION);
-    expect(readCode(READER_PLUGIN)).not.toContain(READ_IDENTITY_PERMISSION);
+    // device session must not grant it the right to ask for identity proofs.
+    expect(DEVICE_SESSION_PERMISSION).not.toBe(IDENTITY_PERMISSION);
+    expect(plugin).not.toContain(IDENTITY_PERMISSION);
   });
 
-  test('the reader plugin requests the permission but hosts nothing', () => {
-    const reader = readCode(READER_PLUGIN);
-    expect(reader).toContain(READ_DEVICE_SESSION_PERMISSION);
-    expect(reader).not.toContain('OxyDeviceSessionProvider');
-    expect(reader).not.toContain('app.provider');
+  test('only withOxySharedPermissions declares the permissions', () => {
+    // Every declaration of a signature permission must be identical across the
+    // apps that declare it, so exactly one plugin writes them.
+    expect(readCode(PROVIDER_PLUGIN)).not.toContain("'android:protectionLevel'");
+    expect(readCode(PROVIDER_PLUGIN)).not.toContain('uses-permission');
+    const permissions = readCode(PERMISSIONS_PLUGIN);
+    expect(permissions).toContain("'android:protectionLevel': 'signature'");
+    expect(permissions).toContain(`'${DEVICE_SESSION_PERMISSION}'`);
+    expect(permissions).toContain(`'${IDENTITY_PERMISSION}'`);
   });
 
-  test('the Kotlin sweep and BOTH plugins list exactly the same authorities', () => {
+  test('the Kotlin sweep and BOTH plugins list exactly the same device-session hosts', () => {
     const kotlin = authoritiesIn(MODULE_KT);
     const provider = authoritiesIn(PROVIDER_PLUGIN);
-    const reader = authoritiesIn(READER_PLUGIN);
+    const queries = authoritiesIn(PERMISSIONS_PLUGIN);
 
     // Floor first: three empty lists would otherwise "agree" perfectly.
     expect(kotlin.length).toBeGreaterThanOrEqual(2);
@@ -257,16 +306,41 @@ describe('shared DeviceSession credential — Android wiring', () => {
     // A `<queries>` entry missing for an authority the Kotlin sweeps means
     // Android 11+ package-visibility hides that provider and the sweep silently
     // finds nothing — a drift with no error message anywhere.
-    if (provider.join() !== kotlin.join() || reader.join() !== kotlin.join()) {
+    if (provider.join() !== kotlin.join() || queries.join() !== kotlin.join()) {
       throw new Error(
-        'The shared DeviceSession provider authorities have drifted.\n' +
+        'The shared DeviceSession host authorities have drifted.\n' +
           `  ${MODULE_KT}: ${kotlin.join(', ') || '(none)'}\n` +
           `  ${PROVIDER_PLUGIN}: ${provider.join(', ') || '(none)'}\n` +
-          `  ${READER_PLUGIN}: ${reader.join(', ') || '(none)'}\n\n` +
-          'The Kotlin list decides who is swept; the plugin lists decide who is VISIBLE ' +
+          `  ${PERMISSIONS_PLUGIN}: ${queries.join(', ') || '(none)'}\n\n` +
+          'The Kotlin list decides who is swept and written; the queries decide who is VISIBLE ' +
           'under Android 11+ package filtering. An authority in one and not the others is ' +
           'either never asked or asked and invisible — both fail silently, with the app ' +
           'simply never joining the device session.',
+      );
+    }
+  });
+
+  test('the identity client and the queries list the same Commons authorities', () => {
+    const kotlin = authoritiesIn(IDENTITY_SOURCES[0], 'identity');
+    expect(kotlin).toEqual(['so.oxy.commons.dev.identity', 'so.oxy.commons.identity']);
+    expect(authoritiesIn(PERMISSIONS_PLUGIN, 'identity')).toEqual(kotlin);
+  });
+
+  test('the device-session and Commons identity hosts allow the same Oxy apps', () => {
+    const here = callerPackagesIn(CALLER_POLICY_KT);
+    const commons = callerPackagesIn(COMMONS_CALLER_POLICY_KT);
+    expect(here.length).toBeGreaterThanOrEqual(20);
+    // Every Oxy app ships in prod and dev.
+    for (const pkg of here.filter((p) => !p.endsWith('.dev'))) {
+      expect(here).toContain(`${pkg}.dev`);
+    }
+    if (here.join() !== commons.join()) {
+      throw new Error(
+        'The Oxy caller allow-lists have drifted.\n' +
+          `  ${CALLER_POLICY_KT}: ${here.join(', ')}\n` +
+          `  ${COMMONS_CALLER_POLICY_KT}: ${commons.join(', ')}\n\n` +
+          'An app on one list and not the other joins the device session but cannot sign in ' +
+          'with Commons, or the reverse.',
       );
     }
   });

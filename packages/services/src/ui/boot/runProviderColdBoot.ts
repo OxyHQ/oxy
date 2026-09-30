@@ -91,8 +91,8 @@ export interface RunProviderColdBootOptions {
  *
  * Ordered pipeline:
  * 1. Complete an OAuth authorization-code return already on the URL (web)
- * 2. `runSessionColdBoot` — device-secret mint (+ native shared-key, or the
- *    primary-identity-key lane in `sessionMode: 'identity'`)
+ * 2. `runSessionColdBoot` — device-secret mint (+ the native Commons-proof lane,
+ *    or the primary-identity-key lane in `sessionMode: 'identity'`)
  *
  * Step 1 is ACCOUNT-MODE ONLY: it commits whichever account the IdP resolves,
  * which for an identity-bound client is somebody else's account by construction.

@@ -24,44 +24,36 @@ internal sealed interface DeviceSessionRead {
 
 /**
  * The cross-app DeviceSession credential — `deviceId` + `deviceSecret`, and
- * nothing else.
+ * nothing else — in a HOST app's own data directory.
  *
- * This is NOT the identity keypair. `so.oxy.identity.OxyIdentityStore` holds the
- * self-custody private key that signs identity approvals and cannot be
- * re-created; this file holds an ordinary session credential the server can
- * revoke and any signed-in app can re-publish. They are separate files behind
- * separate providers with separate permissions precisely so an app that only
- * needs a session is never handed the key.
+ * This is NOT the identity keypair. Commons holds the self-custody private key
+ * that signs identity approvals and cannot be re-created, in its own module and
+ * behind its own provider; this file holds an ordinary session credential the
+ * server can revoke and any signed-in app can re-publish. They are separate
+ * files behind separate providers with separate permissions precisely so an app
+ * that only needs a session is never near the key.
  *
- * Under `android:sharedUserId="so.oxy.shared"` every Oxy app sees ONE data
- * directory, so this file is literally shared between them — that is the primary
- * transport, and [OxyDeviceSessionProvider] extends the same bytes to a
- * same-signature app outside the UID.
+ * Every Oxy app has its own UID and its own data directory, so only the hosts
+ * (Commons and Accounts) keep this file; [OxyDeviceSessionProvider] is how every
+ * other app reads and writes it.
  */
 internal object OxyDeviceSessionStore {
-  /**
-   * Global (not package-suffixed) on purpose — the opposite choice from
-   * `oxy_background_session`, and for the opposite reason. That store is
-   * per-app precisely so one app cannot touch another's widget credential. This
-   * one EXISTS to be one value shared by every app in the UID; scoping it per
-   * package would give each app its own copy and defeat the whole point.
-   */
+  /** One file per host; the other apps reach it through the host's provider. */
   const val PREFS_NAME = "oxy_shared_device_session"
   const val KEY_DEVICE_ID = "deviceId"
   const val KEY_DEVICE_SECRET = "deviceSecret"
 
   /**
    * [RecoveryPolicy.RebuildFileOnly] — this store must NEVER escalate to a
-   * UID-shared master-key reset.
+   * master-key reset.
    *
    * What it holds is DERIVED: every signed-in app re-publishes the credential
    * from its own durable copy, so losing this file costs at most one interactive
    * sign-in on a device that has no other Oxy app installed. A master-key reset
-   * would wipe every other Oxy store sharing the alias — including the
-   * self-custody identity keypair, which is IRREPLACEABLE. Trading someone's
-   * unrecoverable identity to save a credential we can simply re-publish is never
-   * the right trade, so the escalation is not merely discouraged here, it is
-   * unreachable.
+   * would wipe every other encrypted store of this app sharing the alias — in
+   * Commons, that includes the identity signer store. Trading an identity copy to
+   * save a credential we can simply re-publish is never the right trade, so the
+   * escalation is not merely discouraged here, it is unreachable.
    *
    * Consequence worth stating: a stage-1 heal WIPES this file. That surfaces as
    * `Absent`, which is honest — after the wipe the slot really is empty, and the

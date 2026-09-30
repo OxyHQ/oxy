@@ -10,11 +10,21 @@ import expo.modules.kotlin.modules.ModuleDefinition
 /**
  * JS bridge for the shared DeviceSession credential.
  *
- * - `read` resolves the credential this DEVICE holds, from the sibling providers
- *   first and this app's own store second (see [readShared] for why that order).
- * - `write` publishes into this app's own store only, and reports whether a
- *   read-back confirmed it.
- * - `clear` drops this app's copy.
+ * The credential lives in the HOST apps only — Commons and Accounts, prod and
+ * dev ([HOST_AUTHORITIES]) — each in its own [OxyDeviceSessionStore]. Oxy apps
+ * do not share a UID, so no app can see another's files; everything else goes
+ * through the hosts' [OxyDeviceSessionProvider]:
+ *
+ * - `read` sweeps the hosts in [HOST_AUTHORITIES] order, Commons first, and
+ *   returns the first credential it finds. A host reads ITSELF from its own
+ *   store instead of calling its own provider.
+ * - `write` publishes to EVERY reachable host (itself locally, the others
+ *   through their providers), so the hosts hold the same credential, and
+ *   reports whether at least one read-back confirmed it.
+ * - `clear` drops the credential from every reachable host.
+ *
+ * An app that is not a host keeps no copy of its own: with no host installed
+ * there is no shared credential, which the sweep reports as `absent`.
  *
  * ## `read` returns a STATUS, not a nullable value
  *
@@ -54,22 +64,22 @@ class OxyDeviceSessionModule : Module() {
       if (deviceId.isEmpty() || deviceSecret.isEmpty()) {
         return@AsyncFunction false
       }
-      OxyDeviceSessionStore.write(context, deviceId, deviceSecret)
+      publish(deviceId, deviceSecret)
     }
 
     AsyncFunction("clear") {
-      OxyDeviceSessionStore.clear(context)
+      clearShared()
     }
   }
 
+  /** This app's own provider authority; a host when it is in [HOST_AUTHORITIES]. */
+  private val selfAuthority: String
+    get() = "${context.packageName}$AUTHORITY_SUFFIX"
+
   /**
-   * Providers FIRST, this app's own store second.
-   *
-   * Under `android:sharedUserId="so.oxy.shared"` every Oxy app sees one data
-   * directory, so for a UID member the local file IS the group's file and the
-   * order changes nothing. It matters for a same-signature app OUTSIDE the UID:
-   * there the local file is a private mirror of whatever that app itself last
-   * wrote, so reading it first would shadow the group's real credential forever.
+   * The hosts in [HOST_AUTHORITIES] order; this app, if it is one, from its own
+   * store. Every app sweeps the same list in the same order, so they all adopt
+   * the same credential.
    *
    * `unavailable` is sticky across the whole sweep: if ANY source could not be
    * read and none produced a credential, the answer is `unavailable`, not
@@ -79,20 +89,15 @@ class OxyDeviceSessionModule : Module() {
   private fun readShared(): Map<String, String> {
     var unavailableReason: String? = null
 
-    for (authority in PROVIDER_AUTHORITIES) {
-      when (val read = callProvider(authority)) {
+    for (authority in HOST_AUTHORITIES) {
+      val read = if (authority == selfAuthority) OxyDeviceSessionStore.read(context) else callProvider(authority)
+      when (read) {
         is DeviceSessionRead.Present -> return present(read)
         is DeviceSessionRead.Unavailable -> unavailableReason = unavailableReason ?: read.reason
         // Absent, or no provider there at all (not installed, refused, threw) —
         // neither is evidence about the other sources, so keep looking.
         else -> Unit
       }
-    }
-
-    when (val local = OxyDeviceSessionStore.read(context)) {
-      is DeviceSessionRead.Present -> return present(local)
-      is DeviceSessionRead.Unavailable -> unavailableReason = unavailableReason ?: local.reason
-      is DeviceSessionRead.Absent -> Unit
     }
 
     val reason = unavailableReason
@@ -106,6 +111,53 @@ class OxyDeviceSessionModule : Module() {
     }
   }
 
+  /**
+   * Write the credential to every reachable host. True when at least one of them
+   * confirmed it by read-back: that host is now what every app's sweep adopts,
+   * or the next one down if an earlier host holds another credential.
+   */
+  private fun publish(deviceId: String, deviceSecret: String): Boolean {
+    var confirmed = false
+    for (authority in HOST_AUTHORITIES) {
+      val ok = if (authority == selfAuthority) {
+        OxyDeviceSessionStore.write(context, deviceId, deviceSecret)
+      } else {
+        callWrite(authority, deviceId, deviceSecret)
+      }
+      confirmed = confirmed || ok
+    }
+    return confirmed
+  }
+
+  /** Drop the credential from every reachable host. Best-effort. */
+  private fun clearShared() {
+    for (authority in HOST_AUTHORITIES) {
+      if (authority == selfAuthority) {
+        OxyDeviceSessionStore.clear(context)
+      } else {
+        runCatching {
+          context.contentResolver.call(
+            Uri.parse("content://$authority"),
+            OxyDeviceSessionProvider.METHOD_CLEAR,
+            null,
+            null,
+          )
+        }
+      }
+    }
+  }
+
+  /** One host's `write`; false when it is absent, refused, or did not confirm. */
+  private fun callWrite(authority: String, deviceId: String, deviceSecret: String): Boolean = runCatching {
+    val extras = Bundle().apply {
+      putString(OxyDeviceSessionStore.KEY_DEVICE_ID, deviceId)
+      putString(OxyDeviceSessionStore.KEY_DEVICE_SECRET, deviceSecret)
+    }
+    context.contentResolver
+      .call(Uri.parse("content://$authority"), OxyDeviceSessionProvider.METHOD_WRITE, null, extras)
+      ?.getBoolean(OxyDeviceSessionProvider.KEY_OK, false) == true
+  }.getOrDefault(false)
+
   private fun present(read: DeviceSessionRead.Present): Map<String, String> = mapOf(
     OxyDeviceSessionProvider.KEY_STATUS to OxyDeviceSessionProvider.STATUS_PRESENT,
     OxyDeviceSessionStore.KEY_DEVICE_ID to read.deviceId,
@@ -113,7 +165,7 @@ class OxyDeviceSessionModule : Module() {
   )
 
   /**
-   * Call one sibling provider. `null` means "nothing to learn from this one" —
+   * Call one host's `read`. `null` means "nothing to learn from this one" —
    * the app is not installed, package visibility hid it, the permission was
    * refused, or the call threw. A provider that answered but could not read its
    * own store returns [DeviceSessionRead.Unavailable], which the sweep keeps.
@@ -144,35 +196,29 @@ class OxyDeviceSessionModule : Module() {
         DeviceSessionRead.Unavailable(
           bundle.getString(OxyDeviceSessionProvider.KEY_REASON) ?: "PeerUnavailable",
         )
-      // An older sibling that predates this protocol. It said something we do not
+      // A status this build does not know. It said something we do not
       // understand, so we have learned nothing — never read that as "absent".
       else -> DeviceSessionRead.Unavailable("UnrecognisedProviderStatus")
     }
   }.getOrNull()
 
   companion object {
+    private const val AUTHORITY_SUFFIX = ".devicesession"
+
     /**
-     * Sibling authorities to sweep, in order. Each official Oxy Android app hosts
-     * the provider at `${applicationId}.devicesession` via the
-     * `withSharedDeviceSession` config plugin, and both the prod and `.dev`
-     * variants are listed so a developer build can join a device too.
+     * The hosts, in sweep order: Commons, then Accounts, each prod before dev.
+     * Each hosts [OxyDeviceSessionProvider] at `${applicationId}.devicesession`
+     * through the `withSharedDeviceSessionProvider` config plugin.
      *
-     * MAINTAINED LIST, and the constraint on it is specific: every entry must be
-     * an app inside the `so.oxy.shared` UID. UID members all serve ONE file, so
-     * the sweep is deterministic no matter which of them answers first. Adding an
-     * app that is same-signature but NOT in the UID would put a second,
-     * independent copy of "the shared credential" into the sweep and make the
-     * winner depend on list order.
-     *
-     * The same authorities must also be added to the `<queries>` block in
-     * `withSharedDeviceSession.js`, or Android 11+ package-visibility filtering
-     * hides them from `ContentResolver.call` and the sweep silently finds nothing.
+     * The same authorities must be in the `<queries>` of
+     * `withOxySharedPermissions.js`, or Android 11+ package visibility hides
+     * them from `ContentResolver.call` and the sweep silently finds nothing.
      */
-    private val PROVIDER_AUTHORITIES = listOf(
-      "so.oxy.accounts.devicesession",
-      "so.oxy.accounts.dev.devicesession",
+    private val HOST_AUTHORITIES = listOf(
       "so.oxy.commons.devicesession",
       "so.oxy.commons.dev.devicesession",
+      "so.oxy.accounts.devicesession",
+      "so.oxy.accounts.dev.devicesession",
     )
   }
 }

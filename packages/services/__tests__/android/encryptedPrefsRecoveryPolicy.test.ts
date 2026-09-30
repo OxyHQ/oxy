@@ -1,15 +1,15 @@
 /**
- * Pins the rule that no Oxy store can break another's encrypted prefs
+ * Pins the rule that no store can break another's encrypted prefs
  * (OxyHQ/oxy#1388).
  *
  * The androidx master key at `MasterKey.DEFAULT_MASTER_KEY_ALIAS`
- * (`_androidx_security_master_key_`) is UID-scoped: one Keystore entry for the
- * whole `so.oxy.shared` UID, wrapping the keyset of EVERY Oxy prefs file in
- * EVERY Oxy app. A store that deletes it does not only reset itself — it makes
- * every sibling file unreadable, and each of those then wipes itself on its next
- * open. `OxyIdentityStore` used to do exactly that when its keyset could not be
- * rebuilt (`RegenerateSharedMasterKey`); the policy is gone and every store
- * rebuilds only its own file.
+ * (`_androidx_security_master_key_`) is one Keystore entry for the whole app,
+ * wrapping the keyset of EVERY encrypted prefs file in it. A store that deletes
+ * it does not only reset itself — it makes every other file unreadable, and
+ * each of those then wipes itself on its next open. When Oxy apps shared a UID
+ * that reached every Oxy app, and the identity store used to do exactly that
+ * when its keyset could not be rebuilt (`RegenerateSharedMasterKey`); the policy
+ * is gone and every store rebuilds only its own file.
  *
  * ## Why this test reads source text
  *
@@ -30,7 +30,6 @@ const ANDROID_SOURCE_ROOT = resolve(__dirname, '../../android/src/main/java/so/o
 
 /** Every store opened through `OxyEncryptedPrefs`, and the file that opens it. */
 const STORES = [
-  { store: 'oxy_shared_identity', file: 'OxyIdentityStore.kt' },
   { store: 'oxy_background_session', file: 'OxyBackgroundSessionStore.kt' },
   { store: 'oxy_shared_device_session', file: 'OxyDeviceSessionStore.kt' },
 ];
@@ -68,14 +67,13 @@ describe('OxyEncryptedPrefs recovery policy', () => {
     const sources = kotlinSources(ANDROID_SOURCE_ROOT);
     expect(sources.length).toBeGreaterThanOrEqual(9);
     expect(sources.some((f) => f.endsWith('OxyEncryptedPrefs.kt'))).toBe(true);
-    expect(sources.some((f) => f.endsWith('OxyIdentityStore.kt'))).toBe(true);
     expect(sources.some((f) => f.endsWith('OxyBackgroundSessionStore.kt'))).toBe(true);
     expect(sources.some((f) => f.endsWith('OxyDeviceSessionStore.kt'))).toBe(true);
   });
 
   test('every store states its recovery policy explicitly', () => {
     const sites = openCallSites();
-    // Three stores today. A FOURTH failing here is the point: adding a store must
+    // Two stores today. A THIRD failing here is the point: adding a store must
     // be a deliberate choice, reviewed with this rule in view — not something
     // inherited by copying a neighbour.
     expect(sites.map((s) => s.line)).toHaveLength(STORES.length);
@@ -97,7 +95,7 @@ describe('OxyEncryptedPrefs recovery policy', () => {
         `${store} must open with RecoveryPolicy.RebuildFileOnly.\n` +
           `  found: ${line}\n\n` +
           'Anything else lets this store reset the androidx master key, which is ONE Keystore ' +
-          'entry for the whole so.oxy.shared UID: every other Oxy app would lose its encrypted prefs.',
+          'entry for the whole app: every other encrypted prefs file in it would be lost.',
       );
     }
   });
@@ -119,7 +117,7 @@ describe('OxyEncryptedPrefs recovery policy', () => {
 
   test('no Oxy android source deletes a Keystore entry', () => {
     // The master key, and every expo-secure-store alias, is shared by the whole
-    // UID. Deleting any Keystore entry from one app is deleting it for all.
+    // app. Deleting any Keystore entry to heal one store takes all the others.
     // Comments are stripped first: the history of the rule is documented in
     // KDoc, and naming a key in prose is not deleting it.
     const offenders = kotlinSources(ANDROID_SOURCE_ROOT).filter((file) => {

@@ -22,13 +22,7 @@ import so.oxy.storage.RecoveryPolicy
  * Neither ever rotates the credential — the server does not rotate it either.
  */
 internal object OxyBackgroundSessionStore {
-  /**
-   * Suffix is the hosting app's package name. Oxy apps share the `so.oxy.shared`
-   * Android UID (and therefore one data directory), so a single global prefs name
-   * would let one app that leaves `backgroundSession` off wipe another app's
-   * live credential on launch. Scoping by package keeps each app's widget/sync
-   * store independent.
-   */
+  /** Suffix is the hosting app's package name, so the file says whose credential it holds. */
   private const val PREFS_NAME_PREFIX = "oxy_background_session_"
 
   private fun prefsName(context: Context): String = PREFS_NAME_PREFIX + context.packageName
@@ -61,13 +55,13 @@ internal object OxyBackgroundSessionStore {
 
   /**
    * [RecoveryPolicy.RebuildFileOnly] — this store must NEVER escalate to a
-   * UID-shared master-key reset.
+   * master-key reset.
    *
    * What it holds is disposable: the app re-provisions the credential on its next
    * foreground, so "no credential" is a complete recovery that costs the user
    * nothing (background refreshes render signed out until then). A master-key reset
-   * would wipe every other Oxy store sharing the alias — including the self-custody
-   * identity keypair, which is IRREPLACEABLE. Trading someone else's unrecoverable
+   * would wipe every other encrypted store of this app sharing the alias — in
+   * Commons, including the identity signer store. Trading someone else's unrecoverable
    * data to save data we can simply ask for again is never the right trade, so the
    * escalation is not merely discouraged here, it is unreachable.
    */
