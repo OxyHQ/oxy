@@ -300,6 +300,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       : null;
   }
   const accountQueryPersistence = accountQueryPersistenceRef.current;
+  useEffect(() => {
+    accountQueryPersistence?.attach();
+    return () => accountQueryPersistence?.detach();
+  }, [accountQueryPersistence]);
   const isAccountCacheReady = useSyncExternalStore(
     accountQueryPersistence ? accountQueryPersistence.subscribe : subscribeNever,
     () => accountQueryPersistence?.isReady() ?? true,

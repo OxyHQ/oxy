@@ -33,6 +33,27 @@ POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
 PRE_DEPLOY_TASK_COMMAND_JSON="${PRE_DEPLOY_TASK_COMMAND_JSON:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
 POST_DEPLOY_TASKS_JSON="${POST_DEPLOY_TASKS_JSON:-}"
+# Run the POST_DEPLOY_TASKS_JSON entries at the same time instead of one after
+# another. Opt-in, because only the caller knows whether its tasks depend on each
+# other. Each one-shot spends ~60s of its ~80s in Fargate PROVISIONING/PENDING
+# and DEPROVISIONING (measured on oxy-api, run 36505794567), so two independent
+# tasks cost one task's wall time instead of two. Every task still runs to
+# completion and any failure still rolls the service back — the difference is
+# only that a sibling task is not cancelled by it (the deploy role cannot
+# ecs:StopTask anyway).
+POST_DEPLOY_TASKS_CONCURRENT="${POST_DEPLOY_TASKS_CONCURRENT:-false}"
+# Optional script run after the pre-deploy migration (and readiness task) and
+# immediately BEFORE update-service. A non-zero exit leaves the service
+# untouched and fails the deploy. It is the slot for rolling a sibling service
+# that must be on the new image, over the migrated schema, before this one moves
+# — oxy-api uses it to start the asset-variant worker's rollout so the queue's
+# consumer is replaced before its producer.
+PRE_ROLLOUT_SCRIPT="${PRE_ROLLOUT_SCRIPT:-}"
+# Optional ceiling on running tasks during the rollout, as ECS's maximumPercent.
+# Unset keeps the one-extra-task surge below (the shape every copy of this
+# script had). A caller with measured Fargate headroom can raise it — up to 200,
+# which replaces every task in ONE wave instead of desiredCount serial waves.
+ROLLOUT_MAX_PERCENT="${ROLLOUT_MAX_PERCENT:-}"
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
 # it" — a check that crosses a boundary this deploy does not own (a CDN in front
 # of the origin, another service the route consults). Reverting the image for one
@@ -60,6 +81,20 @@ if ! [[ "$ONE_SHOT_START_MAX_WAIT_SECS" =~ ^[0-9]+$ ]] ||
 fi
 if [[ "$RUN_MIGRATIONS" != "true" && "$RUN_MIGRATIONS" != "false" ]]; then
   echo "::error::RUN_MIGRATIONS must be either 'true' or 'false'."
+  exit 1
+fi
+if [[ "$POST_DEPLOY_TASKS_CONCURRENT" != "true" && "$POST_DEPLOY_TASKS_CONCURRENT" != "false" ]]; then
+  echo "::error::POST_DEPLOY_TASKS_CONCURRENT must be either 'true' or 'false'."
+  exit 1
+fi
+if [[ -n "$PRE_ROLLOUT_SCRIPT" && ! -f "$PRE_ROLLOUT_SCRIPT" ]]; then
+  echo "::error::PRE_ROLLOUT_SCRIPT does not exist: $PRE_ROLLOUT_SCRIPT"
+  exit 1
+fi
+if [[ -n "$ROLLOUT_MAX_PERCENT" ]] &&
+   { ! [[ "$ROLLOUT_MAX_PERCENT" =~ ^[0-9]+$ ]] ||
+     (( ROLLOUT_MAX_PERCENT <= 100 || ROLLOUT_MAX_PERCENT > 200 )); }; then
+  echo "::error::ROLLOUT_MAX_PERCENT must be an integer above 100 and at most 200."
   exit 1
 fi
 if [[ -n "$POST_DEPLOY_SMOKE_SCRIPT" && ! -f "$POST_DEPLOY_SMOKE_SCRIPT" ]]; then
@@ -254,12 +289,23 @@ fi
 # A rolling replacement needs exactly one spare slot. `minimumHealthyPercent`
 # stays at 100, so capacity never dips; the cost is that the rollout is serial,
 # which is what the wait floor below accounts for.
+#
+# ROLLOUT_MAX_PERCENT lifts that floor for a caller that has measured the
+# headroom (never lowers it: a value under the one-task floor would stall the
+# rollout with no spare slot). The rollback uses the same function, so it rolls
+# back as fast as it rolled forward.
 surge_percent_for_desired_count() {
   local desired="$1"
   # ceil((desired + 1) * 100 / desired) in integer arithmetic.
-  echo $(( ((desired + 1) * 100 + desired - 1) / desired ))
+  local one_extra=$(( ((desired + 1) * 100 + desired - 1) / desired ))
+  if [[ -n "$ROLLOUT_MAX_PERCENT" ]] && (( ROLLOUT_MAX_PERCENT > one_extra )); then
+    echo "$ROLLOUT_MAX_PERCENT"
+  else
+    echo "$one_extra"
+  fi
 }
 deployment_surge_percent="$(surge_percent_for_desired_count "$service_desired_count")"
+deployment_surge_tasks=$(( service_desired_count * deployment_surge_percent / 100 - service_desired_count ))
 
 # One task at a time means the rollout takes desiredCount rounds of
 # start + health-check grace + deregistration drain. The inherited 1200s budget
@@ -268,12 +314,19 @@ deployment_surge_percent="$(surge_percent_for_desired_count "$service_desired_co
 # 60s drain, ~6 tasks. 300s per round plus a fixed 300s of registration and
 # settling, and never below the old default.
 if [[ "$MAX_WAIT_SECS_WAS_EXPLICIT" != "true" ]]; then
-  serial_rollout_budget=$(( 300 * service_desired_count + 300 ))
+  # Rounds, not tasks: a surge of N extra tasks replaces N per round.
+  rollout_rounds=$(( (service_desired_count + deployment_surge_tasks - 1) / deployment_surge_tasks ))
+  serial_rollout_budget=$(( 300 * rollout_rounds + 300 ))
   if (( serial_rollout_budget > MAX_WAIT_SECS )); then
     MAX_WAIT_SECS="$serial_rollout_budget"
   fi
 fi
-echo "Rollout surge: ${deployment_surge_percent}% of ${service_desired_count} task(s) (one extra), wait budget ${MAX_WAIT_SECS}s."
+if (( deployment_surge_tasks == 1 )); then
+  surge_description="one extra"
+else
+  surge_description="$deployment_surge_tasks extra"
+fi
+echo "Rollout surge: ${deployment_surge_percent}% of ${service_desired_count} task(s) (${surge_description}), wait budget ${MAX_WAIT_SECS}s."
 
 task_definition_file="$(mktemp)"
 rendered_task_definition_file="$(mktemp)"
@@ -822,6 +875,16 @@ if [[ -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ]]; then
   fi
 fi
 
+if [[ -n "$PRE_ROLLOUT_SCRIPT" ]]; then
+  # After the schema is migrated, before this service moves. The script sees the
+  # same environment (IMAGE_URI above all), so a sibling rolls the exact digest.
+  echo "Running pre-rollout script $PRE_ROLLOUT_SCRIPT"
+  if ! bash "$PRE_ROLLOUT_SCRIPT"; then
+    echo "::error::Pre-rollout script failed; $APP was not updated."
+    exit 1
+  fi
+fi
+
 if [[ -n "${DEPLOY_SHA:-}" ]]; then
   echo "Re-verifying origin/main immediately before the ECS service update."
   bash "$DEPLOY_HEAD_GUARD_SCRIPT"
@@ -899,17 +962,60 @@ if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
   fi
 fi
 
-while IFS= read -r post_deploy_task; do
-  post_deploy_label="$(jq -r '.label' <<<"$post_deploy_task")"
-  post_deploy_command="$(jq -c '.command' <<<"$post_deploy_task")"
-  if ! run_one_shot_command "$post_deploy_label" "$post_deploy_command" true; then
-    echo "::error::$post_deploy_label failed."
+if [[ "$POST_DEPLOY_TASKS_CONCURRENT" == "true" ]]; then
+  # Each task runs in its own subshell, so the active_one_shot_* bookkeeping is
+  # per task. The subshell gets its own EXIT trap: it must still warn about an
+  # unfinished task, and it must NOT inherit `cleanup`, which deletes the
+  # rendered task definition a sibling still reads for its CloudWatch logs.
+  post_deploy_pids=()
+  post_deploy_labels=()
+  while IFS= read -r post_deploy_task; do
+    post_deploy_label="$(jq -r '.label' <<<"$post_deploy_task")"
+    post_deploy_command="$(jq -c '.command' <<<"$post_deploy_task")"
+    (
+      trap '
+        if [[ "$active_one_shot_task_stopped" != "true" && -n "$active_one_shot_task_arn" ]]; then
+          echo "::warning::Unfinished $active_one_shot_label task $active_one_shot_task_arn may still be running; the deploy role cannot call ecs:StopTask."
+        fi
+      ' EXIT
+      # Called as a condition, exactly like the serial path, so `set -e` behaves
+      # the same inside it.
+      if ! run_one_shot_command "$post_deploy_label" "$post_deploy_command" true; then
+        exit 1
+      fi
+    ) &
+    post_deploy_pids+=("$!")
+    post_deploy_labels+=("$post_deploy_label")
+  done < <(jq -c '.[]' <<<"$POST_DEPLOY_TASKS_JSON")
+
+  # Wait for EVERY task, even after one fails: a task still running when the
+  # rollback starts is one nobody watched finish.
+  post_deploy_failed=()
+  for index in "${!post_deploy_pids[@]}"; do
+    if ! wait "${post_deploy_pids[$index]}"; then
+      echo "::error::${post_deploy_labels[$index]} failed."
+      post_deploy_failed+=("${post_deploy_labels[$index]}")
+    fi
+  done
+  if (( ${#post_deploy_failed[@]} > 0 )); then
     if ! rollback_service; then
-      echo "::error::$post_deploy_label and rollback both failed; manual intervention is required."
+      echo "::error::Post-deploy task(s) and rollback both failed; manual intervention is required."
     fi
     exit 1
   fi
-done < <(jq -c '.[]' <<<"$POST_DEPLOY_TASKS_JSON")
+else
+  while IFS= read -r post_deploy_task; do
+    post_deploy_label="$(jq -r '.label' <<<"$post_deploy_task")"
+    post_deploy_command="$(jq -c '.command' <<<"$post_deploy_task")"
+    if ! run_one_shot_command "$post_deploy_label" "$post_deploy_command" true; then
+      echo "::error::$post_deploy_label failed."
+      if ! rollback_service; then
+        echo "::error::$post_deploy_label and rollback both failed; manual intervention is required."
+      fi
+      exit 1
+    fi
+  done < <(jq -c '.[]' <<<"$POST_DEPLOY_TASKS_JSON")
+fi
 
 if [[ "$smoke_reported_external_failure" == "true" ]]; then
   echo "::error::$APP is deployed and live at $new_task_definition, but its post-deploy smoke checks are still failing on a dependency. Nothing was rolled back; this release needs a human."

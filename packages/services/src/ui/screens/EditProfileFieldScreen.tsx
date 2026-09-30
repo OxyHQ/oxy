@@ -704,11 +704,10 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
                         </TextField>
                     </View>
                     <Button
-                        variant="icon"
                         onPress={handleAddItem}
                         disabled={!newItemValue.trim()}
                         accessibilityLabel={addLabel}
-                        icon={<Ionicons name="add" size={20} color={bloomTheme.colors.primaryForeground} />}
+                        icon={<Ionicons name="add" size={20} color={bloomTheme.colors.primaryForeground} />} iconOnly tone="neutral" appearance="outline"
                     />
                 </View>
 

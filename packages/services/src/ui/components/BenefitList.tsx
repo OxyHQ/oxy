@@ -98,13 +98,12 @@ export const BenefitList: React.FC<BenefitListProps> = ({
     style,
 }) => (
     <Card
-        variant="outlined"
         radius="radius-20"
         border="hairline"
         elevation="s"
         className={className}
-        style={[{ padding: SPACING['space-16'], gap: SPACING['space-16'], overflow: 'visible' }, style]}
-        accessibilityLabel={accessibilityLabel}
+        style={[{ padding: SPACING['space-16'], gap: SPACING['space-16'] }, style]}
+        accessibilityLabel={accessibilityLabel} appearance="outline"
     >
         {children}
     </Card>

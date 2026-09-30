@@ -1,5 +1,15 @@
 # Changelog: `create-oxy-app`
 
+## 0.4.0
+
+### Changed
+
+- A generated app starts on the current, paired Oxy set: `@oxy.so/services`
+  `^9.0.0` with `@oxy.so/bloom` `^5.1.0`, `@oxy.so/core` `^3.2.0`,
+  `@oxy.so/contracts` `^4.1.0` and `@oxy.so/app-preset` `^2.2.0`. The services
+  and core pins had stayed on services 4 / core 1.7 while the templates already
+  used core 3's `OxyServer`, and services 9 is what admits Bloom 5.
+
 ## 0.3.3
 
 ### Fixed

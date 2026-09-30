@@ -12,7 +12,7 @@ export interface SurfaceHeaderActionProps {
 
 /** Header actions share Bloom's sizing, surface, disabled and loading behavior. */
 export const SurfaceHeaderAction: React.FC<SurfaceHeaderActionProps> = ({ label, onPress, loading, disabled }) => (
-  <Button size="medium" onPress={onPress} loading={loading} disabled={disabled}>
+  <Button size="md" onPress={onPress} loading={loading} disabled={disabled}>
     {label}
   </Button>
 );

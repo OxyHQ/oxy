@@ -16,7 +16,7 @@ import {
   buildFollowMenuItems,
   FOLLOW_ACTION_LEAVES_ACTIVE,
   resolveFollowPrimaryAction,
-} from '../FollowTargetButton';
+} from '../followRules';
 import {
   isCompleteFollowStatus,
   followRecordToStatus,

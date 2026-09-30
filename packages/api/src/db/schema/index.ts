@@ -182,3 +182,4 @@ export * from './externalIdentityMetaProofs';
 export * from './families';
 export * from './accountEvents';
 export * from './storageObjectDeletions';
+export * from './stickers';

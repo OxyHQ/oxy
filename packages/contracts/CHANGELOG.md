@@ -1,5 +1,24 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.3.0
+
+### Added
+
+- `stickers`: the wire contract of Oxy's shared sticker catalogue (`/stickers`).
+  `stickerSchema`, `stickerFileSchema`, `stickerPackSummarySchema`,
+  `stickerPackSchema`, `installedStickerPackSchema`, `stickerRefSchema` (how an
+  app stores or sends a sticker), the resolve, reorder and staff request
+  schemas, and the limits every uploaded animation is held to
+  (`STICKER_CANVAS_SIZES`, `STICKER_MAX_DURATION_MS`, …).
+
+## 4.2.0
+
+### Added
+
+- `recommendationItemSchema.color`: the recommended account's accent colour,
+  as every profile serializer already returns it. A client drawing a row of
+  recommendations no longer has to fetch each person again to get it.
+
 ## 4.1.0
 
 ### Added

@@ -259,13 +259,12 @@ export function McpLinkPage() {
             </Button>
             <Button
               size="lg"
-              variant="ghost"
               onPress={() =>
                 window.location.assign(
                   buildRelativeUrl("/login", { mcp_link_intent: intent })
                 )
               }
-              disabled={submitting}
+              disabled={submitting} tone="accent" appearance="subtle"
             >
               {t("mcpLink.useAnother")}
             </Button>

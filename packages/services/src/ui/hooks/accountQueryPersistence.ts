@@ -8,29 +8,43 @@
  *
  * - Storage is keyed by the account (`oxy_account_queries:<accountId>`), so a
  *   restore can only ever hydrate the account that is signed in.
- * - The buster is the build (`getOxyBuildId`), so no cache written by an older
- *   bundle, in an older shape, is ever served.
- * - On a subject change the declared roots, memory-only ones included, and the
- *   account's paused mutations are dropped
- *   from memory synchronously, before anyone is woken, and the new account's
- *   blob is restored. `isReady()` is false until that restore settles, and
+ * - Queries written by another build are dropped on restore; queued (paused)
+ *   mutations are kept (`persistedQueryCache.ts`).
+ * - On a subject change the account's queries, memory-only ones included, and
+ *   its paused mutations are dropped from memory synchronously, before anyone
+ *   is woken. The leaving account's latest state is written first, a sign-out
+ *   then deletes it, and only then is the next account's blob read.
+ * - `isReady()` is false until the signed-in account's blob is restored, and
  *   `RequireOxyAuth` waits on it, so another account's rows never render.
- * - On sign-out the signed-out account's blob is deleted.
+ *
+ * Every storage operation runs through one queue, in order, and a restore
+ * checks that its account is still the active one in the same tick it hydrates.
  */
 
 import { hashKey, type Mutation, type Query, type QueryClient, type QueryKey } from '@tanstack/react-query';
-import { persistQueryClient } from '@tanstack/react-query-persist-client';
-import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import type { StorageInterface } from '../utils/storageHelpers';
-import { getOxyBuildId } from '../utils/buildId';
+import {
+  PERSISTED_QUERY_PREFIXES,
+  SDK_MEMORY_ONLY_ROOTS,
+  hydrateSnapshot,
+  rootOf,
+  snapshot,
+  subscribeSnapshots,
+  type PersistFilters,
+} from './persistedQueryCache';
 
 /** An app's declaration of which data is private to the signed-in account. */
 export interface AccountQueriesConfig {
   /**
    * Query-key roots (`queryKey[0]`) whose data belongs to the signed-in account
-   * and survives a restart.
+   * and survives a restart. `'all'`: every query the app runs, for an app whose
+   * every read may depend on who is signed in, so no root can be forgotten.
+   *
+   * The roots `accounts`, `sessions` and `devices` are reserved for the SDK's
+   * device-level data: an app must not use them. `users` and `privacy` are the
+   * SDK's too, and with `'all'` they are dropped on a switch like the app's.
    */
-  roots: readonly string[];
+  roots: readonly string[] | 'all';
   /**
    * Roots that belong to the account too, but must not be written to disk
    * (signed URLs, AI output, search results): dropped on a switch, never persisted.
@@ -43,6 +57,46 @@ export interface AccountQueriesConfig {
   mutationKeys?: readonly QueryKey[];
 }
 
+/** Which queries and mutations an `AccountQueriesConfig` makes the account's. */
+export interface AccountQueryOwnership {
+  /** Dropped from memory on a subject change. */
+  ownsQuery: (query: Query) => boolean;
+  /** Written to the account's blob. */
+  persistsQuery: (query: Query) => boolean;
+  ownsMutation: (mutation: Mutation) => boolean;
+}
+
+/** SDK roots that hold device-level data, the same whoever is signed in. */
+const DEVICE_ROOTS = new Set(['accounts', 'sessions', 'devices']);
+
+export function accountQueryOwnership(config: AccountQueriesConfig): AccountQueryOwnership {
+  const memoryOnly = new Set([...(config.memoryOnlyRoots ?? []), ...SDK_MEMORY_ONLY_ROOTS]);
+  const sdkRoots = new Set(PERSISTED_QUERY_PREFIXES);
+  const declared = config.roots === 'all' ? null : new Set(config.roots);
+  const mutationHashes = new Set((config.mutationKeys ?? []).map((key) => hashKey(key)));
+
+  const ownsQuery = (query: Query): boolean => {
+    const root = rootOf(query);
+    if (root !== null && memoryOnly.has(root)) return true;
+    if (declared === null) return root === null || !DEVICE_ROOTS.has(root);
+    return root !== null && declared.has(root);
+  };
+  return {
+    ownsQuery,
+    persistsQuery: (query) => {
+      if (!ownsQuery(query)) return false;
+      const root = rootOf(query);
+      if (root === null) return true;
+      // The SDK's own roots stay with the SDK persister.
+      return !memoryOnly.has(root) && (declared !== null || !sdkRoots.has(root));
+    },
+    ownsMutation: (mutation) => {
+      const key = mutation.options.mutationKey;
+      return key !== undefined && mutationHashes.has(hashKey(key));
+    },
+  };
+}
+
 export const ACCOUNT_QUERY_CACHE_KEY = 'oxy_account_queries';
 const ACCOUNT_QUERY_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 const ACCOUNT_QUERY_PERSIST_THROTTLE_MS = 1_000;
@@ -52,12 +106,13 @@ export interface AccountQueryPersistence {
   setStorage(storage: StorageInterface): void;
   /** The signed-in account changed. `null` is a sign-out. Synchronous in-memory reset. */
   activate(accountId: string | null): void;
+  /** The owning provider mounted: restore and persist the active account. */
+  attach(): void;
+  /** The owning provider unmounted: stop touching the client and storage. */
+  detach(): void;
   /** True once the active account's cache is restored (always true signed out). */
   isReady(): boolean;
   subscribe(listener: () => void): () => void;
-  /** Whether a mutation is account-scoped (so the SDK's own persister skips it). */
-  ownsMutation(mutation: Mutation): boolean;
-  dispose(): void;
 }
 
 function storageKeyFor(accountId: string): string {
@@ -68,34 +123,35 @@ export function createAccountQueryPersistence(
   queryClient: QueryClient,
   config: AccountQueriesConfig,
 ): AccountQueryPersistence {
-  const persistedRoots = new Set(config.roots);
-  const accountRoots = new Set([...config.roots, ...(config.memoryOnlyRoots ?? [])]);
-  const mutationHashes = new Set((config.mutationKeys ?? []).map((key) => hashKey(key)));
+  const { ownsQuery, persistsQuery, ownsMutation } = accountQueryOwnership(config);
+  const filters: PersistFilters = {
+    shouldDehydrateQuery: (query) => query.state.status === 'success' && persistsQuery(query),
+    shouldDehydrateMutation: (mutation) => mutation.state.isPaused && ownsMutation(mutation),
+  };
   const listeners = new Set<() => void>();
 
-  let storage: StorageInterface | null = null;
+  let resolveStorage: (storage: StorageInterface) => void = () => undefined;
+  const storageReady = new Promise<StorageInterface>((resolve) => {
+    resolveStorage = resolve;
+  });
+  let hasStorage = false;
+  // Every read, write and delete runs here, in order, once storage exists.
+  let io: Promise<unknown> = storageReady;
+  const enqueue = (operation: (storage: StorageInterface) => Promise<unknown> | unknown) => {
+    io = io
+      .then(() => storageReady)
+      .then(operation)
+      .catch(() => undefined);
+  };
+
+  let attached = false;
   let accountId: string | null = null;
   let restoredFor: string | null = null;
   let generation = 0;
-  let unsubscribePersist: (() => void) | null = null;
-  // The in-flight restore. A new account waits for it, so a late restore can
-  // never hydrate the previous account's rows after the switch.
-  let restoring: Promise<void> = Promise.resolve();
+  let writer: ReturnType<typeof subscribeSnapshots> | null = null;
 
   const notify = () => {
     for (const listener of listeners) listener();
-  };
-
-  const rootOf = (query: Query): string | null => {
-    const head = query.queryKey[0];
-    return typeof head === 'string' ? head : null;
-  };
-  const ownsQuery = (query: Query): boolean => accountRoots.has(rootOf(query) ?? '');
-  const persistsQuery = (query: Query): boolean => persistedRoots.has(rootOf(query) ?? '');
-
-  const ownsMutation = (mutation: Mutation): boolean => {
-    const key = mutation.options.mutationKey;
-    return key !== undefined && mutationHashes.has(hashKey(key));
   };
 
   const dropScopedData = () => {
@@ -106,77 +162,76 @@ export function createAccountQueryPersistence(
     }
   };
 
-  const persisterFor = (id: string, target: StorageInterface) =>
-    createAsyncStoragePersister({
-      storage: {
-        getItem: (key) => target.getItem(key),
-        setItem: (key, value) => target.setItem(key, value),
-        removeItem: (key) => target.removeItem(key),
-      },
-      key: storageKeyFor(id),
-      throttleTime: ACCOUNT_QUERY_PERSIST_THROTTLE_MS,
-    });
+  const stopWriting = () => {
+    writer?.unsubscribe();
+    writer = null;
+  };
 
-  const start = () => {
+  const restore = () => {
     const id = accountId;
-    const target = storage;
-    if (!id || !target || unsubscribePersist) return;
+    if (!attached || id === null) return;
     const current = generation;
-    const [unsubscribe, restored] = persistQueryClient({
-      queryClient,
-      persister: persisterFor(id, target),
-      maxAge: ACCOUNT_QUERY_CACHE_MAX_AGE,
-      buster: getOxyBuildId(),
-      dehydrateOptions: {
-        shouldDehydrateQuery: (query) => query.state.status === 'success' && persistsQuery(query),
-        shouldDehydrateMutation: (mutation) => mutation.state.isPaused && ownsMutation(mutation),
-      },
-    });
-    unsubscribePersist = unsubscribe;
-    restoring = restored.catch(() => undefined).then(() => {
+    const key = storageKeyFor(id);
+    enqueue(async (storage) => {
+      const raw = await storage.getItem(key);
+      // Same tick as the hydrate: a switch in between cannot be missed.
       if (current !== generation) return;
+      if (!hydrateSnapshot(queryClient, raw, ACCOUNT_QUERY_CACHE_MAX_AGE) && raw) {
+        await storage.removeItem(key);
+        if (current !== generation) return;
+      }
       restoredFor = id;
+      writer = subscribeSnapshots(queryClient, filters, ACCOUNT_QUERY_PERSIST_THROTTLE_MS, (serialized) => {
+        if (current !== generation) return;
+        enqueue((target) => target.setItem(key, serialized));
+      });
       notify();
     });
   };
 
-  const stop = () => {
-    unsubscribePersist?.();
-    unsubscribePersist = null;
-  };
-
   return {
     setStorage(next) {
-      if (storage) return;
-      storage = next;
-      const current = generation;
-      void restoring.then(() => {
-        if (current === generation) start();
-      });
+      if (hasStorage) return;
+      hasStorage = true;
+      resolveStorage(next);
     },
 
     activate(next) {
       if (next === accountId) return;
       const previous = accountId;
+      // Keep the leaving account's latest state, but only once its own blob was
+      // restored: before that, the cache holds none of it to write.
+      if (previous !== null && restoredFor === previous) {
+        const serialized = snapshot(queryClient, filters);
+        const key = storageKeyFor(previous);
+        enqueue((storage) => storage.setItem(key, serialized));
+      }
       generation += 1;
-      const current = generation;
-      stop();
+      stopWriting();
       dropScopedData();
       accountId = next;
       restoredFor = null;
-      notify();
-
-      if (next === null && previous !== null && storage) {
-        void persisterFor(previous, storage).removeClient();
+      if (next === null && previous !== null) {
+        const key = storageKeyFor(previous);
+        enqueue((storage) => storage.removeItem(key));
       }
+      notify();
+      restore();
+    },
 
-      void restoring.then(() => {
-        if (current !== generation) return;
-        // A restore that was already in flight may have hydrated the previous
-        // account's rows; drop them again before this account's restore.
-        dropScopedData();
-        start();
-      });
+    attach() {
+      if (attached) return;
+      attached = true;
+      restore();
+    },
+
+    detach() {
+      if (!attached) return;
+      attached = false;
+      writer?.flush();
+      generation += 1;
+      stopWriting();
+      restoredFor = null;
     },
 
     isReady() {
@@ -188,14 +243,6 @@ export function createAccountQueryPersistence(
       return () => {
         listeners.delete(listener);
       };
-    },
-
-    ownsMutation,
-
-    dispose() {
-      generation += 1;
-      stop();
-      listeners.clear();
     },
   };
 }

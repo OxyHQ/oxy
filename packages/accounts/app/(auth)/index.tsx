@@ -4,7 +4,7 @@ import { useOxy, LogoText, openAccountDialog } from '@oxy.so/services';
 import { logger } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
-import { Button } from '@/components/ui';
+import { Button } from '@oxy.so/bloom/button';
 import { CREATE_ACCOUNT_HELP_URL } from '@/constants/auth';
 
 /**
@@ -81,7 +81,8 @@ export default function SignInScreen() {
 
         <View style={styles.actions}>
           <Button
-            variant="primary"
+            appearance="solid"
+            tone="accent"
             onPress={handleSignInWithOxy}
             style={styles.primaryButton}
             testID="sign-in-with-oxy"
@@ -96,7 +97,8 @@ export default function SignInScreen() {
           {t('auth.signIn.noAccount')}
         </Text>
         <Button
-          variant="ghost"
+          appearance="subtle"
+          tone="accent"
           onPress={handleGetTheApp}
           style={styles.footerButton}
           testID="sign-in-get-app"

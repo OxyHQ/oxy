@@ -172,7 +172,7 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
               </Text> : null}
               {description ? <Text className="text-text-secondary text-sm mt-space-4" numberOfLines={2}>{description}</Text> : null}
             </View>} />
-          {!isCurrentUser && itemUserId ? <FollowButton userId={itemUserId} size="small" /> : null}
+          {!isCurrentUser && itemUserId ? <FollowButton userId={itemUserId} size="sm" /> : null}
         </View>
       );
     },

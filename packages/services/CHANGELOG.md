@@ -1,5 +1,63 @@
 # Changelog
 
+## [10.0.0] - 2026-09-29
+
+### Breaking changes
+
+- Requires Bloom ^6.0.0 and migrates SDK UI to canonical appearance, tone and size props.
+- FollowButton and FollowTargetButton size now uses sm, md (default), or lg. Replace small, medium and large respectively.
+- Preserves account, sign-in, payment and action-sheet behavior, including destructive actions and accessible follow state.
+
+## [9.2.0] - 2026-09-28
+
+### Added
+
+- `@oxy.so/services/ui/client` exports the query, cache and follow helpers an
+  app uses at startup: `queryKeys` and the `invalidate*Queries` helpers,
+  `upsertCachedUser(s)`, `CLEARABLE_USER_FIELDS`, `clearedFieldsFrom*Update`,
+  `useUserProfile(s)`, `useCurrentUser`, `useUserById`, `useUserByUsername`,
+  `useFollowerCounts`, `useSeedFollowStatuses`, `useFollowTarget`, the follow
+  rules (`resolveFollowPrimaryAction`, `buildFollowMenuItems`,
+  `FOLLOW_ACTION_LEAVES_ACTIVE`) and `ProfileButton`. Import them from here
+  rather than the root: the root barrel re-exports the sign-in panels (and the
+  Commons QR encoder), and Metro does not tree-shake, so any root import ships
+  them all, ~140 KB on Mention's home route. A packaging test pins that
+  `ui/client` reaches no panel.
+- `FollowMenuItem` is exported (the return type of `buildFollowMenuItems`).
+
+### Changed
+
+- The follow rules live in `ui/components/followRules.ts`, free of React and
+  Bloom; `FollowTargetButton` imports them. Root exports are unchanged.
+
+## [9.1.0] - 2026-09-28
+
+### Added
+
+- `accountQueries.roots: 'all'`: every query the app runs belongs to the
+  signed-in account, for an app whose every read may depend on who is signed
+  in (Syra), so no root can be forgotten and survive an account switch. The
+  roots `accounts`, `sessions` and `devices` are reserved for the SDK's
+  device-level data.
+
+### Fixed
+
+- A restore still in flight when the account changes can no longer hydrate
+  the previous account's rows: the account is re-checked in the same tick as
+  the hydrate.
+- Switching accounts writes the leaving account's latest state first (it
+  used to be lost inside the 1 s write throttle); a sign-out then deletes it,
+  also when it happens before storage is ready.
+- A new build drops persisted queries but keeps queued (paused) mutations, in
+  both SDK caches: a deploy no longer loses an action the user made offline.
+- Account-declared roots are kept out of the shared cache even when they sit
+  under one of the SDK's own prefixes.
+- The account cache stops with the provider that owns it (`attach`/`detach`,
+  StrictMode-safe).
+- SDK queries that carry signed URLs (`assetDownloadUrls`, `avatarCropSource`,
+  `avatarCropMeasure`, `justifiedPhotoDimensions`) are never written to an
+  account cache, whatever the app declares.
+
 ## [8.4.0] - 2026-09-28
 
 Requires `@oxy.so/bloom` ^4.35.0 and `@oxy.so/core` ^3.2.0.

@@ -6,8 +6,6 @@ export { AccountCard } from './account-card';
 export { ScreenLayout } from './screen-layout';
 export { Switch } from './switch';
 export { ScreenHeader } from './screen-header';
-export { Button } from './button';
-export type { ButtonProps, ButtonVariant } from './button';
 export { KeyboardAwareScrollViewWrapper } from './keyboard-aware-scroll-view';
 export { ImportantBanner } from './important-banner';
 export { EmptyStateCard } from './empty-state-card';
