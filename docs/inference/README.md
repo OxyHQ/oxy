@@ -1,320 +1,332 @@
-# Oxy inference platform
+# Oxy inference: developer guide
 
-**This page is the status board.** Everything else under `docs/inference/`
-documents a mechanism that is already in the repository; this page is where the
-gaps live, so a reader who finds a topic missing elsewhere finds the reason here
-rather than assuming it was overlooked.
+**Start here.** This page is the one place that explains how an Oxy app asks
+for a model. The other pages under `docs/inference/` go deep on one topic each
+and link back here for the concepts.
 
-Read this first. The public Oxy inference endpoint and Kaana data plane are
-separate deployment facts: code in either repository does not prove that an
-audience, catalogue route, signing lane or charging stage is live. Verify the
-current rollout readout and the exact deployed Kaana binding before invoking.
-[rollout.md](./rollout.md) has the flags, gates and rollback plan.
-Inbox's product-specific point-inference contract and bootstrap are in
-[inbox-point-inference.md](./inbox-point-inference.md).
+Every feature below is marked:
 
-Tracking issue: [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972).
-Design decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md) ·
-[0007](../adr/0007-canonical-request-attribution.md) ·
-[0008](../adr/0008-catalogue-concept-separation.md) ·
-[0009](../adr/0009-usage-reservation-and-settlement.md) ·
-[0010](../adr/0010-public-api-compatibility.md) ·
-[0013](../adr/0013-byok-secret-custody.md) ·
-[0019](../adr/0019-kaana-byok-custody.md) ·
-[0014](../adr/0014-account-billing-and-entitlements.md).
+- **Live**: on `main` in Oxy and Kaana. Whether a given environment runs
+  that code is a separate question (see [status.md](./status.md)).
+- **Rolling out**: decided and being built. Not on `main` yet, so don't
+  depend on it.
+- **Proposed**: an idea only. Not available.
 
 ---
 
-## The one-paragraph version
+## The mental model
 
-Oxy is the **control plane**: accounts, applications, credentials, scopes,
-attribution, the model catalogue, routing policy, BYOK metadata, the financial
-ledger, the usage API and the Console. **Kaana** is the inference data plane:
-provider adapters, routing execution, streaming, measurement and the encrypted
-PostgreSQL/KMS custody of customer provider keys. Alia remains the agent
-runtime. Kaana's only canonical signed origin is `https://kaana.ai`; it never
-uses a hostname under `oxy.so`. The repository-level
-`scripts/check-kaana-identity.mjs` gate keeps that identity exact without
-renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
+```text
+                 one-shot feature (summarise, translate, classify, smart reply)
+  Your app  ─────────────────────────────────────────────────────┐
+     │                                                           ▼
+     │  conversation / agent / tools / memory          Oxy inference edge  ───────►  Kaana  ───────►  Provider
+     └─────────────────────────────────►  Alia  ─────►  api.oxy.so/v1               kaana.ai          (Groq, xAI, OpenRouter, …)
+                                                        auth · app policy ·          runs the call ·
+                                                        billing · picks and          provider keys ·
+                                                        signs the routes             retries · failover ·
+                                                                                     measures usage
+```
 
----
-
-## What is built
-
-| Capability | Where | Reachable by a caller? |
+| Layer | Owns | Never does |
 |---|---|---|
-| The public inference edge | `packages/api/src/routes/inferenceEdge.ts` | Mounted — `POST /v1/responses`, `POST /v1/chat/completions` (text, and spoken output on models that declare it), `GET /v1/generations/:id`. Reachability is controlled by `INFERENCE_EDGE_AUDIENCE`; configured Kaana is the canonical execution path |
-| Realtime sessions | `packages/api/src/routes/inferenceRealtime.ts` | `GET /v1/realtime` WebSocket, conversation sessions only, on models whose catalogue declares them — [realtime.md](./realtime.md) |
-| `oxy_sk_*` machine credentials — create, rotate, revoke, audit | `packages/api/src/routes/applications.ts`, `.../utils/machineCredentialToken.ts` | Yes |
-| The `oxy_sk_*` bearer middleware | `packages/api/src/middleware/machineCredential.ts` | Mounted on the edge with its per-credential and per-application limiters, and **the lane is shut by default** (`INFERENCE_MACHINE_CREDENTIAL_AUTH`) |
-| Native service tokens (`clientId + clientSecret` → 1h JWT) | `POST /auth/service-token` | Yes |
-| The `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
-| Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. The reviewed exact-route writer is `packages/api/scripts/bootstrap-kaana-catalogue.ts`; its main-only dry-run/SHA/apply lane is `.github/workflows/bootstrap-kaana-catalogue.yml`. Source presence is not evidence that either ran in production, and public visibility remains gated by `INFERENCE_CATALOGUE_AUDIENCE` |
-| Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out, **once charging is authorized**. Unset, it shadow meters: prices the request, records the amount, writes no financial record |
-| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (thirteen controls, the two price ceilings included; only `optimiseFor` is not) |
-| BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts`, `.../services/kaanaCredentialControl.ts` | Yes when the signed Kaana control lane is configured; every uncertain mutation is quarantined and recovered under the same operation ID |
-| Usage, spend, balance, charges, budgets | `packages/api/src/routes/inferenceReporting.ts` | Yes |
-| Account billing profile, Stripe boundary, entitlements | `packages/api/src/routes/accountBilling.ts` | Yes |
-| Inference usage telemetry + daily rollups | `packages/api/src/db/schema/inferenceUsageEvents.ts` | Yes — written by the edge, read by the reporting API |
-| Oxy↔data-plane contracts (Zod) | `packages/contracts/src/inference/` | Published as `@oxy.so/contracts` |
-| The TypeScript SDK | `packages/core/src/inference/OxyInferenceClient.ts` | Catalogue, `respond()`, typed `stream()` and generation reads are merged and published in `@oxy.so/core@23.1.0` by [#1145](https://github.com/OxyHQ/oxy/pull/1145). Publication proves the client surface, not a live Kaana route — [sdk.md](./sdk.md) |
-| Console: models, usage, billing, routing policy, BYOK | `packages/console` | Yes |
-| Rollout flags + the staff readout | `packages/api/src/config/rolloutFlags.ts`, `GET /inference/admin/rollout` | Yes — [rollout.md](./rollout.md) |
+| **Your app** | the feature, the prompt, which mode to use (or none, to use the app default), and showing errors to the user | hold a provider key, call a provider, retry or switch models on failure |
+| **Alia** (conversations and agents only) | conversations, memory, tools, approvals, agent identity. It shows users **power levels**, not model names | hold provider keys, retry or fail over on its own |
+| **Oxy edge** | authentication, the app's policy (default target, allowed levels), billing (reserve then settle), turning a power level into candidate models, choosing and ordering the routes, signing the request | call a provider |
+| **Kaana** | running the request: provider keys, same-route retries, failover across the signed routes, streaming, cancellation, usage measurement | pick a model or route outside Oxy's signed list, price anything, bill anyone |
 
-**Since ADR 0027 (2026-09-25), deploying the API with the Kaana binding DOES
-publish internal models:** the scheduled Kaana catalogue sync writes every
-priced, fully described Kaana model as an approved `platform_internal` route
-([catalogue.md](./catalogue.md#automatic-sync-from-kaana)). Nothing public is
-written by it. The paragraph below is the pre-sync history of the reviewed
-bootstrap, which remains the source for Inbox's profile and the speech route.
-The reviewed
-`bootstrap:kaana-catalogue` validates a fresh signed Kaana inventory and exact
-reviewed facts before it can apply model, revision, deployment, pricing, score
-and routing-profile rows. Production workflow run `33736747600` on 2026-09-03
-found the exact Inbox profile PK absent; that is dated evidence, and the
-bootstrap workflow's presence is not proof it later ran. `GET /models` returning
-`[]` is valid for an empty or withheld audience, not proof of current production
-contents. The current reviewed deployments are `internal_alia`; their profile
-existing would not by itself make a route visible to the `first_party` Inbox
-principal.
-
-**`inference:models:read` is checked nowhere.** The catalogue is audience-scoped
-by application type, not by scope: an anonymous caller, a user bearer and an
-ordinary application's service token all see the public catalogue. Holding the
-scope grants nothing that is checked — the same shape `chat:completions` had
-before it was removed. `inference:invoke` and `inference:usage:read` ARE checked,
-at the edge; `inference:routing:*` and `inference:providers:*` at their own
-control planes.
+Which path a product feature takes is decided per feature in
+[request-routing.md](./request-routing.md#choose-the-path-by-product-behavior).
 
 ---
 
-## Cutover-dependent status
+## Three ways to say which model runs
 
-The sections below identify rollout dependencies. They are not a substitute for
-the live checks in [request-routing.md](./request-routing.md#a-cutover-is-complete-only-when-measured).
+A request names **one** target, or names none and gets the app's default.
 
-### The Kaana data plane — workstream 13
+### 1. Exact model — "run this model"
 
-The implementation lives in `~/Oxy/Kaana` and the signed service origin is
-`https://kaana.ai`. This repository owns the Oxy half of the contracts and
-deployment gates, not Kaana's runtime internals. A successful build or merge is
-not reachability evidence: verify the exact deployed Kaana revision, signed
-binding, catalogue route and audience before declaring inference live.
+```text
+openai/gpt-oss-120b                          a model: its current revision
+openai/gpt-oss-120b@observed-2026-09-01      a revision: exactly these weights
+```
 
-Past the rollout gates, the edge authenticates, attributes, authorizes, resolves
-policy and route, reserves spend when charging is authorized, and forwards only
-an exact signed request to Kaana. It never falls back to the Alia proxy, derives
-an opaque ID from a name/order, or fabricates a completion.
+- Only that model runs. It is **never replaced by another model** (live).
+- Retries and failover stay on the same model. Kaana retries the same route,
+  and can move to another provider of the **same** model only when that
+  provider is on the signed route list. Today the list includes the other
+  providers only when the app's routing policy sets
+  `fallback.sameModelDeployment` (live). Same-model provider failover on by
+  default for exact-model requests is **rolling out**. See
+  [routing.md](./routing.md#fallback-two-features-two-switches).
+- A model id always contains a `/`. A power level never does, so a request
+  always shows which kind of target it names.
 
-### The catalogue's contents — workstream 5
+### 2. Power level — "run something good enough at this level"
 
-The internal catalogue's contents come from the Kaana sync (ADR 0027); verify a
-run's summary (`POST /inference/admin/catalogue/sync` or the
-`inference.catalogue_sync.completed` log) rather than assuming it ran. The exact
-reviewed model bootstrap is merged, but it is safe-by-default and
-applies nothing unless an authorized operator sets `APPLY=1` with a live signed
-Kaana inventory and catalogue reviewer. Until a route has reviewed commercial
-permission it is not publicly exposed, and default-deny is the starting state.
-Re-check the live catalogue and audience rather than treating source or the
-dated empty readback as production evidence.
+A power level (technical name: **routing profile**) is a slug with no `/`. The
+platform picks an available model of that level. **The level names are
+rolling out**:
 
-### Route selection — workstream 6
-
-After the qualification controls filter the set, Oxy ranks every surviving
-exact deployment by explicit profile priority, an explicit BYOK preference,
-reviewed funding class, the score for `optimiseFor`, and finally exact
-`deploymentId` ECMAScript UTF-16 code units. Funding order is free entitlement,
-discounted pay-as-you-go, promotional credit, then standard paid. Provider/model/display names,
-insertion order and database return order never select a route. Missing, stale,
-mismatched or colliding identity/price/score evidence refuses the complete set
-before a hold or inference POST. The live exact-ID attestation may run before a
-later full-quote gap is discovered, but it never reserves or executes anything.
-[routing.md](./routing.md#ranking-after-qualification) records the complete rule.
-
-The two price ceilings, `maxPricePerUnit` and `maxPricePerRequest`, WERE the
-other two and are now compared against the price version each candidate is
-actually charged at. Kaana emits `requests: 1`, so the catalogue can prefilter a
-flat request fee that already exceeds `maxPricePerRequest`; every servable price
-version must state that fee explicitly, including an explicit zero. The edge
-then enforces the complete control: at each priority it quotes this request's
-maximum input/output partitions plus `requests: 1`, excludes cap or currency
-mismatches, and chooses the first survivor by BYOK preference, reviewed funding
-class, score descending and exact deployment ID. With no explicit output ceiling, that winner fixes the implicit
-output before lower priorities are capacity-checked. No price survivor means a
-403 before reservation or Kaana. Spending limits and the account balance remain
-separate aggregate and funding controls.
-
-Every other routing control IS enforced against the candidate routes as of
-[#1012](https://github.com/OxyHQ/oxy/pull/1012), which closed
-[#1011](https://github.com/OxyHQ/oxy/issues/1011) — a request no route satisfies
-is refused with `policy_violation` rather than downgraded.
-[routing.md](./routing.md#what-is-enforced-today) has the classification, which
-is also held in code by a `tsc` gate that fails naming any control in neither
-list.
-
-### Kaana BYOK custody — workstream 10, [ADR 0019](../adr/0019-kaana-byok-custody.md)
-
-Kaana is the sole credential custodian: KMS ciphertext is stored in Kaana
-PostgreSQL and decrypted only inside inference. Oxy stores exact opaque
-handle/revision metadata plus a durable same-operation recovery ledger; it
-stores no provider credential plaintext/ciphertext and persists no prefix,
-suffix, fingerprint, hash or other credential-derived hint.
-Provider keys never come from environment variables or MongoDB. Create/rotate
-accept exactly 1–4096 visible ASCII bytes, and an uncertain mutation remains
-non-routable until the exact Kaana outcome is reconciled. In source, the
-authenticated edge resolves and signs only an exact `ready + active + valid`
-generation, applies `prefer`/`require`/`disabled`, and uses a separately linked
-platform-fee version for BYOK settlement. A `pending_validation + unvalidated`
-generation is never eligible for a normal authorized route. The dedicated
-authenticated bootstrap that could validate that initial generation is absent,
-so BYOK remains a fail-closed production launch gate alongside fee publication
-and association, migrations, matching image deployment and live probes.
-[byok.md](./byok.md) has the state machine, recovery rules and launch gates.
-
-### Streaming and observable cancellation — workstream 4
-
-The stream-event union, Oxy forwarding client and Kaana emitter exist in source.
-Typed `OxyInferenceClient.stream()` is merged and published in
-`@oxy.so/core@23.1.0` by #1145. Production readiness still requires a real
-streamed request plus an explicit client-disconnect test proving cancellation
-reaches the provider and settlement occurs exactly once.
-[streaming.md](./streaming.md) documents the contract.
-
-### Later modalities — workstream 4
-
-`POST /v1/audio/speech` and `POST /v1/images/generations` are mounted in
-`packages/api/src/routes/inferenceEdge.ts`, synchronous and gated on a route
-whose catalogue capabilities declare that output; Kaana serves neither yet, so
-a request today ends at the route gate. `POST /v1/embeddings` and `/v1/rerank`
-do not exist. `/v1/audio/transcriptions` and `/v1/batches` are deliberately
-not mounted — the comment above the audio route in `inferenceEdge.ts` records
-why (no sound cost ceiling; batches do not fit the reserve → settle protocol
-and need an ADR 0009 amendment).
-
-Note also that `GET /v1/models/:id` is served as **two path segments**,
-`GET /v1/models/:publisher/:model`, because a canonical model id contains a
-slash.
-
-### Console's playground — workstream 9
-
-Console renders the real catalogue, real usage, real balance and spend, budgets,
-routing policy and BYOK. **The playground sends nothing**: the lane it would use
-authenticates a credential and an environment rather than an ambient session, so
-it needs a different screen rather than this one with the fetch re-enabled.
-
-### Scheduled housekeeping — workstreams 7, 8
-
-Both sweeps are scheduled by `server.ts` in `bootstrap()`, unref'd and with
-their failures logged, like every other sweep there: the 90-day telemetry
-retention sweep hourly, and `expireReservations` — which releases a hold that
-outlived its request as a refund with a reason — every minute. Neither is
-load-bearing today, because every path out of the edge settles its own hold and
-the telemetry readers bound their own windows; both become so the moment a
-request can fail somewhere the edge does not see, which is what a live data
-plane introduces.
-
-They were implemented and tested long before anything called them, and that gap
-was invisible precisely because every test passed. The registration is therefore
-asserted against the real entrypoint (`packages/api/src/__tests__/scheduledSweeps.test.ts`),
-not inferred from the sweepers' own coverage.
-[data-policy.md](./data-policy.md#how-long-oxy-keeps-what-it-does-keep) records
-the retention side.
-
-### Every rollout stage — workstream 16
-
-The flags exist and are tested; **no deployment has entered any stage**. The
-internal Alia canary, the Oxy first-party canary, the closed external beta and
-the prepaid public launch are all ahead of us, and each is additionally gated on
-things a flag cannot switch — a data plane, a catalogue with contents, and the
-anomaly controls below. [rollout.md](./rollout.md) has the configuration each
-stage means and the rollback plan.
-
-Dual-read/dual-write is **not** being built, and that is a decision rather than
-an omission: every table this platform reads and writes is new and holds no
-production rows, so there is no old store to cut over from.
-[rollout.md](./rollout.md#dual-read-and-dual-write-there-is-nothing-to-build)
-argues it.
-
-### Abuse, fraud and anomaly controls — workstreams 4, 8, 12
-
-Rate limits exist, per credential and per application, and they bound REQUESTS
-rather than cost. Spend is bounded by the reservation and by spending limits.
-Anomaly detection for sudden spend or token spikes does not exist, and #972 gates
-public launch on it.
-
-### Metrics dashboards, alerts and status-page signals — workstream 16
-
-**There is no metrics library in this repository, deliberately.** Every metric
-#972 names is a property of a row this platform already writes durably —
-`inference_usage_events` and its daily rollups, the reservations and the
-receipts — and the edge fills the three columns that existed and that nothing
-wrote (`latency_ms`, `time_to_first_token_ms`, `route_switches`).
-
-**All nine of those metrics are now SERVED**, from the durable record rather than
-from a process registry: `GET /inference/admin/metrics` (staff-gated). Two of them
-report `state: 'pending'` with a reason instead of a number, because they are
-structurally unmeasurable here — time to first token needs a streaming data plane,
-and fallback needs a data plane that switches a route — and a zero would be
-indistinguishable from a correct measurement. Reconciliation drift became a stream
-rather than a staff-triggered pass, with a window claim that keeps N ECS tasks from
-multiplying it.
-
-What is still missing is a scrape or export target, alert routing and a Console
-audit surface. The first two belong to `~/Oxy/oxy-infra`, which today holds 58
-Terraform files with zero alarms, zero SNS topics and zero dashboards; the third is
-workstream 9's. [observability.md](./observability.md) has the derivation for each
-metric, the concrete shape the export half would take, why no alarm is being added
-before a destination exists, why provider execution metrics require exact v2
-deployment identity plus a live failover/readback proof, the two places the audit
-trail's actor is thinner than it looks, and why `isStaff` is still one
-undifferentiated tier.
-
-### Alia integration — workstream 14
-
-The registration Alia needs in order to be an ordinary consumer is now DECLARED
-in this repository — the `internal` application, its scope grant, its own owner
-account, the five internal cost centres, and a per-environment service
-credential. **None of it has been run against production by the change that
-introduced it**: every piece is a seed script plus an ECS one-shot workflow a
-person triggers, so what the live database holds is whatever the last run left —
-read it back rather than inferring it from this repository.
-[alia.md](./alia.md) is the runbook, the argument for each scope granted and
-withheld, and the list of what remains blocked.
-
-Alia also remains the upstream of the proxy above. That does not change here:
-removing it is conditioned on Kaana being LIVE, which is a claim about a
-deployment Oxy can reach and not about a repository. The proxy kept a working
-path when the edge took `/v1/chat/completions`; retiring it requires a verified
-Kaana production route and a dated notice. See
-[deprecation.md](./deprecation.md#the-alia-proxy-now-at-alia).
-
-### A Python SDK — workstream 15
-
-Not started, deliberately. [sdk.md](./sdk.md#there-is-no-official-python-sdk)
-gives the two reasons.
-
----
-
-## The rest of this doc set
-
-| Doc | What it covers |
+| Power level | Use it for |
 |---|---|
-| [sdk.md](./sdk.md) | `OxyInferenceClient`, the OpenAI SDK, the response headers, and what you actually observe |
-| [credentials.md](./credentials.md) | The three credential lanes: native service tokens, `oxy_sk_*` machine keys, and why `oxy_dk_*` is never a bearer |
-| [attribution.md](./attribution.md) | `accountId`, `applicationId`, `credentialId`, delegated `userId`, `requestId` — and why the delegated user never pays |
-| [catalogue.md](./catalogue.md) | Model vs. revision vs. provider vs. deployment vs. routing profile, the canonical id forms, and the SDK's read methods |
-| [routing.md](./routing.md) | Routing controls, fallback semantics, and exactly which controls are enforced |
-| [byok.md](./byok.md) | Kaana PostgreSQL/KMS custody, provider connections, exact-ID mutations, same-operation recovery and closure fencing |
-| [billing.md](./billing.md) | Reserve → settle → refund, exact amounts, price snapshots, and why dashboard usage is eventually consistent while a bill is not |
-| [streaming.md](./streaming.md) | Streaming, cancellation, retries and idempotency |
-| [realtime.md](./realtime.md) | Audio chat on chat completions, realtime sessions over `GET /v1/realtime`, capability declarations and how both are held and settled |
-| [data-policy.md](./data-policy.md) | What is retained, for how long, and where — plus what a route does with your payload |
-| [deprecation.md](./deprecation.md) | The deprecation policy, why no date is published, and what will need one |
-| [migration.md](./migration.md) | The scope migration, `oxy_dk_*`, `alia_sk_*`, and the retired `alia-*` model names |
-| [request-routing.md](./request-routing.md) | The canonical Kaana/Alia/Oxy boundary, product paths, provider-key custody and cutover gates |
-| [alia.md](./alia.md) | Alia as a consumer: its registration, its scopes and the ones withheld, the internal cost centres, and the runbook for the operational steps |
-| [rollout.md](./rollout.md) | The rollout flags, shadow metering, the stage table, and the rollback plan an append-only ledger forces |
-| [observability.md](./observability.md) | The `requestId` correlation column, why there is no metrics library, what each named metric is derivable from, and how staff actions are told apart from customer ones |
+| `auto` | the platform picks the cheapest level that is good enough, per request |
+| `instant` | the fastest, cheapest answers: short summaries, smart replies, labels |
+| `medium` | everyday assistant work |
+| `high` | harder reasoning and longer tasks |
+| `xhigh` | even harder reasoning |
+| `pro` | the most capable models, higher cost and latency |
+| `ultra` | the top tier, highest cost and latency |
 
-Ownership of every table, event and API across Oxy, the data plane and Alia is
-in [architecture/inference-responsibility-matrix.md](../architecture/inference-responsibility-matrix.md).
+What a power level promises:
+
+- Each level sets a reasoning effort, so you normally don't send one yourself
+  (rolling out).
+- Two requests at the same level can run on different models, and a failing
+  model can be replaced by **another model of the same level**. For routing
+  profiles this cross-model failover is live today. It comes to power levels
+  with the levels themselves.
+- The response always names the **concrete model that ran**: `model` in the
+  body, `X-Oxy-Model` in the headers (live).
+- A realtime voice session is refused a power level. It must name an exact
+  model (live).
+
+Live today: the `routingProfile` (slug) and `routingProfileId` (exact ID)
+request fields, the list at `GET /v1/models/routing-profiles`, and reporting
+the concrete model. The profiles in the database today are product-specific
+(`kaana-v1` for Inbox, `kaana-v1-speech` for Alia speech, and the retired Alia
+presets). They are not the power levels above.
+
+**Proposed** profiles (not available): cheapest/free, fastest, capability
+profiles (vision, code, long context), data or region constraints, and
+model-family preference.
+
+### 3. App default — "whatever this app is configured for"
+
+Send no target. The edge uses the app's routing policy `defaultTarget`, which
+can be an exact model or a power level (**live**). If the app has no default,
+the request is refused with `invalid_request` (400).
+
+Each app will also have an **allowed set of power levels** (**rolling out**):
+
+| App | Default | Allowed |
+|---|---|---|
+| Oxy Inbox (summaries, smart replies) | `instant` | `instant` only |
+| Alia | set by Alia | the levels Alia shows its users. Users never see model names |
+
+Policies are set per application or per account, and changes are versioned.
+See [routing.md](./routing.md#where-a-policy-lives).
+
+### Which mode should my app use?
+
+| Your situation | Use |
+|---|---|
+| A background feature where the app decides the quality: summaries, smart replies, classification, translation | **App default** set to a power level. Send no target |
+| An assistant where the user picks "fast" vs "smart" | **Power level**, through Alia. Never show model names |
+| You don't know which level fits | **`auto`** (rolling out). Until then, use the app default |
+| You need one specific model: a capability only it has, a contract, a customer's choice | **Exact model** `publisher/model` |
+| Evals, regression tests, reproducible output | **Exact model** pinned with `@revision` |
+| A realtime voice session | **Exact model** (a power level is refused) |
+
+---
+
+## Calling it
+
+Base URL: `https://api.oxy.so/v1`. Which credential you use is in
+[sdk.md](./sdk.md#which-credential-you-hold-decides-which-lane-you-are-on). The
+model ids here show the format only. To see what your app can use, call
+`listModels()` / `GET /v1/models`.
+
+### TypeScript SDK (`@oxy.so/core/inference`)
+
+```typescript
+import { OxyInferenceClient, createInferenceClient } from '@oxy.so/core/inference';
+
+// A server with an oxy_sk_… key:
+const inference = new OxyInferenceClient({ credential: process.env.OXY_API_KEY });
+// Or inside a signed-in Oxy app:
+// const inference = createInferenceClient(oxyServices);
+
+// 1. Exact model
+await inference.respond({ model: 'openai/gpt-oss-120b', input: 'Translate to French: hello' });
+
+// 2. Power level (the field is live; the level names are rolling out)
+await inference.respond({ routingProfile: 'instant', input: 'Summarise this thread: …' });
+
+// 3. App default: name nothing
+const answer = await inference.respond({ input: 'Summarise this thread: …' });
+
+answer.model;            // the concrete, revision-pinned model that ran
+answer.servingProvider;  // who served it
+answer.requestId;        // quote this in bug reports
+```
+
+`inference.stream(request)` takes the same targets. See [streaming.md](./streaming.md).
+
+### Raw HTTP
+
+```bash
+# Exact model
+curl https://api.oxy.so/v1/responses \
+  -H "Authorization: Bearer $OXY_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"model":"openai/gpt-oss-120b","input":"Translate to French: hello"}'
+
+# Power level
+curl https://api.oxy.so/v1/responses \
+  -H "Authorization: Bearer $OXY_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"routingProfile":"instant","input":"Summarise this thread: …"}'
+
+# App default
+curl https://api.oxy.so/v1/responses \
+  -H "Authorization: Bearer $OXY_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"input":"Summarise this thread: …"}'
+```
+
+The OpenAI-compatible `POST /v1/chat/completions` works with a stock OpenAI
+client, but its `model` field must be an exact model today. Naming a power
+level there (for example `"model": "instant"`) is **rolling out**. See
+[sdk.md](./sdk.md#the-openai-sdk-unmodified).
+
+---
+
+## When a request fails
+
+### The platform already retried. Don't retry yourself.
+
+Before you see an error, Kaana has already done the following (**live**,
+[Kaana#131](https://github.com/OxyHQ/Kaana/pull/131)):
+
+1. **Retried the same route** on a transient failure (rate limit, overload,
+   timeout, provider 5xx): up to **2 retries**, with at most **15 s** of
+   waiting in total, and honouring the provider's `Retry-After`.
+2. **Moved to the next signed route** (failover) when the route kept failing.
+3. Done all this **only before the first output byte**. Once text has
+   reached you, a failure ends the stream and nothing is retried, so you
+   never get the start of one answer spliced onto another.
+
+So apps and Alia must **not**:
+
+- wrap calls in retry loops, or turn on an SDK's automatic retries (set
+  `max_retries=0` on the OpenAI client),
+- catch an error and call a different model instead,
+- keep their own lists of providers or models to fail over to.
+
+Adding another retry layer multiplies load while a provider is already
+struggling. It also bypasses billing and policy, and it hides the error the
+user should see.
+
+### What the error means
+
+Every error has a `code`, a `retryable` flag and a `requestId`. Branch on
+`code` and `retryable`, never on the HTTP status (two different codes can
+share one status). The full rules are in [streaming.md](./streaming.md#retries).
+
+| Codes | Meaning | What your app does |
+|---|---|---|
+| `invalid_request`, `context_length_exceeded`, `output_limit_exceeded`, `unsupported_modality`, `request_too_large`, `upstream_content_filtered` | the request itself is the problem | fix the request. Never retry it as it is |
+| `authentication_failed`, `permission_denied`, `insufficient_scope`, `model_not_found`, `policy_violation`, `commercial_permission_denied` | credentials, scopes or app policy, or the model isn't visible to this app | fix the configuration. `policy_violation` names the policy control that excluded every route |
+| `insufficient_balance`, `spending_limit_exceeded`, `quota_exceeded` | money or quota on **your** account | tell the user or the account owner |
+| `rate_limited`, `deployment_unavailable`, `provider_error`, `provider_timeout`, `provider_overloaded` (`retryable: true`) | the platform retried and every authorized route is still failing | show "try again later". A background job may be rescheduled after `retryAfterMs`. Don't loop |
+| `no_route_available`, `service_unavailable`, `provider_credential_invalid`, `provider_billing_refused`, `internal_error` | a platform-side problem, not yours | report it with the `requestId` |
+| `idempotency_conflict` (409) | an earlier request with that `Idempotency-Key` was accepted | read its result from `GET /v1/generations/:id`. Don't resend |
+| `cancelled` (499) | you cancelled the request | normal. Only the units already produced are billed |
+
+---
+
+## How the platform picks a route
+
+You only need this section when debugging. The full rules are in
+[routing.md](./routing.md).
+
+1. **Resolve the target**: the exact model, the power level's candidate
+   models, or the app default.
+2. **Keep only servable routes.** Oxy lists a model only while it has a live
+   deployment: the catalogue sync retires deployments Kaana stops reporting
+   (live). Kaana will also withhold deployments whose keys are all exhausted or
+   rejected, or that fail persistently, so they are never listed or chosen
+   (**rolling out**).
+3. **Apply the app's policy**: data retention, regions, providers, licences
+   and price ceilings. If no route passes, the request is refused. It is never
+   downgraded to a route the policy forbids (live).
+4. **Order what's left by cost to the platform**: (1) free allowance, then
+   (2) discounted pay-as-you-go, then (3) promotional credit, then
+   (4) standard paid usage (live in Oxy). After that, by score, then by exact
+   deployment ID.
+5. **Sign the ordered route list** and send it to Kaana. Kaana tries the routes
+   in exactly that order, with the retries described above.
+
+---
+
+## Glossary
+
+| Term | Meaning |
+|---|---|
+| **Model** | a long-lived model identity, `publisher/model`. What you write in code |
+| **Revision** | one fixed version of a model's weights, `publisher/model@revision`. It never changes |
+| **Publisher** | who released the weights (`openai`, `meta`, …). Not necessarily who runs them |
+| **Provider** | who runs the weights (Groq, xAI, OpenRouter, …, or your own account under BYOK) |
+| **Deployment** | one concrete way to run a revision: revision × provider × region × data policy. It has an opaque `deploymentId` |
+| **Route** | a deployment as it appears in one request's signed, ordered list (`authorizedRoutes`) |
+| **Power level** / **routing profile** | a named way to *choose* a model (`instant`, `high`, …). "Power level" is the user-facing name; "routing profile" is the technical name used in the API (`routingProfile`, `routingProfileId`). A power level is not a model |
+| **Routing policy** | an app's or account's settings: default target, allowed levels (rolling out), data, region and price constraints, and fallback switches. See [routing.md](./routing.md) |
+| **Default target** | the model or power level a request gets when it names neither |
+| **Retry** | Kaana trying the **same route** again after a transient failure |
+| **Failover** | moving to **another route** on the signed list. For an exact model, only another deployment of the same model |
+| **Fallback (cross-model)** | moving to a **different model**. Allowed among a routing profile's (power level's) candidates. For an exact-model request, only to models the app's policy names in `fallback.authorizedCrossModel`, and never when the request pinned a `@revision`. Always reported as a `route_switch` |
+| **Audience** | which catalogue an app can see: public, or `platform_internal` for official Oxy apps. See [catalogue.md](./catalogue.md#reads-are-audience-scoped) |
+| **Funding class** | how a route is paid for: free allowance, discounted pay-as-you-go, promotional credit, or standard paid. Sets the order in step 4 above |
+| **BYOK** | "bring your own key": a customer's own provider account. See [byok.md](./byok.md) |
+
+---
+
+## What is live and what is rolling out
+
+| Feature | Status |
+|---|---|
+| Exact model and pinned revision; never replaced by another model | Live |
+| Response names the concrete model that ran | Live |
+| `routingProfile` / `routingProfileId` request fields; `GET /v1/models/routing-profiles` | Live |
+| Per-app `defaultTarget` (model or routing profile) | Live |
+| Kaana same-route retry (2 retries, 15 s budget) and failover until the first output | Live ([Kaana#131](https://github.com/OxyHQ/Kaana/pull/131)) |
+| Funding-class ordering: free allowance → discounted pay-as-you-go → promotional credit → standard paid | Live in Oxy. Exact per-deployment key binding is in Kaana source. Its production cutover is tracked in Kaana `docs/schema-0013-cutover-2026-09-24.md` |
+| Same-model provider failover for exact-model requests | Live when the app policy sets `fallback.sameModelDeployment`. On by default: rolling out |
+| Power levels `auto`, `instant`, `medium`, `high`, `xhigh`, `pro`, `ultra`, with their reasoning efforts | Rolling out |
+| `auto` choosing the cheapest level that is good enough, per request | Rolling out |
+| Cross-model failover among a routing profile's candidates | Live for routing profiles. Arrives for power levels with the levels |
+| Per-app allowed levels (Inbox → `instant` only; Alia exposes levels, never model names) | Rolling out |
+| Naming a power level in `model` (for OpenAI-compatible clients) | Rolling out |
+| Only servable models listed or chosen (Kaana withholds dead deployments) | Rolling out. Retiring deployments Kaana no longer reports is live |
+| cheapest/free, fastest, capability, data/region and family-preference profiles | Proposed |
+
+Whether an environment actually serves a feature is a rollout question. The
+flags, gates and dated evidence are in [status.md](./status.md) and
+[rollout.md](./rollout.md).
+
+---
+
+## Deep docs
+
+| Doc | Read it when you need |
+|---|---|
+| [status.md](./status.md) | what is built, where it lives, and which rollout gates remain |
+| [request-routing.md](./request-routing.md) | which product features go through Alia and which call Oxy directly, and provider-key custody |
+| [sdk.md](./sdk.md) | `OxyInferenceClient`, the OpenAI SDK in TypeScript and Python, response headers |
+| [credentials.md](./credentials.md) | service tokens, `oxy_sk_*` machine keys, scopes |
+| [catalogue.md](./catalogue.md) | reading the model catalogue, what an entry contains, and the Kaana catalogue sync |
+| [routing.md](./routing.md) | routing policies and every control, fallback switches, and the exact route-ordering rule |
+| [streaming.md](./streaming.md) | stream events, cancellation, retryability and idempotency |
+| [realtime.md](./realtime.md) | audio chat and realtime voice sessions |
+| [billing.md](./billing.md) | reserve → settle → refund, prices, spending limits |
+| [attribution.md](./attribution.md) | who is charged, and delegated users |
+| [byok.md](./byok.md) | using your own provider key |
+| [data-policy.md](./data-policy.md) | what is retained, and what a route does with your data |
+| [alia.md](./alia.md) | Alia as an inference consumer: registration, scopes, product agents |
+| [inbox-point-inference.md](./inbox-point-inference.md) | Inbox's one-shot features and their bootstrap |
+| [migration.md](./migration.md) · [deprecation.md](./deprecation.md) | retired names and keys, and the deprecation policy |
+| [rollout.md](./rollout.md) · [observability.md](./observability.md) | rollout flags and stages, metrics and correlation |
+
+Kaana's internals (adapters, key pools, inventory, operating it) are in the
+[Kaana repository](https://github.com/OxyHQ/Kaana/tree/main/docs). Every
+table, event and API has an owner listed in
+[the responsibility matrix](../architecture/inference-responsibility-matrix.md).
+The Oxy-wide rules page is `~/Oxy/docs/kaana-inference.md`.

@@ -5,7 +5,7 @@ and they answer to different rules: **what OXY holds** is a property of this
 platform, and **what a ROUTE does with your payload** is a property of the
 deployment that served it.
 
-Status of the whole platform: [README.md](./README.md).
+Status of the whole platform: [status.md](./status.md).
 
 ---
 
