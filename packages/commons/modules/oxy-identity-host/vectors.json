@@ -1,0 +1,157 @@
+{
+  "description": "Cross-implementation vectors for the Commons identity host. Generated from @oxy.so/core's identityDerivations (noble) and checked against @fairco.in/core 0.5.0's social-receive derivation. The Kotlin unit test (android/src/test) and @oxy.so/core's tests must both reproduce every value. proveIdentity signatures are RFC 6979 DER WITHOUT low-S normalization (the server accepts both halves; noble lowS:false); socialReceive signatures are low-S (BIP 62).",
+  "scopedSeedSalt": "oxy-identity-scoped-seed-v1",
+  "socialReceiveChainCodeKey": "oxypay/faircoin/social/v1",
+  "identities": [
+    {
+      "privateKey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "publicKey": "046a04ab98d9e4774ad806e302dddeb63bea16b5cb5f223ee77478e861bb583eb336b6fbcb60b5b3d4f1551ac45e5ffc4936466e7d98f6c7c0ec736539f74691a6",
+      "proveIdentity": {
+        "challenge": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timestamp": 1767225600000,
+        "digest": "0dbacba76edcb52f24c85886ed621babd79f4bd0ed5a4305cd896c81b5f86914",
+        "signature": "3044022050b6ad4adb07838dd256a2cc43069af967bf322b63015cba4b6da4cde46ed95e022036deafebcccc692db542c2e9f08273b87b9a4048f4fe41f56cb2cd102d0b553d"
+      },
+      "scopedSeeds": [
+        {
+          "info": "oxypay/faircoin/v1",
+          "seed": "4b90d900a11b0a1737ed643db3446e5f28035d86f1a4fda92474ea8ab152adf5"
+        },
+        {
+          "info": "peable/faircoin/v1",
+          "seed": "3282e7b8585d3de14fc8856debc352b7b238eccd5c861ec33c92a443857e6040"
+        }
+      ],
+      "socialReceive": [
+        {
+          "index": 0,
+          "childPrivateKey": "42d089c0f361d67b6add7279d67718bc89ddd35d2218696991c24d3902d26c86",
+          "childPublicKey": "0234f50c301510db3600d285da5dd58275b222d323fb53ea38868ddc8ec96a1f96",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "304402201d29bedd7c642b13a02e972f73e288fc34bf674c03b9c6970f220f19025ccc5602207ffd103d725b76b6e2f8ddc86322ea34fa8ca193c3d47fffb35f15815e84c201"
+        },
+        {
+          "index": 1,
+          "childPrivateKey": "17ab84ae2851970f038dcb3b701ce14e107cfd0702a6abff4f02df14c394d6ec",
+          "childPublicKey": "026d67c7e3bf01d8b092aeba83e9d70cec598ceb2eca0eab9a4f2630472ed7001b",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "3045022100a0375df6551449d442ffe8e97961aeaff6a1b8c7bbc06ce9e5b672406607dc8502200a7e0a01054ce29c779172b2704ed0580f8cbd4b6fd1fb4cee1c087c39bf8c0c"
+        },
+        {
+          "index": 7,
+          "childPrivateKey": "e1a1757bab0f029e7f6395e32ee7bea1cfe81b2bb929b6559b2dffe8ea02047a",
+          "childPublicKey": "03ea5999dc2f17fd970ea43f0b40be3a92393854a6bb883cf121963cf5138131b8",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "304502210099d94f606f1f994bdee1db7d2e47ed2ea21632f0458eacec921b51aa3f97652d02204831758de8883f60b2516706a3599a47786fa804b085055ab46208ce440cd49a"
+        },
+        {
+          "index": 2147483647,
+          "childPrivateKey": "4f1e12658e627b977802f35b7444c2de2b426851c2a2e7427f18cd007384ab0e",
+          "childPublicKey": "0321e9836ecfc1c5a944a6384b732ab61a14052cae3d9f36b6b32ced4130e57101",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "3045022100c5c71295ed500ab162735f00cfe427cda1cf192dbda60ca206b400bfee6df6a20220169ff8e26abcbca95711dd1e20fbb82471599cc75c6a45e607d676c70dcba7a9"
+        }
+      ]
+    },
+    {
+      "privateKey": "c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721",
+      "publicKey": "042c8c31fc9f990c6b55e3865a184a4ce50e09481f2eaeb3e60ec1cea13a6ae64564b95e4fdb6948c0386e189b006a29f686769b011704275e4459822dc3328085",
+      "proveIdentity": {
+        "challenge": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timestamp": 1767225600000,
+        "digest": "193069bab6df355a7afd483911fdf8fad4b37b68a114f7459f2a5c45ea117e7e",
+        "signature": "3046022100e7ddd94ce4c9b9edd621611960f135dd9a83fdb023cbc8a243a2a0c32401e794022100ac20b3b4738cf666c2c179d08b4169de26ad86417c9ef2444ad8a1e26e42ef11"
+      },
+      "scopedSeeds": [
+        {
+          "info": "oxypay/faircoin/v1",
+          "seed": "7fdf2ca633cd76addc95d51be96bdcc1496ca8e22f4c28da4fc768f4e7f2907a"
+        },
+        {
+          "info": "peable/faircoin/v1",
+          "seed": "99d9092abae28a3f61a7e2b0a36b20e30bbf5ea056521023fd816f755eb3813f"
+        }
+      ],
+      "socialReceive": [
+        {
+          "index": 0,
+          "childPrivateKey": "a87a63e5012c1bdc379825f869c86552c8a4f70a77a2ccffe039072be2ca74f8",
+          "childPublicKey": "036d5e96fd415090e08afd1474113c31b297b8b3e6f397d6c26af209d52226d469",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "304402206f10ebfc24e0fe9dfea77989f2242188b8d793a2953b2e14878e32811258661c0220619d64ecb156bbf362916a9d74024313dec2c72b380d1482773bd8daf0ee5837"
+        },
+        {
+          "index": 1,
+          "childPrivateKey": "457d2202a2d3fdc91e8437710136a8422340246510280dec061a2b3cd0e99395",
+          "childPublicKey": "021bde9147026e11af15383e20dc65d1a75b0b8a66e6f676ec2230348a334c0c7e",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "3044022051178dcfbfec8d921672aafafde24a157dddaeafed45f8be6a0b0e913e49743202200bcbaa46c9dc075e7ff9e4c77a065a479cbd2d202024f9490eaef333cdd3d1a5"
+        },
+        {
+          "index": 7,
+          "childPrivateKey": "66f2442f7e2657c8e99e05c9f57f57f344dcd1db419aa4dc0ce4d7ab6205208e",
+          "childPublicKey": "02a7d628a5355ae63b53418cb76f9cafcf9bd893884a8eb3f1ec1dbb47eabb7471",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "3044022063aff8f5b318ee10812b6424baecbbb3abbac76a0abab96aaa27bcc0822916cb022044baa84f3e94f3a58864556f947505c4ecd1922f447f8f1d524c173643182ca5"
+        },
+        {
+          "index": 2147483647,
+          "childPrivateKey": "b65ae4a3f1f394f4a66511b0b7c808dc6d6cf30eeadfa537e3f2519c923e53fe",
+          "childPublicKey": "024edf669cd157ce9d240dbf86f05725c3fd02a796900905e1d290e6e6d180bcaa",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "30440220148e645b059cd7ebc8a84e6311425d280e411363e9fd7c34d497d789ed93f1320220629d2b2f2162ded6bbfafe61ed9bde51c49319752615c4b611276263245f6d5a"
+        }
+      ]
+    },
+    {
+      "privateKey": "0000000000000000000000000000000000000000000000000000000000000001",
+      "publicKey": "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+      "proveIdentity": {
+        "challenge": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timestamp": 1767225600000,
+        "digest": "aa884ef796a812d48aa54f0b70ba5d91dde34d8425b21df744e860e6cebc98f7",
+        "signature": "304602210091e8927a6630330fd85e33e1f10b733101101355af66fc064a4f1af63491aacb0221009131dc62a83d725c49bbe37bde8d9cf17057bb20dfa44e50ef60e56a90f186f3"
+      },
+      "scopedSeeds": [
+        {
+          "info": "oxypay/faircoin/v1",
+          "seed": "56262be7c049e3ef71023231e040b8f1bd2a5c8baaec8c4f6d040ba451e7d921"
+        },
+        {
+          "info": "peable/faircoin/v1",
+          "seed": "23a3294791c7411439dca8100e3181e279acd1fec6500511bace788167061625"
+        }
+      ],
+      "socialReceive": [
+        {
+          "index": 0,
+          "childPrivateKey": "e62615a103217953e3473a16fde2afc829bf87cfc126493a60cffb9fa80b9c38",
+          "childPublicKey": "02885c3acdd55c6531088ccc843e0174093fdb605e69c02402385bff486c828e7a",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "3045022100bfd5f43a4f34a64ddb81782a27e15ac9bcb1ce43e7d0f5f350f942a31c7537ea02202d8de829fd5083dfd0549712604cc7f9a3fea3da1f5636350b0451273af6e0df"
+        },
+        {
+          "index": 1,
+          "childPrivateKey": "ca2faabf20ac1ab7fd5b7e7159693e8d65cbb156b694e8950c74e44d03f0e9a4",
+          "childPublicKey": "03e429c4cd031f35e136cbf03710722448d06ceb1137e69fa0bc6f5babea8108a8",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "304402204a52f56659d884a6619bbd0795427948920fa2137d9c622abc851f5f08ae3576022071049a95ef97cf5f05abf969d6b824954c84ca9eb3c775e78a4154e1befc534b"
+        },
+        {
+          "index": 7,
+          "childPrivateKey": "04e6fbc1ea343368e32851dc45fc4eefd9bcf632b415099013e264fece2a3df8",
+          "childPublicKey": "03fa6302fa17b002e9e6e0118bce60408dea02fd7794875fa138349350945fe901",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "304402205fdae4e5cd2f268ec47d599bc7541e270801d533f306b19af0d4cdc6621e8d9a02207465a60e607c69de3b0b40880506075129f591ada6c5a5c9fa33c28a5f5ddfce"
+        },
+        {
+          "index": 2147483647,
+          "childPrivateKey": "68fc87df0ff2264bd2083bc64b37152cd7cb0ab71862192cb1829e17e8ac07b7",
+          "childPublicKey": "03c79822a820d215327b2fadc6250bb9a031499034c6d0d39a7678ebe81f6e822a",
+          "digest": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+          "signature": "3045022100c17a48e71f30214707297920a66915d785a5fd32531983565527fb5e21fed395022034f890e70c1e2de9f4709e4b358295e90758f0a549bb2e9d0564687242c3d478"
+        }
+      ]
+    }
+  ]
+}
