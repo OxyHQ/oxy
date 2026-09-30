@@ -1,5 +1,10 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.2.1
+
+- No code change: the same contents as 1.2.0, republished while npm was
+  still processing 1.2.0.
+
 ## 1.2.0
 
 ### Added
