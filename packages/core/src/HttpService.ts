@@ -26,6 +26,7 @@ import type { DeviceSecretMintOutcome } from './session/refresh';
 import { OxyAuthenticationError } from './OxyServices.errors';
 import { peekBrowserEdgeRegionHeader } from './utils/edgeRegion';
 import { getBrowserActivityIdHeader } from './utils/activityId';
+import { trimLeadingSlashes, trimTrailingSlashes } from './utils/slashes';
 
 export type AuthRefreshReason = 'preflight' | 'response-401';
 export type AuthRefreshHandler = (reason: AuthRefreshReason) => Promise<string | null>;
@@ -136,31 +137,18 @@ interface RequestConfig extends RequestOptions {
   _isAuthRetry?: boolean;
 }
 
-/**
- * Default per-request timeout (ms) when neither the call site nor
- * {@link OxyConfig.requestTimeout} overrides it. Kept tight so a stalled
- * endpoint surfaces as an `AbortError` quickly rather than blocking the
- * request queue.
- */
-/**
- * Strip leading or trailing `/`s without a regex: `/\/+$/` backtracks
- * polynomially on a long run of slashes (CodeQL js/polynomial-redos), and this
- * runs on every request.
- */
-function trimSlashes(value: string, side: 'start' | 'end'): string {
-  let start = 0;
-  let end = value.length;
-  if (side === 'start') while (start < end && value.charCodeAt(start) === 47) start++;
-  else while (end > start && value.charCodeAt(end - 1) === 47) end--;
-  return value.slice(start, end);
-}
-
 /** Methods whose calls concurrent callers may share (read-only). */
 const SAFE_METHODS: ReadonlySet<string> = new Set(['GET']);
 
 /** Methods safe to re-send after a transient failure (RFC 9110 §9.2.2). */
 const IDEMPOTENT_METHODS: ReadonlySet<string> = new Set(['GET', 'PUT', 'DELETE']);
 
+/**
+ * Default per-request timeout (ms) when neither the call site nor
+ * {@link OxyConfig.requestTimeout} overrides it. Kept tight so a stalled
+ * endpoint surfaces as an `AbortError` quickly rather than blocking the
+ * request queue.
+ */
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
 
 /**
@@ -1178,7 +1166,7 @@ export class HttpService {
   private buildURL(url: string, params?: Record<string, unknown>): string {
     const base = /^https?:\/\//i.test(url)
       ? url
-      : `${trimSlashes(this.baseURL, 'end')}/${trimSlashes(url, 'start')}`;
+      : `${trimTrailingSlashes(this.baseURL)}/${trimLeadingSlashes(url)}`;
     
     if (!params || Object.keys(params).length === 0) {
       return base;

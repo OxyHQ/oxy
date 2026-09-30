@@ -20,6 +20,7 @@ on:
       # would change how every deploy behaves and trigger no deploy to
       # exercise the change.
       - ".github/scripts/deploy-ecs-image.sh"
+      - ".github/scripts/deploy-asset-variant-worker.sh"
       - ".github/scripts/put-secure-parameter.sh"
       - ".github/scripts/smoke-inbox-mcp.sh"
       - ".github/scripts/smoke-oxy-api.sh"
@@ -101,8 +102,10 @@ jobs:
           SYNC_KAANA_EDGE_SIGNING_PRIVATE_KEY: ${{ secrets.KAANA_EDGE_SIGNING_PRIVATE_KEY }}
           SYNC_CAPABILITY_TICKET_SIGNING_PRIVATE_KEY: ${{ secrets.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY }}
           SYNC_CAPABILITY_TICKET_SIGNING_KEY_ID: ${{ secrets.CAPABILITY_TICKET_SIGNING_KEY_ID }}
-          # Instagram Graph (Business Discovery) fallback. Unset secrets are
-          # skipped below, so this writes nothing until an operator sets them.
+          # Instagram Graph (Business Discovery) fallback. Both are BOUND into the
+          # oxy-api task definition (TASK_SECRET_OVERRIDES_JSON below), so they are
+          # in BOUND_API_SECRETS too: an empty value fails this step instead of
+          # being skipped.
           SYNC_META_GRAPH_ACCESS_TOKEN: ${{ secrets.META_GRAPH_ACCESS_TOKEN }}
           SYNC_META_IG_BUSINESS_ACCOUNT_ID: ${{ secrets.META_IG_BUSINESS_ACCOUNT_ID }}
         run: |
@@ -122,6 +125,26 @@ jobs:
           # definition still READS the shared parameters; only the write is
           # gone, and scripts/check-deploy-secrets-sync.mjs refuses its return.
           API_SECRETS="ACCESS_TOKEN_SECRET REFRESH_TOKEN_SECRET SSO_INTERNAL_SECRET DATABASE_URL AWS_S3_BUCKET AWS_ENDPOINT_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET GITHUB_CLIENT_SECRET SMTP_TLS_KEY SMTP_TLS_CERT SMTP_RELAY_USER SMTP_RELAY_PASS EMAIL_INBOUND_WEBHOOK_SECRET DKIM_PRIVATE_KEY EMAIL_S3_ACCESS_KEY_ID EMAIL_S3_SECRET_ACCESS_KEY DEVICE_ID_SALT OXY_PUBLIC_KEY OXY_PRIVATE_KEY KAANA_EDGE_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_KEY_ID META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID"
+
+          # Secrets the task definition BINDS by exact ARN (TASK_SECRET_OVERRIDES_JSON
+          # in the deploy step) whose parameter only this sync ever creates. A task
+          # definition naming a parameter that does not exist registers fine and
+          # then cannot START (`ResourceInitializationError: unable to pull
+          # secrets`), and at desired count 0 nobody sees it until scale-up. So a
+          # missing value here is not skipped with a warning like the rest: it
+          # fails the job HERE, before any SSM write, image rollout or
+          # task-definition registration. A value present here is written by the
+          # loop below in this same run, so by the time the deploy step registers
+          # a revision naming it, the parameter exists.
+          # scripts/check-deploy-secrets-sync.mjs holds each name to both lists.
+          BOUND_API_SECRETS="META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID"
+          for k in $BOUND_API_SECRETS; do
+            v=$(printenv "SYNC_$k" || true)
+            if [ -z "$v" ] || [ "$v" = "-" ]; then
+              echo "::error::secrets.$k is empty or a placeholder, but the oxy-api task definition binds /oxy/$APP/$k. Set the real value (never a placeholder) and re-run; nothing was synced or registered."
+              exit 1
+            fi
+          done
 
           for k in $API_SECRETS; do
             v=$(printenv "SYNC_$k" || true)
@@ -155,6 +178,15 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+
+      # `--cache-from/--cache-to type=gha` below need the Actions runtime token
+      # and cache URL, which GitHub gives to JavaScript actions and NOT to `run:`
+      # steps. Without them buildx skips the cache without a word: this
+      # workflow's builds show zero CACHED layers and the repository holds no
+      # buildkit cache entry at all (`gh cache list`, 2026-09-29), while Clarity,
+      # which builds through docker/build-push-action, reuses 22 layers per build.
+      - name: Expose the Actions cache to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
 
       - name: Build and push (linux/arm64)
         id: build
@@ -191,35 +223,24 @@ jobs:
           echo "digest=$DIGEST" >>"$GITHUB_OUTPUT"
           echo "Built $COMMIT_TAG -> $DIGEST"
 
-      - name: Detect the one-time asset queue cutover
-        id: asset_queue_cutover
-        run: |
-          set -euo pipefail
-          task_definition=$(aws ecs describe-services \
-            --cluster "$CLUSTER" \
-            --services oxy-asset-variant-worker \
-            --query 'services[0].taskDefinition' \
-            --output text)
-          has_queue_binding=$(aws ecs describe-task-definition \
-            --task-definition "$task_definition" \
-            --query 'taskDefinition.containerDefinitions[?name==`oxy-asset-variant-worker`].secrets[?name==`QUEUE_REDIS_URL`] | length(@)' \
-            --output text)
-          if [ "$has_queue_binding" = "0" ]; then
-            echo "required=true" >>"$GITHUB_OUTPUT"
-            echo "First dedicated asset queue rollout: API will move before the worker."
-          else
-            echo "required=false" >>"$GITHUB_OUTPUT"
-            echo "Dedicated asset queue already active: retaining consumer-first rollout."
-          fi
-
       # Whether this release contains a migration that must run AFTER the rollout.
       #
       # Answerable from the repository alone, which is the only reason it can be
       # answered here at all: pendingness needs the ledger, and the database is on
       # a private VPC address this runner cannot reach. But a `post` migration can
       # only be PENDING if it EXISTS, so "no post-phase marker anywhere in
-      # drizzle/" is a sound reason to skip the second one-shot task, and today
-      # that is every release — the common case pays nothing for this.
+      # drizzle/" is a sound reason to skip the post-migration one-shot task.
+      # (Since 0047 there always is one, so in practice the task always runs —
+      # which is why it runs CONCURRENTLY with the catalog registration below.)
+      #
+      # The two tasks are independent: the migration applies `post` DDL (drops
+      # the NEW image no longer reads), and the registration is one HTTP POST
+      # of Inbox's capability catalog to api.oxy.so, served by the new image.
+      # Neither reads what the other writes, and a DROP's ACCESS EXCLUSIVE lock
+      # only queues a concurrent statement on that one table for its duration.
+      # Each one-shot is ~80s, ~60s of it Fargate provisioning (run
+      # 36505794567: 01:24:19 -> 01:25:39 and 01:25:41 -> 01:27:01), so running
+      # them side by side saves one of those.
       #
       # The grep is exact rather than approximate because
       # `scripts/check-migration-phases.mjs` separately proves every migration
@@ -250,103 +271,7 @@ jobs:
             }]')
             echo "No post-rollout migrations in this release."
           fi
-          if [ "${{ steps.asset_queue_cutover.outputs.required }}" = "true" ]; then
-            tasks=$(jq -c '. + [{
-              label: "Legacy asset queue drain gate",
-              command: ["node", "packages/api/dist/asset-variant-legacy-drain-gate.js"]
-            }]' <<<"$tasks")
-          fi
           echo "tasks=$tasks" >>"$GITHUB_OUTPUT"
-
-      - name: Deploy asset-variant worker before the API
-        if: steps.asset_queue_cutover.outputs.required != 'true'
-        env:
-          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
-          WORKER_SERVICE: oxy-asset-variant-worker
-          WORKER_CONTAINER: oxy-asset-variant-worker
-          WORKER_ROLLOUT_ATTEMPTS: "40"
-          WORKER_ROLLOUT_POLL_SECONDS: "15"
-        run: |
-          set -euo pipefail
-          service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$WORKER_SERVICE")
-          if [ "$(jq '.failures | length' <<<"$service_json")" != "0" ] || \
-             [ "$(jq -r '.services[0].status // "NONE"' <<<"$service_json")" != "ACTIVE" ]; then
-            echo "::error::asset-variant worker service is not ACTIVE"
-            exit 1
-          fi
-
-          current_task_definition=$(jq -er '.services[0].taskDefinition' <<<"$service_json")
-          task_definition=$(aws ecs describe-task-definition \
-            --task-definition "$current_task_definition" \
-            --query taskDefinition)
-          if [ "$(jq --arg name "$WORKER_CONTAINER" '[.containerDefinitions[] | select(.name == $name)] | length' <<<"$task_definition")" != "1" ]; then
-            echo "::error::worker task definition must contain exactly one $WORKER_CONTAINER container"
-            exit 1
-          fi
-          if [ "$(jq -c --arg name "$WORKER_CONTAINER" '.containerDefinitions[] | select(.name == $name) | .command' <<<"$task_definition")" != '["node","packages/api/dist/asset-variant-worker.js"]' ]; then
-            echo "::error::worker task definition has an unexpected command"
-            exit 1
-          fi
-
-          rendered_task_definition=$(jq \
-            --arg name "$WORKER_CONTAINER" \
-            --arg image "$IMAGE_URI" \
-            --arg queue_redis_url "arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL" '
-            del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
-            | .containerDefinitions |= map(
-                if .name == $name then
-                  .image = $image
-                  | .secrets = ((.secrets // [] | map(select(.name != "QUEUE_REDIS_URL"))) + [{
-                      name: "QUEUE_REDIS_URL",
-                      valueFrom: $queue_redis_url
-                    }])
-                else . end
-              )
-          ' <<<"$task_definition")
-          new_task_definition=$(aws ecs register-task-definition \
-            --cli-input-json "$rendered_task_definition" \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-
-          aws ecs update-service \
-            --cluster "$CLUSTER" \
-            --service "$WORKER_SERVICE" \
-            --task-definition "$new_task_definition" \
-            --deployment-configuration 'deploymentCircuitBreaker={enable=true,rollback=true},minimumHealthyPercent=100,maximumPercent=200' \
-            >/dev/null
-
-          stable=false
-          for attempt in $(seq 1 "$WORKER_ROLLOUT_ATTEMPTS"); do
-            stable_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$WORKER_SERVICE")
-            if jq -e --arg task "$new_task_definition" '
-              .services[0] as $service
-              | $service.taskDefinition == $task
-                and $service.desiredCount > 0
-                and $service.runningCount == $service.desiredCount
-                and $service.pendingCount == 0
-                and ($service.deployments | length) == 1
-                and $service.deployments[0].status == "PRIMARY"
-                and $service.deployments[0].rolloutState == "COMPLETED"
-            ' <<<"$stable_json" >/dev/null; then
-              stable=true
-              break
-            fi
-            if jq -e --arg task "$new_task_definition" '
-              any(.services[0].deployments[]; .taskDefinition == $task and .rolloutState == "FAILED")
-            ' <<<"$stable_json" >/dev/null; then
-              echo "::error::asset-variant worker deployment failed"
-              jq '.services[0] | {deployments, events: .events[0:10]}' <<<"$stable_json"
-              exit 1
-            fi
-            echo "Worker rollout not yet exact (${attempt}/${WORKER_ROLLOUT_ATTEMPTS}); waiting."
-            sleep "$WORKER_ROLLOUT_POLL_SECONDS"
-          done
-          if [ "$stable" != "true" ]; then
-            echo "::error::asset-variant worker did not reach the exact stable revision"
-            jq '.services[0] | {desiredCount, runningCount, pendingCount, deployments, events: .events[0:10]}' <<<"$stable_json"
-            exit 1
-          fi
-          echo "Asset-variant worker is stable at $new_task_definition"
 
       - name: Register immutable task definition and deploy
         env:
@@ -365,6 +290,27 @@ jobs:
           # deploy AFTER the one that stranded 0013 and left production broken.
           RUN_MIGRATIONS: "true"
           POST_DEPLOY_TASKS_JSON: ${{ steps.post_deploy_tasks.outputs.tasks }}
+          # See the "Plan post-rollout reconciliation tasks" step for why these
+          # two tasks may overlap.
+          POST_DEPLOY_TASKS_CONCURRENT: "true"
+          # The asset-variant worker (the queue's consumer) moves after the
+          # pre-deploy migration and BEFORE the API (its producer): the script
+          # returns once every new consumer runs and ECS has scaled the old
+          # ones to zero. The old consumers' shutdown and ECS's COMPLETED tail
+          # (~2.5 min measured) now overlap the API rollout instead of following
+          # it; "Confirm the asset-variant worker rollout" below still requires
+          # the exact steady state.
+          PRE_ROLLOUT_SCRIPT: .github/scripts/deploy-asset-variant-worker.sh
+          WORKER_ROLLOUT_PHASE: start
+          # Replace both oxy-api tasks in ONE wave. The one-extra-task default
+          # exists because on 2026-09-08 the account's Fargate vCPU quota was 30
+          # with ~27.5 in use; the quota is now 100 (service-quotas L-3032A538)
+          # and the whole account ran 27.5 vCPU on 2026-09-29. Worst case at
+          # oxy-api's autoscaling ceiling of 6 x 1 vCPU is +6, plus +4 for the
+          # worker's 200% rollout and +2 for the concurrent one-shots: ~40 of
+          # 100. At desired=2 the serial rollout took 416s (run 36505794567:
+          # two waves of start, 2 x 30s health checks and a 60s drain).
+          ROLLOUT_MAX_PERCENT: "200"
           # Plain operational configuration, never provider credentials. The
           # Kaana hop is fully named here so an image deploy cannot silently
           # discard Terraform's task bindings. Kaana is the canonical signed
@@ -378,16 +324,18 @@ jobs:
           # variable: unset renders "", which the API reads as off (one warning),
           # so this can merge before oxy-infra grants cloudfront:CreateInvalidation.
           TASK_ENV_OVERRIDES_JSON: >-
-            {"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","INBOX_INFERENCE_ROUTING_PROFILE_ID":"${{ vars.INBOX_INFERENCE_ROUTING_PROFILE_ID }}","INSTAGRAM_GRAPH_FALLBACK_ENABLED":"${{ vars.INSTAGRAM_GRAPH_FALLBACK_ENABLED }}","META_GRAPH_API_VERSION":"${{ vars.META_GRAPH_API_VERSION }}","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}
+            {"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","INBOX_INFERENCE_ROUTING_PROFILE_ID":"${{ vars.INBOX_INFERENCE_ROUTING_PROFILE_ID }}","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}
           # Re-assert the Terraform-declared ADOT sidecar because releases are
           # rendered from the currently-running task revision.
           TASK_EXTRA_CONTAINERS_JSON: >-
             [{"name":"aws-otel-collector","image":"public.ecr.aws/aws-observability/aws-otel-collector:v0.49.0","essential":false,"cpu":128,"memoryReservation":256,"command":["--config=/etc/ecs/ecs-default-config.yaml"],"healthCheck":{"command":["CMD","/healthcheck"],"interval":30,"timeout":5,"retries":3,"startPeriod":10},"logConfiguration":{"logDriver":"awslogs","options":{"awslogs-group":"/oxy/ecs","awslogs-region":"us-west-2","awslogs-stream-prefix":"oxy-api-otel"}}}]
-          # Exact legacy inference bindings inherited from previous task
-          # definitions. The deployer removes only these named entries;
-          # ordinary SMTP/device uses of the word relay remain untouched.
+          # Exact legacy bindings inherited from previous task definitions. The
+          # deployer removes only these named entries; ordinary SMTP/device uses
+          # of the word relay remain untouched. The two Instagram Graph names are
+          # the retired fallback switch and version knob (#1253): the fallback now
+          # runs whenever its credentials are bound and pins its version in code.
           TASK_REMOVE_NAMES_JSON: >-
-            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]
+            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION"]
           # The service-token JWKS (ADR 0012), then the Inbox MCP checks.
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-oxy-api.sh
           # The deploy script renders from the task definition the service is
@@ -400,8 +348,14 @@ jobs:
           # SERVICE_TOKEN_SIGNING_KEY_ID live only in SSM, and binding them makes
           # oxy-api mint EdDSA service tokens and publish the key at
           # /.well-known/jwks.json for external verifiers (Alia, Homiio, …).
+          # META_GRAPH_ACCESS_TOKEN / META_IG_BUSINESS_ACCOUNT_ID are the Instagram
+          # Graph fallback's credentials. Unlike the SSM-only keys above they are
+          # GitHub secrets, synced by the first step; BOUND_API_SECRETS there
+          # refuses the whole run when either is unset, so this binding can never
+          # name a parameter that does not exist. With both bound, the fallback
+          # runs; there is no separate switch.
           TASK_SECRET_OVERRIDES_JSON: >-
-            {"SERVICE_TOKEN_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY","SERVICE_TOKEN_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID","CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET","QUEUE_REDIS_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL"}
+            {"SERVICE_TOKEN_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY","SERVICE_TOKEN_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID","CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET","QUEUE_REDIS_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL","META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_GRAPH_ACCESS_TOKEN","META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID"}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
@@ -411,8 +365,23 @@ jobs:
 
           bash .github/scripts/deploy-ecs-image.sh
 
-      - name: Deploy asset-variant worker after the drained cutover
-        if: steps.asset_queue_cutover.outputs.required == 'true'
+      # The worker's rollout started inside the step above (PRE_ROLLOUT_SCRIPT).
+      # This requires its exact steady state on this build's image: one
+      # COMPLETED deployment, every autoscaled task running.
+      #
+      # There used to be a one-time "asset queue cutover" path here: detect a
+      # worker without QUEUE_REDIS_URL, deploy the API first, run a "Legacy
+      # asset queue drain gate" task, then roll the worker. The cutover finished
+      # on 2026-09-12 (every worker revision from oxy-oxy-asset-variant-worker:10
+      # binds QUEUE_REDIS_URL, :169 included), but the detector's query
+      # `containerDefinitions[?...].secrets[?name==...] | length(@)` evaluates
+      # to 0 even when the binding exists, so every deploy since took the
+      # one-time path: +128s drain gate, +370s serial worker rollout. The gate's
+      # own logs showed the legacy queue empty on its first check (waiting=0,
+      # active=0, delayed=0, 2026-09-29T01:27Z), and nothing produces to it:
+      # every producer and consumer of `asset-variants` connects through
+      # getAssetVariantQueueConnectionOptions (QUEUE_REDIS_URL).
+      - name: Confirm the asset-variant worker rollout
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
-        run: bash .github/scripts/deploy-asset-variant-worker.sh
+        run: bash .github/scripts/deploy-asset-variant-worker.sh wait

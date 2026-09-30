@@ -1,5 +1,36 @@
 # Changelog — `@oxy.so/core`
 
+## 3.2.0
+
+### Added
+
+- `common.stepOf` ("Step {{step}} of {{total}}"), in all eleven locales: the
+  count under the sign-up and authenticator set-up progress bars.
+
+## 3.1.0
+
+### Added
+
+- `signin.checkEmail.codeHasLetters` ("Does your code have letters?") and
+  `signin.checkEmail.codeDigitsOnly` ("Is your code only numbers?"), in all
+  eleven locales: the switch between the 6-digit sign-in code and the
+  10-character long code.
+
+### Removed
+
+- `reauth.totpLabel`: "Confirm it's you" labels the authenticator code and the
+  backup code separately (`signin.secondFactor.label` / `backupLabel`).
+
+## 3.0.3
+
+### Fixed
+
+- A loaded `req.user` takes its `id` from the one source the middleware
+  validated (`id`, else `_id`), so it always agrees with `req.userId`.
+- `server/workloadIdentity` trims the base URL without `/\/+$/` (polynomial
+  backtracking on a long run of slashes); `HttpService` and it share
+  `utils/slashes`.
+
 ## 3.0.2
 
 ### Changed

@@ -145,3 +145,34 @@ it('bounds persisted source claims and excludes unrelated or unsafe source URLs'
   ] });
   expect(registered.identity.evidenceLinks).toEqual(links.slice(0, 32));
 });
+
+it('follows a source rename on an actor whose URI carries its stable ID', async () => {
+  const did = `did:plc:${name()}`;
+  const actorUri = `https://bsky.brid.gy/ap/${did}`;
+  // A legacy identity recorded before stable IDs were persisted.
+  const oldAcct = `${name()}@bsky.social`;
+  const newAcct = `${name()}@bsky.social`;
+  const legacy = await registerExternalIdentity(input(oldAcct, actorUri));
+  const renamed = await registerExternalIdentity({ ...input(newAcct, actorUri), stableId: did });
+  expect(renamed.userId).toBe(legacy.userId);
+  expect(await lookupExternalIdentity(newAcct)).toBe(legacy.userId);
+  expect(await lookupExternalIdentity(oldAcct)).toBeNull();
+  expect(await getExternalIdentitiesForUser(legacy.userId)).toHaveLength(1);
+});
+
+it('does not treat a stable ID absent from the actor URI as a rename of a legacy identity', async () => {
+  const actorUri = `https://bsky.brid.gy/ap/${name()}`;
+  await registerExternalIdentity(input(`${name()}@bsky.social`, actorUri));
+  await expect(registerExternalIdentity({ ...input(`${name()}@bsky.social`, actorUri), stableId: `did:plc:${name()}` }))
+    .rejects.toThrow('Actor already belongs to another external identity');
+});
+
+it('follows a rename from a legacy bridge-domain identity to the derived network', async () => {
+  const did = `did:plc:${name()}`;
+  const actorUri = `https://bsky.brid.gy/ap/${did}`;
+  const legacy = await registerExternalIdentity(input(`${name()}@bsky.brid.gy`, actorUri));
+  const newAcct = `${name()}@bsky.social`;
+  const renamed = await registerExternalIdentity({ ...input(newAcct, actorUri), stableId: did });
+  expect(renamed.userId).toBe(legacy.userId);
+  expect(await lookupExternalIdentity(newAcct)).toBe(legacy.userId);
+});

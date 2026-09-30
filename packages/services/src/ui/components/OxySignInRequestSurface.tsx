@@ -138,7 +138,6 @@ export const OxySignInRequestSurface: React.FC<OxySignInRequestSurfaceProps> = (
     <SubtleLink
       key={action.key}
       label={action.label}
-      theme={theme}
       onPress={action.onPress}
       disabled={action.disabled}
       testID={action.key}

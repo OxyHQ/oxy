@@ -3,8 +3,8 @@
  * Business/Creator Instagram accounts when the kilogram.makeup ActivityPub
  * bridge is unavailable (it answers 429 to WebFinger routinely).
  *
- * Fully inert unless `INSTAGRAM_GRAPH_FALLBACK_ENABLED=true` AND a token AND a
- * numeric business account id are configured. Every failure is `null` to the
+ * Runs whenever a token AND a numeric business account id are configured, and
+ * is fully inert without them. Every failure is `null` to the
  * caller with one structured log line; the access token is sent only in the
  * `Authorization` header and never logged.
  *
@@ -23,7 +23,8 @@ export const INSTAGRAM_GRAPH_PROTOCOL = 'instagram-graph';
 export const INSTAGRAM_GRAPH_ACTOR_PREFIX = `${INSTAGRAM_GRAPH_PROTOCOL}:`;
 export const INSTAGRAM_NETWORK_DOMAIN = 'instagram.com';
 
-const DEFAULT_GRAPH_API_VERSION = 'v23.0';
+/** Pinned in code: a Graph version bump is a reviewed change, never an env knob. */
+const GRAPH_API_VERSION = 'v23.0';
 const GRAPH_FETCH_TIMEOUT_MS = 10_000;
 const GRAPH_MAX_JSON_BYTES = 256 * 1024;
 /** Business Discovery allows ~200 calls/hour per token: cache both outcomes briefly. */
@@ -39,24 +40,22 @@ const NOT_A_BUSINESS_ACCOUNT_SUBCODE = 2207013;
 const INSTAGRAM_USERNAME = /^[a-z0-9._]{1,30}$/;
 const GRAPH_USER_ID = /^[0-9]{1,32}$/;
 
-export type InstagramGraphFailureReason = 'disabled' | 'invalid_username' | 'not_found' | 'throttled'
+export type InstagramGraphFailureReason = 'not_configured' | 'invalid_username' | 'not_found' | 'throttled'
   | 'token_invalid' | 'http_status' | 'transport_unavailable' | 'unreadable_document' | 'identity_mismatch';
 export type InstagramGraphLookup = { ok: true; profile: ExternalActorProfile; igUserId: string }
   | { ok: false; reason: InstagramGraphFailureReason };
 
-interface GraphConfig { token: string; businessAccountId: string; version: string }
+interface GraphConfig { token: string; businessAccountId: string }
 
-/** Read per call so an operator flag flip (or a test) needs no process restart. */
+/** Read per call so a credential rotation (or a test) needs no process restart. */
 export function instagramGraphConfig(): GraphConfig | null {
-  if ((process.env.INSTAGRAM_GRAPH_FALLBACK_ENABLED ?? '').trim().toLowerCase() !== 'true') return null;
   const token = (process.env.META_GRAPH_ACCESS_TOKEN ?? '').trim();
   const businessAccountId = (process.env.META_IG_BUSINESS_ACCOUNT_ID ?? '').trim();
-  const version = (process.env.META_GRAPH_API_VERSION ?? '').trim() || DEFAULT_GRAPH_API_VERSION;
-  if (!token || !GRAPH_USER_ID.test(businessAccountId) || !/^v[0-9]{1,3}\.[0-9]{1,3}$/.test(version)) return null;
-  return { token, businessAccountId, version };
+  if (!token || !GRAPH_USER_ID.test(businessAccountId)) return null;
+  return { token, businessAccountId };
 }
 
-export function isInstagramGraphEnabled(): boolean {
+export function isInstagramGraphConfigured(): boolean {
   return instagramGraphConfig() !== null;
 }
 
@@ -159,7 +158,7 @@ function stringField(value: unknown, max: number): string | undefined {
  */
 export async function fetchInstagramGraphProfile(usernameOrAcct: string): Promise<InstagramGraphLookup> {
   const config = instagramGraphConfig();
-  if (!config) return { ok: false, reason: 'disabled' };
+  if (!config) return { ok: false, reason: 'not_configured' };
   const username = instagramUsernameFromAcct(usernameOrAcct);
   if (!username) return { ok: false, reason: 'invalid_username' };
   const cached = resultCache.get(username);
@@ -172,7 +171,7 @@ export async function fetchInstagramGraphProfile(usernameOrAcct: string): Promis
   // The username is validated against Instagram's alphabet before it is placed
   // inside the field expansion, so it cannot inject another field or edge.
   const fields = `business_discovery.username(${username}){id,username,name,biography,website,profile_picture_url,followers_count,follows_count,media_count}`;
-  const url = `https://graph.facebook.com/${config.version}/${config.businessAccountId}?fields=${encodeURIComponent(fields)}`;
+  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${config.businessAccountId}?fields=${encodeURIComponent(fields)}`;
   let res: Awaited<ReturnType<typeof safeFetch>>;
   try {
     res = await safeFetch(url, {

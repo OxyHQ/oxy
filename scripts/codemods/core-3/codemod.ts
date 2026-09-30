@@ -71,7 +71,7 @@ const BECAME_PROPERTY = new Set([
 // The receiver's LAST segment names an Oxy client: `oxy`, `oxyServices`,
 // `this._oxyServices`, `ctx.services`, a getter call `oxy()` / `getOxyClient()`,
 // or a parenthesised expression mentioning one (`(a ?? oxy).getUserById`).
-const OXY_RECEIVER = /(^|\.)_?(oxy\w*|\w*Oxy\w*|services)(\(\))?$|^\(.*oxy.*\)$/i;
+const OXY_RECEIVER = /(^|\.)(\w*oxy\w*|_?services)(\(\))?$|^\(.*\boxy\w*.*\)$/i;
 const GENERIC = new Set(['auth', 'validate', 'register', 'subscribe', 'search', 'inference', 'getClient', 'getStorage', 'handleError']);
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.expo', '.next', 'web-build', '.turbo', 'coverage', '.git']);

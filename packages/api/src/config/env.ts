@@ -69,15 +69,12 @@ export interface RequiredEnvVars {
   FEDERATION_DOMAIN_PURGE_ENABLED?: string;
 
   // Instagram Graph (Meta Business Discovery) fallback for Business/Creator
-  // accounts when the kilogram bridge fails. Inert unless the flag is `true`
-  // AND the token AND a numeric business account id are set; read per call by
-  // `services/federation/instagramGraph.ts`. The token is SSM-synced
-  // (`META_GRAPH_ACCESS_TOKEN`, with `META_IG_BUSINESS_ACCOUNT_ID`); the flag and
-  // version (default `v23.0`) are plain task environment.
-  INSTAGRAM_GRAPH_FALLBACK_ENABLED?: string;
+  // accounts when the kilogram bridge fails. Runs whenever the token AND a
+  // numeric business account id are set, inert otherwise; read per call by
+  // `services/federation/instagramGraph.ts`, which pins the Graph version in
+  // code. Both are SSM-synced and bound into the oxy-api task definition.
   META_GRAPH_ACCESS_TOKEN?: string;
   META_IG_BUSINESS_ACCOUNT_ID?: string;
-  META_GRAPH_API_VERSION?: string;
 
   // The inference platform's five rollout flags (issue #972 workstreams 16 and
   // 12). Declared, parsed and reported in ONE place — `config/rolloutFlags.ts` —

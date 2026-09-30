@@ -94,9 +94,10 @@ The census excluded `node_modules`, `dist` and worktrees.
 | Mention `cacheWorker.ts:216`, `gifLibraryService.ts:472`, eviction and purge scripts | `/service/cache`, `DELETE /service/cache/:id` | Unchanged. The cache namespace still keeps one row per hash, so two cache entries with the same bytes share an id. |
 | Mention `utils/oxyHelpers.ts:195`, Move `utils/oxyHelpers.ts:64` | `/service/user-media` | Another user's bytes now give the caller its own row instead of a `409`. |
 | Mercaria `services/digital/storage.ts:355`, Mention `routes/intentMedia.ts:223`, `useCaptureUpload.ts:53`, Syra `StreamConfigModal.tsx:101`, the services SDK (avatar, banner, file manager) | `/assets/upload` | These now always get the caller's own row. Mercaria's assumption that it owns the returned id is now true. |
+| oxy `stickers.service.ts` (`uploadStickerFile`) | in-process | The `__stickers__` namespace keeps its own row per hash. A user's file or a cached copy with the same bytes shares the object but never the row, so the catalogue can't point at a file its owner can delete or make private. The `sticker` dedupe scope that used to refuse this is gone. |
 | none found | `/assets/init`, `/assets/complete`, `/assets/:id/upload-direct` | No callers in any repository. |
 
-## Migration `0121_files_per_owner_live_key` (`pre`)
+## Migration `0124_files_per_owner_live_key` (`pre`)
 
 The migration builds the two new uniques with `IF NOT EXISTS`, refuses an
 invalid index left by a failed concurrent build, drops the global unique with
@@ -146,7 +147,7 @@ the final `DROP INDEX`, which queues them behind any long-running query on
    The order matters. The new uniques must be valid before the old one goes.
    If a build fails, `DROP INDEX CONCURRENTLY` the invalid index and build it
    again. The migration refuses to proceed while an invalid index is present.
-2. **Merge.** `Deploy to AWS` applies 0121 in its `pre` phase, then rolls out
+2. **Merge.** `Deploy to AWS` applies 0124 in its `pre` phase, then rolls out
    the new image. After step 1, the migration only swaps the small
    `storage_object_deletions` CHECK.
 3. **Report the existing shares** with a dry run from a one-shot task:
@@ -170,7 +171,7 @@ the final `DROP INDEX`, which queues them behind any long-running query on
 **Rollback.** The previous image runs correctly against the new indexes, but its
 global dedup lookup would start handing out another owner's row again. The
 global unique cannot be restored once two owners hold live rows for one hash.
-Treat 0121 as forward-only.
+Treat 0124 as forward-only.
 
 ## Known gaps, not addressed here
 

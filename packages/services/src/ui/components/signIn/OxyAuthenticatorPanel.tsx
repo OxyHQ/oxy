@@ -13,9 +13,9 @@
 
 import type React from 'react';
 import { useState } from 'react';
-import { Clipboard, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { Button } from '@oxy.so/bloom/button';
+import { CodeBlock } from '@oxy.so/bloom/code';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
@@ -25,14 +25,16 @@ import { useOxy } from '../../context/OxyContext';
 import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { useI18n } from '../../hooks/useI18n';
+import { copyText } from '../../utils/clipboard';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
 import { ReauthStep } from './ReauthStep';
 import {
   AccountFlowAction,
+  AccountFlowCodeField,
   AccountFlowErrorLine,
-  AccountFlowField,
   AccountFlowNote,
+  AccountFlowProgress,
   describeSignInError,
 } from './accountFlowParts';
 
@@ -46,7 +48,8 @@ type Step =
   | { name: 'enroll'; enrollment: TotpEnrollResponse }
   | { name: 'regenerate' }
   | { name: 'disable' }
-  | { name: 'codes'; codes: string[] };
+  /** `enrolling`: the last step of turning it on, rather than new codes for one that is on. */
+  | { name: 'codes'; codes: string[]; enrolling: boolean };
 
 export interface OxyAuthenticatorPanelProps {
   /** The person is done here (after saving backup codes, or turning it off). */
@@ -92,34 +95,36 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
   };
 
   const back = { label: t('common.cancel'), onPress: () => setStep({ name: 'status' }) };
+  // Turning it on is two steps: scan and confirm, then save the backup codes.
+  const enrolSteps = [t('signInSecurity.totp.title'), t('signInSecurity.totp.backupTitle')];
+
+  const copyCodes = async (codes: string) => {
+    try {
+      await copyText(codes);
+    } catch (reason) {
+      toast.error(t('appInfo.toasts.copyFailed'));
+      // Rethrown so the copy button keeps its copy glyph: nothing was copied.
+      throw reason;
+    }
+    toast.success(t('signInSecurity.totp.copied'));
+  };
 
   switch (step.name) {
     case 'codes':
       return (
         <OxyAuthScreen>
           <OxyAuthScreenHeader title={t('signInSecurity.totp.backupTitle')} description={t('signInSecurity.totp.backupDescription')} />
-          <View style={[styles.codes, { borderColor: theme.colors.border }]} testID="totp-backup-codes">
-            {step.codes.map((backupCode) => (
-              <Text key={backupCode} style={[styles.code, { color: theme.colors.text }]}>
-                {backupCode}
-              </Text>
-            ))}
-          </View>
-          <Button
-            appearance="outline"
-            tone="neutral"
-            size="lg"
-            fullWidth
-            onPress={() => {
-              Promise.resolve()
-                .then(() => Clipboard.setString(step.codes.join('\n')))
-                .then(() => toast.success(t('signInSecurity.totp.copied')))
-                .catch(() => undefined);
-            }}
-            testID="totp-copy-codes"
-          >
-            {t('signInSecurity.totp.copy')}
-          </Button>
+          {step.enrolling ? <AccountFlowProgress steps={enrolSteps} current={1} testID="totp-progress" /> : null}
+          {/* One code per line, with the block's own copy button (it shows a
+              check once the codes are on the clipboard). */}
+          <CodeBlock
+            code={step.codes.join('\n')}
+            filename={t('signInSecurity.totp.remaining', { count: step.codes.length })}
+            lineNumbers={false}
+            labels={{ copy: t('signInSecurity.totp.copy'), copied: t('signInSecurity.totp.copied') }}
+            onCopy={copyCodes}
+            testID="totp-backup-codes"
+          />
           <AccountFlowAction
             label={t('signInSecurity.totp.savedThem')}
             onPress={() => {
@@ -146,10 +151,11 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
             const codes = await oxyServices.auth.totp.confirm(code.trim(), reauth);
             refresh();
             toast.success(t('signInSecurity.totp.enabled'));
-            setStep({ name: 'codes', codes });
+            setStep({ name: 'codes', codes, enrolling: true });
           }}
           secondary={back}
         >
+          <AccountFlowProgress steps={enrolSteps} current={0} testID="totp-progress" />
           <View style={styles.plateRow}>
             <View style={[styles.plate, { borderColor: theme.colors.border }]} testID="totp-qr">
               <QRCode value={enrollment.otpauthUri} size={QR_SIZE} backgroundColor={QR_PLATE_BG} color={QR_FOREGROUND} />
@@ -161,16 +167,12 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
               {enrollment.secret.replace(/(.{4})/g, '$1 ').trim()}
             </Text>
           </View>
-          <AccountFlowField
+          <AccountFlowCodeField
             label={t('signInSecurity.totp.codeLabel')}
             value={code}
-            onChange={(value) => setCode(value.replace(/\D/g, '').slice(0, TOTP_DIGITS))}
-            onSubmit={() => undefined}
+            onChange={setCode}
             error={null}
-            placeholder="000000"
-            autoComplete="one-time-code"
-            keyboardType="number-pad"
-            maxLength={TOTP_DIGITS}
+            length={TOTP_DIGITS}
             testID="totp-enroll-code"
           />
         </ReauthStep>
@@ -188,7 +190,7 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
           onSubmit={async (reauth) => {
             const codes = await oxyServices.auth.totp.regenerateBackupCodes(reauth);
             refresh();
-            setStep({ name: 'codes', codes });
+            setStep({ name: 'codes', codes, enrolling: false });
           }}
           secondary={back}
         />
@@ -233,7 +235,6 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
               />
               <SubtleLink
                 label={t('signInSecurity.totp.disable')}
-                theme={theme}
                 onPress={() => setStep({ name: 'disable' })}
                 testID="totp-disable"
               />
@@ -268,23 +269,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   secretValue: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-    letterSpacing: 1,
-    textAlign: 'center',
-  },
-  codes: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    justifyContent: 'center',
-  },
-  code: {
-    width: '45%',
     fontSize: 16,
     lineHeight: 24,
     fontWeight: '600',

@@ -317,25 +317,59 @@ describe('"Check your email" — the code or the link', () => {
     expect(handleWebSession).toHaveBeenCalledWith(SESSION);
   });
 
-  it('takes the 10-character long code in the same field, with or without its dash, any case', async () => {
+  it('is six digit boxes until "Does your code have letters?", then ten characters in two groups, and back', async () => {
     renderPanel();
     await reachCheckEmail();
+    const field = () => screen.getByTestId('signin-code');
+    expect(field().getAttribute('data-length')).toBe('6');
+    expect(field().getAttribute('data-type')).toBe('numeric');
 
-    // Being typed with its dash: never mistaken for 6 digits.
+    // Letters never reach the 6-digit field.
     type('signin-code', '23456-');
     expect(oxyServices.auth.email.confirm).not.toHaveBeenCalled();
+    expect((field() as HTMLInputElement).value).toBe('23456');
+
+    press('signin-code-letters');
+    expect(field().getAttribute('data-length')).toBe('10');
+    expect(field().getAttribute('data-type')).toBe('alphanumeric');
+    expect(field().getAttribute('data-group-every')).toBe('5');
+    // Switching starts the field empty.
+    expect((field() as HTMLInputElement).value).toBe('');
+    expect(screen.getByTestId('signin-code-letters').textContent).toBe('Is your code only numbers?');
+
+    press('signin-code-letters');
+    expect(field().getAttribute('data-length')).toBe('6');
+    expect(screen.getByTestId('signin-code-letters').textContent).toBe('Does your code have letters?');
+  });
+
+  it('takes the 10-character long code as printed, with its dash, any case', async () => {
+    renderPanel();
+    await reachCheckEmail();
+    press('signin-code-letters');
     type('signin-code', '23456-abcde');
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(oxyServices.auth.email.confirm).toHaveBeenCalledWith(expect.objectContaining({ code: '23456-ABCDE' }));
+    expect(oxyServices.auth.email.confirm).toHaveBeenCalledWith(expect.objectContaining({ code: '23456ABCDE' }));
   });
 
   it('takes a pasted long code without its dash', async () => {
     renderPanel();
     await reachCheckEmail();
+    press('signin-code-letters');
     type('signin-code', 'k7m2pq9xrt');
 
     await waitFor(() => expect(oxyServices.auth.email.confirm).toHaveBeenCalledWith(expect.objectContaining({ code: 'K7M2PQ9XRT' })));
+  });
+
+  it('says a complete long code outside its alphabet is wrong, without sending it', async () => {
+    renderPanel();
+    await reachCheckEmail();
+    press('signin-code-letters');
+    // `0`, `O`, `1`, `I`, `L` and `U` are never in a long code.
+    type('signin-code', 'OOOOO-11111');
+
+    expect(alertText()).toBe("That code isn't right, or it has expired.");
+    expect(oxyServices.auth.email.confirm).not.toHaveBeenCalled();
   });
 
   it('says a wrong code is wrong, clears it, and stays', async () => {
@@ -452,7 +486,13 @@ describe('"Check your email" — the code or the link', () => {
     await reachCheckEmail();
     type('signin-code', '111111');
 
-    await waitFor(() => expect(alertText()).toBe('Too many attempts. Try again in 42s.'));
+    // A wait, not a wrong code: a warning notice above Continue, and the field
+    // carries no error of its own.
+    const notice = await screen.findByTestId('signin-rate-limit');
+    expect(notice.textContent).toBe('Too many attempts. Try again in 42s.');
+    expect(notice.querySelector('[role="note"]')?.getAttribute('data-admonition-type')).toBe('warning');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(notice.compareDocumentPosition(screen.getByTestId('signin-code-continue')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect((screen.getByTestId('signin-code-continue') as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -545,6 +585,9 @@ describe('the password, instead of the email', () => {
     renderPanel();
     await reachCheckEmail('ada');
     press('signin-use-password');
+    // A password field the person can show (Bloom's eye), not a bare secure input.
+    expect(screen.getByTestId('signin-password').getAttribute('type')).toBe('password');
+    expect(screen.getByTestId('signin-password').getAttribute('data-revealable')).toBe('true');
     type('signin-password', 'correct horse battery');
     press('signin-password-continue');
 
@@ -631,11 +674,14 @@ describe('the authenticator — the second step', () => {
 
     press('signin-toggle-backup');
     expect(screen.getByText('Enter one of your backup codes. Each one works once.')).toBeTruthy();
+    expect(screen.getByTestId('signin-second-factor').getAttribute('data-type')).toBe('alphanumeric');
+    expect(screen.getByTestId('signin-second-factor').getAttribute('data-length')).toBe('10');
+    // Complete, it submits itself — like the authenticator's 6 digits.
     type('signin-second-factor', 'abcde-fgh23');
-    press('signin-second-factor-continue');
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(oxyServices.auth.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: 'abcde-fgh23' });
+    expect(oxyServices.auth.completeSecondFactor).toHaveBeenCalledTimes(1);
+    expect(oxyServices.auth.completeSecondFactor).toHaveBeenCalledWith({ challengeId: CHALLENGE.challengeId, code: 'ABCDEFGH23' });
   });
 
   it('says a wrong authenticator code is wrong', async () => {

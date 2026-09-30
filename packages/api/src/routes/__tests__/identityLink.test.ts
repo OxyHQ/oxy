@@ -59,6 +59,7 @@ import { userPasswords } from '../../db/schema/userPasswords';
 import { storePassword } from '../../services/password.service';
 import { confirmTotp, enrollTotp, totpCodeAt } from '../../services/totp.service';
 import { startReauthEmail } from '../../services/reauth.service';
+import { awayFromTotpStepEdge } from '../../../test-support/totpStep';
 
 const AUTH_ORIGIN = 'https://auth.oxy.so';
 
@@ -257,6 +258,8 @@ describe('linking Commons from two devices', () => {
   });
 
   describe('confirmed with a code sent to the email', () => {
+    beforeEach(awayFromTotpStepEdge, 15_000);
+
     async function signedLink() {
       const account = await emailAccount();
       const link = await open();

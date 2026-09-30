@@ -1,5 +1,46 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.3.0
+
+### Added
+
+- `stickers`: the wire contract of Oxy's shared sticker catalogue (`/stickers`).
+  `stickerSchema`, `stickerFileSchema`, `stickerPackSummarySchema`,
+  `stickerPackSchema`, `installedStickerPackSchema`, `stickerRefSchema` (how an
+  app stores or sends a sticker), the resolve, reorder and staff request
+  schemas, and the limits every uploaded animation is held to
+  (`STICKER_CANVAS_SIZES`, `STICKER_MAX_DURATION_MS`, …).
+
+## 4.2.0
+
+### Added
+
+- `recommendationItemSchema.color`: the recommended account's accent colour,
+  as every profile serializer already returns it. A client drawing a row of
+  recommendations no longer has to fetch each person again to get it.
+
+## 4.1.0
+
+### Added
+
+- `email/messages`: the wire contract of the Inbox read API — the JSON a client
+  receives from `/email/*`. `emailMessageSchema`, `emailAttachmentSchema`,
+  `emailMessageAddressSchema`, `emailMessageFlagsSchema`, `emailMessageCardSchema`,
+  `emailMessageHighlightSchema`, `emailMailboxSchema`, `emailUserLabelSchema`,
+  `emailSystemLabelSchema`, `emailLabelSchema`, `emailFilterConditionSchema`,
+  `emailFilterActionSchema`, `emailFilterSchema`, `emailBundleSchema`,
+  `emailBundledInboxSchema`, `emailContactSchema`, `emailOutboxSchema`, their
+  `*Wire` types, and the vocabularies `MESSAGE_CARD_TYPES`,
+  `EMAIL_FILTER_CONDITION_FIELDS`, `EMAIL_FILTER_CONDITION_OPERATORS`,
+  `EMAIL_FILTER_ACTION_TYPES`, `EMAIL_OUTBOX_STATUSES`. oxy-api asserts its DTOs
+  serialise to exactly these shapes. Nullable columns are `null`, never absent:
+  an attachment without a Content-ID has `contentId: null`, a contact without a
+  company has `company: null`. A client that parsed with its own stricter copy
+  silently dropped such messages from the inbox.
+- `rfcMessageIdSchema` / `RFC_MESSAGE_ID_PATTERN`: one RFC 5322 `<id@host>`.
+  `In-Reply-To` and `References` of a sent reply must be these; a database row
+  id is refused.
+
 ## 4.0.0
 
 ### Changed (breaking)

@@ -165,6 +165,14 @@ jobs:
             ];
             const files = fs.readdirSync(dir);
             const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            // The public snapshot above stays on its published Services/Bloom
+            // pair. This install tests HEAD, whose Services may require a newer
+            // Bloom major. Override BOTH axes together, including transitive use.
+            const workspace = JSON.parse(fs.readFileSync(path.join(process.env.GITHUB_WORKSPACE, "package.json"), "utf8"));
+            const bloom = workspace.workspaces.catalog["@oxy.so/bloom"];
+            if (typeof bloom !== "string" || !bloom) throw new Error("Missing workspace Bloom catalog range");
+            p.overrides["@oxy.so/bloom"] = bloom;
+            p.resolutions["@oxy.so/bloom"] = bloom;
             for (const [name, pattern] of packed) {
               const matches = files.filter((file) => pattern.test(file));
               if (matches.length !== 1) {

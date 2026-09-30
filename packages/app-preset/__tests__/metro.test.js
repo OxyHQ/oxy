@@ -87,3 +87,24 @@ test('keeps svg as an asset and console calls by default', () => {
   assert.equal(config.resolver.sourceExts.includes('svg'), false);
   assert.equal(config.transformer.minifierConfig.compress.drop_console, false);
 });
+
+test('stamps the build id into the env the SDK reads and into the transform cache key', () => {
+  const saved = { id: process.env.OXY_BUILD_ID, env: process.env.NODE_ENV, sha: process.env.GITHUB_SHA };
+  try {
+    delete process.env.OXY_BUILD_ID;
+    process.env.NODE_ENV = 'production';
+    process.env.GITHUB_SHA = 'abc123';
+    const config = createOxyMetroConfig('/repo/packages/frontend');
+    assert.equal(process.env.OXY_BUILD_ID, 'abc123');
+    assert.match(config.cacheVersion, /oxy-build:abc123/);
+
+    delete process.env.OXY_BUILD_ID;
+    process.env.NODE_ENV = 'development';
+    assert.match(createOxyMetroConfig('/repo/packages/frontend').cacheVersion, /oxy-build:development/);
+  } finally {
+    for (const [key, value] of [['OXY_BUILD_ID', saved.id], ['NODE_ENV', saved.env], ['GITHUB_SHA', saved.sha]]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});

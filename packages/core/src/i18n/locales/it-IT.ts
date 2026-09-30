@@ -56,6 +56,8 @@ const dict = {
       "description": "Se esiste un account per {{identifier}}, gli abbiamo inviato un codice e un link di accesso.",
       "codeLabel": "Codice",
       "codeHint": "Inserisci il codice dell'email o apri il suo link in questo browser.",
+      "codeHasLetters": "Il tuo codice contiene lettere?",
+      "codeDigitsOnly": "Il tuo codice ha solo numeri?",
       "resend": "Invia una nuova email",
       "resendIn": "Invia una nuova email tra {{seconds}} s",
       "resent": "Abbiamo inviato una nuova email.",
@@ -142,6 +144,7 @@ const dict = {
     "linkOpenFailed": "Impossibile aprire il link. Riprova."
   },
   "common": {
+    "stepOf": "Passaggio {{step}} di {{total}}",
     "actions": {
       "back": "Indietro",
       "continue": "Continua",
@@ -337,7 +340,6 @@ const dict = {
     "passwordLabel": "Password attuale",
     "usePassword": "Usa invece la password",
     "useEmail": "Ricevi invece un codice via email",
-    "totpLabel": "Codice di autenticazione o di backup",
     "errors": {
       "invalid": "Non ha funzionato. Controlla quello che hai scritto e riprova.",
       "totpRequired": "Inserisci anche il codice della tua app di autenticazione."

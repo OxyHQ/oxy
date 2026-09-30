@@ -1,0 +1,99 @@
+{
+  "name": "@oxy.so/stickers",
+  "version": "0.1.1",
+  "description": "Oxy's shared sticker catalogue: a client for apps and backends, and React hooks.",
+  "type": "module",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/types/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "react": [
+        "dist/types/react.d.ts"
+      ]
+    }
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "react-native": "./dist/esm/index.js",
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./react": {
+      "react-native": "./dist/esm/react.js",
+      "import": {
+        "types": "./dist/types/react.d.ts",
+        "default": "./dist/esm/react.js"
+      },
+      "require": {
+        "types": "./dist/types/react.d.ts",
+        "default": "./dist/cjs/react.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oxyhq/sdk",
+    "directory": "packages/stickers"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Oxy",
+  "homepage": "https://oxy.so",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "bun run clean && bun run build:cjs && bun run build:esm && bun run build:types",
+    "build:cjs": "tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
+    "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
+    "build:types": "tsc -p tsconfig.types.json",
+    "clean": "rm -rf dist",
+    "typescript": "tsc --noEmit",
+    "test": "jest",
+    "lint": "biome lint --error-on-warnings ./src",
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run typescript && bun run test && bun run build"
+  },
+  "dependencies": {
+    "@oxy.so/contracts": "workspace:^"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.0.0",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/react-query": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@testing-library/react": "^16.3.2",
+    "@types/jest": "^30.0.0",
+    "@types/react": "*",
+    "jest": "^30.5.1",
+    "jest-environment-jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "ts-jest": "^29.4.12",
+    "typescript": "^5.9.2"
+  }
+}

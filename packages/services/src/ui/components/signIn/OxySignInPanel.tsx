@@ -10,9 +10,12 @@
  *                 photo carousel, in the right column (the account dialog grows to
  *                 that card); below `md` it is "Continue with Oxy" at the top. On
  *                 native it is "Continue with Oxy" ("Get Commons" without Commons).
- *   check-email   one email carries a code and a link. The code is typed here (6
- *                 digits, or the 10-character long code); meanwhile the screen asks
- *                 whether the link was opened in this browser, and signs in when it was.
+ *   check-email   one email carries a code and a link. The code is typed here: 6
+ *                 digits, or — "Does your code have letters?" — the 10-character
+ *                 long code an account past its daily guessing ceiling is sent
+ *                 (the start response does not say which, by design); meanwhile
+ *                 the screen asks whether the link was opened in this browser,
+ *                 and signs in when it was.
  *   password      the alternative for an account that has one.
  *   second-factor the authenticator's code, or a backup code, when the account has one.
  *
@@ -32,6 +35,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import type { SwitcherContextRow } from '@oxy.so/core/session';
 import {
+  EMAIL_CODE_LENGTH,
   EMAIL_SIGNIN_LONG_CODE_LENGTH,
   SIGN_IN_ERROR_CODES,
   TOTP_DIGITS,
@@ -54,11 +58,12 @@ import { OxyAccountPicker } from './OxyAccountPicker';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthSplit, OxyAuthTerms } from './OxyAuthScreen';
 import {
   AccountFlowAction,
+  AccountFlowCodeField,
   AccountFlowField,
-  AccountFlowNote,
+  AccountFlowNotice,
+  BACKUP_CODE_LENGTH,
   describeSignInError,
   errorCode,
-  formatSignInCodeInput,
   isCompleteSignInCode,
   isRateLimited,
   retryAfterSeconds,
@@ -79,6 +84,8 @@ interface SavedSignInFlow {
   identifier: string;
   showForm: boolean;
   useBackupCode: boolean;
+  /** The code field takes the 10-character long code ("Does your code have letters?"). */
+  longCode: boolean;
   /** When "Send a new email" may be pressed again (ms). */
   resendUntil: number;
 }
@@ -139,6 +146,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   const [password, setPassword] = useState('');
   const [secondFactorCode, setSecondFactorCode] = useState('');
   const [useBackupCode, setUseBackupCode] = useState(saved?.useBackupCode ?? false);
+  const [longCode, setLongCode] = useState(saved?.longCode ?? false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -153,9 +161,10 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       identifier,
       showForm,
       useBackupCode,
+      longCode,
       resendUntil: Date.now() + resendSeconds * 1000,
     } satisfies SavedSignInFlow);
-  }, [flowOwner, step, identifier, showForm, useBackupCode, resendSeconds]);
+  }, [flowOwner, step, identifier, showForm, useBackupCode, longCode, resendSeconds]);
   const blocked = pending || rateLimitSeconds > 0;
 
   // The countdown after a 429: one tick a second until the person may retry.
@@ -244,7 +253,9 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         }
         setCode('');
         setResendSeconds(EMAIL_RESEND_COOLDOWN_SECONDS);
+        // A resend keeps the field as the person set it; a new request starts at 6 digits.
         if (step.name === 'check-email') setNotice(t('signin.checkEmail.resent'));
+        else setLongCode(false);
         setStep({ name: 'check-email', identifier: name, requestId: started.requestId, requestSecret: started.requestSecret });
       })
       .catch(fail)
@@ -362,6 +373,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     setError(null);
     setNotice(null);
     setCode('');
+    setLongCode(false);
     setPassword('');
     setStep({ name: 'start' });
   };
@@ -428,7 +440,14 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     );
   }
 
-  const shownError = rateLimitSeconds > 0 ? t('signin.errors.rateLimited', { seconds: rateLimitSeconds }) : error;
+  // A 429 is not something the person typed wrong: it is a wait, counted down
+  // in a notice above the action it holds back, never the field's error.
+  const rateLimitNotice =
+    rateLimitSeconds > 0 ? (
+      <AccountFlowNotice type="warning" testID="signin-rate-limit">
+        {t('signin.errors.rateLimited', { seconds: rateLimitSeconds })}
+      </AccountFlowNotice>
+    ) : null;
   const clearError = () => {
     if (error) setError(null);
   };
@@ -443,25 +462,35 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
             title={t('signin.checkEmail.title')}
             description={t('signin.checkEmail.description', { identifier: request.identifier })}
           />
-          <AccountFlowField
+          <AccountFlowCodeField
+            key={longCode ? 'long' : 'digits'}
             label={t('signin.checkEmail.codeLabel')}
             value={code}
             onChange={(value) => {
-              const typed = formatSignInCodeInput(value);
-              setCode(typed);
+              setCode(value);
               clearError();
-              if (isCompleteSignInCode(typed)) submitCode(typed);
             }}
-            onSubmit={() => submitCode(code)}
-            error={shownError}
+            onComplete={submitCode}
+            error={error}
             disabled={blocked}
-            placeholder="000000"
-            autoComplete="one-time-code"
-            maxLength={EMAIL_SIGNIN_LONG_CODE_LENGTH + 1}
+            length={longCode ? EMAIL_SIGNIN_LONG_CODE_LENGTH : EMAIL_CODE_LENGTH}
+            type={longCode ? 'alphanumeric' : 'numeric'}
+            groupEvery={longCode ? EMAIL_SIGNIN_LONG_CODE_LENGTH / 2 : undefined}
             hint={t('signin.checkEmail.codeHint')}
             testID="signin-code"
           />
-          {notice ? <AccountFlowNote testID="signin-notice">{notice}</AccountFlowNote> : null}
+          <SubtleLink
+            label={longCode ? t('signin.checkEmail.codeDigitsOnly') : t('signin.checkEmail.codeHasLetters')}
+            onPress={() => {
+              setLongCode(!longCode);
+              setCode('');
+              setError(null);
+            }}
+            disabled={pending}
+            testID="signin-code-letters"
+          />
+          {notice ? <AccountFlowNotice testID="signin-notice">{notice}</AccountFlowNotice> : null}
+          {rateLimitNotice}
           <AccountFlowAction
             label={t('signin.actions.continue')}
             onPress={() => submitCode(code)}
@@ -476,21 +505,18 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
                   ? t('signin.checkEmail.resendIn', { seconds: resendSeconds })
                   : t('signin.checkEmail.resend')
               }
-              theme={theme}
               onPress={() => startEmail(request.identifier)}
               disabled={blocked || resendSeconds > 0}
               testID="signin-resend"
             />
             <SubtleLink
               label={t('signin.checkEmail.usePassword')}
-              theme={theme}
               onPress={() => toPassword(request.identifier)}
               disabled={pending}
               testID="signin-use-password"
             />
             <SubtleLink
               label={t('signin.checkEmail.differentAccount')}
-              theme={theme}
               onPress={backToIdentifier}
               disabled={pending}
               testID="signin-different-account"
@@ -513,12 +539,13 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               clearError();
             }}
             onSubmit={submitPassword}
-            error={shownError}
+            error={error}
             disabled={blocked}
             autoComplete="current-password"
             secureTextEntry
             testID="signin-password"
           />
+          {rateLimitNotice}
           <AccountFlowAction
             label={t('signin.actions.continue')}
             onPress={submitPassword}
@@ -529,14 +556,12 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
           <View style={styles.links}>
             <SubtleLink
               label={t('signin.password.forgot')}
-              theme={theme}
               onPress={() => startEmail(request.identifier)}
               disabled={blocked}
               testID="signin-password-forgot"
             />
             <SubtleLink
               label={t('signin.checkEmail.differentAccount')}
-              theme={theme}
               onPress={backToIdentifier}
               disabled={pending}
               testID="signin-different-account"
@@ -553,30 +578,23 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
             title={t('signin.secondFactor.title')}
             description={useBackupCode ? t('signin.secondFactor.backupDescription') : t('signin.secondFactor.description')}
           />
-          <AccountFlowField
+          <AccountFlowCodeField
             key={useBackupCode ? 'backup' : 'totp'}
             label={useBackupCode ? t('signin.secondFactor.backupLabel') : t('signin.secondFactor.label')}
             value={secondFactorCode}
             onChange={(value) => {
-              if (useBackupCode) {
-                setSecondFactorCode(value);
-                clearError();
-                return;
-              }
-              const digits = value.replace(/\D/g, '').slice(0, TOTP_DIGITS);
-              setSecondFactorCode(digits);
+              setSecondFactorCode(value);
               clearError();
-              if (digits.length === TOTP_DIGITS) submitSecondFactor(digits);
             }}
-            onSubmit={() => submitSecondFactor(secondFactorCode)}
-            error={shownError}
+            onComplete={submitSecondFactor}
+            error={error}
             disabled={blocked}
-            placeholder={useBackupCode ? 'xxxxx-xxxxx' : '000000'}
-            autoComplete="one-time-code"
-            keyboardType={useBackupCode ? 'default' : 'number-pad'}
-            maxLength={useBackupCode ? 11 : TOTP_DIGITS}
+            length={useBackupCode ? BACKUP_CODE_LENGTH : TOTP_DIGITS}
+            type={useBackupCode ? 'alphanumeric' : 'numeric'}
+            groupEvery={useBackupCode ? BACKUP_CODE_LENGTH / 2 : undefined}
             testID="signin-second-factor"
           />
+          {rateLimitNotice}
           <AccountFlowAction
             label={t('signin.actions.continue')}
             onPress={() => submitSecondFactor(secondFactorCode)}
@@ -587,7 +605,6 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
           <View style={styles.links}>
             <SubtleLink
               label={useBackupCode ? t('signin.secondFactor.useAuthenticator') : t('signin.secondFactor.useBackup')}
-              theme={theme}
               onPress={() => {
                 setUseBackupCode(!useBackupCode);
                 setSecondFactorCode('');
@@ -598,7 +615,6 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
             />
             <SubtleLink
               label={t('signin.checkEmail.differentAccount')}
-              theme={theme}
               onPress={backToIdentifier}
               disabled={pending}
               testID="signin-different-account"
@@ -661,7 +677,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
                 clearError();
               }}
               onSubmit={submitIdentifier}
-              error={shownError}
+              error={error}
               disabled={blocked}
               placeholder={t('signin.identifier.placeholder')}
               autoComplete="username"
@@ -680,6 +696,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
                 {t('signin.createAccount')}
               </RNText>
             </Text>
+            {rateLimitNotice}
             <AccountFlowAction
               label={t('signin.actions.continue')}
               onPress={submitIdentifier}

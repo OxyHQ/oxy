@@ -26,7 +26,7 @@
  * content dedup hand an EXISTING row — and its id, its links and its delete
  * authority — to whichever other account uploaded the same bytes, so owners
  * ended up holding one another's files and one owner's delete removed another's
- * media. Migration `0121_files_per_owner_live_key` replaced it.
+ * media. Migration `0124_files_per_owner_live_key` replaced it.
  *
  * Storage is shared, rows are not: a second owner's upload of the same bytes
  * gets its OWN row pointing at the same object, and the bytes go only when the
@@ -94,7 +94,7 @@ export const FILE_VISIBILITIES = ['private', 'public', 'unlisted'] as const;
 export type FileVisibility = (typeof FILE_VISIBILITIES)[number];
 
 /** Classification of what the asset is FOR. */
-export const FILE_PURPOSES = ['user', 'federation-media-cache'] as const;
+export const FILE_PURPOSES = ['user', 'federation-media-cache', 'sticker'] as const;
 
 /**
  * System namespaces that own an asset instead of a user.
@@ -123,6 +123,8 @@ export const FILE_PURPOSES = ['user', 'federation-media-cache'] as const;
 export const FILE_SYSTEM_OWNERS = [
   '__federation__',
   '__federation_media_cache__',
+  // The sticker catalogue's animations and fallbacks (`schema/stickers.ts`).
+  '__stickers__',
 ] as const;
 
 /** `status in ('active', 'trash')`, as an IMMUTABLE literal list for an index predicate. */

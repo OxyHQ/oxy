@@ -23,8 +23,8 @@ import { Pressable, View } from 'react-native-css/components';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
-import { RiLoader4Line } from '@oxy.so/bloom/icons/RiLoader4Line';
 import { RiUserAddLine } from '@oxy.so/bloom/icons/RiUserAddLine';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { showsPrincipalHeaders, type SwitcherContextRow, type SwitcherPrincipalRow } from '@oxy.so/core/session';
@@ -134,24 +134,25 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
                     ) : null}
                   </View>
                   <View className="flex-row items-center gap-[8px] shrink-0">
-                    <View style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
-                      <Avatar
-                        source={context.avatarUrl ?? undefined}
-                        variant="thumb"
-                        name={context.displayName}
-                        size={AVATAR_SIZE}
-                      />
-                      {current ? (
+                    {/* The current account: Avatar's own verified slot (bottom-right,
+                        above the image), holding the accent check badge. */}
+                    <Avatar
+                      source={context.avatarUrl ?? undefined}
+                      variant="thumb"
+                      name={context.displayName}
+                      size={AVATAR_SIZE}
+                      verified={current}
+                      verifiedIcon={
                         <View
-                          className="absolute -bottom-[2px] -right-[2px] items-center justify-center rounded-full border-2 border-background"
+                          className="items-center justify-center rounded-full border-2 border-background"
                           style={{ width: 18, height: 18, backgroundColor: accent }}
                         >
                           <RiCheckLine size="xs" fill="#ffffff" />
                         </View>
-                      ) : null}
-                    </View>
+                      }
+                    />
                     {activating ? (
-                      <RiLoader4Line size="sm" fill={accent} />
+                      <SpinnerIcon size={20} color={accent} />
                     ) : (
                       <RiArrowRightSLine size="sm" fill={theme.colors.textSecondary} />
                     )}

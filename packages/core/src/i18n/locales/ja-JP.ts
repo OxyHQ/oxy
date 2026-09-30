@@ -56,6 +56,8 @@ const dict = {
       "description": "{{identifier}} に一致するアカウントがあれば、コードとサインイン用リンクを送りました。",
       "codeLabel": "コード",
       "codeHint": "メールに記載のコードを入力するか、メール内のリンクをこのブラウザで開いてください。",
+      "codeHasLetters": "コードに英字が含まれていますか？",
+      "codeDigitsOnly": "コードは数字だけですか？",
       "resend": "新しいメールを送る",
       "resendIn": "{{seconds}} 秒後に新しいメールを送れます",
       "resent": "新しいメールを送りました。",
@@ -142,6 +144,7 @@ const dict = {
     "linkOpenFailed": "リンクを開けませんでした。もう一度お試しください。"
   },
   "common": {
+    "stepOf": "ステップ {{step}}/{{total}}",
     "actions": {
       "back": "戻る",
       "continue": "続ける",
@@ -337,7 +340,6 @@ const dict = {
     "passwordLabel": "現在のパスワード",
     "usePassword": "パスワードを使う",
     "useEmail": "メールでコードを受け取る",
-    "totpLabel": "認証コードまたはバックアップコード",
     "errors": {
       "invalid": "うまくいきませんでした。入力内容を確認して、もう一度お試しください。",
       "totpRequired": "認証アプリのコードも入力してください。"

@@ -13,9 +13,10 @@
 
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Button } from '@oxy.so/bloom/button';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { deriveIdentityLinkCode } from '@oxy.so/core/crypto';
@@ -203,7 +204,7 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
         <OxyAuthScreen>
           <OxyAuthScreenHeader title={t('linkCommons.title')} description={t('linkCommons.subtitle')} />
           <View style={styles.plateRow}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Loading variant="spinner" size="lg" accessibilityLabel={t('common.status.loading')} />
           </View>
         </OxyAuthScreen>
       );

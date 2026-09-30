@@ -112,7 +112,7 @@ const LegalDocumentsScreen: React.FC<BaseScreenProps> = ({
     if (documentType) {
         return (
                 <Loading
-                    size="large"
+                    size="lg"
                     color={bloomTheme.colors.text}
                     text={t('legal.opening') || 'Opening document...'}
                 />

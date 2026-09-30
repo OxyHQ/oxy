@@ -436,6 +436,11 @@ aws() {
       }'
       ;;
     "ecs describe-tasks")
+      # A stand-in for Fargate's provisioning time, so a case can tell tasks
+      # that ran side by side from tasks that ran one after another.
+      if [[ -n "${DEPLOY_TEST_DESCRIBE_TASKS_SLEEP:-}" ]]; then
+        sleep "$DEPLOY_TEST_DESCRIBE_TASKS_SLEEP"
+      fi
       local reported_exit_code=0
       local described_run_task_count=0
       if [[ -f "${DEPLOY_TEST_LOG}.run-task-count" ]]; then
@@ -565,6 +570,24 @@ run_release() {
   if [[ -n "${DEPLOY_TEST_MAX_WAIT_SECS-5}" ]]; then
     release_environment+=(MAX_WAIT_SECS="${DEPLOY_TEST_MAX_WAIT_SECS-5}")
   fi
+  # Opt-in knobs, passed only when a case sets them so every other case keeps
+  # exercising the defaults other repositories' copies of this script rely on.
+  if [[ -n "${DEPLOY_TEST_ROLLOUT_MAX_PERCENT:-}" ]]; then
+    release_environment+=(ROLLOUT_MAX_PERCENT="$DEPLOY_TEST_ROLLOUT_MAX_PERCENT")
+  fi
+  if [[ -n "${DEPLOY_TEST_PRE_ROLLOUT_EXIT:-}" ]]; then
+    local pre_rollout_script="$case_directory/pre-rollout.sh"
+    # shellcheck disable=SC2016
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      'printf "pre-rollout:%s\n" "$IMAGE_URI" >>"$DEPLOY_TEST_LOG"' \
+      "exit $DEPLOY_TEST_PRE_ROLLOUT_EXIT" \
+      >"$pre_rollout_script"
+    release_environment+=(PRE_ROLLOUT_SCRIPT="$pre_rollout_script")
+  fi
+  if [[ -n "${DEPLOY_TEST_POST_DEPLOY_TASKS_CONCURRENT:-}" ]]; then
+    release_environment+=(POST_DEPLOY_TASKS_CONCURRENT="$DEPLOY_TEST_POST_DEPLOY_TASKS_CONCURRENT")
+  fi
   if [[ -n "$post_deploy_tasks_json" ]]; then
     release_environment+=(POST_DEPLOY_TASKS_JSON="$post_deploy_tasks_json")
   else
@@ -663,6 +686,130 @@ printf '%s\n' \
 diff -u \
   "$test_directory/ordered-post-deploy-tasks/expected.log" \
   "$test_directory/ordered-post-deploy-tasks/aws.log"
+
+# ── Concurrent post-deploy tasks (POST_DEPLOY_TASKS_CONCURRENT=true) ────────
+# Both tasks run, and they run side by side: each mocked describe-tasks call
+# sleeps 1s and a task makes two, so two serial tasks take at least 4s and two
+# concurrent ones about 2s. The same two tasks run serially as the control, so
+# the comparison needs no absolute bound that a slow runner could break.
+concurrent_tasks='[{"label":"Post-deploy migration","command":["post-migrate"]},{"label":"Inbox catalog registration","command":["register-catalog"]}]'
+export DEPLOY_TEST_DESCRIBE_TASKS_SLEEP=1
+concurrent_started=$SECONDS
+DEPLOY_TEST_POST_DEPLOY_TASKS_CONCURRENT=true run_release \
+  concurrent-post-deploy-tasks \
+  true false false 0 false 1 healthy 0 '' '' '' "$concurrent_tasks"
+concurrent_elapsed=$(( SECONDS - concurrent_started ))
+serial_started=$SECONDS
+run_release \
+  serial-post-deploy-tasks-control \
+  true false false 0 false 1 healthy 0 '' '' '' "$concurrent_tasks"
+serial_elapsed=$(( SECONDS - serial_started ))
+unset DEPLOY_TEST_DESCRIBE_TASKS_SLEEP
+if (( concurrent_elapsed >= serial_elapsed )); then
+  echo "Concurrent post-deploy tasks took ${concurrent_elapsed}s, no faster than serial (${serial_elapsed}s)." >&2
+  exit 1
+fi
+# Order between the two tasks is not defined, so compare sorted.
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
+  smoke \
+  post-migrate \
+  register-catalog \
+  | sort >"$test_directory/concurrent-post-deploy-tasks/expected.log"
+sort "$test_directory/concurrent-post-deploy-tasks/aws.log" \
+  | diff -u "$test_directory/concurrent-post-deploy-tasks/expected.log" -
+# The smoke check and the rollout still come first: only the tasks overlap.
+if [[ "$(sed -n 2p "$test_directory/concurrent-post-deploy-tasks/aws.log")" != smoke ]]; then
+  echo "Concurrent post-deploy tasks started before the smoke check." >&2
+  exit 1
+fi
+
+# A failed concurrent task still rolls the service back — once, and only after
+# every task has finished.
+DEPLOY_TEST_POST_DEPLOY_TASKS_CONCURRENT=true run_release \
+  concurrent-post-deploy-task-failure \
+  false false false 1 false 1 healthy 0 '' '' '' "$concurrent_tasks" 0 '' '' 3 '' 2
+if [[ "$(grep -c '^service:arn:aws:ecs:test:task-definition/deploy-test:1:' \
+  "$test_directory/concurrent-post-deploy-task-failure/aws.log")" != "1" ]]; then
+  echo "A failed concurrent post-deploy task did not roll back exactly once." >&2
+  cat "$test_directory/concurrent-post-deploy-task-failure/aws.log" >&2
+  exit 1
+fi
+if [[ "$(tail -n 1 "$test_directory/concurrent-post-deploy-task-failure/aws.log")" != \
+      'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1:surge=200' ]]; then
+  echo "The rollback did not wait for every concurrent post-deploy task." >&2
+  exit 1
+fi
+
+DEPLOY_TEST_POST_DEPLOY_TASKS_CONCURRENT=maybe run_release \
+  invalid-concurrent-flag false false false 0 false 1
+grep -F "POST_DEPLOY_TASKS_CONCURRENT must be either 'true' or 'false'" \
+  "$test_directory/invalid-concurrent-flag/output.log" >/dev/null
+if [[ -s "$test_directory/invalid-concurrent-flag/aws.log" ]]; then
+  echo "An invalid POST_DEPLOY_TASKS_CONCURRENT reached AWS." >&2
+  exit 1
+fi
+
+# ── Full-surge rollout (ROLLOUT_MAX_PERCENT) ────────────────────────────────
+# 200% of two tasks starts both replacements in one wave, and the rollback
+# after a failed post-deploy task uses the same surge.
+DEPLOY_TEST_ROLLOUT_MAX_PERCENT=200 run_release \
+  full-surge-rollback false false false 1 false 2
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=2:surge=200' \
+  smoke \
+  reconcile \
+  tasklogs \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=2:surge=200' \
+  >"$test_directory/full-surge-rollback/expected.log"
+diff -u \
+  "$test_directory/full-surge-rollback/expected.log" \
+  "$test_directory/full-surge-rollback/aws.log"
+grep -F 'Rollout surge: 200% of 2 task(s) (2 extra)' \
+  "$test_directory/full-surge-rollback/output.log" >/dev/null
+# A full surge replaces six tasks in one round, so the budget floor is one
+# round (600s) and the 1200s default stands.
+DEPLOY_TEST_ROLLOUT_MAX_PERCENT=200 DEPLOY_TEST_MAX_WAIT_SECS="" run_release \
+  full-surge-wait-floor true false false 0 false 6
+grep -F 'Rollout surge: 200% of 6 task(s) (6 extra), wait budget 1200s' \
+  "$test_directory/full-surge-wait-floor/output.log" >/dev/null
+# It only ever RAISES the one-extra floor: 101% of one task would leave no
+# spare slot, so a single-task service keeps 200.
+DEPLOY_TEST_ROLLOUT_MAX_PERCENT=101 run_release \
+  surge-never-below-floor true false false 0 false 1
+grep -F 'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
+  "$test_directory/surge-never-below-floor/aws.log" >/dev/null
+DEPLOY_TEST_ROLLOUT_MAX_PERCENT=250 run_release \
+  invalid-rollout-max-percent false false false 0 false 2
+grep -F 'ROLLOUT_MAX_PERCENT must be an integer above 100 and at most 200' \
+  "$test_directory/invalid-rollout-max-percent/output.log" >/dev/null
+if [[ -s "$test_directory/invalid-rollout-max-percent/aws.log" ]]; then
+  echo "An invalid ROLLOUT_MAX_PERCENT reached AWS." >&2
+  exit 1
+fi
+
+# ── Pre-rollout script (PRE_ROLLOUT_SCRIPT) ─────────────────────────────────
+# It runs after the pre-deploy migration, with the release's IMAGE_URI, and
+# before update-service.
+DEPLOY_TEST_PRE_ROLLOUT_EXIT=0 run_release pre-rollout-script true true
+printf '%s\n' \
+  'migration:node packages/api/dist/db/migrate.js --phase=pre' \
+  'pre-rollout:example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
+  smoke \
+  reconcile \
+  >"$test_directory/pre-rollout-script/expected.log"
+diff -u \
+  "$test_directory/pre-rollout-script/expected.log" \
+  "$test_directory/pre-rollout-script/aws.log"
+# A failing pre-rollout script leaves the service untouched.
+DEPLOY_TEST_PRE_ROLLOUT_EXIT=1 run_release pre-rollout-script-failure false true
+if grep -q '^service:' "$test_directory/pre-rollout-script-failure/aws.log"; then
+  echo "A failed pre-rollout script reached update-service." >&2
+  exit 1
+fi
+grep -F 'Pre-rollout script failed; deploy-test was not updated.' \
+  "$test_directory/pre-rollout-script-failure/output.log" >/dev/null
 
 run_release post-task-capacity-retry true false false 0 false 2 healthy 0 '' '' '' '' 2 1
 printf '%s\n' \
@@ -926,13 +1073,13 @@ fi
 # additive schema/API rollout and serving enforcement.
 workflow_file="$repository_root/.github/workflows/deploy-aws.yml"
 grep -F 'TASK_ENV_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","INBOX_INFERENCE_ROUTING_PROFILE_ID":"${{ vars.INBOX_INFERENCE_ROUTING_PROFILE_ID }}","INSTAGRAM_GRAPH_FALLBACK_ENABLED":"${{ vars.INSTAGRAM_GRAPH_FALLBACK_ENABLED }}","META_GRAPH_API_VERSION":"${{ vars.META_GRAPH_API_VERSION }}","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}' \
+grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","INBOX_INFERENCE_ROUTING_PROFILE_ID":"${{ vars.INBOX_INFERENCE_ROUTING_PROFILE_ID }}","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}' \
   "$workflow_file" >/dev/null
 grep -F 'TASK_EXTRA_CONTAINERS_JSON: >-' "$workflow_file" >/dev/null
 grep -F '"name":"aws-otel-collector","image":"public.ecr.aws/aws-observability/aws-otel-collector:v0.49.0","essential":false' \
   "$workflow_file" >/dev/null
 grep -F 'TASK_REMOVE_NAMES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]' \
+grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION"]' \
   "$workflow_file" >/dev/null
 # Historical removal receipt only: the exact list above deletes the old
 # inference bindings. Their presence there does not make them accepted aliases

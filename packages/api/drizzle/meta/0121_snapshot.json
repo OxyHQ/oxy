@@ -1,5 +1,5 @@
 {
-  "id": "a85fb5b6-4e74-4659-a459-603315a973e1",
+  "id": "72bbf01c-6c47-47d9-bf52-4799ed652925",
   "prevId": "e5b07e9b-d059-4f89-8317-c3566770027b",
   "version": "7",
   "dialect": "postgresql",
@@ -9994,46 +9994,18 @@
         }
       },
       "indexes": {
-        "files_sha256_owner_user_live_key": {
-          "name": "files_sha256_owner_user_live_key",
+        "files_sha256_live_key": {
+          "name": "files_sha256_live_key",
           "columns": [
             {
               "expression": "sha256",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            },
-            {
-              "expression": "owner_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
             }
           ],
           "isUnique": true,
-          "where": "\"files\".\"status\" in ('active', 'trash') and \"files\".\"owner_user_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "files_sha256_system_owner_live_key": {
-          "name": "files_sha256_system_owner_live_key",
-          "columns": [
-            {
-              "expression": "sha256",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "system_owner",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"files\".\"status\" in ('active', 'trash') and \"files\".\"system_owner\" is not null",
+          "where": "\"files\".\"status\" in ('active', 'trash')",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -18838,6 +18810,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "relay_message_id": {
+          "name": "relay_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sent_copy_of": {
+          "name": "sent_copy_of",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "in_reply_to": {
           "name": "in_reply_to",
           "type": "text",
@@ -19006,6 +18990,28 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "messages_user_id_relay_message_id_idx": {
+          "name": "messages_user_id_relay_message_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "relay_message_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"messages\".\"relay_message_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -19271,6 +19277,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "messages_sent_copy_of_messages_id_fk": {
+          "name": "messages_sent_copy_of_messages_id_fk",
+          "tableFrom": "messages",
+          "tableTo": "messages",
+          "columnsFrom": [
+            "sent_copy_of"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "messages_snoozed_from_mailbox_mailboxes_id_fk": {
@@ -32766,7 +32785,7 @@
       "checkConstraints": {
         "storage_object_deletions_reason_check": {
           "name": "storage_object_deletions_reason_check",
-          "value": "\"storage_object_deletions\".\"reason\" in ('account.deleted', 'file.deleted', 'file.relocated')"
+          "value": "\"storage_object_deletions\".\"reason\" in ('account.deleted', 'file.deleted')"
         },
         "storage_object_deletions_kind_check": {
           "name": "storage_object_deletions_kind_check",

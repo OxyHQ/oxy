@@ -94,7 +94,7 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
     };
 
     if (domains.isPending && isAuthenticated) {
-        return <Loading size="large" color={bloomTheme.colors.primary} />;
+        return <Loading size="lg" color={bloomTheme.colors.primary} />;
     }
 
     return (

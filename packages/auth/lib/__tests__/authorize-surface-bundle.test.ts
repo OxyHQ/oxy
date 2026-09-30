@@ -120,9 +120,13 @@ describe("the production bundle renders OxySignInRequestSurface, not undefined",
     }
 
     test("the preparing branch draws its leading visual", () => {
-        // React Native's `ActivityIndicator` — the element `963f6e57` swapped
-        // Bloom's `Loading` for, and the one the lane shows on first paint.
-        expect(probe[PROBE_CASES.preparing].html ?? "").toContain('role="progressbar"')
+        // Bloom's `Loading`, named: `963f6e57` once swapped it for React
+        // Native's `ActivityIndicator` because `@oxy.so/bloom/loading`
+        // tree-shook to undefined in this bundle. It no longer does (Bloom
+        // 4.35.0), and the case above proves every element is real.
+        const html = probe[PROBE_CASES.preparing].html ?? ""
+        expect(html).toContain('role="progressbar"')
+        expect(html).toContain("bloomSpinnerRotate")
     })
 
     test("the failed branch reveals the alternatives plainly", () => {

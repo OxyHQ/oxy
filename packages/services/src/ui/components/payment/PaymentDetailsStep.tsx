@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { View, Animated, TouchableOpacity, Clipboard, Linking } from 'react-native';
+import { View, Animated, TouchableOpacity, Linking } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import { Button } from '@oxy.so/bloom/button';
@@ -8,6 +8,7 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import FAIRWalletIcon from '../icon/FAIRWalletIcon';
 import { createPaymentStyles } from './paymentStyles';
 import { toast } from '@oxy.so/bloom/toast';
+import { copyText } from '../../utils/clipboard';
 import type { CardDetails, PaymentColors, PaymentStepAnimations } from './types';
 import { useI18n } from '../../hooks/useI18n';
 
@@ -43,8 +44,9 @@ const PaymentDetailsStep: React.FC<PaymentDetailsStepProps> = ({
     const { fadeAnim, slideAnim, scaleAnim } = animations;
 
     const handleCopyAddress = () => {
-        Clipboard.setString(faircoinAddress);
-        toast(t('payment.details.addressCopied'));
+        copyText(faircoinAddress)
+            .then(() => toast(t('payment.details.addressCopied')))
+            .catch(() => toast.error(t('appInfo.toasts.copyFailed')));
     };
 
     const handleOpenFairWallet = () => {
@@ -212,13 +214,13 @@ const PaymentDetailsStep: React.FC<PaymentDetailsStepProps> = ({
             </View>
 
             <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-                <Button appearance="subtle" tone="neutral" onPress={onBack} size="small" icon={<Ionicons name="arrow-back" size={16} />}>
+                <Button appearance="subtle" tone="neutral" onPress={onBack} size="sm" icon={<Ionicons name="arrow-back" size={16} />}>
                     {t('payment.actions.back')}
                 </Button>
                 <Button
                     appearance="solid" tone="accent"
                     onPress={onNext}
-                    size="small"
+                    size="sm"
                     icon={<Ionicons name="arrow-forward" size={16} />}
                     iconPosition="right"
                     disabled={paymentMethod === 'card' && !isCardValid}

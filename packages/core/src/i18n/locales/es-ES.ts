@@ -56,6 +56,8 @@ const dict = {
       "description": "Si hay una cuenta con {{identifier}}, le hemos enviado un código y un enlace para iniciar sesión.",
       "codeLabel": "Código",
       "codeHint": "Escribe el código del email o abre su enlace en este navegador.",
+      "codeHasLetters": "¿Tu código tiene letras?",
+      "codeDigitsOnly": "¿Tu código solo tiene números?",
       "resend": "Enviar un email nuevo",
       "resendIn": "Enviar un email nuevo en {{seconds}} s",
       "resent": "Te hemos enviado un email nuevo.",
@@ -311,6 +313,7 @@ const dict = {
     }
   },
   "common": {
+    "stepOf": "Paso {{step}} de {{total}}",
     "actions": {
       "back": "Atrás",
       "continue": "Continuar",
@@ -1960,7 +1963,6 @@ const dict = {
     "passwordLabel": "Contraseña actual",
     "usePassword": "Usar tu contraseña",
     "useEmail": "Recibir un código por email",
-    "totpLabel": "Código de autenticación o de seguridad",
     "errors": {
       "invalid": "No ha funcionado. Revisa lo que has escrito e inténtalo de nuevo.",
       "totpRequired": "Escribe también el código de tu app de autenticación."

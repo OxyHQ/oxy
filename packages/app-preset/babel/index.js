@@ -33,6 +33,8 @@ module.exports = function oxyBabelPreset(api) {
           extensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.svg'],
         },
       ],
+      // The build id `@oxy.so/services` busts its persisted caches on.
+      require.resolve('./inline-oxy-build-id'),
       // Must be LAST.
       'react-native-worklets/plugin',
     ],

@@ -7,11 +7,10 @@
 
 import type React from 'react';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { Field } from '@oxy.so/bloom/field';
 import { Switch } from '@oxy.so/bloom/switch';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
-import { Text } from '@oxy.so/bloom/typography';
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@oxy.so/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/OxyContext';
@@ -30,7 +29,6 @@ export interface OxyPasswordPanelProps {
 }
 
 export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCancel }) => {
-  const theme = useTheme();
   const { t } = useI18n();
   const { oxyServices, user } = useOxy();
   const queryClient = useQueryClient();
@@ -94,10 +92,11 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
         autoFocus={false}
         testID="password-repeat"
       />
-      <View style={styles.row}>
-        <Text style={[styles.label, { color: theme.colors.text }]}>{t('signInSecurity.password.signOutOthers')}</Text>
-        <Switch value={signOutOthers} onValueChange={setSignOutOthers} testID="password-sign-out-others" />
-      </View>
+      {/* The field names the switch ("Sign out everywhere else, switch, off")
+          and, on web, its label toggles it. One row: label, then the switch. */}
+      <Field label={t('signInSecurity.password.signOutOthers')} style={styles.row}>
+        <Switch checked={signOutOthers} onCheckedChange={setSignOutOthers} testID="password-sign-out-others" />
+      </Field>
     </ReauthStep>
   );
 };
@@ -108,10 +107,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-  },
-  label: {
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 24,
   },
 });

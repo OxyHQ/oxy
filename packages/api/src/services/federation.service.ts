@@ -9,19 +9,21 @@
 import { resolutionFailure, safeActorSelector, type ActorProfileResult } from './federation/resolutionFailure';
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
-import { eq } from 'drizzle-orm';
-import { signRequest, canonicalFederationHost, federatedUsernameFromUpstreamUrl, normalizeAlsoKnownAs } from '@oxy.so/federation';
+import { and, eq } from 'drizzle-orm';
+import { signRequest, canonicalFederationHost, createUrlBuilders, federatedUsernameFromUpstreamUrl, INSTANCE_ACTOR_USERNAME, normalizeAlsoKnownAs } from '@oxy.so/federation';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { federationKeyPairs } from '../db/schema/federationKeyPairs';
 import { ACCOUNT_KINDS, users } from '../db/schema/users';
 import { externalIdentityActors } from '../db/schema/externalIdentities';
+import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
 import { FEDERATION_BRIDGE_POLICY } from '../config/federationBridgePolicy';
 import { userService, type AccountDocument } from './user.service';
 import { AssetService } from './assetService';
 import { createS3Service } from './s3Service';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
+import { isAvatarFileId, persistFederatedAvatar, type FederatedAvatarWrite } from '../utils/federatedAvatar';
 import { composeDisplayName } from '../utils/displayName';
 import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { sanitizePlainText } from '../utils/sanitize';
@@ -34,10 +36,11 @@ import {
   instagramGraphUserIdFromActorUri,
   instagramUsernameFromAcct,
   isInstagramGraphActorUri,
-  isInstagramGraphEnabled,
+  isInstagramGraphConfigured,
 } from './federation/instagramGraph';
 import { recordInstagramSourcePin, recordMetaIdentityProof, revokeMetaIdentityProof, type MetaIdentityProofOutcome } from './federation/metaIdentityProofRegistry.service';
 import { getExternalIdentitiesForUser, getCanonicalUserRedirects, lookupExternalIdentity, registerExternalIdentity, resolveCanonicalUserId } from './externalIdentityRegistry.service';
+import { normalizeAvatarImage } from './federation/avatarImage';
 import {
   acquireAvatarOriginLease,
   clearAvatarOriginFailures,
@@ -118,8 +121,12 @@ const FEDIVERSE_HANDLE_REGEX = /^@?[\w.-]+@[\w.-]+\.\w+$/;
 const FEDERATION_FETCH_TIMEOUT_MS = 10_000;
 /** Time-to-first-byte deadline for avatar/media downloads. */
 const FEDERATION_AVATAR_FETCH_TIMEOUT_MS = 15_000;
-/** Hard cap on a remote avatar's body size (matches the historical 5MB limit). */
+/** Largest avatar STORED as-is (the historical 5MB limit); larger ones are re-encoded. */
 const FEDERATION_MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+/** Largest avatar DOWNLOADED at all: animated 6–8 MB WebP/GIF avatars are common. */
+const FEDERATION_MAX_AVATAR_DOWNLOAD_BYTES = 25 * 1024 * 1024;
+/** Longest a fetch waits for its origin's request gap before it is deferred. */
+const AVATAR_ORIGIN_MAX_WAIT_MS = 30_000;
 /**
  * Hard cap on a federation JSON document (WebFinger JRD / ActivityPub actor).
  * Generous for legitimate actor objects, but bounds a hostile peer streaming an
@@ -610,8 +617,12 @@ function buildActor(opts: BuildActorOptions): Record<string, unknown> {
   const aliases = normalizeAlsoKnownAs(opts.alsoKnownAs);
   const base = `https://${domain}/ap`;
 
+  // The one builder the WebFinger `self` link also uses: Mastodon compares the
+  // two byte for byte before it trusts a signed fetch.
+  const actorUrlFor = createUrlBuilders(domain).actor;
+
   if (username === null) {
-    const actorUrl = `${base}/users/instance`;
+    const actorUrl = actorUrlFor(INSTANCE_ACTOR_USERNAME);
     return {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -619,7 +630,7 @@ function buildActor(opts: BuildActorOptions): Record<string, unknown> {
       ],
       id: actorUrl,
       type: 'Application',
-      preferredUsername: 'instance',
+      preferredUsername: INSTANCE_ACTOR_USERNAME,
       name,
       summary: summary ?? '',
       url: `https://${domain}`,
@@ -634,7 +645,7 @@ function buildActor(opts: BuildActorOptions): Record<string, unknown> {
     };
   }
 
-  const actorUrl = `${base}/users/${username}`;
+  const actorUrl = actorUrlFor(username);
   return {
     // The alias term is declared only when an alias is emitted, so an actor
     // without aliases keeps exactly the context it always had.
@@ -703,11 +714,11 @@ export async function getInstanceActor(domain: string = AP_DOMAIN): Promise<Reco
 /**
  * The stored avatar READ AS A FILE ID, or `undefined` when it is not one.
  *
- * `users.avatar` holds either an Oxy Cloud file id or, since
- * `registerExternalIdentity` began seeding a federated actor's source picture
- * synchronously, the remote URL it is still waiting to replace. Only the first is
- * a file id, and the download path treats that argument as one — it DELETES what
- * it names when a new image replaces it.
+ * A federated `users.avatar` is an Oxy Cloud file id or NULL. Rows written
+ * before the registry stopped seeding the source picture URL (and local rows
+ * from the Mongo era) can still hold a remote URL, which is NOT a file id — and
+ * the download path treats this argument as one: it DELETES what it names when a
+ * new image replaces it.
  *
  * EXPORTED, and module-level rather than a method, because the readers are not
  * all in this file: `routes/users.ts` reads the column too. A private helper
@@ -715,10 +726,61 @@ export async function getInstanceActor(domain: string = AP_DOMAIN): Promise<Reco
  * written today and exactly the failure this is meant to end.
  */
 export function storedAvatarFileId(avatar: string | null | undefined): string | undefined {
-  return typeof avatar === 'string' && avatar.length > 0 && !avatar.startsWith('http')
-    ? avatar
-    : undefined;
+  return isAvatarFileId(avatar) ? avatar : undefined;
 }
+
+/** Meta's CDN hosts, whose picture URLs are signed and carry their own expiry. */
+const META_SIGNED_CDN_HOST = /(^|\.)(fbcdn\.net|cdninstagram\.com)$/i;
+
+/**
+ * Whether a Meta CDN picture URL is past the expiry it is signed with.
+ *
+ * Instagram/Facebook CDN URLs carry `oe=<hex unix seconds>`; after that instant
+ * the CDN answers 403 (URL signature expired). A bridge that caches a profile
+ * keeps serving such a URL long after it died — kilogram served one for
+ * ibaillanos@instagram.com with `oe=6869EA02`, i.e. 2025-07-06. Fetching it can
+ * only fail, so it is classified as a permanent failure without a request.
+ */
+export function isExpiredSignedAvatarUrl(url: string, now: number = Date.now()): boolean {
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { return false; }
+  if (!META_SIGNED_CDN_HOST.test(parsed.hostname)) return false;
+  const oe = parsed.searchParams.get('oe');
+  if (!oe || !/^[0-9a-f]{1,12}$/i.test(oe)) return false;
+  return Number.parseInt(oe, 16) * 1000 <= now;
+}
+
+/**
+ * Why a mirror attempt produced no file. `permanent`: this URL will not yield an
+ * image however often it is retried (4xx, expired signature, not an image, over
+ * the cap). `transient`: worth retrying later (transport, 5xx, 429, backpressure).
+ */
+export type AvatarMirrorFailure = 'transient' | 'permanent';
+
+/** Why a mirror produced no file — tallied by the repair and retry passes. */
+export type AvatarFailureReason =
+  | 'not_https' | 'expired_signature' | 'origin_cooldown' | 'transport' | 'rate_limited'
+  | 'http_4xx' | 'http_5xx' | 'not_modified_without_file' | 'too_large' | 'empty_body'
+  | 'not_an_image' | 'undecodable' | 'upload_failed' | 'unexpected'
+  | 'source_unavailable' | 'graph_refused';
+
+export interface AvatarDownloadResult {
+  fileId: string | null;
+  etag?: string;
+  lastModified?: string;
+  notModified: boolean;
+  failure?: AvatarMirrorFailure;
+  reason?: AvatarFailureReason;
+  httpStatus?: number;
+  /** Which picture was mirrored when the result carries a new file id. */
+  source?: 'remote' | 'instagram_graph';
+}
+
+function avatarFailure(failure: AvatarMirrorFailure, reason: AvatarFailureReason, httpStatus?: number): AvatarDownloadResult {
+  return { fileId: null, notModified: false, failure, reason, ...(httpStatus !== undefined ? { httpStatus } : {}) };
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); });
 
 async function resolveActorAvatarUrl(avatar: unknown): Promise<string | undefined> {
   if (typeof avatar !== 'string' || avatar.length === 0) {
@@ -1092,7 +1154,7 @@ class FederationService {
     const persistVerifiedOwner = (profile: ExternalActorProfile, own: NonNullable<Awaited<ReturnType<typeof fetchMetaFirstPartyProfilePair>>['instagramProfile']>) =>
       registerExternalIdentity({ canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
         protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
-        profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
+        profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
         verifiedInstagramPin: { documentHash: own.documentHash, verifiedAt: own.fetchedAt } });
     const evidence = await fetchMetaFirstPartyProfilePair({ sourceAcct: source.username });
     const normalizeName = (value: string) => cleanDisplayName(value).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -1137,7 +1199,7 @@ class FederationService {
     const persist = (profile: ExternalActorProfile) => registerExternalIdentity({
       canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
       protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
-      profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
+      profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
     });
     const instagramRegistration = source.domain === 'instagram.com' ? registered : await persist(instagram);
     if (source.domain !== 'instagram.com' && evidence.instagramProfile) {
@@ -1168,7 +1230,7 @@ class FederationService {
     // An explicit Graph request goes straight to Business Discovery.
     if (input.protocol === INSTAGRAM_GRAPH_PROTOCOL) return instagram ? this.resolveInstagramGraphHandle(handle) : null;
     // Any failed bridge resolution of an Instagram account (429, timeout,
-    // refusal) may fall back to Graph; the flag being off keeps today's null.
+    // refusal) may fall back to Graph; without Graph credentials it stays null.
     const graphFallback = () => (instagram ? this.resolveInstagramGraphHandle(handle) : Promise.resolve(null));
     const userId = await lookupExternalIdentity(handle);
     if (userId) {
@@ -1194,7 +1256,7 @@ class FederationService {
 
   /** Business Discovery for one `<username>@instagram.com`; null when disabled or not discoverable. */
   private async resolveInstagramGraphHandle(handle: string) {
-    if (!isInstagramGraphEnabled()) return null;
+    if (!isInstagramGraphConfigured()) return null;
     const lookup = await fetchInstagramGraphProfile(handle);
     if (!lookup.ok) return null;
     // An IG User id survives a username change. A Graph source already bound to
@@ -1216,7 +1278,7 @@ class FederationService {
    */
   private async resolveInstagramGraphActorIdentity(actorUri: string, transportAcct: string | undefined, opts: { forceAvatarRefresh?: boolean }) {
     const igUserId = instagramGraphUserIdFromActorUri(actorUri);
-    if (!igUserId || !isInstagramGraphEnabled()) return null;
+    if (!igUserId || !isInstagramGraphConfigured()) return null;
     const [stored] = await getDb().select({ transportAcct: externalIdentityActors.transportAcct }).from(externalIdentityActors)
       .where(eq(externalIdentityActors.actorUri, actorUri)).limit(1);
     const username = instagramUsernameFromAcct(stored?.transportAcct ?? transportAcct ?? '');
@@ -1255,7 +1317,7 @@ class FederationService {
     const result = await registerExternalIdentity({
       canonicalAcct: profile.username, actorUri: profile.actorUri, transportAcct: profile.transportAcct,
       protocol: profile.protocol, stableId: profile.stableId, evidenceLinks: profile.evidenceLinks,
-      profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio, avatarUrl: profile.avatarUrl },
+      profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
     });
     // First-party badge proofs bind bridge actors; a Graph source is admitted by
     // the registry's pinned graph-id check and never records or revokes them.
@@ -1273,7 +1335,7 @@ class FederationService {
     if (profile.avatarUrl) {
       const [source] = await getDb().select({ avatar: users.avatar }).from(users).where(eq(users.id, result.identity.userId));
       const avatar = source?.avatar ?? undefined;
-      if (opts.forceAvatarRefresh || !avatar || avatar.startsWith('http')) {
+      if (opts.forceAvatarRefresh || !isAvatarFileId(avatar)) {
         this.scheduleAvatarRefresh(result.identity.userId, profile.avatarUrl, storedAvatarFileId(avatar), { force: opts.forceAvatarRefresh === true });
       }
     }
@@ -1311,18 +1373,36 @@ class FederationService {
     existingAvatarFileId?: string,
     conditional?: { etag?: string; lastModified?: string },
     ownerUserId = FEDERATION_SYSTEM_USER,
-  ): Promise<{ fileId: string | null; etag?: string; lastModified?: string; notModified: boolean }> {
+  ): Promise<AvatarDownloadResult> {
+    if (!avatarUrl.startsWith('https://')) {
+      // safeFederationFetch refuses anything else; no retry changes the scheme.
+      logger.warn('Federated avatar skipped: not an https URL');
+      return avatarFailure('permanent', 'not_https');
+    }
+    if (isExpiredSignedAvatarUrl(avatarUrl)) {
+      logger.warn('Federated avatar skipped: signed CDN URL has expired', { origin: new URL(avatarUrl).origin });
+      return avatarFailure('permanent', 'expired_signature');
+    }
     try {
-      const originCooldownMs = await acquireAvatarOriginLease(avatarUrl);
-      if (originCooldownMs > 0) {
-        logger.info('Federated avatar fetch deferred by origin backpressure', {
-          origin: new URL(avatarUrl).origin,
-          retryAfterMs: originCooldownMs,
-        });
-        return { fileId: null, notModified: false };
+      // WAIT for the per-origin request gap instead of treating it as a failure:
+      // a refused gap used to be reported as a transient failure, and a bulk pass
+      // over a shared CDN lost every avatar but one per gap. Only a long cooldown
+      // (a recorded 429) defers the fetch.
+      const deadline = Date.now() + AVATAR_ORIGIN_MAX_WAIT_MS;
+      for (;;) {
+        const waitMs = await acquireAvatarOriginLease(avatarUrl);
+        if (waitMs <= 0) break;
+        if (waitMs > AVATAR_ORIGIN_MAX_WAIT_MS || Date.now() + waitMs > deadline) {
+          logger.info('Federated avatar fetch deferred by origin backpressure', {
+            origin: new URL(avatarUrl).origin,
+            retryAfterMs: waitMs,
+          });
+          return avatarFailure('transient', 'origin_cooldown');
+        }
+        await sleep(waitMs + Math.floor(Math.random() * 250));
       }
 
-      return this.downloadAndStoreAvatarWithLease(
+      return await this.downloadAndStoreAvatarWithLease(
         avatarUrl,
         existingAvatarFileId,
         conditional,
@@ -1330,7 +1410,7 @@ class FederationService {
       );
     } catch (err) {
       logger.warn(`Failed to download/store federated avatar: ${err}`);
-      return { fileId: null, notModified: false };
+      return avatarFailure('transient', 'unexpected');
     }
   }
 
@@ -1339,9 +1419,9 @@ class FederationService {
     existingAvatarFileId?: string,
     conditional?: { etag?: string; lastModified?: string },
     ownerUserId = FEDERATION_SYSTEM_USER,
-  ): Promise<{ fileId: string | null; etag?: string; lastModified?: string; notModified: boolean }> {
+  ): Promise<AvatarDownloadResult> {
     try {
-      const requestHeaders: Record<string, string> = { 'User-Agent': USER_AGENT };
+      const requestHeaders: Record<string, string> = { 'User-Agent': USER_AGENT, Accept: 'image/*,*/*;q=0.8' };
       if (conditional?.etag) {
         requestHeaders['If-None-Match'] = conditional.etag;
       }
@@ -1354,7 +1434,7 @@ class FederationService {
         timeoutMs: FEDERATION_AVATAR_FETCH_TIMEOUT_MS,
       });
       if (!res) {
-        return { fileId: null, notModified: false };
+        return avatarFailure('transient', 'transport');
       }
 
       const headerValue = (name: string): string | undefined => {
@@ -1369,7 +1449,7 @@ class FederationService {
           origin: new URL(avatarUrl).origin,
           retryAfterMs,
         });
-        return { fileId: null, notModified: false };
+        return avatarFailure('transient', 'rate_limited', 429);
       }
 
       // 304: the host confirms the remote bytes are unchanged. This only means
@@ -1398,86 +1478,83 @@ class FederationService {
           );
         }
 
-        return {
-          fileId: null,
-          etag: conditional?.etag,
-          lastModified: conditional?.lastModified,
-          notModified: false,
-        };
+        return { ...avatarFailure('transient', 'not_modified_without_file', 304), etag: conditional?.etag, lastModified: conditional?.lastModified };
       }
 
       if (res.status < 200 || res.status >= 300) {
         res.response.destroy();
         logger.warn(`Avatar download failed: HTTP ${res.status} for ${avatarUrl}`);
-        return { fileId: null, notModified: false };
+        // A 4xx (403 for an expired signature, 404/410 for a replaced picture)
+        // answers the same next time; 408, 5xx and anything else may not.
+        const permanent = res.status >= 400 && res.status < 500 && res.status !== 408;
+        return avatarFailure(permanent ? 'permanent' : 'transient', permanent ? 'http_4xx' : 'http_5xx', res.status);
       }
 
       await clearAvatarOriginFailures(avatarUrl);
 
       const etag = headerValue('etag');
       const lastModified = headerValue('last-modified');
+      const declaredType = (headerValue('content-type') || '').split(';')[0].trim().toLowerCase();
 
-      // Sanitize content-type: strip parameters (e.g. "image/jpeg; charset=utf-8" → "image/jpeg")
-      const rawContentType = headerValue('content-type') || 'image/png';
-      const contentType = rawContentType.split(';')[0].trim().toLowerCase();
-
-      // Accept image/* and common binary types that CDNs return for images
-      if (!contentType.startsWith('image/') && contentType !== 'application/octet-stream') {
-        res.response.destroy();
-        logger.warn(`Avatar download skipped: non-image content-type "${rawContentType}" for ${avatarUrl}`);
-        return { fileId: null, etag, lastModified, notModified: false };
-      }
-
-      // Enforce a hard byte cap; safeFetch does NOT bound the response body. A
-      // pre-check on the advertised content-length drops an oversized body
-      // before reading a single byte, and the streaming reader caps anything
-      // the header understated. An oversized body returns null and is dropped.
+      // The Content-Type is NOT a gate: hosts serve real pictures as
+      // `text/plain`, `binary/octet-stream` or `text/html`. The bytes decide
+      // (`normalizeAvatarImage`). The download is bounded by a hard cap well
+      // above the stored cap, so an oversized avatar can be re-encoded instead
+      // of dropped.
       const advertisedLength = headerValue('content-length');
-      if (advertisedLength !== undefined && Number(advertisedLength) > FEDERATION_MAX_AVATAR_BYTES) {
+      if (advertisedLength !== undefined && Number(advertisedLength) > FEDERATION_MAX_AVATAR_DOWNLOAD_BYTES) {
         res.response.destroy();
         logger.warn(`Avatar download skipped: content-length ${advertisedLength} exceeds cap for ${avatarUrl}`);
-        return { fileId: null, etag, lastModified, notModified: false };
+        return { ...avatarFailure('permanent', 'too_large'), etag, lastModified };
       }
 
-      const buffer = await readBodyLimited(res.response, FEDERATION_MAX_AVATAR_BYTES);
-      if (!buffer || buffer.length === 0) {
-        return { fileId: null, etag, lastModified, notModified: false };
+      const buffer = await readBodyLimited(res.response, FEDERATION_MAX_AVATAR_DOWNLOAD_BYTES);
+      if (!buffer) {
+        return { ...avatarFailure('permanent', 'too_large'), etag, lastModified };
+      }
+      if (buffer.length === 0) {
+        return { ...avatarFailure('transient', 'empty_body'), etag, lastModified };
       }
 
-      // For application/octet-stream, infer MIME from URL extension or default to png
-      let mime = contentType;
-      if (mime === 'application/octet-stream') {
-        const urlLower = avatarUrl.toLowerCase();
-        if (urlLower.endsWith('.jpg') || urlLower.endsWith('.jpeg')) mime = 'image/jpeg';
-        else if (urlLower.endsWith('.webp')) mime = 'image/webp';
-        else if (urlLower.endsWith('.gif')) mime = 'image/gif';
-        else mime = 'image/png';
+      const image = await normalizeAvatarImage(buffer, FEDERATION_MAX_AVATAR_BYTES);
+      if (!image.ok) {
+        logger.warn('Avatar download skipped: bytes are not a usable image', {
+          reason: image.reason, declaredType: declaredType || 'none', origin: new URL(avatarUrl).origin,
+        });
+        return { ...avatarFailure('permanent', image.reason), etag, lastModified };
       }
 
       const assetService = getAssetService();
 
-      // Determine extension from sanitized content type
       const extMap: Record<string, string> = {
         'image/png': 'png',
         'image/jpeg': 'jpg',
         'image/webp': 'webp',
         'image/gif': 'gif',
+        'image/avif': 'avif',
       };
-      const ext = extMap[mime] || 'png';
+      const ext = extMap[image.mime] || 'img';
       const filename = `federated-avatar-${crypto.randomBytes(8).toString('hex')}.${ext}`;
 
-      const file = await assetService.uploadFileDirect(
-        ownerUserId,
-        buffer,
-        mime,
-        filename,
-        'public',
-        {
-          source: 'federation',
-          role: 'avatar',
-          remoteUrl: avatarUrl,
-        },
-      );
+      let file: { id: string };
+      try {
+        file = await assetService.uploadFileDirect(
+          ownerUserId,
+          image.buffer,
+          image.mime,
+          filename,
+          'public',
+          {
+            source: 'federation',
+            role: 'avatar',
+            remoteUrl: avatarUrl,
+            ...(image.reencoded ? { reencoded: true, originalBytes: buffer.length } : {}),
+          },
+        );
+      } catch (err) {
+        logger.warn(`Failed to store federated avatar: ${err}`);
+        return avatarFailure('transient', 'upload_failed');
+      }
 
       const fileId = file.id;
 
@@ -1492,11 +1569,70 @@ class FederationService {
         }
       }
 
-      return { fileId, etag, lastModified, notModified: false };
+      return { fileId, etag, lastModified, notModified: false, source: 'remote' };
     } catch (err) {
       logger.warn(`Failed to download/store federated avatar: ${err}`);
-      return { fileId: null, notModified: false };
+      return avatarFailure('transient', 'transport');
     }
+  }
+
+  /**
+   * Mirror a federated user's source picture into Oxy Cloud — the ONE way a
+   * federated `users.avatar` gets a value. Never persists anything itself; the
+   * caller writes `fileId` or, on failure, keeps the previous mirror (or none).
+   *
+   * When the source URL fails PERMANENTLY for an instagram.com account (the
+   * bridge served a signed Meta CDN URL that has expired, or any 4xx) and the
+   * Instagram Graph credentials are configured, a fresh `profile_picture_url` is read
+   * through Business Discovery — under its own result cache, cooldown and call
+   * budget — and mirrored instead. A personal account is invisible to Business
+   * Discovery, so it simply has no picture until the bridge serves a live one.
+   */
+  async mirrorFederatedAvatar(
+    userId: string,
+    avatarUrl: string,
+    existingAvatarFileId?: string,
+    conditional?: { etag?: string; lastModified?: string },
+  ): Promise<AvatarDownloadResult> {
+    const stored = await this.downloadAndStoreAvatar(avatarUrl, existingAvatarFileId, conditional, userId);
+    if (stored.fileId || stored.notModified || stored.failure !== 'permanent') return stored;
+    const graphAvatarUrl = await this.freshInstagramGraphAvatarUrl(userId, avatarUrl);
+    if (!graphAvatarUrl) return stored;
+    const fallback = await this.downloadAndStoreAvatar(graphAvatarUrl, existingAvatarFileId, undefined, userId);
+    if (!fallback.fileId) return stored;
+    logger.info('Federated avatar mirrored from Instagram Graph after the source picture failed', { userId });
+    // The validators describe the Graph URL's bytes, not the bridge URL a later
+    // conditional request is sent to, so none are carried forward.
+    return { fileId: fallback.fileId, notModified: false, source: 'instagram_graph' };
+  }
+
+  /**
+   * A fresh Business Discovery picture URL for an instagram.com federated user,
+   * or null. The Graph account must still be the one the user's handle names:
+   * an IG User id already bound to another account, or contradicting the
+   * identity's pinned first-party owner, is refused rather than shown.
+   */
+  private async freshInstagramGraphAvatarUrl(userId: string, failedUrl: string): Promise<string | null> {
+    if (!isInstagramGraphConfigured()) return null;
+    const [user] = await getDb().select({ username: users.username, domain: users.federationDomain })
+      .from(users).where(eq(users.id, userId)).limit(1);
+    if (user?.domain !== INSTAGRAM_NETWORK_DOMAIN) return null;
+    const username = instagramUsernameFromAcct(user.username ?? '');
+    if (!username) return null;
+    const lookup = await fetchInstagramGraphProfile(username);
+    if (!lookup.ok) return null;
+    const graphAvatarUrl = lookup.profile.avatarUrl;
+    if (!graphAvatarUrl || graphAvatarUrl === failedUrl) return null;
+    const acct = lookup.profile.username;
+    const [bound] = await getDb().select({ canonicalAcct: externalIdentityActors.canonicalAcct }).from(externalIdentityActors)
+      .where(eq(externalIdentityActors.actorUri, lookup.profile.actorUri)).limit(1);
+    const pins = await getDb().select({ instagramGraphId: externalIdentityInstagramPins.instagramGraphId }).from(externalIdentityInstagramPins)
+      .where(and(eq(externalIdentityInstagramPins.canonicalAcct, acct), eq(externalIdentityInstagramPins.state, 'pinned')));
+    if ((bound && bound.canonicalAcct !== acct) || (pins.length > 0 && !pins.some(pin => pin.instagramGraphId === lookup.igUserId))) {
+      logger.warn('Instagram Graph avatar refused', { operation: 'instagram_graph_avatar', reason: 'graph_id_not_this_account', username });
+      return null;
+    }
+    return graphAvatarUrl;
   }
 
   /**
@@ -1529,8 +1665,9 @@ class FederationService {
     const updatedAt = existing.updatedAt;
     const isStale = !(updatedAt instanceof Date)
       || Date.now() - updatedAt.getTime() >= STALE_MS;
+    // Anything but a file id (a legacy remote URL) is a mirror still owed.
     const avatarNeedsDownload = typeof existing.avatar === 'string'
-      && existing.avatar.startsWith('http');
+      && existing.avatar.length > 0 && !isAvatarFileId(existing.avatar);
     const avatarFileMissing = !isStale && !avatarNeedsDownload
       ? !(await this.storedAvatarExists(existing.avatar))
       : false;
@@ -1704,13 +1841,26 @@ class FederationService {
         return;
       }
 
-      const stored = await this.downloadAndStoreAvatar(remoteAvatarUrl, storedAvatar, {
+      // With NO stored file, the clock is the retry policy: a mirror that failed
+      // less than the throttle window ago is not retried yet. Every resolve of a
+      // user without a picture schedules one, and a dead source (an expired Meta
+      // CDN signature) would otherwise be retried — and fall back to a Graph
+      // call — on each of them.
+      if (
+        !alreadyHasFileId
+        && lastFetched
+        && Date.now() - lastFetched.getTime() < AVATAR_REFRESH_MIN_INTERVAL_MS
+      ) {
+        return;
+      }
+
+      const stored = await this.mirrorFederatedAvatar(userId, remoteAvatarUrl, storedAvatar, {
         // The conditional-request validators are NULL when never fetched;
         // `downloadAndStoreAvatar` reads them as "send no If-None-Match", which
         // is what absent meant in Mongo.
         etag: user.avatarETag ?? undefined,
         lastModified: user.avatarLastModified ?? undefined,
-      }, userId);
+      });
 
       const setFields: Partial<typeof users.$inferInsert> = {
         federationLastAvatarFetchedAt: new Date(),
@@ -1724,19 +1874,21 @@ class FederationService {
       }
 
       if (!stored.fileId) {
-        // Download failed — keep the existing avatar, but advance the clock so a
-        // forced refresh can't hammer a broken remote every request.
-        await getDb().update(users).set(setFields).where(eq(users.id, userId));
+        // Download failed — keep the previous MIRROR (a file id), never a remote
+        // URL in its place, and advance the clock so a forced refresh can't
+        // hammer a broken remote every request. No stored file means no picture,
+        // which clients render as the default avatar.
+        await persistFederatedAvatar(userId, { failed: stored.reason ?? 'unexpected', permanent: stored.failure === 'permanent' }, setFields);
         userCache.invalidate(userId);
-        logger.warn(`Background avatar refresh: download failed for ${userId} (keeping existing)`);
+        logger.warn(`Background avatar refresh: download failed for ${userId} (keeping existing mirror)`, { failure: stored.failure, reason: stored.reason });
         return;
       }
 
-      setFields.avatar = stored.fileId;
-      if (stored.etag) setFields.federationAvatarETag = stored.etag;
-      if (stored.lastModified) setFields.federationAvatarLastModified = stored.lastModified;
+      // Validators belong to the bytes just stored; absent ones replace stale ones.
+      setFields.federationAvatarETag = stored.etag ?? null;
+      setFields.federationAvatarLastModified = stored.lastModified ?? null;
 
-      await getDb().update(users).set(setFields).where(eq(users.id, userId));
+      await persistFederatedAvatar(userId, { fileId: stored.fileId }, setFields);
 
       // CRITICAL: every path that mutates user state must invalidate the cache,
       // otherwise getUserBySession serves stale in-memory data and silently
@@ -1805,6 +1957,7 @@ class FederationService {
       // COLUMN PROPERTIES, never Mongo dot paths — see the note in
       // `resolveAndUpsert`. `name.first` here would silently write nothing.
       const setFields: Partial<typeof users.$inferInsert> = {};
+      let avatarWrite: FederatedAvatarWrite | undefined;
 
       if (profile.displayName) {
         setFields.nameFirst = cleanDisplayName(profile.displayName);
@@ -1838,20 +1991,26 @@ class FederationService {
           .from(users)
           .where(eq(users.id, userId))
           .limit(1);
-        const stored = await this.downloadAndStoreAvatar(profile.avatarUrl, storedAvatarFileId(validators?.avatar), {
+        const stored = await this.mirrorFederatedAvatar(userId, profile.avatarUrl, storedAvatarFileId(validators?.avatar), {
           etag: validators?.etag ?? undefined,
           lastModified: validators?.lastModified ?? undefined,
-        }, userId);
+        });
         if (stored.notModified) {
           setFields.federationLastAvatarFetchedAt = new Date();
         } else if (stored.fileId) {
-          setFields.avatar = stored.fileId;
+          avatarWrite = { fileId: stored.fileId };
           setFields.federationLastAvatarFetchedAt = new Date();
-          if (stored.etag) setFields.federationAvatarETag = stored.etag;
-          if (stored.lastModified) setFields.federationAvatarLastModified = stored.lastModified;
+          setFields.federationAvatarETag = stored.etag ?? null;
+          setFields.federationAvatarLastModified = stored.lastModified ?? null;
         } else {
-          logger.warn(`Background refresh: avatar download failed for ${actorUri} (keeping existing)`);
+          // Keep the previous mirror; a remote URL is never left standing in.
+          avatarWrite = { failed: stored.reason ?? 'unexpected', permanent: stored.failure === 'permanent' };
+          setFields.federationLastAvatarFetchedAt = new Date();
+          logger.warn(`Background refresh: avatar download failed for ${actorUri} (keeping existing mirror)`, { failure: stored.failure, reason: stored.reason });
         }
+      } else {
+        // The source has no picture: nothing is owed.
+        avatarWrite = 'no_source_picture';
       }
 
       // `federationLastResolvedAt` is set unconditionally above, so `setFields`
@@ -1868,6 +2027,8 @@ class FederationService {
           federationUnavailableReason: null,
         })
         .where(eq(users.id, userId));
+
+      if (avatarWrite) await persistFederatedAvatar(userId, avatarWrite);
 
       // CRITICAL: every path that mutates user state must invalidate the cache,
       // otherwise getUserBySession serves stale in-memory data and silently

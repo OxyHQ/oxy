@@ -78,7 +78,7 @@ const textExtensions = new Set([
 ]);
 
 const oldBindings =
-	'["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL"]';
+	'["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION"]';
 const approvedRelayLines = new Map([
 	[
 		".github/scripts/test-deploy-ecs-image.sh",

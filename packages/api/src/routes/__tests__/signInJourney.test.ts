@@ -80,6 +80,7 @@ import accountSecurityRouter from '../accountSecurity';
 import identityLinkRouter from '../identityLink';
 import signInRouter from '../signIn';
 import usersRouter from '../users';
+import { awayFromTotpStepEdge } from '../../../test-support/totpStep';
 
 jest.setTimeout(60_000);
 
@@ -151,6 +152,8 @@ async function reauthCode(token: string, email: string, action: string) {
 }
 
 describe('one person, end to end', () => {
+  beforeEach(awayFromTotpStepEdge, 15_000);
+
   it('signs up, signs in every way, secures the account, links Commons and leaves', async () => {
     // Sign up: a username, an email proven by its code.
     const person = await signUp();

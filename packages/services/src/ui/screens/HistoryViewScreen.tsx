@@ -109,7 +109,7 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
                         />
                     </SettingsListGroup>
                     <SettingsListGroup title={t('history.recent') || 'Recent History'}>
-                        {isLoading ? <Loading size="large" color={bloomTheme.colors.text} text={t('history.loading') || 'Loading history...'} />
+                        {isLoading ? <Loading size="lg" color={bloomTheme.colors.text} text={t('history.loading') || 'Loading history...'} />
                          : history.length === 0 ? <Text className="text-text-secondary text-center p-space-40">{t('history.empty') || 'No history yet'}</Text>
                          : history.map(item => (
                             <SettingsListItem

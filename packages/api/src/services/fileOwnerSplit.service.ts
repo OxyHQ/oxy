@@ -2,7 +2,7 @@
  * Split the cross-owner shares the one-live-row-per-hash model left behind.
  *
  * Until `files_sha256_live_key` was replaced by per-owner uniques
- * (migration 0121), the upload paths handed the ONE live row for a content hash
+ * (migration 0124), the upload paths handed the ONE live row for a content hash
  * to any other account uploading the same bytes. That account then used the
  * other owner's id: it linked it (`file_links.created_by` ≠ the file's owner),
  * attached it to mail, and — invisible here — stored it in other apps' records

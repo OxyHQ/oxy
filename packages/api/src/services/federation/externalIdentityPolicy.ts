@@ -78,7 +78,18 @@ export function deriveExternalActorProfile(actor: Record<string, unknown>, actor
       .map(field => ({ name: field.name as string, value: field.value as string })),
     proxyOf: readProxyDeclarations(actor.proxyOf), bio,
   };
-  const derived = federationBridges.deriveNetworkIdentity(candidate);
+  let derived = federationBridges.deriveNetworkIdentity(candidate);
+  // Bridgy Fed omits the `Web site` field for some accounts but still publishes
+  // the same bsky.app profile as its `url` (behind its /r/ redirector). That
+  // URL is the bridge's own per-actor assertion, like the field; it counts only
+  // when it names the actor's preferredUsername, and the DID rule still applies.
+  if (!derived && host === 'bsky.brid.gy' && typeof actor.url === 'string') {
+    const handle = /^https:\/\/bsky\.brid\.gy\/r\/https:\/\/bsky\.app\/profile\/([a-z0-9.-]+)$/i.exec(actor.url)?.[1];
+    if (handle && handle.toLowerCase() === String(actor.preferredUsername).toLowerCase()) {
+      const link = `<a href="https://bsky.app/profile/${handle}" rel="me">https://bsky.app/profile/${handle}</a>`;
+      derived = federationBridges.deriveNetworkIdentity({ ...candidate, fields: [...candidate.fields, { name: 'Web site', value: link }] });
+    }
+  }
   if (derived) {
     domain = derived.instanceDomain;
     username = derived.federatedUsername;

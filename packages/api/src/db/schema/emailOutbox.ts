@@ -10,14 +10,15 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { EMAIL_OUTBOX_STATUSES, type EmailOutboxStatus } from '@oxy.so/contracts';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 import { messages } from './messages';
 import type { EmailAddress } from './messages';
 import type { MessageAttachment } from './messageAttachments';
 
-export const EMAIL_OUTBOX_STATUSES = ['pending', 'processing', 'sent', 'failed', 'cancelled'] as const;
-export type EmailOutboxStatus = (typeof EMAIL_OUTBOX_STATUSES)[number];
+/** The lifecycle vocabulary is the wire contract's. */
+export { EMAIL_OUTBOX_STATUSES, type EmailOutboxStatus };
 
 export interface EmailOutboxPayload {
   from: EmailAddress;

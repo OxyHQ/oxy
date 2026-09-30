@@ -19,6 +19,7 @@ import walletRoutes from './routes/wallet.routes';
 import reputationRoutes from './routes/reputation.routes';
 import moderationReputationRoutes from './routes/moderationReputation.routes';
 import storeRoutes from './routes/store';
+import stickerRoutes from './routes/stickers';
 import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
 import accountSecurityRoutes from './routes/accountSecurity';
@@ -151,6 +152,10 @@ import {
   startSubscriptionExpiryJobs,
   stopSubscriptionExpiryJobs,
 } from './queue/subscriptionExpiry.queue';
+import {
+  startFederatedAvatarRetryJobs,
+  stopFederatedAvatarRetryJobs,
+} from './queue/federatedAvatarRetry.queue';
 import { getEnvBoolean, validateRequiredEnvVars, getSanitizedConfig, getEnvNumber } from './config/env';
 import { logger } from './utils/logger';
 import type { Response } from 'express';
@@ -506,6 +511,7 @@ async function gracefulShutdown(signal: string) {
   await stopAssetVariantProducer();
   await stopConductRiskExpiryJobs();
   await stopSubscriptionExpiryJobs();
+  await stopFederatedAvatarRetryJobs();
   await stopSmtpInbound();
   smtpOutbound.shutdown();
   if (userCacheInvalidationSubscriber) {
@@ -740,6 +746,9 @@ app.use('/wallet', userRateLimiter, walletRoutes);
 // inside it — a blanket middleware here would lock the storefront or leave the
 // reviews open.
 app.use('/store', storeRoutes);
+// Stickers: the same shape — a public catalogue and per-route guards for the
+// signed-in picker and the staff tools.
+app.use('/stickers', stickerRoutes);
 app.use('/location-search', locationSearchRoutes);
 app.use('/applications', applicationRoutes);
 // Service-to-service only. The router gates ITSELF on a valid service token AND
@@ -876,6 +885,7 @@ app.use('/nodes', nodeRoutes);
 import { getInstanceActor, getUserActor, isOwnFederationDomain } from './services/federation.service';
 import federationRoutes from './routes/federation';
 import { createWebfingerHandler } from './routes/webfinger';
+import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '@oxy.so/federation';
 
 // Federation domain constant — used by nodeinfo, webfinger, and actor endpoints
 const AP_DOMAIN = process.env.FEDERATION_DOMAIN || 'oxy.so';
@@ -944,7 +954,7 @@ app.get('/ap/users/:username', async (req: any, res: Response) => {
     const { username } = req.params;
 
     // Instance actor
-    if (username === 'instance') {
+    if (normalizeActorUsername(username) === INSTANCE_ACTOR_USERNAME) {
       const actor = await getInstanceActor();
       res.setHeader('Content-Type', 'application/activity+json');
       res.setHeader('Cache-Control', 'max-age=1800');
@@ -1350,6 +1360,8 @@ export async function bootstrap(
   // Delete a deleted account's stored uploads (OxyHQ/Mention#1178). ON by
   // default: see `startStorageDeletionWorker`.
   startStorageDeletionWorker();
+  // Repair partially applied moderation consequences — by the system, on a
+  // schedule, never by a person choosing whose standing to touch.
 
   // Start background jobs: durable BullMQ scheduling when REDIS_URL is set,
   // otherwise the in-process cron fallback. Never throws.
@@ -1384,6 +1396,11 @@ export async function bootstrap(
   // running — every read derives expiry from `end_date` itself — so a missed
   // tick delays a label and nothing more. Never throws.
   await startSubscriptionExpiryJobs();
+
+  // Re-mirror federated avatars whose last mirror failed and left the user
+  // without a picture (`users.federation_avatar_retry_at`). Without it a failed
+  // mirror is a permanent default avatar. Never throws.
+  await startFederatedAvatarRetryJobs();
 
   await new Promise<void>((resolve) => {
     server.listen(PORT, '0.0.0.0', () => {

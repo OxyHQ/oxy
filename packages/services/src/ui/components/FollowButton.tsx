@@ -19,7 +19,7 @@ const DEFAULT_FOLLOWED_ALL_LABEL = 'Following';
 
 /** Props shared by both single- and multi-user follow modes. */
 interface FollowButtonBaseProps {
-  size?: 'small' | 'medium' | 'large';
+  size?: 'sm' | 'md' | 'lg';
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   disabled?: boolean;
@@ -67,7 +67,7 @@ const FollowButtonInner = memo(function FollowButtonInner({
   oxyServices,
   initiallyFollowing,
   username,
-  size = 'medium',
+  size = 'md',
   onFollowChange,
   style,
   textStyle,
@@ -140,7 +140,7 @@ const FollowButtonInner = memo(function FollowButtonInner({
 const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
   userIds,
   initiallyAllFollowing = false,
-  size = 'medium',
+  size = 'md',
   followAllLabel = DEFAULT_FOLLOW_ALL_LABEL,
   followedAllLabel = DEFAULT_FOLLOWED_ALL_LABEL,
   onFollowChange,

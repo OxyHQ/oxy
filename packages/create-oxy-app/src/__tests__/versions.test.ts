@@ -93,8 +93,17 @@ describe('VERSIONS drift guard', () => {
     expect(workflow.indexOf(script)).toBeLessThan(workflow.indexOf('Install the generated app with packed Oxy HEAD dependencies'));
   });
 
-  test('oxyBloom matches the workspace catalog', () => {
-    expect(VERSIONS.oxyBloom).toBe(readWorkspaceCatalogVersion('@oxy.so/bloom'));
+  test('published Bloom pin is not ahead of the workspace; its Services peer is checked against npm', () => {
+    expect(compareVersions(VERSIONS.oxyBloom, readWorkspaceCatalogVersion('@oxy.so/bloom'))).toBeLessThanOrEqual(0);
+    const script = readFileSync(path.join(REPO_ROOT, 'packages/create-oxy-app/scripts/assert-oxy-ranges-resolve.mjs'), 'utf8');
+    expect(script).toContain('await assertPublishedBloomPair(resolved');
+  });
+
+  test('HEAD smoke pairs packed Services with the workspace Bloom catalog, not the published snapshot', () => {
+    const workflow = readFileSync(SMOKE_WORKFLOW, 'utf8');
+    expect(workflow).toContain('workspace.workspaces.catalog["@oxy.so/bloom"]');
+    expect(workflow).toContain('p.overrides["@oxy.so/bloom"] = bloom');
+    expect(workflow).toContain('p.resolutions["@oxy.so/bloom"] = bloom');
   });
 
   test('scaffold smoke consumes every generated Oxy workspace package from a HEAD tarball', () => {

@@ -92,6 +92,77 @@ export async function enqueueEmailOutbox(input: EnqueueEmailOutboxInput): Promis
   }
 }
 
+/** The outcome of {@link claimIdempotentSend}. */
+export type IdempotentSendClaim =
+  | { claimed: true; outboxId: string }
+  | { claimed: false; existing: EmailOutboxDto };
+
+/**
+ * Take the durable, cross-process claim on ONE send, keyed by the client's
+ * `Idempotency-Key`, BEFORE anything is said to a relay.
+ *
+ * The row is created already `processing` and leased to the caller, so the
+ * outbox worker leaves it alone while the request delivers it — and adopts it
+ * after the lease expires if the request died mid-flight. A second request with
+ * the same key (a client retry after its own timeout, a double press, a retry
+ * that landed on another API task) loses the unique-index race and gets the
+ * existing row instead of sending again.
+ *
+ * This replaces a per-process in-flight map plus a Redis result cache written
+ * only AFTER the relay answered: two tasks could both miss both, and the same
+ * reply went out twice.
+ */
+export async function claimIdempotentSend(input: {
+  userId: string;
+  idempotencyKey: string;
+  messageId: string;
+  payload: EmailOutboxPayload;
+  owner: string;
+}): Promise<IdempotentSendClaim> {
+  const db = getDb();
+  const now = new Date();
+  const [created] = await db
+    .insert(emailOutbox)
+    .values({
+      userId: input.userId,
+      messageId: input.messageId,
+      idempotencyKey: input.idempotencyKey,
+      payload: input.payload,
+      status: 'processing',
+      attempts: 1,
+      lockedAt: now,
+      lockedBy: input.owner,
+      nextAttemptAt: now,
+    })
+    .onConflictDoNothing({
+      target: [emailOutbox.userId, emailOutbox.idempotencyKey],
+      where: sql`${emailOutbox.idempotencyKey} is not null`,
+    })
+    .returning({ id: emailOutbox.id });
+  if (created) return { claimed: true, outboxId: created.id };
+
+  const [existing] = await db
+    .select()
+    .from(emailOutbox)
+    .where(and(eq(emailOutbox.userId, input.userId), eq(emailOutbox.idempotencyKey, input.idempotencyKey)))
+    .limit(1);
+  if (!existing) {
+    // The holder released its claim (a permanent refusal) between our insert
+    // and this read. Nothing was sent; take the claim ourselves.
+    return claimIdempotentSend(input);
+  }
+  return { claimed: false, existing: toDto(existing) };
+}
+
+/**
+ * Give a claim back after a PERMANENT refusal. Nothing was sent and nothing
+ * will be, so no row may promise otherwise — and the same key must be free to
+ * try again once the sender has fixed the cause.
+ */
+export async function releaseIdempotentSend(outboxId: string): Promise<void> {
+  await getDb().delete(emailOutbox).where(eq(emailOutbox.id, outboxId));
+}
+
 export async function claimEmailOutbox(workerId: string): Promise<typeof emailOutbox.$inferSelect | undefined> {
   const db = getDb();
   const now = new Date();

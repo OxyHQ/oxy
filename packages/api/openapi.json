@@ -10234,96 +10234,6 @@
         "operationId": "getCivicPersonhoodUserId"
       }
     },
-    "/civic/personhood/{userId}/recompute": {
-      "post": {
-        "tags": [
-          "Identity"
-        ],
-        "summary": "user (staff only). Re-aggregates vouches/real-life/biometric − sybil and",
-        "description": "re-mirrors `User.verified`.",
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/civic.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "postCivicPersonhoodUserIdRecompute"
-      }
-    },
     "/civic/validations": {
       "post": {
         "tags": [
@@ -12306,13 +12216,16 @@
                     "type": "string"
                   },
                   "inReplyTo": {
-                    "type": "string"
+                    "type": "string",
+                    "pattern": "^<[^<>\\s]+@[^<>\\s]+>$"
                   },
                   "references": {
                     "type": "array",
                     "items": {
-                      "type": "string"
-                    }
+                      "type": "string",
+                      "pattern": "^<[^<>\\s]+@[^<>\\s]+>$"
+                    },
+                    "maxItems": 100
                   },
                   "attachments": {
                     "type": "array",
@@ -13516,13 +13429,16 @@
                     "type": "string"
                   },
                   "inReplyTo": {
-                    "type": "string"
+                    "type": "string",
+                    "pattern": "^<[^<>\\s]+@[^<>\\s]+>$"
                   },
                   "references": {
                     "type": "array",
                     "items": {
-                      "type": "string"
-                    }
+                      "type": "string",
+                      "pattern": "^<[^<>\\s]+@[^<>\\s]+>$"
+                    },
+                    "maxItems": 100
                   },
                   "attachments": {
                     "type": "array",

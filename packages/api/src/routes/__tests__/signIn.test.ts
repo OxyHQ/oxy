@@ -61,6 +61,7 @@ import { SIGNIN_CODE_FAILURES_PER_DAY, confirmEmailSignIn, startEmailSignIn } fr
 import { EMAIL_SENDS_PER_HOUR } from '../../services/accountEmail.service';
 import { logger } from '../../utils/logger';
 import signInRouter from '../signIn';
+import { awayFromTotpStepEdge } from '../../../test-support/totpStep';
 
 const AUTH_ORIGIN = 'https://auth.oxy.so';
 const APP_ORIGIN = 'https://mention.earth';
@@ -467,6 +468,8 @@ describe('password sign-in', () => {
 });
 
 describe('the authenticator', () => {
+  beforeEach(awayFromTotpStepEdge, 15_000);
+
   it('stops every first factor at a challenge — no session exists until the code passes', async () => {
     const real = await account();
     await storePassword(real.id, 'correct horse battery');
@@ -562,6 +565,8 @@ describe('the authenticator', () => {
 });
 
 describe('the second factor on every path', () => {
+  beforeEach(awayFromTotpStepEdge, 15_000);
+
   it('stops a link collected by the dialog at the challenge too', async () => {
     const real = await account();
     await enableTotp(real.id);

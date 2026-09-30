@@ -228,6 +228,7 @@ describe('recommendationItemSchema / recommendationResponseSchema', () => {
             username: 'alice',
             name: { first: 'Alice', displayName: 'Alice Example' },
             avatar: 'file_1',
+            color: 'teal',
             verified: true,
             trustTier: 'trusted',
             mutualCount: 3,
@@ -238,6 +239,7 @@ describe('recommendationItemSchema / recommendationResponseSchema', () => {
         expect(parsed).not.toBeNull();
         expect(parsed?.name.displayName).toBe('Alice Example');
         expect(parsed?.score).toBe(12.5);
+        expect(parsed?.color).toBe('teal');
     });
 
     it('accepts an unscored item (GET back-compat path: no score/matchedSignals)', () => {

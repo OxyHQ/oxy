@@ -14,7 +14,6 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Linking, Platform } from 'react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { SIGN_IN_ERROR_CODES, emailAddressSchema, type EmailVerificationConfirmResponse } from '@oxy.so/contracts';
 import { useOxy } from '../../context/OxyContext';
@@ -29,6 +28,7 @@ import {
   AccountFlowAction,
   AccountFlowField,
   AccountFlowNote,
+  AccountFlowProgress,
   EmailCodeStep,
   describeSignInError,
   errorCode,
@@ -61,7 +61,6 @@ interface SavedSignUpFlow {
 const SIGN_UP_FLOW_KEY = 'signup';
 
 export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSignIn, host = 'page' }) => {
-  const theme = useTheme();
   const { t } = useI18n();
   const { oxyServices, handleWebSession, accountDialogController } = useOxy();
   const snapshot = useAccountDialogSnapshot(accountDialogController);
@@ -149,6 +148,12 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
       .catch(() => toast.error(t('accountSwitcher.linkOpenFailed')));
   };
 
+  // username → email → code, drawn as one segmented bar under each header.
+  const progressSteps = [t('signup.username.label'), t('signup.email.label'), t('emailCode.title')];
+  const progress = (current: number) => (
+    <AccountFlowProgress steps={progressSteps} current={current} testID="signup-progress" />
+  );
+
   switch (step.name) {
     case 'code':
       return (
@@ -158,12 +163,14 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
           onConfirmed={createAccount}
           onResend={() => sendCode(email)}
           back={{ label: t('emailCode.changeEmail'), onPress: () => setStep({ name: 'email' }) }}
+          progress={progress(2)}
         />
       );
     case 'email':
       return (
         <OxyAuthScreen>
           <OxyAuthScreenHeader title={t('signup.email.title')} description={t('signup.email.subtitle')} />
+          {progress(1)}
           <AccountFlowField
             label={t('signup.email.label')}
             value={email}
@@ -181,7 +188,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
           />
           <AccountFlowNote>{t('signup.laterNote')}</AccountFlowNote>
           <AccountFlowAction label={t('signin.actions.continue')} onPress={submitEmail} pending={pending} testID="signup-email-continue" />
-          <SubtleLink label={t('signin.actions.back')} theme={theme} onPress={() => setStep({ name: 'username' })} testID="signup-back" />
+          <SubtleLink label={t('signin.actions.back')} onPress={() => setStep({ name: 'username' })} testID="signup-back" />
           <OxyAuthTerms />
         </OxyAuthScreen>
       );
@@ -189,6 +196,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
       return (
         <OxyAuthScreen>
           <OxyAuthScreenHeader title={t('signup.title')} description={t('signup.subtitle')} />
+          {progress(0)}
           <AccountFlowField
             label={t('signup.username.label')}
             value={username}
@@ -204,8 +212,8 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
             testID="signup-username"
           />
           <AccountFlowAction label={t('signin.actions.continue')} onPress={submitUsername} pending={pending} testID="signup-username-continue" />
-          <SubtleLink label={t('signup.createInCommons')} theme={theme} onPress={createInCommons} testID="signup-commons-instead" />
-          <SubtleLink label={t('signup.backToSignInLink')} theme={theme} onPress={onSignIn} testID="back-to-sign-in" />
+          <SubtleLink label={t('signup.createInCommons')} onPress={createInCommons} testID="signup-commons-instead" />
+          <SubtleLink label={t('signup.backToSignInLink')} onPress={onSignIn} testID="back-to-sign-in" />
           <OxyAuthTerms />
         </OxyAuthScreen>
       );

@@ -1,3 +1,4 @@
+import { avatarKeepingMirror } from '../utils/federatedAvatar';
 import { ConflictError } from '../utils/error';
 import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
@@ -18,7 +19,12 @@ export interface RegisterExternalIdentityInput {
   actorUri: string;
   transportAcct: string;
   protocol: string;
-  profile: { displayName?: string; bio?: string; avatarUrl?: string };
+  /**
+   * Text only. The source picture is deliberately absent: `users.avatar` holds an
+   * Oxy Cloud file id or nothing, and only the avatar mirror writes it (see
+   * `FederationService.mirrorFederatedAvatar`).
+   */
+  profile: { displayName?: string; bio?: string };
   /** Only source-controlled, verified rel=me / alsoKnownAs links, never biography text. */
   evidenceLinks?: string[];
   stableId?: string;
@@ -297,10 +303,20 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
         nameFirst: users.nameFirst, nameLast: users.nameLast }).from(users).where(eq(users.id, identity.userId));
       if (existing) assertCompatibleSource(existing, input, identity.stableId);
     }
+    let renamedFrom: typeof externalIdentities.$inferSelect | undefined;
     if (actor && actor.canonicalAcct !== canonicalAcct) {
       // Only a migration transport key may be promoted to its source account.
       const [previous] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, actor.canonicalAcct));
-      const sameSubject = !!input.stableId && previous?.stableId === input.stableId && previous.network === network;
+      // A stable ID the actor URI itself carries (a numeric Threads actor, a
+      // Bridgy Fed DID actor) names the subject that actor row always named,
+      // even when the previous identity predates stable-ID persistence: a
+      // handle change on the source is a rename, not a new person. That holds
+      // across networks too, since a legacy row may have kept the bridge's own
+      // transport domain where the source now derives its upstream network.
+      const boundToActor = !!input.stableId && (input.actorUri === input.stableId || input.actorUri.endsWith(`/${input.stableId}`));
+      const sameSubject = !!input.stableId && !!previous
+        && ((previous.stableId === input.stableId && previous.network === network) || (previous.stableId === null && boundToActor));
+      if (sameSubject) renamedFrom = previous;
       if (!sameSubject && actor.canonicalAcct !== normalizeExternalAcct(input.transportAcct)) throw new Error('Actor already belongs to another external identity');
     }
     const [legacy] = await tx.select({ id: users.id, type: users.type }).from(users).where(eq(users.federationActorUri, input.actorUri));
@@ -312,10 +328,10 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       if (named && named.type !== 'federated') throw new ConflictError('External identity conflicts with local user');
       if (named) assertCompatibleSource(named, input);
       const [sameSubject] = input.stableId ? await tx.select().from(externalIdentities).where(and(eq(externalIdentities.stableId, input.stableId), eq(externalIdentities.network, network))).limit(1) : [];
-      let userId = sameSubject?.userId ?? named?.id ?? legacy?.id;
+      let userId = sameSubject?.userId ?? renamedFrom?.userId ?? named?.id ?? legacy?.id;
       if (!userId) {
         const [user] = await tx.insert(users).values({ username: canonicalAcct, type: 'federated', federationActorUri: input.actorUri,
-          federationDomain: network, nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null, avatar: input.profile.avatarUrl || null }).returning();
+          federationDomain: network, nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null }).returning();
         userId = user.id;
         createdUser = true;
       }
@@ -328,17 +344,16 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
         stableId: input.stableId ?? identity.stableId }).where(eq(externalIdentities.canonicalAcct, canonicalAcct)).returning();
     }
     if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), identity.userId);
-    // `avatar` fills an EMPTY column only, which is why it is a coalesce rather than
-    // a plain assignment like the fields beside it. The source URL is the INTERIM
-    // value: `resolveExternalActorIdentity` schedules a download whenever the stored
-    // avatar is absent or still `http`, and `downloadAvatarForUser` then replaces it
-    // with an Oxy Cloud file id. Assigning unconditionally would walk that file id
-    // back to a remote URL on every resolve. `nullif` covers the empty string, which
-    // is a real state reaching this column from the Mongo backfill (see
-    // `utils/profileQuery.ts`), not a defensive flourish.
+    // `avatar` is never set FROM the source here — only `persistFederatedAvatar`
+    // writes it, and only with an Oxy Cloud file id. A remote URL standing in for
+    // the mirror is what a failed download used to leave behind forever (a signed
+    // Meta CDN URL expires and 403s; measured on ibaillanos@instagram.com), so any
+    // non-file-id value is cleared on every registration and the mirror is
+    // rescheduled against the fresh source picture. A stored file id is kept: it
+    // is the previous good mirror.
     await tx.update(users).set({ username: canonicalAcct, federationDomain: network,
       nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null,
-      avatar: sql`coalesce(nullif(${users.avatar}, ''), ${input.profile.avatarUrl ?? null})`,
+      avatar: avatarKeepingMirror(),
       federationLastResolvedAt: new Date(), federationUnavailableAt: null, federationUnavailableReason: null }).where(eq(users.id, identity.userId));
     const actorValues = { canonicalAcct, transportAcct: normalizeExternalAcct(input.transportAcct), protocol: input.protocol, evidenceLinks: input.evidenceLinks ?? [] };
     await tx.insert(externalIdentityActors).values({ actorUri: input.actorUri, ...actorValues })

@@ -56,6 +56,8 @@ const dict = {
       "description": "如果有与 {{identifier}} 匹配的账户，我们已向其发送验证码和登录链接。",
       "codeLabel": "验证码",
       "codeHint": "输入邮件中的验证码，或在此浏览器中打开邮件里的链接。",
+      "codeHasLetters": "验证码里有字母吗？",
+      "codeDigitsOnly": "验证码只有数字吗？",
       "resend": "重新发送邮件",
       "resendIn": "{{seconds}} 秒后可重新发送邮件",
       "resent": "我们已发送新邮件。",
@@ -142,6 +144,7 @@ const dict = {
     "linkOpenFailed": "无法打开链接，请重试。"
   },
   "common": {
+    "stepOf": "第 {{step}} 步，共 {{total}} 步",
     "actions": {
       "back": "返回",
       "continue": "继续",
@@ -337,7 +340,6 @@ const dict = {
     "passwordLabel": "当前密码",
     "usePassword": "改用密码",
     "useEmail": "改为通过邮件获取验证码",
-    "totpLabel": "身份验证器验证码或备用验证码",
     "errors": {
       "invalid": "验证失败。请检查输入内容后重试。",
       "totpRequired": "还需输入身份验证器应用中的验证码。"

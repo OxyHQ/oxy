@@ -103,7 +103,15 @@ function claimableRows(
     .where(and(
       ids === undefined ? undefined : inArray(storageObjectDeletions.id, [...ids]),
       isNull(storageObjectDeletions.completedAt),
-      lte(storageObjectDeletions.nextAttemptAt, now),
+      // Due-time applies to the sweep, never to rows named by id. A delete drains
+      // the rows it JUST recorded, whose `next_attempt_at` is the database's
+      // `now()` — microsecond precision, on the database's clock — while `now`
+      // here is a JavaScript Date, truncated to the millisecond, on this
+      // process's clock. Recorded and drained within one millisecond (or with
+      // the database clock a hair ahead), the row read as "not due yet" and the
+      // drain claimed nothing: the purge silently waited for the next sweep, and
+      // a test waiting on it hung until its timeout.
+      ids === undefined ? lte(storageObjectDeletions.nextAttemptAt, now) : undefined,
       or(
         isNull(storageObjectDeletions.claimedAt),
         lt(storageObjectDeletions.claimedAt, claimedBefore),

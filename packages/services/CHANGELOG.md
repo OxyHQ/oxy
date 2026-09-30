@@ -1,5 +1,159 @@
 # Changelog
 
+## [10.0.0] - 2026-09-29
+
+### Breaking changes
+
+- Requires Bloom ^6.0.0 and migrates SDK UI to canonical appearance, tone and size props.
+- FollowButton and FollowTargetButton size now uses sm, md (default), or lg. Replace small, medium and large respectively.
+- Preserves account, sign-in, payment and action-sheet behavior, including destructive actions and accessible follow state.
+
+## [9.2.0] - 2026-09-28
+
+### Added
+
+- `@oxy.so/services/ui/client` exports the query, cache and follow helpers an
+  app uses at startup: `queryKeys` and the `invalidate*Queries` helpers,
+  `upsertCachedUser(s)`, `CLEARABLE_USER_FIELDS`, `clearedFieldsFrom*Update`,
+  `useUserProfile(s)`, `useCurrentUser`, `useUserById`, `useUserByUsername`,
+  `useFollowerCounts`, `useSeedFollowStatuses`, `useFollowTarget`, the follow
+  rules (`resolveFollowPrimaryAction`, `buildFollowMenuItems`,
+  `FOLLOW_ACTION_LEAVES_ACTIVE`) and `ProfileButton`. Import them from here
+  rather than the root: the root barrel re-exports the sign-in panels (and the
+  Commons QR encoder), and Metro does not tree-shake, so any root import ships
+  them all, ~140 KB on Mention's home route. A packaging test pins that
+  `ui/client` reaches no panel.
+- `FollowMenuItem` is exported (the return type of `buildFollowMenuItems`).
+
+### Changed
+
+- The follow rules live in `ui/components/followRules.ts`, free of React and
+  Bloom; `FollowTargetButton` imports them. Root exports are unchanged.
+
+## [9.1.0] - 2026-09-28
+
+### Added
+
+- `accountQueries.roots: 'all'`: every query the app runs belongs to the
+  signed-in account, for an app whose every read may depend on who is signed
+  in (Syra), so no root can be forgotten and survive an account switch. The
+  roots `accounts`, `sessions` and `devices` are reserved for the SDK's
+  device-level data.
+
+### Fixed
+
+- A restore still in flight when the account changes can no longer hydrate
+  the previous account's rows: the account is re-checked in the same tick as
+  the hydrate.
+- Switching accounts writes the leaving account's latest state first (it
+  used to be lost inside the 1 s write throttle); a sign-out then deletes it,
+  also when it happens before storage is ready.
+- A new build drops persisted queries but keeps queued (paused) mutations, in
+  both SDK caches: a deploy no longer loses an action the user made offline.
+- Account-declared roots are kept out of the shared cache even when they sit
+  under one of the SDK's own prefixes.
+- The account cache stops with the provider that owns it (`attach`/`detach`,
+  StrictMode-safe).
+- SDK queries that carry signed URLs (`assetDownloadUrls`, `avatarCropSource`,
+  `avatarCropMeasure`, `justifiedPhotoDimensions`) are never written to an
+  account cache, whatever the app declares.
+
+## [8.4.0] - 2026-09-28
+
+Requires `@oxy.so/bloom` ^4.35.0 and `@oxy.so/core` ^3.2.0.
+
+### Added
+
+- Every password field has an eye button that shows and hides the password:
+  the sign-in password step, "Confirm it's you", and the new/repeat fields
+  when setting a password (Bloom `TextFieldInput revealable`). Pressing it
+  leaves focus in the field.
+- `OxyProvider` sets Bloom's locale (`@oxy.so/bloom/locale`) to Oxy's
+  language (`currentLanguage`), so Bloom's own words ("Show password",
+  "Close", "Step 2 of 3") follow the account. The nearest provider still wins:
+  a `LocaleProvider` or `BloomProvider locale` that the app mounts above
+  `OxyProvider` is kept, and one inside it overrides for its subtree.
+- Sign-up shows its three steps (username → email → code) as a Bloom
+  `WizardProgress` under each header. Setting up the authenticator shows two
+  (scan and confirm → backup codes).
+- Deleting an account without a key asks once more ("Delete Forever", a
+  destructive Bloom confirm) after the code is typed and before anything is
+  sent. Declining keeps the screen and the code.
+
+### Changed
+
+- The wait after too many attempts (429) is a warning notice (Bloom
+  `Admonition`) above the action it holds back, counting down. It is no
+  longer the field's error. "We sent a new code", "We sent a 6-digit code to
+  your email", the delete-account warning, and "This account uses Commons:
+  delete it in Oxy Commons" are notices too.
+- The backup codes are a Bloom `CodeBlock`, headed by their count, one code per line, with its own
+  copy button named "Copy codes". A refused copy says so and leaves the copy
+  glyph in place.
+- Copying (backup codes, the payment address, App info) uses the browser
+  Clipboard API on the web and `expo-clipboard` on iOS and Android.
+  `expo-clipboard` is a new OPTIONAL peer: without it, a copy on native
+  reports "Failed to copy to clipboard". React Native's deprecated
+  `Clipboard` is no longer used.
+- Subordinate links ("Send a new code", "Use your password instead", …) are
+  Bloom `LinkButton`s in the secondary tone, underlined under a pointer.
+- The account picker's activating row shows Bloom's animated `SpinnerIcon`
+  instead of a static glyph, and the current account's check sits in the
+  Bloom `Avatar`'s own `verified` slot. The loading states of the sign-in screens, the
+  Commons QR, linking Commons, a request being prepared, and a route still
+  loading use Bloom `Loading`/`SpinnerIcon` instead of React Native's
+  `ActivityIndicator`.
+- "Sign out everywhere else" (setting a password) is a Bloom `Field` that
+  names its switch.
+
+## [8.3.0] - 2026-09-28
+
+### Added
+
+- `OxyProvider`'s `accountQueries` (`AccountQueriesConfig`): an app declares
+  the query roots that hold the signed-in account's private data (`roots`,
+  persisted; `memoryOnlyRoots`, never written to disk) and the mutation keys
+  whose paused instances replay after a restart (`mutationKeys`). The SDK
+  stores them per account (`oxy_account_queries:<accountId>`), drops them from
+  memory synchronously on an account switch, deletes the signed-out account's
+  on sign-out, and restores the signed-in account's before `RequireOxyAuth`
+  renders its children (`useOxy().isAccountCacheReady`). Works with the SDK's
+  client or one passed as `queryClient`. Apps no longer scope a persister to
+  the session themselves.
+
+### Changed
+
+- Every persisted query cache the SDK owns is busted by the build
+  (`process.env.OXY_BUILD_ID`, inlined by `@oxy.so/app-preset` 2.1's Babel
+  config): a cache written by an older bundle, in an older shape, is never
+  served. Without the preset the id is a constant, as before.
+
+## [8.2.0] - 2026-09-27
+
+### Changed
+
+- Every one-time code in the sign-in and account screens is Bloom's
+  `InputOtp` (one box per character), named by its `Field` label: the
+  sign-in "Check your email" code, the second step's authenticator code and
+  backup code, the sign-up email code, "Confirm it's you" (email code and
+  authenticator code) and the authenticator set-up code. The sign-in, sign-up
+  and second-step codes submit themselves once every box is filled; the
+  confirm-it's-you and set-up codes still wait for the screen's own action.
+- "Check your email" is six digit boxes. "Does your code have letters?" turns
+  it into ten characters in two groups of five for the long code an account
+  past its daily guessing ceiling is sent (`XXXXX-XXXXX`; a pasted code with
+  its dash fills every box), and "Is your code only numbers?" turns it back.
+  The choice survives a remount of the dialog (`signInFlowStore`).
+- A backup code is ten characters in two groups of five, in the second step
+  and now in "Confirm it's you" too, which gains the same "Use a backup code"
+  / "Use your authenticator app" switch instead of one field for either.
+- Requires `@oxy.so/bloom` `^4.31.0` (`InputOtp type="alphanumeric"`) and
+  `@oxy.so/core` `^3.1.0` (the new strings).
+
+### Removed
+
+- `formatSignInCodeInput` (internal): the field cleans what is typed.
+
 ## [8.1.1] - 2026-09-27
 
 ### Changed

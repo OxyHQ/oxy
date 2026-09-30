@@ -32,10 +32,12 @@ describe("Bloom's typography tokens survive a native pipeline", () => {
       .replace(/^\^/, '')
       .split('.')
       .map(Number);
-    expect(major).toBe(4);
     // 4.21.0: ratio line-heights. 4.21.1: the collapsed sheet header paints
-    // its background on Android.
-    expect((minor ?? 0) * 1000 + (patch ?? 0)).toBeGreaterThanOrEqual(21_001);
+    // its background on Android. Any later major keeps both (the unitless
+    // tokens are asserted below against the Bloom this workspace builds on),
+    // so the floor is compared as a version, not pinned to one major.
+    const floor = (major ?? 0) * 1_000_000 + (minor ?? 0) * 1000 + (patch ?? 0);
+    expect(floor).toBeGreaterThanOrEqual(4_021_001);
   });
 
   it.each(USED_TYPE_SCALE)('`text-%s` declares a unitless line-height', (step) => {

@@ -33,7 +33,7 @@ import { externalIdentities, externalIdentityActors } from '../db/schema/externa
 import { userService } from '../services/user.service';
 import { applyFederationMove, FederationMoveRefused } from '../services/federationMove.service';
 import { InstanceFetchRefused, InstanceKeyUnavailable, signInstanceFetch } from '../services/federation/instanceFetchSignature';
-import { INSTAGRAM_GRAPH_PROTOCOL, instagramAcctFromHandle } from '../services/federation/instagramGraph';
+import { INSTAGRAM_GRAPH_PROTOCOL, instagramAcctFromHandle, instagramGraphUserIdFromActorUri, isInstagramGraphActorUri } from '../services/federation/instagramGraph';
 import {
   DEFAULT_PURGE_LIMIT,
   purgeBlockedDomain,
@@ -85,9 +85,18 @@ router.post('/identities/resolve', serviceAuthMiddleware, validate({ body: resol
     || (transportAcct !== undefined && (typeof transportAcct !== 'string' || transportAcct.length > 320))) {
     throw new BadRequestError('Exactly one actorUri or handle, and optional transportAcct, are required');
   }
-  // Business Discovery only speaks for Instagram accounts, and only by username.
-  if (protocol === INSTAGRAM_GRAPH_PROTOCOL && (typeof handle !== 'string' || !instagramAcctFromHandle(handle))) {
-    throw new BadRequestError('protocol instagram-graph requires an instagram.com handle');
+  // Business Discovery speaks only for Instagram accounts: by username (discovery)
+  // or by a stored `instagram-graph:<igUserId>` actor (refresh). A Graph actor is
+  // never resolved under another protocol, nor another actor under Graph's.
+  const graphActor = typeof actorUri === 'string' && isInstagramGraphActorUri(actorUri);
+  if (graphActor && !instagramGraphUserIdFromActorUri(actorUri)) {
+    throw new BadRequestError('instagram-graph actorUri must be instagram-graph:<igUserId>');
+  }
+  if (graphActor && protocol !== undefined && protocol !== INSTAGRAM_GRAPH_PROTOCOL) {
+    throw new BadRequestError('An instagram-graph actorUri requires protocol instagram-graph');
+  }
+  if (protocol === INSTAGRAM_GRAPH_PROTOCOL && !graphActor && (typeof handle !== 'string' || !instagramAcctFromHandle(handle))) {
+    throw new BadRequestError('protocol instagram-graph requires an instagram.com handle or an instagram-graph:<igUserId> actorUri');
   }
   const result = await federationService.resolveExternalIdentity({ actorUri, handle, transportAcct, protocol });
   if (!result) throw new NotFoundError('External actor could not be verified');

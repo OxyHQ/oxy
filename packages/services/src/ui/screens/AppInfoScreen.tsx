@@ -4,12 +4,12 @@ import {
     View,
     Platform,
     Dimensions,
-    Clipboard,
     ActivityIndicator,
 } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { packageInfo } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
+import { copyText } from '../utils/clipboard';
 import OxyServicesLogo from '../../assets/icons/OxyServices';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -93,7 +93,7 @@ const AppInfoScreen: React.FC<BaseScreenProps> = ({
 
     const copyToClipboard = async (text: string, label: string) => {
         try {
-            await Clipboard.setString(text);
+            await copyText(text);
             toast.success(t('appInfo.toasts.copiedToClipboard', { label }));
         } catch (error) {
             toast.error(t('appInfo.toasts.copyFailed'));

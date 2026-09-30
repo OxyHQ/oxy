@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
-import { type Readable, Transform } from 'stream';
+import { Readable, Transform } from 'stream';
 import { eq } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxy.so/core';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
@@ -904,6 +904,24 @@ export class AssetService {
       },
       tempPrefix: 'user/incoming',
       logLabel: 'User media',
+    });
+  }
+
+  /**
+   * Store one of a sticker's files — its Lottie animation or its static
+   * fallback — in the `__stickers__` namespace. Public and content-addressed,
+   * so the CDN serves it forever; the caller has already validated the bytes
+   * (`stickerValidation.ts`), which is why this takes a buffer rather than a
+   * stream.
+   */
+  async uploadStickerFile(buffer: Buffer, mimeType: string, originalName: string): Promise<FileRecord> {
+    return this.uploadStreamedMedia(Readable.from(buffer), mimeType, originalName, buffer.length, {
+      owner: { ownerUserId: null, systemOwner: '__stickers__' },
+      purpose: 'sticker',
+      visibility: 'public',
+      metadata: {},
+      tempPrefix: 'stickers/incoming',
+      logLabel: 'Sticker file',
     });
   }
 

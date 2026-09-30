@@ -56,6 +56,8 @@ const dict = {
       "description": "Se houver uma conta com {{identifier}}, enviámos-lhe um código e uma ligação para iniciar sessão.",
       "codeLabel": "Código",
       "codeHint": "Escreve o código do email ou abre a ligação dele neste navegador.",
+      "codeHasLetters": "O teu código tem letras?",
+      "codeDigitsOnly": "O teu código só tem números?",
       "resend": "Enviar um novo email",
       "resendIn": "Enviar um novo email dentro de {{seconds}} s",
       "resent": "Enviámos um novo email.",
@@ -142,6 +144,7 @@ const dict = {
     "linkOpenFailed": "Não foi possível abrir a ligação. Tente novamente."
   },
   "common": {
+    "stepOf": "Passo {{step}} de {{total}}",
     "actions": {
       "back": "Voltar",
       "continue": "Continuar",
@@ -337,7 +340,6 @@ const dict = {
     "passwordLabel": "Palavra-passe atual",
     "usePassword": "Usar antes a palavra-passe",
     "useEmail": "Receber antes um código por email",
-    "totpLabel": "Código de autenticação ou de segurança",
     "errors": {
       "invalid": "Não resultou. Verifica o que escreveste e tenta novamente.",
       "totpRequired": "Escreve também o código da tua app de autenticação."

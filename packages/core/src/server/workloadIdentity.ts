@@ -1,4 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
+import { trimTrailingSlashes } from '../utils/slashes';
 
 /**
  * Asking Oxy for a service token by proving what this process IS (ADR 0026).
@@ -166,7 +167,7 @@ export async function requestWorkloadServiceToken(
   options: WorkloadServiceTokenOptions,
 ): Promise<WorkloadServiceToken> {
   const fetchImpl = options.fetch ?? fetch;
-  const base = options.baseUrl.replace(/\/+$/, '');
+  const base = trimTrailingSlashes(options.baseUrl);
 
   const challengeResponse = await fetchImpl(`${base}/auth/service-token/workload/challenge`, {
     method: 'POST',

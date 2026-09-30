@@ -56,7 +56,6 @@ const TroubleDisclosure: React.FC<TroubleDisclosureProps> = ({ actions, revealed
         <SubtleLink
           key={action.key}
           label={action.label}
-          theme={theme}
           onPress={action.onPress}
           disabled={action.disabled}
           testID={action.key}

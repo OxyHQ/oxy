@@ -7,12 +7,12 @@
  */
 
 import { SMTPServer, type SMTPServerSession, type SMTPServerAddress, type SMTPServerDataStream } from 'smtp-server';
-import { simpleParser, type ParsedMail } from 'mailparser';
 import { sql } from 'drizzle-orm';
 import { SMTP_INBOUND_CONFIG, EMAIL_DOMAIN, extractUsername, extractAliasTag } from '../config/email.config';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { emailService } from './email.service';
+import { parseInboundMime } from './inboundMime';
 import { spamService } from './spam.service';
 import { logger } from '../utils/logger';
 import fs from 'fs';
@@ -163,7 +163,7 @@ export function startSmtpInbound(): SMTPServer {
         }
 
         // Parse MIME
-        const parsed: ParsedMail = await simpleParser(rawMessage);
+        const mime = await parseInboundMime(rawMessage);
 
         // Deliver to each recipient
         const recipients = session.envelope.rcptTo || [];
@@ -174,51 +174,25 @@ export function startSmtpInbound(): SMTPServer {
 
           const aliasTag = extractAliasTag(recipientAddr);
 
-          const fromAddr = parsed.from?.value?.[0];
-          const toAddrs = (parsed.to && !Array.isArray(parsed.to) ? [parsed.to] : parsed.to || [])
-            .flatMap((addr) => addr.value);
-          const ccAddrs = (parsed.cc && !Array.isArray(parsed.cc) ? [parsed.cc] : parsed.cc || [])
-            .flatMap((addr) => addr.value);
-
-          // Convert mailparser attachments
-          const attachments = (parsed.attachments || []).map((att) => ({
-            filename: att.filename || 'attachment',
-            contentType: att.contentType || 'application/octet-stream',
-            content: att.content,
-            contentId: att.contentId,
-            isInline: att.contentDisposition === 'inline',
-          }));
-
-          const headersObj: Record<string, string> = {};
-          if (parsed.headers) {
-            parsed.headers.forEach((value, key) => {
-              headersObj[key] = typeof value === 'string' ? value : JSON.stringify(value);
-            });
-          }
-
           const mailFrom = session.envelope.mailFrom as { address: string } | false;
-          const senderAddress = fromAddr?.address || (mailFrom ? mailFrom.address : '');
+          const senderAddress = mime.from?.address || (mailFrom ? mailFrom.address : '');
           await emailService.storeIncomingMessage({
             recipientUsername: username,
             from: {
-              name: fromAddr?.name || '',
+              name: mime.from?.name || '',
               address: senderAddress,
             },
-            to: toAddrs.map((a) => ({ name: a.name || '', address: a.address || '' })),
-            cc: ccAddrs.map((a) => ({ name: a.name || '', address: a.address || '' })),
-            subject: parsed.subject || '',
-            text: parsed.text,
-            html: typeof parsed.html === 'string' ? parsed.html : undefined,
-            messageId: parsed.messageId || `<${Date.now()}@${EMAIL_DOMAIN}>`,
-            inReplyTo: parsed.inReplyTo || undefined,
-            references: Array.isArray(parsed.references)
-              ? parsed.references
-              : parsed.references
-                ? [parsed.references]
-                : [],
-            date: parsed.date || new Date(),
-            headers: headersObj,
-            attachments,
+            to: mime.to,
+            cc: mime.cc,
+            subject: mime.subject,
+            text: mime.text,
+            html: mime.html,
+            messageId: mime.messageId || `<${Date.now()}@${EMAIL_DOMAIN}>`,
+            inReplyTo: mime.inReplyTo,
+            references: mime.references,
+            date: mime.date || new Date(),
+            headers: mime.headers,
+            attachments: mime.attachments,
             spamScore: spamResult.score,
             spamAction: spamResult.action,
             aliasTag: aliasTag ?? undefined,

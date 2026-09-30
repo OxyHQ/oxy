@@ -87,8 +87,11 @@ kilogram.makeup, the reviewed Instagram bridge, routinely answers WebFinger with
 failure: 429, timeout, refusal), Oxy may fall back to Meta's Graph API Business
 Discovery (`services/federation/instagramGraph.ts`). A resolve request with
 `protocol: 'instagram-graph'` and an Instagram handle or profile URL goes to
-Graph directly; the route rejects that protocol for any other handle or for an
-`actorUri`.
+Graph directly, and one with an `instagram-graph:<igUserId>` `actorUri` refreshes
+that stored source. The route returns 400 for `instagram-graph` with any other
+handle or actor URI, and for an `instagram-graph:` actor URI under another
+protocol. Route tests pin every request body Mention's `resolveOxyIdentity`
+sends.
 
 Only Business and Creator accounts are visible; a personal or missing account
 (error 110, subcode 2207013) is not found. The source is protocol
@@ -113,16 +116,66 @@ handle). An IG User ID already bound to another handle (a rename) is refused
 rather than re-pointed; that needs reconciliation. The reconciler skips these
 actors.
 
-Configuration, read per call and fail-closed: `INSTAGRAM_GRAPH_FALLBACK_ENABLED`
-must be `true` and `META_GRAPH_ACCESS_TOKEN` plus a numeric
-`META_IG_BUSINESS_ACCOUNT_ID` must be set; `META_GRAPH_API_VERSION` defaults to
-`v23.0`. The token is sent only as a bearer header and never logged. Results,
+Configuration, read per call and fail-closed: the fallback runs whenever
+`META_GRAPH_ACCESS_TOKEN` and a numeric `META_IG_BUSINESS_ACCOUNT_ID` are set, and
+is inert when either is missing. There is no separate switch; the Graph API
+version is pinned in code (`v23.0`). The token is sent only as a bearer header and never logged. Results,
 including not-found, are cached in process for ten minutes. A throttle answer
 (codes 4, 17, 32, 613, 80001, 80002 or HTTP 429) or `x-app-usage` at 90% or more pauses Graph calls for
 fifteen minutes, because Business Discovery allows about 200 calls per hour per
 token. Token errors (190) and throttles are logged as
 `Instagram Graph lookup failed` with the reason, HTTP status, Meta code and
 subcode.
+
+## Avatars
+
+A federated user's `users.avatar` is an Oxy Cloud file id or NULL, for every
+protocol (activitypub, atproto, instagram-graph). It is never a source picture
+URL, whatever the host. `utils/federatedAvatar.ts#persistFederatedAvatar` is the
+only writer after registration, and it refuses anything but a file id. Registration
+writes no avatar and clears any non-file-id value. `mirrorFederatedAvatar`
+downloads the source picture into Oxy storage. If a mirror fails, the previous
+file id is kept, or the column stays NULL so clients show the default avatar.
+Signed Meta CDN URLs (`fbcdn.net`, `cdninstagram.com`) past their `oe` expiry
+are refused without a request.
+
+A failure that leaves no stored picture is owed a durable retry
+(`users.federation_avatar_retry_at`, `federation_avatar_attempts` and
+`federation_avatar_failure`, written by `persistFederatedAvatar`). Transient
+failures back off at 5 min × 3^n, up to 6 h. Permanent ones are retried daily.
+The API's `federated-avatar-retry` sweep (`queue/federatedAvatarRetry.queue.ts`)
+runs every 5 minutes. It claims due rows with a 30-minute lease, re-reads each
+user's source profile for the picture it has now, and mirrors that picture.
+Picture downloads and source fetches wait for a 1 s gap per origin, shared
+cluster-wide (`FEDERATION_AVATAR_ORIGIN_GAP_MS`), and a 429 sets an exponential
+cooldown. Only a cooldown makes a download fail.
+
+The downloader decides what a response is from its magic bytes, never from its
+Content-Type. It downloads up to 25 MB. A picture over 5 MB, or in a format
+browsers cannot show, is stored as a first-frame WebP of at most 1024 px.
+
+When an instagram.com picture fails permanently (expired, any 4xx) and the
+Instagram Graph fallback is enabled, Oxy mirrors a fresh Business Discovery
+`profile_picture_url` instead. This stays within that client's cache, cooldown
+and call budget. The fallback is refused when the Graph account is bound to
+another handle or contradicts the pinned first-party owner, and a personal
+account stays NULL. Serializers withhold any non-file-id value on a federated
+row. Oxy stores no federated banners; Mention mirrors them into
+`UserSettings.profileHeaderImage` as file ids.
+
+Rows written before this rule (`type = 'federated' and avatar is not null and
+avatar !~ '^[A-Za-z0-9_-]{1,128}$'`) are repaired by
+`packages/api/src/scripts/repair-federated-remote-avatars.ts` (dry run by
+default; `--apply` or `DRY_RUN=false` writes). In production, dispatch
+`.github/workflows/repair-federated-avatars.yml` from `main` with
+`dry_run=true`, read the summary, then dispatch `dry_run=false`. Writes are
+conditional on the URL the pass read, so a rerun is idempotent; `after` resumes
+from a summary's cursor.
+
+`mode=recover` on the same workflow (`--recover` locally) queues every federated
+user that a mirror attempt left without an avatar and drains the retry sweep.
+Dry run reports the count; `concurrency` bounds the pass (default 4). Summaries
+report failures by `reason[:http status]` and by host.
 
 ## Existing data
 

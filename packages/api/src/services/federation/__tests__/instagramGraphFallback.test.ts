@@ -24,16 +24,13 @@ const uniqueGraphId = () => `1784${String(Date.now()).slice(-8)}${String(Math.fl
 beforeAll(connectPostgres);
 afterAll(closePostgres);
 beforeEach(() => {
-  process.env.INSTAGRAM_GRAPH_FALLBACK_ENABLED = 'true';
   process.env.META_GRAPH_ACCESS_TOKEN = TOKEN;
   process.env.META_IG_BUSINESS_ACCOUNT_ID = BUSINESS_ID;
-  delete process.env.META_GRAPH_API_VERSION;
   resetInstagramGraphStateForTests();
   jest.mocked(logger.warn).mockClear();
   jest.mocked(logger.info).mockClear();
 });
 afterEach(() => {
-  delete process.env.INSTAGRAM_GRAPH_FALLBACK_ENABLED;
   delete process.env.META_GRAPH_ACCESS_TOKEN;
   delete process.env.META_IG_BUSINESS_ACCOUNT_ID;
   jest.restoreAllMocks();
@@ -110,8 +107,9 @@ it('falls back to Business Discovery when kilogram answers 429, without a stable
 });
 
 it.each([
-  ['the flag is off', () => { delete process.env.INSTAGRAM_GRAPH_FALLBACK_ENABLED; }],
+  ['no credentials are configured', () => { delete process.env.META_GRAPH_ACCESS_TOKEN; delete process.env.META_IG_BUSINESS_ACCOUNT_ID; }],
   ['the token is missing', () => { delete process.env.META_GRAPH_ACCESS_TOKEN; }],
+  ['the business account id is missing', () => { delete process.env.META_IG_BUSINESS_ACCOUNT_ID; }],
   ['the business account id is not numeric', () => { process.env.META_IG_BUSINESS_ACCOUNT_ID = 'abc'; }],
 ])('is fully inert when %s: the kilogram 429 stays a null', async (_label, configure) => {
   const source = setup();

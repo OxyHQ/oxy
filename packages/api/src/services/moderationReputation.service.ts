@@ -9,14 +9,17 @@
  * duration and no standing. If it could, the reputation ledger would be an API
  * an application writes to, and every guarantee below would be advisory.
  *
- * FOUR OPERATIONS (§11.5), each doing distinct work:
+ * THREE OPERATIONS (§11.5), each doing distinct work:
  *  - {@link applyModerationDecision}     validate, derive, write — or record a skip.
  *  - {@link finalizeModerationDecision}  confirm the consequence landed and the
  *    snapshot reflects it. This is what a lost queue job is re-derived through.
  *  - {@link reverseModerationDecision}   an appeal succeeded: compensate the
  *    points and remove the active risk.
- *  - {@link reconcileModerationIncident} audit an incident end to end and repair
- *    a partially-applied consequence.
+ *
+ * Every write that changes someone's standing is ONE transaction — the ledger
+ * entry, the strike, the effect, and (when a newer revision lands) the reversal
+ * of the one it supersedes — so there is no half-applied state for anyone to
+ * repair afterwards.
  *
  * WHAT MAKES "ONE PENALTY PER INCIDENT" TRUE
  *
@@ -44,7 +47,7 @@
  * are corrected.
  */
 
-import { and, asc, eq, gte, inArray, lte, ne } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, lte, ne } from 'drizzle-orm';
 import type {
   ModerationDecisionEvent,
   ModerationEffectSkipReason,
@@ -62,7 +65,7 @@ import { moderationPolicies } from '../db/schema/moderationPolicies';
 import { moderationPolicySeverityRules } from '../db/schema/moderationPolicySeverityRules';
 import { moderationPolicyStandingThresholds } from '../db/schema/moderationPolicyStandingThresholds';
 import { reputationTransactions } from '../db/schema/reputationTransactions';
-import reputationService, { type ReputationTransactionHandle } from './reputation.service';
+import reputationService, { type ReputationTransactionHandle, type ReputationTransactionRow } from './reputation.service';
 import { attestModerationEffect } from './civic/attestation.service';
 import { resolveBindingProof } from './identityBinding.service';
 import {
@@ -176,17 +179,6 @@ export interface ReverseResult {
   idempotent: boolean;
 }
 
-/** Outcome of {@link reconcileModerationIncident}. */
-export interface ReconcileResult {
-  incidentId: string;
-  effectsExamined: number;
-  /** Effects whose strike was missing or inconsistent and has been repaired. */
-  strikesRepaired: number;
-  /** Effects superseded by a later revision and now reversed. */
-  supersededReversed: number;
-  /** Subjects whose balance snapshot was recomputed. */
-  balancesRecalculated: number;
-}
 
 /**
  * Severity ordering, used only to pick the PRIMARY finding. Kept here rather
@@ -571,14 +563,8 @@ class ModerationReputationService {
    * nets to zero. Nothing is edited and nothing disappears; what changes is the
    * net balance and the active risk.
    *
-   * ORDER MATTERS. The strike is marked `reversed` BEFORE the compensating entry
-   * is appended, because `reverseTransaction` recomputes the balance and must see
-   * the risk already gone. If the process dies between the two writes, the
-   * person is out from under the consequence with their points not yet
-   * compensated — the recoverable direction. The opposite order would leave
-   * someone whose appeal SUCCEEDED still carrying active risk, which is the
-   * failure this operation exists to prevent. Every step is idempotent, so a
-   * retry completes the rest.
+   * The strike, the compensating entry and the effect move in ONE transaction,
+   * so an interruption leaves either the full reversal or none of it.
    *
    * The credential is part of the lookup key: decision ids are chosen by the
    * emitter and are neither globally unique nor authority-bearing.
@@ -606,112 +592,12 @@ class ModerationReputationService {
       return { reversed: effects, idempotent: true };
     }
 
-    const reversedEffects: ModerationEffectRow[] = [];
-    for (const effect of pending) {
-      if (effect.strikeId) {
-        // `status` and `resolved_at` move in ONE statement: the table's
-        // `conduct_strikes_resolution_complete_check` requires them to agree, so
-        // "not active but never resolved" is now unrepresentable rather than a
-        // state every reader had to guard for.
-        await getDb()
-          .update(conductStrikes)
-          .set({ status: 'reversed', resolvedAt: new Date() })
-          .where(and(eq(conductStrikes.id, effect.strikeId), eq(conductStrikes.status, 'active')));
-      }
-
-      const { reversal } = await reputationService.reverseTransaction(
-        effect.transactionId,
-        { reason: `Moderation decision reversed: ${reason}` }
-      );
-
-      const [updated] = await getDb()
-        .update(moderationEffects)
-        .set({
-          status: 'reversed',
-          reversalTransactionId: reversal.id,
-          reversedAt: new Date(),
-          reversalReason: reason,
-        })
-        .where(eq(moderationEffects.id, effect.id))
-        .returning();
-      reversedEffects.push(updated);
-    }
+    const { effects: reversedEffects, originals } = await getDb().transaction((tx) =>
+      this.reverseEffectsInTransaction(pending, reason, tx)
+    );
+    for (const original of originals) await reputationService.afterReversal(original);
 
     return { reversed: reversedEffects, idempotent: false };
-  }
-
-  /**
-   * Audit an incident end to end and repair a partially-applied consequence.
-   *
-   * Two failure shapes this exists for, both of which a dropped background job
-   * can produce: an effect whose strike never landed (points deducted, no
-   * standing change) and an effect from a revision a later one superseded
-   * (consequence still active after an appeal). Both are silent — nothing errors,
-   * the numbers are simply wrong — so a reconciliation pass is the only thing
-   * that finds them.
-   *
-   * Idempotent: a healthy incident is examined and nothing is written.
-   */
-  async reconcileModerationIncident(incidentId: string): Promise<ReconcileResult> {
-    const incident = String(incidentId);
-    const effects = await getDb()
-      .select()
-      .from(moderationEffects)
-      .where(eq(moderationEffects.incidentId, incident))
-      .orderBy(asc(moderationEffects.decisionRevision));
-
-    const latestRevision = effects.reduce(
-      (max, effect) => Math.max(max, effect.decisionRevision),
-      0
-    );
-    const touched = new Set<string>();
-    let strikesRepaired = 0;
-    let supersededReversed = 0;
-
-    for (const effect of effects) {
-      // An applied effect from a superseded revision is a consequence an appeal
-      // should already have removed.
-      if (effect.status === 'applied' && effect.decisionRevision < latestRevision) {
-        await this.reverseModerationDecision(
-          effect.decisionId,
-          effect.decisionRevision,
-          `Superseded by revision ${latestRevision}`,
-          effect.credentialId ?? ''
-        );
-        supersededReversed += 1;
-        touched.add(effect.principalId);
-        continue;
-      }
-
-      if (effect.status !== 'applied' || effect.activeRisk === 0) {
-        continue;
-      }
-
-      // The strike is what carries active risk. Without it the points were
-      // deducted and the standing never moved.
-      const strike = effect.strikeId ? await this.findStrikeById(effect.strikeId) : null;
-      if (!strike) {
-        const repaired = await this.repairStrike(effect);
-        await getDb()
-          .update(moderationEffects)
-          .set({ strikeId: repaired.id })
-          .where(eq(moderationEffects.id, effect.id));
-        strikesRepaired += 1;
-        touched.add(effect.principalId);
-      }
-    }
-
-    for (const subject of touched) {
-      await reputationService.recalculateBalance(subject);
-    }
-
-    return {
-      incidentId: incident,
-      effectsExamined: effects.length,
-      strikesRepaired,
-      supersededReversed,
-      balancesRecalculated: touched.size,
-    };
   }
 
   /**
@@ -966,7 +852,30 @@ class ModerationReputationService {
     // precisely the case where a half-applied consequence — points deducted, no
     // strike, no effect record — could survive an interruption and be invisible
     // to every one of the three idempotency guards.
-    const effect = await getDb().transaction(async (tx) => this.writeEffectInTransaction(params, tx));
+    //
+    // A newer revision of an incident replaces the older one: its still-applied
+    // effects are reversed in the SAME transaction, so nobody is left carrying a
+    // consequence a revision already removed.
+    const { effect, originals } = await getDb().transaction(async (tx) => {
+      const written = await this.writeEffectInTransaction(params, tx);
+      const superseded = await tx
+        .select()
+        .from(moderationEffects)
+        .where(
+          and(
+            eq(moderationEffects.incidentId, ids.incidentId),
+            eq(moderationEffects.status, 'applied'),
+            lt(moderationEffects.decisionRevision, ids.decisionRevision)
+          )
+        );
+      const reversal = await this.reverseEffectsInTransaction(
+        superseded,
+        `Superseded by revision ${ids.decisionRevision}`,
+        tx
+      );
+      return { effect: written, originals: reversal.originals };
+    });
+    for (const original of originals) await reputationService.afterReversal(original);
 
     // Provenance, deliberately minimal: a severity BAND, the points, the hash of
     // the private decision and the policy version. No taxonomy code, no victim,
@@ -1227,68 +1136,49 @@ class ModerationReputationService {
       );
   }
 
-  /** One conduct strike by id, or `null`. */
-  private async findStrikeById(strikeId: string): Promise<ConductStrikeRow | null> {
-    const [strike] = await getDb()
-      .select()
-      .from(conductStrikes)
-      .where(eq(conductStrikes.id, strikeId))
-      .limit(1);
-    return strike ?? null;
-  }
-
   /**
-   * Rebuild a missing strike from its effect, reconstructing the consequence the
-   * subject SHOULD have been under — not a fresh one.
-   *
-   * Two things here are easy to get wrong and both make the repair harsher than
-   * the original, which is the worst direction for a repair to err in:
-   *
-   *  - The expiry is measured from the effect's `appliedAt`, NOT from now.
-   *    Measuring from now would silently extend a 90-day consequence by however
-   *    long the strike was missing, so a reconciliation pass would punish the
-   *    subject for an operational failure.
-   *  - An expiry that has ALREADY passed produces an `expired` strike, not an
-   *    active one. Otherwise reconciliation resurrects a consequence that had
-   *    lapsed, and — because the sweep only selects strikes whose `expiresAt` is
-   *    due — a resurrected one with no expiry would never lapse again.
-   *
-   * The figures come from the effect and the expiry from the effect's OWN policy
-   * version, so a repair is bounded by what was already recorded and cannot
-   * invent a consequence. A `null` expiry (critical severity) stays absent, which
-   * is the one case where a permanent strike is correct.
+   * Reverse applied effects inside the caller's transaction: strike, then the
+   * compensating ledger entry (whose balance recompute must see the risk gone),
+   * then the effect. Returns the reversed ledger originals for the caller to
+   * run `reputationService.afterReversal` on once the transaction commits.
    */
-  private async repairStrike(effect: ModerationEffectRow): Promise<ConductStrikeRow> {
-    const policy = await loadPolicy(effect.policyVersionOxyConduct);
-    const rule = policy?.severityRules.find((entry) => entry.severity === effect.severity);
-    const expiryDays = rule?.riskExpiryDays ?? null;
+  private async reverseEffectsInTransaction(
+    effects: readonly ModerationEffectRow[],
+    reason: string,
+    tx: ReputationTransactionHandle
+  ): Promise<{ effects: ModerationEffectRow[]; originals: ReputationTransactionRow[] }> {
+    const reversed: ModerationEffectRow[] = [];
+    const originals: ReputationTransactionRow[] = [];
+    for (const effect of effects) {
+      if (effect.strikeId) {
+        // `status` and `resolved_at` move in ONE statement: the table's
+        // `conduct_strikes_resolution_complete_check` requires them to agree.
+        await tx
+          .update(conductStrikes)
+          .set({ status: 'reversed', resolvedAt: new Date() })
+          .where(and(eq(conductStrikes.id, effect.strikeId), eq(conductStrikes.status, 'active')));
+      }
 
-    const expiresAt =
-      expiryDays === null
-        ? undefined
-        : new Date(effect.appliedAt.getTime() + expiryDays * 24 * 60 * 60 * 1000);
-    const hasLapsed = expiresAt !== undefined && expiresAt.getTime() <= Date.now();
+      const { original, reversal } = await reputationService.reverseTransaction(
+        effect.transactionId,
+        { reason: `Moderation decision reversed: ${reason}` },
+        tx
+      );
+      originals.push(original);
 
-    const [repaired] = await getDb()
-      .insert(conductStrikes)
-      .values({
-        userId: effect.principalId,
-        incidentId: effect.incidentId,
-        decisionId: effect.decisionId,
-        decisionRevision: effect.decisionRevision,
-        applicationId: effect.applicationId,
-        effectType: effect.effectType,
-        severity: effect.severity,
-        riskPoints: effect.activeRisk,
-        family: effect.family,
-        status: hasLapsed ? 'expired' : 'active',
-        expiresAt,
-        policyVersion: effect.policyVersionOxyConduct,
-        transactionId: effect.transactionId,
-        resolvedAt: hasLapsed ? new Date() : undefined,
-      })
-      .returning();
-    return repaired;
+      const [updated] = await tx
+        .update(moderationEffects)
+        .set({
+          status: 'reversed',
+          reversalTransactionId: reversal.id,
+          reversedAt: new Date(),
+          reversalReason: reason,
+        })
+        .where(eq(moderationEffects.id, effect.id))
+        .returning();
+      reversed.push(updated);
+    }
+    return { effects: reversed, originals };
   }
 
   /**

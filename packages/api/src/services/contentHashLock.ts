@@ -29,7 +29,8 @@ import { sql } from 'drizzle-orm';
 import { getDb, type Transaction } from '../config/postgres';
 
 /** The advisory-lock namespace for content hashes; part of the hashed key. */
-const LOCK_NAMESPACE = 'oxy:files:sha256:';
+export const CONTENT_HASH_LOCK_NAMESPACE = 'oxy:files:sha256:';
+const LOCK_NAMESPACE = CONTENT_HASH_LOCK_NAMESPACE;
 
 export async function withContentHashLock<T>(
   sha256: string,

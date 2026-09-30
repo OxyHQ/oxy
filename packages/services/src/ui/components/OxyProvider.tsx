@@ -15,6 +15,7 @@ import { isNetConnectivityOnline } from '../utils/netConnectivity';
 import { KeyboardBoundary } from './KeyboardBoundary';
 import { ProductAnalyticsObserver } from '../analytics/productAnalytics';
 import { LanguageBridge } from './LanguageBridge';
+import { BloomLocaleBridge } from './BloomLocaleBridge';
 
 const bootStyles = StyleSheet.create({
     providerRoot: {
@@ -88,6 +89,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
     sessionMode = 'account',
     webAuthMode = 'popup',
     queryClient: providedQueryClient,
+    accountQueries,
     requireAuth = 'off',
     backgroundSession = false,
     language,
@@ -102,6 +104,8 @@ const OxyProvider: FC<OxyProviderProps> = ({
     const queryClientRef = useRef<ReturnType<typeof createQueryClient> | null>(null);
     const persistenceUnsubRef = useRef<(() => void) | null>(null);
     const ownsQueryClientRef = useRef(providedQueryClient === undefined);
+    // `accountQueries` is read once, at mount, like the client itself.
+    const accountQueriesRef = useRef(accountQueries);
     const [platformStorage, setPlatformStorage] = useState<StorageInterface | null>(null);
 
     // If the consumer supplied their own QueryClient we use it as-is and skip
@@ -135,7 +139,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
             setPlatformStorage(storage);
             const client = queryClientRef.current;
             if (!client || !ownsQueryClientRef.current) return;
-            const persistence = attachQueryPersistence(client, storage);
+            const persistence = attachQueryPersistence(client, storage, accountQueriesRef.current);
             persistenceUnsubRef.current = persistence.unsubscribe;
             await persistence.restored;
         };
@@ -226,6 +230,8 @@ const OxyProvider: FC<OxyProviderProps> = ({
     // (defaultColorPreset, defaultMode, persistKey, storage, fonts, etc.).
     // OxyProvider does NOT wrap a BloomThemeProvider — that would create a
     // duplicate scope that silently shadows the consumer's configuration.
+    // It DOES set Bloom's locale (`BloomLocaleBridge`) to Oxy's language, but
+    // defers to a locale the app already set above it.
     const coreContent = (
         <QueryClientProvider client={queryClient}>
             <OxyRuntimeProvider
@@ -240,18 +246,21 @@ const OxyProvider: FC<OxyProviderProps> = ({
                 webAuthMode={webAuthMode}
                 backgroundSession={backgroundSession}
                 platformStorage={platformStorage}
+                accountQueries={accountQueries}
                 onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
             >
                 {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
                 {language ? <LanguageBridge {...language} /> : null}
-                <SurfaceProvider>
-                    {requireAuth === 'off' ? (
-                        children
-                    ) : (
-                        <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
-                    )}
-                </SurfaceProvider>
-                <ToastOutlet />
+                <BloomLocaleBridge>
+                    <SurfaceProvider>
+                        {requireAuth === 'off' ? (
+                            children
+                        ) : (
+                            <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
+                        )}
+                    </SurfaceProvider>
+                    <ToastOutlet />
+                </BloomLocaleBridge>
             </OxyRuntimeProvider>
         </QueryClientProvider>
     );

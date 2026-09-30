@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { rfcMessageIdSchema } from '@oxy.so/contracts';
 
 // POST /email/mailboxes
 export const createMailboxSchema = z.object({
@@ -118,8 +119,8 @@ export const sendMessageSchema = z.object({
   subject: z.string().max(998).optional(), // RFC 5322 line length limit
   text: z.string().optional(),
   html: z.string().optional(),
-  inReplyTo: z.string().trim().optional(),
-  references: z.array(z.string().trim()).optional(),
+  inReplyTo: rfcMessageIdSchema.optional(),
+  references: z.array(rfcMessageIdSchema).max(100).optional(),
   attachments: z.array(attachmentInputSchema).max(20).optional(),
   scheduledAt: z.string().optional(),
   requestReadReceipt: z.boolean().optional(),
@@ -133,8 +134,8 @@ export const saveDraftSchema = z.object({
   subject: z.string().max(998).optional(),
   text: z.string().optional(),
   html: z.string().optional(),
-  inReplyTo: z.string().trim().optional(),
-  references: z.array(z.string().trim()).optional(),
+  inReplyTo: rfcMessageIdSchema.optional(),
+  references: z.array(rfcMessageIdSchema).max(100).optional(),
   attachments: z.array(attachmentInputSchema).max(20).optional(),
   existingDraftId: z.string().trim().optional(),
   expectedRevision: z.number().int().min(1).optional(),

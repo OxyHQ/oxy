@@ -14,7 +14,9 @@
  */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { Clipboard, Linking } from 'react-native';
+import { Linking } from 'react-native';
+import { surfaces } from '@oxy.so/bloom/surfaces';
+import { toast } from '@oxy.so/bloom/toast';
 import type { LoginSessionResult, SignInMethods } from '@oxy.so/contracts';
 
 const SESSION: LoginSessionResult = {
@@ -85,6 +87,12 @@ jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries }),
 }));
 
+const copyText = jest.fn(async (_text: string) => undefined);
+jest.mock('../../../src/ui/utils/clipboard', () => ({
+  __esModule: true,
+  copyText: (text: string) => copyText(text),
+}));
+
 jest.mock('react-native-qrcode-svg', () => ({
   __esModule: true,
   default: ({ value }: { value: string }) => require('react').createElement('span', { 'data-testid': 'qrcode' }, value),
@@ -128,6 +136,7 @@ beforeEach(() => {
   methods = { hasEmail: true, hasPassword: false, totpEnabled: false, backupCodesRemaining: 0 };
   snapshot = { commonsAvailability: 'unknown' };
   isWebBrowserMock.mockReturnValue(true);
+  (surfaces.confirm as jest.Mock).mockResolvedValue(true);
 });
 
 describe('creating an account', () => {
@@ -135,9 +144,12 @@ describe('creating an account', () => {
     const onSignedIn = jest.fn();
     render(<OxySignUpPanel onSignedIn={onSignedIn} onSignIn={jest.fn()} />);
 
+    // One bar across the three steps, named by where the person is.
+    expect(screen.getByTestId('signup-progress').getAttribute('aria-label')).toBe('Step 1 of 3, Username');
     type('signup-username', 'ada');
     press('signup-username-continue');
     await screen.findByTestId('signup-email');
+    expect(screen.getByTestId('signup-progress').textContent).toBe('Step 2 of 3');
     expect(oxyServices.auth.checkUsername).toHaveBeenCalledWith('ada');
     expect(screen.getByText("You can add a password or an authenticator app later, in your account's security settings.")).toBeTruthy();
 
@@ -274,6 +286,10 @@ describe('deleting an account without a key', () => {
     type('reauth-code', '123456');
     press('reauth-submit');
     await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
+    // The last word before it is gone: a destructive confirm, after the proof.
+    expect(surfaces.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Delete Account', confirmLabel: 'Delete Forever', destructive: true }),
+    );
     expect(oxyServices.users.deleteMe).toHaveBeenCalledWith('ada', {
       reauth: { emailCode: { verificationId: 'r-1', code: '123456' } },
     });
@@ -302,6 +318,28 @@ describe('deleting an account without a key', () => {
     );
   });
 
+  it('sends nothing when the final confirm is declined, and stays on the screen', async () => {
+    (surfaces.confirm as jest.Mock).mockResolvedValueOnce(false);
+    const onDeleted = jest.fn();
+    render(<OxyDeleteAccountPanel onDeleted={onDeleted} />);
+    type('delete-account-confirm', 'ada');
+    press('reauth-send-code');
+    await screen.findByTestId('reauth-code');
+    type('reauth-code', '123456');
+    press('reauth-submit');
+
+    await waitFor(() => expect(surfaces.confirm).toHaveBeenCalledTimes(1));
+    expect(oxyServices.users.deleteMe).not.toHaveBeenCalled();
+    expect(onDeleted).not.toHaveBeenCalled();
+    expect(screen.getByTestId('reauth-code')).toBeTruthy();
+  });
+
+  it('warns in a notice, not a line of body copy', () => {
+    render(<OxyDeleteAccountPanel />);
+    const warning = screen.getByTestId('delete-account-warning').querySelector('[role="note"]');
+    expect(warning?.getAttribute('data-admonition-type')).toBe('warning');
+  });
+
   it('never offers the password: deleting takes an emailed code', () => {
     methods = { ...methods, hasPassword: true };
     render(<OxyDeleteAccountPanel />);
@@ -326,11 +364,27 @@ describe('deleting an account without a key', () => {
     user = { id: 'user-1', username: 'ada', publicKey: '04ab' };
     render(<OxyDeleteAccountPanel />);
     expect(screen.getByText('Delete your account in Oxy Commons')).toBeTruthy();
+    expect(screen.getByTestId('delete-account-keyed').textContent).toContain('delete it in Oxy Commons');
     expect(screen.queryByTestId('reauth-send-code')).toBeNull();
   });
 });
 
 describe('the password', () => {
+  it('lets every password field be shown: new, repeat and the current one', () => {
+    methods = { ...methods, hasPassword: true };
+    render(<OxyPasswordPanel />);
+    for (const id of ['password-new', 'password-repeat', 'reauth-password']) {
+      const field = screen.getByTestId(id);
+      expect([id, field.getAttribute('type'), field.getAttribute('data-revealable')]).toEqual([id, 'password', 'true']);
+    }
+  });
+
+  it('names the sign-out-everywhere switch with its field label', () => {
+    render(<OxyPasswordPanel />);
+    const toggle = screen.getByTestId('password-sign-out-others');
+    expect(toggle.closest('[role="group"]')?.getAttribute('aria-label')).toBe('Sign out everywhere else');
+  });
+
   it('sets a first one, confirmed with a code by email', async () => {
     const onDone = jest.fn();
     render(<OxyPasswordPanel onDone={onDone} />);
@@ -390,11 +444,11 @@ describe('the password', () => {
 
 describe('the authenticator app', () => {
   it('sets it up: QR and key, the first code, then the backup codes once', async () => {
-    const copy = jest.spyOn(Clipboard, 'setString').mockImplementation(() => undefined);
     render(<OxyAuthenticatorPanel />);
 
     press('totp-set-up');
     expect((await screen.findByTestId('qrcode')).textContent).toBe('otpauth://totp/Oxy:ada?secret=JBSWY3DPEHPK3PXP');
+    expect(screen.getByTestId('totp-progress').getAttribute('aria-label')).toBe('Step 1 of 2, Authenticator app');
     expect(screen.getByTestId('totp-secret').textContent).toBe('JBSW Y3DP EHPK 3PXP');
 
     type('totp-enroll-code', '123456');
@@ -406,12 +460,32 @@ describe('the authenticator app', () => {
 
     const codes = await screen.findByTestId('totp-backup-codes');
     expect(oxyServices.auth.totp.confirm).toHaveBeenCalledWith('123456', { emailCode: { verificationId: 'r-1', code: '111111' } });
-    expect(codes.textContent).toContain(BACKUP_CODES[0]);
+    expect(codes.querySelector('pre')?.textContent).toBe(BACKUP_CODES.join('\n'));
     expect(invalidateQueries).toHaveBeenCalled();
+    expect(screen.getByTestId('totp-progress').getAttribute('aria-label')).toBe('Step 2 of 2, Save your backup codes');
 
-    press('totp-copy-codes');
-    await waitFor(() => expect(copy).toHaveBeenCalledWith(BACKUP_CODES.join('\n')));
-    copy.mockRestore();
+    // The code block's own copy button, named in the account's language.
+    const copy = screen.getByTestId('totp-backup-codes-copy');
+    expect(copy.getAttribute('aria-label')).toBe('Copy codes');
+    fireEvent.click(copy);
+    await waitFor(() => expect(copyText).toHaveBeenCalledWith(BACKUP_CODES.join('\n')));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Backup codes copied.'));
+  });
+
+  it('says so when the clipboard refuses the codes', async () => {
+    copyText.mockRejectedValueOnce(new Error('denied'));
+    methods = { ...methods, hasPassword: true, totpEnabled: true, backupCodesRemaining: 7 };
+    render(<OxyAuthenticatorPanel />);
+    press('totp-regenerate');
+    type('reauth-password', 'pw');
+    type('reauth-totp', '222222');
+    press('reauth-submit');
+    await screen.findByTestId('totp-backup-codes');
+    // New codes for an authenticator that is on: no set-up progress.
+    expect(screen.queryByTestId('totp-progress')).toBeNull();
+    fireEvent.click(screen.getByTestId('totp-backup-codes-copy'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to copy to clipboard'));
+    expect(toast.success).not.toHaveBeenCalledWith('Backup codes copied.');
   });
 
   it('refuses a first code that is not 6 digits', async () => {
@@ -439,9 +513,14 @@ describe('the authenticator app', () => {
     render(<OxyAuthenticatorPanel onDone={onDone} />);
     press('totp-disable');
     type('reauth-password', 'pw');
+    // A backup code instead: ten characters in two groups of five, pasted with its dash.
+    press('reauth-toggle-backup');
+    expect(screen.getByTestId('reauth-totp').getAttribute('data-type')).toBe('alphanumeric');
+    expect(screen.getByTestId('reauth-totp').getAttribute('data-length')).toBe('10');
+    expect(screen.getByTestId('reauth-totp').getAttribute('data-group-every')).toBe('5');
     type('reauth-totp', 'abcde-fgh23');
     press('reauth-submit');
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
-    expect(oxyServices.auth.totp.disable).toHaveBeenCalledWith({ password: 'pw', totpCode: 'abcde-fgh23' });
+    expect(oxyServices.auth.totp.disable).toHaveBeenCalledWith({ password: 'pw', totpCode: 'ABCDEFGH23' });
   });
 });

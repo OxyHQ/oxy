@@ -528,7 +528,9 @@ describe('DoD: a final global infraction creates exactly one transaction and one
     expect(revision2.idempotent).toBe(false);
     expect(await effectRows(first.incidentId)).toHaveLength(2);
     expect(await strikeRows(world.subjectId)).toHaveLength(2);
-    expect(await ledgerRows(world.subjectId)).toHaveLength(2);
+    // Revision 1 is superseded in the same write: its entry, its compensation,
+    // and revision 2's own entry.
+    expect(await ledgerRows(world.subjectId)).toHaveLength(3);
   });
 
   it('two different people in one incident each get their own consequence', async () => {
@@ -1424,188 +1426,72 @@ describe('expireConductStrikes', () => {
 // RECONCILIATION
 // ===========================================================================
 
-describe('reconcileModerationIncident', () => {
-  /** Detach and remove a strike, leaving the effect that created it behind. */
-  async function loseTheStrike(incidentId: string, userId: string): Promise<void> {
-    // `moderation_effects.strike_id` cascades, so the pointer must go first or
-    // the effect disappears with the strike and there is nothing to repair.
-    await getDb()
-      .update(moderationEffects)
-      .set({ strikeId: null })
-      .where(eq(moderationEffects.incidentId, incidentId));
-    await getDb().delete(conductStrikes).where(eq(conductStrikes.userId, userId));
-  }
-
-  it('examines a healthy incident and writes nothing', async () => {
-    const world = await makeWorld();
-    const event = makeEvent(world);
-    await moderationReputationService.applyModerationDecision(event, world.context);
-
-    const result = await moderationReputationService.reconcileModerationIncident(
-      event.incidentId
-    );
-
-    expect(result).toEqual({
-      incidentId: event.incidentId,
-      effectsExamined: 1,
-      strikesRepaired: 0,
-      supersededReversed: 0,
-      balancesRecalculated: 0,
-    });
-    const [strike] = await strikeRows(world.subjectId);
-    expect(strike.status).toBe('active');
-    expect(await ledgerRows(world.subjectId)).toHaveLength(1);
-  });
-
-  it('repairs an effect whose strike never landed', async () => {
-    // Points deducted, standing unmoved — silent, and nothing but a
-    // reconciliation pass ever notices.
-    const world = await makeWorld();
-    const event = makeEvent(world);
-    await moderationReputationService.applyModerationDecision(event, world.context);
-    await loseTheStrike(event.incidentId, world.subjectId);
-    expect((await reputationService.recalculateBalance(world.subjectId)).conduct.activeRisk).toBe(
-      0
-    );
-
-    const result = await moderationReputationService.reconcileModerationIncident(
-      event.incidentId
-    );
-
-    expect(result.strikesRepaired).toBe(1);
-    expect(result.balancesRecalculated).toBe(1);
-    const strikes = await strikeRows(world.subjectId);
-    expect(strikes).toHaveLength(1);
-    expect(strikes[0].riskPoints).toBe(3);
-    expect(strikes[0].status).toBe('active');
-    // The effect points at the repaired strike, so the pair cannot disagree
-    // again about whether a consequence exists.
-    const [effect] = await effectRows(event.incidentId);
-    expect(effect.strikeId).toBe(strikes[0].id);
-    expect((await reputationService.getBalance(world.subjectId)).conduct.activeRisk).toBe(3);
-    // The repair does NOT deduct a second time.
-    expect(await ledgerRows(world.subjectId)).toHaveLength(1);
-  });
-
-  /*
-   * A REPAIR MUST NOT BE HARSHER THAN THE ORIGINAL. The first version of the
-   * repair passed `expiresAt: undefined` — and since the sweep only selects
-   * strikes that HAVE an `expiresAt`, that silently converted a 90-day medium
-   * consequence into a permanent one. Nothing else would have surfaced it: the
-   * repaired strike looks correct in every other respect.
-   */
-
-  it('gives a repaired strike the ORIGINAL expiry window', async () => {
-    const world = await makeWorld();
-    const event = makeEvent(world);
-    await moderationReputationService.applyModerationDecision(event, world.context);
-    const [before] = await strikeRows(world.subjectId);
-    const originalExpiry = before.expiresAt;
-    expect(originalExpiry).toBeInstanceOf(Date);
-    await loseTheStrike(event.incidentId, world.subjectId);
-
-    await moderationReputationService.reconcileModerationIncident(event.incidentId);
-
-    // Measured from the effect's `appliedAt`, not from the repair — otherwise
-    // the subject is punished for however long the strike was missing.
-    const [repaired] = await strikeRows(world.subjectId);
-    expect(repaired.expiresAt).toBeInstanceOf(Date);
-    expect(
-      Math.abs(Number(repaired.expiresAt?.getTime()) - Number(originalExpiry?.getTime()))
-    ).toBeLessThan(2000);
-    expect(repaired.status).toBe('active');
-  });
-
-  it('creates a repaired strike EXPIRED when its window has already passed', async () => {
-    // Otherwise reconciliation resurrects a consequence that had lapsed — and
-    // one resurrected as `active` with a past expiry would be swept immediately,
-    // while one with no expiry would never lapse again at all.
-    const world = await makeWorld();
-    const event = makeEvent(world);
-    await moderationReputationService.applyModerationDecision(event, world.context);
-    await loseTheStrike(event.incidentId, world.subjectId);
-    // The effect was applied a year ago; a medium strike lapses after 90 days.
-    await getDb()
-      .update(moderationEffects)
-      .set({ appliedAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) })
-      .where(eq(moderationEffects.incidentId, event.incidentId));
-
-    await moderationReputationService.reconcileModerationIncident(event.incidentId);
-
-    const [repaired] = await strikeRows(world.subjectId);
-    expect(repaired.status).toBe('expired');
-    expect(repaired.resolvedAt).toBeInstanceOf(Date);
-    const balance = await reputationService.getBalance(world.subjectId);
-    expect(balance.conduct).toMatchObject({ activeRisk: 0, standing: 'good' });
-  });
-
-  it('keeps a repaired CRITICAL strike permanent, because that one is correct', async () => {
-    const world = await makeWorld();
-    const event = makeEvent(world, {
-      findings: [
-        {
-          ...HARASSMENT_MEDIUM,
-          severity: 'critical',
-          family: 'child_safety',
-          code: 'child_safety.csam',
-        },
-      ],
-    });
-    await moderationReputationService.applyModerationDecision(event, world.context);
-    await loseTheStrike(event.incidentId, world.subjectId);
-
-    await moderationReputationService.reconcileModerationIncident(event.incidentId);
-
-    const [repaired] = await strikeRows(world.subjectId);
-    expect(repaired.expiresAt).toBeNull();
-    expect(repaired.status).toBe('active');
-    expect(repaired.riskPoints).toBe(20);
-  });
-
-  it('reverses a consequence a later revision superseded', async () => {
+describe('one transaction per change of standing', () => {
+  it('a newer revision reverses the one it supersedes in the same write', async () => {
     const world = await makeWorld();
     const first = makeEvent(world);
     await moderationReputationService.applyModerationDecision(first, world.context);
     await moderationReputationService.applyModerationDecision(
-      makeEvent(world, {
-        incidentId: first.incidentId,
-        decisionId: first.decisionId,
-        decisionRevision: 2,
-      }),
+      makeEvent(world, { incidentId: first.incidentId, decisionId: first.decisionId, decisionRevision: 2 }),
       world.context
     );
 
-    const result = await moderationReputationService.reconcileModerationIncident(
-      first.incidentId
-    );
-
-    expect(result.supersededReversed).toBe(1);
     const effects = await effectRows(first.incidentId);
     expect(effects.find((row) => row.decisionRevision === 1)?.status).toBe('reversed');
     expect(effects.find((row) => row.decisionRevision === 2)?.status).toBe('applied');
-    // Revision 1's points were compensated and its risk removed; revision 2
-    // still stands.
     const strikes = await strikeRows(world.subjectId);
     expect(strikes.find((row) => row.decisionRevision === 1)?.status).toBe('reversed');
     expect(strikes.find((row) => row.decisionRevision === 2)?.status).toBe('active');
     expect((await reputationService.getBalance(world.subjectId)).conduct.activeStrikes).toBe(1);
   });
 
-  it('is idempotent — a second pass over a repaired incident changes nothing', async () => {
+  it('a reversal that fails midway leaves the consequence whole, not half-removed', async () => {
     const world = await makeWorld();
     const event = makeEvent(world);
     await moderationReputationService.applyModerationDecision(event, world.context);
-    await loseTheStrike(event.incidentId, world.subjectId);
-    await moderationReputationService.reconcileModerationIncident(event.incidentId);
+    const ledgerBefore = await ledgerRows(world.subjectId);
+    const spy = jest
+      .spyOn(reputationService, 'reverseTransaction')
+      .mockRejectedValueOnce(new Error('connection lost'));
 
-    const again = await moderationReputationService.reconcileModerationIncident(
-      event.incidentId
-    );
+    await expect(
+      moderationReputationService.reverseModerationDecision(
+        event.decisionId,
+        1,
+        'appeal upheld',
+        world.context.emitterCredentialId
+      )
+    ).rejects.toThrow('connection lost');
+    spy.mockRestore();
 
-    expect(again.strikesRepaired).toBe(0);
-    expect(again.supersededReversed).toBe(0);
+    // The strike update ran before the failure and rolled back with it.
+    const [strike] = await strikeRows(world.subjectId);
+    expect(strike.status).toBe('active');
+    const [effect] = await effectRows(event.incidentId);
+    expect(effect.status).toBe('applied');
+    expect(await ledgerRows(world.subjectId)).toEqual(ledgerBefore);
+  });
+
+  it('a newer revision whose supersede fails writes nothing at all', async () => {
+    const world = await makeWorld();
+    const first = makeEvent(world);
+    await moderationReputationService.applyModerationDecision(first, world.context);
+    const spy = jest
+      .spyOn(reputationService, 'reverseTransaction')
+      .mockRejectedValueOnce(new Error('connection lost'));
+
+    await expect(
+      moderationReputationService.applyModerationDecision(
+        makeEvent(world, { incidentId: first.incidentId, decisionId: first.decisionId, decisionRevision: 2 }),
+        world.context
+      )
+    ).rejects.toThrow('connection lost');
+    spy.mockRestore();
+
+    const effects = await effectRows(first.incidentId);
+    expect(effects).toHaveLength(1);
+    expect(effects[0].status).toBe('applied');
     expect(await strikeRows(world.subjectId)).toHaveLength(1);
-    expect(await ledgerRows(world.subjectId)).toHaveLength(1);
   });
 });
 

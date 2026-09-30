@@ -15,11 +15,12 @@
 
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
 import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import type { AccountDialogController } from '@oxy.so/core/session';
@@ -32,6 +33,8 @@ const QR_FOREGROUND = '#000000';
 const QR_SIZE = 112;
 const PLATE_PADDING = 8;
 const PLATE_SIZE = QR_SIZE + PLATE_PADDING * 2;
+/** The spinner while a code is on its way: React Native's `large` indicator size. */
+const SPINNER_SIZE = 36;
 
 export const InlineCommonsQr: React.FC<{ controller: AccountDialogController | null }> = ({ controller }) => {
   const theme = useTheme();
@@ -70,7 +73,7 @@ export const InlineCommonsQr: React.FC<{ controller: AccountDialogController | n
   } else if (live && signIn.qrPayload && signIn.progress !== 'confirming-identity') {
     plate = <QRCode value={signIn.qrPayload} size={QR_SIZE} backgroundColor={QR_PLATE_BG} color={QR_FOREGROUND} />;
   } else if (live || expired || (signIn.inline && signIn.phase === 'completed')) {
-    plate = <ActivityIndicator size="large" color={QR_FOREGROUND} />;
+    plate = <SpinnerIcon size={SPINNER_SIZE} color={QR_FOREGROUND} />;
   } else {
     // Failed for a reason renewing will not fix by itself, or superseded and
     // then withdrawn: one press for a new code.

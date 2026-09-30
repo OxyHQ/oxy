@@ -179,8 +179,8 @@ export default function DataScreen() {
       subtitle: t('data.privacy.dataSharingSubtitle'),
       customContent: (
         <Switch
-          value={dataSharing}
-          onValueChange={(value) => handlePrivacyUpdate('dataSharing', value)}
+          checked={dataSharing}
+          onCheckedChange={(value) => handlePrivacyUpdate('dataSharing', value)}
           disabled={pendingPrivacyKey === 'dataSharing'}
         />
       ),
@@ -193,8 +193,8 @@ export default function DataScreen() {
       subtitle: t('data.privacy.locationSharingSubtitle'),
       customContent: (
         <Switch
-          value={locationSharing}
-          onValueChange={(value) => handlePrivacyUpdate('locationSharing', value)}
+          checked={locationSharing}
+          onCheckedChange={(value) => handlePrivacyUpdate('locationSharing', value)}
           disabled={pendingPrivacyKey === 'locationSharing'}
         />
       ),
@@ -207,8 +207,8 @@ export default function DataScreen() {
       subtitle: t('data.privacy.analyticsSubtitle'),
       customContent: (
         <Switch
-          value={analyticsSharing}
-          onValueChange={(value) => handlePrivacyUpdate('analyticsSharing', value)}
+          checked={analyticsSharing}
+          onCheckedChange={(value) => handlePrivacyUpdate('analyticsSharing', value)}
           disabled={pendingPrivacyKey === 'analyticsSharing'}
         />
       ),
@@ -221,8 +221,8 @@ export default function DataScreen() {
       subtitle: t('data.privacy.showActivitySubtitle'),
       customContent: (
         <Switch
-          value={showActivity}
-          onValueChange={(value) => handlePrivacyUpdate('showActivity', value)}
+          checked={showActivity}
+          onCheckedChange={(value) => handlePrivacyUpdate('showActivity', value)}
           disabled={pendingPrivacyKey === 'showActivity'}
         />
       ),

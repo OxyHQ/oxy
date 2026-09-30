@@ -1,5 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState, type ErrorInfo } from 'react';
-import { ActivityIndicator, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import { useStore } from 'zustand';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -83,18 +84,11 @@ const errorStyles = StyleSheet.create({
  * as `lazy(() => import(...))` (see `../navigation/routes`), so the very first
  * presentation of a surface can land here for a frame; the surface chrome is
  * already on screen by then, so this fills only the body.
- *
- * Deliberately RN's `ActivityIndicator` rather than `@oxy.so/bloom/loading`,
- * matching `authChooser/requestSurfaces`: Bloom still declares
- * `sideEffects: false`, so its `Loading` can still tree-shake to `undefined` in
- * a rolldown-vite production bundle. Removing that risk from the first frame of
- * every route is not worth a themed spinner.
  */
 function ScreenPending() {
-  const theme = useTheme();
   return (
     <View style={errorStyles.container}>
-      <ActivityIndicator size="large" color={theme.colors.primary} />
+      <Loading variant="spinner" size="lg" />
     </View>
   );
 }

@@ -2,19 +2,56 @@
 
 ## Unreleased
 
+### Changed (Inbox mail integrity)
+
+- **Breaking for clients sending a row id:** `POST /email/messages` and
+  `POST /email/drafts` answer 400 unless `inReplyTo` and every `references`
+  entry is an RFC 5322 Message-ID (`<id@host>`). `sendMessageForUser` enforces
+  the same for Alia tickets and MCP. When the sender holds the parent, the
+  server derives `References` from the parent's chain.
+- `Idempotency-Key` sends take a durable claim (an `email_outbox` row) before
+  the relay is contacted, so a retry of the same key on any task returns the
+  first outcome instead of sending again. `queued: true` now also covers "the
+  first attempt is still in flight".
+- Inbound mail from all three paths goes through `parseInboundMime`: the AMP
+  (`text/x-amp-html`) and Apple Watch alternative bodies are no longer stored as
+  an attachment named "attachment".
+- Every user message carries `X-Oxy-Sent-Id`; the relay-assigned Message-ID
+  (SES) is kept as `messages.relay_message_id` and threads replies; a user's own
+  message coming back is linked by `messages.sent_copy_of` and shown once in its
+  conversation (migration 0121, pre).
+- One-off operations: `src/scripts/purge-alternative-body-attachments.ts` and
+  `src/scripts/repair-reply-row-id-threading.ts`, each `--dry-run` / `--apply`.
+
 ### Added
 
 - Instagram Graph fallback: `*@instagram.com` handles whose kilogram bridge
   resolution fails (429, timeout, refusal) resolve through Meta Graph API
   Business Discovery as protocol `instagram-graph`, actor
   `instagram-graph:<igUserId>`; `POST /federation/identities/resolve` accepts
-  `protocol: 'instagram-graph'` for Instagram handles (400 otherwise). Inert
-  unless `INSTAGRAM_GRAPH_FALLBACK_ENABLED=true`, `META_GRAPH_ACCESS_TOKEN` and
-  `META_IG_BUSINESS_ACCOUNT_ID` are set (`META_GRAPH_API_VERSION` defaults to
-  `v23.0`). See `docs/identity/external-identities.md`.
+  `protocol: 'instagram-graph'` for Instagram handles (400 otherwise). Runs
+  whenever `META_GRAPH_ACCESS_TOKEN` and a numeric `META_IG_BUSINESS_ACCOUNT_ID`
+  are set and is inert otherwise; there is no enable switch, and the Graph API
+  version is pinned in code (`v23.0`). See `docs/identity/external-identities.md`.
+
+### Changed
+
+- URL slash trimming (`nodeRegistry`, `mcpOAuth`, `config/cdn`) no longer uses
+  `/\/+$/`, which backtracks polynomially on a long run of slashes
+  (`utils/slashes.ts`).
 
 ### Removed
 
+- **Breaking:** the last staff hands on people's standing —
+  `POST /reputation/moderation/incidents/:incidentId/reconcile`,
+  `GET /reputation/moderation/incidents/:incidentId/effects` and
+  `POST /civic/personhood/:userId/recompute`, and the staff view of another
+  person's `GET /reputation/moderation/standing/:userId` (now the subject's
+  alone). Personhood already recomputes on every vouch, attestation and audit
+  outcome. Moderation needs no reconciliation at all: applying a newer
+  revision reverses the one it supersedes in the same transaction, and an
+  appeal reverses a consequence (strike, compensating entry, effect) in one
+  transaction, so no half-applied state can exist to repair.
 - **Breaking:** reputation staff routes — `POST /reputation/rules`,
   `POST /reputation/transactions/:id/reverse`, `POST /reputation/transactions/:id/void`,
   `POST /reputation/:userId/recalculate`, `GET /reputation/disputes`,

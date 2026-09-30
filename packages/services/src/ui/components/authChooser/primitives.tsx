@@ -5,10 +5,8 @@
  */
 
 import type React from 'react';
-import { Pressable } from 'react-native';
-import { Text } from '@oxy.so/bloom/typography';
+import { LinkButton } from '@oxy.so/bloom/button';
 import { authChooserStyles as styles } from './styles';
-import type { Theme } from './types';
 
 /**
  * A SUBORDINATE action: a small centred text link, never a button.
@@ -17,22 +15,26 @@ import type { Theme } from './types';
  * primary action (issue #691) — the sign-up entry, and every alternative revealed
  * behind "Having trouble?". Keeping them all on one component is what stops an
  * alternative from quietly growing into a co-equal button again.
+ *
+ * Bloom's `LinkButton` in the secondary tone at `sm`: no fill or border, the
+ * secondary text colour, underlined under a pointer, and Bloom's link hit slop
+ * for the touch target. The vertical padding keeps the stack's old rhythm.
  */
 export const SubtleLink: React.FC<{
   label: string;
-  theme: Theme;
   onPress: () => void;
   disabled?: boolean;
   testID?: string;
-}> = ({ label, theme, onPress, disabled, testID }) => (
-  <Pressable
+}> = ({ label, onPress, disabled, testID }) => (
+  <LinkButton
+    linkTone="secondary"
+    size="sm"
     onPress={onPress}
     disabled={disabled}
-    accessibilityRole="button"
     accessibilityLabel={label}
     style={styles.footerLink}
     testID={testID}
   >
-    <Text style={[styles.linkText, { color: theme.colors.textSecondary }]}>{label}</Text>
-  </Pressable>
+    {label}
+  </LinkButton>
 );

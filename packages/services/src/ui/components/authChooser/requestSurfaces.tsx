@@ -13,16 +13,17 @@
  */
 
 import type React from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import QRCode from 'react-native-qrcode-svg';
 import { Button } from '@oxy.so/bloom/button';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import type { CommonsDeliveryRoute } from '@oxy.so/core';
 import type { SignInProgress } from '@oxy.so/core/session';
 import { authChooserStyles as styles } from './styles';
 import type { Theme, Translate } from './types';
+import { useI18n } from '../../hooks/useI18n';
 
 /** High-contrast QR colors — intentionally fixed (NOT themed) for scan reliability. */
 const QR_PLATE_BG = '#FFFFFF';
@@ -32,14 +33,14 @@ const QR_SIZE = 196;
 const ROUTE_GLYPH_SIZE = 44;
 
 /**
- * The indeterminate leading visual: the request exists but has nothing to show yet.
- * Uses RN's ActivityIndicator — `@oxy.so/bloom/loading` can tree-shake to `undefined`
- * in rolldown-vite production bundles when co-imported with `@oxy.so/bloom/button`
- * (auth.oxy.so/authorize blank screen, React #130).
+ * The indeterminate leading visual: the request exists but has nothing to show
+ * yet. Bloom's spinner, named "Loading…" so assistive technology hears a busy
+ * progressbar where the QR will appear; the status sentence under it
+ * (`signInProgressLabel`) says what is happening.
  */
 export const PreparingSurface: React.FC = () => {
-  const theme = useTheme();
-  return <ActivityIndicator size="large" color={theme.colors.primary} />;
+  const { t } = useI18n();
+  return <Loading variant="spinner" size="lg" accessibilityLabel={t('common.status.loading')} />;
 };
 
 /** The leading glyph for a route whose surface is elsewhere (the phone, Commons). */
