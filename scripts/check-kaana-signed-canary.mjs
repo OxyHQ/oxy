@@ -213,6 +213,42 @@ requireMatch(
   'the ECS task must execute the reviewed canary from the live image',
 );
 
+requireMatch(
+  workflow,
+  /workflow_dispatch:[\s\S]*?probe_mode:[\s\S]*?type: choice[\s\S]*?- inference[\s\S]*?- realtime[\s\S]*?confirm_one_realtime_session:[\s\S]*?required: true[\s\S]*?type: boolean/,
+  'the realtime probe must be a separate mode with its own explicit confirmation',
+);
+requireMatch(
+  workflow,
+  /realtime\)\n\s+if \[ "\$CONFIRM_ONE_REALTIME_SESSION" != true \]; then[\s\S]*?exit 64/,
+  'realtime mode must refuse to run without its own confirmation',
+);
+requireMatch(
+  workflow,
+  /if \$mode == "realtime" then \.containerOverrides\[0\]\.command \+= \["realtime"\] else \. end/,
+  'realtime mode may add only the fixed realtime operation to the reviewed command',
+);
+requireMatch(
+  canary,
+  /const REALTIME_CANARY_LIMITS = \{\s*maxDurationMs: 60_000,\s*idleTimeoutMs: 30_000,\s*maxInputAudioBytes: 1,\s*maxOutputAudioBytes: 48_000,\s*maxResponses: 1,\s*\};/,
+  'the realtime session must stay signed for one response and at most one second of output audio',
+);
+requireMatch(
+  canary,
+  /outputModalities: \['text'\],\s*inputAudioFormat: 'pcm16_24khz',\s*turnDetection: \{ type: 'none' \},/,
+  'the realtime session must stay text-only push-to-talk',
+);
+requireMatch(
+  canary,
+  /cases\.push\(await expectRealtimeRouteRefusal[\s\S]*?cases\.push\(await expectRealtimeSession/,
+  'the unknown-route realtime refusal must run before the one provider session',
+);
+requireMatch(
+  canary,
+  /providerSessions: 1,[\s\S]*?oxyLedgerWrites: 0/,
+  'the realtime result must account for exactly one provider session and zero Oxy ledger writes',
+);
+
 const failureBranch = workflow.slice(
   workflow.indexOf('if [ "$exit_code" != 0 ]'),
   workflow.indexOf('\n\n          jq -e \\\n            --arg snapshot'),

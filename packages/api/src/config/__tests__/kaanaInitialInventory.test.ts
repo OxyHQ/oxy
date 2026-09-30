@@ -1,9 +1,7 @@
 import {
   KAANA_INITIAL_INVENTORY_SNAPSHOT_ID,
   KAANA_INITIAL_MODEL_REFERENCE,
-  KAANA_INITIAL_PROVIDERS,
-  KAANA_SPEECH_MODEL_REFERENCE,
-  KAANA_SPEECH_PROVIDERS,
+  KAANA_REVIEWED_CATALOGUES,
 } from '../kaanaInitialCatalogue';
 import {
   assertKaanaInventoryCredentialSource,
@@ -20,20 +18,17 @@ function inventory(): Record<string, unknown> {
     snapshotId: KAANA_INITIAL_INVENTORY_SNAPSHOT_ID,
     issuedAt: '2026-09-02T05:55:43.571Z',
     deployments: [
-      ...KAANA_INITIAL_PROVIDERS.map((provider) => ({
-        deploymentId: provider.deploymentId,
-        provider: provider.slug,
-        modelReference: KAANA_INITIAL_MODEL_REFERENCE,
-        upstreamModelId: provider.upstreamModelId,
-        current: true,
-      })),
-      ...KAANA_SPEECH_PROVIDERS.map((provider) => ({
-        deploymentId: provider.deploymentId,
-        provider: provider.slug,
-        modelReference: KAANA_SPEECH_MODEL_REFERENCE,
-        upstreamModelId: provider.upstreamModelId,
-        current: true,
-      })),
+      // Every reviewed route this build pins — text, speech, and the realtime
+      // voice route once its observation is recorded.
+      ...KAANA_REVIEWED_CATALOGUES.flatMap((catalogue) =>
+        catalogue.providers.map((provider) => ({
+          deploymentId: provider.deploymentId,
+          provider: provider.slug,
+          modelReference: catalogue.modelReference,
+          upstreamModelId: provider.upstreamModelId,
+          current: true,
+        }))
+      ),
       {
         deploymentId: 'dep_unrelated_exact_id',
         provider: 'another-provider',

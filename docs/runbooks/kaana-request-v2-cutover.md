@@ -121,6 +121,35 @@ envelope can reach Kaana; this direct canary proves the corresponding
 Kaana's normal technical usage records, but the direct one-shot has no Oxy
 admission, reservation or settlement path and performs zero Oxy ledger writes.
 
+### Realtime mode
+
+`probe_mode: realtime` (with `confirm_one_realtime_session: true` and
+`confirm_two_provider_requests: false`; each mode refuses the other's
+confirmation) runs `run-kaana-signed-canary.mjs realtime` against Kaana's
+`/internal/v1/realtime`, signing contract set `3.3.0`. The same health check,
+exact signed lookup and snapshot binding run first. Then two signed sessions:
+
+1. a session authorized only for an unknown `dep_canary_unknown_…` id, which
+   must end `session.closed` `no_route_available` with no `deploymentId` and
+   never emit `session.created` — before any provider access;
+2. ONE push-to-talk session on the exact deployment: `kind: conversation`,
+   `turnDetection: none`, `outputModalities: ["text"]`, no voice, tools or
+   token fields; limits of one response, one minute, a one-byte input-audio
+   cap and at most one second of PCM16 output audio. It must answer
+   `session.created` at sequence 0 naming exactly that deployment, model and
+   serving provider; accept one `input_text` item and `response.create`; end
+   the response `completed` on that deployment; and, on `session.close`, emit
+   `session.closed` (`client_closed`, same deployment) followed by one
+   schema-v2 usage report (`completed`, same route) with at least one unit, then
+   close 1000.
+
+Any error event fails the run; its failure envelope carries
+`providerRequests: "at_most_1_session"` and, for an error event, only the closed
+`inferenceErrorCode`. The success envelope reports `providerSessions: 1`, zero
+Oxy ledger writes, and the unit names and counts Kaana measured (for xAI:
+`requests` for the one text item, plus any output audio milliseconds). The
+WebSocket client is a dependency-free RFC 6455 client in the script itself.
+
 Merging either workflow never dispatches it and never enables ambient Kaana
 execution. Record the readback run, canary run, matching Kaana snapshot id,
 exact task/image, deployment id, descriptor-derived model reference, six case

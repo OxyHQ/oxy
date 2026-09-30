@@ -61,6 +61,22 @@ export const AUDIO_PRICES: Readonly<Partial<Record<UsageUnit, string>>> = {
   session_milliseconds: '0',
 };
 
+/**
+ * xAI's Voice Agent list prices (https://docs.x.ai/developers/models/speech-to-speech,
+ * read 2026-09-30): $0.08 a minute of audio each way, $0.004 per text
+ * `conversation.item.create`. Duration and per-item units only — no token unit
+ * is priced, exactly as the reviewed `xai-realtime` route is.
+ */
+export const XAI_REALTIME_PRICES: Readonly<Partial<Record<UsageUnit, FixturePrice>>> = {
+  audio_input_milliseconds: { amount: '0.08', per: 60_000 },
+  audio_output_milliseconds: { amount: '0.08', per: 60_000 },
+  session_milliseconds: { amount: '0.08', per: 60_000 },
+  requests: { amount: '0.004', per: 1 },
+};
+
+/** A decimal per-million (per-one for `requests`) price, or an explicit amount per `per` units. */
+export type FixturePrice = string | { readonly amount: string; readonly per: number };
+
 export interface AudioFixtureOptions {
   readonly inputModalities?: readonly string[];
   readonly outputModalities?: readonly string[];
@@ -68,7 +84,7 @@ export interface AudioFixtureOptions {
   readonly apiFormats?: readonly string[] | null;
   readonly realtime?: { readonly transports: readonly string[]; readonly sessionKinds: readonly string[] } | null;
   /** Per-million prices. Omitting a unit leaves it UNPRICED on every route. */
-  readonly prices?: Readonly<Partial<Record<UsageUnit, string>>>;
+  readonly prices?: Readonly<Partial<Record<UsageUnit, FixturePrice>>>;
   /** How many same-model routes, one provider each. */
   readonly routes?: number;
   readonly maxContextTokens?: number;
@@ -195,12 +211,15 @@ export async function makeAudioFixture(options: AudioFixtureOptions = {}): Promi
         effectiveFrom: new Date(Date.now() - 60_000),
       })
       .returning({ id: priceVersions.id });
-    const rows = Object.entries(prices).map(([unit, amount]) => ({
-      priceVersionId: priceVersion.id,
-      unit: unit as UsageUnit,
-      amount: amount.includes('.') ? amount : `${amount}.000000000000`,
-      per: unit === 'requests' ? 1 : 1_000_000,
-    }));
+    const rows = Object.entries(prices).map(([unit, price]) => {
+      const amount = typeof price === 'string' ? price : price.amount;
+      return {
+        priceVersionId: priceVersion.id,
+        unit: unit as UsageUnit,
+        amount: amount.includes('.') ? amount : `${amount}.000000000000`,
+        per: typeof price === 'string' ? (unit === 'requests' ? 1 : 1_000_000) : price.per,
+      };
+    });
     if (rows.length > 0) await db.insert(priceVersionUnitPrices).values(rows);
     await db.insert(inferenceDeployments).values({
       modelRevisionId: revision.id,
@@ -265,6 +284,9 @@ export async function receiptsFor(accountId: string) {
       cachedAudioInputTokens: usageReceipts.cachedAudioInputTokens,
       audioOutputTokens: usageReceipts.audioOutputTokens,
       sessionMilliseconds: usageReceipts.sessionMilliseconds,
+      audioInputMilliseconds: usageReceipts.audioInputMilliseconds,
+      audioOutputMilliseconds: usageReceipts.audioOutputMilliseconds,
+      requests: usageReceipts.requests,
       servingProvider: usageReceipts.servingProvider,
     })
     .from(usageReceipts)

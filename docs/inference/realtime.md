@@ -59,7 +59,8 @@ the `101` names the session (and its receipt at `GET /v1/generations/:id`).
    - `{"type":"session.open","kind":"conversation","config":{…},"limits":{…}?,"transport":"websocket"?,"clientSessionId"?,"labels"?}`
      — `config` is `realtimeSessionConfigSchema`, `limits` a partial
      `realtimeSessionLimitsSchema` (defaults: 10 min, 2 min idle, 10 min of
-     PCM16 each way, 20 responses); or
+     PCM16 each way, 20 responses) plus the edge's own `maxTextItems`
+     (default: `maxResponses`; see "Duration-priced routes"); or
    - the contract's `session.resume` command (see below).
 2. Then `realtimeClientCommandSchema` commands in, `realtimeServerEventSchema`
    events out, with Kaana's single monotonic `sequence`. Each command is
@@ -97,8 +98,61 @@ task is refused with `invalid_request` exactly as Kaana refuses one.
 and input-audio transcription consume audio outside responses, where no signed
 limit bounds the tokens — so no hold could be sound. They need a declared audio
 token rate per model (or duration pricing, whose milliseconds are exact from the
-signed byte caps). OpenAI-Realtime-protocol compatibility for OpenAI SDKs, and a
+signed byte caps — the mechanism below, which today admits `conversation`
+sessions only). OpenAI-Realtime-protocol compatibility for OpenAI SDKs, and a
 browser-safe ephemeral token, are follow-ups.
+
+**Turn detection is Kaana's to refuse.** `config.turnDetection` is signed
+verbatim. The catalogue declares no per-model set of supported turn detections,
+so the edge has no capability to check it against (and a provider-name
+allow-list is not a capability). Kaana refuses one its adapter cannot bill,
+at open, before it dials (the hold is released with a zero `estimated`
+receipt), and in `session.update` as a non-fatal command error. For xAI, Kaana
+serves `{"type":"none"}` (push-to-talk, billed for audio sent and received) and
+`server_vad` (billed for the session's wall clock, reported as
+`session_milliseconds`, contract set 3.3.0, and then with no audio units). The
+edge cannot know which one a session will end up billed for, so a
+duration-priced route is held for both and settled on what Kaana measured. A
+declared supported set on the catalogue row is the follow-up that would let the
+edge refuse an unsupported mode first.
+
+## Duration-priced routes (xAI Voice Agent)
+
+A route whose price version prices `audio_input_milliseconds`,
+`audio_output_milliseconds` and `requests` — and no token unit — is held from
+the signed limits, exactly (`realtimeDurationCeiling`,
+`services/inferenceEdge.service.ts`):
+
+| Unit | Ceiling | Why it is a bound |
+|---|---|---|
+| `audio_input_milliseconds` | ⌈`maxInputAudioBytes` ÷ input bytes/ms⌉ | Kaana refuses a command that would pass the signed input byte cap and meters written bytes at the signed `inputAudioFormat` (fixed at open) |
+| `audio_output_milliseconds` | ⌈`maxOutputAudioBytes` ÷ output bytes/ms⌉ | likewise for provider audio; with no `outputAudioFormat` signed, the format with the most milliseconds per byte (G.711) is assumed, never PCM16 |
+| `requests` | `maxTextItems` | enforced by the edge (below); no signed limit bounds text items |
+| `session_milliseconds` | `maxDurationMs + 60 000` | held on every realtime plan (contract set 3.3.0); xAI reports it instead of audio for a `server_vad` session |
+
+PCM16 24 kHz is 48 bytes/ms, G.711 8 bytes/ms. With the default limits that is
+600 000 ms each way (PCM16), 20 items and 660 000 session ms: $2.56 at xAI's
+list prices. Holding the session clock beside the audio over-holds a
+push-to-talk session by at most its duration; the settlement charges only the
+units Kaana measured.
+
+**The text-item cap.** xAI bills $0.004 per client `conversation.item.create`
+except a `function_call_output` and an item whose content is audio with data
+(`realtimeTextItemBilled`, mirroring Kaana's `meter.go`; an item carrying both
+is refused by Kaana and counted by the edge). The edge counts each such command
+once per `commandId` (a same-id resend is not re-applied upstream) and, when a
+new one would pass `maxTextItems`, does not forward it: it closes the session
+through the data plane (`session.close`, relays to `session.closed`, settles)
+and closes the customer 1008. `maxTextItems` is the edge's only unsigned limit;
+Kaana never sees it. It applies only to a session one of whose routes was held
+for duration units.
+
+**Which ceiling a route gets.** Per route, the first plan whose every scenario
+quotes: tokens **and** duration (a route pricing both is held for both, because
+Oxy does not know which the data plane will report), then tokens alone (OpenAI
+Realtime — held exactly as before, with no text-item cap), then duration alone.
+A route that prices neither completely is refused `no_route_available`
+(`routing_evidence:missing-price`) before any hold or upstream connection.
 
 ## Settlement
 
@@ -106,10 +160,11 @@ A session is one request: one hold, one receipt.
 
 - **Hold:** per authorized route, `maxResponses × context window` at the dearest
   of the four input token units and `maxResponses × per-response output cap` at
-  the dearest of the three output units, plus `requests`, plus
+  the dearest of the three output units, plus `requests` — or, for a
+  duration-priced route, the duration ceiling above — plus
   `session_milliseconds` at `maxDurationMs + 60 000` (contract set 3.3.0; the
   allowance covers Kaana's bounded open, 20 s per stage, since Kaana measures
-  from the accepted upstream handshake). Every unit must be priced: a route
+  from the accepted upstream handshake) on every plan. Every unit must be priced: a route
   whose provider bills no session time (OpenAI) prices `session_milliseconds`
   explicitly at zero, exactly as `requests`; a route that leaves it unpriced is
   refused before the hold. The hold expires after the session's maximum duration, the resume

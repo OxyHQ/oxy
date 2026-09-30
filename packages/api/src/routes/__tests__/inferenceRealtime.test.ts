@@ -56,6 +56,7 @@ import {
   reservationsFor,
   verifyEdgeSignature,
   waitFor,
+  XAI_REALTIME_PRICES,
   type AudioFixture,
   AUDIO_PRICES,
 } from '../__fixtures__/kaanaAudioFixtures';
@@ -241,18 +242,18 @@ class Emitter {
     });
   }
 
-  closed(units: UsageQuantity[], reason = 'client_closed'): void {
+  closed(units: UsageQuantity[], reason = 'client_closed', usageSource = 'provider_reported'): void {
     this.event({
       type: 'session.closed',
       reason,
       deploymentId: this.route.deploymentId,
       units,
-      usageSource: 'provider_reported',
+      usageSource,
       closedAt: new Date().toISOString(),
     });
   }
 
-  report(units: UsageQuantity[], outcome = 'completed'): void {
+  report(units: UsageQuantity[], outcome = 'completed', usageSource = 'provider_reported'): void {
     const now = new Date().toISOString();
     this.socket.send(
       JSON.stringify({
@@ -261,7 +262,7 @@ class Emitter {
         attribution: this.request.attribution,
         outcome,
         units,
-        usageSource: 'provider_reported',
+        usageSource,
         resolvedModelReference: this.route.modelReference,
         servingProvider: this.route.provider,
         deploymentId: this.route.deploymentId,
@@ -918,6 +919,248 @@ describe('refusals before a session exists', () => {
       expect((await customer.closed).code).toBe(1011);
       const [receipt] = await oneReceipt(fixture.accountId);
       expect(receipt).toMatchObject({ billedAmount: '0.000000000000', usageSource: 'estimated' });
+    });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  A duration-priced route: xAI's Voice Agent shape                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A route priced ONLY in `audio_input_milliseconds`, `audio_output_milliseconds`
+ * and `requests`, at xAI's list prices — no token unit is priced — opened
+ * push-to-talk (`turnDetection: none`), the one shape Kaana serves for xAI.
+ */
+const voiceModel = (): Promise<AudioFixture> =>
+  makeAudioFixture({
+    inputModalities: ['text', 'audio'],
+    outputModalities: ['text', 'audio'],
+    realtime: { transports: ['websocket'], sessionKinds: ['conversation'] },
+    prices: XAI_REALTIME_PRICES,
+  });
+
+/** One minute of 24 kHz PCM16 each way, two responses, three text items. */
+const voiceFrame = (overrides: Record<string, unknown> = {}) => ({
+  type: 'session.open',
+  kind: 'conversation',
+  config: {
+    instructions: 'Be brief.',
+    outputModalities: ['audio'],
+    voice: 'eve',
+    inputAudioFormat: 'pcm16_24khz',
+    outputAudioFormat: 'pcm16_24khz',
+    turnDetection: { type: 'none' },
+  },
+  limits: {
+    maxResponses: 2,
+    maxDurationMs: 60_000,
+    maxInputAudioBytes: 2_880_000,
+    maxOutputAudioBytes: 2_880_000,
+    maxTextItems: 3,
+  },
+  ...overrides,
+});
+
+const textItem = (requestId: string, commandId: string) =>
+  command(requestId, commandId, {
+    type: 'conversation.item.create',
+    item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Hello.' }] },
+  });
+
+describe('a duration-priced (xAI-shaped) route', () => {
+  it('holds exactly the signed audio caps at the signed formats plus the text-item cap, and signs no edge limit', async () => {
+    const fixture = await voiceModel();
+    await withEdge(async (harness) => {
+      const { customer, request, emit } = await opened(harness, fixture, voiceFrame());
+      // The contract's limits only: `maxTextItems` is the edge's, never signed.
+      expect(request.limits).toEqual({
+        maxDurationMs: 60_000,
+        idleTimeoutMs: 60_000,
+        maxInputAudioBytes: 2_880_000,
+        maxOutputAudioBytes: 2_880_000,
+        maxResponses: 2,
+      });
+      expect(request.config.turnDetection).toEqual({ type: 'none' });
+      const [reservation] = await reservationsFor(fixture.accountId);
+      // 60 000 ms in + 60 000 ms out at $0.08/min, + 3 text items at $0.004,
+      // + 120 000 session ms (60 s duration + the 60 s bounded open) at $0.08/min.
+      expect(reservation.reservedAmount).toBe('0.332000000000');
+      emit.closed([], 'client_closed', 'oxy_measured');
+      emit.report([], 'failed', 'oxy_measured');
+      await customer.closed;
+    });
+  });
+
+  it('holds G.711 output at 8 bytes per ms, and an unsigned output format at the densest one, never PCM16', async () => {
+    const fixture = await voiceModel();
+    await withEdge(async (harness) => {
+      const g711 = await opened(
+        harness,
+        fixture,
+        voiceFrame({
+          config: {
+            outputModalities: ['text'],
+            inputAudioFormat: 'g711_ulaw',
+            turnDetection: { type: 'none' },
+          },
+          limits: { maxResponses: 1, maxDurationMs: 60_000, maxInputAudioBytes: 480_000, maxOutputAudioBytes: 480_000, maxTextItems: 0 },
+        })
+      );
+      const [reservation] = await reservationsFor(fixture.accountId);
+      // 480 000 bytes ÷ 8 = 60 000 ms each way (no output format signed:
+      // G.711's rate, the one that makes the most of a byte), no text items,
+      // + 120 000 session ms at $0.08/min.
+      expect(reservation.reservedAmount).toBe('0.320000000000');
+      g711.emit.closed([]);
+      g711.emit.report([], 'failed');
+      await g711.customer.closed;
+    });
+  });
+
+  it('settles once from the measured milliseconds and text items the report carries', async () => {
+    const fixture = await voiceModel();
+    await withEdge(async (harness) => {
+      const { customer, connection, emit } = await opened(harness, fixture, voiceFrame());
+      const item = textItem(customer.requestId, 'c-1');
+      customer.send(item);
+      expect(await connection.nextCommand()).toEqual(item);
+      customer.send(command(customer.requestId, 'c-2', { type: 'response.create' }));
+      expect((await connection.nextCommand()).type).toBe('response.create');
+      emit.response([]);
+      await customer.next('response.done');
+
+      const units: UsageQuantity[] = [
+        { unit: 'audio_input_milliseconds', quantity: 1_500 },
+        { unit: 'audio_output_milliseconds', quantity: 3_000 },
+        { unit: 'requests', quantity: 1 },
+      ];
+      customer.send(command(customer.requestId, 'c-3', { type: 'session.close' }));
+      emit.accepted(await connection.nextCommand());
+      emit.closed(units, 'client_closed', 'oxy_measured');
+      emit.report(units, 'completed', 'oxy_measured');
+      expect((await customer.closed).code).toBe(1000);
+
+      const receipts = await oneReceipt(fixture.accountId);
+      expect(receipts).toHaveLength(1);
+      // 1 500 ms × $0.08/60 000 + 3 000 ms × $0.08/60 000 + 1 × $0.004.
+      expect(receipts[0]).toMatchObject({
+        billedAmount: '0.010000000000',
+        outcome: 'completed',
+        usageSource: 'oxy_measured',
+        audioInputMilliseconds: 1_500,
+        audioOutputMilliseconds: 3_000,
+        requests: 1,
+        audioInputTokens: 0,
+      });
+      const [reservation] = await reservationsFor(fixture.accountId);
+      expect(reservation.status).toBe('settled');
+    });
+  });
+
+  it('recovers the measured units from session.closed when the report is lost', async () => {
+    const fixture = await voiceModel();
+    await withEdge(async (harness) => {
+      const { customer, connection, emit } = await opened(harness, fixture, voiceFrame());
+      emit.response([]);
+      const units: UsageQuantity[] = [
+        { unit: 'audio_input_milliseconds', quantity: 60_000 },
+        { unit: 'requests', quantity: 2 },
+      ];
+      emit.closed(units, 'limit_exceeded', 'oxy_measured');
+      await customer.next('session.closed');
+      connection.socket.close(1000);
+      expect((await customer.closed).code).toBe(1000);
+      const [receipt] = await oneReceipt(fixture.accountId);
+      expect(receipt).toMatchObject({ billedAmount: '0.088000000000', outcome: 'partial' });
+    });
+  });
+
+  it('caps billable text items: resends, tool results and audio items are free of the cap, the next text item closes 1008', async () => {
+    const fixture = await voiceModel();
+    await withEdge(async (harness) => {
+      const { customer, connection, emit } = await opened(
+        harness,
+        fixture,
+        voiceFrame({ limits: { maxResponses: 2, maxDurationMs: 60_000, maxTextItems: 1 } })
+      );
+      const first = textItem(customer.requestId, 'c-1');
+      const forwarded: unknown[] = [
+        first,
+        // The SAME commandId again: at most once upstream, so not counted twice.
+        first,
+        command(customer.requestId, 'c-2', {
+          type: 'conversation.item.create',
+          item: { type: 'function_call_output', callId: 'call-1', output: '{}' },
+        }),
+        command(customer.requestId, 'c-3', {
+          type: 'conversation.item.create',
+          item: {
+            type: 'message',
+            role: 'user',
+            content: [{ type: 'input_audio', format: 'pcm16_24khz', data: Buffer.from('speech').toString('base64') }],
+          },
+        }),
+        command(customer.requestId, 'c-4', { type: 'input_audio.commit' }),
+      ];
+      for (const sent of forwarded) {
+        customer.send(sent);
+        expect(await connection.nextCommand()).toEqual(sent);
+      }
+
+      // A second DISTINCT text item would pass the cap the hold was sized from.
+      customer.send(textItem(customer.requestId, 'c-5'));
+      const close = await connection.nextCommand();
+      expect(close.type).toBe('session.close');
+      expect(close.commandId).toMatch(/^oxy-edge-close-/);
+      emit.closed([{ unit: 'requests', quantity: 1 }], 'client_closed', 'oxy_measured');
+      emit.report([{ unit: 'requests', quantity: 1 }], 'completed', 'oxy_measured');
+      await customer.next('session.closed');
+      expect((await customer.closed).code).toBe(1008);
+      expect(connection.commands.map((sent) => sent.commandId)).not.toContain('c-5');
+      const [receipt] = await oneReceipt(fixture.accountId);
+      expect(receipt.billedAmount).toBe('0.004000000000');
+    });
+  });
+
+  it('refuses a route that prices neither tokens nor both durations, before any hold or upstream', async () => {
+    const { audio_output_milliseconds: _unpriced, ...inputOnly } = XAI_REALTIME_PRICES;
+    const fixture = await makeAudioFixture({
+      realtime: { transports: ['websocket'], sessionKinds: ['conversation'] },
+      prices: inputOnly,
+    });
+    await withEdge(async (harness) => {
+      const customer = await harness.connect(fixture.token, fixture.modelReference);
+      customer.send(voiceFrame());
+      const event = await customer.next('error');
+      expect(event).toMatchObject({ fatal: true, error: { code: 'no_route_available' } });
+      expect((await customer.closed).code).toBe(1013);
+      expect(harness.kaana.connections).toHaveLength(0);
+      expect(await reservationsFor(fixture.accountId)).toHaveLength(0);
+    });
+  });
+});
+
+describe('a token-priced route is relayed exactly as before', () => {
+  it('forwards every text item with no cap, whatever maxTextItems says', async () => {
+    const fixture = await realtimeModel();
+    await withEdge(async (harness) => {
+      const { customer, connection, emit } = await opened(
+        harness,
+        fixture,
+        openFrame({ limits: { maxResponses: 2, maxDurationMs: 60_000, maxTextItems: 1 } })
+      );
+      const [reservation] = await reservationsFor(fixture.accountId);
+      // The token ceiling alone, as in 'holds spend against the signed limits'.
+      expect(reservation.reservedAmount).toBe('2.720000000000');
+      for (const id of ['c-1', 'c-2', 'c-3']) {
+        const item = textItem(customer.requestId, id);
+        customer.send(item);
+        expect(await connection.nextCommand()).toEqual(item);
+      }
+      emit.closed([]);
+      emit.report([], 'failed');
+      expect((await customer.closed).code).toBe(1000);
     });
   });
 });

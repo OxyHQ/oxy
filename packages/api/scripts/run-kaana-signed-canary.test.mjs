@@ -1,13 +1,19 @@
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, verify } from 'node:crypto';
+import http from 'node:http';
 import test from 'node:test';
 
 import {
   KaanaCanaryError,
   canaryFailureResult,
+  kaanaRealtimeUrl,
+  openSignedWebSocket,
   readKaanaCanaryConfig,
   readKaanaLiveDeployments,
+  readKaanaRealtimeCanaryConfig,
   readKaanaSigningConfig,
+  realtimeCanaryFailureResult,
+  runKaanaRealtimeCanary,
   runKaanaSignedCanary,
 } from './run-kaana-signed-canary.mjs';
 
@@ -732,4 +738,450 @@ test('refuses a changed serving snapshot before any inference probe', async () =
     (error) => error instanceof KaanaCanaryError && error.code === 'snapshot_id_mismatch',
   );
   assert.equal(calls, 2);
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Realtime mode, against a fake Kaana WebSocket built on node:http only     */
+/* -------------------------------------------------------------------------- */
+
+const VOICE_DEPLOYMENT_ID = 'dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_10_02';
+const VOICE_MODEL_REFERENCE = 'x-ai/grok-voice-think-fast-2.0@observed-2026-10-02';
+
+function realtimeRuntime() {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const env = {
+    KAANA_BASE_URL: 'https://kaana.ai',
+    KAANA_EDGE_SIGNING_KEY_ID: 'oxy-edge-test',
+    KAANA_EDGE_SIGNING_PRIVATE_KEY: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    CANARY_CONTRACT_VERSION: '3.3.0',
+    CANARY_EXPECTED_SNAPSHOT_ID: 'snap-live-exact',
+    CANARY_DEPLOYMENT_ID: VOICE_DEPLOYMENT_ID,
+    CANARY_ROUTING_POLICY_ID: ROUTING_POLICY_ID,
+    CANARY_ROUTING_POLICY_VERSION: '7',
+    CANARY_ACCOUNT_ID: 'acc_exact',
+    CANARY_APPLICATION_ID: 'app_exact',
+    CANARY_CREDENTIAL_ID: 'cred_exact',
+  };
+  return { env, config: readKaanaRealtimeCanaryConfig(env), publicKey };
+}
+
+function realtimeFetch(publicKey, { snapshotId = 'snap-live-exact', provider = 'xai-realtime' } = {}) {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    readAndVerifyRequest(publicKey, url, init);
+    const path = new URL(url).pathname;
+    calls.push(path);
+    if (path === '/internal/v1/health') return json({ contractVersion: '3.3.0' });
+    assert.equal(path, '/internal/v1/deployments/query');
+    return json({
+      snapshotId,
+      deployments: [{
+        deploymentId: VOICE_DEPLOYMENT_ID,
+        modelReference: VOICE_MODEL_REFERENCE,
+        provider,
+        regions: [],
+      }],
+    }, 200, { 'Cache-Control': 'no-store' });
+  };
+  return { fetchImpl, calls };
+}
+
+/** An unmasked server frame. */
+function serverFrame(opcode, payload) {
+  const length = payload.length;
+  const header = length < 126
+    ? Buffer.from([0x80 | opcode, length])
+    : Buffer.from([0x80 | opcode, 126, length >> 8, length & 0xff]);
+  return Buffer.concat([header, payload]);
+}
+
+/** Masked client frames, parsed as they arrive; RFC 6455 §5.3 requires the mask. */
+function clientFrameReader(socket, onFrame) {
+  let buffer = Buffer.alloc(0);
+  socket.on('data', (chunk) => {
+    buffer = Buffer.concat([buffer, chunk]);
+    for (;;) {
+      if (buffer.length < 2) return;
+      assert.equal(buffer[1] & 0x80, 0x80, 'a client frame must be masked');
+      let length = buffer[1] & 0x7f;
+      let offset = 2;
+      if (length === 126) {
+        if (buffer.length < 4) return;
+        length = buffer.readUInt16BE(2);
+        offset = 4;
+      } else if (length === 127) {
+        if (buffer.length < 10) return;
+        length = Number(buffer.readBigUInt64BE(2));
+        offset = 10;
+      }
+      if (buffer.length < offset + 4 + length) return;
+      const mask = buffer.subarray(offset, offset + 4);
+      const payload = Buffer.alloc(length);
+      for (let index = 0; index < length; index += 1) {
+        payload[index] = buffer[offset + 4 + index] ^ mask[index & 3];
+      }
+      const opcode = buffer[0] & 0x0f;
+      buffer = buffer.subarray(offset + 4 + length);
+      onFrame(opcode, payload);
+    }
+  });
+}
+
+/**
+ * A fake Kaana realtime endpoint. Every connection's upgrade signature is
+ * verified over the EXACT bytes of its first frame; `script` then plays the
+ * data plane for that session.
+ */
+async function startFakeRealtimeKaana(publicKey, script, { refuseUpgrade } = {}) {
+  const connections = [];
+  const server = http.createServer((_request, response) => response.writeHead(404).end());
+  const sockets = new Set();
+  server.on('upgrade', (request, socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+    if (refuseUpgrade !== undefined) {
+      socket.end(`HTTP/1.1 ${refuseUpgrade} Refused\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`);
+      return;
+    }
+    assert.equal(request.url, '/internal/v1/realtime');
+    const accept = createHash('sha1')
+      .update(`${request.headers['sec-websocket-key']}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
+      .digest('base64');
+    socket.write(
+      'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+      `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
+    );
+    const commands = [];
+    const waiters = [];
+    let session;
+    let sequence = 0;
+    const connection = {
+      headers: request.headers,
+      commands,
+      send: (payload) => socket.write(serverFrame(0x1, Buffer.from(JSON.stringify(payload)))),
+      event: (payload) => connection.send({
+        schemaVersion: 1,
+        requestId: session.attribution.requestId,
+        sequence: sequence++,
+        ...payload,
+      }),
+      close: (code = 1000) => {
+        const body = Buffer.alloc(2);
+        body.writeUInt16BE(code, 0);
+        socket.write(serverFrame(0x8, body));
+        socket.end();
+      },
+      nextCommand: () => new Promise((resolve) => {
+        const ready = commands.find((command) => !command.taken);
+        if (ready !== undefined) {
+          ready.taken = true;
+          resolve(ready.command);
+        } else {
+          waiters.push(resolve);
+        }
+      }),
+    };
+    clientFrameReader(socket, (opcode, payload) => {
+      if (opcode !== 0x1) return;
+      if (session === undefined) {
+        connection.firstFrame = payload;
+        connection.verified = verifyUpgrade(publicKey, request.headers, payload);
+        session = JSON.parse(payload.toString('utf8'));
+        connection.request = session;
+        connections.push(connection);
+        void script(connection);
+        return;
+      }
+      const command = JSON.parse(payload.toString('utf8'));
+      const waiter = waiters.shift();
+      if (waiter !== undefined) {
+        commands.push({ command, taken: true });
+        waiter(command);
+      } else {
+        commands.push({ command, taken: false });
+      }
+    });
+    socket.on('error', () => undefined);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const dialled = [];
+  return {
+    connections,
+    dialled,
+    dial: (url, headers) => {
+      dialled.push(url);
+      return openSignedWebSocket(`ws://127.0.0.1:${port}/internal/v1/realtime`, headers);
+    },
+    close: () => new Promise((resolve) => {
+      // Upgraded sockets are detached from the HTTP server's bookkeeping.
+      for (const socket of sockets) socket.destroy();
+      server.closeAllConnections?.();
+      server.close(() => resolve());
+    }),
+  };
+}
+
+function verifyUpgrade(publicKey, headers, body) {
+  const keyId = headers['x-oxy-kaana-key-id'];
+  const timestamp = headers['x-oxy-kaana-timestamp'];
+  const raw = headers['x-oxy-kaana-signature'];
+  if (typeof raw !== 'string' || !raw.startsWith('v1=')) return false;
+  return verify(null, signingInput(keyId, timestamp, body), publicKey, Buffer.from(raw.slice(3), 'base64'));
+}
+
+function report(connection, outcome, units) {
+  const now = new Date().toISOString();
+  const route = connection.request.authorizedRoutes[0];
+  connection.send({
+    schemaVersion: 2,
+    requestId: connection.request.attribution.requestId,
+    attribution: connection.request.attribution,
+    outcome,
+    units,
+    usageSource: 'oxy_measured',
+    resolvedModelReference: route.modelReference,
+    servingProvider: route.provider,
+    deploymentId: route.deploymentId,
+    routeSwitches: 0,
+    startedAt: now,
+    completedAt: now,
+  });
+}
+
+/** Kaana as it behaves: an unknown route never opens; the exact one serves one text turn. */
+function kaanaScript(overrides = {}) {
+  return async (connection) => {
+    const route = connection.request.authorizedRoutes[0];
+    if (route.deploymentId !== VOICE_DEPLOYMENT_ID && overrides.openUnknown !== true) {
+      connection.event({
+        type: 'error',
+        fatal: true,
+        error: {
+          schemaVersion: 1,
+          code: 'no_route_available',
+          message: 'safe fixture',
+          retryable: false,
+          requestId: connection.request.attribution.requestId,
+        },
+      });
+      connection.event({
+        type: 'session.closed',
+        reason: 'no_route_available',
+        units: [],
+        usageSource: 'provider_reported',
+        closedAt: new Date().toISOString(),
+      });
+      report(connection, 'failed', []);
+      connection.close(1000);
+      return;
+    }
+    connection.event({
+      type: 'session.created',
+      resolvedModelReference: route.modelReference,
+      servingProvider: overrides.servingProvider ?? route.provider,
+      deploymentId: route.deploymentId,
+      kind: 'conversation',
+      config: connection.request.config,
+      limits: connection.request.limits,
+      resumeWindowMs: 30_000,
+      startedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    if (overrides.openUnknown === true && route.deploymentId !== VOICE_DEPLOYMENT_ID) return;
+    const item = await connection.nextCommand();
+    connection.event({ type: 'command.accepted', commandId: item.commandId, duplicate: false });
+    const response = await connection.nextCommand();
+    connection.event({ type: 'command.accepted', commandId: response.commandId, duplicate: false });
+    connection.event({ type: 'response.created', responseId: 'resp-1' });
+    if (overrides.failResponse === true) {
+      connection.event({
+        type: 'error',
+        fatal: false,
+        error: {
+          schemaVersion: 1,
+          code: 'provider_error',
+          message: 'safe fixture',
+          retryable: false,
+          requestId: connection.request.attribution.requestId,
+        },
+      });
+      return;
+    }
+    connection.event({ type: 'text.delta', responseId: 'resp-1', itemId: 'item-2', contentIndex: 0, text: 'OK' });
+    connection.event({
+      type: 'response.done',
+      responseId: 'resp-1',
+      status: 'completed',
+      deploymentId: route.deploymentId,
+      units: [],
+      usageSource: 'oxy_measured',
+    });
+    const close = await connection.nextCommand();
+    connection.event({ type: 'command.accepted', commandId: close.commandId, duplicate: false });
+    const units = [{ unit: 'requests', quantity: 1 }];
+    connection.event({
+      type: 'session.closed',
+      reason: 'client_closed',
+      deploymentId: route.deploymentId,
+      units,
+      usageSource: 'oxy_measured',
+      closedAt: new Date().toISOString(),
+    });
+    report(connection, 'completed', units);
+    connection.close(1000);
+  };
+}
+
+test('realtime: refuses an unknown route, then runs ONE signed push-to-talk text session and settles it', async () => {
+  const { config, publicKey } = realtimeRuntime();
+  const { fetchImpl, calls } = realtimeFetch(publicKey);
+  const kaana = await startFakeRealtimeKaana(publicKey, kaanaScript());
+  try {
+    const result = await runKaanaRealtimeCanary(config, fetchImpl, kaana.dial);
+    assert.deepEqual(calls, ['/internal/v1/health', '/internal/v1/deployments/query']);
+    assert.deepEqual(kaana.dialled, [
+      'wss://kaana.ai/internal/v1/realtime',
+      'wss://kaana.ai/internal/v1/realtime',
+    ]);
+    assert.equal(result.status, 'passed');
+    assert.equal(result.mode, 'realtime');
+    assert.equal(result.providerSessions, 1);
+    assert.equal(result.oxyLedgerWrites, 0);
+    assert.equal(result.snapshotId, 'snap-live-exact');
+    assert.equal(result.modelReference, VOICE_MODEL_REFERENCE);
+    assert.deepEqual(result.cases.map((entry) => entry.name), [
+      'realtime-unknown-deployment_rejected',
+      'realtime-push-to-talk-text',
+    ]);
+    assert.deepEqual(result.cases[1].units, [{ unit: 'requests', quantity: 1 }]);
+    assert.equal(result.cases[1].outcome, 'completed');
+
+    const [refused, served] = kaana.connections;
+    // Both first frames are signed over their exact bytes.
+    assert.equal(refused.verified, true);
+    assert.equal(served.verified, true);
+    assert.match(refused.request.authorizedRoutes[0].deploymentId, /^dep_canary_unknown_[0-9a-f]{32}$/);
+    const request = served.request;
+    assert.deepEqual(request.authorizedRoutes, [{
+      substitution: 'same_model',
+      deploymentId: VOICE_DEPLOYMENT_ID,
+      modelReference: VOICE_MODEL_REFERENCE,
+      provider: 'xai-realtime',
+      regions: [],
+    }]);
+    assert.equal(request.modelReference, VOICE_MODEL_REFERENCE);
+    assert.equal(request.kind, 'conversation');
+    assert.deepEqual(request.config.turnDetection, { type: 'none' });
+    assert.deepEqual(request.config.outputModalities, ['text']);
+    assert.equal(request.config.voice, undefined);
+    assert.equal(request.config.maxOutputTokens, undefined);
+    assert.equal(request.limits.maxResponses, 1);
+    assert.ok(request.limits.maxOutputAudioBytes <= 48_000);
+    assert.equal(request.routingPolicy.policyVersion, 7);
+    assert.deepEqual(served.commands.map((entry) => entry.command.type), [
+      'conversation.item.create',
+      'response.create',
+      'session.close',
+    ]);
+    // A tampered frame does not verify: the check above is not vacuous.
+    assert.equal(
+      verifyUpgrade(publicKey, served.headers, Buffer.from(served.firstFrame.toString('utf8').replace('OK', 'KO'))),
+      false,
+    );
+  } finally {
+    await kaana.close();
+  }
+});
+
+test('realtime: a session that opens for an unknown deployment fails before the provider session', async () => {
+  const { config, publicKey } = realtimeRuntime();
+  const { fetchImpl } = realtimeFetch(publicKey);
+  const kaana = await startFakeRealtimeKaana(publicKey, kaanaScript({ openUnknown: true }));
+  try {
+    await assert.rejects(
+      () => runKaanaRealtimeCanary(config, fetchImpl, kaana.dial),
+      (error) => error instanceof KaanaCanaryError &&
+        error.code === 'realtime-unknown-deployment_reached_execution',
+    );
+    assert.equal(kaana.dialled.length, 1);
+  } finally {
+    await kaana.close();
+  }
+});
+
+test('realtime: refuses a session.created that names another serving provider', async () => {
+  const { config, publicKey } = realtimeRuntime();
+  const { fetchImpl } = realtimeFetch(publicKey);
+  const kaana = await startFakeRealtimeKaana(publicKey, kaanaScript({ servingProvider: 'xai' }));
+  try {
+    await assert.rejects(
+      () => runKaanaRealtimeCanary(config, fetchImpl, kaana.dial),
+      (error) => error instanceof KaanaCanaryError &&
+        error.code === 'realtime-push-to-talk-text_session_provider_mismatch',
+    );
+  } finally {
+    await kaana.close();
+  }
+});
+
+test('realtime: projects only a closed error code when the session reports an error', async () => {
+  const { config, publicKey } = realtimeRuntime();
+  const { fetchImpl } = realtimeFetch(publicKey);
+  const kaana = await startFakeRealtimeKaana(publicKey, kaanaScript({ failResponse: true }));
+  try {
+    let captured;
+    await assert.rejects(
+      () => runKaanaRealtimeCanary(config, fetchImpl, kaana.dial),
+      (error) => {
+        captured = error;
+        return error instanceof KaanaCanaryError &&
+          error.code === 'realtime-push-to-talk-text_execution_error_event_present';
+      },
+    );
+    assert.deepEqual(realtimeCanaryFailureResult(captured), {
+      schemaVersion: 1,
+      status: 'failed',
+      code: 'realtime-push-to-talk-text_execution_error_event_present',
+      inferenceErrorCode: 'provider_error',
+      providerRequests: 'at_most_1_session',
+      oxyLedgerWrites: 0,
+    });
+  } finally {
+    await kaana.close();
+  }
+});
+
+test('realtime: a changed snapshot or a refused upgrade fails without a provider session', async () => {
+  const { config, publicKey } = realtimeRuntime();
+  const changed = await startFakeRealtimeKaana(publicKey, kaanaScript());
+  try {
+    await assert.rejects(
+      () => runKaanaRealtimeCanary(config, realtimeFetch(publicKey, { snapshotId: 'snap-moved' }).fetchImpl, changed.dial),
+      (error) => error instanceof KaanaCanaryError && error.code === 'snapshot_id_mismatch',
+    );
+    assert.equal(changed.dialled.length, 0);
+  } finally {
+    await changed.close();
+  }
+  const refusing = await startFakeRealtimeKaana(publicKey, kaanaScript(), { refuseUpgrade: 401 });
+  try {
+    await assert.rejects(
+      () => runKaanaRealtimeCanary(config, realtimeFetch(publicKey).fetchImpl, refusing.dial),
+      (error) => error instanceof KaanaCanaryError && error.code === 'realtime_upgrade_refused',
+    );
+  } finally {
+    await refusing.close();
+  }
+});
+
+test('realtime: reads no routing profile and still refuses fuzzy inputs before any request', () => {
+  const { env } = realtimeRuntime();
+  assert.equal('routingProfileId' in readKaanaRealtimeCanaryConfig(env), false);
+  assert.throws(
+    () => readKaanaRealtimeCanaryConfig({ ...env, CANARY_DEPLOYMENT_ID: ` ${VOICE_DEPLOYMENT_ID}` }),
+    (error) => error instanceof KaanaCanaryError && error.code === 'invalid_canary_deployment_id',
+  );
+  assert.equal(kaanaRealtimeUrl('http://10.21.2.34:8080'), 'ws://10.21.2.34:8080/internal/v1/realtime');
+  assert.equal(kaanaRealtimeUrl('https://kaana.ai'), 'wss://kaana.ai/internal/v1/realtime');
 });

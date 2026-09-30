@@ -7,15 +7,29 @@
  * endpoint, imports an Oxy database module, reserves balance, or settles a
  * receipt. The ECS workflow that owns it removes DATABASE_URL and every secret
  * except the Ed25519 edge-signing key before the task starts. The only writes
- * are Kaana's normal technical records for the two one-token positive probes.
+ * are Kaana's normal technical records for the two one-token positive probes —
+ * or, in `realtime` mode, for its one bounded push-to-talk session.
+ *
+ * `realtime` mode opens signed sessions on Kaana's `/internal/v1/realtime` for
+ * one exact deployment: first a session authorized only for an unknown
+ * deployment, which must end `no_route_available` without ever opening, then
+ * ONE text-only push-to-talk session (`turnDetection: none`, one text item,
+ * one response, at most one second of output audio signed), which must open on
+ * exactly that route, answer `response.done`, and settle on `session.close`
+ * with `session.closed` and a usage report carrying units. The WebSocket client
+ * below is a minimal RFC 6455 client on `node:http`: this script runs before
+ * workspace dependencies are installed and imports nothing but Node.
  */
 
 import {
   createHash,
   createPrivateKey,
+  randomBytes,
   randomUUID,
   sign,
 } from 'node:crypto';
+import http from 'node:http';
+import https from 'node:https';
 import { pathToFileURL } from 'node:url';
 
 const CANONICAL_KAANA_ORIGIN = 'https://kaana.ai';
@@ -23,6 +37,25 @@ const SIGNATURE_DOMAIN = 'oxy-kaana-envelope:v1';
 const INFERENCE_PATH = '/internal/v1/inference';
 const HEALTH_PATH = '/internal/v1/health';
 const DEPLOYMENTS_PATH = '/internal/v1/deployments/query';
+const REALTIME_PATH = '/internal/v1/realtime';
+/** The whole realtime probe — both sessions — must finish within this. */
+const REALTIME_SESSION_TIMEOUT_MS = 60_000;
+/** Kaana's own bound on one realtime frame it sends. */
+const MAX_REALTIME_FRAME_BYTES = 8 * 1024 * 1024;
+const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+/**
+ * The session's signed limits: one response, one minute, no input audio beyond
+ * a single byte, and at most one second of 24 kHz PCM16 output — the provider
+ * is asked for text only, and Kaana closes the session rather than exceed any
+ * of these.
+ */
+const REALTIME_CANARY_LIMITS = {
+  maxDurationMs: 60_000,
+  idleTimeoutMs: 30_000,
+  maxInputAudioBytes: 1,
+  maxOutputAudioBytes: 48_000,
+  maxResponses: 1,
+};
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 60_000;
 
@@ -191,6 +224,24 @@ export function readKaanaSigningConfig(env = process.env) {
     keyId: exactString(env, 'KAANA_EDGE_SIGNING_KEY_ID', 128),
     privateKey: parsePrivateKey(secretString(env, 'KAANA_EDGE_SIGNING_PRIVATE_KEY', 16_384)),
     expectedContractVersion: exactString(env, 'CANARY_CONTRACT_VERSION', 32),
+  };
+}
+
+/**
+ * The realtime probe's inputs: the signing boundary, the exact snapshot and
+ * deployment, and the attribution. No routing profile — a session names its
+ * model and is never routed through one.
+ */
+export function readKaanaRealtimeCanaryConfig(env = process.env) {
+  return {
+    ...readKaanaSigningConfig(env),
+    expectedSnapshotId: exactString(env, 'CANARY_EXPECTED_SNAPSHOT_ID', 256),
+    deploymentId: exactString(env, 'CANARY_DEPLOYMENT_ID', 128),
+    routingPolicyId: exactString(env, 'CANARY_ROUTING_POLICY_ID', 128),
+    routingPolicyVersion: positiveInteger(env, 'CANARY_ROUTING_POLICY_VERSION'),
+    accountId: exactString(env, 'CANARY_ACCOUNT_ID', 64),
+    applicationId: exactString(env, 'CANARY_APPLICATION_ID', 64),
+    credentialId: exactString(env, 'CANARY_CREDENTIAL_ID', 64),
   };
 }
 
@@ -683,6 +734,496 @@ export async function runKaanaSignedCanary(config, fetchImpl = globalThis.fetch)
   };
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Realtime: a minimal signed WebSocket client (RFC 6455, text frames only)  */
+/* -------------------------------------------------------------------------- */
+
+/** `https://kaana.ai` → `wss://kaana.ai/internal/v1/realtime`; a private candidate stays `ws:`. */
+export function kaanaRealtimeUrl(baseUrl) {
+  const url = new URL(REALTIME_PATH, baseUrl);
+  url.protocol = url.protocol === 'http:' ? 'ws:' : 'wss:';
+  return url.toString();
+}
+
+/** The three signature headers, over the EXACT bytes of the first frame. */
+function realtimeSignatureHeaders(config, firstFrame) {
+  const timestamp = Date.now();
+  const signature = sign(
+    null,
+    signingInput(config.keyId, timestamp, firstFrame),
+    config.privateKey,
+  ).toString('base64');
+  return {
+    'X-Oxy-Kaana-Key-Id': config.keyId,
+    'X-Oxy-Kaana-Timestamp': String(timestamp),
+    'X-Oxy-Kaana-Signature': `v1=${signature}`,
+  };
+}
+
+function encodeClientFrame(opcode, payload) {
+  const mask = randomBytes(4);
+  const length = payload.length;
+  let header;
+  if (length < 126) {
+    header = Buffer.alloc(2);
+    header[1] = 0x80 | length;
+  } else if (length < 65_536) {
+    header = Buffer.alloc(4);
+    header[1] = 0x80 | 126;
+    header.writeUInt16BE(length, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[1] = 0x80 | 127;
+    header.writeBigUInt64BE(BigInt(length), 2);
+  }
+  header[0] = 0x80 | opcode;
+  const masked = Buffer.alloc(length);
+  for (let index = 0; index < length; index += 1) masked[index] = payload[index] ^ mask[index & 3];
+  return Buffer.concat([header, mask, masked]);
+}
+
+/**
+ * One open connection. `next()` yields `{type:'text', data}`, then — once the
+ * peer closed or the frame stream broke — `{type:'close', code}` forever.
+ */
+class RealtimeWire {
+  constructor(socket, head) {
+    this.socket = socket;
+    this.buffer = head.length > 0 ? Buffer.from(head) : Buffer.alloc(0);
+    this.fragments = [];
+    this.fragmentBytes = 0;
+    this.queue = [];
+    this.waiters = [];
+    this.ended = undefined;
+    this.sentClose = false;
+    socket.setNoDelay?.(true);
+    socket.on('data', (chunk) => {
+      this.buffer = Buffer.concat([this.buffer, chunk]);
+      this.drain();
+    });
+    socket.on('close', () => this.end(this.peerCloseCode ?? 1006));
+    socket.on('error', () => undefined);
+    this.drain();
+  }
+
+  drain() {
+    while (this.ended === undefined && this.buffer.length >= 2) {
+      const first = this.buffer[0];
+      const second = this.buffer[1];
+      // No extension was negotiated and a server never masks.
+      if ((first & 0x70) !== 0 || (second & 0x80) !== 0) return this.broken();
+      let length = second & 0x7f;
+      let offset = 2;
+      if (length === 126) {
+        if (this.buffer.length < 4) return;
+        length = this.buffer.readUInt16BE(2);
+        offset = 4;
+      } else if (length === 127) {
+        if (this.buffer.length < 10) return;
+        const long = this.buffer.readBigUInt64BE(2);
+        if (long > BigInt(MAX_REALTIME_FRAME_BYTES)) return this.broken();
+        length = Number(long);
+        offset = 10;
+      }
+      if (length > MAX_REALTIME_FRAME_BYTES) return this.broken();
+      if (this.buffer.length < offset + length) return;
+      const payload = this.buffer.subarray(offset, offset + length);
+      this.buffer = this.buffer.subarray(offset + length);
+      const fin = (first & 0x80) !== 0;
+      const opcode = first & 0x0f;
+      if (opcode === 0x1 || opcode === 0x0) {
+        if ((opcode === 0x1) === (this.fragments.length > 0)) return this.broken();
+        this.fragmentBytes += payload.length;
+        if (this.fragmentBytes > MAX_REALTIME_FRAME_BYTES) return this.broken();
+        this.fragments.push(Buffer.from(payload));
+        if (fin) {
+          const data = Buffer.concat(this.fragments).toString('utf8');
+          this.fragments = [];
+          this.fragmentBytes = 0;
+          this.push({ type: 'text', data });
+        }
+      } else if (opcode === 0x8) {
+        this.peerCloseCode = payload.length >= 2 ? payload.readUInt16BE(0) : 1005;
+        this.close(this.peerCloseCode === 1005 ? 1000 : this.peerCloseCode);
+        this.end(this.peerCloseCode);
+      } else if (opcode === 0x9) {
+        if (!this.socket.destroyed) this.socket.write(encodeClientFrame(0xa, payload));
+      } else if (opcode === 0xa) {
+        // An unsolicited pong carries nothing.
+      } else {
+        // Binary or reserved: never part of the realtime protocol.
+        return this.broken();
+      }
+    }
+  }
+
+  broken() {
+    this.socket.destroy();
+    this.end(1002);
+  }
+
+  push(item) {
+    const waiter = this.waiters.shift();
+    if (waiter !== undefined) waiter(item);
+    else this.queue.push(item);
+  }
+
+  end(code) {
+    if (this.ended !== undefined) return;
+    this.ended = { type: 'close', code };
+    for (const waiter of this.waiters.splice(0)) waiter(this.ended);
+  }
+
+  next(timeoutMs) {
+    if (this.queue.length > 0) return Promise.resolve(this.queue.shift());
+    if (this.ended !== undefined) return Promise.resolve(this.ended);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        const index = this.waiters.indexOf(settle);
+        if (index !== -1) this.waiters.splice(index, 1);
+        resolve({ type: 'timeout' });
+      }, Math.max(0, timeoutMs));
+      const settle = (item) => {
+        clearTimeout(timer);
+        resolve(item);
+      };
+      this.waiters.push(settle);
+    });
+  }
+
+  sendText(data) {
+    if (this.ended === undefined && !this.socket.destroyed) {
+      this.socket.write(encodeClientFrame(0x1, Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8')));
+    }
+  }
+
+  close(code = 1000) {
+    if (!this.sentClose && !this.socket.destroyed) {
+      this.sentClose = true;
+      const payload = Buffer.alloc(2);
+      payload.writeUInt16BE(code, 0);
+      this.socket.write(encodeClientFrame(0x8, payload));
+    }
+    this.socket.end();
+  }
+
+  destroy() {
+    this.socket.destroy();
+    this.end(1006);
+  }
+}
+
+/**
+ * Open one WebSocket to `url` with `headers` on the upgrade, no subprotocol
+ * and no extension. A refused upgrade (any HTTP answer) is a canary failure.
+ */
+export function openSignedWebSocket(url, headers, timeoutMs = REQUEST_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    if (target.protocol !== 'ws:' && target.protocol !== 'wss:') {
+      reject(new KaanaCanaryError('realtime_url_invalid'));
+      return;
+    }
+    const secure = target.protocol === 'wss:';
+    const key = randomBytes(16).toString('base64');
+    const request = (secure ? https : http).request({
+      hostname: target.hostname,
+      port: target.port === '' ? (secure ? 443 : 80) : Number(target.port),
+      path: `${target.pathname}${target.search}`,
+      method: 'GET',
+      headers: {
+        ...headers,
+        Connection: 'Upgrade',
+        Upgrade: 'websocket',
+        'Sec-WebSocket-Version': '13',
+        'Sec-WebSocket-Key': key,
+      },
+      timeout: timeoutMs,
+    });
+    request.on('response', (response) => {
+      response.resume();
+      reject(new KaanaCanaryError('realtime_upgrade_refused'));
+    });
+    request.on('timeout', () => {
+      request.destroy();
+      reject(new KaanaCanaryError('realtime_upgrade_timeout'));
+    });
+    request.on('error', () => reject(new KaanaCanaryError('realtime_upgrade_failed')));
+    request.on('upgrade', (response, socket, head) => {
+      const accept = createHash('sha1').update(`${key}${WEBSOCKET_GUID}`).digest('base64');
+      if (
+        response.statusCode !== 101 ||
+        response.headers['sec-websocket-accept'] !== accept ||
+        response.headers['sec-websocket-extensions'] !== undefined ||
+        response.headers['sec-websocket-protocol'] !== undefined
+      ) {
+        socket.destroy();
+        reject(new KaanaCanaryError('realtime_upgrade_invalid'));
+        return;
+      }
+      socket.setTimeout(0);
+      resolve(new RealtimeWire(socket, head));
+    });
+    request.end();
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Realtime: the probe                                                       */
+/* -------------------------------------------------------------------------- */
+
+function realtimeSessionRequest(config, route, id) {
+  return {
+    schemaVersion: 1,
+    attribution: {
+      principal: {
+        billing: { accountId: config.accountId },
+        applicationId: config.applicationId,
+        credentialId: config.credentialId,
+        environment: 'production',
+        inferenceScopes: ['inference:invoke'],
+      },
+      requestId: id,
+    },
+    modelReference: route.modelReference,
+    kind: 'conversation',
+    transport: 'websocket',
+    // Push-to-talk and text-only: the cheapest session a provider can serve.
+    // No voice, no output audio format, no tools, no token or sampling field
+    // a provider might refuse.
+    config: {
+      instructions: 'Reply with OK.',
+      outputModalities: ['text'],
+      inputAudioFormat: 'pcm16_24khz',
+      turnDetection: { type: 'none' },
+    },
+    limits: REALTIME_CANARY_LIMITS,
+    client: {
+      endpoint: '/v1/realtime',
+      receivedAt: new Date().toISOString(),
+      labels: { purpose: 'production-signed-canary' },
+    },
+    routingPolicy: {
+      routingPolicyId: config.routingPolicyId,
+      policyVersion: config.routingPolicyVersion,
+    },
+    authorizedRoutes: [route],
+  };
+}
+
+function realtimeCommand(id, commandId, payload) {
+  return JSON.stringify({ schemaVersion: 1, requestId: id, commandId, ...payload });
+}
+
+/**
+ * Open one signed session and return a reader over its frames in protocol
+ * order: events (framing-checked against this request and a strictly rising
+ * sequence), then the one usage report, then the close.
+ */
+async function openRealtimeProbe(config, dial, route, label, deadline) {
+  const id = requestId(label);
+  const firstFrame = Buffer.from(JSON.stringify(realtimeSessionRequest(config, route, id)), 'utf8');
+  const wire = await dial(kaanaRealtimeUrl(config.baseUrl), realtimeSignatureHeaders(config, firstFrame));
+  // The SAME bytes that were signed, as the first text frame.
+  wire.sendText(firstFrame);
+  let sequence = -1;
+  const frame = async () => {
+    const item = await wire.next(deadline - Date.now());
+    if (item.type === 'timeout') fail(`${label}_timeout`);
+    if (item.type === 'close') fail(`${label}_closed_early`);
+    return parseJSON(Buffer.from(item.data, 'utf8'), `${label}_invalid_json`);
+  };
+  const event = async () => {
+    const payload = await frame();
+    if (
+      payload?.schemaVersion !== 1 ||
+      payload.requestId !== id ||
+      !Number.isSafeInteger(payload.sequence) ||
+      payload.sequence <= sequence ||
+      typeof payload.type !== 'string'
+    ) {
+      fail(`${label}_event_framing_mismatch`);
+    }
+    sequence = payload.sequence;
+    return payload;
+  };
+  const closed = async () => {
+    const item = await wire.next(deadline - Date.now());
+    if (item.type === 'timeout') fail(`${label}_close_timeout`);
+    if (item.type !== 'close') fail(`${label}_frame_after_usage_report`);
+    return item.code;
+  };
+  return { id, wire, frame, event, closed };
+}
+
+/** A session authorized only for an unknown deployment must end without ever opening. */
+async function expectRealtimeRouteRefusal(config, dial, route, deadline) {
+  const label = 'realtime-unknown-deployment';
+  const probe = await openRealtimeProbe(
+    config,
+    dial,
+    { ...route, deploymentId: `dep_canary_unknown_${randomUUID().replaceAll('-', '')}` },
+    label,
+    deadline,
+  );
+  try {
+    for (;;) {
+      const event = await probe.event();
+      if (event.type === 'session.created') fail(`${label}_reached_execution`);
+      if (event.type === 'error') continue;
+      if (event.type !== 'session.closed') fail(`${label}_unexpected_event`);
+      if (event.reason !== 'no_route_available' || event.deploymentId !== undefined) {
+        fail(`${label}_wrong_close`);
+      }
+      break;
+    }
+    // Kaana settles even a session that never opened: at most one report
+    // frame follows, and it must carry no units.
+    const next = await probe.wire.next(deadline - Date.now());
+    if (next.type === 'text') {
+      const report = parseJSON(Buffer.from(next.data, 'utf8'), `${label}_invalid_json`);
+      if (report?.requestId !== probe.id || (Array.isArray(report.units) && report.units.length > 0)) {
+        fail(`${label}_usage_report_mismatch`);
+      }
+    } else if (next.type === 'timeout') {
+      fail(`${label}_close_timeout`);
+    }
+    return { name: `${label}_rejected`, requestId: probe.id, status: 'passed', code: 'no_route_available' };
+  } finally {
+    probe.wire.destroy();
+  }
+}
+
+/** ONE push-to-talk session: one text item, one response, then close and settle. */
+async function expectRealtimeSession(config, dial, route, deadline) {
+  const label = 'realtime-push-to-talk-text';
+  const probe = await openRealtimeProbe(config, dial, route, label, deadline);
+  try {
+    const created = await probe.event();
+    if (created.type === 'error') {
+      fail(`${label}_execution_error_event_present`, safeInferenceErrorCode(created));
+    }
+    if (created.type !== 'session.created' || created.sequence !== 0) {
+      fail(`${label}_session_not_created`);
+    }
+    if (created.deploymentId !== route.deploymentId) fail(`${label}_session_deployment_mismatch`);
+    if (created.resolvedModelReference !== route.modelReference) fail(`${label}_session_model_mismatch`);
+    if (created.servingProvider !== route.provider) fail(`${label}_session_provider_mismatch`);
+    if (created.kind !== 'conversation') fail(`${label}_session_kind_mismatch`);
+
+    probe.wire.sendText(realtimeCommand(probe.id, 'canary-item', {
+      type: 'conversation.item.create',
+      item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Reply with OK.' }] },
+    }));
+    probe.wire.sendText(realtimeCommand(probe.id, 'canary-response', { type: 'response.create' }));
+
+    const accepted = new Set();
+    let done;
+    while (done === undefined) {
+      const event = await probe.event();
+      if (event.type === 'error') {
+        fail(`${label}_execution_error_event_present`, safeInferenceErrorCode(event));
+      }
+      if (event.type === 'session.closed') fail(`${label}_closed_before_response`);
+      if (event.type === 'command.accepted') accepted.add(event.commandId);
+      if (event.type === 'response.done') done = event;
+    }
+    if (!accepted.has('canary-item') || !accepted.has('canary-response')) {
+      fail(`${label}_command_not_accepted`);
+    }
+    if (done.status !== 'completed') fail(`${label}_response_not_completed`);
+    if (done.deploymentId !== route.deploymentId) fail(`${label}_response_deployment_mismatch`);
+
+    probe.wire.sendText(realtimeCommand(probe.id, 'canary-close', { type: 'session.close' }));
+    let closedEvent;
+    while (closedEvent === undefined) {
+      const event = await probe.event();
+      if (event.type === 'error') {
+        fail(`${label}_execution_error_event_present`, safeInferenceErrorCode(event));
+      }
+      if (event.type === 'session.closed') closedEvent = event;
+    }
+    if (closedEvent.reason !== 'client_closed') fail(`${label}_session_close_reason_mismatch`);
+    if (closedEvent.deploymentId !== route.deploymentId) fail(`${label}_session_close_deployment_mismatch`);
+
+    const report = await probe.frame();
+    if (report?.schemaVersion !== 2) fail(`${label}_usage_schema_mismatch`);
+    if (report.requestId !== probe.id) fail(`${label}_usage_request_mismatch`);
+    if (report.outcome !== 'completed') fail(`${label}_usage_outcome_mismatch`);
+    if (report.deploymentId !== route.deploymentId) fail(`${label}_usage_deployment_mismatch`);
+    if (report.resolvedModelReference !== route.modelReference) fail(`${label}_usage_model_mismatch`);
+    if (report.servingProvider !== route.provider) fail(`${label}_usage_provider_mismatch`);
+    if (
+      !Array.isArray(report.units) ||
+      report.units.length === 0 ||
+      !report.units.every((quantity) =>
+        typeof quantity?.unit === 'string' &&
+        /^[a-z_]{1,64}$/.test(quantity.unit) &&
+        Number.isSafeInteger(quantity.quantity) &&
+        quantity.quantity >= 0)
+    ) {
+      fail(`${label}_usage_units_missing`);
+    }
+    if ((await probe.closed()) !== 1000) fail(`${label}_close_code_mismatch`);
+    return {
+      name: label,
+      requestId: probe.id,
+      status: 'passed',
+      outcome: report.outcome,
+      usageSource: report.usageSource,
+      deploymentId: route.deploymentId,
+      modelReference: route.modelReference,
+      // Unit names and counts only: no content crosses this projection.
+      units: report.units.map((quantity) => ({ unit: quantity.unit, quantity: quantity.quantity })),
+    };
+  } finally {
+    probe.wire.destroy();
+  }
+}
+
+/**
+ * The realtime probe: the exact live descriptor, one fail-closed session that
+ * must never open, then exactly one bounded provider session.
+ */
+export async function runKaanaRealtimeCanary(
+  config,
+  fetchImpl = globalThis.fetch,
+  dial = openSignedWebSocket,
+) {
+  const { snapshotId, route } = await readLiveDescriptor(config, fetchImpl);
+  const deadline = Date.now() + REALTIME_SESSION_TIMEOUT_MS;
+  const cases = [];
+  cases.push(await expectRealtimeRouteRefusal(config, dial, route, deadline));
+  cases.push(await expectRealtimeSession(config, dial, route, deadline));
+  return {
+    schemaVersion: 1,
+    status: 'passed',
+    mode: 'realtime',
+    contractVersion: config.expectedContractVersion,
+    snapshotId,
+    deploymentId: config.deploymentId,
+    modelReference: route.modelReference,
+    providerSessions: 1,
+    oxyLedgerWrites: 0,
+    cases,
+  };
+}
+
+/** Realtime failures report the one session they may have opened. */
+export function realtimeCanaryFailureResult(error) {
+  return { ...canaryFailureResult(error), providerRequests: 'at_most_1_session' };
+}
+
+export async function realtimeMain(env = process.env, fetchImpl = globalThis.fetch, dial = openSignedWebSocket) {
+  try {
+    const result = await runKaanaRealtimeCanary(readKaanaRealtimeCanaryConfig(env), fetchImpl, dial);
+    process.stdout.write(`KAANA_SIGNED_CANARY_RESULT=${JSON.stringify(result)}\n`);
+  } catch (error) {
+    process.stdout.write(`KAANA_SIGNED_CANARY_RESULT=${JSON.stringify(realtimeCanaryFailureResult(error))}\n`);
+    process.exitCode = 1;
+  }
+}
+
 export async function main(env = process.env, fetchImpl = globalThis.fetch) {
   try {
     const result = await runKaanaSignedCanary(readKaanaCanaryConfig(env), fetchImpl);
@@ -746,6 +1287,7 @@ const isEntrypoint = process.argv[1] !== undefined &&
 if (isEntrypoint) {
   if (process.argv.length === 2) await main();
   else if (process.argv.length === 3 && process.argv[2] === 'readback') await readbackMain();
+  else if (process.argv.length === 3 && process.argv[2] === 'realtime') await realtimeMain();
   else {
     process.stdout.write('KAANA_SIGNED_CANARY_RESULT={"schemaVersion":1,"status":"failed","code":"invalid_operation","providerRequests":0,"oxyLedgerWrites":0}\n');
     process.exitCode = 1;
