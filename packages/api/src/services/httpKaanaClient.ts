@@ -340,12 +340,14 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
     async listModels(signal: AbortSignal): Promise<unknown> {
       // A GET signs the empty body, exactly as Kaana's readSignedBody verifies
       // it for the health and catalogue surfaces.
-      const body = Buffer.alloc(0);
+      const body = Buffer.from(JSON.stringify({ scopedExecutionContractVersion: SCOPED_EXECUTION_CONTRACT_VERSION }), 'utf8');
       const timestamp = Date.now();
-      const response = await fetch(`${config.baseUrl}${KAANA_MODELS_PATH}`, {
-        method: 'GET',
+      const response = await fetch(`${config.baseUrl}/internal/v1/models/query`, {
+        method: 'POST',
+        body,
         headers: {
           Accept: 'application/json',
+          'Content-Type': 'application/json',
           'Cache-Control': 'no-store',
           [KAANA_KEY_ID_HEADER]: config.keyId,
           [KAANA_TIMESTAMP_HEADER]: String(timestamp),
@@ -362,7 +364,9 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
       }
       const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
       try {
-        return JSON.parse(raw) as unknown;
+        const parsed = JSON.parse(raw) as { scopedExecutionContractVersion?: unknown };
+        if (parsed.scopedExecutionContractVersion !== SCOPED_EXECUTION_CONTRACT_VERSION) throw new KaanaProtocolError('Missing full catalogue scoped execution acknowledgement.');
+        return parsed;
       } catch {
         throw new KaanaProtocolError('The inference data plane returned a catalogue that is not JSON.');
       }
@@ -400,6 +404,7 @@ class HttpKaanaClient implements KaanaClient {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
+          'Content-Type': 'application/json',
           'Cache-Control': 'no-store',
           [KAANA_KEY_ID_HEADER]: this.config.keyId,
           [KAANA_TIMESTAMP_HEADER]: String(timestamp),
