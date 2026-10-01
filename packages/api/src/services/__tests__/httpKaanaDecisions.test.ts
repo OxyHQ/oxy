@@ -3,6 +3,7 @@ import { inferenceRequestSchema } from "@oxy.so/contracts";
 import { createHttpKaanaClient } from "../httpKaanaClient";
 import { KaanaEnvelopeRejectedError, KaanaIncompleteError } from "../kaanaClient";
 import { resolveKaanaDataPlane } from "../../config/kaanaDataPlane";
+import { logger } from '../../utils/logger';
 jest.mock("../../config/kaanaDataPlane", () => ({
   resolveKaanaDataPlane: jest.fn(),
   kaanaPublicKeyBase64: jest.fn(),
@@ -230,3 +231,20 @@ describe("decisions failures after the signed forward", () => {
     expect(thrown).toBeInstanceOf(KaanaEnvelopeRejectedError);
   });
 });
+
+it.each(['PROMPT_SECRET_SYNTHETIC_DO_NOT_LOG', 'provider_error'])(
+  'logs only fixed typed upstream error codes: %s', async (code) => {
+    const { client: kaana } = client();
+    const log = jest.spyOn(logger, 'error').mockImplementation(() => {});
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      code, message: 'PROMPT_SECRET_SYNTHETIC_DO_NOT_LOG',
+    }), { status: 400 }));
+    await expect(kaana.execute(envelope, { signal: new AbortController().signal })).rejects.toThrow();
+    expect(log).toHaveBeenCalledTimes(1);
+    const fields = log.mock.calls[0][2];
+    expect(fields).toMatchObject({ status: 400, requestId: envelope.attribution.requestId });
+    if (code === 'provider_error') expect(fields).toHaveProperty('upstreamCode', 'provider_error');
+    else expect(fields).not.toHaveProperty('upstreamCode');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('PROMPT_SECRET_SYNTHETIC_DO_NOT_LOG');
+  }
+);

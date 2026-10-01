@@ -90,7 +90,7 @@ has, and then offers each higher level up to `xhigh` as a lower-priority
 fallback (one priority per level). It never chooses `pro` or `ultra`; those
 must be named. The rule is deterministic and lives in
 `classifyAutoPowerLevel` (`packages/api/src/services/inferencePowerLevels.service.ts`),
-behind the `AutoPowerLevelResolver` type so a trained classifier can replace it:
+behind the async-capable `AutoPowerLevelResolver` type:
 
 | Request feature | Floor |
 |---|---|
@@ -103,6 +103,54 @@ behind the `AutoPowerLevelResolver` type so a trained classifier can replace it:
 
 The result is the highest floor any rule sets (`instant` when none fires). The
 decision and its reasons are logged as `inference.edge.auto_power_level`.
+
+The semantic Jev extension is **implemented but dormant**. The production
+configuration returns no approval; the decisions endpoint's separate gate also
+remains closed. An approval names one review ID and version, one exact
+deployment, revision-pinned model, provider and region set, and one routing
+policy ID and version, with commercial, internal eligibility, privacy and ZDR
+all affirmed. The child signs only that deployment: a new or higher-ranked
+deployment of the same revision inherits nothing, and a changed binding refuses
+the child. Credentials and environment variables cannot activate it. Ordinary
+TypeSafe standalone resale and OpenRouter resale/competitor credentials are
+ineligible; internal use requires its own affirmative review.
+
+The parent is admitted first at its deterministic floor: permission, scope,
+capability, privacy, price, route attestation, idempotency and a read-only
+spending preview all pass before any task text reaches a child. A child runs
+only when a level strictly above the floor is viable for that parent, since a
+recommendation can only raise it. When independently reviewed and activated, Oxy asks one typed `choice` question
+over exactly `instant`, `medium`, `high`, `xhigh`, using a revision-pinned Jev
+child. Its budget is separate: at most 8,192 UTF-8 state bytes, a 1,000 ms
+deadline and USD 0.001 per request, further restricted by the application's
+price limit. Incompatible currencies refuse classification. The child inherits
+the authenticated principal, delegated user and pinned routing policy; it still
+passes capability, privacy, route-attestation, signing and ledger admission.
+Only the canonical signed Kaana transport executes it.
+
+The provider's own `reply` is the recommendation, ties included; Oxy never
+reconstructs it from probabilities. The provider's own confidence is kept as
+`providerConfidence` metadata and never routes. The child sends no decisions
+`effort`: Kaana's systemone adapter has no verified effort field and refuses one.
+A recommendation with no viable route at or above it keeps the deterministic
+floor (`not_viable`), and the parent is then re-admitted from scratch under the
+same pinned policy before its one hold. Feature-based floors still apply. Recommendation/model/classifier version
+and deterministic reasons remain separate metadata; no prompt, provider error
+text or synthetic confidence is logged, and an upstream error code is logged
+only when it is in the contract's fixed vocabulary. Invalid results, oversized input,
+provider failures and timeout use the deterministic rule. A late child cannot
+change the selected level. Parent cancellation aborts the child and prevents
+further admission.
+
+The child cannot target Auto, retry, reserve the final generation or settle a
+different request's hold. It has its own request ID and idempotency namespace;
+an existing or raced reservation refuses execution. Timeout never authorizes a
+second classifier attempt, and the child signs one deployment only. Kaana's
+cost-uncertain retry behavior must also be independently verified before activation.
+Settlement remains owned by the child's ordinary
+edge execution even if it finishes after Auto has fallen back. Final generation
+passes application level limits and ordinary admission once, with its own hold.
+Alia and Homiio keep calling Oxy Auto; no app-specific resolver is needed.
 
 ## Per-application default and allowed levels
 

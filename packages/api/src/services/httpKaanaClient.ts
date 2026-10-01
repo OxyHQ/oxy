@@ -63,6 +63,7 @@ import {
   inferenceProviderSlugSchema,
   inferenceRegionSchema,
   inferenceStreamEventSchema,
+  inferenceErrorCodeSchema,
   MAX_INFERENCE_AUDIO_BYTES,
   modelReferenceSchema,
   normalizedUsageReportSchema,
@@ -1126,7 +1127,8 @@ function upstreamErrorCode(body: string): string | undefined {
   }
   if (typeof payload !== 'object' || payload === null) return undefined;
   const code = (payload as { code?: unknown }).code;
-  return typeof code === 'string' ? code : undefined;
+  const parsed = inferenceErrorCodeSchema.safeParse(code);
+  return parsed.success ? parsed.data : undefined;
 }
 
 /**

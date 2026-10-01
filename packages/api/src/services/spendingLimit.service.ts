@@ -142,7 +142,8 @@ export async function evaluateSpendingLimits(
   tx: DatabaseOrTransaction,
   scope: SpendingScope,
   currency: string,
-  additionalAmount: string
+  additionalAmount: string,
+  recordNotifications = true
 ): Promise<SpendingLimitEvaluation> {
   const ancestorRows = await tx
     .select({ ancestorId: userAncestors.ancestorId })
@@ -194,7 +195,7 @@ export async function evaluateSpendingLimits(
     softStopsPassed.push(verdict);
   }
 
-  await recordThresholdCrossings(tx, rows);
+  if (recordNotifications) await recordThresholdCrossings(tx, rows);
 
   return { status: 'within', softStopsPassed };
 }
