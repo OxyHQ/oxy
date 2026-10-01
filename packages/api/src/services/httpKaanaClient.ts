@@ -55,7 +55,7 @@
  * edge's own test asserts a prompt marker appears in no log call.
  */
 
-import { decisionResultSchema, decisionFailureSchema, decisionAnswersMatch, inferenceErrorSchema } from '@oxy.so/contracts';
+import { inferenceRequestSchema, scopedInferenceRequestSchema, canonicalScopedExecutionJson, scopedExecutionAudienceSchema, SCOPED_EXECUTION_CONTRACT_VERSION, type ScopedInferenceRequest, decisionResultSchema, decisionFailureSchema, decisionAnswersMatch, inferenceErrorSchema } from '@oxy.so/contracts';
 
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
@@ -159,6 +159,7 @@ const MAX_KAANA_CATALOGUE_BYTES = 16 * 1024 * 1024;
 const kaanaDeploymentAttestationSchema = z
   .object({
     snapshotId: z.string().min(1).max(256),
+    scopedExecutionContractVersion: z.literal(SCOPED_EXECUTION_CONTRACT_VERSION).optional(),
     deployments: z
       .array(
         z
@@ -174,6 +175,11 @@ const kaanaDeploymentAttestationSchema = z
              * coordinated release; absent is unknown.
              */
             acceptedParameters: z.array(z.string().max(64)).max(64).optional(),
+            scopedExecution: scopedExecutionAudienceSchema.optional(),
+            keyId: z.string().min(1).max(256).optional(),
+            upstreamModelId: z.string().min(1).max(256).optional(),
+            providerRateCardVersionId: z.string().min(1).max(256).optional(),
+            providerSourceVersion: z.string().min(1).max(256).optional(),
           })
           .strict()
       )
@@ -385,7 +391,7 @@ class HttpKaanaClient implements KaanaClient {
       );
     }
 
-    const body = Buffer.from(JSON.stringify({ deploymentIds: [...deploymentIds] }), 'utf8');
+    const body = Buffer.from(JSON.stringify({ deploymentIds: [...deploymentIds], ...(options.scopedExecutionContractVersion === undefined ? {} : { scopedExecutionContractVersion: options.scopedExecutionContractVersion }) }), 'utf8');
     const timestamp = Date.now();
     const response = await fetch(
       `${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`,
@@ -437,12 +443,18 @@ class HttpKaanaClient implements KaanaClient {
         `The inference data plane returned deployment identity evidence Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
       );
     }
+    if (options.scopedExecutionContractVersion !== undefined && parsed.data.scopedExecutionContractVersion !== options.scopedExecutionContractVersion) {
+      throw new KaanaProtocolError('The data plane did not acknowledge scoped execution 3.6.');
+    }
+    if (options.scopedExecutionContractVersion === undefined && parsed.data.deployments.some((row) => row.scopedExecution !== undefined)) {
+      throw new KaanaProtocolError('A legacy query returned restricted deployments.');
+    }
     return parsed.data;
   }
 
   /** The whole serving snapshot: the signed empty query `{}`. */
   async listPublishedDeployments(signal: AbortSignal): Promise<KaanaDeploymentAttestation> {
-    const body = Buffer.from('{}', 'utf8');
+    const body = Buffer.from(JSON.stringify({ scopedExecutionContractVersion: SCOPED_EXECUTION_CONTRACT_VERSION }), 'utf8');
     const timestamp = Date.now();
     const response = await fetch(`${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`, {
       method: 'POST',
@@ -479,6 +491,9 @@ class HttpKaanaClient implements KaanaClient {
         `The inference data plane returned a published-deployment list Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
       );
     }
+    if (parsed.data.scopedExecutionContractVersion !== SCOPED_EXECUTION_CONTRACT_VERSION) {
+      throw new KaanaProtocolError('The data plane did not acknowledge publication scope restrictions.');
+    }
     return parsed.data;
   }
 
@@ -493,10 +508,11 @@ class HttpKaanaClient implements KaanaClient {
    * remember to say so.
    */
   async *stream(
-    envelope: InferenceRequest,
+    envelope: InferenceRequest | ScopedInferenceRequest,
     options: KaanaExecuteOptions
   ): AsyncGenerator<KaanaStreamFrame> {
-    const body = Buffer.from(JSON.stringify(envelope), 'utf8');
+    const validated = envelope.schemaVersion === 3 ? scopedInferenceRequestSchema.parse(envelope) : inferenceRequestSchema.parse(envelope);
+    const body = Buffer.from(validated.schemaVersion === 3 ? canonicalScopedExecutionJson(validated) : JSON.stringify(validated), 'utf8');
     const timestamp = Date.now();
     const hop = new AbortController();
     const kaanaCancellation = (): void => hop.abort();
@@ -550,7 +566,7 @@ class HttpKaanaClient implements KaanaClient {
    * request shape — it is the same bytes, accumulated.
    */
   async execute(
-    envelope: InferenceRequest,
+    envelope: InferenceRequest | ScopedInferenceRequest,
     options: KaanaExecuteOptions
   ): Promise<KaanaCompletion> {
     if (envelope.input.format === 'decisions') {
@@ -573,13 +589,14 @@ class HttpKaanaClient implements KaanaClient {
  */
 async function executeDecisions(
   config: KaanaDataPlaneConfig,
-  envelope: InferenceRequest,
+  envelope: InferenceRequest | ScopedInferenceRequest,
   options: KaanaExecuteOptions
 ): Promise<KaanaCompletion> {
   const requestId = envelope.attribution.requestId;
   const uncertain = (message: string): KaanaIncompleteError =>
     new KaanaIncompleteError('execution_uncertain', message);
-  const body = Buffer.from(JSON.stringify(envelope), 'utf8');
+  const validated = envelope.schemaVersion === 3 ? scopedInferenceRequestSchema.parse(envelope) : inferenceRequestSchema.parse(envelope);
+    const body = Buffer.from(validated.schemaVersion === 3 ? canonicalScopedExecutionJson(validated) : JSON.stringify(validated), 'utf8');
   const timestamp = Date.now();
   let response: Response;
   try {
