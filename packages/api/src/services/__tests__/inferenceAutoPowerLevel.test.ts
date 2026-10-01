@@ -1,10 +1,10 @@
 import {
   AUTO_CLASSIFIER_LIMITS,
-  autoClassifierReview,
   createAutoPowerLevelResolver,
   type AutoClassificationChild,
   type JevAutoClassifier,
 } from '../inferenceAutoPowerLevel.service';
+import { autoClassifierReview } from '../../config/autoClassification';
 import {
   AUTO_POWER_LEVELS,
   autoLadder,
