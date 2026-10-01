@@ -147,7 +147,9 @@ export interface AutoPowerDecision {
   readonly classification?:
     | { readonly source: 'deterministic'; readonly reason: string; readonly version: string }
     | { readonly source: 'jev'; readonly version: string; readonly modelReference: string;
-        readonly recommendedLevel: AutoPowerLevel };
+        readonly recommendedLevel: AutoPowerLevel;
+        /** The provider's own confidence in its reply; metadata, never a routing input. */
+        readonly providerConfidence: number };
 }
 
 /** A replaceable decision; the edge depends on this shape, not on the rules. */

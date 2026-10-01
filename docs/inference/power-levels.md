@@ -105,13 +105,21 @@ The result is the highest floor any rule sets (`instant` when none fires). The
 decision and its reasons are logged as `inference.edge.auto_power_level`.
 
 The semantic Jev extension is **implemented but dormant**. The production
-configuration returns no model and denies commercial, internal eligibility,
-privacy and ZDR review; the decisions endpoint's separate gate also remains
-closed. Credentials and environment variables cannot activate it. Ordinary
+configuration returns no approval; the decisions endpoint's separate gate also
+remains closed. An approval names one review ID and version, one exact
+deployment, revision-pinned model, provider and region set, and one routing
+policy ID and version, with commercial, internal eligibility, privacy and ZDR
+all affirmed. The child signs only that deployment: a new or higher-ranked
+deployment of the same revision inherits nothing, and a changed binding refuses
+the child. Credentials and environment variables cannot activate it. Ordinary
 TypeSafe standalone resale and OpenRouter resale/competitor credentials are
 ineligible; internal use requires its own affirmative review.
 
-When independently reviewed and activated, Oxy asks one typed `choice` question
+The parent is admitted first at its deterministic floor: permission, scope,
+capability, privacy, price, route attestation, idempotency and a read-only
+spending preview all pass before any task text reaches a child. A child runs
+only when a level strictly above the floor is viable for that parent, since a
+recommendation can only raise it. When independently reviewed and activated, Oxy asks one typed `choice` question
 over exactly `instant`, `medium`, `high`, `xhigh`, using a revision-pinned Jev
 child. Its budget is separate: at most 8,192 UTF-8 state bytes, a 1,000 ms
 deadline and USD 0.001 per request, further restricted by the application's
@@ -120,10 +128,16 @@ the authenticated principal, delegated user and pinned routing policy; it still
 passes capability, privacy, route-attestation, signing and ledger admission.
 Only the canonical signed Kaana transport executes it.
 
-The categorical winner is a recommendation, with ties choosing the cheapest
-level. Feature-based floors still apply. Recommendation/model/classifier version
+The provider's own `reply` is the recommendation, ties included; Oxy never
+reconstructs it from probabilities. The provider's own confidence is kept as
+`providerConfidence` metadata and never routes. The child sends no decisions
+`effort`: Kaana's systemone adapter has no verified effort field and refuses one.
+A recommendation with no viable route at or above it keeps the deterministic
+floor (`not_viable`), and the parent is then re-admitted from scratch under the
+same pinned policy before its one hold. Feature-based floors still apply. Recommendation/model/classifier version
 and deterministic reasons remain separate metadata; no prompt, provider error
-text or synthetic confidence is logged. Invalid results, oversized input,
+text or synthetic confidence is logged, and an upstream error code is logged
+only when it is in the contract's fixed vocabulary. Invalid results, oversized input,
 provider failures and timeout use the deterministic rule. A late child cannot
 change the selected level. Parent cancellation aborts the child and prevents
 further admission.
