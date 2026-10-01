@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod";
 import {
 	inferenceRequestSchema,
@@ -166,5 +169,52 @@ describe("restrictive scoped envelope", () => {
 		expect(
 			z.object({ schemaVersion: z.literal(2) }).safeParse(fixture).success,
 		).toBe(false);
+	});
+});
+
+describe("frozen cross-language scoped wire fixtures", () => {
+	const fixtures = JSON.parse(
+		readFileSync(join(__dirname, "scopedExecution.golden.json"), "utf8"),
+	) as {
+		canonicalInputs: {
+			name: string;
+			input: unknown;
+			canonical: string;
+			sha256: string;
+		}[];
+		audienceCases: { name: string; value: unknown; valid: boolean }[];
+		envelopeCases: { name: string; value: unknown; valid: boolean }[];
+	};
+	it.each(fixtures.canonicalInputs)(
+		"preserves exact signed bytes and SHA256: $name",
+		(fixture) => {
+			const raw = canonicalScopedExecutionJson(fixture.input);
+			expect(raw).toBe(fixture.canonical);
+			expect(
+				createHash("sha256").update(Buffer.from(raw, "utf8")).digest("hex"),
+			).toBe(fixture.sha256);
+		},
+	);
+	it.each(fixtures.audienceCases)(
+		"matches shared audience boundary: $name",
+		(fixture) => {
+			expect(
+				scopedExecutionAudienceSchema.safeParse(fixture.value).success,
+			).toBe(fixture.valid);
+		},
+	);
+	it.each(fixtures.envelopeCases)(
+		"matches shared attributed request boundary: $name",
+		(fixture) => {
+			expect(
+				scopedInferenceRequestSchema.safeParse(fixture.value).success,
+			).toBe(fixture.valid);
+		},
+	);
+	it("puts an astral key before U+E000 according to UTF16, not codepoint order", () => {
+		const fixture = fixtures.canonicalInputs.find(
+			(entry) => entry.name === "utf16-key-order",
+		);
+		expect(fixture?.canonical).toBe('{"𐀀":"astral","":"bmp"}');
 	});
 });
