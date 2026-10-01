@@ -713,6 +713,182 @@ test('refuses a readback descriptor that exposes any field outside the safe proj
   );
 });
 
+/**
+ * Kaana origin/main `provider.RequestParameters()` (internal/provider/parameters.go),
+ * written out here rather than imported so a drift in the canary's own copy
+ * cannot also move the fixture.
+ */
+const SERVER_REQUEST_PARAMETERS = [
+  'maxOutputTokens',
+  'reasoning.effort',
+  'responseFormat',
+  'sampling.frequencyPenalty',
+  'sampling.presencePenalty',
+  'sampling.seed',
+  'sampling.stopSequences',
+  'sampling.temperature',
+  'sampling.topP',
+  'toolChoice',
+  'tools',
+];
+
+async function readbackDescriptor(descriptor) {
+  const { signingConfig, publicKey } = runtime();
+  const fetchImpl = async (url, init) => {
+    readAndVerifyRequest(publicKey, url, init);
+    const path = new URL(url).pathname;
+    if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
+    assert.equal(path, '/internal/v1/deployments/query');
+    return json({
+      snapshotId: 'snap-live-exact',
+      deployments: [descriptor],
+    }, 200, { 'Cache-Control': 'no-store' });
+  };
+  return readKaanaLiveDeployments(signingConfig, fetchImpl);
+}
+
+const IDENTITY_DESCRIPTOR = {
+  deploymentId: DEPLOYMENT_ID,
+  modelReference: MODEL_REFERENCE,
+  provider: 'cerebras',
+  regions: [],
+};
+
+const INVALID_ACCEPTED_PARAMETERS = [
+  ['null', null],
+  ['a string', 'maxOutputTokens'],
+  ['an object', { maxOutputTokens: true }],
+  ['a number entry', [1]],
+  ['a null entry', [null]],
+  ['a word outside the server vocabulary', ['sampling.topK']],
+  ['a provider spelling', ['max_tokens']],
+  ['a case variant', ['MaxOutputTokens']],
+  ['a padded word', [' tools']],
+  ['a duplicate', ['tools', 'tools']],
+  ['an unsorted set', ['tools', 'maxOutputTokens']],
+  ['the full set reversed', [...SERVER_REQUEST_PARAMETERS].reverse()],
+];
+
+test('readback accepts the server-shaped acceptedParameters and projects only identity', async (t) => {
+  const cases = [
+    ['absent (unknown)', IDENTITY_DESCRIPTOR],
+    ['empty (takes none)', { ...IDENTITY_DESCRIPTOR, acceptedParameters: [] }],
+    ['one control', { ...IDENTITY_DESCRIPTOR, acceptedParameters: ['maxOutputTokens'] }],
+    ['the full sorted vocabulary', {
+      ...IDENTITY_DESCRIPTOR,
+      acceptedParameters: SERVER_REQUEST_PARAMETERS,
+    }],
+  ];
+  for (const [name, descriptor] of cases) {
+    await t.test(name, async () => {
+      const result = await readbackDescriptor(descriptor);
+      assert.equal(result.snapshotId, 'snap-live-exact');
+      assert.deepEqual(result.deployments, [IDENTITY_DESCRIPTOR]);
+      assert.deepEqual(Object.keys(result.deployments[0]).sort(), [
+        'deploymentId',
+        'modelReference',
+        'provider',
+        'regions',
+      ]);
+    });
+  }
+});
+
+test('readback refuses every acceptedParameters the server could not have written', async (t) => {
+  for (const [name, acceptedParameters] of INVALID_ACCEPTED_PARAMETERS) {
+    await t.test(name, () => assert.rejects(
+      () => readbackDescriptor({ ...IDENTITY_DESCRIPTOR, acceptedParameters }),
+      (error) => error instanceof KaanaCanaryError &&
+        error.code === 'invalid_deployment_descriptor',
+    ));
+  }
+});
+
+test('readback still refuses an unknown extra field next to a valid acceptedParameters', async (t) => {
+  for (const extra of ['upstreamModelId', 'AcceptedParameters', 'acceptedParams', 'observed']) {
+    await t.test(extra, () => assert.rejects(
+      () => readbackDescriptor({
+        ...IDENTITY_DESCRIPTOR,
+        acceptedParameters: ['maxOutputTokens'],
+        [extra]: ['maxOutputTokens'],
+      }),
+      (error) => error instanceof KaanaCanaryError &&
+        error.code === 'invalid_deployment_descriptor',
+    ));
+  }
+});
+
+function selectedRouteFetch(publicKey, descriptor, inferenceBodies) {
+  return async (url, init) => {
+    const body = readAndVerifyRequest(publicKey, url, init);
+    const path = new URL(url).pathname;
+    if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
+    if (path === '/internal/v1/deployments/query') {
+      return json({
+        snapshotId: 'snap-live-exact',
+        deployments: [descriptor],
+      }, 200, { 'Cache-Control': 'no-store' });
+    }
+    inferenceBodies.push(body);
+    const index = inferenceBodies.length - 1;
+    if (index < 2) return json({ code: 'invalid_request' }, 400);
+    if (index < 4) return sse([errorEvent(body.attribution.requestId)]);
+    return sse(successfulFrames(body));
+  };
+}
+
+test('selected route reads acceptedParameters but signs only the route identity', async () => {
+  const { config, publicKey } = runtime();
+  const inferenceBodies = [];
+  const result = await runKaanaSignedCanary(config, selectedRouteFetch(publicKey, {
+    ...IDENTITY_DESCRIPTOR,
+    regions: ['us-west-2'],
+    acceptedParameters: SERVER_REQUEST_PARAMETERS,
+  }, inferenceBodies));
+
+  assert.equal(result.status, 'passed');
+  assert.equal(result.providerRequests, 2);
+  assert.equal(inferenceBodies.length, 6);
+  for (const body of inferenceBodies) {
+    assert.equal(body.authorizedRoutes.length, 1);
+    assert.deepEqual(Object.keys(body.authorizedRoutes[0]).sort(), [
+      'deploymentId',
+      'modelReference',
+      'provider',
+      'regions',
+      'substitution',
+    ]);
+  }
+  for (const body of inferenceBodies.slice(4)) {
+    assert.deepEqual(body.authorizedRoutes[0], {
+      substitution: 'same_model',
+      deploymentId: DEPLOYMENT_ID,
+      modelReference: MODEL_REFERENCE,
+      provider: 'cerebras',
+      regions: ['us-west-2'],
+    });
+  }
+  assert.equal(JSON.stringify(result).includes('acceptedParameters'), false);
+});
+
+test('selected route refuses an invalid acceptedParameters before any inference probe', async (t) => {
+  for (const [name, acceptedParameters] of INVALID_ACCEPTED_PARAMETERS) {
+    await t.test(name, async () => {
+      const { config, publicKey } = runtime();
+      const inferenceBodies = [];
+      await assert.rejects(
+        () => runKaanaSignedCanary(config, selectedRouteFetch(publicKey, {
+          ...IDENTITY_DESCRIPTOR,
+          acceptedParameters,
+        }, inferenceBodies)),
+        (error) => error instanceof KaanaCanaryError &&
+          error.code === 'invalid_deployment_descriptor',
+      );
+      assert.equal(inferenceBodies.length, 0);
+    });
+  }
+});
+
 test('refuses a changed serving snapshot before any inference probe', async () => {
   const { config, publicKey } = runtime();
   let calls = 0;
