@@ -11,6 +11,7 @@ const canary = read('packages/api/scripts/run-kaana-signed-canary.mjs');
 const inferenceErrorsContract = read('packages/contracts/src/inference/errors.ts');
 const identifiersContract = read('packages/contracts/src/inference/identifiers.ts');
 const streamEventsContract = read('packages/contracts/src/inference/streamEvents.ts');
+const deploymentsSchema = read('packages/api/src/db/schema/inferenceDeployments.ts');
 
 const failures = [];
 const requireMatch = (source, pattern, message) => {
@@ -74,6 +75,16 @@ requireExactList(
   workflowInferenceErrorCodes,
   contractInferenceErrorCodes,
   'the workflow inference-error allowlist must exactly match the published contract enum',
+);
+requireExactList(
+  quotedArray(canary, 'CANARY_DEPLOYMENT_REQUEST_PARAMETERS'),
+  quotedArray(deploymentsSchema, 'DEPLOYMENT_REQUEST_PARAMETERS'),
+  'the canary accepted-parameter vocabulary must exactly match DEPLOYMENT_REQUEST_PARAMETERS',
+);
+requireMatch(
+  canary,
+  /hasAcceptedParameters && !isAcceptedParameterSet\(descriptor\.acceptedParameters\)/,
+  'a deployment descriptor acceptedParameters must stay validated against the closed vocabulary',
 );
 requireExactList(
   quotedArray(canary, 'CANARY_START_EVENT_FIELDS'),

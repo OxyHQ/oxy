@@ -15,6 +15,7 @@ const files = [
   'packages/contracts/src/inference/errors.ts',
   'packages/contracts/src/inference/identifiers.ts',
   'packages/contracts/src/inference/streamEvents.ts',
+  'packages/api/src/db/schema/inferenceDeployments.ts',
 ];
 
 function fixture() {
@@ -406,6 +407,36 @@ try {
     '`${label}_did_not_complete_exact_route`',
   );
   verdict(aggregatePositiveFailure, 1);
+
+  const widenedParameterVocabulary = fixture();
+  roots.push(widenedParameterVocabulary);
+  mutate(
+    widenedParameterVocabulary,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    "  'sampling.topP',\n  'toolChoice',",
+    "  'sampling.topK',\n  'sampling.topP',\n  'toolChoice',",
+  );
+  verdict(widenedParameterVocabulary, 1);
+
+  const driftedServerVocabulary = fixture();
+  roots.push(driftedServerVocabulary);
+  mutate(
+    driftedServerVocabulary,
+    'packages/api/src/db/schema/inferenceDeployments.ts',
+    "  'tools',\n] as const;",
+    "  'tools',\n  'webSearch',\n] as const;",
+  );
+  verdict(driftedServerVocabulary, 1);
+
+  const unvalidatedAcceptedParameters = fixture();
+  roots.push(unvalidatedAcceptedParameters);
+  mutate(
+    unvalidatedAcceptedParameters,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    '(hasAcceptedParameters && !isAcceptedParameterSet(descriptor.acceptedParameters)) ||',
+    '',
+  );
+  verdict(unvalidatedAcceptedParameters, 1);
 } finally {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 }

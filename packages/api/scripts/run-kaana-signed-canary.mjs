@@ -379,9 +379,54 @@ function hasExactKeys(value, keys) {
     Object.keys(value).sort().join('\u0000') === [...keys].sort().join('\u0000');
 }
 
+/**
+ * Kaana's closed accepted-parameter vocabulary, sorted: `provider.RequestParameters()`
+ * in Kaana's internal/provider/parameters.go. The same list as
+ * `DEPLOYMENT_REQUEST_PARAMETERS` in packages/api/src/db/schema/inferenceDeployments.ts;
+ * scripts/check-kaana-signed-canary.mjs fails if the two drift.
+ */
+const CANARY_DEPLOYMENT_REQUEST_PARAMETERS = [
+  'maxOutputTokens',
+  'reasoning.effort',
+  'responseFormat',
+  'sampling.frequencyPenalty',
+  'sampling.presencePenalty',
+  'sampling.seed',
+  'sampling.stopSequences',
+  'sampling.temperature',
+  'sampling.topP',
+  'toolChoice',
+  'tools',
+];
+
+/**
+ * Kaana's `ValidateParameterSet`: every word in the vocabulary, sorted, each
+ * once. Absent is unknown and `[]` is "takes none"; anything else is refused.
+ */
+function isAcceptedParameterSet(value) {
+  return Array.isArray(value) &&
+    value.every((parameter, index) =>
+      typeof parameter === 'string' &&
+      CANARY_DEPLOYMENT_REQUEST_PARAMETERS.includes(parameter) &&
+      (index === 0 || value[index - 1] < parameter));
+}
+
 function routeFromDescriptor(descriptor) {
+  // `acceptedParameters` is the one optional field Kaana's DeploymentDescriptor
+  // carries (`omitempty`). It is validated, never copied: it is not part of
+  // the route identity the canary signs or the operator projection.
+  const hasAcceptedParameters = typeof descriptor === 'object' &&
+    descriptor !== null &&
+    Object.hasOwn(descriptor, 'acceptedParameters');
   if (
-    !hasExactKeys(descriptor, ['deploymentId', 'modelReference', 'provider', 'regions']) ||
+    !hasExactKeys(descriptor, [
+      'deploymentId',
+      'modelReference',
+      'provider',
+      'regions',
+      ...(hasAcceptedParameters ? ['acceptedParameters'] : []),
+    ]) ||
+    (hasAcceptedParameters && !isAcceptedParameterSet(descriptor.acceptedParameters)) ||
     typeof descriptor.deploymentId !== 'string' ||
     descriptor.deploymentId.length === 0 ||
     descriptor.deploymentId.length > 128 ||
