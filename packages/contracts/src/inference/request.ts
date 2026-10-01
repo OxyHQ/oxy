@@ -27,6 +27,7 @@
 import { decisionInputSchema } from './decisions';
 
 import { z } from "zod";
+import { scopedExecutionSchema, SCOPED_REQUEST_ENVELOPE_VERSION } from "./scopedExecution";
 import { inferenceAttributionSchema } from "./attribution";
 import {
   inferenceApiFormatSchema,
@@ -390,6 +391,8 @@ export const inferenceRequestSchema = z
   .object({
     /** See `version.ts`: this is the Oxy→data-plane request envelope. */
     schemaVersion: z.literal(2),
+    /** Recognized so v2 refuses rather than silently stripping a restriction. */
+    scopedExecution: scopedExecutionSchema.optional(),
     attribution: inferenceAttributionSchema,
     target: routingTargetSchema,
     modality: inferenceModalitySchema,
@@ -444,6 +447,7 @@ export const inferenceRequestSchema = z
     authorizedRoutes: z.array(authorizedRouteSchema).min(1).optional(),
   })
   .superRefine((request, ctx) => {
+    if (request.scopedExecution !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scopedExecution"], message: "Scoped execution requires envelope v3." });
     if (request.input.format === "decisions" || request.client.apiFormat === "decisions") {
       const exactModel = request.target.kind === "model" && request.target.modelReference.includes('@');
       const foreignRoute = request.authorizedRoutes?.some((route) =>
@@ -592,6 +596,34 @@ export const inferenceRequestSchema = z
       });
     }
   });
+
+/** Explicit restrictive generation: old v2 receivers reject this version whole. */
+export const scopedInferenceRequestSchema = inferenceRequestSchema.innerType()
+  .extend({ schemaVersion: z.literal(SCOPED_REQUEST_ENVELOPE_VERSION), scopedExecution: scopedExecutionSchema })
+  .superRefine((request, ctx) => {
+    const { scopedExecution: scope, ...base } = request;
+    const legacy = inferenceRequestSchema.safeParse({ ...base, schemaVersion: 2 });
+    if (!legacy.success) for (const issue of legacy.error.issues) ctx.addIssue(issue);
+    const principal = request.attribution.principal;
+    const route = request.authorizedRoutes?.[0];
+    if (request.input.format !== "decisions" || request.client.apiFormat !== "decisions" ||
+      scope.requestId !== request.attribution.requestId ||
+      scope.idempotencyKey !== request.idempotencyKey ||
+      scope.principal.accountId !== principal.billing.accountId ||
+      scope.principal.applicationId !== principal.applicationId ||
+      scope.principal.credentialId !== principal.credentialId ||
+      scope.principal.environment !== principal.environment ||
+      scope.policy.routingPolicyId !== request.routingPolicy.routingPolicyId ||
+      scope.policy.policyVersion !== request.routingPolicy.policyVersion ||
+      request.authorizedRoutes?.length !== 1 || route?.customerProviderCredential !== undefined ||
+      route?.deploymentId !== scope.deploymentId || route?.provider !== scope.provider ||
+      route?.modelReference !== scope.modelReference ||
+      request.target.kind !== "model" || request.target.modelReference !== scope.modelReference) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scopedExecution"], message: "Scoped execution must restrict the exact attributed decisions request and one platform route." });
+    }
+  });
+
+export type ScopedInferenceRequest = z.infer<typeof scopedInferenceRequestSchema>;
 
 export type InferenceContentSource = z.infer<
   typeof inferenceContentSourceSchema
