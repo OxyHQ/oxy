@@ -1,0 +1,44 @@
+{
+  "request": {
+    "model": "typesafe/jev@fixture-v1",
+    "state": "Synthetic release smoke.",
+    "questions": [
+      { "id": "pick", "kind": "choice", "question": "Pick one.", "options": ["a", "b"] },
+      { "id": "rate", "kind": "score", "question": "Rate it.", "levels": ["low", "high"] },
+      { "id": "yes", "kind": "noul", "question": "Synthetic?" }
+    ],
+    "effort": "instant"
+  },
+  "answers": [
+    { "id": "pick", "kind": "choice", "reply": "b", "confidence": 0.43, "probabilities": [0.2, 0.8] },
+    { "id": "rate", "kind": "score", "reply": 0.6, "confidence": 0.71, "mean": 0.6, "distribution": [0.4, 0.6] },
+    { "id": "yes", "kind": "noul", "probability": 0.9 }
+  ],
+  "usage": {
+    "schemaVersion": 2,
+    "requestId": "req_smoke",
+    "attribution": {
+      "principal": {
+        "billing": { "accountId": "acc_smoke" },
+        "applicationId": "app_smoke",
+        "credentialId": "cred_smoke",
+        "environment": "production",
+        "inferenceScopes": ["inference:invoke"]
+      },
+      "requestId": "req_smoke"
+    },
+    "outcome": "completed",
+    "units": [
+      { "unit": "requests", "quantity": 1 },
+      { "unit": "input_tokens", "quantity": 12 },
+      { "unit": "output_tokens", "quantity": 4 }
+    ],
+    "usageSource": "provider_reported",
+    "resolvedModelReference": "typesafe/jev@fixture-v1",
+    "servingProvider": "typesafe",
+    "deploymentId": "dep_smoke",
+    "routeSwitches": 0,
+    "startedAt": "2026-10-01T00:00:00.000Z",
+    "completedAt": "2026-10-01T00:00:01.000Z"
+  }
+}

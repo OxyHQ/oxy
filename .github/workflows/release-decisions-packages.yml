@@ -1,0 +1,64 @@
+name: Release reviewed decisions packages
+
+# @oxy.so/contracts 4.7.0 then @oxy.so/core 4.1.0, from one exact protected
+# main commit. Dry run is the default: it builds, packs, smoke-installs with npm
+# and bun, runs the SDK from Node and Bun, and checks the registry without
+# publishing. Uses the existing NPM_TOKEN only; no new permission.
+on:
+  workflow_dispatch:
+    inputs:
+      expected_source_sha:
+        description: Exact protected main commit to build and publish
+        required: true
+        type: string
+      dry_run:
+        description: Build, verify, smoke and check registry without publishing
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: decisions-package-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main' && github.ref_protected
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+          registry-url: https://registry.npmjs.org
+      - name: Install exact reviewed dependencies
+        run: bun install --frozen-lockfile --minimum-release-age=0
+      - name: Build, inspect and smoke-install the exact release artifacts
+        run: node .github/scripts/release-decisions-packages.mjs prepare
+      - name: Check registry authentication and publish only missing exact versions
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node .github/scripts/release-decisions-packages.mjs publish
+      - name: Retain release artifacts and integrity report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: decisions-package-release-${{ github.run_id }}
+          path: |
+            release-artifacts/*.tgz
+            release-artifacts/*.json
+          if-no-files-found: error
+          retention-days: 30
