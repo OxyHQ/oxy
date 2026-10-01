@@ -112,3 +112,29 @@ request is refused with no reservation. The hold stays the input-only ceiling
 the exact charge never exceeds the hold and spending limits apply unchanged.
 Catalogue/price operators: a decisions model's price version needs an explicit
 `output_tokens` row at 0. Auto: completion/other ceilings are unchanged.
+
+## Release plan (revision 5) — prepared, NOT published
+
+Registry read 2026-10-01: `@oxy.so/contracts` latest 4.6.0 (4.7.0 free);
+`@oxy.so/core` latest 4.0.0 (4.1.0 free). Both bumps are minor and additive:
+contracts removes no export vs published 4.6.0 (697 → 714); core differs from
+published 4.0.0 only by `decide()` (no removed source line). Packed core pins
+`@oxy.so/contracts ^4.7.0`, `@oxy.so/protocol ^1.2.1`, `@oxy.so/telemetry ^1.2.0`
+(both already published).
+
+Workflow `.github/workflows/release-decisions-packages.yml` (workflow_dispatch,
+main + protected only, exact SHA input, `dry_run` default true, existing
+NPM_TOKEN, `contents: read`). The coordinator dispatches it after this PR
+merges, with the merged main SHA; a dry run first, then apply.
+
+Rehearsal of the unmodified `prepare` in a scratch clone (local bare origin,
+main = 751fc62c3): passed; artifacts byte-identical across two builds:
+- contracts 4.7.0 `sha512-/VS0Evw+YQ78B/JyoLCKHrFs/A5rY3E5+s8CvNP7QMfW4isT/VhPqIv+8lNVkJHzAJzOSrS5HHoOrM/DVx78qA==`
+- core 4.1.0 `sha512-on4ir5Qx7KmJIZxYp8Y9GtJDdae4bAPARJIx8w+UXTs6Ygb+zHPESWzm9Mt4x+6Ey1EkDZq1s2OiXTInWs0Hhw==`
+These are evidence for that SHA only. The merge commit differs, so the
+workflow's own prepared.json is the authority for what ships.
+
+Kaana: until a run publishes, keep provenance as LOCAL SOURCE (Oxy commit).
+After publication, pin `@oxy.so/contracts` exactly `4.7.0` in the generator,
+regenerate, and record the registry `dist.integrity` from the release report;
+do not record a version as published from this note alone.
