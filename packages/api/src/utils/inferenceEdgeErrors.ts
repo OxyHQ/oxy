@@ -186,6 +186,12 @@ export interface BuildInferenceErrorInput {
   /** The request field at fault. Only meaningful for `invalid_request`. */
   readonly param?: string;
   readonly retryAfterMs?: number;
+  /**
+   * Narrows `retryable` to false; it can never widen it. For a request that may
+   * already have executed upstream, where an identical retry is not known to be
+   * safe even though the code alone would allow one.
+   */
+  readonly forbidRetry?: true;
 }
 
 /**
@@ -208,7 +214,7 @@ export interface BuildInferenceErrorInput {
  * FOR carrying a credential into the log is the leak moving house.
  */
 export function buildInferenceError(input: BuildInferenceErrorInput): InferenceError {
-  const retryable = RETRYABILITY[input.code];
+  const retryable = input.forbidRetry === true ? false : RETRYABILITY[input.code];
   const accepted = safeErrorTextSchema.safeParse(input.message).success;
   if (!accepted) {
     logger.warn('inference.edge.message_withheld', {

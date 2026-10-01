@@ -791,7 +791,7 @@ export function refuseRequest(
   context: EdgeExecutionContext,
   code: InferenceErrorCode,
   message: string,
-  options: { param?: string; reason?: string } = {}
+  options: { param?: string; reason?: string; forbidRetry?: true } = {}
 ): InferenceError {
   const { principal } = context;
   logger.warn('inference.edge.refused', {
@@ -807,6 +807,7 @@ export function refuseRequest(
     message,
     requestId: context.requestId,
     ...(options.param === undefined ? {} : { param: options.param }),
+    ...(options.forbidRetry === undefined ? {} : { forbidRetry: options.forbidRetry }),
   });
 }
 
@@ -1866,7 +1867,10 @@ export async function executeInferenceRequest(
     });
     return {
       status: 'refused',
-      error: refuseRequest(context, failure.code, failure.message, { reason: failure.reason }),
+      error: refuseRequest(context, failure.code, failure.message, {
+        reason: failure.reason,
+        ...(forbidsRetryAfterForward(context.request) ? { forbidRetry: true } : {}),
+      }),
     };
   }
 
@@ -1900,6 +1904,7 @@ export async function executeInferenceRequest(
       status: 'refused',
       error: refuseRequest(context, validation.code, validation.message, {
         reason: validation.reason,
+        ...(forbidsRetryAfterForward(context.request) ? { forbidRetry: true } : {}),
       }),
     };
   }
@@ -2816,6 +2821,18 @@ export async function settleMeasured(
   }
 }
 
+/**
+ * Whether a failure after the forward must never be reported as retryable.
+ *
+ * Decisions: a signed request may already have executed and been billed
+ * upstream, and responses are not retained, so a client reading `retryable`
+ * would resend it under a new key and pay twice. The code is preserved; only
+ * the retry signal is withheld.
+ */
+function forbidsRetryAfterForward(request: NormalizedEdgeRequest): boolean {
+  return request.input.format === 'decisions';
+}
+
 interface ForwardFailure {
   readonly code: InferenceErrorCode;
   readonly message: string;
@@ -2872,6 +2889,15 @@ function classifyForwardFailure(error: unknown, signal: AbortSignal): ForwardFai
         message: error.failure.message,
         reason: `kaana_error:${error.failure.code}`,
         outcome: error.failure.code === 'cancelled' ? 'cancelled' : 'failed',
+      };
+    }
+    if (error.reason === 'execution_uncertain') {
+      return {
+        code: 'provider_error',
+        message:
+          'The request may have executed upstream; its outcome and cost are unknown. Do not resend it under a new Idempotency-Key.',
+        reason: 'kaana_execution_uncertain',
+        outcome: 'failed',
       };
     }
     if (error.reason === 'usage_missing') {

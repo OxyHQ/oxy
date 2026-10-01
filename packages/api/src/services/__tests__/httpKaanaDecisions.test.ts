@@ -1,6 +1,7 @@
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { inferenceRequestSchema } from "@oxy.so/contracts";
 import { createHttpKaanaClient } from "../httpKaanaClient";
+import { KaanaEnvelopeRejectedError, KaanaIncompleteError } from "../kaanaClient";
 import { resolveKaanaDataPlane } from "../../config/kaanaDataPlane";
 jest.mock("../../config/kaanaDataPlane", () => ({
   resolveKaanaDataPlane: jest.fn(),
@@ -168,4 +169,64 @@ it("refuses a substituted model even when a route is signed", () => {
       ],
     }).success,
   ).toBe(false);
+});
+
+describe("decisions failures after the signed forward", () => {
+  const signal = () => new AbortController().signal;
+  const error = (code: string, requestId = attribution.requestId) => ({
+    schemaVersion: 1, code, message: "Synthetic refusal.", retryable: false, requestId,
+  });
+  const failedUsage = { ...result.usage, outcome: "failed" };
+  async function failure(response: Response | Promise<Response>) {
+    const { client: kaana } = client();
+    jest.spyOn(globalThis, "fetch").mockImplementation(async () => response);
+    return kaana.execute(envelope, { signal: signal() }).then(
+      () => { throw new Error("expected a failure"); },
+      (thrown: unknown) => thrown,
+    );
+  }
+  it("keeps a typed 502 failure and its measured usage", async () => {
+    const thrown = await failure(new Response(JSON.stringify({
+      schemaVersion: 1, requestId: attribution.requestId, error: error("provider_credential_invalid"), usage: failedUsage,
+    }), { status: 502 }));
+    expect(thrown).toBeInstanceOf(KaanaIncompleteError);
+    expect(thrown).toMatchObject({
+      reason: "terminal_error",
+      failure: { code: "provider_credential_invalid" },
+      usage: { kind: "report", report: failedUsage },
+    });
+  });
+  it("keeps a bare typed 502 error without inventing usage", async () => {
+    const thrown = await failure(new Response(JSON.stringify(error("provider_overloaded")), { status: 502 }));
+    expect(thrown).toMatchObject({ reason: "terminal_error", failure: { code: "provider_overloaded" }, usage: undefined });
+  });
+  it.each([
+    ["untyped 502", () => new Response("bad gateway", { status: 502 })],
+    ["typed 502 for another request", () => new Response(JSON.stringify(error("provider_error", "foreign")), { status: 502 })],
+    ["typed failure whose usage claims completion", () => new Response(JSON.stringify({
+      schemaVersion: 1, requestId: attribution.requestId, error: error("provider_error"), usage: result.usage,
+    }), { status: 502 })],
+    ["truncated 200", () => new Response('{"schemaVersion":1,', { status: 200 })],
+    ["200 cut mid-body", () => new Response(new ReadableStream({
+      start(controller) { controller.enqueue(new TextEncoder().encode("{")); controller.error(new Error("reset")); },
+    }), { status: 200 })],
+  ])("treats %s as execution_uncertain with no usage", async (_label, respond) => {
+    const thrown = await failure(respond());
+    expect(thrown).toBeInstanceOf(KaanaIncompleteError);
+    expect(thrown).toMatchObject({ reason: "execution_uncertain", usage: undefined });
+  });
+  it("treats a transport failure after signing as uncertain, but rethrows a client abort", async () => {
+    const { client: kaana } = client();
+    const fetcher = jest.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("socket hang up"));
+    await expect(kaana.execute(envelope, { signal: signal() })).rejects.toMatchObject({ reason: "execution_uncertain" });
+    const aborted = new AbortController();
+    aborted.abort();
+    const abort = new DOMException("aborted", "AbortError");
+    fetcher.mockRejectedValueOnce(abort);
+    await expect(kaana.execute(envelope, { signal: aborted.signal })).rejects.toBe(abort);
+  });
+  it("keeps a 4xx as an envelope rejection, not an upstream failure", async () => {
+    const thrown = await failure(new Response(JSON.stringify(error("invalid_request")), { status: 400 }));
+    expect(thrown).toBeInstanceOf(KaanaEnvelopeRejectedError);
+  });
 });

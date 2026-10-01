@@ -294,7 +294,13 @@ export type KaanaIncompleteReason =
   /** The stream ended with no terminal event — the data plane or its upstream died. */
   | 'stream_truncated'
   /** It completed, and no usage report arrived, so nothing can be charged exactly. */
-  | 'usage_missing';
+  | 'usage_missing'
+  /**
+   * A signed request may have executed upstream and no readable answer says
+   * whether it did: a transport cut after send, an untyped 5xx, or a 200 whose
+   * body is truncated or not JSON. Nothing was measured; that is not zero.
+   */
+  | 'execution_uncertain';
 
 /**
  * A non-streaming request that produced no completion, carrying whatever the

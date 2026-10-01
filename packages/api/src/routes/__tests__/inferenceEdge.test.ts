@@ -4484,7 +4484,8 @@ describe('decisions signed execution and ledger', () => {
     {id: 'score', kind: 'score', reply: 0.6, confidence: 0.71, mean: 0.6, distribution: [0.4, 0.6]},
     {id: 'noul', kind: 'noul', probability: 0.9},
   ];
-  function signedClient(fixture: Fixture, corrupt = false) {
+  type Respond = (envelope: InferenceRequest) => Response | Promise<Response>;
+  function signedClient(fixture: Fixture, corrupt = false, respond?: Respond) {
     const keys = generateKeyPairSync('ed25519');
     jest.spyOn(kaanaConfig, 'resolveKaanaDataPlane').mockReturnValue({status: 'configured', config: {baseUrl: 'https://kaana.ai', keyId: 'synthetic-decisions', privateKey: keys.privateKey}});
     const client = createHttpKaanaClient();
@@ -4503,6 +4504,7 @@ describe('decisions signed execution and ledger', () => {
       expect(envelope).not.toHaveProperty('maxOutputTokens');
       const held = await balanceOf(fixture.accountId);
       expect(Number(held.reserved)).toBeGreaterThan(0);
+      if (respond !== undefined) return respond(envelope);
       const completion = completionFor(envelope, {input: 12, output: 0, provider: fixture.provider});
       // No generated output, no classifier-reserved downstream generation.
       completion.usage.units = completion.usage.units.filter(unit => unit.unit !== 'output_tokens');
@@ -4583,6 +4585,80 @@ describe('decisions signed execution and ledger', () => {
     });
     expect(seen).toHaveLength(1);
     expect(seen[0].authorizedRoutes.map(route => route.provider)).toEqual(['openrouter']);
+  });
+
+  // Failures after the signed forward. A decisions request may already have
+  // executed upstream, so no outcome below may tell the client a retry is safe,
+  // and nothing unmeasured may be settled as a measured zero.
+  async function failedDecision(fixture: Fixture, respond: Respond, fetchError?: Error) {
+    const {client, fetcher} = signedClient(fixture, false, respond);
+    if (fetchError !== undefined) fetcher.mockRejectedValueOnce(fetchError);
+    let body: Record<string, unknown> = {};
+    let status = 0;
+    await withServer(client, async request => {
+      const response = await request('POST', '/v1/decisions', bodyFor(fixture), bearer(fixture.token));
+      status = response.status;
+      body = json(response);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const reservations = await getDb().select().from(usageReservations).where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(1);
+    expect(reservations[0].status).toBe('settled');
+    const receipts = await getDb().select().from(usageReceipts).where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipts).toHaveLength(1);
+    expect(Number((await balanceOf(fixture.accountId)).reserved)).toBe(0);
+    return {status, body, receipt: receipts[0]};
+  }
+  const typedFailure = (envelope: InferenceRequest, code: string, extra: Record<string, unknown> = {}) =>
+    new Response(JSON.stringify({schemaVersion: 1, requestId: envelope.attribution.requestId,
+      error: {schemaVersion: 1, code, message: 'Synthetic upstream refusal.', retryable: false, requestId: envelope.attribution.requestId}, ...extra}),
+      {status: 502, headers: {'Content-Type': 'application/json'}});
+
+  it('preserves a typed non-retryable 502 credential failure and settles nothing as measured', async () => {
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const before = await balanceOf(fixture.accountId);
+    const {body, receipt} = await failedDecision(fixture, envelope => typedFailure(envelope, 'provider_credential_invalid'));
+    expect(body).toMatchObject({code: 'provider_credential_invalid', retryable: false});
+    expect(body).not.toHaveProperty('retryAfterMs');
+    expect(receipt.usageSource).toBe('estimated');
+    expect(receipt.outcome).toBe('failed');
+    expect(Number(receipt.billedAmount)).toBe(0);
+    expect(await balanceOf(fixture.accountId)).toEqual(before);
+  });
+  it('withholds retry on a typed retryable-code failure and settles its measured usage exactly', async () => {
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const {body, receipt} = await failedDecision(fixture, envelope => {
+      const usage = {...completionFor(envelope, {input: 12, output: 0, provider: fixture.provider}).usage, outcome: 'failed'};
+      usage.units = usage.units.filter(unit => unit.unit !== 'output_tokens');
+      return typedFailure(envelope, 'provider_overloaded', {usage});
+    });
+    expect(body).toMatchObject({code: 'provider_overloaded', retryable: false});
+    expect(receipt.inputTokens).toBe(12);
+    expect(receipt.usageSource).not.toBe('estimated');
+    expect(Number(receipt.billedAmount)).toBeCloseTo(0.000036, 9);
+  });
+  it.each([
+    ['an untyped 502', () => new Response('<html>bad gateway</html>', {status: 502})],
+    ['a typed 502 answering another request', (envelope: InferenceRequest) => typedFailure({...envelope, attribution: {...envelope.attribution, requestId: 'foreign-request'}}, 'provider_error')],
+    ['a truncated 200', () => new Response('{"schemaVersion":1,"requestId":', {status: 200})],
+    ['a non-JSON 200', () => new Response('not json', {status: 200})],
+  ])('reports %s as uncertain execution: provider_error, never retryable, never a measured zero', async (_label, respond) => {
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const before = await balanceOf(fixture.accountId);
+    const {status, body, receipt} = await failedDecision(fixture, respond as Respond);
+    expect(status).toBe(502);
+    expect(body).toMatchObject({code: 'provider_error', retryable: false});
+    expect(String(body.message)).toContain('may have executed');
+    expect(receipt.usageSource).toBe('estimated');
+    expect(Number(receipt.billedAmount)).toBe(0);
+    expect(await balanceOf(fixture.accountId)).toEqual(before);
+  });
+  it('reports a transport cut after signing as uncertain execution, never retryable', async () => {
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const {body, receipt} = await failedDecision(fixture, () => { throw new Error('unreachable'); }, new TypeError('socket hang up'));
+    expect(body).toMatchObject({code: 'provider_error', retryable: false});
+    expect(String(body.message)).toContain('may have executed');
+    expect(receipt.usageSource).toBe('estimated');
   });
   it('lets exactly one of two concurrent same-key requests reserve and execute', async () => {
     const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
