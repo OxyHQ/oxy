@@ -102,7 +102,7 @@ export function createDeploymentPublicationCache(
       last = {
         status: 'observed',
         snapshotId: snapshot.snapshotId,
-        deploymentIds: new Set(snapshot.deployments.map((deployment) => deployment.deploymentId)),
+        deploymentIds: new Set(snapshot.deployments.filter((deployment) => deployment.scopedExecution === undefined).map((deployment) => deployment.deploymentId)),
         observedAt: now(),
       };
       return last;

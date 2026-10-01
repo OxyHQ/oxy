@@ -64,6 +64,8 @@ import type {
   InferenceFinishReason,
   InferenceMessage,
   InferenceRequest,
+  ScopedInferenceRequest,
+  ScopedExecutionAudience,
   InferenceStreamEvent,
   InferenceStreamRouteSwitchEvent,
   NormalizedUsageReport,
@@ -164,11 +166,17 @@ export interface KaanaDeploymentDescriptor {
    * compares it.
    */
   readonly acceptedParameters?: readonly string[];
+  readonly scopedExecution?: ScopedExecutionAudience;
+  readonly keyId?: string;
+  readonly upstreamModelId?: string;
+  readonly providerRateCardVersionId?: string;
+  readonly providerSourceVersion?: string;
 }
 
 /** Atomic identity evidence for every deployment the edge may authorize. */
 export interface KaanaDeploymentAttestation {
   readonly snapshotId: string;
+  readonly scopedExecutionContractVersion?: '3.6.0';
   readonly deployments: readonly KaanaDeploymentDescriptor[];
 }
 
@@ -210,6 +218,7 @@ export interface KaanaExecuteOptions {
    * cut, and those are what an exact refund is computed from.
    */
   readonly signal: AbortSignal;
+  readonly scopedExecutionContractVersion?: '3.6.0';
 }
 
 /**
@@ -226,7 +235,7 @@ export interface KaanaClient {
     deploymentIds: readonly string[],
     options: KaanaExecuteOptions
   ): Promise<KaanaDeploymentAttestation>;
-  execute(envelope: InferenceRequest, options: KaanaExecuteOptions): Promise<KaanaCompletion>;
+  execute(envelope: InferenceRequest | ScopedInferenceRequest, options: KaanaExecuteOptions): Promise<KaanaCompletion>;
   /**
    * The normalized events as they are produced, then the usage report.
    *
@@ -235,7 +244,7 @@ export interface KaanaClient {
    * runs the generator's own cleanup, which aborts the upstream hop.
    */
   stream(
-    envelope: InferenceRequest,
+    envelope: InferenceRequest | ScopedInferenceRequest,
     options: KaanaExecuteOptions
   ): AsyncIterable<KaanaStreamFrame>;
 }
