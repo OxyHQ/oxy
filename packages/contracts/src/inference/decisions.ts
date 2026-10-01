@@ -39,30 +39,45 @@ const payloadFields = {
   questions: z.array(decisionQuestionSchema).min(1).max(255),
   effort: decisionEffortSchema.optional(),
 };
-/** UTF-8 bytes conservatively bound tokens without a provider tokenizer in the SDK. */
+/**
+ * Conservative serialized input accounting, including escaping and structure.
+ * Measures both the normalized payload and the provider's structured-question
+ * representation. Common instructions repeat per question there. A 255-byte
+ * model identity and 4096-byte gateway-policy allowance bound adapter metadata.
+ * Kaana must also check its final serialized body before sending it.
+ */
 export function decisionInputBudget(payload: DecisionInput): {
   total: number;
+  context: number;
   gateway: number;
 } {
-  const bytes = (value: string): number =>
-    new TextEncoder().encode(value).length;
-  const state = bytes(payload.state) + bytes(payload.instructions ?? "");
-  const questions = payload.questions.map(
-    (q) =>
-      bytes(q.id) +
-      bytes(q.question) +
-      bytes(q.criteria ?? "") +
-      (q.kind === "choice"
-        ? q.options
-        : q.kind === "score"
-          ? q.levels
-          : []
-      ).reduce((sum, label) => sum + bytes(label), 0),
-  );
-  return {
-    total: state + questions.reduce((sum, size) => sum + size, 0),
-    gateway: state + Math.max(...questions),
+  const bytes = (value: unknown): number => new TextEncoder().encode(
+    JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (char) =>
+      `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`)
+  ).length;
+  const model = "x".repeat(255);
+  const measure = (questions: DecisionQuestion[]): number => {
+    const wireQuestions = Object.fromEntries(questions.map((q) => [q.id, {
+      type: q.kind,
+      instructions: {
+        question: q.question,
+        ...(payload.instructions === undefined ? {} : { instructions: payload.instructions }),
+        ...(q.criteria === undefined ? {} : { criteria: q.criteria }),
+      },
+      ...(q.kind === "choice" ? { criteria: Object.fromEntries(q.options.map((label) => [label, null])) } :
+        q.kind === "score" ? { criteria: q.levels } : {}),
+    }]));
+    return Math.max(
+      bytes({ ...payload, model, questions }),
+      bytes({ model, state: payload.state, questions: wireQuestions, ...(payload.effort === undefined ? {} : { effort: payload.effort }) })
+    );
   };
+  const total = measure(payload.questions);
+  return { total, context: Math.max(...payload.questions.map((q) => measure([q]))), gateway: total + 4096 };
+}
+/** OpenRouter's TOTAL limit is separate from direct state-plus-longest context. */
+export function decisionFitsGateway(payload: DecisionInput): boolean {
+  return decisionInputBudget(payload).gateway <= 32000;
 }
 function validateInput(payload: DecisionInput, ctx: z.RefinementCtx): void {
   if (
@@ -89,12 +104,12 @@ function validateInput(payload: DecisionInput, ctx: z.RefinementCtx): void {
       });
   }
   const budget = decisionInputBudget(payload);
-  if (budget.total > 65536 || budget.gateway > 32768)
+  if (budget.total > 64000 || budget.context > 32000)
     ctx.addIssue({
       code: "custom",
       path: ["state"],
       message:
-        "Decisions exceed the 64KiB total or 32KiB state plus longest question budget.",
+        "Decisions exceed the serialized 64000-byte total or 32000-byte per-question context budget.",
     });
 }
 export const decisionInputSchema = z
@@ -117,6 +132,10 @@ export const decisionAnswerSchema = z
       .object({
         id,
         kind: z.literal("choice"),
+        /** Actual provider-selected option. Never reconstructed from probabilities. */
+        reply: text,
+        /** Provider-returned confidence, not a correctness probability. */
+        confidence: probability,
         probabilities: z.array(probability).min(2).max(255),
       })
       .strict(),
@@ -124,6 +143,9 @@ export const decisionAnswerSchema = z
       .object({
         id,
         kind: z.literal("score"),
+        /** Actual provider score. Kept separate from the validated expected index. */
+        reply: z.number().finite().min(0).max(9),
+        confidence: probability,
         mean: z.number().finite().min(0).max(9),
         distribution: z.array(probability).min(2).max(10),
       })
@@ -132,6 +154,9 @@ export const decisionAnswerSchema = z
   ])
   .superRefine((answer, ctx) => {
     if (answer.kind === "noul") return;
+    if (answer.kind === "score" && Math.abs(answer.reply - answer.mean) > tolerance) {
+      ctx.addIssue({ code: "custom", path: ["reply"], message: "Provider score must match the expected level index." });
+    }
     const distribution =
       answer.kind === "choice" ? answer.probabilities : answer.distribution;
     if (
@@ -221,8 +246,11 @@ export function decisionAnswersMatch(
       answer.kind !== question.kind
     )
       return false;
-    if (question.kind === "choice" && answer.kind === "choice")
-      return question.options.length === answer.probabilities.length;
+    if (question.kind === "choice" && answer.kind === "choice") {
+      const index = question.options.indexOf(answer.reply);
+      return question.options.length === answer.probabilities.length && index >= 0 &&
+        answer.probabilities[index] + tolerance >= Math.max(...answer.probabilities);
+    }
     if (question.kind === "score" && answer.kind === "score")
       return question.levels.length === answer.distribution.length;
     return question.kind === "noul";

@@ -3,6 +3,7 @@ import {
   decisionAnswersMatch,
   decisionRequestSchema,
   decisionInputBudget,
+  decisionFitsGateway,
 } from "../inference/decisions";
 
 const request = {
@@ -73,6 +74,7 @@ it("validates finite probabilities, distributions and zero-based means without f
     decisionAnswerSchema.safeParse({
       id: "q",
       kind: "choice",
+      reply: "b", confidence: 0.6,
       probabilities: [0.2, 0.8],
     }).success,
   ).toBe(true);
@@ -80,6 +82,7 @@ it("validates finite probabilities, distributions and zero-based means without f
     decisionAnswerSchema.safeParse({
       id: "q",
       kind: "score",
+      reply: 1.5, confidence: 0.7,
       mean: 1.5,
       distribution: [0, 0.5, 0.5],
     }).success,
@@ -91,13 +94,14 @@ it("validates finite probabilities, distributions and zero-based means without f
     [-0.1, 1.1],
   ])
     expect(
-      decisionAnswerSchema.safeParse({ id: "q", kind: "choice", probabilities })
+      decisionAnswerSchema.safeParse({ id: "q", kind: "choice", reply: "b", confidence: 0.6, probabilities })
         .success,
     ).toBe(false);
   expect(
     decisionAnswerSchema.safeParse({
       id: "q",
       kind: "score",
+      reply: 1.5, confidence: 0.7,
       mean: 0.5,
       distribution: [0, 0.5, 0.5],
     }).success,
@@ -118,23 +122,23 @@ it("requires exactly one correctly shaped answer for every exact question ID", (
     [],
     [answer, answer],
     [{ ...answer, id: "Q" }],
-    [{ id: "q", kind: "choice" as const, probabilities: [0.5, 0.5] }],
+    [{ id: "q", kind: "choice" as const, reply: "b", confidence: 0.6, probabilities: [0.5, 0.5] }],
   ])
     expect(decisionAnswersMatch(request, answers)).toBe(false);
 });
 it("counts instructions, criteria, labels and multibyte state in both bounds", () => {
   const empty = { ...request, state: "" };
-  const overhead = decisionInputBudget(empty).gateway;
+  const overhead = decisionInputBudget(empty).context;
   expect(
     decisionRequestSchema.safeParse({
       ...empty,
-      state: "x".repeat(32768 - overhead),
+      state: "x".repeat(32000 - overhead),
     }).success,
   ).toBe(true);
   expect(
     decisionRequestSchema.safeParse({
       ...empty,
-      state: "x".repeat(32769 - overhead),
+      state: "x".repeat(32001 - overhead),
     }).success,
   ).toBe(false);
   expect(
@@ -163,4 +167,34 @@ it("counts instructions, criteria, labels and multibyte state in both bounds", (
       })),
     }).success,
   ).toBe(false);
+});
+
+it("counts JSON escaping, repeated instructions and separates gateway total from context", () => {
+  for (const state of ["\0".repeat(20000), "\\".repeat(17000), "<".repeat(6000)]) {
+    expect(decisionRequestSchema.safeParse({ ...request, state }).success).toBe(false);
+  }
+  const many = { ...request, state: "", questions: Array.from({length: 3}, (_, i) => ({id: String(i), kind: "noul" as const, question: "x".repeat(15000)})) };
+  expect(decisionRequestSchema.safeParse(many).success).toBe(true);
+  expect(decisionInputBudget(many).context).toBeLessThan(32000);
+  expect(decisionFitsGateway(many)).toBe(false);
+  expect(decisionFitsGateway(request)).toBe(true);
+  const shared = { ...request, state: "x".repeat(29000), questions: Array.from({length: 100}, (_, i) => ({...request.questions[0], id: String(i)})) };
+  expect(decisionRequestSchema.safeParse(shared).success).toBe(true);
+  expect(decisionInputBudget(shared).context).toBeLessThan(32000);
+  expect(decisionInputBudget(shared).total).toBeLessThan(64000);
+  expect(decisionRequestSchema.safeParse({...many, instructions: "x".repeat(10000)}).success).toBe(false);
+});
+it("preserves actual choice/score confidence and reply and rejects missing or invented signals", () => {
+  const input = {...request, questions: [{ id: "q", kind: "choice" as const, question: "Pick", options: ["a", "b"] }]};
+  const answer = {id: "q", kind: "choice" as const, reply: "b", confidence: 0.43, probabilities: [0.2, 0.8]};
+  expect(decisionAnswerSchema.parse(answer)).toEqual(answer);
+  expect(decisionAnswersMatch(input, [answer])).toBe(true);
+  for (const reply of ["a", "B", "unknown"]) expect(decisionAnswersMatch(input, [{...answer, reply}])).toBe(false);
+  const { confidence, ...missingConfidence } = answer;
+  const { reply, ...missingReply } = answer;
+  expect(confidence).toBe(0.43);
+  expect(reply).toBe("b");
+  for (const value of [missingConfidence, missingReply, {...answer, confidence: NaN}]) expect(decisionAnswerSchema.safeParse(value).success).toBe(false);
+  expect(decisionAnswerSchema.safeParse({id: "q", kind: "score", reply: 0.6, confidence: 0.71, mean: 0.6, distribution: [0.4, 0.6]}).success).toBe(true);
+  expect(decisionAnswerSchema.safeParse({id: "q", kind: "score", reply: 0.9, confidence: 0.71, mean: 0.6, distribution: [0.4, 0.6]}).success).toBe(false);
 });
