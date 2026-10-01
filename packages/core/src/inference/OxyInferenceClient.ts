@@ -50,6 +50,8 @@
  * request.
  */
 
+import { decisionRequestSchema, decisionSuccessSchema, decisionAnswersMatch, type DecisionRequest, type DecisionSuccess } from '@oxy.so/contracts';
+
 import type {
     CurrencyCode,
     ExactDecimal,
@@ -469,6 +471,26 @@ export class OxyInferenceClient {
                 ? {}
                 : { delegatedUserId: options.delegatedUserId }),
         });
+    }
+
+    /** Typed nonstreaming decisions. Idempotency conflicts are never replayed or retried. */
+    async decide(
+        request: DecisionRequest,
+        options: OxyInferenceRequestOptions = {},
+    ): Promise<DecisionSuccess> {
+        const input = decisionRequestSchema.parse(request);
+        const payload = await this.#request<unknown>('POST', '/v1/decisions', {
+            body: input,
+            signal: options.signal,
+            idempotencyKey: options.idempotencyKey,
+            delegatedUserId: options.delegatedUserId,
+        });
+        const parsed = decisionSuccessSchema.safeParse(payload);
+        if (!parsed.success || parsed.data.model !== input.model ||
+            !decisionAnswersMatch(input, parsed.data.data)) {
+            throw new OxyInferenceProtocolError('Invalid or mismatched decisions response.');
+        }
+        return parsed.data;
     }
 
     /** Generate audio bytes through Oxy's authenticated inference edge. */

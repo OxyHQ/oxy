@@ -103,6 +103,9 @@
  * prompt with a positive control proving the logger was called at all.
  */
 
+import { decisionAnswersMatch, decisionInputBudget, type DecisionAnswer } from '@oxy.so/contracts';
+import { decisionAvailability } from '../config/decisionAvailability';
+
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { and, asc, desc, eq, or } from 'drizzle-orm';
@@ -124,7 +127,7 @@ import {
 } from './inferencePowerLevels.service';
 import {
   effectiveSameModelDeployment,
-  inferenceAttributionSchema,
+  type inferenceAttributionSchema,
   inferenceRequestSchema,
   INFERENCE_SCOPES,
   normalizedUsageReportSchema,
@@ -200,7 +203,7 @@ import {
   type KaanaDeploymentAttestation,
   type KaanaUsageEvidence,
 } from './kaanaClient';
-import { type ApplicationScope } from '../utils/applicationScopes';
+import type { ApplicationScope } from '../utils/applicationScopes';
 import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
 import { logger } from '../utils/logger';
 import {
@@ -544,6 +547,7 @@ export interface EdgeExecutionContext {
 }
 
 export interface EdgeCompletion {
+  readonly decisions?: readonly DecisionAnswer[];
   readonly requestId: string;
   readonly generationId?: string;
   readonly resolvedModelReference: string;
@@ -858,6 +862,14 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     );
   }
 
+  if (request.operation.kind === 'decisions' || request.input.format === 'decisions' || context.apiFormat === 'decisions') {
+    const gate = decisionAvailability();
+    if (!gate.available) return refuse('service_unavailable', gate.reason, { reason: 'decisions-review-required' });
+    if (request.operation.kind !== 'decisions' || request.input.format !== 'decisions' || context.apiFormat !== 'decisions' || request.stream) {
+      return refuse('invalid_request', 'Decisions require the typed nonstreaming decisions endpoint.');
+    }
+  }
+
   // Only the text modality is served. Refusing here rather than forwarding is
   // what keeps the input CEILING sound: an image or audio part has no
   // character-count bound, so a hold sized from one would be a guess.
@@ -941,7 +953,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     environment: principal.environment,
   };
   const fallbackEnabled =
-    policy.status === 'resolved' && !policy.stored.policy.fallback.disabled;
+    request.operation.kind !== 'decisions' && policy.status === 'resolved' && !policy.stored.policy.fallback.disabled;
   const authorizesSameModelFailover =
     target.kind !== 'model'
       ? true
@@ -1854,7 +1866,7 @@ export async function executeInferenceRequest(
   // present in the signed exact-ID authorization list, is a refusal rather than
   // a warning. Cross-model substitution is valid only when that exact route was
   // explicitly authorized in the envelope.
-  const validation = validateCompletion(completion, requestId, admitted.authorizedRoutes);
+  const validation = validateCompletion(completion, requestId, admitted.authorizedRoutes, context.request);
   if (validation.status === 'invalid') {
     await settleMeasured(
       context,
@@ -2018,6 +2030,7 @@ export async function executeInferenceRequest(
       servingProvider,
       finishReason: completion.finishReason,
       output: completion.output,
+      ...(completion.decisions === undefined ? {} : { decisions: completion.decisions }),
       ...(completion.outputAudioTranscripts === undefined
         ? {}
         : { outputAudioTranscripts: completion.outputAudioTranscripts }),
@@ -2899,8 +2912,12 @@ type CompletionValidation =
 function validateCompletion(
   completion: KaanaCompletion,
   requestId: string,
-  authorizedRoutes: readonly EdgeRoute[]
+  authorizedRoutes: readonly EdgeRoute[],
+  request: NormalizedEdgeRequest
 ): CompletionValidation {
+  if (request.input.format === 'decisions' && (!completion.decisions || !decisionAnswersMatch(request.input.decisions, completion.decisions) || completion.output.length !== 0)) {
+    return { status: 'invalid', code: 'internal_error', message: 'The data plane returned invalid decisions.', reason: 'decisions-invalid' };
+  }
   const report = normalizedUsageReportSchema.safeParse(completion.usage);
   if (!report.success) {
     return {
@@ -3198,6 +3215,7 @@ export function modalityForOperation(operation: EdgeOperation): EdgeModalityRequ
       };
     case 'embeddings':
       return { input: 'text', output: 'embedding' };
+    case 'decisions':
     case 'rerank':
       // Input only. `INFERENCE_MODALITIES` has no member for a ranking, and
       // claiming `text` output would assert something false about the model.
@@ -3226,7 +3244,7 @@ export function requirementForRequest(
   return {
     ...modality,
     ...(apiFormat === undefined ? {} : { apiFormat }),
-    ...(request.audioOutput === undefined ? {} : { requiresDeclaredApiFormat: true }),
+    ...(request.audioOutput === undefined && request.operation.kind !== 'decisions' ? {} : { requiresDeclaredApiFormat: true }),
   };
 }
 
@@ -3236,7 +3254,7 @@ function capabilityRefusal(modelReference: string, required: EdgeModalityRequire
     return `${modelReference} does not hold realtime ${required.realtime.kind} sessions over ${required.realtime.transport}.`;
   }
   if (required.requiresDeclaredApiFormat === true && required.apiFormat !== undefined) {
-    return `${modelReference} does not declare spoken output on ${required.apiFormat}.`;
+    return `${modelReference} does not declare support for ${required.apiFormat}.`;
   }
   return required.apiFormat === undefined
     ? `${modelReference} cannot execute this request.`
@@ -3296,6 +3314,7 @@ export function ceilingForOperation(
         input_tokens: estimatedInputTokens,
         embeddings: operation.embeddings,
       };
+    case 'decisions':
     case 'rerank':
       return { requests: 1, input_tokens: estimatedInputTokens };
     case 'speech':
@@ -3612,6 +3631,8 @@ export function estimateInputTokens(request: NormalizedEdgeRequest): number {
   } else if (request.input.format === 'text') {
     messages = 1;
     characters += request.input.text.length;
+  } else if (request.input.format === 'decisions') {
+    return decisionInputBudget(request.input.decisions).gateway * request.input.decisions.questions.length;
   } else {
     messages = request.input.texts.length;
     for (const text of request.input.texts) characters += text.length;

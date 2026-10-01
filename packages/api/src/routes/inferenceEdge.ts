@@ -44,6 +44,8 @@
  * a whole customer's traffic behind one NAT.
  */
 
+import { decisionRequestSchema, decisionSuccessSchema } from '@oxy.so/contracts';
+
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import type { z } from 'zod';
 import { USAGE_UNITS } from '@oxy.so/contracts';
@@ -80,17 +82,17 @@ import {
 import { createHttpKaanaClient } from '../services/httpKaanaClient';
 import type { KaanaClient } from '../services/kaanaClient';
 import {
-  chatCompletionResponseSchema,
+  type chatCompletionResponseSchema,
   chatCompletionsRequestSchema,
-  generationReceiptResponseSchema,
+  type generationReceiptResponseSchema,
   imageGenerationsRequestSchema,
-  imageGenerationsResponseSchema,
+  type imageGenerationsResponseSchema,
   normalizeChatCompletionsRequest,
   normalizeImageGenerationsRequest,
   normalizeResponsesRequest,
   normalizeSpeechRequest,
   responsesRequestSchema,
-  responsesResponseSchema,
+  type responsesResponseSchema,
   speechRequestSchema,
   type NormalizedEdgeRequest,
 } from '../schemas/inferenceEdge.schemas';
@@ -861,6 +863,91 @@ export function createInferenceEdgeRouter(
   options: InferenceEdgeRouterOptions = {}
 ): Router {
   const router = Router();
+
+  /**
+   * Typed, nonstreaming decisions with the same authentication and ledger authority.
+   * @requestBody decisionRequestSchema
+   * @response 200 decisionSuccessSchema Exact question probabilities and policy provenance.
+   */
+  router.post(
+    '/decisions',
+    edgeGate(sendInferenceError),
+    machineCredentialLimiter,
+    machineApplicationLimiter,
+    inferenceEdgeLimiter,
+    async (req: EdgeRequest, res: Response) => {
+      const edge = req.edge;
+      if (!edge) return;
+      const parsed = decisionRequestSchema.safeParse(req.body);
+      const key = idempotencyKey(req);
+      if (!parsed.success || !key.ok) {
+        sendInferenceError(
+          res,
+          buildInferenceError({
+            code: 'invalid_request',
+            message: 'Invalid decisions request or idempotency key.',
+            requestId: edge.requestId,
+          })
+        );
+        return;
+      }
+      const { model, ...decisions } = parsed.data;
+      const execution = await executeInferenceRequest({
+        requestId: edge.requestId,
+        receivedAt: edge.receivedAt,
+        principal: edge.principal,
+        request: {
+          operation: { kind: 'decisions' },
+          target: { kind: 'model', modelReference: model },
+          input: { format: 'decisions', decisions },
+          stream: false,
+          sampling: {},
+          tools: [],
+        },
+        ...(key.key === undefined ? {} : { idempotencyKey: key.key }),
+        ...(delegatedUserId(req) === undefined
+          ? {}
+          : { delegatedUserId: delegatedUserId(req) }),
+        apiFormat: 'decisions',
+        endpoint: '/v1/decisions',
+        signal: connectionSignal(res),
+        ...(options.kaanaClient === undefined
+          ? {}
+          : { kaanaClient: options.kaanaClient }),
+      });
+      if (execution.status === 'refused') {
+        sendInferenceError(res, execution.error);
+        return;
+      }
+      const { completion } = execution;
+      applyInferenceHeaders(res, completion.requestId);
+      applyUsageHeaders(res, completion);
+      const body = decisionSuccessSchema.safeParse({
+        schemaVersion: 1,
+        requestId: completion.requestId,
+        model: completion.resolvedModelReference,
+        data: completion.decisions,
+        routingPolicy: completion.routingPolicy,
+        usage: USAGE_UNITS.flatMap((unit) =>
+          completion.units[unit] === undefined
+            ? []
+            : [{ unit, quantity: completion.units[unit] }]
+        ),
+      });
+      if (!body.success) {
+        sendInferenceError(
+          res,
+          buildInferenceError({
+            code: 'internal_error',
+            message: 'Invalid decisions result.',
+            requestId: edge.requestId,
+          })
+        );
+        return;
+      }
+      res.status(200).json(body.data);
+    }
+  );
 
   /**
    * `POST /v1/responses` — the preferred endpoint.

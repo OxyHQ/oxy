@@ -37,6 +37,7 @@ import * as accountBilling from "../inference/accountBilling";
 import * as aliaModelRelease from "../inference/aliaModelRelease";
 import * as attribution from "../inference/attribution";
 import * as catalogue from "../inference/catalogue";
+import * as decisions from "../inference/decisions";
 import * as embeddings from "../inference/embeddings";
 import * as entitlement from "../inference/entitlement";
 import * as errors from "../inference/errors";
@@ -64,6 +65,7 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   attribution,
   catalogue,
   embeddings,
+  decisions,
   entitlement,
   errors,
   identifiers,
@@ -210,6 +212,8 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   modelDocumentationSchema: 1,
   // Errors
   inferenceErrorSchema: 1,
+  decisionResultSchema: 1,
+  decisionSuccessSchema: 1,
   embeddingSuccessSchema: 1,
   embeddingFailureSchema: 1,
   // Realtime sessions (contract set 3.2.0): the signed session request, every
@@ -258,6 +262,8 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
  * ever-growing list is the gate switching itself off one line at a time.
  */
 const FROZEN_EMBEDDED_SHAPES: string[] = [
+  "decisionInputSchema",
+  "decisionRequestSchema",
   "aliaReleaseArtifactSchema",
   "aliaReleaseSignatureSchema",
   "authenticatedPrincipalSchema",
@@ -337,6 +343,8 @@ const FROZEN_UNION_SHAPES: string[] = [
   "embeddingResponseSchema",
   "inferenceContentPartSchema",
   "inferenceContentSourceSchema",
+  "decisionQuestionSchema",
+  "decisionAnswerSchema",
   "inferenceInputSchema",
   "inferenceRouteSwitchDetailSchema",
   "inferenceStreamEventSchema",
@@ -1618,6 +1626,16 @@ const FIXTURES: Record<string, unknown> = {
 
 /* -------------------------------------------------------------------------- */
 
+FIXTURES.decisionResultSchema = {
+  schemaVersion: 1, requestId: "req_01H8Z9T6NB", model: "anthropic/claude-opus-5@2026-05-01",
+  data: [{ id: "q", kind: "noul", probability: 0.5 }], usage: FIXTURES.normalizedUsageReportSchema,
+};
+FIXTURES.decisionSuccessSchema = {
+  schemaVersion: 1, requestId: "req_01H8Z9T6NB", model: "anthropic/claude-opus-5@2026-05-01",
+  data: [{ id: "q", kind: "noul", probability: 0.5 }], usage: [{ unit: "requests", quantity: 1 }],
+  routingPolicy: { routingPolicyId: "rp_fixture", policyVersion: 1 },
+};
+
 describe("inference contract versioning", () => {
   it("exposes the contract-set version the two planes handshake on", () => {
     // MAJOR 3: the closed availability scope renamed from an Alia-specific value
@@ -1633,7 +1651,7 @@ describe("inference contract versioning", () => {
     // `RoutingProfile.powerLevel`/`reasoningEffort`, `ModelCatalogueEntry.powerClass`,
     // `RoutingPolicy.allowedRoutingProfileIds`, and an optional
     // `sameModelDeployment` (a loosened refinement).
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.4.0");
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.5.0");
   });
 
   it("matches the frozen schema version map exactly", () => {

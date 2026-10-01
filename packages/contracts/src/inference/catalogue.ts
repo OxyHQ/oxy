@@ -117,6 +117,7 @@ export const inferenceApiFormatSchema = z.enum([
   'responses',
   'chat_completions',
   'embeddings',
+  'decisions',
   'images_generations',
   'audio_transcriptions',
   'audio_speech',

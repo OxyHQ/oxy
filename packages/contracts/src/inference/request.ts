@@ -24,6 +24,8 @@
  * docs/adr/0017-authorized-routes-in-the-envelope.md.
  */
 
+import { decisionInputSchema } from './decisions';
+
 import { z } from "zod";
 import { inferenceAttributionSchema } from "./attribution";
 import {
@@ -214,6 +216,7 @@ export const inferenceMessageSchema = z
  * that both metering and provider translation depend on.
  */
 export const inferenceInputSchema = z.discriminatedUnion("format", [
+  z.object({ format: z.literal("decisions"), decisions: decisionInputSchema }).strict(),
   z
     .object({
       format: z.literal("messages"),
@@ -441,6 +444,19 @@ export const inferenceRequestSchema = z
     authorizedRoutes: z.array(authorizedRouteSchema).min(1).optional(),
   })
   .superRefine((request, ctx) => {
+    if (request.input.format === "decisions" || request.client.apiFormat === "decisions") {
+      const exactModel = request.target.kind === "model" && request.target.modelReference.includes('@');
+      const foreignRoute = request.authorizedRoutes?.some((route) =>
+        request.target.kind !== "model" || route.modelReference !== request.target.modelReference || route.substitution !== "same_model"
+      );
+      if (request.input.format !== "decisions" || request.client.apiFormat !== "decisions" ||
+          request.modality !== "text" || request.stream || !exactModel || foreignRoute ||
+          request.maxOutputTokens !== undefined || Object.keys(request.sampling).length > 0 ||
+          request.tools.length > 0 || request.toolChoice !== undefined || request.responseFormat !== undefined ||
+          request.reasoning !== undefined || request.speech !== undefined || request.audioOutput !== undefined) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["input"], message: "Decisions require exact-model typed nonstreaming input without generation controls or model substitution." });
+      }
+    }
     const isSpeech = request.client.apiFormat === "audio_speech";
     if (isSpeech && request.speech !== undefined && (request.modality !== "audio" || request.input.format !== "text" || request.stream)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["speech"], message: "speech requires audio modality, text input, parameters and non-streaming output" });

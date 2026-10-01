@@ -346,3 +346,5 @@ Kaana's internals (adapters, key pools, inventory, operating it) are in the
 table, event and API has an owner listed in
 [the responsibility matrix](../architecture/inference-responsibility-matrix.md).
 The Oxy-wide rules page is `~/Oxy/docs/kaana-inference.md`.
+
+Typed nonstreaming classifications: [Decisions](decisions.md) (implemented, provider access gated).

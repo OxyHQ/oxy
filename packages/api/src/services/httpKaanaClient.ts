@@ -55,6 +55,8 @@
  * edge's own test asserts a prompt marker appears in no log call.
  */
 
+import { decisionResultSchema, decisionAnswersMatch } from '@oxy.so/contracts';
+
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
   deploymentIdSchema,
@@ -550,6 +552,54 @@ class HttpKaanaClient implements KaanaClient {
     envelope: InferenceRequest,
     options: KaanaExecuteOptions
   ): Promise<KaanaCompletion> {
+    if (envelope.input.format === 'decisions') {
+      const body = Buffer.from(JSON.stringify(envelope), 'utf8');
+      const timestamp = Date.now();
+      const response = await fetch(
+        `${this.config.baseUrl}/internal/v1/decisions`,
+        {
+          method: 'POST',
+          body,
+          signal: options.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            [KAANA_KEY_ID_HEADER]: this.config.keyId,
+            [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+            [KAANA_SIGNATURE_HEADER]: signEnvelope(
+              this.config.privateKey,
+              this.config.keyId,
+              timestamp,
+              body,
+            ),
+          },
+        },
+      );
+      if (!response.ok)
+        throw await rejection(response, envelope.attribution.requestId);
+      const raw = await readBoundedStrict(response, 4 * 1024 * 1024);
+      let payload: unknown;
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        throw new KaanaProtocolError('Invalid decisions JSON.');
+      }
+      const parsed = decisionResultSchema.safeParse(payload);
+      if (
+        !parsed.success ||
+        parsed.data.requestId !== envelope.attribution.requestId ||
+        parsed.data.model !== parsed.data.usage.resolvedModelReference ||
+        !decisionAnswersMatch(envelope.input.decisions, parsed.data.data)
+      ) {
+        throw new KaanaProtocolError('Invalid or mismatched decisions result.');
+      }
+      return {
+        output: [],
+        decisions: parsed.data.data,
+        finishReason: 'stop',
+        usage: parsed.data.usage,
+      };
+    }
     return foldStream(this.stream(envelope, options));
   }
 }

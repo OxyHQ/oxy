@@ -836,6 +836,7 @@ export type EdgeOperation =
    * No output-token arm: a rerank returns indices and scores, not generated text.
    */
   | { readonly kind: 'rerank' }
+  | { readonly kind: 'decisions' }
   /**
    * `POST /v1/audio/speech`. `characters` is EXACT (`input.length`). Deliberately
    * carries NO `audio_output_milliseconds`: duration is characters ÷ speaking rate,
