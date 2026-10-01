@@ -20,7 +20,9 @@ import {
 
 export const RELEASES = Object.freeze([
   { directory: 'contracts', name: '@oxy.so/contracts', version: '4.7.0' },
-  { directory: 'core', name: '@oxy.so/core', version: '4.1.0' },
+  // Core's own build pre-builds only telemetry; protocol must be built first
+  // in a fresh checkout. Contracts is built just before, as this pair's first.
+  { directory: 'core', name: '@oxy.so/core', version: '4.1.0', workspaceBuilds: ['@oxy.so/protocol'] },
 ]);
 const registry = 'https://registry.npmjs.org';
 const root = resolve(process.cwd());
@@ -132,6 +134,7 @@ async function main() {
         // Allowed only as an identical retry; publish re-checks the bytes.
         console.log(`${release.name}@${release.version} already exists; publish will require identical bytes`);
       }
+      for (const dependency of release.workspaceBuilds ?? []) run('bun', ['run', '--filter', dependency, 'build']);
       rmSync(target(release), { force: true });
       // One command; the inspected tarball can only come from this build.
       run('bash', ['-euo', 'pipefail', '-c', 'bun run clean && bun run build && bun pm pack --destination ../../release-artifacts'], directory);
