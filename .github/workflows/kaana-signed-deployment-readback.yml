@@ -257,7 +257,7 @@ jobs:
             .deploymentCount as $count |
             .schemaVersion == 1 and
             .status == "passed" and
-            .contractVersion == "3.3.0" and
+            .contractVersion == "3.5.0" and
             (.snapshotId | type == "string" and length > 0 and length <= 256) and
             ($count | type == "number" and . > 0 and floor == .) and
             (.deployments | type == "array" and length == $count) and

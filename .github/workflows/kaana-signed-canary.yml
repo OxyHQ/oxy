@@ -461,7 +461,7 @@ jobs:
               .schemaVersion == 1 and
               .status == "passed" and
               .mode == "realtime" and
-              .contractVersion == "3.3.0" and
+              .contractVersion == "3.5.0" and
               .snapshotId == $snapshot and
               .deploymentId == $deployment and
               (.modelReference | type == "string" and length > 0) and
@@ -478,7 +478,7 @@ jobs:
               else
               .schemaVersion == 1 and
               .status == "passed" and
-              .contractVersion == "3.3.0" and
+              .contractVersion == "3.5.0" and
               .snapshotId == $snapshot and
               .deploymentId == $deployment and
               (.modelReference | type == "string" and length > 0) and
