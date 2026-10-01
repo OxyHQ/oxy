@@ -10,6 +10,7 @@ import {
 } from "../src/db/schema";
 import {
   INBOX_PRINCIPAL_READBACK_CURRENCY,
+  INBOX_PRINCIPAL_READBACK_ISOLATION,
   INBOX_PRINCIPAL_READBACK_RESULT_PREFIX,
   InboxPrincipalReadbackError,
   type InboxPrincipalJournalRow,
@@ -22,7 +23,8 @@ import {
  *
  * Reads ONLY `DATABASE_URL` (through `connectPostgres`) and
  * `INBOX_APPLICATION_KEY`. No HTTP, no token mint, no inference, no write: the
- * first statement makes PostgreSQL itself refuse every write. Prints one
+ * first statement makes PostgreSQL itself refuse every write and pins one
+ * REPEATABLE READ snapshot for every read. Prints one
  * allowlisted result line; a failure prints a fixed message and never the
  * underlying error, which could carry connection details.
  */
@@ -35,17 +37,35 @@ async function readback(): Promise<boolean> {
   await connectPostgres();
   try {
     const result = await getDb().transaction(async (tx) => {
-      // This must be the first transaction statement.
-      await tx.execute(sql`set transaction read only`);
+      // This must be the first transaction statement, before ANY read. READ
+      // ONLY makes PostgreSQL refuse every write; REPEATABLE READ gives every
+      // statement below ONE snapshot, so the credential, application, owner,
+      // profile, balance and journal cannot come from different commits (the
+      // READ COMMITTED default takes a fresh snapshot per statement).
+      await tx.execute(
+        sql`set transaction isolation level repeatable read, read only`,
+      );
       const readOnlyRows = await tx.execute<{ transaction_read_only: string }>(
         sql`show transaction_read_only`,
+      );
+      const isolationRows = await tx.execute<{ transaction_isolation: string }>(
+        sql`show transaction_isolation`,
       );
       const transactionReadOnly =
         readOnlyRows.length === 1 &&
         readOnlyRows[0]?.transaction_read_only === "on";
+      const transactionIsolation =
+        isolationRows.length === 1
+          ? (isolationRows[0]?.transaction_isolation ?? "")
+          : "";
       if (!transactionReadOnly) {
         throw new InboxPrincipalReadbackError(
           "PostgreSQL did not confirm a read-only transaction",
+        );
+      }
+      if (transactionIsolation !== INBOX_PRINCIPAL_READBACK_ISOLATION) {
+        throw new InboxPrincipalReadbackError(
+          "PostgreSQL did not confirm a repeatable-read transaction",
         );
       }
 
@@ -86,6 +106,7 @@ async function readback(): Promise<boolean> {
         return validateInboxPrincipalReadback({
           requestedApplicationKey,
           transactionReadOnly,
+          transactionIsolation,
           observedAt,
           credentials,
           applications: applicationRows,
@@ -169,6 +190,7 @@ async function readback(): Promise<boolean> {
       return validateInboxPrincipalReadback({
         requestedApplicationKey,
         transactionReadOnly,
+        transactionIsolation,
         observedAt,
         credentials,
         applications: applicationRows,

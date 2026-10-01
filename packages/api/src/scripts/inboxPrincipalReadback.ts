@@ -16,6 +16,12 @@ import { isCredentialUsable } from "../utils/credentialUsability";
 export const INBOX_PRINCIPAL_READBACK_RESULT_PREFIX =
   "INBOX_PRINCIPAL_READBACK_RESULT=";
 
+/**
+ * `SHOW transaction_isolation` for the one snapshot every read must share.
+ * Anything else (the READ COMMITTED default included) fails closed.
+ */
+export const INBOX_PRINCIPAL_READBACK_ISOLATION = "repeatable read";
+
 /** The one currency this proof accepts; a non-USD profile is a blocked reason. */
 export const INBOX_PRINCIPAL_READBACK_CURRENCY = "USD";
 
@@ -81,6 +87,8 @@ export interface InboxPrincipalReadbackInput {
   /** The exact `INBOX_APPLICATION_KEY` selector. Checked, never returned. */
   readonly requestedApplicationKey: string;
   readonly transactionReadOnly: boolean;
+  /** `SHOW transaction_isolation`, verbatim. */
+  readonly transactionIsolation: string;
   /** PostgreSQL `now()` of the read-only transaction. */
   readonly observedAt: Date;
   readonly credentials: readonly InboxPrincipalCredentialRow[];
@@ -122,6 +130,7 @@ export interface InboxPrincipalReadbackResult {
   readonly database: {
     readonly engine: "postgresql";
     readonly transactionReadOnly: true;
+    readonly transactionIsolation: typeof INBOX_PRINCIPAL_READBACK_ISOLATION;
     readonly writes: 0;
   };
   readonly credentialId: string | null;
@@ -198,6 +207,9 @@ export function validateInboxPrincipalReadback(
   }
   if (input.transactionReadOnly !== true) {
     fail("PostgreSQL did not confirm a read-only transaction");
+  }
+  if (input.transactionIsolation !== INBOX_PRINCIPAL_READBACK_ISOLATION) {
+    fail("PostgreSQL did not confirm a repeatable-read transaction");
   }
   if (Number.isNaN(input.observedAt.getTime())) {
     fail("The PostgreSQL observation time is invalid");
@@ -346,7 +358,12 @@ export function validateInboxPrincipalReadback(
     schemaVersion: 1,
     status: blockedReasons.length === 0 ? "ready" : "blocked",
     blockedReasons,
-    database: { engine: "postgresql", transactionReadOnly: true, writes: 0 },
+    database: {
+      engine: "postgresql",
+      transactionReadOnly: true,
+      transactionIsolation: INBOX_PRINCIPAL_READBACK_ISOLATION,
+      writes: 0,
+    },
     credentialId: credential?.id ?? null,
     applicationId: INBOX_APPLICATION_ID,
     ownerAccountId: owner === undefined ? null : owner.id,

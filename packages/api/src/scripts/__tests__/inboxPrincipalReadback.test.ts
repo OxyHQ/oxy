@@ -18,6 +18,7 @@ function validInput(): InboxPrincipalReadbackInput {
   return {
     requestedApplicationKey: PUBLIC_KEY,
     transactionReadOnly: true,
+    transactionIsolation: "repeatable read",
     observedAt: OBSERVED_AT,
     credentials: [
       {
@@ -75,7 +76,12 @@ describe("Inbox principal readback", () => {
       schemaVersion: 1,
       status: "ready",
       blockedReasons: [],
-      database: { engine: "postgresql", transactionReadOnly: true, writes: 0 },
+      database: {
+        engine: "postgresql",
+        transactionReadOnly: true,
+        transactionIsolation: "repeatable read",
+        writes: 0,
+      },
       credentialId: CREDENTIAL,
       applicationId: INBOX_APPLICATION_ID,
       ownerAccountId: OWNER,
@@ -120,6 +126,15 @@ describe("Inbox principal readback", () => {
       validateInboxPrincipalReadback({ ...validInput(), transactionReadOnly: false }),
     ).toThrow("PostgreSQL did not confirm a read-only transaction");
   });
+
+  it.each(["read committed", "serializable", "read uncommitted", "", "Repeatable Read", "repeatable read "])(
+    "refuses a %j snapshot instead of mixing per-statement reads",
+    (transactionIsolation) => {
+      expect(() =>
+        validateInboxPrincipalReadback({ ...validInput(), transactionIsolation }),
+      ).toThrow("PostgreSQL did not confirm a repeatable-read transaction");
+    },
+  );
 
   it.each(["", " oxy_dk_x", "oxy_dk_x\n"])(
     "refuses a non-exact key selector %j",
@@ -426,13 +441,32 @@ describe("readback-inbox-principal command source", () => {
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/.*$/gm, "");
 
-  it("makes SET TRANSACTION READ ONLY the first statement and verifies it", () => {
+  it("pins REPEATABLE READ, READ ONLY as the first statement and verifies both", () => {
     const transactionBody = source.slice(source.indexOf(".transaction(async (tx) =>"));
-    const firstStatement = /await tx\.(\w+)\(([^)]*)\)/.exec(transactionBody);
-    expect(firstStatement?.[0]).toBe("await tx.execute(sql`set transaction read only`)");
-    expect(transactionBody.indexOf("show transaction_read_only")).toBeGreaterThan(
-      transactionBody.indexOf("set transaction read only"),
+    // The first `await tx…` of the transaction must be exactly this SET.
+    const firstStatementAt = transactionBody.search(/await tx\b/);
+    expect(
+      transactionBody
+        .slice(firstStatementAt)
+        .replace(/\s+/g, " ")
+        .startsWith(
+          "await tx.execute( sql`set transaction isolation level repeatable read, read only`, );",
+        ),
+    ).toBe(true);
+    const setAt = transactionBody.indexOf("set transaction isolation level repeatable read, read only");
+    const showReadOnlyAt = transactionBody.indexOf("show transaction_read_only");
+    const showIsolationAt = transactionBody.indexOf("show transaction_isolation");
+    const firstReadAt = transactionBody.indexOf("now()::text");
+    expect(setAt).toBeGreaterThan(-1);
+    expect(showReadOnlyAt).toBeGreaterThan(setAt);
+    expect(showIsolationAt).toBeGreaterThan(showReadOnlyAt);
+    // Both are refused before the first data read.
+    const isolationGuardAt = transactionBody.indexOf(
+      "transactionIsolation !== INBOX_PRINCIPAL_READBACK_ISOLATION",
     );
+    expect(isolationGuardAt).toBeGreaterThan(showIsolationAt);
+    expect(firstReadAt).toBeGreaterThan(isolationGuardAt);
+    expect(transactionBody.match(/set transaction/g)).toHaveLength(1);
   });
 
   it("reads only DATABASE_URL and INBOX_APPLICATION_KEY and performs no write, HTTP or mint", () => {

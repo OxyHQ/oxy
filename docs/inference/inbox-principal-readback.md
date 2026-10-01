@@ -33,10 +33,14 @@ READ its metadata and nothing else:
 ## What it proves
 
 All reads run inside one PostgreSQL transaction whose FIRST statement is
-`SET TRANSACTION READ ONLY`, confirmed by `SHOW transaction_read_only = on`
-before anything else is read. The command reads only `DATABASE_URL` and
-`INBOX_APPLICATION_KEY`, makes no HTTP call, mints no token and runs no
-inference.
+`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`, issued before any
+read. `SHOW transaction_read_only` must return `on` and
+`SHOW transaction_isolation` must return `repeatable read`, or the command
+fails closed before reading data. REPEATABLE READ matters: under the READ
+COMMITTED default each statement takes its own snapshot, so the credential,
+application, owner, profile, balance and journal could come from different
+commits. The command reads only `DATABASE_URL` and `INBOX_APPLICATION_KEY`,
+makes no HTTP call, mints no token and runs no inference.
 
 - **Credential**: exactly one `application_credentials` row for the exact
   public key, of the Inbox application, `type = 'service'`, `status = 'active'`,
@@ -63,7 +67,8 @@ the owner has no inherited funds.**
 
 One line on stdout, `INBOX_PRINCIPAL_READBACK_RESULT=<json>`, carrying only:
 `schemaVersion`, `status` (`ready` | `blocked`), typed `blockedReasons`,
-`database` (`transactionReadOnly: true`, `writes: 0`), opaque `credentialId`,
+`database` (`transactionReadOnly: true`,
+`transactionIsolation: "repeatable read"`, `writes: 0`), opaque `credentialId`,
 `applicationId` and `ownerAccountId`, `effectiveInferenceInvoke`, and
 `billing` (`provisioned`, `accountMode`, `currency`, USD amounts,
 `minimumPromotionalUsd`, `ledgerReconciled`).
