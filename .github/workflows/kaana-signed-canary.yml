@@ -357,7 +357,7 @@ jobs:
                 name:$container,
                 command:["node","packages/api/scripts/run-kaana-signed-canary.mjs"],
                 environment:[
-                  {name:"CANARY_CONTRACT_VERSION",value:"3.3.0"},
+                  {name:"CANARY_CONTRACT_VERSION",value:"3.5.0"},
                   {name:"CANARY_KAANA_PRIVATE_ORIGIN",value:("http://" + $candidate_ip + ":8080")},
                   {name:"CANARY_EXPECTED_SNAPSHOT_ID",value:$snapshot},
                   {name:"CANARY_DEPLOYMENT_ID",value:$deployment},
@@ -461,7 +461,7 @@ jobs:
               .schemaVersion == 1 and
               .status == "passed" and
               .mode == "realtime" and
-              .contractVersion == "3.3.0" and
+              .contractVersion == "3.5.0" and
               .snapshotId == $snapshot and
               .deploymentId == $deployment and
               (.modelReference | type == "string" and length > 0) and
@@ -478,7 +478,7 @@ jobs:
               else
               .schemaVersion == 1 and
               .status == "passed" and
-              .contractVersion == "3.3.0" and
+              .contractVersion == "3.5.0" and
               .snapshotId == $snapshot and
               .deploymentId == $deployment and
               (.modelReference | type == "string" and length > 0) and
