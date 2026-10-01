@@ -60,6 +60,14 @@ export const CONCRETE_POWER_LEVELS = [
 
 export type ConcretePowerLevel = (typeof CONCRETE_POWER_LEVELS)[number];
 
+/** Strict vocabulary for automatic selection, including untrusted classifier output. */
+export const AUTO_POWER_LEVELS = Object.freeze(['instant', 'medium', 'high', 'xhigh'] as const);
+export type AutoPowerLevel = (typeof AUTO_POWER_LEVELS)[number];
+
+export function isAutoPowerLevel(value: unknown): value is AutoPowerLevel {
+  return typeof value === 'string' && AUTO_POWER_LEVELS.some((level) => level === value);
+}
+
 /** Which reviewed model class each level chooses from. */
 export const POWER_LEVEL_CLASS: Readonly<Record<ConcretePowerLevel, ModelPowerClass>> = {
   instant: 'instant',
@@ -132,13 +140,28 @@ export interface AutoRoutingFeatures {
 }
 
 export interface AutoPowerDecision {
-  readonly level: ConcretePowerLevel;
+  readonly level: AutoPowerLevel;
   /** Every rule that fired, for logs and support — never parsed. */
   readonly reasons: readonly string[];
+  /** Semantic recommendation and fallback status are separate from feature floors. */
+  readonly classification?:
+    | { readonly source: 'deterministic'; readonly reason: string; readonly version: string }
+    | { readonly source: 'jev'; readonly version: string; readonly modelReference: string;
+        readonly recommendedLevel: AutoPowerLevel };
 }
 
 /** A replaceable decision; the edge depends on this shape, not on the rules. */
-export type AutoPowerLevelResolver = (features: AutoRoutingFeatures) => AutoPowerDecision;
+export interface AutoPowerLevelContext {
+  readonly requestId: string;
+  readonly signal: AbortSignal;
+  /** Transient input, evaluated only after the semantic classifier's gates pass. */
+  readonly state: () => string;
+}
+
+export type AutoPowerLevelResolver = (
+  features: AutoRoutingFeatures,
+  context?: AutoPowerLevelContext
+) => AutoPowerDecision | Promise<AutoPowerDecision>;
 
 /** Thresholds, named so the documentation and the tests quote one source. */
 export const AUTO_THRESHOLDS = {
@@ -149,7 +172,7 @@ export const AUTO_THRESHOLDS = {
   highToolCount: 8,
 } as const;
 
-function atLeast(current: ConcretePowerLevel, floor: ConcretePowerLevel): ConcretePowerLevel {
+function atLeast(current: AutoPowerLevel, floor: AutoPowerLevel): AutoPowerLevel {
   return CONCRETE_POWER_LEVELS.indexOf(floor) > CONCRETE_POWER_LEVELS.indexOf(current)
     ? floor
     : current;
@@ -173,10 +196,10 @@ function atLeast(current: ConcretePowerLevel, floor: ConcretePowerLevel): Concre
  * | `maxOutputTokens` > 4 096                       | medium  |
  * | `maxOutputTokens` > 16 000                      | high    |
  */
-export const classifyAutoPowerLevel: AutoPowerLevelResolver = (features) => {
-  let level: ConcretePowerLevel = 'instant';
+export const classifyAutoPowerLevel = (features: AutoRoutingFeatures): AutoPowerDecision => {
+  let level: AutoPowerLevel = 'instant';
   const reasons: string[] = [];
-  const raise = (floor: ConcretePowerLevel, reason: string): void => {
+  const raise = (floor: AutoPowerLevel, reason: string): void => {
     level = atLeast(level, floor);
     reasons.push(`${reason}->${floor}`);
   };
@@ -203,17 +226,16 @@ export const classifyAutoPowerLevel: AutoPowerLevelResolver = (features) => {
 
 /**
  * The levels `auto` may use for this request, in priority order: the decided
- * level, then each level above it up to {@link AUTO_CEILING} (or the decided
- * level itself when a rule put it higher). `allowed` narrows the ladder to the
+ * level, then each level above it up to {@link AUTO_CEILING}. Invalid classifier
+ * values cannot enter the ladder. `allowed` narrows the ladder to the
  * levels an application's policy permits; an empty ladder is a refusal.
  */
 export function autoLadder(
-  decided: ConcretePowerLevel,
+  decided: unknown,
   allowed: (level: ConcretePowerLevel) => boolean
 ): ConcretePowerLevel[] {
-  const start = CONCRETE_POWER_LEVELS.indexOf(decided);
-  const end = Math.max(start, CONCRETE_POWER_LEVELS.indexOf(AUTO_CEILING));
-  return CONCRETE_POWER_LEVELS.slice(start, end + 1).filter(allowed);
+  if (!isAutoPowerLevel(decided)) return [];
+  return AUTO_POWER_LEVELS.slice(AUTO_POWER_LEVELS.indexOf(decided)).filter(allowed);
 }
 
 /* -------------------------------------------------------------------------- */

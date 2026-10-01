@@ -116,7 +116,6 @@ import {
 } from './kaanaDeploymentPublication.service';
 import {
   autoLadder,
-  classifyAutoPowerLevel,
   type AutoPowerLevelResolver,
   type AutoRoutingFeatures,
   type ConcretePowerLevel,
@@ -125,6 +124,7 @@ import {
   resolvePowerLevelEffort,
   powerLevelProfileIds,
 } from './inferencePowerLevels.service';
+import { createAutoPowerLevelResolver } from './inferenceAutoPowerLevel.service';
 import {
   effectiveSameModelDeployment,
   type inferenceAttributionSchema,
@@ -1282,12 +1282,20 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       };
       let levels: ConcretePowerLevel[];
       if (profileResolution.powerLevel === 'auto') {
-        const decision = autoPowerLevelResolver(autoRoutingFeaturesOf(request, estimatedInputTokens));
+        const decision = await autoPowerLevelResolver(
+          autoRoutingFeaturesOf(request, estimatedInputTokens),
+          {
+            requestId,
+            signal: context.signal,
+            state: () => JSON.stringify({ input: request.input, tools: request.tools }),
+          }
+        );
         levels = autoLadder(decision.level, levelAllowed);
         logger.info('inference.edge.auto_power_level', {
           requestId,
           decided: decision.level,
           reasons: decision.reasons,
+          classification: decision.classification,
           ladder: levels,
         });
       } else {
@@ -3744,10 +3752,10 @@ function autoRoutingFeaturesOf(
 }
 
 /**
- * The `auto` decision in force. The deterministic v1 rule today; a trained
- * classifier replaces it by satisfying the same {@link AutoPowerLevelResolver}.
+ * Dormant until the reviewed decisions adapter is available. This factory has
+ * no child executor, so credentials or environment changes cannot enable Jev.
  */
-const autoPowerLevelResolver: AutoPowerLevelResolver = classifyAutoPowerLevel;
+const autoPowerLevelResolver: AutoPowerLevelResolver = createAutoPowerLevelResolver();
 
 function firstNonTextPart(input: InferenceInput): string | undefined {
   if (input.format !== 'messages') return undefined;
