@@ -4,8 +4,9 @@
  * Production has no child executor while commercial/privacy review is pending.
  */
 import { randomUUID } from 'node:crypto';
-import { modelReferenceSchema } from '@oxy.so/contracts';
+import { exactDecimalSchema, modelReferenceSchema } from '@oxy.so/contracts';
 import { z } from 'zod';
+import type { AutoClassifierReview } from '../config/autoClassification';
 import {
   AUTO_POWER_LEVELS,
   classifyAutoPowerLevel,
@@ -16,26 +17,13 @@ import {
 export const AUTO_CLASSIFIER_LIMITS = Object.freeze({
   timeoutMs: 1_000,
   maxStateBytes: 8_192,
-  maxPricePerRequest: Object.freeze({ currency: 'USD' as const, amount: '0.001000000000' }),
+  maxPricePerRequest: Object.freeze({ currency: 'USD' as const, amount: exactDecimalSchema.parse('0.001000000000') }),
 });
 
 export const AUTO_CLASSIFIER_VERSION = 'jev-auto-v1';
 
-/** All four reviews must cover the exact child deployment; internal use is not exempt. */
-export interface AutoClassifierReview {
-  readonly commercial: boolean;
-  readonly internalEligibility: boolean;
-  readonly privacy: boolean;
-  readonly zdr: boolean;
-}
-
-/** Not an environment flag or a public request option. No review has authorized activation. */
-export function autoClassifierReview(): AutoClassifierReview {
-  return { commercial: false, internalEligibility: false, privacy: false, zdr: false };
-}
-
 /**
- * Intended internal adapter boundary until the decisions foundation lands.
+ * Internal adapter boundary for the typed decisions child.
  * The executor binds the parent's authenticated principal and pinned policy,
  * admits ONE exact-model decisions child under this additional price ceiling,
  * and owns its reservation/settlement even after cancellation. It must never
@@ -125,7 +113,7 @@ export function createAutoPowerLevelResolver(classifier?: JevAutoClassifier): Au
       });
       // The microtask also catches a synchronous adapter throw. Both completion
       // handlers stay attached after timeout; late failures cannot be unhandled.
-      const execution: Promise<Outcome> = Promise.resolve().then(() => {
+      const execution: Promise<Outcome> = Promise.resolve().then<Outcome>(async () => {
         if (context.signal.aborted) return { kind: 'cancelled' } as const;
         return execute(child).then((value) => ({ kind: 'result', value }) as const);
       }).catch(() => ({ kind: 'provider_error' }));
