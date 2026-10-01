@@ -47,6 +47,9 @@
 import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  scopedExecutionAudienceSchema,
+  canonicalScopedExecutionJson,
+  type ScopedExecutionAudience,
   deploymentIdSchema,
   inferenceProviderSlugSchema,
   modelIdSchema,
@@ -157,16 +160,22 @@ export interface KaanaListPrice {
  * one it will later sign and Kaana will later compare.
  */
 export interface KaanaDeploymentDescriptor {
+  readonly keyId?: string;
+  readonly upstreamModelId?: string;
+  readonly providerRateCardVersionId?: string;
+  readonly providerSourceVersion?: string;
   readonly deploymentId: string;
   readonly provider: string;
   readonly modelReference: string;
   readonly regions: readonly string[];
   /** This deployment's own accepted request controls, when Kaana reports them. */
   readonly acceptedParameters?: readonly string[];
+  readonly scopedExecution?: ScopedExecutionAudience;
 }
 
 /** One `listPrices` observation: a provider's published price for one exact deployment. */
 export interface KaanaPricedRoute {
+  readonly scopedExecution?: ScopedExecutionAudience;
   readonly deploymentId: string;
   readonly provider: string;
   readonly price: KaanaListPrice | 'invalid';
@@ -189,6 +198,7 @@ export interface KaanaCatalogueModel {
    * intersection). Absent means no deployment said.
    */
   readonly acceptedParameters?: readonly string[];
+  readonly scopedExecution?: ScopedExecutionAudience;
   /** The distinct providers serving the line's current revision. */
   readonly providers?: readonly string[];
   /** Kaana's `listPrices`: only deployments whose provider publishes a price. */
@@ -217,6 +227,7 @@ const kaanaCatalogueResponseSchema = z
 
 const kaanaListPriceSchema = z
   .object({
+    scopedExecution: scopedExecutionAudienceSchema.optional(),
     deploymentId: deploymentIdSchema,
     provider: inferenceProviderSlugSchema,
     currency: z.string(),
@@ -260,6 +271,7 @@ function parsePricedRoute(raw: unknown): KaanaPricedRoute | undefined {
   const input = normalizeDecimal(row.data.input);
   const output = normalizeDecimal(row.data.output);
   return {
+    ...(row.data.scopedExecution === undefined ? {} : { scopedExecution: row.data.scopedExecution }),
     deploymentId: row.data.deploymentId,
     provider: row.data.provider,
     // Oxy's price versions here are USD; another currency is not converted.
@@ -326,6 +338,7 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
 /* -------------------------------------------------------------------------- */
 
 export interface PlannedRoute {
+  readonly scopedExecution?: ScopedExecutionAudience;
   readonly deploymentId: string;
   readonly provider: string;
   readonly regions: readonly string[];
@@ -465,6 +478,21 @@ export function planKaanaModel(
       routeSkips.push('unknown_provider');
       continue;
     }
+    if ((priced.scopedExecution === undefined) !== (deployment.scopedExecution === undefined) ||
+      (priced.scopedExecution !== undefined && canonicalScopedExecutionJson(priced.scopedExecution) !== canonicalScopedExecutionJson(deployment.scopedExecution))) {
+      routeSkips.push('unattested_route');
+      continue;
+    }
+    if (deployment.scopedExecution !== undefined && (
+      deployment.keyId !== deployment.scopedExecution.keyId ||
+      deployment.upstreamModelId !== deployment.scopedExecution.upstreamModelId ||
+      deployment.providerRateCardVersionId !== deployment.scopedExecution.providerRateCardVersionId ||
+      deployment.providerSourceVersion !== deployment.scopedExecution.providerSourceVersion ||
+      deployment.deploymentId !== deployment.scopedExecution.deploymentId ||
+      deployment.modelReference !== deployment.scopedExecution.modelReference ||
+      deployment.provider !== deployment.scopedExecution.provider)) {
+      routeSkips.push('unattested_route'); continue;
+    }
     const price = priced.price;
     if (price === 'invalid') {
       routeSkips.push('invalid_list_price');
@@ -483,6 +511,7 @@ export function planKaanaModel(
       provider: deployment.provider,
       regions: deployment.regions,
       price,
+      ...(deployment.scopedExecution === undefined ? {} : { scopedExecution: deployment.scopedExecution }),
       acceptedParameters: acceptedParametersForRoute(entry, deployment),
     });
   }
@@ -957,7 +986,12 @@ async function applyPlannedModel(
     );
 
     const priceVersionId = await ensureSyncedPrice(tx, planned.modelReference, route.provider, route.price, now, counts);
+    if (route.scopedExecution !== undefined && route.scopedExecution.priceVersionId !== priceVersionId) {
+      bump(counts.deploymentSkips, 'unattested_route');
+      continue;
+    }
     const routeFacts = {
+      scopedExecution: route.scopedExecution ?? null,
       regions: [...route.regions],
       retainsPayloads: provider.retainsPayloads,
       retentionDays: provider.retentionDays,
@@ -965,20 +999,20 @@ async function applyPlannedModel(
       zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
       subprocessors: provider.subprocessors,
       policyUrl: provider.policyUrl,
-      status: 'active' as const,
+      status: route.scopedExecution === undefined ? 'active' as const : 'disabled' as const,
       dedicatedCapacity: false,
       priceVersionId,
       internalRouteId: route.deploymentId,
       acceptedParameters: route.acceptedParameters === null ? null : [...route.acceptedParameters],
     };
     const approval = {
-      permissionState: 'approved' as const,
+      permissionState: route.scopedExecution === undefined ? 'approved' as const : 'pending_review' as const,
       permissionStateChangedAt: now,
       permissionStateChangedByUserId: null,
       permissionStateNote: PERMISSION_NOTE,
-      legalReviewStatus: 'approved' as const,
-      legalReviewEvidenceRef: LEGAL_EVIDENCE_REF,
-      legalReviewedAt: now,
+      legalReviewStatus: route.scopedExecution === undefined ? 'approved' as const : 'not_started' as const,
+      legalReviewEvidenceRef: route.scopedExecution === undefined ? LEGAL_EVIDENCE_REF : null,
+      legalReviewedAt: route.scopedExecution === undefined ? now : null,
       legalReviewedByUserId: null,
     };
     if (byRoute === undefined) {
@@ -987,7 +1021,7 @@ async function applyPlannedModel(
         providerSlug: route.provider,
         availabilityScope: 'platform_internal',
         commercialPermission: 'standard_application_use',
-        autoApprovalPolicyId: KAANA_SYNC_AUTO_APPROVAL_POLICY_ID,
+        autoApprovalPolicyId: route.scopedExecution === undefined ? KAANA_SYNC_AUTO_APPROVAL_POLICY_ID : null,
         ...routeFacts,
         ...approval,
       });
@@ -1184,7 +1218,9 @@ export async function attestPricedDeployments(
     const batch = ids.slice(start, start + KAANA_ATTESTATION_BATCH);
     const evidence = await reader.attestDeployments(batch, {
       signal: AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS),
+      scopedExecutionContractVersion: '3.6.0',
     });
+    if (evidence.scopedExecutionContractVersion !== '3.6.0') throw new Error('Missing scoped deployment acknowledgement.');
     for (const descriptor of evidence.deployments) {
       if (!batch.includes(descriptor.deploymentId)) continue;
       attested.set(descriptor.deploymentId, {
@@ -1192,6 +1228,9 @@ export async function attestPricedDeployments(
         provider: descriptor.provider,
         modelReference: descriptor.modelReference,
         regions: [...new Set(descriptor.regions)].sort(),
+        keyId: descriptor.keyId, upstreamModelId: descriptor.upstreamModelId,
+        providerRateCardVersionId: descriptor.providerRateCardVersionId, providerSourceVersion: descriptor.providerSourceVersion,
+        ...(descriptor.scopedExecution === undefined ? {} : { scopedExecution: descriptor.scopedExecution }),
         ...(descriptor.acceptedParameters === undefined
           ? {}
           : { acceptedParameters: descriptor.acceptedParameters }),
