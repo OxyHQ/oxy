@@ -53,8 +53,27 @@ export const INBOX_PRINCIPAL_READBACK_SECRETS = [
   },
 ] as const;
 
-export interface InboxPrincipalReadbackTaskDefinition {
-  readonly family: typeof INBOX_PRINCIPAL_READBACK_TASK_FAMILY;
+/**
+ * What differs between the isolated readback tasks: their family, the fixed
+ * command and the exact secrets they may receive. Everything else is the one
+ * allowlist below.
+ */
+export interface IsolatedReadbackTaskProfile {
+  readonly family: string;
+  readonly command: readonly string[];
+  readonly secrets: readonly { readonly name: string; readonly valueFrom: string }[];
+}
+
+export const INBOX_PRINCIPAL_READBACK_TASK_PROFILE: IsolatedReadbackTaskProfile = {
+  family: INBOX_PRINCIPAL_READBACK_TASK_FAMILY,
+  command: INBOX_PRINCIPAL_READBACK_COMMAND,
+  secrets: INBOX_PRINCIPAL_READBACK_SECRETS,
+};
+
+export type InboxPrincipalReadbackTaskDefinition = IsolatedReadbackTaskDefinition;
+
+export interface IsolatedReadbackTaskDefinition {
+  readonly family: string;
   readonly executionRoleArn: string;
   readonly networkMode: "awsvpc";
   readonly requiresCompatibilities: readonly ["FARGATE"];
@@ -124,6 +143,17 @@ export function buildInboxPrincipalReadbackTaskDefinition(input: {
   readonly expectedTaskDefinitionArn: string;
   readonly liveTaskDefinition: unknown;
 }): InboxPrincipalReadbackTaskDefinition {
+  return buildIsolatedReadbackTaskDefinition(input, INBOX_PRINCIPAL_READBACK_TASK_PROFILE);
+}
+
+/** Rebuild the exact live oxy-api definition for one readback profile. */
+export function buildIsolatedReadbackTaskDefinition(
+  input: {
+    readonly expectedTaskDefinitionArn: string;
+    readonly liveTaskDefinition: unknown;
+  },
+  profile: IsolatedReadbackTaskProfile,
+): IsolatedReadbackTaskDefinition {
   if (!OXY_API_LIVE_TASK_DEFINITION_ARN_PATTERN.test(input.expectedTaskDefinitionArn)) {
     fail("The expected ARN is not an exact production oxy-api task definition");
   }
@@ -145,7 +175,7 @@ export function buildInboxPrincipalReadbackTaskDefinition(input: {
   const cpu = nonEmptyString(live.cpu, "Task cpu");
   const memory = nonEmptyString(live.memory, "Task memory");
 
-  let runtimePlatform: InboxPrincipalReadbackTaskDefinition["runtimePlatform"];
+  let runtimePlatform: IsolatedReadbackTaskDefinition["runtimePlatform"];
   if (live.runtimePlatform !== undefined) {
     if (!isObject(live.runtimePlatform)) fail("runtimePlatform must be an object");
     runtimePlatform = {
@@ -176,7 +206,7 @@ export function buildInboxPrincipalReadbackTaskDefinition(input: {
 
   const environment = list(api.environment, "oxy-api environment");
   const secrets = list(api.secrets, "oxy-api secrets");
-  for (const expected of INBOX_PRINCIPAL_READBACK_SECRETS) {
+  for (const expected of profile.secrets) {
     const bound = secrets.filter(
       (secret) => isObject(secret) && secret.name === expected.name,
     );
@@ -206,7 +236,7 @@ export function buildInboxPrincipalReadbackTaskDefinition(input: {
   const logPrefix = nonEmptyString(options["awslogs-stream-prefix"], "awslogs-stream-prefix");
 
   return {
-    family: INBOX_PRINCIPAL_READBACK_TASK_FAMILY,
+    family: profile.family,
     executionRoleArn,
     networkMode: "awsvpc",
     requiresCompatibilities: ["FARGATE"],
@@ -220,10 +250,10 @@ export function buildInboxPrincipalReadbackTaskDefinition(input: {
         image,
         essential: true,
         entryPoint: [...INBOX_PRINCIPAL_READBACK_ENTRY_POINT],
-        command: [...INBOX_PRINCIPAL_READBACK_COMMAND],
+        command: [...profile.command],
         workingDirectory: INBOX_PRINCIPAL_READBACK_WORKING_DIRECTORY,
         environment: [],
-        secrets: INBOX_PRINCIPAL_READBACK_SECRETS.map((secret) => ({ ...secret })),
+        secrets: profile.secrets.map((secret) => ({ ...secret })),
         portMappings: [],
         mountPoints: [],
         volumesFrom: [],

@@ -339,6 +339,7 @@ flags, gates and dated evidence are in [status.md](./status.md) and
 | [alia.md](./alia.md) | Alia as an inference consumer: registration, scopes, product agents |
 | [inbox-point-inference.md](./inbox-point-inference.md) | Inbox's one-shot features and their bootstrap |
 | [inbox-principal-readback.md](./inbox-principal-readback.md) | Read-only proof of the Inbox principal, its authority and its granted credit |
+| [jev-principals-readback.md](./jev-principals-readback.md) | Metadata-only readback of the Mention workload and Kaana principals |
 | [migration.md](./migration.md) · [deprecation.md](./deprecation.md) | retired names and keys, and the deprecation policy |
 | [rollout.md](./rollout.md) · [observability.md](./observability.md) | rollout flags and stages, metrics and correlation |
 

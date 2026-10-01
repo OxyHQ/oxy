@@ -2,6 +2,7 @@ import {
   INBOX_PRINCIPAL_READBACK_SECRETS,
   buildInboxPrincipalReadbackTaskDefinition,
 } from "../inboxPrincipalReadbackTask";
+import { buildJevPrincipalsReadbackTaskDefinition } from "../jevPrincipalsReadbackTask";
 
 const ARN = "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:412";
 const IMAGE = `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:${"a".repeat(64)}`;
@@ -195,5 +196,61 @@ describe("Inbox principal readback task isolation", () => {
       "DATABASE_URL",
       "INBOX_APPLICATION_KEY",
     ]);
+  });
+});
+
+describe("Jev principals readback task isolation", () => {
+  const buildJev = (live: unknown = liveTaskDefinition()) =>
+    buildJevPrincipalsReadbackTaskDefinition({
+      expectedTaskDefinitionArn: ARN,
+      liveTaskDefinition: live,
+    });
+
+  it("runs only the Jev command with DATABASE_URL as its sole secret", () => {
+    const inbox = build();
+    const jev = buildJev();
+    expect(jev.family).toBe("oxy-oxy-api-jev-principals-readback");
+    expect(jev.containerDefinitions).toEqual([
+      {
+        ...inbox.containerDefinitions[0],
+        command: ["run", "packages/api/scripts/readback-jev-principals.ts"],
+        secrets: [{ name: "DATABASE_URL", valueFrom: `${SSM}/oxy/oxy-api/DATABASE_URL` }],
+      },
+    ]);
+    // Everything else is the same allowlist: live execution role, no task role.
+    expect({ ...jev, family: inbox.family, containerDefinitions: [] }).toEqual({
+      ...inbox,
+      containerDefinitions: [],
+    });
+    expect(jev.containerDefinitions[0].entryPoint).toEqual(["/usr/local/bin/bun"]);
+  });
+
+  it("drops the Inbox key, every other secret, sidecars and the task role", () => {
+    const serialized = JSON.stringify(buildJev());
+    for (const dropped of [
+      "INBOX_APPLICATION_KEY",
+      "OXY_APPLICATION_KEY",
+      "INBOX_APPLICATION_SECRET",
+      "SERVICE_TOKEN_PRIVATE_KEY",
+      "OTEL_TOKEN",
+      "taskRoleArn",
+      "adot",
+      "readback-inbox-principal",
+      "3001",
+    ]) {
+      expect(serialized).not.toContain(dropped);
+    }
+  });
+
+  it("still requires the exact live DATABASE_URL binding and reviewed ARN", () => {
+    const live = liveTaskDefinition();
+    live.containerDefinitions[0].secrets[0].valueFrom = `${SSM}/oxy/other/DATABASE_URL`;
+    expect(() => buildJev(live)).toThrow("exact production SSM parameter");
+    expect(() =>
+      buildJevPrincipalsReadbackTaskDefinition({
+        expectedTaskDefinitionArn: ARN.replace(":412", ":411"),
+        liveTaskDefinition: liveTaskDefinition(),
+      }),
+    ).toThrow("not the exact reviewed ARN");
   });
 });
