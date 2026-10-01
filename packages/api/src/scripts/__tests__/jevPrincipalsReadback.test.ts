@@ -1,3 +1,4 @@
+import { JEV_ALIA_APPLICATION_ID, JEV_ALIA_WORKLOAD_ROLE_ARN, deriveJevAliaWorkloadCredentialId } from "../jevPrincipalsReadback";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { workloadAttestationHandle } from "../../services/workloadAttestation.service";
@@ -567,5 +568,44 @@ describe("readback-jev-principals command source", () => {
       /ensureWorkloadAttributionIdentity|bindWorkloadIdentity|exchangeWorkloadAttestation|provisionBillingProfile|grantPromotional|fetch\(|axios|https?:|mint|executeInference|OxyInferenceClient/,
     );
     expect(source).not.toMatch(/console\./);
+  });
+});
+
+describe("distinct Alia Auto metadata candidate", () => {
+  function withAlia(): JevPrincipalsReadbackInput {
+    const input = validInput();
+    const alia = structuredClone(input.mention);
+    (alia.applications as JevPrincipalsReadbackInput["mention"]["applications"][number][])[0] = { ...alia.applications[0]!, id: JEV_ALIA_APPLICATION_ID };
+    (alia.bindings as JevPrincipalsReadbackInput["mention"]["bindings"][number][])[0] = { ...alia.bindings[0]!, applicationId: JEV_ALIA_APPLICATION_ID, subject: JEV_ALIA_WORKLOAD_ROLE_ARN };
+    (alia.credentials as JevPrincipalsReadbackInput["mention"]["credentials"][number][])[0] = { ...alia.credentials[0]!, id: deriveJevAliaWorkloadCredentialId(), applicationId: JEV_ALIA_APPLICATION_ID };
+    return { ...input, alia };
+  }
+  it("proves Alia independently without altering Mention identity", () => {
+    const result = validateJevPrincipalsReadback(withAlia());
+    expect(result.alia?.status).toBe("ready");
+    expect(result.alia?.applicationId).toBe(JEV_ALIA_APPLICATION_ID);
+    expect(result.mention.applicationId).toBe(JEV_MENTION_APPLICATION_ID);
+    expect(result.alia?.workloadCredentialId).not.toBe(result.mention.workloadCredentialId);
+  });
+  it("refuses borrowing the Mention binding for Alia", () => {
+    const input = withAlia();
+    (input.alia!.bindings as JevPrincipalsReadbackInput["mention"]["bindings"][number][])[0] = { ...input.alia!.bindings[0]!, subject: JEV_MENTION_WORKLOAD_ROLE_ARN };
+    expect(() => validateJevPrincipalsReadback(input)).toThrow();
+  });
+  it("blocks missing Alia invocation authority", () => {
+    const input = withAlia();
+    (input.alia!.bindings as JevPrincipalsReadbackInput["mention"]["bindings"][number][])[0] = { ...input.alia!.bindings[0]!, scopes: ["user:read"] };
+    expect(validateJevPrincipalsReadback(input).alia?.blockedReasons).toContain("alia_effective_invoke_missing");
+  });
+  it("blocks an unbound Alia materialized credential", () => {
+    const input = withAlia();
+    (input.alia!.credentials as JevPrincipalsReadbackInput["mention"]["credentials"][number][])[0] = { ...input.alia!.credentials[0]!, workloadIdentityId: "other-binding" };
+    expect(validateJevPrincipalsReadback(input).alia?.blockedReasons).toContain("alia_credential_unbound");
+  });
+  it("never pays the Alia canary from purchased funds", () => {
+    const input = withAlia();
+    (input.alia!.balances as JevPrincipalsReadbackInput["mention"]["balances"][number][])[0] = { ...input.alia!.balances[0]!, promotionalBalance: "0" };
+    (input.alia!.journals as JevPrincipalsReadbackInput["mention"]["journals"][number][])[0] = { ...input.alia!.journals[0]!, promotionalFunds: "0" };
+    expect(validateJevPrincipalsReadback(input).alia?.blockedReasons).toContain("alia_missing_funds");
   });
 });

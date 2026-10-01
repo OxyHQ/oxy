@@ -1,3 +1,4 @@
+import { JEV_ALIA_APPLICATION_ID, JEV_ALIA_WORKLOAD_ROLE_ARN, deriveJevAliaWorkloadCredentialId } from "../src/scripts/jevPrincipalsReadback";
 import { and, eq, sql } from "drizzle-orm";
 import { closePostgres, connectPostgres, getDb } from "../src/config/postgres";
 import {
@@ -208,6 +209,42 @@ async function readback(): Promise<boolean> {
           ? await readUsdLedger(tx, billing.billingAccount.accountId)
           : { balances: [], journals: [] };
 
+      // ---- Alia -----------------------------------------------------------
+      const aliaApp = await readApplication(tx, JEV_ALIA_APPLICATION_ID);
+      const aliaBindings = await tx
+        .select({
+          id: applicationWorkloadIdentities.id,
+          applicationId: applicationWorkloadIdentities.applicationId,
+          provider: applicationWorkloadIdentities.provider,
+          subject: applicationWorkloadIdentities.subject,
+          scopes: applicationWorkloadIdentities.scopes,
+          expiresAt: applicationWorkloadIdentities.expiresAt,
+        })
+        .from(applicationWorkloadIdentities)
+        .where(
+          and(
+            eq(applicationWorkloadIdentities.provider, JEV_MENTION_WORKLOAD_PROVIDER),
+            eq(applicationWorkloadIdentities.subject, JEV_ALIA_WORKLOAD_ROLE_ARN),
+          ),
+        )
+        .limit(2);
+      const aliaCredentials = await tx
+        .select(credentialMetadata)
+        .from(applicationCredentials)
+        .where(eq(applicationCredentials.id, deriveJevAliaWorkloadCredentialId()))
+        .limit(2);
+
+      // The canonical resolver, on THIS transaction, so it reads the same
+      // snapshot and follows ancestors exactly as spending does.
+      const aliaBilling =
+        aliaApp.ownerAccountId === undefined
+          ? null
+          : await resolveBillingAccount(tx, aliaApp.ownerAccountId);
+      const aliaLedger =
+        aliaBilling?.status === "resolved"
+          ? await readUsdLedger(tx, aliaBilling.billingAccount.accountId)
+          : { balances: [], journals: [] };
+
       // ---- Kaana -------------------------------------------------------------
       const kaanaApp = await readApplication(tx, JEV_KAANA_APPLICATION_ID);
       const kaanaCredentials = await tx
@@ -219,6 +256,7 @@ async function readback(): Promise<boolean> {
         transactionReadOnly,
         transactionIsolation,
         observedAt,
+        alia: { applications: aliaApp.applicationRows, owners: aliaApp.owners, bindings: aliaBindings, credentials: aliaCredentials, billing: aliaBilling, balances: aliaLedger.balances, journals: aliaLedger.journals },
         mention: {
           applications: mentionApp.applicationRows,
           owners: mentionApp.owners,

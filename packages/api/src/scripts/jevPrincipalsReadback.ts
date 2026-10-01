@@ -42,6 +42,12 @@ export const JEV_MENTION_WORKLOAD_CREDENTIAL_ID = "wl_d61be5cd068abb658ed4d193";
 
 export const JEV_KAANA_APPLICATION_ID = "68b7c4e19f2a6d0e3c8b5174";
 
+export const JEV_ALIA_APPLICATION_ID = "6a2f851751b784a86fd0e934";
+export const JEV_ALIA_WORKLOAD_ROLE_ARN = "arn:aws:iam::237343248947:role/oxy-alia-task";
+export function deriveJevAliaWorkloadCredentialId(): string {
+  return workloadAttestationHandle(canonicalWorkloadSubject("aws-iam", JEV_ALIA_WORKLOAD_ROLE_ARN));
+}
+
 const INVOKE_SCOPE = "inference:invoke";
 
 export interface JevApplicationRow {
@@ -114,6 +120,7 @@ export interface JevPrincipalsReadbackInput {
   readonly transactionReadOnly: boolean;
   readonly transactionIsolation: string;
   readonly observedAt: Date;
+  readonly alia?: JevPrincipalsReadbackInput["mention"];
   readonly mention: {
     readonly applications: readonly JevApplicationRow[];
     readonly owners: readonly JevOwnerRow[];
@@ -179,6 +186,7 @@ export interface JevPrincipalsReadbackResult {
     readonly transactionIsolation: typeof INBOX_PRINCIPAL_READBACK_ISOLATION;
     readonly writes: 0;
   };
+  readonly alia?: JevPrincipalsReadbackResult["mention"] & { readonly status: "ready" | "blocked"; readonly blockedReasons: readonly string[] };
   readonly mention: {
     readonly applicationId: string;
     readonly ownerAccountId: string | null;
@@ -265,8 +273,9 @@ function checkOwner(
   }
 }
 
-export function validateJevPrincipalsReadback(
+function validateWorkloadReadback(
   input: JevPrincipalsReadbackInput,
+  target = { app: JEV_MENTION_APPLICATION_ID, role: JEV_MENTION_WORKLOAD_ROLE_ARN, handle: deriveJevMentionWorkloadCredentialId },
 ): JevPrincipalsReadbackResult {
   if (input.transactionReadOnly !== true) {
     fail("PostgreSQL did not confirm a read-only transaction");
@@ -277,14 +286,14 @@ export function validateJevPrincipalsReadback(
   if (Number.isNaN(input.observedAt.getTime())) {
     fail("The PostgreSQL observation time is invalid");
   }
-  const handle = deriveJevMentionWorkloadCredentialId();
+  const handle = target.handle();
   const reasons = new Set<JevPrincipalsBlockedReason>();
   const now = input.observedAt;
 
   // ---- Mention: application, owner -----------------------------------------
   const mention = input.mention;
   const mentionApp = onlyRow(mention.applications, "Mention application");
-  checkApplication(mentionApp, JEV_MENTION_APPLICATION_ID);
+  checkApplication(mentionApp, target.app);
   const mentionOwner = onlyRow(mention.owners, "Mention owner");
   checkOwner(mentionOwner, mentionApp);
   if (mentionApp === undefined) {
@@ -306,14 +315,14 @@ export function validateJevPrincipalsReadback(
   if (
     binding !== undefined &&
     (binding.provider !== JEV_MENTION_WORKLOAD_PROVIDER ||
-      binding.subject !== JEV_MENTION_WORKLOAD_ROLE_ARN)
+      binding.subject !== target.role)
   ) {
     fail("The binding row is not the exact Mention provider and subject");
   }
   if (binding === undefined) {
     reasons.add("mention_binding_missing");
   } else {
-    if (binding.applicationId !== JEV_MENTION_APPLICATION_ID) {
+    if (binding.applicationId !== target.app) {
       reasons.add("mention_binding_wrong_application");
     }
     if (!isLiveAt(binding.expiresAt, now)) reasons.add("mention_binding_expired");
@@ -328,7 +337,7 @@ export function validateJevPrincipalsReadback(
     reasons.add("mention_credential_missing");
   } else {
     if (credential.type !== "workload") reasons.add("mention_credential_not_workload");
-    if (credential.applicationId !== JEV_MENTION_APPLICATION_ID) {
+    if (credential.applicationId !== target.app) {
       reasons.add("mention_credential_wrong_application");
     }
     if (binding === undefined || credential.workloadIdentityId !== binding.id) {
@@ -470,7 +479,7 @@ export function validateJevPrincipalsReadback(
       writes: 0,
     },
     mention: {
-      applicationId: JEV_MENTION_APPLICATION_ID,
+      applicationId: target.app,
       ownerAccountId: mentionOwner?.id ?? null,
       workloadCredentialId: handle,
       bindingId: binding?.id ?? null,
@@ -499,4 +508,16 @@ export function validateJevPrincipalsReadback(
       credentials: kaanaCredentials,
     },
   };
+}
+
+/** Each candidate remains a distinct existing application's proof, never a transferable grant. */
+export function validateJevPrincipalsReadback(input: JevPrincipalsReadbackInput): JevPrincipalsReadbackResult {
+  const result = validateWorkloadReadback(input);
+  if (input.alia === undefined) return result;
+  const candidate = validateWorkloadReadback({ ...input, mention: input.alia }, {
+    app: JEV_ALIA_APPLICATION_ID, role: JEV_ALIA_WORKLOAD_ROLE_ARN, handle: deriveJevAliaWorkloadCredentialId,
+  });
+  const blockedReasons = candidate.blockedReasons.filter(reason => reason.startsWith("mention_"))
+    .map(reason => reason.replace(/^mention_/, "alia_"));
+  return { ...result, alia: { ...candidate.mention, status: blockedReasons.length === 0 ? "ready" : "blocked", blockedReasons } };
 }

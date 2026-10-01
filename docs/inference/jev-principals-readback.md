@@ -118,3 +118,7 @@ substitutions: the builder `build-jev-principals-readback-task.ts`, the
 `--started-by jev-principals-readback` value, and the result prefix
 `JEV_PRINCIPALS_READBACK_RESULT=`. It has not been run; the live image must
 already contain the command.
+
+## Alia Auto candidate
+The same snapshot also reads Alia application `6a2f851751b784a86fd0e934`, bound only to `arn:aws:iam::237343248947:role/oxy-alia-task`. Its workload handle is derived canonically, never assumed live. The existing binding, materialized credential, effective invocation authority, owner and inherited billing journal are validated separately from Mention.
+The allowlisted `alia` result has its own `status` and typed-prefix blocked reasons. This concerns synthetic classification within Alia's own Auto parent principal; it never authorizes borrowing Alia for Mention. Metadata readiness does not activate Auto, mint a token or approve dispatch. `autoClassifierApproval` and provider/route gates remain closed.
