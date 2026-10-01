@@ -527,6 +527,28 @@ export type QuoteResult =
     };
 
 /**
+ * Whether a price version PUBLISHES a unit at exactly zero.
+ *
+ * Absence is not zero: an unpriced unit is `missing`, and the caller must fail
+ * closed on it. Used where a product's units are free by its published price
+ * (decisions' `output_tokens`), so a hold that omits the unit still covers the
+ * exact charge of whatever the provider truthfully reports.
+ */
+export async function publishedUnitPrice(
+  priceVersionId: string,
+  unit: UsageUnit
+): Promise<'zero' | 'positive' | 'missing'> {
+  const [row] = await getDb()
+    .select({ amount: priceVersionUnitPrices.amount })
+    .from(priceVersionUnitPrices)
+    .where(and(eq(priceVersionUnitPrices.priceVersionId, priceVersionId), eq(priceVersionUnitPrices.unit, unit)))
+    .limit(1);
+  if (row === undefined) return 'missing';
+  // Exact decimal text, compared as text: no float may round a price to zero.
+  return /^0+(\.0+)?$/.test(row.amount) ? 'zero' : 'positive';
+}
+
+/**
  * What a set of metered units costs under one price version.
  *
  * Exposed so the public edge can size a HOLD with the same arithmetic

@@ -103,6 +103,9 @@
  * prompt with a positive control proving the logger was called at all.
  */
 
+import { decisionAnswersMatch, decisionInputBudget, decisionFitsGateway, type DecisionAnswer } from '@oxy.so/contracts';
+import { decisionAvailability } from '../config/decisionAvailability';
+
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { and, asc, desc, eq, or } from 'drizzle-orm';
@@ -124,7 +127,7 @@ import {
 } from './inferencePowerLevels.service';
 import {
   effectiveSameModelDeployment,
-  inferenceAttributionSchema,
+  type inferenceAttributionSchema,
   inferenceRequestSchema,
   INFERENCE_SCOPES,
   normalizedUsageReportSchema,
@@ -178,6 +181,7 @@ import {
   type EdgeRoute,
 } from './inferenceCatalogue.service';
 import {
+  publishedUnitPrice,
   quoteUnits,
   reserve,
   settle,
@@ -200,7 +204,7 @@ import {
   type KaanaDeploymentAttestation,
   type KaanaUsageEvidence,
 } from './kaanaClient';
-import { type ApplicationScope } from '../utils/applicationScopes';
+import type { ApplicationScope } from '../utils/applicationScopes';
 import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
 import { logger } from '../utils/logger';
 import {
@@ -544,6 +548,7 @@ export interface EdgeExecutionContext {
 }
 
 export interface EdgeCompletion {
+  readonly decisions?: readonly DecisionAnswer[];
   readonly requestId: string;
   readonly generationId?: string;
   readonly resolvedModelReference: string;
@@ -787,7 +792,7 @@ export function refuseRequest(
   context: EdgeExecutionContext,
   code: InferenceErrorCode,
   message: string,
-  options: { param?: string; reason?: string } = {}
+  options: { param?: string; reason?: string; forbidRetry?: true } = {}
 ): InferenceError {
   const { principal } = context;
   logger.warn('inference.edge.refused', {
@@ -803,6 +808,7 @@ export function refuseRequest(
     message,
     requestId: context.requestId,
     ...(options.param === undefined ? {} : { param: options.param }),
+    ...(options.forbidRetry === undefined ? {} : { forbidRetry: options.forbidRetry }),
   });
 }
 
@@ -856,6 +862,14 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       'insufficient_scope',
       'This credential does not hold the inference:invoke scope.'
     );
+  }
+
+  if (request.operation.kind === 'decisions' || request.input.format === 'decisions' || context.apiFormat === 'decisions') {
+    const gate = decisionAvailability();
+    if (!gate.available) return refuse('service_unavailable', gate.reason, { reason: 'decisions-review-required' });
+    if (request.operation.kind !== 'decisions' || request.input.format !== 'decisions' || context.apiFormat !== 'decisions' || request.stream) {
+      return refuse('invalid_request', 'Decisions require the typed nonstreaming decisions endpoint.');
+    }
   }
 
   // Only the text modality is served. Refusing here rather than forwarding is
@@ -929,8 +943,11 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   const requiredModality = requirementForRequest(request, context.apiFormat);
   const requestedOutput = request.maxOutputTokens;
   const estimatedInputTokens = estimateInputTokens(request);
+  const contextInputTokens = request.input.format === 'decisions'
+    ? decisionInputBudget(request.input.decisions).context
+    : estimatedInputTokens;
   const requiredCapacity = {
-    inputTokens: estimatedInputTokens,
+    inputTokens: contextInputTokens,
     outputTokens:
       request.operation.kind !== 'completion'
         ? 0
@@ -941,7 +958,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     environment: principal.environment,
   };
   const fallbackEnabled =
-    policy.status === 'resolved' && !policy.stored.policy.fallback.disabled;
+    request.operation.kind !== 'decisions' && policy.status === 'resolved' && !policy.stored.policy.fallback.disabled;
   const authorizesSameModelFailover =
     target.kind !== 'model'
       ? true
@@ -1092,7 +1109,8 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         request.operation,
         requestedOutput ?? route.maxOutputTokens
       );
-      const candidateQuote = await quoteRouteCeiling(
+      const candidateQuote = await quoteRouteForRequest(
+        request,
         route.priceVersionId,
         routeCeilingPlans(request, route, estimatedInputTokens, candidateMaxOutputTokens)
       );
@@ -1357,6 +1375,11 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         for (const effort of route.reasoningEfforts) effortsOfExcludedRoutes.add(effort);
         continue;
       }
+      if (request.input.format === 'decisions' && route.provider === 'openrouter' &&
+          !decisionFitsGateway(request.input.decisions)) {
+        sawContextLimit = true;
+        continue;
+      }
       if (!acceptsCarriedParameters(route)) continue;
       if (requestedOutput !== undefined && requestedOutput > route.maxOutputTokens) {
         sawOutputLimit = true;
@@ -1366,7 +1389,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         request.operation,
         requestedOutput ?? route.maxOutputTokens
       );
-      if (estimatedInputTokens + routeOutputTokens > route.maxContextTokens) {
+      if (contextInputTokens + routeOutputTokens > route.maxContextTokens) {
         sawContextLimit = true;
         continue;
       }
@@ -1631,7 +1654,8 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       authorized.deploymentId
     );
     if (routeQuote === undefined || requestedOutput === undefined) {
-      routeQuote = await quoteRouteCeiling(
+      routeQuote = await quoteRouteForRequest(
+        request,
         authorized.priceVersionId,
         routeCeilingPlans(request, authorized, estimatedInputTokens, maxOutputTokens)
       );
@@ -1846,7 +1870,10 @@ export async function executeInferenceRequest(
     });
     return {
       status: 'refused',
-      error: refuseRequest(context, failure.code, failure.message, { reason: failure.reason }),
+      error: refuseRequest(context, failure.code, failure.message, {
+        reason: failure.reason,
+        ...(forbidsRetryAfterForward(context.request) ? { forbidRetry: true } : {}),
+      }),
     };
   }
 
@@ -1854,7 +1881,7 @@ export async function executeInferenceRequest(
   // present in the signed exact-ID authorization list, is a refusal rather than
   // a warning. Cross-model substitution is valid only when that exact route was
   // explicitly authorized in the envelope.
-  const validation = validateCompletion(completion, requestId, admitted.authorizedRoutes);
+  const validation = validateCompletion(completion, requestId, admitted.authorizedRoutes, context.request);
   if (validation.status === 'invalid') {
     await settleMeasured(
       context,
@@ -1880,6 +1907,7 @@ export async function executeInferenceRequest(
       status: 'refused',
       error: refuseRequest(context, validation.code, validation.message, {
         reason: validation.reason,
+        ...(forbidsRetryAfterForward(context.request) ? { forbidRetry: true } : {}),
       }),
     };
   }
@@ -2018,6 +2046,7 @@ export async function executeInferenceRequest(
       servingProvider,
       finishReason: completion.finishReason,
       output: completion.output,
+      ...(completion.decisions === undefined ? {} : { decisions: completion.decisions }),
       ...(completion.outputAudioTranscripts === undefined
         ? {}
         : { outputAudioTranscripts: completion.outputAudioTranscripts }),
@@ -2479,6 +2508,12 @@ async function reservationExists(idempotencyKey: string): Promise<boolean> {
  * — in the log line and in the message. The customer's next action is identical
  * for both (fund the account that owns this application), and giving them two
  * codes would be two branches in their client for one decision.
+ *
+ * `already-reserved` is a refusal, never a hold. The pre-check in
+ * {@link admitRequest} is a fast path only: two requests carrying one key can
+ * both pass it, and the ledger's lock-then-lookup inside `reserve` is what
+ * decides the race. The loser borrowing the winner's hold would forward a
+ * second execution against one reservation.
  */
 function reservationOrRefusal(
   result: Awaited<ReturnType<typeof reserve>>,
@@ -2487,8 +2522,17 @@ function reservationOrRefusal(
 ): { reservation: ReservationView } | { error: InferenceError } {
   switch (result.status) {
     case 'reserved':
-    case 'already-reserved':
       return { reservation: result.reservation };
+    case 'already-reserved':
+      return {
+        error: buildInferenceError({
+          code: 'idempotency_conflict',
+          message:
+            'This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.',
+          requestId,
+          param: 'Idempotency-Key',
+        }),
+      };
     case 'no-billing-profile':
       return {
         error: buildInferenceError({
@@ -2780,6 +2824,18 @@ export async function settleMeasured(
   }
 }
 
+/**
+ * Whether a failure after the forward must never be reported as retryable.
+ *
+ * Decisions: a signed request may already have executed and been billed
+ * upstream, and responses are not retained, so a client reading `retryable`
+ * would resend it under a new key and pay twice. The code is preserved; only
+ * the retry signal is withheld.
+ */
+function forbidsRetryAfterForward(request: NormalizedEdgeRequest): boolean {
+  return request.input.format === 'decisions';
+}
+
 interface ForwardFailure {
   readonly code: InferenceErrorCode;
   readonly message: string;
@@ -2836,6 +2892,15 @@ function classifyForwardFailure(error: unknown, signal: AbortSignal): ForwardFai
         message: error.failure.message,
         reason: `kaana_error:${error.failure.code}`,
         outcome: error.failure.code === 'cancelled' ? 'cancelled' : 'failed',
+      };
+    }
+    if (error.reason === 'execution_uncertain') {
+      return {
+        code: 'provider_error',
+        message:
+          'The request may have executed upstream; its outcome and cost are unknown. Do not resend it under a new Idempotency-Key.',
+        reason: 'kaana_execution_uncertain',
+        outcome: 'failed',
       };
     }
     if (error.reason === 'usage_missing') {
@@ -2899,8 +2964,12 @@ type CompletionValidation =
 function validateCompletion(
   completion: KaanaCompletion,
   requestId: string,
-  authorizedRoutes: readonly EdgeRoute[]
+  authorizedRoutes: readonly EdgeRoute[],
+  request: NormalizedEdgeRequest
 ): CompletionValidation {
+  if (request.input.format === 'decisions' && (!completion.decisions || !decisionAnswersMatch(request.input.decisions, completion.decisions) || completion.output.length !== 0)) {
+    return { status: 'invalid', code: 'internal_error', message: 'The data plane returned invalid decisions.', reason: 'decisions-invalid' };
+  }
   const report = normalizedUsageReportSchema.safeParse(completion.usage);
   if (!report.success) {
     return {
@@ -3198,6 +3267,7 @@ export function modalityForOperation(operation: EdgeOperation): EdgeModalityRequ
       };
     case 'embeddings':
       return { input: 'text', output: 'embedding' };
+    case 'decisions':
     case 'rerank':
       // Input only. `INFERENCE_MODALITIES` has no member for a ranking, and
       // claiming `text` output would assert something false about the model.
@@ -3226,7 +3296,7 @@ export function requirementForRequest(
   return {
     ...modality,
     ...(apiFormat === undefined ? {} : { apiFormat }),
-    ...(request.audioOutput === undefined ? {} : { requiresDeclaredApiFormat: true }),
+    ...(request.audioOutput === undefined && request.operation.kind !== 'decisions' ? {} : { requiresDeclaredApiFormat: true }),
   };
 }
 
@@ -3236,7 +3306,9 @@ function capabilityRefusal(modelReference: string, required: EdgeModalityRequire
     return `${modelReference} does not hold realtime ${required.realtime.kind} sessions over ${required.realtime.transport}.`;
   }
   if (required.requiresDeclaredApiFormat === true && required.apiFormat !== undefined) {
-    return `${modelReference} does not declare spoken output on ${required.apiFormat}.`;
+    return required.apiFormat === 'decisions'
+      ? `${modelReference} does not declare support for decisions.`
+      : `${modelReference} does not declare spoken output on ${required.apiFormat}.`;
   }
   return required.apiFormat === undefined
     ? `${modelReference} cannot execute this request.`
@@ -3296,6 +3368,7 @@ export function ceilingForOperation(
         input_tokens: estimatedInputTokens,
         embeddings: operation.embeddings,
       };
+    case 'decisions':
     case 'rerank':
       return { requests: 1, input_tokens: estimatedInputTokens };
     case 'speech':
@@ -3567,6 +3640,30 @@ type RouteCeilingQuote =
     }
   | { readonly status: 'unquoted'; readonly reason: string };
 
+/**
+ * A route's ceiling quote, with each operation's own price invariants.
+ *
+ * Decisions hold `requests` and `input_tokens` only, yet a provider truthfully
+ * reports the few `output_tokens` a classification emits. That is sound only
+ * when the route PUBLISHES output tokens at exactly zero: then any reported
+ * count prices to nothing and the hold still covers the exact charge. A missing
+ * or positive output price is unquoted, which refuses before any hold or
+ * Kaana call; nothing is estimated and no reported unit is dropped.
+ */
+async function quoteRouteForRequest(
+  request: NormalizedEdgeRequest,
+  priceVersionId: string,
+  plans: readonly RouteCeilingPlan[]
+): Promise<RouteCeilingQuote> {
+  if (request.operation.kind === 'decisions') {
+    const output = await publishedUnitPrice(priceVersionId, 'output_tokens');
+    if (output !== 'zero') {
+      return { status: 'unquoted', reason: `decisions-output-price-${output}` };
+    }
+  }
+  return quoteRouteCeiling(priceVersionId, plans);
+}
+
 /** The first fully-quoted plan's dearest scenario, with the ledger's own arithmetic. */
 async function quoteRouteCeiling(
   priceVersionId: string,
@@ -3612,6 +3709,8 @@ export function estimateInputTokens(request: NormalizedEdgeRequest): number {
   } else if (request.input.format === 'text') {
     messages = 1;
     characters += request.input.text.length;
+  } else if (request.input.format === 'decisions') {
+    return decisionInputBudget(request.input.decisions).gateway;
   } else {
     messages = request.input.texts.length;
     for (const text of request.input.texts) characters += text.length;

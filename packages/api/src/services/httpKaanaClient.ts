@@ -55,6 +55,8 @@
  * edge's own test asserts a prompt marker appears in no log call.
  */
 
+import { decisionResultSchema, decisionFailureSchema, decisionAnswersMatch, inferenceErrorSchema } from '@oxy.so/contracts';
+
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
   deploymentIdSchema,
@@ -550,8 +552,122 @@ class HttpKaanaClient implements KaanaClient {
     envelope: InferenceRequest,
     options: KaanaExecuteOptions
   ): Promise<KaanaCompletion> {
+    if (envelope.input.format === 'decisions') {
+      return executeDecisions(this.config, envelope, options);
+    }
     return foldStream(this.stream(envelope, options));
   }
+}
+
+/**
+ * One signed, non-streaming decisions request.
+ *
+ * Once the body may have left, a failure is one of two things and never a
+ * guess between them. A typed failure from Kaana (HTTP 5xx with a contract
+ * error answering this request) is preserved: its code, and its usage report
+ * when the provider measured one. Anything else after send is
+ * `execution_uncertain`: the provider may have run and billed, nothing was
+ * measured, and the edge must not tell the client a retry is safe. A 4xx is
+ * Kaana refusing the envelope before execution, as for every other format.
+ */
+async function executeDecisions(
+  config: KaanaDataPlaneConfig,
+  envelope: InferenceRequest,
+  options: KaanaExecuteOptions
+): Promise<KaanaCompletion> {
+  const requestId = envelope.attribution.requestId;
+  const uncertain = (message: string): KaanaIncompleteError =>
+    new KaanaIncompleteError('execution_uncertain', message);
+  const body = Buffer.from(JSON.stringify(envelope), 'utf8');
+  const timestamp = Date.now();
+  let response: Response;
+  try {
+    response = await fetch(`${config.baseUrl}/internal/v1/decisions`, {
+      method: 'POST',
+      body,
+      signal: options.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        [KAANA_KEY_ID_HEADER]: config.keyId,
+        [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+        [KAANA_SIGNATURE_HEADER]: signEnvelope(config.privateKey, config.keyId, timestamp, body),
+      },
+    });
+  } catch (error) {
+    if (options.signal.aborted) throw error;
+    // fetch cannot tell a refused connection from one cut after the body left.
+    throw uncertain('The decisions request failed in transport after signing.');
+  }
+  if (response.status >= 400 && response.status < 500) {
+    throw await rejection(response, requestId);
+  }
+  let raw: string;
+  try {
+    raw = response.ok
+      ? await readBoundedStrict(response, 4 * 1024 * 1024)
+      : await readBounded(response);
+  } catch (error) {
+    if (options.signal.aborted) throw error;
+    throw uncertain('The decisions response was cut or oversized.');
+  }
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    if (!response.ok) logDecisionsFailure(response, requestId, undefined);
+    throw uncertain(`The decisions response (HTTP ${response.status}) was not readable JSON.`);
+  }
+  if (!response.ok) {
+    const typed = decisionFailureSchema.safeParse(payload);
+    const bare = typed.success ? undefined : inferenceErrorSchema.safeParse(payload);
+    const failure = typed.success ? typed.data.error : bare?.success ? bare.data : undefined;
+    logDecisionsFailure(response, requestId, failure?.code);
+    if (failure === undefined || failure.requestId !== requestId) {
+      throw uncertain(`The decisions data plane answered HTTP ${response.status} without a typed failure for this request.`);
+    }
+    const usage = typed.success ? typed.data.usage : undefined;
+    throw new KaanaIncompleteError('terminal_error', failure.message, {
+      failure,
+      ...(usage === undefined ? {} : { usage: { kind: 'report', report: usage } }),
+    });
+  }
+  const parsed = decisionResultSchema.safeParse(payload);
+  if (
+    !parsed.success ||
+    envelope.input.format !== 'decisions' ||
+    parsed.data.requestId !== requestId ||
+    envelope.target.kind !== 'model' ||
+    parsed.data.model !== envelope.target.modelReference ||
+    parsed.data.model !== parsed.data.usage.resolvedModelReference ||
+    !decisionAnswersMatch(envelope.input.decisions, parsed.data.data)
+  ) {
+    throw new KaanaProtocolError('Invalid or mismatched decisions result.');
+  }
+  return {
+    output: [],
+    decisions: parsed.data.data,
+    finishReason: 'stop',
+    usage: parsed.data.usage,
+  };
+}
+
+/** Log a decisions 5xx with its typed code, never its message or body. */
+function logDecisionsFailure(
+  response: Response,
+  requestId: string,
+  upstreamCode: string | undefined
+): void {
+  logger.error(
+    'inference.kaana.decisions_failed',
+    new Error(`the inference data plane answered HTTP ${response.status}`),
+    {
+      component: 'inference-kaana',
+      requestId,
+      status: response.status,
+      ...(upstreamCode === undefined ? {} : { upstreamCode }),
+    }
+  );
 }
 
 /* -------------------------------------------------------------------------- */

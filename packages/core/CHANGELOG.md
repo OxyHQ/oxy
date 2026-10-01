@@ -1,5 +1,19 @@
 # Changelog — `@oxy.so/core`
 
+## 4.1.0
+
+Requires `@oxy.so/contracts` ^4.7.0 (inference contract set 3.5.0).
+
+### Added
+
+- `OxyInferenceClient.decide(request, options)`: typed, non-streaming
+  `POST /v1/decisions` with the same bearer, delegation, cancellation and
+  idempotency transport as the other calls. The request is validated before
+  sending; a success is accepted only when its `model` and question IDs match
+  the request and its body `requestId` equals the `X-Oxy-Request-Id` header.
+  A repeated `Idempotency-Key` is refused (`idempotency_conflict`), never
+  replayed.
+
 ## 4.0.0
 
 Android apps no longer share the `so.oxy.shared` UID, and Commons is the only

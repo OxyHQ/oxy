@@ -50,6 +50,8 @@
  * request.
  */
 
+import { decisionRequestSchema, decisionSuccessSchema, decisionAnswersMatch, type DecisionRequest, type DecisionSuccess } from '@oxy.so/contracts';
+
 import type {
     CurrencyCode,
     ExactDecimal,
@@ -471,6 +473,27 @@ export class OxyInferenceClient {
         });
     }
 
+    /** Typed nonstreaming decisions. Idempotency conflicts are never replayed or retried. */
+    async decide(
+        request: DecisionRequest,
+        options: OxyInferenceRequestOptions = {},
+    ): Promise<DecisionSuccess> {
+        const input = decisionRequestSchema.parse(request);
+        const payload = await this.#request<unknown>('POST', '/v1/decisions', {
+            body: input,
+            bindRequestId: true,
+            signal: options.signal,
+            idempotencyKey: options.idempotencyKey,
+            delegatedUserId: options.delegatedUserId,
+        });
+        const parsed = decisionSuccessSchema.safeParse(payload);
+        if (!parsed.success || parsed.data.model !== input.model ||
+            !decisionAnswersMatch(input, parsed.data.data)) {
+            throw new OxyInferenceProtocolError('Invalid or mismatched decisions response.');
+        }
+        return parsed.data;
+    }
+
     /** Generate audio bytes through Oxy's authenticated inference edge. */
     async speech(
         request: OxySpeechRequest,
@@ -728,6 +751,7 @@ export class OxyInferenceClient {
         path: string,
         options: {
             body?: unknown;
+            bindRequestId?: boolean;
             signal?: AbortSignal;
             idempotencyKey?: string;
             delegatedUserId?: string;
@@ -758,6 +782,13 @@ export class OxyInferenceClient {
             );
         }
 
+        if (options.bindRequestId) {
+            const requestId = response.headers.get('X-Oxy-Request-Id');
+            if (!requestId || typeof payload !== 'object' || payload === null ||
+                !('requestId' in payload) || payload.requestId !== requestId) {
+                throw new OxyInferenceProtocolError('Decisions response request ID does not match its header.', requestId ?? undefined);
+            }
+        }
         return payload as T;
     }
 }

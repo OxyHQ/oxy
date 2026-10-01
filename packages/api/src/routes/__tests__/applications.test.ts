@@ -733,8 +733,9 @@ describe('PATCH /applications/:appId — privileged scope reconciliation', () =>
 
 describe('GET /applications — list', () => {
   it('lists apps across the accessible account forest, newest first', async () => {
-    const mine = await seedApp({ name: 'Mine' });
-    const theirs = await seedApp({ name: 'Theirs', ownerAccountId: ORG_ID });
+    // Explicit timestamps: two inserts can land in the same instant.
+    const mine = await seedApp({ name: 'Mine', createdAt: new Date('2026-01-01T00:00:00Z') });
+    const theirs = await seedApp({ name: 'Theirs', ownerAccountId: ORG_ID, createdAt: new Date('2026-01-02T00:00:00Z') });
     grantAccess(OWNER_ID, ORG_ID, 'developer');
 
     const res = await requestJson(server, 'GET', '/applications');

@@ -897,3 +897,47 @@ describe('speech', () => {
         expect(cancelled).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('typed decisions', () => {
+    const request = { model: 'typesafe/jev@fixture-v1', state: 'Synthetic fixture', questions: [{ id: 'q', kind: 'noul' as const, question: 'Synthetic?' }], effort: 'instant' as const };
+    const success = { schemaVersion: 1, requestId: 'req-decisions', model: request.model, data: [{ id: 'q', kind: 'noul', probability: 0.75 }], usage: [{ unit: 'requests', quantity: 1 }], routingPolicy: { routingPolicyId: 'fixture', policyVersion: 1 } };
+    it('uses the same bearer, delegation, cancellation and idempotency transport', async () => {
+        const stub = stubFetch([{ status: 200, body: success, headers: { 'X-Oxy-Request-Id': success.requestId } }]);
+        const client = new OxyInferenceClient({ credential: 'synthetic', fetch: stub.impl });
+        const signal = new AbortController().signal;
+        await expect(client.decide(request, { idempotencyKey: 'decision-one', delegatedUserId: 'fixture-user', signal })).resolves.toEqual(success);
+        expect(stub.calls).toHaveLength(1);
+        expect(stub.calls[0].url).toBe('https://api.oxy.so/v1/decisions');
+        expect(JSON.parse(stub.calls[0].init.body as string)).toEqual(request);
+        const headers = new Headers(stub.calls[0].init.headers);
+        expect(headers.get('Idempotency-Key')).toBe('decision-one');
+        expect(headers.get('X-Oxy-User-Id')).toBe('fixture-user');
+        expect(stub.calls[0].init.signal).toBe(signal);
+    });
+    it('refuses mismatched IDs and models rather than accepting a nominal 200', async () => {
+        for (const body of [{ ...success, model: 'typesafe/jev@other' }, { ...success, data: [{ id: 'Q', kind: 'noul', probability: 0.75 }] }]) {
+            const stub = stubFetch([{ status: 200, body, headers: { 'X-Oxy-Request-Id': success.requestId } }]);
+            await expect(new OxyInferenceClient({ credential: 'synthetic', fetch: stub.impl }).decide(request)).rejects.toBeInstanceOf(OxyInferenceProtocolError);
+        }
+    });
+    it('propagates idempotency conflict without retry or response replay', async () => {
+        const stub = stubFetch([{ status: 409, body: { schemaVersion: 1, requestId: 'req-conflict', code: 'idempotency_conflict', message: 'Already reserved', retryable: false } }]);
+        await expect(new OxyInferenceClient({ credential: 'synthetic', fetch: stub.impl }).decide(request, { idempotencyKey: 'decision-one' })).rejects.toMatchObject({ code: 'idempotency_conflict' });
+        expect(stub.calls).toHaveLength(1);
+    });
+    it('rejects unknown generation controls before sending data', async () => {
+        const stub = stubFetch([]);
+        await expect(new OxyInferenceClient({ credential: 'synthetic', fetch: stub.impl }).decide({ ...request, stream: true } as typeof request)).rejects.toThrow();
+        expect(stub.calls).toHaveLength(0);
+    });
+});
+
+describe('decisions response request identity', () => {
+    it.each([undefined, 'different-request'])('rejects missing or contradictory header %s', async (requestId) => {
+        const request = {model: 'typesafe/jev@fixture', state: '', questions: [{id: 'q', kind: 'noul' as const, question: 'Synthetic?'}]};
+        const body = {schemaVersion: 1, requestId: 'body-request', model: request.model, data: [{id: 'q', kind: 'noul', probability: 0.5}], usage: [], routingPolicy: {routingPolicyId: 'fixture', policyVersion: 1}};
+        const stub = stubFetch([{status: 200, body, headers: requestId ? {'X-Oxy-Request-Id': requestId} : {}}]);
+        await expect(new OxyInferenceClient({credential: 'synthetic', fetch: stub.impl}).decide(request)).rejects.toBeInstanceOf(OxyInferenceProtocolError);
+        expect(stub.calls).toHaveLength(1);
+    });
+});

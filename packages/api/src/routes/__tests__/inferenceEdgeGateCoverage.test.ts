@@ -115,6 +115,7 @@ function discoverRoutes(router: Router): DiscoveredRoute[] {
  */
 const EXPECTED_ROUTES = [
   'POST /responses',
+  'POST /decisions',
   'POST /chat/completions',
   // The later modalities (#972). Both admit and hold on an EXACT ceiling
   // (`characters` = `input.length`; `images` = `n`) and both answer

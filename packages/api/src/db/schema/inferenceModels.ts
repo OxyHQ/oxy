@@ -92,6 +92,7 @@ export const INFERENCE_API_FORMATS = [
   'responses',
   'chat_completions',
   'embeddings',
+  'decisions',
   'images_generations',
   'audio_transcriptions',
   'audio_speech',

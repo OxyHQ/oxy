@@ -839,6 +839,7 @@ jobs:
           bash .github/scripts/test-attest-kaana-catalogue-rollout.sh
           node --test .github/scripts/release-external-identity-packages.test.mjs
           node --test .github/scripts/release-external-identity-publication.test.mjs
+          node --test .github/scripts/release-decisions-packages.test.mjs
           bash .github/scripts/test-run-external-identity-reconciliation.sh
           bash .github/scripts/test-collect-external-identity-task.sh
           python3 .github/scripts/test-read-external-identity-api-logs.py

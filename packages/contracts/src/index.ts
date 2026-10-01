@@ -1428,3 +1428,13 @@ export * from './federationInstanceFetch';
 export * from './notifications';
 export * from './email/messages';
 export * from './stickers';
+
+export {
+    decisionEffortSchema, decisionQuestionSchema, decisionInputSchema,
+    decisionRequestSchema, decisionAnswerSchema, decisionResultSchema,
+    decisionSuccessSchema, decisionFailureSchema, decisionInputBudget, decisionFitsGateway, decisionAnswersMatch,
+} from './inference/decisions';
+export type {
+    DecisionQuestion, DecisionInput, DecisionRequest, DecisionAnswer, DecisionFailure,
+    DecisionResult, DecisionSuccess,
+} from './inference/decisions';

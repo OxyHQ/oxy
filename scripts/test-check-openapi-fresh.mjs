@@ -45,6 +45,7 @@ const failures = [];
 const FIXTURE_ROUTES = {
   'inferenceEdge.ts': [
     ['post', '/responses'],
+    ['post', '/decisions'],
     ['post', '/chat/completions'],
     ['post', '/audio/speech'],
     ['post', '/images/generations'],
@@ -234,7 +235,7 @@ function expectVerdict(caseName, root, expectedCode, expectedFragment, script = 
 }
 
 // A complete, fresh document must pass, or nothing below means anything.
-expectVerdict('complete', createFixture(), 0, 'is fresh, describes 11 named inference path(s)');
+expectVerdict('complete', createFixture(), 0, 'is fresh, describes 12 named inference path(s)');
 
 // POSITIVE CONTROL. A whole route file dropped from the map, with the artifact
 // regenerated in the same commit — so the freshness layer is green and only the
@@ -307,6 +308,13 @@ expectVerdict(
   createFixture({ payloadOverrides: { '/v1/chat/completions post': { requestBody: null } } }),
   1,
   'POST /v1/chat/completions publishes no constrained `application/json` request body',
+);
+
+expectVerdict(
+  'decisions-request-body-dropped',
+  createFixture({ payloadOverrides: { '/v1/decisions post': { requestBody: null } } }),
+  1,
+  'POST /v1/decisions publishes no constrained `application/json` request body',
 );
 
 // A body that IS published but constrains nothing — what a request schema became
@@ -511,13 +519,13 @@ function withMutatedGate(caseName, from, to, expectedFragment) {
   expectVerdict(caseName, createFixture(), 1, expectedFragment, scriptPath);
 }
 
-withMutatedGate('expected-list-shrunk', "  '/v1/responses',\n", '', 'below the floor of 11');
+withMutatedGate('expected-list-shrunk', "  '/v1/responses',\n", '', 'below the floor of 12');
 
 withMutatedGate(
   'payload-list-shrunk',
   "  { method: 'post', path: '/v1/responses', requestBody: true },\n",
   '',
-  'below the floor of 10',
+  'below the floor of 11',
 );
 
 // The empty-schema walk going INERT, which is the one failure its own findings
