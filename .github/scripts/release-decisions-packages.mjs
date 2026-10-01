@@ -109,11 +109,31 @@ export function consumerEnv(source, sandbox) {
   };
 }
 
+/**
+ * A published first-party floor, pinned by the registry's own integrity at
+ * build time. The smoke installs exactly these bytes instead of resolving them,
+ * so they need no release-age wait: integrity is the stronger guarantee.
+ */
+export function firstPartyFloor(key, document) {
+  const at = key.lastIndexOf('@');
+  const name = key.slice(0, at);
+  const version = key.slice(at + 1);
+  const tarball = document?.dist?.tarball;
+  const value = document?.dist?.integrity;
+  if (!name.startsWith('@oxy.so/') || document?.name !== name || document.version !== version ||
+      typeof value !== 'string' || !value.startsWith('sha512-') ||
+      typeof tarball !== 'string' || !tarball.startsWith(`${registry}/${name}/-/`)) {
+    throw new Error(`${key} has no registry tarball and integrity to pin`);
+  }
+  return { name, version, tarball, integrity: value };
+}
+
 /** Same packages, versions and bytes, from the same source commit. */
 export function assertSameArtifacts(own, reference) {
   if (own.sourceSha !== reference.sourceSha) throw new Error('Trusted build belongs to another commit');
   const describe = (prepared) => JSON.stringify(prepared.packages.map(({ name, version, file, integrity: value }) => [name, version, file, value]));
   if (describe(own) !== describe(reference)) throw new Error('Rebuilt artifacts differ from the trusted build');
+  if (JSON.stringify(own.dependencyFloors) !== JSON.stringify(reference.dependencyFloors)) throw new Error('Dependency floors differ from the trusted build');
 }
 
 function inspect(directory, release) {
@@ -180,32 +200,50 @@ async function prepare() {
     for (const [name, range] of Object.entries(manifest.dependencies ?? {})) {
       const floor = /^\^(\d+\.\d+\.\d+)$/.exec(range)?.[1];
       if (name.startsWith('@oxy.so/') && name !== RELEASES[0].name && floor !== undefined) {
-        known.set(`${name}@${floor}`, (await registryDocument(name, floor)) !== null);
+        known.set(`${name}@${floor}`, await registryDocument(name, floor));
       }
     }
-    dependencyFloors.push(...validateFirstPartyDependencies(manifest, (name, floor) => known.get(`${name}@${floor}`) === true));
+    validateFirstPartyDependencies(manifest, (name, floor) => known.get(`${name}@${floor}`) != null);
+    for (const [key, document] of known) {
+      dependencyFloors.push(firstPartyFloor(key, document));
+    }
     built.push(artifact);
   }
   writeFileSync(join(artifacts, 'prepared.json'), `${JSON.stringify({ sourceSha: process.env.EXPECTED_SOURCE_SHA, packages: built, dependencyFloors }, null, 2)}\n`);
 }
 
-function smoke() {
-  const packages = verifiedPackages(trusted, readPrepared(trusted));
+async function smoke() {
+  const prepared = readPrepared(trusted);
+  const packages = verifiedPackages(trusted, prepared);
   const sandbox = mkdtempSync(join(process.env.RUNNER_TEMP ?? tmpdir(), 'decisions-smoke-'));
   for (const directory of ['home', 'tmp']) mkdirSync(join(sandbox, directory));
   const env = consumerEnv(process.env, sandbox);
   const before = new Date(Date.now() - SMOKE_MINIMUM_RELEASE_AGE_SECONDS * 1000).toISOString();
   const consumer = (command, args, cwd) => execFileSync(command, args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
   for (const release of RELEASES) copyFileSync(join(trusted, fileName(release)), join(sandbox, fileName(release)));
+  const pinned = Object.fromEntries(RELEASES.map((release) => [release.name, `file:../${fileName(release)}`]));
+  if (!Array.isArray(prepared.dependencyFloors)) throw new Error('The trusted build recorded no dependency floors');
+  for (const floor of prepared.dependencyFloors) {
+    const checked = firstPartyFloor(`${floor.name}@${floor.version}`, { name: floor.name, version: floor.version, dist: floor });
+    const response = await fetch(checked.tarball, { signal: AbortSignal.timeout(30000) });
+    if (!response.ok) throw new Error(`Could not fetch ${floor.name}@${floor.version} (${response.status})`);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (integrity(bytes) !== checked.integrity) throw new Error(`${floor.name}@${floor.version} bytes differ from the trusted build's record`);
+    const file = `floor-${floor.name.slice('@oxy.so/'.length)}-${floor.version}.tgz`;
+    writeFileSync(join(sandbox, file), bytes);
+    pinned[floor.name] = `file:../${file}`;
+  }
   const passed = [];
   for (const installer of ['npm', 'bun']) {
     const project = join(sandbox, installer);
     mkdirSync(project);
-    const dependencies = Object.fromEntries(RELEASES.map((release) => [release.name, `file:../${fileName(release)}`]));
+    const dependencies = Object.fromEntries(RELEASES.map((release) => [release.name, pinned[release.name]]));
     writeFileSync(join(project, 'package.json'), `${JSON.stringify({
       name: 'decisions-release-smoke', private: true, version: '0.0.0', dependencies,
-      // One contracts copy: core's ^4.7.0 must resolve to the paired tarball.
-      overrides: { [RELEASES[0].name]: dependencies[RELEASES[0].name] },
+      // Every first-party package is these exact bytes: one contracts copy
+      // (core's and protocol's ranges both land on the paired tarball) and the
+      // integrity-checked floors. Only third-party code resolves, behind the age gate.
+      overrides: pinned,
     }, null, 2)}\n`);
     for (const file of ['checks.cjs', 'fixtures.json', 'smoke.mjs', 'smoke.cjs']) copyFileSync(join(smokeSource, file), join(project, file));
     if (installer === 'npm') consumer('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--registry', registry, `--before=${before}`], project);
@@ -220,7 +258,7 @@ function smoke() {
   if (JSON.stringify(passed) !== JSON.stringify(EXPECTED_SMOKE_CASES)) throw new Error('Smoke did not run exactly the expected cases');
   rmSync(sandbox, { recursive: true, force: true });
   mkdirSync(artifacts, { recursive: true });
-  writeFileSync(join(artifacts, 'smoke-report.json'), `${JSON.stringify({ sourceSha: process.env.EXPECTED_SOURCE_SHA, packages, cases: passed, minimumReleaseAgeSeconds: SMOKE_MINIMUM_RELEASE_AGE_SECONDS }, null, 2)}\n`);
+  writeFileSync(join(artifacts, 'smoke-report.json'), `${JSON.stringify({ sourceSha: process.env.EXPECTED_SOURCE_SHA, packages, pinned, cases: passed, minimumReleaseAgeSeconds: SMOKE_MINIMUM_RELEASE_AGE_SECONDS }, null, 2)}\n`);
 }
 
 async function verify() {

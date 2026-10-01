@@ -11,6 +11,7 @@ import {
   SMOKE_MINIMUM_RELEASE_AGE_SECONDS,
   assertSameArtifacts,
   consumerEnv,
+  firstPartyFloor,
   validateFirstPartyDependencies,
 } from './release-decisions-packages.mjs';
 
@@ -84,7 +85,7 @@ test('workflow: only the apply step holds NPM_TOKEN, dry run never does, permiss
 });
 
 /** A repo-shaped temp dir with own and trusted artifacts, fake git/npm/bun/node. */
-function fixture({ tamperTrusted = false, ownDiffers = false } = {}) {
+function fixture({ tamperTrusted = false, ownDiffers = false, floorContent } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'decisions-release-'));
   const bin = join(root, 'bin');
   const own = join(root, 'release-artifacts');
@@ -104,10 +105,13 @@ function fixture({ tamperTrusted = false, ownDiffers = false } = {}) {
     } else copyFileSync(join(trusted, file), join(own, file));
     return { name: release.name, version: release.version, file, integrity: integrity(readFileSync(join(trusted, file))) };
   });
-  const prepared = JSON.stringify({ sourceSha: sha, packages });
+  const floorBytes = Buffer.from(floorContent ?? 'published floor bytes');
+  const dependencyFloors = [{ name: '@oxy.so/protocol', version: '1.2.1', tarball: 'https://registry.npmjs.org/@oxy.so/protocol/-/protocol-1.2.1.tgz', integrity: integrity(Buffer.from('published floor bytes')) }];
+  writeFileSync(join(root, 'floor.tgz'), floorBytes);
+  const prepared = JSON.stringify({ sourceSha: sha, packages, dependencyFloors });
   writeFileSync(join(trusted, 'prepared.json'), prepared);
   const ownPackages = packages.map((entry) => ({ ...entry, integrity: integrity(readFileSync(join(own, entry.file))) }));
-  writeFileSync(join(own, 'prepared.json'), JSON.stringify({ sourceSha: sha, packages: ownPackages }));
+  writeFileSync(join(own, 'prepared.json'), JSON.stringify({ sourceSha: sha, packages: ownPackages, dependencyFloors }));
   if (tamperTrusted) writeFileSync(join(trusted, packages[0].file), 'replaced after the build');
   writeFileSync(join(root, 'registry.json'), '{}');
   writeFileSync(join(root, 'calls.jsonl'), '');
@@ -128,7 +132,7 @@ if(tool==='npm' && args[0]==='publish') {
   chmodSync(tool, 0o755);
   for (const name of ['git', 'npm', 'bun', 'node']) execFileSync('ln', ['-s', tool, join(bin, name)]);
   const preload = join(root, 'registry.mjs');
-  writeFileSync(preload, `import {readFileSync} from 'node:fs'; globalThis.fetch=async(url)=>{const name=decodeURIComponent(new URL(url).pathname.split('/')[1]); const value=JSON.parse(readFileSync('registry.json'))[name]; return new Response(JSON.stringify({dist:{integrity:value}}),{status:value?200:404});};`);
+  writeFileSync(preload, `import {readFileSync} from 'node:fs'; globalThis.fetch=async(url)=>{if(String(url).endsWith('.tgz')) return new Response(readFileSync('floor.tgz'),{status:200}); const name=decodeURIComponent(new URL(url).pathname.split('/')[1]); const value=JSON.parse(readFileSync('registry.json'))[name]; return new Response(JSON.stringify({dist:{integrity:value}}),{status:value?200:404});};`);
   const run = (phase, dryRun, extra = {}) => spawnSync(process.execPath, ['--import', preload, script, phase], {
     cwd: root, encoding: 'utf8',
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REF: 'refs/heads/main', GITHUB_REF_PROTECTED: 'true', EXPECTED_SOURCE_SHA: sha,
@@ -205,6 +209,11 @@ test('smoke installs the trusted bytes outside the repo with a clean env, real m
     assert.ok(consumer.find((call) => call.tool === 'bun' && call.args[0] === 'install').args.includes(`--minimum-release-age=${SMOKE_MINIMUM_RELEASE_AGE_SECONDS}`));
     const report = JSON.parse(readFileSync(join(f.root, 'release-artifacts/smoke-report.json'), 'utf8'));
     assert.deepEqual(report.cases, EXPECTED_SMOKE_CASES);
+    assert.deepEqual(report.pinned, {
+      '@oxy.so/contracts': 'file:../oxy.so-contracts-4.7.0.tgz',
+      '@oxy.so/core': 'file:../oxy.so-core-4.1.0.tgz',
+      '@oxy.so/protocol': 'file:../floor-protocol-1.2.1.tgz',
+    });
   } finally { cleanup(f); }
 });
 test('smoke refuses tampered trusted bytes before installing anything', () => {
@@ -222,4 +231,31 @@ test('only the fixed phases exist', () => {
       const result = f.run(phase, true); assert.equal(result.status, 1); assert.match(result.stderr, /fixed/);
     }
   } finally { cleanup(f); }
+});
+
+test('smoke refuses first-party floor bytes that differ from the trusted record', () => {
+  const f = fixture({ floorContent: 'substituted floor' });
+  try {
+    const result = f.run('smoke', true);
+    assert.equal(result.status, 1); assert.match(result.stderr, /differ from the trusted build's record/);
+    assert.equal(f.calls().filter((call) => call.tool !== 'git').length, 0);
+  } finally { cleanup(f); }
+});
+test('a first-party floor is pinned only to a registry tarball and sha512 integrity', () => {
+  const document = { name: '@oxy.so/protocol', version: '1.2.1', dist: { tarball: 'https://registry.npmjs.org/@oxy.so/protocol/-/protocol-1.2.1.tgz', integrity: 'sha512-x' } };
+  assert.deepEqual(firstPartyFloor('@oxy.so/protocol@1.2.1', document), { name: '@oxy.so/protocol', version: '1.2.1', tarball: document.dist.tarball, integrity: 'sha512-x' });
+  for (const bad of [
+    { ...document, dist: { ...document.dist, tarball: 'https://evil.example/@oxy.so/protocol/-/protocol-1.2.1.tgz' } },
+    { ...document, dist: { ...document.dist, tarball: 'https://registry.npmjs.org/@oxy.so/other/-/other-1.2.1.tgz' } },
+    { ...document, dist: { ...document.dist, integrity: 'sha1-x' } },
+    { ...document, version: '1.2.2' },
+    { ...document, name: '@oxy.so/other' },
+    null,
+  ]) assert.throws(() => firstPartyFloor('@oxy.so/protocol@1.2.1', bad), /no registry tarball/);
+  assert.throws(() => firstPartyFloor('zod@3.25.64', { ...document, name: 'zod', version: '3.25.64' }), /no registry tarball/);
+});
+test('floors are part of the trusted-build comparison', () => {
+  const prepared = { sourceSha: sha, packages: [], dependencyFloors: [{ name: 'a', version: '1.0.0', tarball: 't', integrity: 'sha512-a' }] };
+  assertSameArtifacts(prepared, structuredClone(prepared));
+  assert.throws(() => assertSameArtifacts(prepared, { ...prepared, dependencyFloors: [] }), /floors differ/);
 });
