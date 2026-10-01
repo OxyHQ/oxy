@@ -106,7 +106,7 @@
 import { decisionAnswersMatch, decisionInputBudget, decisionFitsGateway, type DecisionAnswer } from '@oxy.so/contracts';
 import { decisionAvailability } from '../config/decisionAvailability';
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { and, asc, desc, eq, or } from 'drizzle-orm';
 import type { z } from 'zod';
@@ -116,7 +116,7 @@ import {
 } from './kaanaDeploymentPublication.service';
 import {
   autoLadder,
-  type AutoPowerLevelResolver,
+  AUTO_POWER_LEVELS,
   type AutoRoutingFeatures,
   type ConcretePowerLevel,
   powerLevelEfforts,
@@ -124,7 +124,8 @@ import {
   resolvePowerLevelEffort,
   powerLevelProfileIds,
 } from './inferencePowerLevels.service';
-import { createAutoPowerLevelResolver } from './inferenceAutoPowerLevel.service';
+import { createAutoPowerLevelResolver, type AutoClassificationChild } from './inferenceAutoPowerLevel.service';
+import { createJevAutoClassifier } from './inferenceAutoClassifierChild.service';
 import {
   effectiveSameModelDeployment,
   type inferenceAttributionSchema,
@@ -192,6 +193,7 @@ import {
   recordRouteSwitch,
   resolveEffectiveRoutingPolicy,
   type RouteSwitchDetail,
+  type EffectiveRoutingPolicyResolution,
 } from './inferenceRoutingPolicy.service';
 import { recordInferenceUsage } from './inferenceTelemetry.service';
 import {
@@ -511,6 +513,13 @@ export function viewerForPrincipal(principal: EdgePrincipal): CatalogueViewer {
 /* -------------------------------------------------------------------------- */
 
 export interface EdgeExecutionContext {
+  /** Internal only, constructed by the Auto adapter; never read from a public body. */
+  readonly autoClassificationChild?: {
+    readonly parentRequestId: string;
+    readonly modelReference: string;
+    readonly policy: EffectiveRoutingPolicyResolution;
+    readonly maxPricePerRequest: AutoClassificationChild['maxPricePerRequest'];
+  };
   /** Allocated before authentication, so a rejected request is traceable. */
   readonly requestId: string;
   /**
@@ -855,6 +864,15 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     error: refuseRequest(context, code, message, options),
   });
 
+  if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
+  if (context.autoClassificationChild !== undefined && (
+    !charging || request.operation.kind !== 'decisions' || request.target?.kind !== 'model'
+    || request.target.modelReference !== context.autoClassificationChild.modelReference
+    || !request.target.modelReference.includes('@')
+  )) {
+    return refuse('policy_violation', 'Auto classification requires a metered exact-model child.');
+  }
+
   // 4. Authorize. `inference:invoke` spends the OWNING ACCOUNT's balance, which
   //    is why it is checked before anything is resolved or reserved.
   if (!principal.scopes.includes('inference:invoke')) {
@@ -887,7 +905,8 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   // 5a. Resolve the policy this request is admitted under, and PIN its version.
   //     The application's own policy wins, then the owner account's; `none`
   //     means the platform default, which is a real answer rather than a gap.
-  const policy = await resolveEffectiveRoutingPolicy(principal.applicationId);
+  const policy = context.autoClassificationChild?.policy
+    ?? await resolveEffectiveRoutingPolicy(principal.applicationId);
   const viewer = viewerForPrincipal(principal);
   // An official application with no policy of its own is served under the
   // named internal default; everyone else keeps the platform default.
@@ -960,7 +979,9 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   const fallbackEnabled =
     request.operation.kind !== 'decisions' && policy.status === 'resolved' && !policy.stored.policy.fallback.disabled;
   const authorizesSameModelFailover =
-    target.kind !== 'model'
+    context.autoClassificationChild !== undefined
+      ? false
+      : target.kind !== 'model'
       ? true
       : policy.status === 'resolved'
       ? effectiveSameModelDeployment(policy.stored.policy.fallback)
@@ -1055,7 +1076,16 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     Awaited<ReturnType<typeof resolveEdgeRoute>>,
     { readonly status: 'resolved' }
   > | undefined;
-  const maxPricePerRequest = routingConstraints.maxPricePerRequest;
+  let maxPricePerRequest = routingConstraints.maxPricePerRequest;
+  const childPriceLimit = context.autoClassificationChild?.maxPricePerRequest;
+  if (childPriceLimit !== undefined) {
+    if (maxPricePerRequest !== undefined && maxPricePerRequest.currency !== childPriceLimit.currency) {
+      return refuse('policy_violation', 'The classifier budget and application currency must match.');
+    }
+    if (maxPricePerRequest === undefined || exceedsAmount(maxPricePerRequest.amount, childPriceLimit.amount)) {
+      maxPricePerRequest = childPriceLimit;
+    }
+  }
   const priceEligibleDeploymentIds = new Set<string>();
   const quotedCandidateCeilings = new Map<
     string,
@@ -1282,6 +1312,11 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       };
       let levels: ConcretePowerLevel[];
       if (profileResolution.powerLevel === 'auto') {
+        const autoPowerLevelResolver = createAutoPowerLevelResolver(
+          AUTO_POWER_LEVELS.some(levelAllowed)
+            ? createJevAutoClassifier(context, policy, executeInferenceRequest)
+            : undefined
+        );
         const decision = await autoPowerLevelResolver(
           autoRoutingFeaturesOf(request, estimatedInputTokens),
           {
@@ -1740,6 +1775,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   //     because nothing will be charged. `hold` being `undefined` is what every
   //     later step branches on, so the two modes cannot half-happen.
   let hold: ReservationView | undefined;
+  if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
   if (charging) {
     const reservation = await reserve({
       idempotencyKey: ledgerKey,
@@ -1761,6 +1797,11 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
           : RESERVATION_TTL_SECONDS,
     });
 
+    if (reservation.status === 'already-reserved') {
+      // A concurrent request owns this hold. Do not execute again or settle
+      // its unknown cost, whether this is a classifier or final generation.
+      return refuse('idempotency_conflict', 'This request has already been attempted.');
+    }
     const held = reservationOrRefusal(reservation, requestId, quote.currency);
     if ('error' in held) {
       await recordEdgeTelemetry(context, {
@@ -2493,6 +2534,10 @@ async function recordEdgeRouteSwitch(
  * double-charges even without a customer key.
  */
 function ledgerIdempotencyKey(context: EdgeExecutionContext): string {
+  if (context.autoClassificationChild !== undefined) {
+    const parentKey = context.idempotencyKey ?? context.autoClassificationChild.parentRequestId;
+    return `oxy-edge:auto:${context.principal.credentialId}:${createHash('sha256').update(parentKey).digest('hex')}`;
+  }
   return context.idempotencyKey === undefined
     ? `oxy-edge:req:${context.requestId}`
     : `oxy-edge:idem:${context.principal.credentialId}:${context.idempotencyKey}`;
@@ -3750,12 +3795,6 @@ function autoRoutingFeaturesOf(
       request.responseFormat !== undefined && request.responseFormat.type !== 'text',
   };
 }
-
-/**
- * Dormant until the reviewed decisions adapter is available. This factory has
- * no child executor, so credentials or environment changes cannot enable Jev.
- */
-const autoPowerLevelResolver: AutoPowerLevelResolver = createAutoPowerLevelResolver();
 
 function firstNonTextPart(input: InferenceInput): string | undefined {
   if (input.format !== 'messages') return undefined;
