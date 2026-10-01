@@ -230,7 +230,7 @@ export function kaanaSigningInput(
   keyId: string,
   timestampMillis: number,
   body: Buffer
-): Buffer {
+): Buffer<ArrayBuffer> {
   const digest = createHash('sha256').update(body).digest('hex');
   return Buffer.from(
     [KAANA_SIGNATURE_DOMAIN, keyId, String(timestampMillis), digest].join('\n'),
@@ -404,7 +404,6 @@ class HttpKaanaClient implements KaanaClient {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          'Content-Type': 'application/json',
           'Cache-Control': 'no-store',
           [KAANA_KEY_ID_HEADER]: this.config.keyId,
           [KAANA_TIMESTAMP_HEADER]: String(timestamp),
@@ -516,8 +515,7 @@ class HttpKaanaClient implements KaanaClient {
     envelope: InferenceRequest | ScopedInferenceRequest,
     options: KaanaExecuteOptions
   ): AsyncGenerator<KaanaStreamFrame> {
-    const validated = envelope.schemaVersion === 3 ? scopedInferenceRequestSchema.parse(envelope) : inferenceRequestSchema.parse(envelope);
-    const body = Buffer.from(validated.schemaVersion === 3 ? canonicalScopedExecutionJson(validated) : JSON.stringify(validated), 'utf8');
+    const body = kaanaEnvelopeBytes(envelope);
     const timestamp = Date.now();
     const hop = new AbortController();
     const kaanaCancellation = (): void => hop.abort();
@@ -600,8 +598,7 @@ async function executeDecisions(
   const requestId = envelope.attribution.requestId;
   const uncertain = (message: string): KaanaIncompleteError =>
     new KaanaIncompleteError('execution_uncertain', message);
-  const validated = envelope.schemaVersion === 3 ? scopedInferenceRequestSchema.parse(envelope) : inferenceRequestSchema.parse(envelope);
-    const body = Buffer.from(validated.schemaVersion === 3 ? canonicalScopedExecutionJson(validated) : JSON.stringify(validated), 'utf8');
+  const body = kaanaEnvelopeBytes(envelope);
   const timestamp = Date.now();
   let response: Response;
   try {
@@ -1191,4 +1188,15 @@ async function readBounded(response: Response): Promise<string> {
     }
   }
   return text + decoder.decode();
+}
+
+/** Validate without changing legacy bytes; scoped input hashes cover the actual JSON wire. */
+export function kaanaEnvelopeBytes(envelope: InferenceRequest | ScopedInferenceRequest): Buffer<ArrayBuffer> {
+  if (envelope.schemaVersion === 3) {
+    const validated = scopedInferenceRequestSchema.parse(envelope);
+    const wire = JSON.parse(JSON.stringify(validated)) as unknown;
+    return Buffer.from(canonicalScopedExecutionJson(wire), 'utf8');
+  }
+  inferenceRequestSchema.parse(envelope);
+  return Buffer.from(JSON.stringify(envelope), 'utf8');
 }

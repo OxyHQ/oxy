@@ -2,12 +2,15 @@ import { createHash } from 'node:crypto';
 import {
   canonicalScopedExecutionJson,
   scopedExecutionAudienceSchema,
+  scopedExecutionSchema,
   type ScopedExecutionAudience,
   type ScopedExecution,
   type RoutingPolicyReference,
 } from '@oxy.so/contracts';
 import type { EdgeExecutionContext } from './inferenceEdge.service';
 import type { KaanaDeploymentAttestation } from './kaanaClient';
+import type { ReserveInput } from './inferenceLedger.service';
+export const scopedFundingRestriction: NonNullable<ReserveInput['fundingRestriction']> = 'promotional-only';
 
 /** Source-reviewed authorization only. No environment switch or public setter. */
 const preapprovedManifest: ScopedExecutionAudience | undefined = undefined;
@@ -37,7 +40,7 @@ export function bindScopedPermit(
     request.operation.kind !== 'decisions' || request.input.format !== 'decisions' ||
     request.target?.kind !== 'model' || request.target.modelReference !== permit.modelReference) return undefined;
   try {
-    if (hashScopedInput(request.input) !== permit.fixtureSha256) return undefined;
+    if (hashScopedInput(JSON.parse(JSON.stringify(request.input))) !== permit.fixtureSha256) return undefined;
   } catch { return undefined; }
   return permit;
 }
@@ -59,6 +62,10 @@ export interface ScopedCatalogueEvidence {
     readonly availabilityScope: string;
     readonly licenseId: string;
     readonly commercialUseAllowed: boolean;
+    readonly retainsPayloads: boolean;
+    readonly retentionDays: number;
+    readonly trainsOnCustomerData: boolean;
+    readonly zeroDataRetentionAvailable: boolean;
     readonly policyAdmitted: true;
     readonly capabilityAdmitted: true;
     readonly privacyAdmitted: true;
@@ -89,9 +96,10 @@ export function attestScopedPermit(
     descriptor.upstreamModelId !== permit.upstreamModelId ||
     descriptor.providerRateCardVersionId !== permit.providerRateCardVersionId ||
     descriptor.providerSourceVersion !== permit.providerSourceVersion) return undefined;
-  return { ...permit, requestId, snapshotId: attestation.snapshotId,
-    catalogueEvidenceHash: hashScopedInput(evidence) };
+  const parsed = scopedExecutionSchema.safeParse({ ...permit, requestId, snapshotId: attestation.snapshotId,
+    catalogueEvidenceHash: hashScopedInput(evidence) });
+  return parsed.success ? parsed.data : undefined;
 }
 
-/** Required ledger integration is deliberately absent until promo-only reserve lands. */
-export function scopedFundingIntegrationAvailable(): boolean { return false; }
+/** Typed ordinary ledger support landed; source authorization remains absent. */
+export function scopedFundingIntegrationAvailable(): boolean { return scopedFundingRestriction === 'promotional-only'; }

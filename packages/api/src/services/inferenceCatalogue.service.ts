@@ -1421,6 +1421,7 @@ export async function servableDeploymentRowIds(
       permissionState: inferenceDeployments.permissionState,
       legalReviewStatus: inferenceDeployments.legalReviewStatus,
       legalReviewEvidenceRef: inferenceDeployments.legalReviewEvidenceRef,
+      autoApprovalPolicyId: inferenceDeployments.autoApprovalPolicyId,
       scoreDeploymentId: inferenceDeploymentRoutingScores.deploymentId,
       scorePriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
       fundingClass: inferenceDeploymentRoutingScores.fundingClass,
@@ -2198,6 +2199,7 @@ export async function resolveEdgeRoute(
       permissionState: inferenceDeployments.permissionState,
       legalReviewStatus: inferenceDeployments.legalReviewStatus,
       legalReviewEvidenceRef: inferenceDeployments.legalReviewEvidenceRef,
+      autoApprovalPolicyId: inferenceDeployments.autoApprovalPolicyId,
       scoreDeploymentId: inferenceDeploymentRoutingScores.deploymentId,
       scorePriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
       joinedPriceVersionId: priceVersions.id,
@@ -2510,13 +2512,15 @@ export async function resolveEdgeRoute(
   ): EdgeRoute => ({
     deploymentId: internalRouteId,
     ...(requestContext?.scopedExecution === undefined || row.permissionState !== 'approved' ||
-      row.legalReviewStatus !== 'approved' || row.legalReviewEvidenceRef === null ? {} : {
+      row.legalReviewStatus !== 'approved' || row.legalReviewEvidenceRef === null || row.autoApprovalPolicyId !== null ? {} : {
       scopedCatalogueEvidence: {
         modelRevisionId: row.modelRevisionId, deploymentId: internalRouteId, priceVersionId,
         commercialPermission: row.commercialPermission, permissionState: 'approved' as const,
         legalReviewStatus: 'approved' as const, legalReviewEvidenceRef: row.legalReviewEvidenceRef,
         eligibility: { availabilityScope: row.availabilityScope, licenseId: row.licenseId,
-          commercialUseAllowed: row.commercialUseAllowed, policyAdmitted: true as const,
+          commercialUseAllowed: row.commercialUseAllowed, retainsPayloads: row.retainsPayloads,
+          retentionDays: row.retentionDays, trainsOnCustomerData: row.trainsOnCustomerData,
+          zeroDataRetentionAvailable: row.zeroDataRetentionAvailable, policyAdmitted: true as const,
           capabilityAdmitted: true as const, privacyAdmitted: true as const },
       },
     }),

@@ -222,6 +222,11 @@ const kaanaCatalogueResponseSchema = z
     checkedAt: nullish(z.string().max(64)),
     configuration: nullish(z.object({ snapshotId: nullish(z.string().min(1).max(256)) }).passthrough()),
     models: z.array(z.unknown()),
+    scopedExecutionContractVersion: z.literal('3.6.0').optional(),
+    deployments: z.array(z.object({ deploymentId: deploymentIdSchema, modelReference: modelReferenceSchema,
+      provider: inferenceProviderSlugSchema, regions: z.array(z.string()), scopedExecution: scopedExecutionAudienceSchema.optional(),
+      keyId: z.string().optional(), upstreamModelId: z.string().optional(), providerRateCardVersionId: z.string().optional(), providerSourceVersion: z.string().optional(),
+      acceptedParameters: z.array(z.string()).optional(), }).strict()).optional(),
   })
   .passthrough();
 
@@ -271,7 +276,7 @@ function parsePricedRoute(raw: unknown): KaanaPricedRoute | undefined {
   const input = normalizeDecimal(row.data.input);
   const output = normalizeDecimal(row.data.output);
   return {
-    ...(row.data.scopedExecution === undefined ? {} : { scopedExecution: row.data.scopedExecution }),
+
     deploymentId: row.data.deploymentId,
     provider: row.data.provider,
     // Oxy's price versions here are USD; another currency is not converted.
@@ -292,6 +297,14 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
   if (!response.success) {
     throw new Error('Kaana returned a catalogue body Oxy cannot read (no models array)');
   }
+  if (response.data.scopedExecutionContractVersion !== undefined && response.data.deployments === undefined) {
+    throw new Error('Negotiated catalogue must declare exact deployment audiences.');
+  }
+  const deploymentAudience = new Map<string, NonNullable<typeof response.data.deployments>[number]>();
+  for (const descriptor of response.data.deployments ?? []) {
+    if (deploymentAudience.has(descriptor.deploymentId)) throw new Error('Duplicate catalogue deployment identity.');
+    deploymentAudience.set(descriptor.deploymentId, descriptor);
+  }
   let invalidEntries = 0;
   const models: KaanaCatalogueModel[] = [];
   for (const rawEntry of response.data.models) {
@@ -305,6 +318,15 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
     let invalidDeployments = 0;
     for (const rawPrice of data.listPrices ?? []) {
       const priced = parsePricedRoute(rawPrice);
+      const descriptor = priced === undefined ? undefined : deploymentAudience.get(priced.deploymentId);
+      if (response.data.scopedExecutionContractVersion !== undefined && (descriptor === undefined ||
+        descriptor.modelReference !== data.modelReference || descriptor.provider !== priced?.provider)) {
+        invalidDeployments += 1; continue;
+      }
+      if (priced !== undefined && descriptor?.scopedExecution !== undefined) {
+        listPrices.push({ ...priced, scopedExecution: descriptor.scopedExecution });
+        continue;
+      }
       if (priced === undefined) invalidDeployments += 1;
       else listPrices.push(priced);
     }
@@ -1009,7 +1031,7 @@ async function applyPlannedModel(
       permissionState: route.scopedExecution === undefined ? 'approved' as const : 'pending_review' as const,
       permissionStateChangedAt: now,
       permissionStateChangedByUserId: null,
-      permissionStateNote: PERMISSION_NOTE,
+      permissionStateNote: route.scopedExecution === undefined ? PERMISSION_NOTE : 'Restricted publication requires source-specific commercial and privacy review.',
       legalReviewStatus: route.scopedExecution === undefined ? 'approved' as const : 'not_started' as const,
       legalReviewEvidenceRef: route.scopedExecution === undefined ? LEGAL_EVIDENCE_REF : null,
       legalReviewedAt: route.scopedExecution === undefined ? now : null,
@@ -1033,7 +1055,7 @@ async function applyPlannedModel(
         .set({
           ...routeFacts,
           availabilityScope: 'platform_internal',
-          ...(revived ? approval : {}),
+          ...(revived || route.scopedExecution !== undefined ? approval : {}),
         })
         .where(eq(inferenceDeployments.id, byRoute.id));
     }
@@ -1221,6 +1243,8 @@ export async function attestPricedDeployments(
       scopedExecutionContractVersion: '3.6.0',
     });
     if (evidence.scopedExecutionContractVersion !== '3.6.0') throw new Error('Missing scoped deployment acknowledgement.');
+    if (catalogue.models.some((model) => model.listPrices.some((price) => price.scopedExecution !== undefined)) &&
+      (catalogue.snapshotId === undefined || evidence.snapshotId !== catalogue.snapshotId)) throw new Error('Scoped catalogue snapshot changed before attestation.');
     for (const descriptor of evidence.deployments) {
       if (!batch.includes(descriptor.deploymentId)) continue;
       attested.set(descriptor.deploymentId, {
