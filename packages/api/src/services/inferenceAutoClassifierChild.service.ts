@@ -1,6 +1,6 @@
-import { decisionAnswersMatch, decisionInputSchema, decisionAnswerSchema } from '@oxy.so/contracts';
+import { decisionAnswersMatch, decisionInputSchema, decisionAnswerSchema, type RoutingPolicyReference } from '@oxy.so/contracts';
 import { decisionAvailability } from '../config/decisionAvailability';
-import { autoClassifierReview, autoClassifierModelReference } from '../config/autoClassification';
+import { approvedAutoClassifier, autoClassifierApproval } from '../config/autoClassification';
 import type { JevAutoClassifier } from './inferenceAutoPowerLevel.service';
 import type { EdgeExecution, EdgeExecutionContext } from './inferenceEdge.service';
 import type { EffectiveRoutingPolicyResolution } from './inferenceRoutingPolicy.service';
@@ -9,17 +9,16 @@ import type { EffectiveRoutingPolicyResolution } from './inferenceRoutingPolicy.
 export function createJevAutoClassifier(
   parent: EdgeExecutionContext,
   policy: EffectiveRoutingPolicyResolution,
-  execute: (context: EdgeExecutionContext) => Promise<EdgeExecution>
+  execute: (context: EdgeExecutionContext) => Promise<EdgeExecution>,
+  routingPolicy: RoutingPolicyReference
 ): JevAutoClassifier | undefined {
-  const modelReference = autoClassifierModelReference();
-  const review = autoClassifierReview();
-  if (parent.autoClassificationChild !== undefined || modelReference === undefined
-    || !decisionAvailability().available || !review.commercial || !review.internalEligibility
-    || !review.privacy || !review.zdr) return undefined;
+  const approval = approvedAutoClassifier(autoClassifierApproval(), routingPolicy);
+  if (parent.autoClassificationChild !== undefined || approval === undefined
+    || !decisionAvailability().available) return undefined;
 
   return {
-    modelReference,
-    review,
+    modelReference: approval.modelReference,
+    review: approval,
     admitAndExecute: async (child) => {
       const decisions = decisionInputSchema.parse({
         state: child.state,
@@ -30,7 +29,8 @@ export function createJevAutoClassifier(
           criteria: 'instant: simple factual or mechanical task; medium: ordinary synthesis; high: complex reasoning; xhigh: especially difficult multistep reasoning.',
           options: [...child.levels],
         }],
-        effort: 'instant',
+        // No `effort`: the routed systemone API has no verified effort field and
+        // Kaana refuses one. Power is the question's purpose, not a provider control.
       });
       const result = await execute({
         requestId: child.requestId,
@@ -45,6 +45,7 @@ export function createJevAutoClassifier(
         apiFormat: 'decisions',
         endpoint: '/internal/auto-classification',
         autoClassificationChild: {
+          approval,
           parentRequestId: parent.requestId,
           modelReference: child.target.modelReference,
           policy,
@@ -66,11 +67,9 @@ export function createJevAutoClassifier(
       }
       const answer = answers.data[0];
       if (answer.kind !== 'choice') throw new Error('Invalid Auto classification kind.');
-      // Ties choose the cheapest level. Probabilities are categorical evidence,
-      // never converted into a score or synthetic confidence signal.
-      const winner = answer.probabilities.reduce((best, probability, index, values) =>
-        probability > values[best] ? index : best, 0);
-      return { level: child.levels[winner] };
+      // The provider's own reply is the decision, ties included; probabilities never
+      // reconstruct or replace it. Its confidence is carried as metadata only.
+      return { level: answer.reply, confidence: answer.confidence };
     },
   };
 }
