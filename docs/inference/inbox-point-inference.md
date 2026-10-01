@@ -112,7 +112,9 @@ the two fields above). There is no workflow that writes routing policies.
    `01a06134-022c-72b6-a876-27da37a39e39`. The workflow pins this pair and adds
    only `inference:invoke`; it never looks up a credential by name or order.
 5. Verify the application and credential selected by `INBOX_APPLICATION_KEY`
-   are active and their effective scope intersection grants `inference:invoke`.
+   are active and their effective scope intersection grants `inference:invoke`,
+   with the read-only [principal and ledger readback](inbox-principal-readback.md).
+   It proves metadata only and authorizes no canary or credential reuse.
 6. Deploy Oxy, authorize charging in its documented rollout order, and smoke
    one non-stream and one cancelled stream while checking the concrete model,
    reservation settlement and usage attribution.
