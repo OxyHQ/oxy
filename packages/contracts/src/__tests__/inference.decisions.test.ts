@@ -4,6 +4,7 @@ import {
   decisionRequestSchema,
   decisionInputBudget,
   decisionFitsGateway,
+  decisionFailureSchema,
 } from "../inference/decisions";
 
 const request = {
@@ -197,4 +198,11 @@ it("preserves actual choice/score confidence and reply and rejects missing or in
   for (const value of [missingConfidence, missingReply, {...answer, confidence: NaN}]) expect(decisionAnswerSchema.safeParse(value).success).toBe(false);
   expect(decisionAnswerSchema.safeParse({id: "q", kind: "score", reply: 0.6, confidence: 0.71, mean: 0.6, distribution: [0.4, 0.6]}).success).toBe(true);
   expect(decisionAnswerSchema.safeParse({id: "q", kind: "score", reply: 0.9, confidence: 0.71, mean: 0.6, distribution: [0.4, 0.6]}).success).toBe(false);
+});
+
+it("types a decisions failure without inventing usage or completion", () => {
+  const error = { schemaVersion: 1, code: "provider_credential_invalid", message: "Synthetic.", retryable: false, requestId: "req-f" };
+  expect(decisionFailureSchema.safeParse({ schemaVersion: 1, requestId: "req-f", error }).success).toBe(true);
+  expect(decisionFailureSchema.safeParse({ schemaVersion: 1, requestId: "req-g", error }).success).toBe(false);
+  expect(decisionFailureSchema.safeParse({ schemaVersion: 1, requestId: "req-f", error, extra: true }).success).toBe(false);
 });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { inferenceErrorSchema } from "./errors";
 import { modelReferenceSchema, requestIdSchema } from "./identifiers";
 import { usageQuantitySchema } from "./money";
 import { routingPolicyReferenceSchema } from "./routingPolicy";
@@ -220,6 +221,28 @@ export const decisionResultSchema = z
       });
     }
   });
+/**
+ * Kaana's typed decisions failure. `usage` is present only when the provider
+ * measured something before failing; its absence means nothing was measured,
+ * never that the cost was zero. A failure carrying usage did execute.
+ */
+export const decisionFailureSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    requestId: requestIdSchema,
+    error: inferenceErrorSchema,
+    usage: normalizedUsageReportSchema.optional(),
+  })
+  .strict()
+  .superRefine((failure, ctx) => {
+    if (failure.error.requestId !== failure.requestId) {
+      ctx.addIssue({ code: "custom", path: ["error", "requestId"], message: "The error must answer this request." });
+    }
+    if (failure.usage !== undefined &&
+        (failure.usage.requestId !== failure.requestId || failure.usage.outcome === "completed")) {
+      ctx.addIssue({ code: "custom", path: ["usage"], message: "Failure usage must describe this request and an incomplete outcome." });
+    }
+  });
 export const decisionSuccessSchema = z
   .object({
     ...resultFields,
@@ -267,3 +290,4 @@ export type DecisionRequest = z.infer<typeof decisionRequestSchema>;
 export type DecisionAnswer = z.infer<typeof decisionAnswerSchema>;
 export type DecisionResult = z.infer<typeof decisionResultSchema>;
 export type DecisionSuccess = z.infer<typeof decisionSuccessSchema>;
+export type DecisionFailure = z.infer<typeof decisionFailureSchema>;

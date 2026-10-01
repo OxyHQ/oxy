@@ -213,6 +213,7 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   // Errors
   inferenceErrorSchema: 1,
   decisionResultSchema: 1,
+  decisionFailureSchema: 1,
   decisionSuccessSchema: 1,
   embeddingSuccessSchema: 1,
   embeddingFailureSchema: 1,
@@ -1629,6 +1630,10 @@ const FIXTURES: Record<string, unknown> = {
 FIXTURES.decisionResultSchema = {
   schemaVersion: 1, requestId: "req_01H8Z9T6NB", model: "anthropic/claude-opus-5@2026-05-01",
   data: [{ id: "q", kind: "noul", probability: 0.5 }], usage: FIXTURES.normalizedUsageReportSchema,
+};
+FIXTURES.decisionFailureSchema = {
+  schemaVersion: 1, requestId: "req_01H8Z9T6NB",
+  error: { schemaVersion: 1, code: "provider_credential_invalid", message: "Upstream refused the platform credential.", retryable: false, requestId: "req_01H8Z9T6NB" },
 };
 FIXTURES.decisionSuccessSchema = {
   schemaVersion: 1, requestId: "req_01H8Z9T6NB", model: "anthropic/claude-opus-5@2026-05-01",

@@ -1432,9 +1432,9 @@ export * from './stickers';
 export {
     decisionEffortSchema, decisionQuestionSchema, decisionInputSchema,
     decisionRequestSchema, decisionAnswerSchema, decisionResultSchema,
-    decisionSuccessSchema, decisionInputBudget, decisionFitsGateway, decisionAnswersMatch,
+    decisionSuccessSchema, decisionFailureSchema, decisionInputBudget, decisionFitsGateway, decisionAnswersMatch,
 } from './inference/decisions';
 export type {
-    DecisionQuestion, DecisionInput, DecisionRequest, DecisionAnswer,
+    DecisionQuestion, DecisionInput, DecisionRequest, DecisionAnswer, DecisionFailure,
     DecisionResult, DecisionSuccess,
 } from './inference/decisions';
