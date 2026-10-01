@@ -52,6 +52,8 @@ import * as request from "../inference/request";
 import * as routingPolicy from "../inference/routingPolicy";
 import * as streamEvents from "../inference/streamEvents";
 import * as usage from "../inference/usage";
+import * as scopedExecution from "../inference/scopedExecution";
+import { scopedEnvelopeFixture } from "./scopedExecution.fixture";
 import * as version from "../inference/version";
 
 /**
@@ -78,6 +80,7 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   request,
   routingPolicy,
   streamEvents,
+  scopedExecution,
   usage,
   version,
 };
@@ -150,6 +153,7 @@ for (const module of Object.values(INFERENCE_MODULES)) {
 const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   // Request envelope
   inferenceRequestSchema: 2,
+  scopedInferenceRequestSchema: 3,
   // Stream events
   inferenceStreamStartEventSchema: 1,
   inferenceStreamDeltaEventSchema: 1,
@@ -263,6 +267,8 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
  * ever-growing list is the gate switching itself off one line at a time.
  */
 const FROZEN_EMBEDDED_SHAPES: string[] = [
+  "scopedExecutionAudienceSchema",
+  "scopedExecutionSchema",
   "decisionInputSchema",
   "decisionRequestSchema",
   "aliaReleaseArtifactSchema",
@@ -1640,6 +1646,8 @@ FIXTURES.decisionSuccessSchema = {
   data: [{ id: "q", kind: "noul", probability: 0.5 }], usage: [{ unit: "requests", quantity: 1 }],
   routingPolicy: { routingPolicyId: "rp_fixture", policyVersion: 1 },
 };
+
+FIXTURES.scopedInferenceRequestSchema = scopedEnvelopeFixture;
 
 describe("inference contract versioning", () => {
   it("exposes the contract-set version the two planes handshake on", () => {

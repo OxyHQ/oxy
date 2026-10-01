@@ -1,0 +1,470 @@
+{
+	"canonicalInputs": [
+		{
+			"name": "whole-decisions-input",
+			"input": {
+				"format": "decisions",
+				"decisions": {
+					"state": "Synthetic 😀 literal \\ud800 � <>&  ",
+					"questions": [
+						{
+							"id": "q",
+							"kind": "noul",
+							"question": "Synthetic proposition?"
+						}
+					]
+				}
+			},
+			"canonical": "{\"decisions\":{\"questions\":[{\"id\":\"q\",\"kind\":\"noul\",\"question\":\"Synthetic proposition?\"}],\"state\":\"Synthetic 😀 literal \\\\ud800 � <>&  \"},\"format\":\"decisions\"}",
+			"sha256": "84560ef0f9a084a49edfd9f11fb946d73412b77bae74eae5fd38cafd51df3cec"
+		},
+		{
+			"name": "utf16-key-order",
+			"input": {
+				"": "bmp",
+				"𐀀": "astral"
+			},
+			"canonical": "{\"𐀀\":\"astral\",\"\":\"bmp\"}",
+			"sha256": "5e72745dd500f8b8d997ef851679707b89099da29d2aca4b93dfd85810ebaa20"
+		}
+	],
+	"audienceCases": [
+		{
+			"name": "staging",
+			"value": {
+				"permitId": "permit_synthetic_once",
+				"idempotencyKey": "idem_synthetic_once",
+				"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"expiresAt": "2026-10-02T00:05:00.000Z",
+				"principal": {
+					"accountId": "acc_synthetic",
+					"applicationId": "app_synthetic",
+					"credentialId": "cred_synthetic",
+					"environment": "staging"
+				},
+				"policy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"deploymentId": "dep_synthetic",
+				"provider": "openrouter",
+				"keyId": "key_synthetic_existing",
+				"modelReference": "typesafe/jev-1.13@2026-09-17",
+				"upstreamModelId": "typesafe/jev-1.13-20260917",
+				"priceVersionId": "pv_synthetic",
+				"providerRateCardVersionId": "card_synthetic",
+				"providerSourceVersion": "source_synthetic",
+				"maxCostUsd": "0.01"
+			},
+			"valid": true
+		},
+		{
+			"name": "idempotency-255",
+			"value": {
+				"permitId": "permit_synthetic_once",
+				"idempotencyKey": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+				"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"expiresAt": "2026-10-02T00:05:00.000Z",
+				"principal": {
+					"accountId": "acc_synthetic",
+					"applicationId": "app_synthetic",
+					"credentialId": "cred_synthetic",
+					"environment": "development"
+				},
+				"policy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"deploymentId": "dep_synthetic",
+				"provider": "openrouter",
+				"keyId": "key_synthetic_existing",
+				"modelReference": "typesafe/jev-1.13@2026-09-17",
+				"upstreamModelId": "typesafe/jev-1.13-20260917",
+				"priceVersionId": "pv_synthetic",
+				"providerRateCardVersionId": "card_synthetic",
+				"providerSourceVersion": "source_synthetic",
+				"maxCostUsd": "0.01"
+			},
+			"valid": true
+		},
+		{
+			"name": "idempotency-256",
+			"value": {
+				"permitId": "permit_synthetic_once",
+				"idempotencyKey": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+				"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"expiresAt": "2026-10-02T00:05:00.000Z",
+				"principal": {
+					"accountId": "acc_synthetic",
+					"applicationId": "app_synthetic",
+					"credentialId": "cred_synthetic",
+					"environment": "development"
+				},
+				"policy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"deploymentId": "dep_synthetic",
+				"provider": "openrouter",
+				"keyId": "key_synthetic_existing",
+				"modelReference": "typesafe/jev-1.13@2026-09-17",
+				"upstreamModelId": "typesafe/jev-1.13-20260917",
+				"priceVersionId": "pv_synthetic",
+				"providerRateCardVersionId": "card_synthetic",
+				"providerSourceVersion": "source_synthetic",
+				"maxCostUsd": "0.01"
+			},
+			"valid": false
+		},
+		{
+			"name": "deployment-128",
+			"value": {
+				"permitId": "permit_synthetic_once",
+				"idempotencyKey": "idem_synthetic_once",
+				"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"expiresAt": "2026-10-02T00:05:00.000Z",
+				"principal": {
+					"accountId": "acc_synthetic",
+					"applicationId": "app_synthetic",
+					"credentialId": "cred_synthetic",
+					"environment": "development"
+				},
+				"policy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"deploymentId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+				"provider": "openrouter",
+				"keyId": "key_synthetic_existing",
+				"modelReference": "typesafe/jev-1.13@2026-09-17",
+				"upstreamModelId": "typesafe/jev-1.13-20260917",
+				"priceVersionId": "pv_synthetic",
+				"providerRateCardVersionId": "card_synthetic",
+				"providerSourceVersion": "source_synthetic",
+				"maxCostUsd": "0.01"
+			},
+			"valid": true
+		},
+		{
+			"name": "deployment-129",
+			"value": {
+				"permitId": "permit_synthetic_once",
+				"idempotencyKey": "idem_synthetic_once",
+				"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"expiresAt": "2026-10-02T00:05:00.000Z",
+				"principal": {
+					"accountId": "acc_synthetic",
+					"applicationId": "app_synthetic",
+					"credentialId": "cred_synthetic",
+					"environment": "development"
+				},
+				"policy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"deploymentId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+				"provider": "openrouter",
+				"keyId": "key_synthetic_existing",
+				"modelReference": "typesafe/jev-1.13@2026-09-17",
+				"upstreamModelId": "typesafe/jev-1.13-20260917",
+				"priceVersionId": "pv_synthetic",
+				"providerRateCardVersionId": "card_synthetic",
+				"providerSourceVersion": "source_synthetic",
+				"maxCostUsd": "0.01"
+			},
+			"valid": false
+		},
+		{
+			"name": "identity-256-bmp",
+			"value": {
+				"permitId": "界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界",
+				"idempotencyKey": "idem_synthetic_once",
+				"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"expiresAt": "2026-10-02T00:05:00.000Z",
+				"principal": {
+					"accountId": "acc_synthetic",
+					"applicationId": "app_synthetic",
+					"credentialId": "cred_synthetic",
+					"environment": "development"
+				},
+				"policy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"deploymentId": "dep_synthetic",
+				"provider": "openrouter",
+				"keyId": "key_synthetic_existing",
+				"modelReference": "typesafe/jev-1.13@2026-09-17",
+				"upstreamModelId": "typesafe/jev-1.13-20260917",
+				"priceVersionId": "pv_synthetic",
+				"providerRateCardVersionId": "card_synthetic",
+				"providerSourceVersion": "source_synthetic",
+				"maxCostUsd": "0.01"
+			},
+			"valid": true
+		},
+		{
+			"name": "identity-256-utf16",
+			"value": {
+				"permitId": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+				"idempotencyKey": "idem_synthetic_once",
+				"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"expiresAt": "2026-10-02T00:05:00.000Z",
+				"principal": {
+					"accountId": "acc_synthetic",
+					"applicationId": "app_synthetic",
+					"credentialId": "cred_synthetic",
+					"environment": "development"
+				},
+				"policy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"deploymentId": "dep_synthetic",
+				"provider": "openrouter",
+				"keyId": "key_synthetic_existing",
+				"modelReference": "typesafe/jev-1.13@2026-09-17",
+				"upstreamModelId": "typesafe/jev-1.13-20260917",
+				"priceVersionId": "pv_synthetic",
+				"providerRateCardVersionId": "card_synthetic",
+				"providerSourceVersion": "source_synthetic",
+				"maxCostUsd": "0.01"
+			},
+			"valid": true
+		},
+		{
+			"name": "identity-258-utf16",
+			"value": {
+				"permitId": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+				"idempotencyKey": "idem_synthetic_once",
+				"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"expiresAt": "2026-10-02T00:05:00.000Z",
+				"principal": {
+					"accountId": "acc_synthetic",
+					"applicationId": "app_synthetic",
+					"credentialId": "cred_synthetic",
+					"environment": "development"
+				},
+				"policy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"deploymentId": "dep_synthetic",
+				"provider": "openrouter",
+				"keyId": "key_synthetic_existing",
+				"modelReference": "typesafe/jev-1.13@2026-09-17",
+				"upstreamModelId": "typesafe/jev-1.13-20260917",
+				"priceVersionId": "pv_synthetic",
+				"providerRateCardVersionId": "card_synthetic",
+				"providerSourceVersion": "source_synthetic",
+				"maxCostUsd": "0.01"
+			},
+			"valid": false
+		},
+		{
+			"name": "cost-over-by-one-unit",
+			"value": {
+				"permitId": "permit_synthetic_once",
+				"idempotencyKey": "idem_synthetic_once",
+				"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"expiresAt": "2026-10-02T00:05:00.000Z",
+				"principal": {
+					"accountId": "acc_synthetic",
+					"applicationId": "app_synthetic",
+					"credentialId": "cred_synthetic",
+					"environment": "development"
+				},
+				"policy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"deploymentId": "dep_synthetic",
+				"provider": "openrouter",
+				"keyId": "key_synthetic_existing",
+				"modelReference": "typesafe/jev-1.13@2026-09-17",
+				"upstreamModelId": "typesafe/jev-1.13-20260917",
+				"priceVersionId": "pv_synthetic",
+				"providerRateCardVersionId": "card_synthetic",
+				"providerSourceVersion": "source_synthetic",
+				"maxCostUsd": "0.010000000001"
+			},
+			"valid": false
+		}
+	],
+	"envelopeCases": [
+		{
+			"name": "request-128",
+			"value": {
+				"schemaVersion": 3,
+				"attribution": {
+					"requestId": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+					"principal": {
+						"billing": {
+							"accountId": "acc_synthetic"
+						},
+						"applicationId": "app_synthetic",
+						"credentialId": "cred_synthetic",
+						"environment": "development",
+						"inferenceScopes": ["inference:invoke"]
+					}
+				},
+				"target": {
+					"kind": "model",
+					"modelReference": "typesafe/jev-1.13@2026-09-17"
+				},
+				"modality": "text",
+				"input": {
+					"format": "decisions",
+					"decisions": {
+						"state": "Synthetic state",
+						"questions": [
+							{
+								"id": "q",
+								"kind": "noul",
+								"question": "Synthetic proposition?"
+							}
+						]
+					}
+				},
+				"stream": false,
+				"sampling": {},
+				"tools": [],
+				"client": {
+					"apiFormat": "decisions",
+					"endpoint": "/v1/decisions",
+					"receivedAt": "2026-10-02T00:00:00.000Z"
+				},
+				"idempotencyKey": "idem_synthetic_once",
+				"routingPolicy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"authorizedRoutes": [
+					{
+						"substitution": "same_model",
+						"deploymentId": "dep_synthetic",
+						"modelReference": "typesafe/jev-1.13@2026-09-17",
+						"provider": "openrouter",
+						"regions": []
+					}
+				],
+				"scopedExecution": {
+					"permitId": "permit_synthetic_once",
+					"idempotencyKey": "idem_synthetic_once",
+					"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					"expiresAt": "2026-10-02T00:05:00.000Z",
+					"principal": {
+						"accountId": "acc_synthetic",
+						"applicationId": "app_synthetic",
+						"credentialId": "cred_synthetic",
+						"environment": "development"
+					},
+					"policy": {
+						"routingPolicyId": "rp_synthetic",
+						"policyVersion": 1
+					},
+					"deploymentId": "dep_synthetic",
+					"provider": "openrouter",
+					"keyId": "key_synthetic_existing",
+					"modelReference": "typesafe/jev-1.13@2026-09-17",
+					"upstreamModelId": "typesafe/jev-1.13-20260917",
+					"priceVersionId": "pv_synthetic",
+					"providerRateCardVersionId": "card_synthetic",
+					"providerSourceVersion": "source_synthetic",
+					"maxCostUsd": "0.01",
+					"requestId": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+					"snapshotId": "snap_synthetic",
+					"catalogueEvidenceHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+				}
+			},
+			"valid": true
+		},
+		{
+			"name": "request-130",
+			"value": {
+				"schemaVersion": 3,
+				"attribution": {
+					"requestId": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+					"principal": {
+						"billing": {
+							"accountId": "acc_synthetic"
+						},
+						"applicationId": "app_synthetic",
+						"credentialId": "cred_synthetic",
+						"environment": "development",
+						"inferenceScopes": ["inference:invoke"]
+					}
+				},
+				"target": {
+					"kind": "model",
+					"modelReference": "typesafe/jev-1.13@2026-09-17"
+				},
+				"modality": "text",
+				"input": {
+					"format": "decisions",
+					"decisions": {
+						"state": "Synthetic state",
+						"questions": [
+							{
+								"id": "q",
+								"kind": "noul",
+								"question": "Synthetic proposition?"
+							}
+						]
+					}
+				},
+				"stream": false,
+				"sampling": {},
+				"tools": [],
+				"client": {
+					"apiFormat": "decisions",
+					"endpoint": "/v1/decisions",
+					"receivedAt": "2026-10-02T00:00:00.000Z"
+				},
+				"idempotencyKey": "idem_synthetic_once",
+				"routingPolicy": {
+					"routingPolicyId": "rp_synthetic",
+					"policyVersion": 1
+				},
+				"authorizedRoutes": [
+					{
+						"substitution": "same_model",
+						"deploymentId": "dep_synthetic",
+						"modelReference": "typesafe/jev-1.13@2026-09-17",
+						"provider": "openrouter",
+						"regions": []
+					}
+				],
+				"scopedExecution": {
+					"permitId": "permit_synthetic_once",
+					"idempotencyKey": "idem_synthetic_once",
+					"fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					"expiresAt": "2026-10-02T00:05:00.000Z",
+					"principal": {
+						"accountId": "acc_synthetic",
+						"applicationId": "app_synthetic",
+						"credentialId": "cred_synthetic",
+						"environment": "development"
+					},
+					"policy": {
+						"routingPolicyId": "rp_synthetic",
+						"policyVersion": 1
+					},
+					"deploymentId": "dep_synthetic",
+					"provider": "openrouter",
+					"keyId": "key_synthetic_existing",
+					"modelReference": "typesafe/jev-1.13@2026-09-17",
+					"upstreamModelId": "typesafe/jev-1.13-20260917",
+					"priceVersionId": "pv_synthetic",
+					"providerRateCardVersionId": "card_synthetic",
+					"providerSourceVersion": "source_synthetic",
+					"maxCostUsd": "0.01",
+					"requestId": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+					"snapshotId": "snap_synthetic",
+					"catalogueEvidenceHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+				}
+			},
+			"valid": false
+		}
+	]
+}

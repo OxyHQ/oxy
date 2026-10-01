@@ -1,3 +1,4 @@
+import { scopedExecutionAudienceSchema } from "./scopedExecution";
 /**
  * The canonical model catalogue.
  *
@@ -536,6 +537,8 @@ export const modelDeploymentSchema = z
     /** See `version.ts`: exchanged with the data plane on its own. */
     schemaVersion: z.literal(2),
     deploymentId: deploymentIdSchema,
+    /** Restrictive audience; never an eligibility approval. */
+    scopedExecution: scopedExecutionAudienceSchema.optional(),
     provider: inferenceProviderSlugSchema,
     /** Always revision-pinned: a deployment serves specific weights. */
     modelReference: modelReferenceSchema,

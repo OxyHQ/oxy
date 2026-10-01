@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { integrity } from './release-external-identity-packages.mjs';
 import {
+  CONSUMER_FLOORS,
   EXPECTED_SMOKE_CASES,
   RELEASES,
   SMOKE_MINIMUM_RELEASE_AGE_SECONDS,
@@ -19,8 +20,9 @@ const script = resolve('.github/scripts/release-decisions-packages.mjs');
 const workflow = readFileSync(resolve('.github/workflows/release-decisions-packages.yml'), 'utf8');
 const sha = 'a'.repeat(40);
 
-test('release scope is the dependency-ordered decisions pair at unpublished versions', () => {
-  assert.deepEqual(RELEASES.map(({ name, version }) => `${name}@${version}`), ['@oxy.so/contracts@4.7.0', '@oxy.so/core@4.1.0']);
+test('release scope is contracts only; published SDK floors cannot be republished', () => {
+  assert.deepEqual(RELEASES.map(({ name, version }) => `${name}@${version}`), ['@oxy.so/contracts@4.8.0']);
+  assert.deepEqual(CONSUMER_FLOORS, [{ name: '@oxy.so/core', version: '4.1.0' }, { name: '@oxy.so/protocol', version: '1.2.1' }]);
   assert.deepEqual(EXPECTED_SMOKE_CASES, [
     'npm/node/smoke.mjs', 'npm/node/smoke.cjs', 'npm/bun/smoke.mjs', 'npm/bun/smoke.cjs',
     'bun/node/smoke.mjs', 'bun/node/smoke.cjs', 'bun/bun/smoke.mjs', 'bun/bun/smoke.cjs',
@@ -33,14 +35,14 @@ test('source manifests carry exactly the fixed release versions', () => {
     assert.equal(`${manifest.name}@${manifest.version}`, `${release.name}@${release.version}`);
   }
   const core = JSON.parse(readFileSync(resolve('packages/core/package.json'), 'utf8'));
-  // `workspace:^` is what bun pm pack rewrites to ^4.7.0; validated again on the artifact.
+  // `workspace:^` is what bun pm pack rewrites to ^4.8.0; validated again on the artifact.
   assert.equal(core.dependencies['@oxy.so/contracts'], 'workspace:^');
 });
-test('core must pin exactly the paired contracts and only published first-party floors', () => {
+test('any future paired artifact must pin released contracts and published first-party floors', () => {
   const published = (name, floor) => `${name}@${floor}` !== '@oxy.so/protocol@9.9.9';
-  const core = { name: '@oxy.so/core', dependencies: { '@oxy.so/contracts': '^4.7.0', '@oxy.so/protocol': '^1.2.1', zod: '^3.25.64' } };
+  const core = { name: '@oxy.so/core', dependencies: { '@oxy.so/contracts': '^4.8.0', '@oxy.so/protocol': '^1.2.1', zod: '^3.25.64' } };
   assert.deepEqual(validateFirstPartyDependencies(core, published), ['@oxy.so/protocol@1.2.1']);
-  for (const contracts of ['^4.6.0', '4.7.0', '>=4.7.0', 'workspace:^']) {
+  for (const contracts of ['^4.6.0', '4.8.0', '>=4.8.0', 'workspace:^']) {
     assert.throws(() => validateFirstPartyDependencies({ ...core, dependencies: { ...core.dependencies, '@oxy.so/contracts': contracts } }, published), /must depend/);
   }
   assert.throws(() => validateFirstPartyDependencies({ name: '@oxy.so/core', dependencies: { zod: '^3.25.64' } }, published), /must depend/);
@@ -99,14 +101,14 @@ function fixture({ tamperTrusted = false, ownDiffers = false, floorContent } = {
     for (const file of [manifest.main, manifest.module, manifest.types]) writeFileSync(join(source, 'package', file), 'fixture');
     const file = `oxy.so-${release.directory}-${release.version}.tgz`;
     execFileSync('tar', ['-czf', join(trusted, file), '-C', source, 'package']);
-    if (ownDiffers && index === 1) {
+    if (ownDiffers && index === 0) {
       writeFileSync(join(source, 'package', manifest.main), 'rebuilt differently');
       execFileSync('tar', ['-czf', join(own, file), '-C', source, 'package']);
     } else copyFileSync(join(trusted, file), join(own, file));
     return { name: release.name, version: release.version, file, integrity: integrity(readFileSync(join(trusted, file))) };
   });
   const floorBytes = Buffer.from(floorContent ?? 'published floor bytes');
-  const dependencyFloors = [{ name: '@oxy.so/protocol', version: '1.2.1', tarball: 'https://registry.npmjs.org/@oxy.so/protocol/-/protocol-1.2.1.tgz', integrity: integrity(Buffer.from('published floor bytes')) }];
+  const dependencyFloors = CONSUMER_FLOORS.map(({ name, version }) => ({ name, version, tarball: `https://registry.npmjs.org/${name}/-/${name.slice('@oxy.so/'.length)}-${version}.tgz`, integrity: integrity(Buffer.from('published floor bytes')) }));
   writeFileSync(join(root, 'floor.tgz'), floorBytes);
   const prepared = JSON.stringify({ sourceSha: sha, packages, dependencyFloors });
   writeFileSync(join(trusted, 'prepared.json'), prepared);
@@ -145,14 +147,14 @@ if(tool==='npm' && args[0]==='publish') {
 const cleanup = (f) => rmSync(f.root, { recursive: true, force: true });
 const token = { NODE_AUTH_TOKEN: 'non-secret-test-fixture' };
 
-test('verify needs no token, calls no npm, and reports both versions anonymously', () => {
+test('verify needs no token, calls no npm, and reports the release anonymously', () => {
   const f = fixture();
   try {
     const result = f.run('verify', true, { NODE_AUTH_TOKEN: '' });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(f.calls().filter((call) => call.tool === 'npm').length, 0);
     const report = JSON.parse(readFileSync(join(f.root, 'release-artifacts/release-report.json'), 'utf8'));
-    assert.deepEqual(report.packages.map((entry) => entry.state), ['missing', 'missing']);
+    assert.deepEqual(report.packages.map((entry) => entry.state), ['missing']);
   } finally { cleanup(f); }
 });
 test('publish refuses a dry run even when a token is present', () => {
@@ -162,12 +164,12 @@ test('publish refuses a dry run even when a token is present', () => {
     assert.equal(result.status, 1); assert.match(result.stderr, /dry_run/); assert.equal(f.calls().length, 0);
   } finally { cleanup(f); }
 });
-test('apply publishes its own rebuilt contracts before core, and a retry is idempotent', () => {
+test('apply publishes only its own contracts, never core, and a retry is idempotent', () => {
   const f = fixture();
   try {
     let result = f.run('publish', false, token); assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(f.publishes().map((call) => call.args[1].split('/').slice(-2).join('/')), ['release-artifacts/oxy.so-contracts-4.7.0.tgz', 'release-artifacts/oxy.so-core-4.1.0.tgz']);
-    result = f.run('publish', false, token); assert.equal(result.status, 0, result.stderr); assert.equal(f.publishes().length, 2);
+    assert.deepEqual(f.publishes().map((call) => call.args[1].split('/').slice(-2).join('/')), ['release-artifacts/oxy.so-contracts-4.8.0.tgz']);
+    result = f.run('publish', false, token); assert.equal(result.status, 0, result.stderr); assert.equal(f.publishes().length, 1);
   } finally { cleanup(f); }
 });
 test('a rebuild that differs from the trusted bytes publishes nothing and verifies nothing', () => {
@@ -179,10 +181,10 @@ test('a rebuild that differs from the trusted bytes publishes nothing and verifi
     assert.equal(f.publishes().length, 0);
   } finally { cleanup(f); }
 });
-test('a different published core blocks contracts too, during preflight', () => {
+test('a different published contracts version blocks overwrite during preflight', () => {
   const f = fixture();
   try {
-    writeFileSync(join(f.root, 'registry.json'), JSON.stringify({ '@oxy.so/core': 'sha512-conflicting' }));
+    writeFileSync(join(f.root, 'registry.json'), JSON.stringify({ '@oxy.so/contracts': 'sha512-conflicting' }));
     const result = f.run('publish', false, token); assert.equal(result.status, 1); assert.match(result.stderr, /refusing overwrite/); assert.equal(f.publishes().length, 0);
   } finally { cleanup(f); }
 });
@@ -210,8 +212,8 @@ test('smoke installs the trusted bytes outside the repo with a clean env, real m
     const report = JSON.parse(readFileSync(join(f.root, 'release-artifacts/smoke-report.json'), 'utf8'));
     assert.deepEqual(report.cases, EXPECTED_SMOKE_CASES);
     assert.deepEqual(report.pinned, {
-      '@oxy.so/contracts': 'file:../oxy.so-contracts-4.7.0.tgz',
-      '@oxy.so/core': 'file:../oxy.so-core-4.1.0.tgz',
+      '@oxy.so/contracts': 'file:../oxy.so-contracts-4.8.0.tgz',
+      '@oxy.so/core': 'file:../floor-core-4.1.0.tgz',
       '@oxy.so/protocol': 'file:../floor-protocol-1.2.1.tgz',
     });
   } finally { cleanup(f); }
@@ -258,4 +260,21 @@ test('floors are part of the trusted-build comparison', () => {
   const prepared = { sourceSha: sha, packages: [], dependencyFloors: [{ name: 'a', version: '1.0.0', tarball: 't', integrity: 'sha512-a' }] };
   assertSameArtifacts(prepared, structuredClone(prepared));
   assert.throws(() => assertSameArtifacts(prepared, { ...prepared, dependencyFloors: [] }), /floors differ/);
+});
+
+test('smoke refuses missing or changed published SDK floors before any consumer runs', () => {
+  for (const mode of ['missing', 'wrong-version', 'duplicate']) {
+    const f = fixture();
+    try {
+      const path = join(f.root, 'trusted-artifacts/prepared.json');
+      const prepared = JSON.parse(readFileSync(path, 'utf8'));
+      if (mode === 'missing') prepared.dependencyFloors = prepared.dependencyFloors.filter((floor) => floor.name !== '@oxy.so/core');
+      if (mode === 'wrong-version') prepared.dependencyFloors[0].version = '4.2.0';
+      if (mode === 'duplicate') prepared.dependencyFloors.push({ ...prepared.dependencyFloors[0] });
+      writeFileSync(path, JSON.stringify(prepared));
+      const result = f.run('smoke', true);
+      assert.equal(result.status, 1); assert.match(result.stderr, /must pin exactly/);
+      assert.equal(f.calls().filter((call) => call.tool !== 'git').length, 0);
+    } finally { cleanup(f); }
+  }
 });
