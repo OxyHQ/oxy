@@ -127,6 +127,7 @@ it.each([
   { ...result, usage: { ...result.usage, outcome: "failed" } },
   { ...result, data: [{ id: "exact-Q", kind: "noul", probability: 2 }] },
   { ...result, model: "typesafe/jev@wrong" },
+  { ...result, model: "typesafe/jev@wrong", usage: { ...result.usage, resolvedModelReference: "typesafe/jev@wrong" } },
 ])(
   "rejects malformed or unbound result without chat reinterpretation",
   async (payload) => {

@@ -31,7 +31,10 @@
 import express from 'express';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash, generateKeyPairSync, verify } from 'node:crypto';
+import * as decisionGate from '../../config/decisionAvailability';
+import * as kaanaConfig from '../../config/kaanaDataPlane';
+import { createHttpKaanaClient } from '../../services/httpKaanaClient';
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -192,6 +195,7 @@ interface Fixture {
 const suffix = (): string => randomUUID().replace(/-/g, '').slice(0, 10);
 
 interface FixtureOptions {
+  readonly apiFormats?: string[];
   readonly scopes?: string[];
   readonly fund?: string;
   readonly maxContextTokens?: number;
@@ -274,6 +278,7 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       displayName: `Model ${tag}`,
       inputModalities: ['text'],
       outputModalities: ['text'],
+      ...(options.apiFormats === undefined ? {} : { apiFormats: options.apiFormats }),
       supportsTools: true,
       supportsParallelToolCalls: false,
       supportsStructuredOutput: true,
@@ -4454,5 +4459,128 @@ describe('the internal default routing policy', () => {
       expect(response.status).not.toBe(200);
       expect(JSON.stringify(json(response))).toContain('no_route_available');
     });
+  });
+});
+
+
+// Synthetic-only admission of decisions. Production has no activation flag.
+// Exercise the real HTTP signer and ledger together; global fetch is intercepted
+// before any network call. These fixtures grant no real provider eligibility.
+describe('decisions signed execution and ledger', () => {
+  beforeEach(() => jest.spyOn(decisionGate, 'decisionAvailability').mockReturnValue({ available: true, reason: 'synthetic test only' }));
+  afterEach(() => jest.restoreAllMocks());
+
+  const bodyFor = (fixture: Fixture) => ({
+    model: `${fixture.modelReference}@2026-01-01`, state: 'SYNTHETIC-PRIVATE-PAYLOAD',
+    questions: [
+      {id: 'choice', kind: 'choice', question: 'Pick', options: ['a', 'b']},
+      {id: 'score', kind: 'score', question: 'Rate', levels: ['low', 'high']},
+      {id: 'noul', kind: 'noul', question: 'Synthetic?'},
+    ],
+  });
+  const answers = [
+    {id: 'choice', kind: 'choice', reply: 'b', confidence: 0.43, probabilities: [0.2, 0.8]},
+    {id: 'score', kind: 'score', reply: 0.6, confidence: 0.71, mean: 0.6, distribution: [0.4, 0.6]},
+    {id: 'noul', kind: 'noul', probability: 0.9},
+  ];
+  function signedClient(fixture: Fixture, corrupt = false) {
+    const keys = generateKeyPairSync('ed25519');
+    jest.spyOn(kaanaConfig, 'resolveKaanaDataPlane').mockReturnValue({status: 'configured', config: {baseUrl: 'https://kaana.ai', keyId: 'synthetic-decisions', privateKey: keys.privateKey}});
+    const client = createHttpKaanaClient();
+    if (!client) throw new Error('Missing synthetic transport');
+    const seen: InferenceRequest[] = [];
+    const fetcher = jest.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      expect(url).toBe('https://kaana.ai/internal/v1/decisions');
+      const bytes = init?.body as Buffer;
+      const headers = new Headers(init?.headers);
+      const signed = Buffer.from(`oxy-kaana-envelope:v1\nsynthetic-decisions\n${headers.get('X-Oxy-Kaana-Timestamp')}\n${createHash('sha256').update(bytes).digest('hex')}`);
+      expect(verify(null, signed, keys.publicKey, Buffer.from((headers.get('X-Oxy-Kaana-Signature') ?? '').slice(3), 'base64'))).toBe(true);
+      const envelope = JSON.parse(bytes.toString()) as InferenceRequest;
+      seen.push(envelope);
+      expect(envelope.client.apiFormat).toBe('decisions');
+      expect(envelope.input.format).toBe('decisions');
+      expect(envelope).not.toHaveProperty('maxOutputTokens');
+      const held = await balanceOf(fixture.accountId);
+      expect(Number(held.reserved)).toBeGreaterThan(0);
+      const completion = completionFor(envelope, {input: 12, output: 0, provider: fixture.provider});
+      // No generated output, no classifier-reserved downstream generation.
+      completion.usage.units = completion.usage.units.filter(unit => unit.unit !== 'output_tokens');
+      return new Response(JSON.stringify({schemaVersion: 1, requestId: envelope.attribution.requestId,
+        model: bodyFor(fixture).model, data: corrupt ? [{...answers[2], id: 'wrong'}] : answers, usage: completion.usage}));
+    });
+    return {client: {execute: client.execute.bind(client), stream: client.stream.bind(client), attestDeployments: attestFixtureDeployments}, seen, fetcher};
+  }
+  it('reserves once, signs exact native input, preserves real signals, settles actual classification cost and refuses replay', async () => {
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], maxContextTokens: 32000});
+    const before = await balanceOf(fixture.accountId);
+    const {client, seen, fetcher} = signedClient(fixture);
+    await withServer(client, async request => {
+      const headers = {...bearer(fixture.token), 'Idempotency-Key': 'synthetic-decision-once'};
+      const response = await request('POST', '/v1/decisions', bodyFor(fixture), headers);
+      expect(json(response)).toMatchObject({data: answers, model: bodyFor(fixture).model});
+      expect(response.status).toBe(200);
+      expect(json(response).requestId).toBe(response.headers['x-oxy-request-id']);
+      const duplicate = await request('POST', '/v1/decisions', bodyFor(fixture), headers);
+      expect(duplicate.status).toBe(409);
+      expect(json(duplicate)).toMatchObject({code: 'idempotency_conflict'});
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(seen).toHaveLength(1);
+    const after = await balanceOf(fixture.accountId);
+    expect(Number(before.purchased) - Number(after.purchased)).toBeCloseTo(0.000036, 9);
+    expect(Number(after.reserved)).toBe(0);
+    const reservations = await getDb().select().from(usageReservations).where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(1);
+    expect(reservations[0].status).toBe('settled');
+    const receipts = await getDb().select().from(usageReceipts).where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipts).toHaveLength(1);
+    expect(Number(receipts[0].billedAmount)).toBeCloseTo(0.000036, 9);
+    expect(receipts[0].inputTokens).toBe(12);
+    expect(JSON.stringify([reservations, receipts, mockedLogger.info.mock.calls, mockedLogger.warn.mock.calls, mockedLogger.error.mock.calls])).not.toContain('SYNTHETIC-PRIVATE-PAYLOAD');
+  });
+  it('settles and refunds the entire hold immediately when the signed hop returns invalid decisions', async () => {
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const before = await balanceOf(fixture.accountId);
+    const {client, fetcher} = signedClient(fixture, true);
+    await withServer(client, async request => {
+      const response = await request('POST', '/v1/decisions', bodyFor(fixture), bearer(fixture.token));
+      expect(response.status).toBeGreaterThanOrEqual(500);
+      expect(json(response)).not.toHaveProperty('data');
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(await balanceOf(fixture.accountId)).toEqual(before);
+    const reservations = await getDb().select().from(usageReservations).where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(1);
+    expect(reservations[0].status).toBe('settled');
+    const receipts = await getDb().select().from(usageReceipts).where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipts).toHaveLength(1);
+    expect(Number(receipts[0].billedAmount)).toBe(0);
+  });
+  it('admits repeated shared context within 32K without multiplying it by question count', async () => {
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], maxContextTokens: 32000});
+    const {client, fetcher} = signedClient(fixture);
+    await withServer(client, async request => {
+      const response = await request('POST', '/v1/decisions', {...bodyFor(fixture), state: 'x'.repeat(29000)}, bearer(fixture.token));
+      expect(response.status).toBe(200);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it('excludes an otherwise authorized OpenRouter route whose total exceeds 32K before any hold', async () => {
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], maxContextTokens: 32000, routingPolicy: {providerAllowlist: ['openrouter']}});
+    await addDeployment(fixture, {rank: 'gateway', providerSlug: 'openrouter'});
+    const seen: InferenceRequest[] = [];
+    await withServer(fakeKaana(() => {throw new Error('Must not execute');}, seen), async request => {
+      const response = await request('POST', '/v1/decisions', {...bodyFor(fixture), state: '', questions: Array.from({length: 3}, (_, i) => ({id: String(i), kind: 'noul', question: 'x'.repeat(15000)}))}, bearer(fixture.token));
+      expect(response.status).toBe(400);
+      expect(json(response)).toMatchObject({code: 'context_length_exceeded', param: 'input'});
+    });
+    expect(seen).toHaveLength(0);
+    expect(await getDb().select().from(usageReservations).where(eq(usageReservations.accountId, fixture.accountId))).toHaveLength(0);
+    // Positive control: the same OpenRouter-only policy admits a total under 32K.
+    await withServer(fakeKaana(() => {throw new Error('synthetic stop after admission');}, seen), async request => {
+      await request('POST', '/v1/decisions', {...bodyFor(fixture), state: '', questions: [{id: '0', kind: 'noul', question: 'x'.repeat(15000)}]}, bearer(fixture.token));
+    });
+    expect(seen).toHaveLength(1);
+    expect(seen[0].authorizedRoutes.map(route => route.provider)).toEqual(['openrouter']);
   });
 });

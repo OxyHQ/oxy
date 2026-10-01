@@ -588,6 +588,8 @@ class HttpKaanaClient implements KaanaClient {
       if (
         !parsed.success ||
         parsed.data.requestId !== envelope.attribution.requestId ||
+        envelope.target.kind !== 'model' ||
+        parsed.data.model !== envelope.target.modelReference ||
         parsed.data.model !== parsed.data.usage.resolvedModelReference ||
         !decisionAnswersMatch(envelope.input.decisions, parsed.data.data)
       ) {

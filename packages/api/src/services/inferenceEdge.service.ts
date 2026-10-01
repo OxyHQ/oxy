@@ -103,7 +103,7 @@
  * prompt with a positive control proving the logger was called at all.
  */
 
-import { decisionAnswersMatch, decisionInputBudget, type DecisionAnswer } from '@oxy.so/contracts';
+import { decisionAnswersMatch, decisionInputBudget, decisionFitsGateway, type DecisionAnswer } from '@oxy.so/contracts';
 import { decisionAvailability } from '../config/decisionAvailability';
 
 import { randomUUID } from 'node:crypto';
@@ -941,8 +941,11 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   const requiredModality = requirementForRequest(request, context.apiFormat);
   const requestedOutput = request.maxOutputTokens;
   const estimatedInputTokens = estimateInputTokens(request);
+  const contextInputTokens = request.input.format === 'decisions'
+    ? decisionInputBudget(request.input.decisions).context
+    : estimatedInputTokens;
   const requiredCapacity = {
-    inputTokens: estimatedInputTokens,
+    inputTokens: contextInputTokens,
     outputTokens:
       request.operation.kind !== 'completion'
         ? 0
@@ -1369,6 +1372,11 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         for (const effort of route.reasoningEfforts) effortsOfExcludedRoutes.add(effort);
         continue;
       }
+      if (request.input.format === 'decisions' && route.provider === 'openrouter' &&
+          !decisionFitsGateway(request.input.decisions)) {
+        sawContextLimit = true;
+        continue;
+      }
       if (!acceptsCarriedParameters(route)) continue;
       if (requestedOutput !== undefined && requestedOutput > route.maxOutputTokens) {
         sawOutputLimit = true;
@@ -1378,7 +1386,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         request.operation,
         requestedOutput ?? route.maxOutputTokens
       );
-      if (estimatedInputTokens + routeOutputTokens > route.maxContextTokens) {
+      if (contextInputTokens + routeOutputTokens > route.maxContextTokens) {
         sawContextLimit = true;
         continue;
       }
@@ -3254,7 +3262,9 @@ function capabilityRefusal(modelReference: string, required: EdgeModalityRequire
     return `${modelReference} does not hold realtime ${required.realtime.kind} sessions over ${required.realtime.transport}.`;
   }
   if (required.requiresDeclaredApiFormat === true && required.apiFormat !== undefined) {
-    return `${modelReference} does not declare support for ${required.apiFormat}.`;
+    return required.apiFormat === 'decisions'
+      ? `${modelReference} does not declare support for decisions.`
+      : `${modelReference} does not declare spoken output on ${required.apiFormat}.`;
   }
   return required.apiFormat === undefined
     ? `${modelReference} cannot execute this request.`
@@ -3632,7 +3642,7 @@ export function estimateInputTokens(request: NormalizedEdgeRequest): number {
     messages = 1;
     characters += request.input.text.length;
   } else if (request.input.format === 'decisions') {
-    return decisionInputBudget(request.input.decisions).gateway * request.input.decisions.questions.length;
+    return decisionInputBudget(request.input.decisions).gateway;
   } else {
     messages = request.input.texts.length;
     for (const text of request.input.texts) characters += text.length;
