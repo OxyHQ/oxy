@@ -20301,6 +20301,7 @@
                                 "responses",
                                 "chat_completions",
                                 "embeddings",
+                                "decisions",
                                 "images_generations",
                                 "audio_transcriptions",
                                 "audio_speech",
@@ -27519,6 +27520,7 @@
                                     "responses",
                                     "chat_completions",
                                     "embeddings",
+                                    "decisions",
                                     "images_generations",
                                     "audio_transcriptions",
                                     "audio_speech",
@@ -28350,6 +28352,7 @@
                                     "responses",
                                     "chat_completions",
                                     "embeddings",
+                                    "decisions",
                                     "images_generations",
                                     "audio_transcriptions",
                                     "audio_speech",
@@ -29047,6 +29050,7 @@
                                   "responses",
                                   "chat_completions",
                                   "embeddings",
+                                  "decisions",
                                   "images_generations",
                                   "audio_transcriptions",
                                   "audio_speech",
@@ -36443,6 +36447,457 @@
         "operationId": "postV1ChatCompletions"
       }
     },
+    "/v1/decisions": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Typed, nonstreaming decisions with the same authentication and ledger authority.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inferenceEdge.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Exact question probabilities and policy provenance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "model": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
+                      "maxLength": 194
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "choice"
+                                ]
+                              },
+                              "reply": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 65536
+                              },
+                              "confidence": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "probabilities": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "minItems": 2,
+                                "maxItems": 255
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "kind",
+                              "reply",
+                              "confidence",
+                              "probabilities"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "score"
+                                ]
+                              },
+                              "reply": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 9
+                              },
+                              "confidence": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "mean": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 9
+                              },
+                              "distribution": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "minItems": 2,
+                                "maxItems": 10
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "kind",
+                              "reply",
+                              "confidence",
+                              "mean",
+                              "distribution"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "noul"
+                                ]
+                              },
+                              "probability": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "kind",
+                              "probability"
+                            ]
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "kind"
+                        }
+                      },
+                      "minItems": 1,
+                      "maxItems": 255
+                    },
+                    "usage": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "unit": {
+                            "type": "string",
+                            "enum": [
+                              "input_tokens",
+                              "cached_input_tokens",
+                              "output_tokens",
+                              "reasoning_tokens",
+                              "requests",
+                              "images",
+                              "audio_input_milliseconds",
+                              "audio_output_milliseconds",
+                              "video_milliseconds",
+                              "characters",
+                              "embeddings",
+                              "audio_input_tokens",
+                              "cached_audio_input_tokens",
+                              "audio_output_tokens",
+                              "session_milliseconds"
+                            ]
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "unit",
+                          "quantity"
+                        ]
+                      }
+                    },
+                    "routingPolicy": {
+                      "type": "object",
+                      "properties": {
+                        "routingPolicyId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "policyVersion": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "routingPolicyId",
+                        "policyVersion"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "requestId",
+                    "model",
+                    "data",
+                    "usage",
+                    "routingPolicy"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "machineCredentialAuth": []
+          },
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
+                    "maxLength": 194
+                  },
+                  "state": {
+                    "type": "string",
+                    "maxLength": 65536
+                  },
+                  "instructions": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536
+                  },
+                  "questions": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "question": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 65536
+                            },
+                            "criteria": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 65536
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "choice"
+                              ]
+                            },
+                            "options": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 65536
+                              },
+                              "minItems": 2,
+                              "maxItems": 255
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "question",
+                            "kind",
+                            "options"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "question": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 65536
+                            },
+                            "criteria": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 65536
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "score"
+                              ]
+                            },
+                            "levels": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 65536
+                              },
+                              "minItems": 2,
+                              "maxItems": 10
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "question",
+                            "kind",
+                            "levels"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "question": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 65536
+                            },
+                            "criteria": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 65536
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "noul"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "question",
+                            "kind"
+                          ]
+                        }
+                      ],
+                      "discriminator": {
+                        "propertyName": "kind"
+                      }
+                    },
+                    "minItems": 1,
+                    "maxItems": 255
+                  },
+                  "effort": {
+                    "type": "string",
+                    "enum": [
+                      "instant",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh"
+                    ]
+                  }
+                },
+                "required": [
+                  "model",
+                  "state",
+                  "questions"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postV1Decisions"
+      }
+    },
     "/v1/generations/{id}": {
       "get": {
         "tags": [
@@ -37034,6 +37489,7 @@
                                     "responses",
                                     "chat_completions",
                                     "embeddings",
+                                    "decisions",
                                     "images_generations",
                                     "audio_transcriptions",
                                     "audio_speech",
@@ -37865,6 +38321,7 @@
                                     "responses",
                                     "chat_completions",
                                     "embeddings",
+                                    "decisions",
                                     "images_generations",
                                     "audio_transcriptions",
                                     "audio_speech",
@@ -38562,6 +39019,7 @@
                                   "responses",
                                   "chat_completions",
                                   "embeddings",
+                                  "decisions",
                                   "images_generations",
                                   "audio_transcriptions",
                                   "audio_speech",
