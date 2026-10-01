@@ -1,6 +1,7 @@
 name: Release reviewed decisions packages
 
-# @oxy.so/contracts 4.7.0 then @oxy.so/core 4.1.0, from one exact protected
+# @oxy.so/contracts 4.8.0 only; published core 4.1.0 is a consumer smoke floor.
+# From one exact protected
 # main commit. Dry run is the default and never receives a credential.
 #
 #   build    frozen-lockfile build, pack, test, inspect; uploads the trusted

@@ -1,4 +1,4 @@
-// Release the reviewed decisions pair: @oxy.so/contracts then @oxy.so/core.
+// Release scoped contracts only; smoke against the already-published decisions SDK.
 //
 // Same guarantees as release-external-identity-packages.mjs, whose pure guards
 // are reused unchanged: exact protected main SHA, build+pack in one command,
@@ -14,7 +14,7 @@
 //            environment and a real minimum release age. Nothing it writes is
 //            read by a later job; the publish job depends only on its success.
 //   verify   (publish job, no token) the job's own rebuild must equal the build
-//            job's bytes; anonymous registry preflight of both versions.
+//            job's bytes; anonymous registry preflight of the exact release.
 //   publish  (publish job, apply only, token) re-checks source and registry,
 //            then publishes the job's own rebuilt tarballs in dependency order.
 import { execFileSync } from 'node:child_process';
@@ -30,10 +30,12 @@ import {
 } from './release-external-identity-packages.mjs';
 
 export const RELEASES = Object.freeze([
-  { directory: 'contracts', name: '@oxy.so/contracts', version: '4.7.0' },
-  // Core's own build pre-builds only telemetry; protocol must be built first
-  // in a fresh checkout. Contracts is built just before, as this pair's first.
-  { directory: 'core', name: '@oxy.so/core', version: '4.1.0', workspaceBuilds: ['@oxy.so/protocol'] },
+  { directory: 'contracts', name: '@oxy.so/contracts', version: '4.8.0' },
+]);
+/** Published consumer dependencies: never rebuilt or published by this release. */
+export const CONSUMER_FLOORS = Object.freeze([
+  { name: '@oxy.so/core', version: '4.1.0' },
+  { name: '@oxy.so/protocol', version: '1.2.1' },
 ]);
 /** Every consumer combination, exactly: installer / runtime / entry point. */
 export const EXPECTED_SMOKE_CASES = Object.freeze(
@@ -172,7 +174,7 @@ function verifiedPackages(directory, prepared) {
   });
 }
 async function preflight(packages) {
-  // BOTH immutable versions before any publication.
+  // Every immutable release version before any publication.
   const states = [];
   for (const [index, release] of RELEASES.entries()) {
     states.push({ ...packages[index], state: releaseDecision(await published(release), packages[index].integrity) });
@@ -209,6 +211,9 @@ async function prepare() {
     }
     built.push(artifact);
   }
+  for (const floor of CONSUMER_FLOORS) {
+    dependencyFloors.push(firstPartyFloor(`${floor.name}@${floor.version}`, await registryDocument(floor.name, floor.version)));
+  }
   writeFileSync(join(artifacts, 'prepared.json'), `${JSON.stringify({ sourceSha: process.env.EXPECTED_SOURCE_SHA, packages: built, dependencyFloors }, null, 2)}\n`);
 }
 
@@ -223,6 +228,12 @@ async function smoke() {
   for (const release of RELEASES) copyFileSync(join(trusted, fileName(release)), join(sandbox, fileName(release)));
   const pinned = Object.fromEntries(RELEASES.map((release) => [release.name, `file:../${fileName(release)}`]));
   if (!Array.isArray(prepared.dependencyFloors)) throw new Error('The trusted build recorded no dependency floors');
+  for (const expected of CONSUMER_FLOORS) {
+    const matches = prepared.dependencyFloors.filter((floor) => floor.name === expected.name);
+    if (matches.length !== 1 || matches[0].version !== expected.version) {
+      throw new Error(`The trusted build must pin exactly ${expected.name}@${expected.version} as a consumer floor`);
+    }
+  }
   for (const floor of prepared.dependencyFloors) {
     const checked = firstPartyFloor(`${floor.name}@${floor.version}`, { name: floor.name, version: floor.version, dist: floor });
     const response = await fetch(checked.tarball, { signal: AbortSignal.timeout(30000) });
@@ -237,7 +248,7 @@ async function smoke() {
   for (const installer of ['npm', 'bun']) {
     const project = join(sandbox, installer);
     mkdirSync(project);
-    const dependencies = Object.fromEntries(RELEASES.map((release) => [release.name, pinned[release.name]]));
+    const dependencies = Object.fromEntries([...RELEASES, ...CONSUMER_FLOORS].map((release) => [release.name, pinned[release.name]]));
     writeFileSync(join(project, 'package.json'), `${JSON.stringify({
       name: 'decisions-release-smoke', private: true, version: '0.0.0', dependencies,
       // Every first-party package is these exact bytes: one contracts copy
