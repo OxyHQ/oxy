@@ -34,6 +34,7 @@ import type { AddressInfo } from 'node:net';
 import { randomUUID, createHash, generateKeyPairSync, verify } from 'node:crypto';
 import * as decisionGate from '../../config/decisionAvailability';
 import * as kaanaConfig from '../../config/kaanaDataPlane';
+import * as ledger from '../../services/inferenceLedger.service';
 import { createHttpKaanaClient } from '../../services/httpKaanaClient';
 
 jest.mock('../../utils/logger', () => ({
@@ -4582,5 +4583,42 @@ describe('decisions signed execution and ledger', () => {
     });
     expect(seen).toHaveLength(1);
     expect(seen[0].authorizedRoutes.map(route => route.provider)).toEqual(['openrouter']);
+  });
+  it('lets exactly one of two concurrent same-key requests reserve and execute', async () => {
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const {client, fetcher} = signedClient(fixture);
+    // Hold both requests at reserve until BOTH have passed the edge's
+    // pre-check, so the ledger alone must decide the race.
+    const realReserve = ledger.reserve;
+    let arrived = 0;
+    let release!: () => void;
+    const bothChecked = new Promise<void>(resolve => { release = resolve; });
+    jest.spyOn(ledger, 'reserve').mockImplementation(async input => {
+      arrived += 1;
+      if (arrived === 2) release();
+      await bothChecked;
+      return realReserve(input);
+    });
+    const statuses: number[] = [];
+    const codes: unknown[] = [];
+    await withServer(client, async request => {
+      const headers = {...bearer(fixture.token), 'Idempotency-Key': 'synthetic-race'};
+      const responses = await Promise.all([
+        request('POST', '/v1/decisions', bodyFor(fixture), headers),
+        request('POST', '/v1/decisions', bodyFor(fixture), headers),
+      ]);
+      for (const response of responses) {
+        statuses.push(response.status);
+        codes.push(json(response).code);
+      }
+    });
+    expect(arrived).toBe(2);
+    expect(statuses.sort()).toEqual([200, 409]);
+    expect(codes).toContain('idempotency_conflict');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const reservations = await getDb().select().from(usageReservations).where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(1);
+    expect(reservations[0].status).toBe('settled');
+    expect(await getDb().select().from(usageReceipts).where(eq(usageReceipts.accountId, fixture.accountId))).toHaveLength(1);
   });
 });

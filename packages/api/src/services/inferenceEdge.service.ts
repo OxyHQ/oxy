@@ -2500,6 +2500,12 @@ async function reservationExists(idempotencyKey: string): Promise<boolean> {
  * — in the log line and in the message. The customer's next action is identical
  * for both (fund the account that owns this application), and giving them two
  * codes would be two branches in their client for one decision.
+ *
+ * `already-reserved` is a refusal, never a hold. The pre-check in
+ * {@link admitRequest} is a fast path only: two requests carrying one key can
+ * both pass it, and the ledger's lock-then-lookup inside `reserve` is what
+ * decides the race. The loser borrowing the winner's hold would forward a
+ * second execution against one reservation.
  */
 function reservationOrRefusal(
   result: Awaited<ReturnType<typeof reserve>>,
@@ -2508,8 +2514,17 @@ function reservationOrRefusal(
 ): { reservation: ReservationView } | { error: InferenceError } {
   switch (result.status) {
     case 'reserved':
-    case 'already-reserved':
       return { reservation: result.reservation };
+    case 'already-reserved':
+      return {
+        error: buildInferenceError({
+          code: 'idempotency_conflict',
+          message:
+            'This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.',
+          requestId,
+          param: 'Idempotency-Key',
+        }),
+      };
     case 'no-billing-profile':
       return {
         error: buildInferenceError({
