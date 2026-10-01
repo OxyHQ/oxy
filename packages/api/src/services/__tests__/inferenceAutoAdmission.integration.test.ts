@@ -7,13 +7,14 @@ import * as autoConfig from '../../config/autoClassification';
 import * as decisionsConfig from '../../config/decisionAvailability';
 import { KAANA_BASE_URL_VARIABLE, KAANA_SIGNING_KEY_ID_VARIABLE, KAANA_SIGNING_PRIVATE_KEY_VARIABLE } from '../../config/kaanaDataPlane';
 import { applications, applicationCredentials, users, inferenceModels, inferenceDeployments,
-  usageReservations, usageReceipts, accountBalances, spendingLimits } from '../../db/schema';
+  usageReservations, usageReceipts, accountBalances, spendingLimits, inferenceUsageEvents } from '../../db/schema';
 import { clearPowerClassesForTest, insertCatalogueRoute, setPowerClass } from '../../db/testServableEvidence';
 import { createNeutralRoutingPolicy, attestFixtureDeployments } from '../../routes/__fixtures__/kaanaRuntimeFixtures';
 import { EDGE_ROLLOUT_ENVIRONMENT } from '../../routes/__fixtures__/kaanaAudioFixtures';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { createHttpKaanaClient, KAANA_DEPLOYMENTS_QUERY_PATH } from '../httpKaanaClient';
 import { authenticateEdgeCaller, executeInferenceRequest, type EdgeExecutionContext } from '../inferenceEdge.service';
+import * as ledger from '../inferenceLedger.service';
 import { provisionBillingProfile, recordTopUp } from '../inferenceLedger.service';
 import { resolveEffectiveRoutingPolicy, type RoutingPolicyControls } from '../inferenceRoutingPolicy.service';
 import * as childAdapter from '../inferenceAutoClassifierChild.service';
@@ -232,9 +233,82 @@ it('replayed completed parent cannot charge a child that had no original reserva
   expect(s.children).toHaveLength(0); expect(await holds(f.app.id)).toHaveLength(1);
   f.review.mockReturnValue(f.approval);
   const factory = jest.spyOn(childAdapter, 'createJevAutoClassifier');
-  const replay = await executeInferenceRequest({ ...f.context, requestId: randomUUID() });
-  expect(replay).toMatchObject({ status: 'refused', error: { code: 'idempotency_conflict' } });
+  const replayId = randomUUID();
+  const replay = await executeInferenceRequest({ ...f.context, requestId: replayId });
+  // The public replay shape is unchanged from before Auto: message and param included.
+  expect(replay).toMatchObject({ status: 'refused', error: REPLAY_ERROR });
   expect(factory).not.toHaveBeenCalled(); expect(s.children).toHaveLength(0); expect(await holds(f.app.id)).toHaveLength(1);
+  expect(refusalsFor(replayId, 'inference.edge.refused')).toHaveLength(1);
+  expect(JSON.stringify(jest.mocked(logger.warn).mock.calls)).not.toContain('SYNTHETIC_PRIVATE_TASK_MARKER');
+});
+
+const REPLAY_ERROR = {
+  code: 'idempotency_conflict',
+  message: 'This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.',
+  param: 'Idempotency-Key',
+};
+function refusalsFor(requestId: string, event: string) {
+  return jest.mocked(logger.warn).mock.calls.filter((call) =>
+    call[0] === event && (call[1] as { requestId?: string } | undefined)?.requestId === requestId);
+}
+async function usageEventsFor(requestId: string) {
+  return getDb().select().from(inferenceUsageEvents).where(eq(inferenceUsageEvents.requestId, requestId));
+}
+
+/**
+ * A competing request takes the parent's key in the real ledger at the last moment,
+ * so the atomic lock-then-lookup decides: before the spending preview (no child may
+ * run) or before the final reserve (after the child).
+ */
+it.each(['preview', 'reserve'] as const)('a key raced before the %s refuses with the unchanged shape, recorded once', async (stage) => {
+  const f = await fixture(); const s = stub();
+  const realReserve = ledger.reserve;
+  const realPreview = ledger.previewReservation;
+  let planted = false;
+  const plant = async (input: ledger.ReserveInput) => {
+    if (planted || !input.idempotencyKey.startsWith('oxy-edge:idem:')) return;
+    planted = true;
+    const competitor = await realReserve({ ...input, attribution: { ...input.attribution, requestId: randomUUID() } });
+    expect(competitor.status).toBe('reserved');
+  };
+  if (stage === 'preview') {
+    jest.spyOn(ledger, 'previewReservation').mockImplementation(async (input) => { await plant(input); return realPreview(input); });
+  } else {
+    jest.spyOn(ledger, 'reserve').mockImplementation(async (input) => { await plant(input); return realReserve(input); });
+  }
+  const result = await executeInferenceRequest(f.context);
+  expect(planted).toBe(true);
+  expect(result).toMatchObject({ status: 'refused', error: REPLAY_ERROR });
+  expect(s.generations).toHaveLength(0);
+  expect(s.children).toHaveLength(stage === 'preview' ? 0 : 1);
+  // Only the competitor's parent hold, plus the child's own settled hold after it ran.
+  const rows = await holds(f.app.id);
+  expect(rows.filter((row) => row.requestId === f.context.requestId)).toHaveLength(0);
+  expect(rows).toHaveLength(stage === 'preview' ? 1 : 2);
+  const events = await usageEventsFor(f.context.requestId);
+  expect(events).toHaveLength(1);
+  expect(events[0].statusCode).toBe(409);
+  const warned = refusalsFor(f.context.requestId, 'inference.edge.reservation_refused');
+  expect(warned).toHaveLength(1);
+  expect(warned[0][1]).toMatchObject({ code: 'idempotency_conflict', reservationStatus: 'already-reserved' });
+  expect(JSON.stringify([jest.mocked(logger.warn).mock.calls, jest.mocked(logger.info).mock.calls, events]))
+    .not.toContain('SYNTHETIC_PRIVATE_TASK_MARKER');
+});
+
+it.each(['inert', 'classified'] as const)('logs the Auto ladder at routing time, classification only when semantic (%s)', async (mode) => {
+  const f = await fixture(); const s = stub();
+  if (mode === 'inert') f.review.mockReturnValue(undefined); else { s.childReply = 'high'; s.childProbabilities = [0, 0, 1, 0]; }
+  expect((await executeInferenceRequest(f.context)).status).toBe('completed');
+  const logged = jest.mocked(logger.info).mock.calls
+    .filter((call) => call[0] === 'inference.edge.auto_power_level' && (call[1] as { requestId?: string }).requestId === f.context.requestId)
+    .map((call) => call[1] as Record<string, unknown>);
+  // The pre-Auto event, unchanged when inert; a semantic pass adds one more.
+  expect(logged).toHaveLength(mode === 'inert' ? 1 : 2);
+  expect(logged[0]).toMatchObject({ decided: 'instant', ladder: ['instant', 'medium', 'high', 'xhigh'] });
+  expect(logged[0].classification).toBeUndefined();
+  if (mode === 'classified') expect(logged[1]).toMatchObject({ decided: 'high', ladder: ['high', 'xhigh'],
+    classification: { source: 'jev', recommendedLevel: 'high', providerConfidence: 0.83 } });
+  expect(JSON.stringify(logged)).not.toContain('SYNTHETIC_PRIVATE_TASK_MARKER');
 });
 
 it.each(['timeout', 'error'] as const)('child %s settles its own hold, then fallback settles generation once', async (mode) => {

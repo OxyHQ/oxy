@@ -1358,6 +1358,13 @@ async function admitWithAutoDecision(
         const features = autoRoutingFeaturesOf(request, estimatedInputTokens);
         const decision = resolvedAuto?.decision ?? classifyAutoPowerLevel(features);
         levels = autoLadder(decision.level, levelAllowed);
+        logger.info('inference.edge.auto_power_level', {
+          requestId,
+          decided: decision.level,
+          reasons: decision.reasons,
+          classification: decision.classification,
+          ladder: levels,
+        });
         pendingAuto = { features, decision, levels };
       } else {
         levels = [profileResolution.powerLevel];
@@ -1801,6 +1808,30 @@ async function admitWithAutoDecision(
   //     because nothing will be charged. `hold` being `undefined` is what every
   //     later step branches on, so the two modes cannot half-happen.
   let hold: ReservationView | undefined;
+  /** A ledger refusal (a raced key included), recorded once, exactly as before Auto. */
+  const refuseReservation = async (
+    result: Awaited<ReturnType<typeof reserve>>,
+    error: InferenceError
+  ): Promise<Admission> => {
+    await recordEdgeTelemetry(context, {
+      requestedModelReference,
+      statusCode: inferenceErrorStatus(error.code),
+      units: {},
+      resolvedModelReference: route.modelReference,
+      // ADMITTED, and it can only be: this refusal happens BEFORE the forward,
+      // so no provider has served anything and there is no reported value in
+      // existence. The row says which route the request would have taken.
+      servingProvider: route.provider,
+    });
+    logger.warn('inference.edge.reservation_refused', {
+      requestId,
+      code: error.code,
+      accountId: principal.ownerAccountId,
+      applicationId: principal.applicationId,
+      reservationStatus: result.status,
+    });
+    return { status: 'refused', error };
+  };
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
   if (pendingAuto !== undefined && resolvedAuto === undefined) {
     // The parent is already fully qualified, attested, quoted and past its
@@ -1821,10 +1852,11 @@ async function admitWithAutoDecision(
         ceilingPriceVersionId, maxAmount, currency: quote.currency,
         expiresInSeconds: RESERVATION_TTL_SECONDS,
       });
-      if (preview.status === 'already-reserved') return refuse('idempotency_conflict', 'This request has already been attempted.');
+      // A raced key (`already-reserved`) refuses here like any ledger refusal,
+      // before any task text reaches a child.
       if (preview.status !== 'eligible') {
         const denied = reservationOrRefusal(preview, requestId, quote.currency);
-        if ('error' in denied) return { status: 'refused', error: denied.error };
+        if ('error' in denied) return refuseReservation(preview, denied.error);
       }
       const semantic = await createAutoPowerLevelResolver(classifier)(pendingAuto.features, {
         requestId, signal: context.signal,
@@ -1840,10 +1872,6 @@ async function admitWithAutoDecision(
       return admitWithAutoDecision(context, { decision, policy });
     }
   }
-  if (pendingAuto !== undefined) logger.info('inference.edge.auto_power_level', {
-    requestId, decided: pendingAuto.decision.level, reasons: pendingAuto.decision.reasons,
-    classification: pendingAuto.decision.classification,
-  });
   if (charging) {
     const reservation = await reserve({
       idempotencyKey: ledgerKey,
@@ -1865,32 +1893,10 @@ async function admitWithAutoDecision(
           : RESERVATION_TTL_SECONDS,
     });
 
-    if (reservation.status === 'already-reserved') {
-      // A concurrent request owns this hold. Do not execute again or settle
-      // its unknown cost, whether this is a classifier or final generation.
-      return refuse('idempotency_conflict', 'This request has already been attempted.');
-    }
+    // `already-reserved` is a refusal, never a borrowed hold: a concurrent
+    // request owns it, whether this is a classifier or the final generation.
     const held = reservationOrRefusal(reservation, requestId, quote.currency);
-    if ('error' in held) {
-      await recordEdgeTelemetry(context, {
-        requestedModelReference,
-        statusCode: inferenceErrorStatus(held.error.code),
-        units: {},
-        resolvedModelReference: route.modelReference,
-        // ADMITTED, and it can only be: this refusal happens BEFORE the forward,
-        // so no provider has served anything and there is no reported value in
-        // existence. The row says which route the request would have taken.
-        servingProvider: route.provider,
-      });
-      logger.warn('inference.edge.reservation_refused', {
-        requestId,
-        code: held.error.code,
-        accountId: principal.ownerAccountId,
-        applicationId: principal.applicationId,
-        reservationStatus: reservation.status,
-      });
-      return { status: 'refused', error: held.error };
-    }
+    if ('error' in held) return refuseReservation(reservation, held.error);
     hold = held.reservation;
   }
 

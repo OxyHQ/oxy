@@ -3101,8 +3101,11 @@ describe('idempotency', () => {
           { ...bearer(fixture.token), 'Idempotency-Key': key }
         );
         expect(second.status).toBe(409);
+        // The public replay shape clients depend on: code, message and param.
         expect(json(second)).toMatchObject({
           code: 'idempotency_conflict',
+          message: 'This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.',
+          param: 'Idempotency-Key',
           retryable: false,
         });
 
