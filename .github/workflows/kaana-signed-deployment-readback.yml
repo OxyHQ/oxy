@@ -195,7 +195,7 @@ jobs:
                 name:$container,
                 command:["node","packages/api/scripts/run-kaana-signed-canary.mjs","readback"],
                 environment:[
-                  {name:"CANARY_CONTRACT_VERSION",value:"3.3.0"}
+                  {name:"CANARY_CONTRACT_VERSION",value:"3.5.0"}
                 ]
               }]}
             ')
