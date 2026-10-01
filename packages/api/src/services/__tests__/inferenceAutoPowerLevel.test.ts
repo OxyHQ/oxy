@@ -4,7 +4,7 @@ import {
   type AutoClassificationChild,
   type JevAutoClassifier,
 } from '../inferenceAutoPowerLevel.service';
-import { autoClassifierReview } from '../../config/autoClassification';
+import { autoClassifierApproval } from '../../config/autoClassification';
 import {
   AUTO_POWER_LEVELS,
   autoLadder,
@@ -23,7 +23,7 @@ function fixture(overrides: Partial<JevAutoClassifier> = {}) {
   const parent = new AbortController();
   const state = jest.fn(() => 'Synthetic task: compare two puzzle solutions.');
   const context: AutoPowerLevelContext = { requestId: 'parent-id', signal: parent.signal, state };
-  const execute = jest.fn(async (_child: AutoClassificationChild): Promise<unknown> => ({ level: 'high' }));
+  const execute = jest.fn(async (_child: AutoClassificationChild): Promise<unknown> => ({ level: 'high', confidence: 0.7 }));
   const resolver = createAutoPowerLevelResolver({
     modelReference, review: approved, admitAndExecute: execute, ...overrides,
   });
@@ -39,9 +39,7 @@ describe('bounded Jev Auto resolver', () => {
     expect(decision).toMatchObject({ level: 'instant', classification: { reason: 'disabled' } });
     expect(f.state).not.toHaveBeenCalled();
     expect(f.execute).not.toHaveBeenCalled();
-    expect(autoClassifierReview()).toEqual({
-      commercial: false, internalEligibility: false, privacy: false, zdr: false,
-    });
+    expect(autoClassifierApproval()).toBeUndefined();
   });
 
   it.each(['commercial', 'internalEligibility', 'privacy', 'zdr'] as const)(
@@ -67,7 +65,7 @@ describe('bounded Jev Auto resolver', () => {
     const decision = await f.resolver(features, f.context);
     expect(decision).toEqual({
       level: 'high', reasons: [],
-      classification: { source: 'jev', version: 'jev-auto-v1', modelReference, recommendedLevel: 'high' },
+      classification: { source: 'jev', version: 'jev-auto-v1', modelReference, recommendedLevel: 'high', providerConfidence: 0.7 },
     });
     expect(f.execute).toHaveBeenCalledTimes(1);
     const child = f.execute.mock.calls[0][0];
@@ -85,7 +83,7 @@ describe('bounded Jev Auto resolver', () => {
   });
 
   it('snapshots classifier model and review rather than observing later mutations', async () => {
-    const config = { modelReference, review: { ...approved }, admitAndExecute: jest.fn(async () => ({ level: 'medium' })) };
+    const config = { modelReference, review: { ...approved }, admitAndExecute: jest.fn(async () => ({ level: 'medium', confidence: 0.7 })) };
     const resolver = createAutoPowerLevelResolver(config);
     config.modelReference = 'auto';
     config.review.commercial = false;
@@ -96,7 +94,7 @@ describe('bounded Jev Auto resolver', () => {
   });
 
   it('retains deterministic capability and explicit effort floors as separate signals', async () => {
-    const f = fixture({ admitAndExecute: async () => ({ level: 'instant' }) });
+    const f = fixture({ admitAndExecute: async () => ({ level: 'instant', confidence: 0.7 }) });
     const decision = await f.resolver({ ...features, requestedEffort: 'high', toolCount: 1 }, f.context);
     expect(decision).toMatchObject({
       level: 'xhigh', reasons: ['reasoning_effort_high->xhigh', 'tools->medium'],
@@ -106,7 +104,8 @@ describe('bounded Jev Auto resolver', () => {
 
   it.each([undefined, null, 'high', { level: 'auto' }, { level: 'pro' }, { level: 'ultra' },
     { level: 'low' }, { level: 'HIGH' }, { level: ' high ' }, { level: 2 }, {},
-    { level: 'high', reason: 'PRIVATE_PROVIDER_OUTPUT' }])('falls back on invalid result %j', async (value) => {
+    { level: 'high', reason: 'PRIVATE_PROVIDER_OUTPUT' }, { level: 'high' }, { level: 'high', confidence: 1.5 },
+    { level: 'high', confidence: '0.7' }, { level: 'high', confidence: -0.1 }])('falls back on invalid result %j', async (value) => {
     const f = fixture({ admitAndExecute: async () => value });
     const decision = await f.resolver({ ...features, toolCount: 1 }, f.context);
     expect(decision).toMatchObject({ level: 'medium', classification: { reason: 'invalid_result' } });
@@ -114,7 +113,7 @@ describe('bounded Jev Auto resolver', () => {
   });
 
   it.each(AUTO_POWER_LEVELS)('accepts only the exact bounded level %s', async (level) => {
-    const f = fixture({ admitAndExecute: async () => ({ level }) });
+    const f = fixture({ admitAndExecute: async () => ({ level, confidence: 0.7 }) });
     expect((await f.resolver(features, f.context)).level).toBe(level);
   });
 
@@ -153,7 +152,7 @@ describe('bounded Jev Auto resolver', () => {
     expect(decision).toMatchObject({ level: 'instant', classification: { reason: 'timeout' } });
     expect(execute.mock.calls[0][0].signal.aborted).toBe(true);
     expect(f.parent.signal.aborted).toBe(false);
-    resolve({ level: 'xhigh' });
+    resolve({ level: 'xhigh', confidence: 0.7 });
     await Promise.resolve();
     expect(decision.level).toBe('instant');
     expect(execute).toHaveBeenCalledTimes(1);

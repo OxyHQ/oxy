@@ -43,11 +43,15 @@ export interface AutoClassificationChild {
 export interface JevAutoClassifier {
   readonly modelReference: string;
   readonly review: AutoClassifierReview;
-  /** Return a normalized { level }, never provider reasoning or error text. */
+  /** Return a normalized { level, confidence }, never provider reasoning or error text. */
   readonly admitAndExecute: (child: AutoClassificationChild) => Promise<unknown>;
 }
 
-const classificationSchema = z.object({ level: z.enum(AUTO_POWER_LEVELS) }).strict();
+/** Both fields come from the provider's typed reply; neither is ever inferred. */
+const classificationSchema = z.object({
+  level: z.enum(AUTO_POWER_LEVELS),
+  confidence: z.number().finite().min(0).max(1),
+}).strict();
 
 type FallbackReason = 'disabled' | 'invalid_model' | 'input_limit' | 'timeout' | 'cancelled'
   | 'provider_error' | 'invalid_result';
@@ -134,6 +138,7 @@ export function createAutoPowerLevelResolver(classifier?: JevAutoClassifier): Au
         reasons: deterministic.reasons,
         classification: {
           source: 'jev', version: AUTO_CLASSIFIER_VERSION, modelReference, recommendedLevel: semantic,
+          providerConfidence: parsed.data.confidence,
         },
       };
     } finally {
