@@ -42,7 +42,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { and, eq } from 'drizzle-orm';
-import type { InferenceRequest } from '@oxy.so/contracts';
+import { decisionInputBudget, type InferenceRequest } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountBalances } from '../../db/schema/accountBalances';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
@@ -197,6 +197,8 @@ const suffix = (): string => randomUUID().replace(/-/g, '').slice(0, 10);
 
 interface FixtureOptions {
   readonly apiFormats?: string[];
+  /** Primary route's published output-token price; `null` publishes none. */
+  readonly outputPricePerMillion?: string | null;
   readonly scopes?: string[];
   readonly fund?: string;
   readonly maxContextTokens?: number;
@@ -329,7 +331,9 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     { priceVersionId: priceVersion.id, unit: 'requests', amount: '0.000000000000', per: 1 },
     { priceVersionId: priceVersion.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
     { priceVersionId: priceVersion.id, unit: 'cached_input_tokens', amount: '3.000000000000', per: 1_000_000 },
-    { priceVersionId: priceVersion.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
+    ...(options.outputPricePerMillion === null
+      ? []
+      : [{ priceVersionId: priceVersion.id, unit: 'output_tokens' as const, amount: options.outputPricePerMillion ?? '15.000000000000', per: 1_000_000 }]),
     { priceVersionId: priceVersion.id, unit: 'reasoning_tokens', amount: '15.000000000000', per: 1_000_000 },
   ]);
 
@@ -4468,6 +4472,7 @@ describe('the internal default routing policy', () => {
 // Exercise the real HTTP signer and ledger together; global fetch is intercepted
 // before any network call. These fixtures grant no real provider eligibility.
 describe('decisions signed execution and ledger', () => {
+  const FREE = '0.000000000000';
   beforeEach(() => jest.spyOn(decisionGate, 'decisionAvailability').mockReturnValue({ available: true, reason: 'synthetic test only' }));
   afterEach(() => jest.restoreAllMocks());
 
@@ -4505,16 +4510,15 @@ describe('decisions signed execution and ledger', () => {
       const held = await balanceOf(fixture.accountId);
       expect(Number(held.reserved)).toBeGreaterThan(0);
       if (respond !== undefined) return respond(envelope);
-      const completion = completionFor(envelope, {input: 12, output: 0, provider: fixture.provider});
-      // No generated output, no classifier-reserved downstream generation.
-      completion.usage.units = completion.usage.units.filter(unit => unit.unit !== 'output_tokens');
+      // Real shape: a classification emits a few output tokens, published free.
+      const completion = completionFor(envelope, {input: 12, output: 4, provider: fixture.provider});
       return new Response(JSON.stringify({schemaVersion: 1, requestId: envelope.attribution.requestId,
         model: bodyFor(fixture).model, data: corrupt ? [{...answers[2], id: 'wrong'}] : answers, usage: completion.usage}));
     });
     return {client: {execute: client.execute.bind(client), stream: client.stream.bind(client), attestDeployments: attestFixtureDeployments}, seen, fetcher};
   }
   it('reserves once, signs exact native input, preserves real signals, settles actual classification cost and refuses replay', async () => {
-    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], maxContextTokens: 32000});
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], outputPricePerMillion: FREE, maxContextTokens: 32000});
     const before = await balanceOf(fixture.accountId);
     const {client, seen, fetcher} = signedClient(fixture);
     await withServer(client, async request => {
@@ -4539,10 +4543,16 @@ describe('decisions signed execution and ledger', () => {
     expect(receipts).toHaveLength(1);
     expect(Number(receipts[0].billedAmount)).toBeCloseTo(0.000036, 9);
     expect(receipts[0].inputTokens).toBe(12);
+    // Measured, reported and kept: four free output tokens, not a stripped zero.
+    expect(receipts[0].outputTokens).toBe(4);
+    // The hold is the unchanged input-only ceiling: requests (free) plus the
+    // serialized input estimate at the input price. Output adds nothing at zero.
+    const {model: _model, ...decisions} = bodyFor(fixture);
+    expect(Number(reservations[0].reservedAmount)).toBeCloseTo(decisionInputBudget(decisions as never).gateway * 3 / 1_000_000, 12);
     expect(JSON.stringify([reservations, receipts, mockedLogger.info.mock.calls, mockedLogger.warn.mock.calls, mockedLogger.error.mock.calls])).not.toContain('SYNTHETIC-PRIVATE-PAYLOAD');
   });
   it('settles and refunds the entire hold immediately when the signed hop returns invalid decisions', async () => {
-    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], outputPricePerMillion: FREE});
     const before = await balanceOf(fixture.accountId);
     const {client, fetcher} = signedClient(fixture, true);
     await withServer(client, async request => {
@@ -4560,7 +4570,7 @@ describe('decisions signed execution and ledger', () => {
     expect(Number(receipts[0].billedAmount)).toBe(0);
   });
   it('admits repeated shared context within 32K without multiplying it by question count', async () => {
-    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], maxContextTokens: 32000});
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], outputPricePerMillion: FREE, maxContextTokens: 32000});
     const {client, fetcher} = signedClient(fixture);
     await withServer(client, async request => {
       const response = await request('POST', '/v1/decisions', {...bodyFor(fixture), state: 'x'.repeat(29000)}, bearer(fixture.token));
@@ -4569,8 +4579,8 @@ describe('decisions signed execution and ledger', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it('excludes an otherwise authorized OpenRouter route whose total exceeds 32K before any hold', async () => {
-    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], maxContextTokens: 32000, routingPolicy: {providerAllowlist: ['openrouter']}});
-    await addDeployment(fixture, {rank: 'gateway', providerSlug: 'openrouter'});
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], outputPricePerMillion: FREE, maxContextTokens: 32000, routingPolicy: {providerAllowlist: ['openrouter']}});
+    await addDeployment(fixture, {rank: 'gateway', providerSlug: 'openrouter', outputPricePerMillion: FREE});
     const seen: InferenceRequest[] = [];
     await withServer(fakeKaana(() => {throw new Error('Must not execute');}, seen), async request => {
       const response = await request('POST', '/v1/decisions', {...bodyFor(fixture), state: '', questions: Array.from({length: 3}, (_, i) => ({id: String(i), kind: 'noul', question: 'x'.repeat(15000)}))}, bearer(fixture.token));
@@ -4615,7 +4625,7 @@ describe('decisions signed execution and ledger', () => {
       {status: 502, headers: {'Content-Type': 'application/json'}});
 
   it('preserves a typed non-retryable 502 credential failure and settles nothing as measured', async () => {
-    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], outputPricePerMillion: FREE});
     const before = await balanceOf(fixture.accountId);
     const {body, receipt} = await failedDecision(fixture, envelope => typedFailure(envelope, 'provider_credential_invalid'));
     expect(body).toMatchObject({code: 'provider_credential_invalid', retryable: false});
@@ -4626,10 +4636,9 @@ describe('decisions signed execution and ledger', () => {
     expect(await balanceOf(fixture.accountId)).toEqual(before);
   });
   it('withholds retry on a typed retryable-code failure and settles its measured usage exactly', async () => {
-    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], outputPricePerMillion: FREE});
     const {body, receipt} = await failedDecision(fixture, envelope => {
-      const usage = {...completionFor(envelope, {input: 12, output: 0, provider: fixture.provider}).usage, outcome: 'failed'};
-      usage.units = usage.units.filter(unit => unit.unit !== 'output_tokens');
+      const usage = {...completionFor(envelope, {input: 12, output: 4, provider: fixture.provider}).usage, outcome: 'failed'};
       return typedFailure(envelope, 'provider_overloaded', {usage});
     });
     expect(body).toMatchObject({code: 'provider_overloaded', retryable: false});
@@ -4643,7 +4652,7 @@ describe('decisions signed execution and ledger', () => {
     ['a truncated 200', () => new Response('{"schemaVersion":1,"requestId":', {status: 200})],
     ['a non-JSON 200', () => new Response('not json', {status: 200})],
   ])('reports %s as uncertain execution: provider_error, never retryable, never a measured zero', async (_label, respond) => {
-    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], outputPricePerMillion: FREE});
     const before = await balanceOf(fixture.accountId);
     const {status, body, receipt} = await failedDecision(fixture, respond as Respond);
     expect(status).toBe(502);
@@ -4654,14 +4663,14 @@ describe('decisions signed execution and ledger', () => {
     expect(await balanceOf(fixture.accountId)).toEqual(before);
   });
   it('reports a transport cut after signing as uncertain execution, never retryable', async () => {
-    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], outputPricePerMillion: FREE});
     const {body, receipt} = await failedDecision(fixture, () => { throw new Error('unreachable'); }, new TypeError('socket hang up'));
     expect(body).toMatchObject({code: 'provider_error', retryable: false});
     expect(String(body.message)).toContain('may have executed');
     expect(receipt.usageSource).toBe('estimated');
   });
   it('lets exactly one of two concurrent same-key requests reserve and execute', async () => {
-    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions']});
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], outputPricePerMillion: FREE});
     const {client, fetcher} = signedClient(fixture);
     // Hold both requests at reserve until BOTH have passed the edge's
     // pre-check, so the ledger alone must decide the race.
@@ -4696,5 +4705,24 @@ describe('decisions signed execution and ledger', () => {
     expect(reservations).toHaveLength(1);
     expect(reservations[0].status).toBe('settled');
     expect(await getDb().select().from(usageReceipts).where(eq(usageReceipts.accountId, fixture.accountId))).toHaveLength(1);
+  });
+
+  it.each([
+    ['a positive', '15.000000000000'],
+    ['a sub-micro positive', '0.000000000001'],
+    ['no', null],
+  ])('refuses %s published output-token price before any hold or Kaana call', async (_label, price) => {
+    const fixture = await makeFixture({fund: '10.00', apiFormats: ['decisions'], outputPricePerMillion: price});
+    const before = await balanceOf(fixture.accountId);
+    const {client, fetcher} = signedClient(fixture);
+    await withServer(client, async request => {
+      const response = await request('POST', '/v1/decisions', bodyFor(fixture), bearer(fixture.token));
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(json(response)).not.toHaveProperty('data');
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(await getDb().select().from(usageReservations).where(eq(usageReservations.accountId, fixture.accountId))).toHaveLength(0);
+    expect(await getDb().select().from(usageReceipts).where(eq(usageReceipts.accountId, fixture.accountId))).toHaveLength(0);
+    expect(await balanceOf(fixture.accountId)).toEqual(before);
   });
 });

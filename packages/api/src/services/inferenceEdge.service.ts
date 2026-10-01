@@ -181,6 +181,7 @@ import {
   type EdgeRoute,
 } from './inferenceCatalogue.service';
 import {
+  publishedUnitPrice,
   quoteUnits,
   reserve,
   settle,
@@ -1108,7 +1109,8 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         request.operation,
         requestedOutput ?? route.maxOutputTokens
       );
-      const candidateQuote = await quoteRouteCeiling(
+      const candidateQuote = await quoteRouteForRequest(
+        request,
         route.priceVersionId,
         routeCeilingPlans(request, route, estimatedInputTokens, candidateMaxOutputTokens)
       );
@@ -1652,7 +1654,8 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       authorized.deploymentId
     );
     if (routeQuote === undefined || requestedOutput === undefined) {
-      routeQuote = await quoteRouteCeiling(
+      routeQuote = await quoteRouteForRequest(
+        request,
         authorized.priceVersionId,
         routeCeilingPlans(request, authorized, estimatedInputTokens, maxOutputTokens)
       );
@@ -3636,6 +3639,30 @@ type RouteCeilingQuote =
       readonly metering: RouteCeilingMetering;
     }
   | { readonly status: 'unquoted'; readonly reason: string };
+
+/**
+ * A route's ceiling quote, with each operation's own price invariants.
+ *
+ * Decisions hold `requests` and `input_tokens` only, yet a provider truthfully
+ * reports the few `output_tokens` a classification emits. That is sound only
+ * when the route PUBLISHES output tokens at exactly zero: then any reported
+ * count prices to nothing and the hold still covers the exact charge. A missing
+ * or positive output price is unquoted, which refuses before any hold or
+ * Kaana call; nothing is estimated and no reported unit is dropped.
+ */
+async function quoteRouteForRequest(
+  request: NormalizedEdgeRequest,
+  priceVersionId: string,
+  plans: readonly RouteCeilingPlan[]
+): Promise<RouteCeilingQuote> {
+  if (request.operation.kind === 'decisions') {
+    const output = await publishedUnitPrice(priceVersionId, 'output_tokens');
+    if (output !== 'zero') {
+      return { status: 'unquoted', reason: `decisions-output-price-${output}` };
+    }
+  }
+  return quoteRouteCeiling(priceVersionId, plans);
+}
 
 /** The first fully-quoted plan's dearest scenario, with the ledger's own arithmetic. */
 async function quoteRouteCeiling(
