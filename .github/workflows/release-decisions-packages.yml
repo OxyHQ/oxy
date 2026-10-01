@@ -1,9 +1,19 @@
 name: Release reviewed decisions packages
 
 # @oxy.so/contracts 4.7.0 then @oxy.so/core 4.1.0, from one exact protected
-# main commit. Dry run is the default: it builds, packs, smoke-installs with npm
-# and bun, runs the SDK from Node and Bun, and checks the registry without
-# publishing. Uses the existing NPM_TOKEN only; no new permission.
+# main commit. Dry run is the default and never receives a credential.
+#
+#   build    frozen-lockfile build, pack, test, inspect; uploads the trusted
+#            tarballs and their integrities. No secret.
+#   smoke    a SEPARATE runner with no secret installs those exact bytes as a
+#            consumer (unlocked registry resolution, allowlisted environment,
+#            minimum release age) and runs the SDK from Node and Bun. Its output
+#            is never read by the publish job, which only needs it to succeed.
+#   publish  a fresh checkout rebuilds with the frozen lockfile and must match
+#            the trusted bytes; registry preflight is anonymous. NPM_TOKEN is
+#            given to the final step only, and only when dry_run is false.
+#
+# Existing NPM_TOKEN only; no new permission.
 on:
   workflow_dispatch:
     inputs:
@@ -24,14 +34,75 @@ concurrency:
   group: decisions-package-release
   cancel-in-progress: false
 
+env:
+  EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+  DRY_RUN: ${{ inputs.dry_run }}
+
 jobs:
-  release:
+  build:
     if: github.ref == 'refs/heads/main' && github.ref_protected
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
-      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+      - name: Install exact reviewed dependencies
+        run: bun install --frozen-lockfile --minimum-release-age=0
+      - name: Build, test and inspect the exact release artifacts
+        run: node .github/scripts/release-decisions-packages.mjs prepare
+      - name: Upload the trusted artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: decisions-release-trusted-${{ github.run_id }}
+          path: |
+            release-artifacts/*.tgz
+            release-artifacts/prepared.json
+          if-no-files-found: error
+          retention-days: 30
+
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+      - name: Download the trusted artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: decisions-release-trusted-${{ github.run_id }}
+          path: trusted-artifacts
+      - name: Install and exercise the exact artifacts as a consumer
+        run: node .github/scripts/release-decisions-packages.mjs smoke
+      - name: Retain the smoke report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: decisions-release-smoke-${{ github.run_id }}
+          path: release-artifacts/smoke-report.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  publish:
+    needs: [build, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -46,9 +117,17 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Install exact reviewed dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0
-      - name: Build, inspect and smoke-install the exact release artifacts
+      - name: Rebuild the release artifacts from the exact source
         run: node .github/scripts/release-decisions-packages.mjs prepare
-      - name: Check registry authentication and publish only missing exact versions
+      - name: Download the trusted artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: decisions-release-trusted-${{ github.run_id }}
+          path: trusted-artifacts
+      - name: Match the trusted bytes and preflight the registry anonymously
+        run: node .github/scripts/release-decisions-packages.mjs verify
+      - name: Publish only missing exact versions
+        if: ${{ inputs.dry_run == false }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: node .github/scripts/release-decisions-packages.mjs publish
