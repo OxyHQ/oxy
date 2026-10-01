@@ -159,7 +159,7 @@ import {
   type UsageSource,
   type UsageUnit,
 } from '@oxy.so/contracts';
-import { scopedPermitForContext, attestScopedPermit, scopedFundingIntegrationAvailable } from './scopedExecution.service';
+import { scopedPermitForContext, attestScopedPermit, scopedFundingIntegrationAvailable, scopedFundingRestriction } from './scopedExecution.service';
 import { scopedInferenceRequestSchema, type ScopedExecution, type ScopedInferenceRequest } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { isChargingAuthorized, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
@@ -1853,6 +1853,7 @@ async function admitWithAutoDecision(
     return { status: 'refused', error };
   };
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
+  if (scopedPermit !== undefined && Date.parse(scopedPermit.expiresAt) <= Date.now()) return refuse('policy_violation', 'Scoped authorization expired before reservation.');
   if (pendingAuto !== undefined && resolvedAuto === undefined) {
     // The parent is already fully qualified, attested, quoted and past its
     // idempotency check (a known attempt never reaches a child) at its
@@ -1894,6 +1895,7 @@ async function admitWithAutoDecision(
   }
   if (charging) {
     const reservation = await reserve({
+      ...(scopedPermit === undefined ? {} : { fundingRestriction: scopedFundingRestriction }),
       idempotencyKey: ledgerKey,
       attribution: ledgerAttribution,
       knownUnits: request.operation.kind === 'speech'
@@ -1915,6 +1917,11 @@ async function admitWithAutoDecision(
 
     // `already-reserved` is a refusal, never a borrowed hold: a concurrent
     // request owns it, whether this is a classifier or the final generation.
+    if (scopedPermit !== undefined && reservation.status !== 'reserved') {
+      const denied = reservationOrRefusal(reservation, requestId, quote.currency);
+      if ('error' in denied) return refuseReservation(reservation, denied.error);
+      return refuse('service_unavailable', 'Scoped execution requires its own exact reserved hold.');
+    }
     const held = reservationOrRefusal(reservation, requestId, quote.currency);
     if ('error' in held) return refuseReservation(reservation, held.error);
     hold = held.reservation;
@@ -1974,6 +1981,9 @@ export async function executeInferenceRequest(
   try {
     if (context.kaanaClient === undefined) {
       throw new DataPlaneNotConfiguredError();
+    }
+    if (admitted.scopedExecution !== undefined && (hold === undefined || hold.expiresAt.getTime() <= Date.now() || Date.parse(admitted.scopedExecution.expiresAt) <= Date.now())) {
+      throw new Error('Scoped dispatch requires its retained unexpired hold and permit.');
     }
     completion = await context.kaanaClient.execute(envelope, { signal: context.signal });
   } catch (error) {
@@ -3250,7 +3260,7 @@ export function unitsFromQuantities(
  * admitted by a deployment with a data plane streams, and there is exactly one
  * call site for each value.
  */
-function buildEnvelope(
+export function buildEnvelope(
   context: EdgeExecutionContext,
   admitted: AdmittedRequest,
   stream: boolean

@@ -38,7 +38,7 @@ describe('source-bound scoped execution', () => {
     const evidence = { modelRevisionId: 'actual-revision', deploymentId: permit.deploymentId, priceVersionId: permit.priceVersionId,
       commercialPermission: 'platform_internal_only', permissionState: 'approved' as const, legalReviewStatus: 'approved' as const,
       legalReviewEvidenceRef: 'synthetic-reviewed-evidence', policy: permit.policy,
-      eligibility: { availabilityScope: 'platform_internal', licenseId: 'synthetic-license', commercialUseAllowed: true,
+      eligibility: { availabilityScope: 'platform_internal', licenseId: 'synthetic-license', commercialUseAllowed: true, retainsPayloads: false, retentionDays: 0, trainsOnCustomerData: false, zeroDataRetentionAvailable: true,
         policyAdmitted: true as const, capabilityAdmitted: true as const, privacyAdmitted: true as const } };
     const descriptor = { ...permit, regions: [], scopedExecution: permit };
     const attestation = { snapshotId: 'actual-snapshot', scopedExecutionContractVersion: '3.6.0' as const, deployments: [descriptor] };
