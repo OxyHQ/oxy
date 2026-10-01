@@ -228,7 +228,7 @@ const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
  * invisible to every official product too. That costs one staff approval per
  * platform route and buys a gate with no branch in it.
  */
-function selectableDeploymentWhere(viewer: CatalogueViewer) {
+function selectableDeploymentWhere(viewer: CatalogueViewer, scopedExecution?: import('@oxy.so/contracts').ScopedExecutionAudience) {
   const availability = viewer.scopes.includes('platform_internal')
     ? or(
         inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]),
@@ -238,6 +238,10 @@ function selectableDeploymentWhere(viewer: CatalogueViewer) {
 
   return and(
     availability,
+    scopedExecution === undefined ? sql`${inferenceDeployments.scopedExecution} IS NULL` : and(
+      eq(inferenceDeployments.internalRouteId, scopedExecution.deploymentId),
+      sql`${inferenceDeployments.scopedExecution} = ${JSON.stringify(scopedExecution)}::jsonb`
+    ),
     eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
     inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES])
   );
@@ -952,6 +956,7 @@ export const CUSTOMER_SAFE_DEPLOYMENT_COLUMNS = {
  * customer should start depending on.
  */
 export const INTERNAL_DEPLOYMENT_COLUMNS: Readonly<Record<string, string>> = {
+  scopedExecution: 'PROTECTED. Private one-use audience; never customer-facing.',
   id: 'The route’s own row id. `deploymentIdSchema` calls it opaque to customers: which concrete endpoint served a request is operational detail, and only the customer-safe subset of it is ever attributed back.',
   modelRevisionId:
     'An internal row id. The customer sees the revision LABEL (`2026-05-01`), which is the thing they pin; the id would be a second, private name for it.',
@@ -1411,6 +1416,11 @@ export async function servableDeploymentRowIds(
       joinedPriceProvider: priceVersions.provider,
       joinedPriceEffectiveFrom: priceVersions.effectiveFrom,
       joinedPriceEffectiveUntil: priceVersions.effectiveUntil,
+      modelRevisionId: inferenceModelRevisions.id,
+      commercialPermission: inferenceDeployments.commercialPermission,
+      permissionState: inferenceDeployments.permissionState,
+      legalReviewStatus: inferenceDeployments.legalReviewStatus,
+      legalReviewEvidenceRef: inferenceDeployments.legalReviewEvidenceRef,
       scoreDeploymentId: inferenceDeploymentRoutingScores.deploymentId,
       scorePriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
       fundingClass: inferenceDeploymentRoutingScores.fundingClass,
@@ -1766,6 +1776,7 @@ export async function selectRouteForViewer(
  * admission can never reach a route the catalogue would not offer.
  */
 export interface EdgeRoute {
+  readonly scopedCatalogueEvidence?: Omit<import('./scopedExecution.service').ScopedCatalogueEvidence, 'policy'>;
   /**
    * `inference_deployments.internal_route_id` — Kaana's exact endpoint identity.
    * Opaque to customers and never in a customer projection; it crosses only to
@@ -2004,6 +2015,7 @@ export const TEXT_COMPLETION_MODALITY: EdgeModalityRequirement = {
  * never widen themselves into the BYOK audience.
  */
 export interface AuthenticatedEdgeRoutingContext {
+  readonly scopedExecution?: import('@oxy.so/contracts').ScopedExecutionAudience;
   readonly applicationId: string;
   readonly environment: InferenceEnvironment;
 }
@@ -2181,6 +2193,11 @@ export async function resolveEdgeRoute(
     .select({
       ...CONSTRAINT_COLUMNS,
       internalRouteId: inferenceDeployments.internalRouteId,
+      modelRevisionId: inferenceModelRevisions.id,
+      commercialPermission: inferenceDeployments.commercialPermission,
+      permissionState: inferenceDeployments.permissionState,
+      legalReviewStatus: inferenceDeployments.legalReviewStatus,
+      legalReviewEvidenceRef: inferenceDeployments.legalReviewEvidenceRef,
       scoreDeploymentId: inferenceDeploymentRoutingScores.deploymentId,
       scorePriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
       joinedPriceVersionId: priceVersions.id,
@@ -2231,7 +2248,7 @@ export async function resolveEdgeRoute(
       eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
     )
     .leftJoin(priceVersions, eq(CONSTRAINT_COLUMNS.priceVersionId, priceVersions.id))
-    .where(and(selectableDeploymentWhere(deploymentViewer), eq(inferenceModels.modelId, modelId)));
+    .where(and(selectableDeploymentWhere(deploymentViewer, requestContext?.scopedExecution), eq(inferenceModels.modelId, modelId)));
 
   const candidates = rows.filter((row) => {
     if (row.retiredAt !== null) return false;
@@ -2492,6 +2509,17 @@ export async function resolveEdgeRoute(
     fundingPriority: InferenceFundingPriority
   ): EdgeRoute => ({
     deploymentId: internalRouteId,
+    ...(requestContext?.scopedExecution === undefined || row.permissionState !== 'approved' ||
+      row.legalReviewStatus !== 'approved' || row.legalReviewEvidenceRef === null ? {} : {
+      scopedCatalogueEvidence: {
+        modelRevisionId: row.modelRevisionId, deploymentId: internalRouteId, priceVersionId,
+        commercialPermission: row.commercialPermission, permissionState: 'approved' as const,
+        legalReviewStatus: 'approved' as const, legalReviewEvidenceRef: row.legalReviewEvidenceRef,
+        eligibility: { availabilityScope: row.availabilityScope, licenseId: row.licenseId,
+          commercialUseAllowed: row.commercialUseAllowed, policyAdmitted: true as const,
+          capabilityAdmitted: true as const, privacyAdmitted: true as const },
+      },
+    }),
     routingScore,
     fundingPriority,
     modelReference: composeModelReference(resolvedModelId, row.revision),
