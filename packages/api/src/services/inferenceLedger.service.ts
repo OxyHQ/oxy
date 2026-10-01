@@ -627,22 +627,15 @@ export type ReserveResult =
     }
   | { readonly status: 'spending-limit-exceeded'; readonly limit: SpendingLimitVerdict };
 
-/**
- * Hold the maximum a request could cost, before anything is forwarded.
- *
- * The order of the steps inside the transaction is load-bearing:
- *
- *  1. lock the balance row — the serialization point;
- *  2. only THEN look for an existing reservation with this key, so the read is
- *     fresh. Checking before the lock would let a retry arriving while the
- *     original is still committing be answered `insufficient-funds`, which is a
- *     wrong answer to a request that IS reserved;
- *  3. evaluate spending limits;
- *  4. compute the draw and refuse if it does not cover the hold;
- *  5. write the reservation, the journal entry and the projection.
- */
-export async function reserve(input: ReserveInput): Promise<ReserveResult> {
-  return getDb().transaction(async (tx): Promise<ReserveResult> => {
+type ReservationPreparation =
+  | { status: 'eligible'; billing: BillingAccount; draw: Awaited<ReturnType<typeof computeDraw>>;
+      limits: Extract<Awaited<ReturnType<typeof evaluateSpendingLimits>>, { status: 'within' }> }
+  | Exclude<ReserveResult, { status: 'reserved' }>;
+
+/** Same locked eligibility check for preview and reserve; preview never writes a hold or alert. */
+async function prepareReservation(
+  tx: DatabaseOrTransaction, input: ReserveInput, recordNotifications: boolean
+): Promise<ReservationPreparation> {
     const resolution = await resolveBillingAccount(tx, input.attribution.accountId);
     if (resolution.status === 'not-provisioned') {
       return { status: 'no-billing-profile', accountId: input.attribution.accountId };
@@ -671,7 +664,8 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
         applicationCredentialId: input.attribution.applicationCredentialId,
       },
       billing.currency,
-      input.maxAmount
+      input.maxAmount,
+      recordNotifications
     );
     if (limits.status === 'exceeded') {
       return { status: 'spending-limit-exceeded', limit: limits.limit };
@@ -686,6 +680,39 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
         currency: billing.currency,
       };
     }
+
+    return { status: 'eligible', billing, draw, limits };
+}
+
+/** Read-only spending preflight; reserve repeats it atomically after classification. */
+export async function previewReservation(input: ReserveInput): Promise<
+  { status: 'eligible' } | Exclude<ReserveResult, { status: 'reserved' }>
+> {
+  return getDb().transaction(async (tx) => {
+    const result = await prepareReservation(tx, input, false);
+    return result.status === 'eligible' ? { status: 'eligible' } : result;
+  });
+}
+
+/**
+ * Hold the maximum a request could cost, before anything is forwarded.
+ *
+ * The order of the steps inside the transaction is load-bearing:
+ *
+ *  1. lock the balance row — the serialization point;
+ *  2. only THEN look for an existing reservation with this key, so the read is
+ *     fresh. Checking before the lock would let a retry arriving while the
+ *     original is still committing be answered `insufficient-funds`, which is a
+ *     wrong answer to a request that IS reserved;
+ *  3. evaluate spending limits;
+ *  4. compute the draw and refuse if it does not cover the hold;
+ *  5. write the reservation, the journal entry and the projection.
+ */
+export async function reserve(input: ReserveInput): Promise<ReserveResult> {
+  return getDb().transaction(async (tx): Promise<ReserveResult> => {
+    const prepared = await prepareReservation(tx, input, true);
+    if (prepared.status !== 'eligible') return prepared;
+    const { billing, draw, limits } = prepared;
 
     const [reservation] = await tx
       .insert(usageReservations)
