@@ -589,6 +589,8 @@ export async function quoteUnits(
 // ===========================================================================
 
 export interface ReserveInput {
+  /** Internal restriction: reserve only promotional funds, never prepaid or invoice credit. */
+  readonly fundingRestriction?: 'promotional-only';
   readonly idempotencyKey: string;
   readonly attribution: LedgerAttribution;
   /** Units already determined by the request itself, e.g. input tokens. */
@@ -653,6 +655,8 @@ async function prepareReservation(
 
     const existing = await findReservationByKey(tx, input.idempotencyKey);
     if (existing) {
+      // A duplicate is always a refusal, including a restricted caller naming
+      // an older unrestricted hold. Never borrow or convert that reservation.
       return { status: 'already-reserved', reservation: existing };
     }
 
@@ -669,6 +673,27 @@ async function prepareReservation(
     );
     if (limits.status === 'exceeded') {
       return { status: 'spending-limit-exceeded', limit: limits.limit };
+    }
+
+    // The balance row is locked above. Check the restricted bucket before the
+    // normal draw calculation; its cash/invoice fallback must never be reached
+    // with an insufficient promotional balance.
+    if (input.fundingRestriction === 'promotional-only') {
+      const [promotion] = await executeRows<{ available: string; sufficient: boolean }>(
+        tx,
+        sql`select round(promotional_balance, ${MONEY_SCALE})::text as available,
+                   promotional_balance >= ${input.maxAmount}::numeric as sufficient
+            from ${accountBalances}
+            where account_id = ${billing.accountId} and currency = ${billing.currency}`
+      );
+      if (!promotion?.sufficient) {
+        return {
+          status: 'insufficient-funds',
+          available: promotion?.available ?? '0',
+          required: input.maxAmount,
+          currency: billing.currency,
+        };
+      }
     }
 
     const draw = await computeDraw(tx, billing, input.maxAmount);

@@ -1905,3 +1905,106 @@ describe('the journal records who authored each entry', () => {
     expect(staffRow.isStaff).toBe(true);
   });
 });
+
+
+describe('internal promotional-only reservations', () => {
+  function input(f: Fixture, maxAmount = '1.000000000000') {
+    return {
+      idempotencyKey: `promo-${randomUUID()}`, attribution: f.attribution,
+      ceilingPriceVersionId: f.priceVersionId, maxAmount, currency: 'USD',
+      expiresInSeconds: 300, fundingRestriction: 'promotional-only' as const,
+    };
+  }
+
+  it('refuses a mixed balance and invoice credit without writing a hold', async () => {
+    const f = await makeFixture({ promotional: '0.5', fund: '10' });
+    await getDb().update(billingProfiles).set({ billingMode: 'invoiced', creditLimit: '100' })
+      .where(eq(billingProfiles.accountId, f.accountId));
+    const restricted = await reserve(input(f));
+    expect(restricted.status).toBe('insufficient-funds');
+    if (restricted.status === 'insufficient-funds') await expectAmount(restricted.available, '0.5');
+    expect(await getDb().select().from(usageReservations)
+      .where(eq(usageReservations.accountId, f.accountId))).toEqual([]);
+    const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
+    await expectAmount(balance!.promotionalBalance, '0.5');
+    await expectAmount(balance!.purchasedBalance, '10');
+    await expectAmount(balance!.invoicedOutstanding, '0');
+    // The restriction has not altered the default funding behavior.
+    const { fundingRestriction: _restriction, ...ordinary } = input(f);
+    expect((await reserve(ordinary)).status).toBe('reserved');
+  });
+
+  it('settles from its promotional hold and refunds only that bucket', async () => {
+    const f = await makeFixture({ promotional: '2', fund: '10' });
+    const held = await reserve(input(f));
+    expect(held.status).toBe('reserved');
+    if (held.status !== 'reserved') throw new Error('missing hold');
+    const result = await settle({
+      idempotencyKey: `settle-${randomUUID()}`, attribution: f.attribution,
+      reservationId: held.reservation.reservationId, priceVersionId: f.priceVersionId,
+      units: { input_tokens: 100000 }, outcome: 'completed', usageSource: 'provider_reported',
+      resolvedModelReference: 'oxy/synthetic', servingProvider: 'oxy-hosted',
+    });
+    expect(result.status).toBe('settled');
+    const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
+    await expectAmount(balance!.promotionalBalance, '1.7');
+    await expectAmount(balance!.purchasedBalance, '10');
+    await expectAmount(balance!.invoicedOutstanding, '0');
+    await expectAmount(balance!.reservedBalance, '0');
+  });
+
+  it('rejects overrun without drawing purchased money', async () => {
+    const f = await makeFixture({ promotional: '1', fund: '10' });
+    const held = await reserve(input(f));
+    if (held.status !== 'reserved') throw new Error('missing hold');
+    const result = await settle({
+      idempotencyKey: `settle-${randomUUID()}`, attribution: f.attribution,
+      reservationId: held.reservation.reservationId, priceVersionId: f.priceVersionId,
+      units: { input_tokens: 1000000 }, outcome: 'completed', usageSource: 'provider_reported',
+      resolvedModelReference: 'oxy/synthetic', servingProvider: 'oxy-hosted',
+    });
+    expect(result.status).toBe('settlement-exceeds-reservation');
+    const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
+    await expectAmount(balance!.purchasedBalance, '10');
+    await expectAmount(balance!.reservedBalance, '1');
+    expect(await getDb().select().from(usageReceipts)
+      .where(eq(usageReceipts.accountId, f.accountId))).toEqual([]);
+  });
+
+  it('refuses an existing unrestricted hold instead of converting or adding a hold', async () => {
+    const f = await makeFixture({ fund: '10' });
+    const restricted = input(f);
+    const { fundingRestriction: _restriction, ...ordinary } = restricted;
+    expect((await reserve(ordinary)).status).toBe('reserved');
+    expect((await reserve(restricted)).status).toBe('already-reserved');
+    const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
+    await expectAmount(balance!.purchasedBalance, '9');
+    await expectAmount(balance!.promotionalBalance, '0');
+    await expectAmount(balance!.reservedBalance, '1');
+  });
+
+  it('waits for the balance lock then refuses a drained grant despite purchased funds', async () => {
+    const f = await makeFixture({ promotional: '2', fund: '10' });
+    const holder = await getDb().$client.reserve();
+    let committed = false;
+    let contender: ReturnType<typeof reserve> | undefined;
+    try {
+      await holder.unsafe('begin');
+      const [{ pid }] = await holder.unsafe<{ pid: number }[]>('select pg_backend_pid() as pid');
+      await holder.unsafe('select * from account_balances where account_id = $1 for update', [f.accountId]);
+      await holder.unsafe('update account_balances set promotional_balance = 0 where account_id = $1', [f.accountId]);
+      contender = reserve(input(f));
+      await waitForBlockedContenders(pid);
+      await holder.unsafe('commit');
+      committed = true;
+      expect((await contender).status).toBe('insufficient-funds');
+      const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
+      await expectAmount(balance!.purchasedBalance, '10');
+      await expectAmount(balance!.reservedBalance, '0');
+    } finally {
+      if (!committed) await holder.unsafe('rollback');
+      holder.release();
+      if (contender) await contender;
+    }
+  });
+});
