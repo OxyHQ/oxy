@@ -344,8 +344,9 @@ describe('GET /profiles/search — ordering and pagination stability', () => {
 
     const res = await search(term);
 
-    // uuid v7 ids are monotonic, so insertion order IS ascending id order.
-    expect(ids(res)).toEqual([first, second, third]);
+    // Ascending id, not insertion order: uuid v7 ids minted in the same
+    // millisecond order by their random tail. Lowercase hex sorts as uuid does.
+    expect(ids(res)).toEqual([first, second, third].sort());
   });
 
   it('pages without duplicating or skipping a row across two offsets', async () => {
@@ -360,7 +361,7 @@ describe('GET /profiles/search — ordering and pagination stability', () => {
 
     expect(ids(page1)).toHaveLength(3);
     expect(ids(page2)).toHaveLength(3);
-    expect([...ids(page1), ...ids(page2)]).toEqual(seeded);
+    expect([...ids(page1), ...ids(page2)]).toEqual([...seeded].sort());
   });
 
   it('reports the total over the WHOLE match set, not the page', async () => {

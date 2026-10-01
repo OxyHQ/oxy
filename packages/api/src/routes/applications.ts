@@ -736,7 +736,8 @@ router.get(
           ne(applications.status, 'deleted')
         )
       )
-      .orderBy(desc(applications.createdAt));
+      // `id` breaks createdAt ties so the list has one stable order.
+      .orderBy(desc(applications.createdAt), desc(applications.id));
 
     res.json({
       applications: rows.map((app) => {
