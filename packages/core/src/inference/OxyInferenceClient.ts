@@ -481,6 +481,7 @@ export class OxyInferenceClient {
         const input = decisionRequestSchema.parse(request);
         const payload = await this.#request<unknown>('POST', '/v1/decisions', {
             body: input,
+            bindRequestId: true,
             signal: options.signal,
             idempotencyKey: options.idempotencyKey,
             delegatedUserId: options.delegatedUserId,
@@ -750,6 +751,7 @@ export class OxyInferenceClient {
         path: string,
         options: {
             body?: unknown;
+            bindRequestId?: boolean;
             signal?: AbortSignal;
             idempotencyKey?: string;
             delegatedUserId?: string;
@@ -780,6 +782,13 @@ export class OxyInferenceClient {
             );
         }
 
+        if (options.bindRequestId) {
+            const requestId = response.headers.get('X-Oxy-Request-Id');
+            if (!requestId || typeof payload !== 'object' || payload === null ||
+                !('requestId' in payload) || payload.requestId !== requestId) {
+                throw new OxyInferenceProtocolError('Decisions response request ID does not match its header.', requestId ?? undefined);
+            }
+        }
         return payload as T;
     }
 }

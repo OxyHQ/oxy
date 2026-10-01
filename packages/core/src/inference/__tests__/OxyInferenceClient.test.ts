@@ -902,7 +902,7 @@ describe('typed decisions', () => {
     const request = { model: 'typesafe/jev@fixture-v1', state: 'Synthetic fixture', questions: [{ id: 'q', kind: 'noul' as const, question: 'Synthetic?' }], effort: 'instant' as const };
     const success = { schemaVersion: 1, requestId: 'req-decisions', model: request.model, data: [{ id: 'q', kind: 'noul', probability: 0.75 }], usage: [{ unit: 'requests', quantity: 1 }], routingPolicy: { routingPolicyId: 'fixture', policyVersion: 1 } };
     it('uses the same bearer, delegation, cancellation and idempotency transport', async () => {
-        const stub = stubFetch([{ status: 200, body: success }]);
+        const stub = stubFetch([{ status: 200, body: success, headers: { 'X-Oxy-Request-Id': success.requestId } }]);
         const client = new OxyInferenceClient({ credential: 'synthetic', fetch: stub.impl });
         const signal = new AbortController().signal;
         await expect(client.decide(request, { idempotencyKey: 'decision-one', delegatedUserId: 'fixture-user', signal })).resolves.toEqual(success);
@@ -916,7 +916,7 @@ describe('typed decisions', () => {
     });
     it('refuses mismatched IDs and models rather than accepting a nominal 200', async () => {
         for (const body of [{ ...success, model: 'typesafe/jev@other' }, { ...success, data: [{ id: 'Q', kind: 'noul', probability: 0.75 }] }]) {
-            const stub = stubFetch([{ status: 200, body }]);
+            const stub = stubFetch([{ status: 200, body, headers: { 'X-Oxy-Request-Id': success.requestId } }]);
             await expect(new OxyInferenceClient({ credential: 'synthetic', fetch: stub.impl }).decide(request)).rejects.toBeInstanceOf(OxyInferenceProtocolError);
         }
     });
@@ -929,5 +929,15 @@ describe('typed decisions', () => {
         const stub = stubFetch([]);
         await expect(new OxyInferenceClient({ credential: 'synthetic', fetch: stub.impl }).decide({ ...request, stream: true } as typeof request)).rejects.toThrow();
         expect(stub.calls).toHaveLength(0);
+    });
+});
+
+describe('decisions response request identity', () => {
+    it.each([undefined, 'different-request'])('rejects missing or contradictory header %s', async (requestId) => {
+        const request = {model: 'typesafe/jev@fixture', state: '', questions: [{id: 'q', kind: 'noul' as const, question: 'Synthetic?'}]};
+        const body = {schemaVersion: 1, requestId: 'body-request', model: request.model, data: [{id: 'q', kind: 'noul', probability: 0.5}], usage: [], routingPolicy: {routingPolicyId: 'fixture', policyVersion: 1}};
+        const stub = stubFetch([{status: 200, body, headers: requestId ? {'X-Oxy-Request-Id': requestId} : {}}]);
+        await expect(new OxyInferenceClient({credential: 'synthetic', fetch: stub.impl}).decide(request)).rejects.toBeInstanceOf(OxyInferenceProtocolError);
+        expect(stub.calls).toHaveLength(1);
     });
 });
