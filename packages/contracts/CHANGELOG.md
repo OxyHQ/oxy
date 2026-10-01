@@ -1,5 +1,31 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.7.0
+
+Inference contract set **3.5.0** (from 3.4.0): typed, non-streaming decisions.
+Additive only: no export removed, no existing shape's `schemaVersion` moved. A
+3.4 consumer refuses the new `decisions` members, which the MINOR announces.
+
+### Added
+
+- Decisions: `decisionRequestSchema` / `decisionInputSchema` /
+  `decisionQuestionSchema` (choice 2..255 options, score 2..10 levels, noul),
+  `decisionEffortSchema`, `decisionAnswerSchema` (Choice/Score carry the
+  provider's actual `reply` and `confidence`; Noul has only `probability`),
+  `decisionResultSchema` (signed hop, schemaVersion 1),
+  `decisionSuccessSchema` (public, schemaVersion 1), `decisionFailureSchema`
+  (schemaVersion 1; optional measured `usage`, never `completed`),
+  `decisionAnswersMatch`, `decisionInputBudget` (serialized UTF-8 bound:
+  total <= 64000, per-question context <= 32000) and `decisionFitsGateway`
+  (gateway total <= 32000).
+- The `decisions` API format (catalogue capabilities and the envelope's
+  `client.apiFormat`) and the envelope input `{ format: 'decisions' }`, which
+  must be non-streaming and bound to the signed decisions route.
+- Catalogue invocation helpers from #1497: `matchCatalogInvocation`,
+  `resolveCatalogInvocation`, `catalogInvocationPathParameters`,
+  `catalogInvocationsOverlap`, `catalogInvocationTemplatesEquivalent`,
+  `findOverlappingCatalogInvocations`.
+
 ## 4.6.0
 
 Inference contract set **3.4.0** (from 3.3.0): power levels, per-app allowed
