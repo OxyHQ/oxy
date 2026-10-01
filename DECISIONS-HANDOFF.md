@@ -138,3 +138,29 @@ Kaana: until a run publishes, keep provenance as LOCAL SOURCE (Oxy commit).
 After publication, pin `@oxy.so/contracts` exactly `4.7.0` in the generator,
 regenerate, and record the registry `dist.integrity` from the release report;
 do not record a version as published from this note alone.
+
+## Release workflow revision (revision 6) — supersedes revision 5's workflow text
+
+Independent release review (MEDIUM-HIGH): the consumer smoke ran unlocked
+registry code in the job that later held NPM_TOKEN, even on dry runs. Fixed in
+9c70470a3 + ee7ebbade; the workflow now has three jobs:
+- build: frozen-lockfile build/pack/test/inspect; uploads trusted tarballs and
+  prepared.json (package integrities + first-party floors' registry
+  tarball/sha512). No secret.
+- smoke: separate runner, no secret, no repo install. Verifies the trusted
+  bytes, fetches the floors and checks their recorded sha512, pins every
+  @oxy.so package through overrides, installs outside the checkout with an
+  allowlisted env (no GITHUB_* file commands, tokens, NODE_OPTIONS or npm
+  auth) and a 3-day minimum release age for third-party code, and runs exactly
+  8 cases (npm|bun × node|bun × ESM|CJS). Publish never reads its output.
+- publish: fresh checkout, frozen rebuild, must equal trusted bytes and floors;
+  anonymous registry preflight. NPM_TOKEN only on the final step,
+  `if: inputs.dry_run == false`; the helper also refuses unless DRY_RUN is
+  explicitly false. Publishes its own rebuilt tarballs, contracts then core.
+
+Rehearsal of the committed helper at ee7ebbade (local bare origin, three
+separate clones): build, smoke (8/8) and publish-job rebuild + verify passed;
+integrities unchanged from revision 5 (byte-identical across four builds);
+preflight: both `missing`; publish on a dry run refused. The review's INFO "no
+push / no full prepare" is superseded: commits are pushed to #1503 and a full
+prepare has run (rehearsal only; no registry write).
