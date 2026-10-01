@@ -72,3 +72,26 @@ gate is hard closed, not an environment flag. No npm release has been made.
 SDK decisions bind the successful body requestId to X-Oxy-Request-Id. No replay.
 Reviewer revisions in progress: do not merge/deploy until exact-head CI and
 independent coordinator review. Source schemas in this worktree are authoritative.
+
+## Failures after the signed forward (revision 3)
+
+Kaana's decisions failure body is now typed in Oxy contracts as
+`DecisionFailure = {schemaVersion:1, requestId, error: InferenceError, usage?: NormalizedUsageReport}`
+(versioned shape 1; add it to the generated descriptor). `error.requestId` and
+`usage.requestId` must equal `requestId`; `usage.outcome` must NOT be `completed`.
+Kaana SHOULD answer a provider failure with HTTP 502 + DecisionFailure and include
+`usage` whenever the provider measured anything; absent `usage` means unmeasured,
+never zero. A bare InferenceError 502 is still accepted (no usage). Oxy semantics:
+- 4xx: envelope rejected before execution (unchanged).
+- 5xx with a typed failure for this request: code preserved; usage settled exactly.
+- Anything else after send (transport cut, untyped 5xx, foreign requestId,
+  truncated/non-JSON 200): `execution_uncertain` → public `provider_error`,
+  settled with `usageSource: estimated` and zero billed (refund reason
+  usage_unavailable), never presented as measured.
+- Every decisions failure after the forward is `retryable: false`: the request
+  may already have executed and responses are not retained.
+
+Idempotency (shared semantics, Auto please note): the edge's pre-check is a fast
+path only. A ledger `already-reserved` result is now refused with
+`idempotency_conflict` instead of borrowing the winner's hold, so two concurrent
+same-key requests execute once. This is base #1503 and does not depend on #1504.
