@@ -29,6 +29,14 @@ test('release scope is contracts only; published SDK floors cannot be republishe
   ]);
   assert.ok(SMOKE_MINIMUM_RELEASE_AGE_SECONDS >= 24 * 60 * 60);
 });
+test('both actual consumer entry points strictly require the contracts release version', () => {
+  for (const entry of ['smoke.mjs', 'smoke.cjs']) {
+    const source = readFileSync(resolve('.github/scripts/decisions-release-smoke', entry), 'utf8');
+    const expected = /fromCore\('@oxy\.so\/contracts\/package\.json'\)\.version !== '([^']+)'/.exec(source)?.[1];
+    assert.equal(expected, RELEASES[0].version, entry);
+    assert.match(source, /throw new Error\('core resolves another contracts version'\)/);
+  }
+});
 test('source manifests carry exactly the fixed release versions', () => {
   for (const release of RELEASES) {
     const manifest = JSON.parse(readFileSync(resolve('packages', release.directory, 'package.json'), 'utf8'));
