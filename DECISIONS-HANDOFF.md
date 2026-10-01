@@ -6,7 +6,14 @@ provider calls, deployment or credential changes are part of this work.
 
 Observed baseline: Oxy `INFERENCE_CONTRACT_VERSION=3.4.0`, contracts package 4.6.0;
 Kaana assigned tree `ContractVersion=3.3.0`, generator pins package 4.5.0; envelope
-generation 2 on both. This change targets contract set **3.5.0**, envelope **2**.
+generation 2 on both. This change targets contract set **3.5.0**, envelope **2**, decisions result **1**.
+The candidate package is **@oxy.so/contracts 4.7.0**, UNPUBLISHED (repo convention:
+minor bump in the feature PR, released only after merge). A `-dev` prerelease was
+rejected: it falls outside federation's `^4.0.0` range and made bun pull published
+4.6.0 into the workspace lockfile. Until a release exists, Kaana's descriptor must
+record provenance as LOCAL SOURCE: Oxy branch feat/jev-decisions-20261001 at the
+exact commit it generated from, package 4.7.0 unpublished, contract set 3.5.0 —
+never "published 4.6.0", and its generator pin must not claim an npm artifact.
 Kaana must regenerate against final local Oxy source, never assume stale docs match.
 
 Public `POST /v1/decisions`; SDK `OxyInferenceClient.decide(request, options)`.
@@ -20,14 +27,25 @@ Questions have unique exact `id`, `kind`, `question`, optional `criteria`:
 Typed envelope input: `{format:'decisions', decisions:{state,instructions?,questions,effort?}}`;
 `client.apiFormat='decisions'`, `modality='text'`, `stream=false`, empty sampling/tools,
 no chat generation controls. State + instructions + criteria + question/options/levels
-all count toward a conservative UTF-8 byte budget: total <=65536; state + instructions
-+ longest complete question <=32768 (gateway bound, applied at Oxy too).
+all count toward a conservative SERIALIZED UTF-8 byte budget, including JSON
+escaping, keys, repeated question instructions and container overhead. Direct:
+total <=64000 and state + longest complete question <=32000. OpenRouter:
+TOTAL <=32000, including a 4096-byte reserved gateway-policy allowance. Oxy
+filters gateway routes separately; Kaana MUST measure the final serialized
+provider body before sending it. Context capacity uses the longest question,
+not shared state multiplied by question count. Billing remains a separate ceiling.
 
 Answers: `DecisionAnswer` discriminated by `kind`, always exact `id`:
-- choice: `{id,kind:'choice',probabilities:number[]}` parallel to options, sum 1.
-- score: `{id,kind:'score',mean:number,distribution:number[]}` parallel to levels,
+- choice: `{id,kind:'choice',reply:string,confidence:number,probabilities:number[]}` parallel to options, sum 1.
+- score: `{id,kind:'score',reply:number,confidence:number,mean:number,distribution:number[]}` parallel to levels,
   sum 1; mean equals sum(index * probability).
 - noul: `{id,kind:'noul',probability:number}`; NO synthetic confidence.
+Choice reply is the ORIGINAL provider `choice` label and must select a maximum
+probability option. Score reply is the ORIGINAL provider `score` (same numeric
+expected index as mean). Confidence is REQUIRED from the actual Choice/Score
+provider response; NEVER infer it from probabilities or a default. Missing
+confidence/reply fails closed. Noul prohibits confidence. Official source:
+https://docs.typesafe.ai/api and https://docs.typesafe.ai/models .
 All probabilities finite [0,1]; sums/mean tolerance 1e-6. Result IDs must exactly
 match questions once each, matching kind and option/level cardinality.
 
@@ -48,5 +66,9 @@ Final wire note: DecisionResult validates that usage.requestId/model match the
 outer result and usage.outcome is completed. Envelope decisions forbid all
 cross-model/revision substitution, including within signed authorizedRoutes.
 Contract source is now available at packages/contracts/src/inference/decisions.ts;
-49 contracts suites/851 tests and synthetic signed-hop tests pass. API production
+Revision checks are recorded separately in IMPLEMENTATION-RESULT.md. API production
 gate is hard closed, not an environment flag. No npm release has been made.
+
+SDK decisions bind the successful body requestId to X-Oxy-Request-Id. No replay.
+Reviewer revisions in progress: do not merge/deploy until exact-head CI and
+independent coordinator review. Source schemas in this worktree are authoritative.
