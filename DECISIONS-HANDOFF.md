@@ -95,3 +95,20 @@ Idempotency (shared semantics, Auto please note): the edge's pre-check is a fast
 path only. A ledger `already-reserved` result is now refused with
 `idempotency_conflict` instead of borrowing the winner's hold, so two concurrent
 same-key requests execute once. This is base #1503 and does not depend on #1504.
+
+## Metering: free published output (revision 4)
+
+Kaana reports decisions usage truthfully: `requests`, `input_tokens` and the
+`output_tokens` the classification actually emitted (observed: 4). Do NOT strip
+or zero them. The same NormalizedUsageReport shape is used in DecisionResult
+(`outcome: completed`) and in DecisionFailure.usage (any non-completed outcome).
+Other units are not held for decisions and settle as unpriced (fail closed).
+
+Oxy admission invariant (before any hold or Kaana call): every candidate and
+signed route's price version must PUBLISH `output_tokens` at exactly zero
+(exact decimal text). Missing or positive (even 1e-12/M) is unquoted and the
+request is refused with no reservation. The hold stays the input-only ceiling
+`requests + input_tokens(serialized estimate)`; reported output prices to zero, so
+the exact charge never exceeds the hold and spending limits apply unchanged.
+Catalogue/price operators: a decisions model's price version needs an explicit
+`output_tokens` row at 0. Auto: completion/other ceilings are unchanged.
