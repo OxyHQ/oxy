@@ -86,6 +86,15 @@ never contact GitHub or write a real auth configuration. The future Guards time
 cap is 45 minutes to cover bounded inspection waiting and streaming verification.
 All these workflow and permission changes remain unapplied review artifacts.
 
+Tracked-source validation on `298aab035ac14e5a39aef8bc7404ff5f8df29476`
+is recorded in [proof.json](queue-companion-validation-2026-10-02/proof.json)
+with exact source/output hashes and exits. Policy 118, real Git topology 20,
+image binding 43, collector 48, unapplied DAG/resolver/auth 51, Python streaming
+13, original proposal 131, original audit fixtures 9 and CI scope 38 pass.
+The normal INACTIVE gate with the recorded Forge payload still exits 1, even
+with all four tempting override variables. These fixture results neither
+authenticate a new queue image nor activate an exception.
+
 The small baseline ZIP used to derive content fixtures is the authenticated
 historical PR artifact for `8f4485`, SHA256
 `47811e6da747bab767d3be4fe175bf1a04affbac614317bd865ce39a61ee8b79`.
