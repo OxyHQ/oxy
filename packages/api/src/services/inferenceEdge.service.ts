@@ -161,6 +161,10 @@ import {
 } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { isChargingAuthorized, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
+import {
+  resolveEconomicTreatment,
+  type EconomicTreatmentDecision,
+} from '../config/inferenceEconomicPolicy';
 import { applications } from '../db/schema/applications';
 import { USAGE_UNIT_COLUMN_KEYS } from '../db/schema/ledgerColumns';
 import { usageReceipts, usageReceiptUnitPrices } from '../db/schema/usageReceipts';
@@ -172,6 +176,11 @@ import {
 } from '../middleware/machineCredential';
 import { verifyServiceToken } from '../middleware/serviceToken';
 import { resolveServiceTokenPrincipal } from './attribution.service';
+import {
+  claimMeteredAdmission,
+  markMeteredAdmissionRefused,
+  settleMeteredUsage,
+} from './inferenceMeteredUsage.service';
 import {
   exceedsAmount,
   powerLevelCandidates,
@@ -689,8 +698,23 @@ export interface AdmittedRequest {
   readonly routingPolicyVersionId: string | undefined;
   readonly ledgerKey: string;
   readonly ledgerAttribution: LedgerAttribution;
-  /** Absent while shadow metering: nothing is held because nothing is charged. */
+  /**
+   * Absent while shadow metering (nothing is charged) and for every
+   * `internal_metered` request (nothing is ever charged). Which of the two is
+   * {@link AdmittedRequest.economics}, never this field.
+   */
   readonly hold: ReservationView | undefined;
+  /**
+   * The economic treatment, derived from the authenticated principal against
+   * the versioned policy in `config/inferenceEconomicPolicy.ts` — never from
+   * anything the request carried.
+   */
+  readonly economics: EconomicTreatmentDecision;
+  /**
+   * The durable `inference_metered_usage` row this request claimed at
+   * admission. Its idempotency and its usage record, whatever the treatment.
+   */
+  readonly meteredUsageId: string;
   /**
    * A realtime session held for DURATION units (`routeCeilingPlans`): the most
    * billable text items it may send, which its `requests` ceiling was sized
@@ -852,13 +876,32 @@ export function refuseRequest(
  * account with no billing profile is served, an empty balance is served, and a
  * spending limit stops nothing — all three of those refusals live in `reserve`,
  * which is the call being skipped. `GET /v1/generations/:id` has no receipt to
- * return for such a request either, and a repeated `Idempotency-Key` binds to no
- * reservation and so is not refused.
+ * return for such a request either. A repeated `Idempotency-Key` IS refused:
+ * the durable admission claim below enforces it without a reservation.
  *
  * The flag is read ONCE per request, here and nowhere else. Read twice, a flip
  * between the reservation and the settlement would either settle against a hold
  * that was never taken or take a hold nothing ever settles — which is why
- * `hold === undefined` is the single thing every later step branches on.
+ * `hold` and `economics` are the only things later steps branch on.
+ *
+ * ## `internal_metered` is not shadow metering
+ *
+ * A principal the versioned economic policy names as an internal product
+ * relationship (Alia → Kaana, #1526) is admitted with NO hold whether or not
+ * charging is armed: no billing profile, balance, promotional grant, receipt
+ * or `platform_revenue` entry is involved, and no money moves between
+ * products. Everything else still applies — scopes, policy, catalogue
+ * eligibility, privacy, provider gates — plus a technical capacity budget and
+ * the durable idempotency claim below, so removing the hold removes neither
+ * the duplicate-execution guard nor the limit. Every other caller is
+ * `commercial` and is exactly as before.
+ *
+ * ## Every admitted request claims a durable usage row
+ *
+ * `claimMeteredAdmission` writes one `inference_metered_usage` row per request
+ * BEFORE any reservation, keyed on the ledger key. It is the idempotency guard
+ * for every treatment (a reservation used to be the only one, and only while
+ * charging), and the usage record a report reads cost from.
  */
 export async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   return admitWithAutoDecision(context);
@@ -898,6 +941,10 @@ async function admitWithAutoDecision(
       'This credential does not hold the inference:invoke scope.'
     );
   }
+
+  // The economic treatment, from the AUTHENTICATED principal only. Read once,
+  // like the charging flag, so admission and settlement cannot disagree.
+  const economics = resolveEconomicTreatment(principal);
 
   if (request.operation.kind === 'decisions' || request.input.format === 'decisions' || context.apiFormat === 'decisions') {
     const gate = decisionAvailability();
@@ -1846,7 +1893,10 @@ async function admitWithAutoDecision(
     const classifier = Math.max(...viable) > floor
       ? createJevAutoClassifier(context, policy, executeInferenceRequest, routingPolicy)
       : undefined;
-    if (classifier !== undefined && charging) {
+    // The semantic child previews a COMMERCIAL reservation, so it runs only for
+    // a charged commercial parent; an internal parent keeps the deterministic
+    // floor until the child is decoupled from charging (#1526's follow-up, I10).
+    if (classifier !== undefined && charging && economics.treatment === 'commercial') {
       const preview = await previewReservation({
         idempotencyKey: ledgerKey, attribution: ledgerAttribution,
         ceilingPriceVersionId, maxAmount, currency: quote.currency,
@@ -1872,7 +1922,69 @@ async function admitWithAutoDecision(
       return admitWithAutoDecision(context, { decision, policy });
     }
   }
-  if (charging) {
+  const holdTtlSeconds =
+    request.operation.kind === 'realtime_session'
+      ? Math.max(RESERVATION_TTL_SECONDS, request.operation.reservationTtlSeconds)
+      : RESERVATION_TTL_SECONDS;
+
+  // 6c'. Claim the durable usage row: the idempotency guard for EVERY
+  //      treatment, and the technical capacity check for `internal_metered`.
+  //      Nothing is reserved or forwarded unless this succeeds.
+  const claim = await claimMeteredAdmission({
+    requestId,
+    idempotencyKey: ledgerKey,
+    economics,
+    accountId: principal.ownerAccountId,
+    applicationId: principal.applicationId,
+    applicationCredentialId: principal.credentialId,
+    ...(context.delegatedUserId === undefined ? {} : { delegatedUserId: context.delegatedUserId }),
+    environment: principal.environment,
+    endpoint: context.endpoint,
+    requestedModelReference,
+    admittedModelReference: route.modelReference,
+    admittedProvider: route.provider,
+    admittedDeploymentId: route.deploymentId,
+    routingPolicyVersionId,
+    ceiling: { amount: maxAmount, currency: quote.currency },
+    expiresInSeconds: holdTtlSeconds,
+  });
+  if (claim.status === 'duplicate') {
+    return refuse(
+      'idempotency_conflict',
+      'This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.',
+      { param: 'Idempotency-Key' }
+    );
+  }
+  if (claim.status === 'capacity-exceeded') {
+    await recordEdgeTelemetry(context, {
+      requestedModelReference,
+      statusCode: inferenceErrorStatus(claim.limit === 'concurrency' ? 'rate_limited' : 'quota_exceeded'),
+      units: {},
+      resolvedModelReference: route.modelReference,
+      servingProvider: route.provider,
+    });
+    logger.warn('inference.edge.internal_capacity_exceeded', {
+      requestId,
+      applicationId: principal.applicationId,
+      environment: principal.environment,
+      limit: claim.limit,
+      economicPolicyVersion: economics.policyVersion,
+    });
+    // A TECHNICAL limit: the answer never asks anyone to fund anything.
+    return claim.limit === 'concurrency'
+      ? refuse(
+          'rate_limited',
+          'This application has reached its concurrent inference capacity. Try again shortly.',
+          { reason: 'internal-capacity-concurrency' }
+        )
+      : refuse(
+          'quota_exceeded',
+          'This application has reached its daily inference capacity.',
+          { reason: 'internal-capacity-daily' }
+        );
+  }
+
+  if (charging && economics.treatment === 'commercial') {
     const reservation = await reserve({
       idempotencyKey: ledgerKey,
       attribution: ledgerAttribution,
@@ -1887,16 +1999,18 @@ async function admitWithAutoDecision(
       currency: quote.currency,
       // A session's hold has to outlive the session: its signed maximum
       // duration, the resume window and the report after `session.closed`.
-      expiresInSeconds:
-        request.operation.kind === 'realtime_session'
-          ? Math.max(RESERVATION_TTL_SECONDS, request.operation.reservationTtlSeconds)
-          : RESERVATION_TTL_SECONDS,
+      expiresInSeconds: holdTtlSeconds,
     });
 
     // `already-reserved` is a refusal, never a borrowed hold: a concurrent
     // request owns it, whether this is a classifier or the final generation.
     const held = reservationOrRefusal(reservation, requestId, quote.currency);
-    if ('error' in held) return refuseReservation(reservation, held.error);
+    if ('error' in held) {
+      // Refused before anything was forwarded: free the key and the slot, as a
+      // refused reservation always has.
+      await markMeteredAdmissionRefused(claim.meteredUsageId);
+      return refuseReservation(reservation, held.error);
+    }
     hold = held.reservation;
   }
 
@@ -1914,6 +2028,8 @@ async function admitWithAutoDecision(
       ledgerKey,
       ledgerAttribution,
       hold,
+      economics,
+      meteredUsageId: claim.meteredUsageId,
       ...(realtimeTextItemCap === undefined ? {} : { realtimeTextItemCap }),
     },
   };
@@ -2058,16 +2174,19 @@ export async function executeInferenceRequest(
   // where `servingProvider` is a required provider slug.
   const servingProvider = completion.usage.servingProvider;
 
+  let receiptId: string | undefined;
   if (hold === undefined) {
-    await recordShadowMetering(context, servedRoute, units, {
-      outcome: completion.usage.outcome,
-      usageSource: completion.usage.usageSource,
-      servingProvider,
-      ...(completion.generationId === undefined
-        ? {}
-        : { generationId: completion.generationId }),
-      routingPolicyVersionId: admitted.routingPolicyVersionId,
-    });
+    if (admitted.economics.treatment === 'commercial') {
+      await recordShadowMetering(context, servedRoute, units, {
+        outcome: completion.usage.outcome,
+        usageSource: completion.usage.usageSource,
+        servingProvider,
+        ...(completion.generationId === undefined
+          ? {}
+          : { generationId: completion.generationId }),
+        routingPolicyVersionId: admitted.routingPolicyVersionId,
+      });
+    }
   } else {
     const settlement = await settle({
       idempotencyKey: admitted.ledgerKey,
@@ -2113,6 +2232,36 @@ export async function executeInferenceRequest(
         ),
       };
     }
+    receiptId = settlement.receipt.receiptId;
+  }
+
+  // The durable usage record, for every treatment. For `internal_metered` it
+  // is the ONLY record of the request's usage, so — like a failed settlement
+  // above, and on this one path where an answer can still be refused — a
+  // request that could not be recorded is not reported as served.
+  const metered = await recordMeteredSettlement(
+    context,
+    admitted,
+    {
+      units,
+      usageSource: completion.usage.usageSource,
+      outcome: completion.usage.outcome,
+      generationId: completion.generationId,
+      servingProvider,
+    },
+    servedRoute,
+    receiptId
+  );
+  if (!metered && admitted.economics.treatment === 'internal_metered') {
+    return {
+      status: 'refused',
+      error: refuseRequest(
+        context,
+        'internal_error',
+        'The request completed but its usage could not be recorded.',
+        { reason: 'metered-usage-unrecorded' }
+      ),
+    };
   }
 
   // The switches the data plane reported, as the persisted customer-visible
@@ -2899,18 +3048,22 @@ export async function settleMeasured(
   const { hold } = admitted;
 
   if (hold === undefined) {
-    await recordShadowMetering(context, servedRoute, settlement.units, {
-      outcome: settlement.outcome,
-      usageSource: settlement.usageSource,
-      servingProvider: settlement.servingProvider,
-      ...(settlement.generationId === undefined
-        ? {}
-        : { generationId: settlement.generationId }),
-      routingPolicyVersionId: admitted.routingPolicyVersionId,
-    });
+    if (admitted.economics.treatment === 'commercial') {
+      await recordShadowMetering(context, servedRoute, settlement.units, {
+        outcome: settlement.outcome,
+        usageSource: settlement.usageSource,
+        servingProvider: settlement.servingProvider,
+        ...(settlement.generationId === undefined
+          ? {}
+          : { generationId: settlement.generationId }),
+        routingPolicyVersionId: admitted.routingPolicyVersionId,
+      });
+    }
+    await recordMeteredSettlement(context, admitted, settlement, servedRoute, undefined);
     return;
   }
 
+  let receiptId: string | undefined;
   try {
     const result = await settle({
       idempotencyKey: admitted.ledgerKey,
@@ -2930,7 +3083,9 @@ export async function settleMeasured(
         ? {}
         : { routingPolicyVersionId: admitted.routingPolicyVersionId }),
     });
-    if (result.status !== 'settled' && result.status !== 'already-settled') {
+    if (result.status === 'settled' || result.status === 'already-settled') {
+      receiptId = result.receipt.receiptId;
+    } else {
       logger.error(
         'inference.edge.release_failed',
         new Error(`settlement returned ${result.status}`),
@@ -2948,6 +3103,54 @@ export async function settleMeasured(
       error instanceof Error ? error : new Error(String(error)),
       { requestId: context.requestId, reservationId: hold.reservationId }
     );
+  }
+  await recordMeteredSettlement(context, admitted, settlement, servedRoute, receiptId);
+}
+
+/**
+ * Write the durable usage record for a request whose response is already
+ * decided. Logged and swallowed like the ledger write beside it: there is no
+ * response left to turn into an error. Returns whether it was recorded.
+ */
+async function recordMeteredSettlement(
+  context: EdgeExecutionContext,
+  admitted: AdmittedRequest,
+  settlement: MeasuredSettlement,
+  servedRoute: EdgeRoute,
+  usageReceiptId: string | undefined
+): Promise<boolean> {
+  try {
+    const result = await settleMeteredUsage({
+      meteredUsageId: admitted.meteredUsageId,
+      outcome: settlement.outcome,
+      usageSource: settlement.usageSource,
+      units: settlement.units,
+      resolvedModelReference: servedRoute.modelReference,
+      servingProvider: settlement.servingProvider,
+      generationId: settlement.generationId,
+      priceVersionId: servedRoute.priceVersionId,
+      ...(usageReceiptId === undefined ? {} : { usageReceiptId }),
+    });
+    if (result.status !== 'settled') {
+      logger.error(
+        'inference.edge.metered_usage_not_settled',
+        new Error(`metered usage settlement returned ${result.status}`),
+        { requestId: context.requestId, meteredUsageId: admitted.meteredUsageId }
+      );
+      return false;
+    }
+    return true;
+  } catch (error) {
+    logger.error(
+      'inference.edge.metered_usage_failed',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        requestId: context.requestId,
+        meteredUsageId: admitted.meteredUsageId,
+        economicTreatment: admitted.economics.treatment,
+      }
+    );
+    return false;
   }
 }
 
