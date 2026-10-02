@@ -1,4 +1,5 @@
 import { accessSubscriptionSources } from './productAccess';
+import { accessProviderPeriods, accessProviderEvents } from './productProviderEvidence';
 import { emailSignInRequests } from './emailSignInRequests';
 import { signInSecondFactorChallenges } from './signInChallenges';
 import { externalIdentities, externalIdentityClaims } from './externalIdentities';
@@ -115,6 +116,10 @@ export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
   { table: accessSubscriptionSources, column: accessSubscriptionSources.providerSubscriptionId, reason: 'Opaque subscription ID owned by Stripe or Peable; no local provider-subscription table exists.' },
+  { table: accessProviderPeriods, column: accessProviderPeriods.invoiceId, reason: 'Opaque invoice identity owned by the explicitly bound provider/account/mode/environment; not a local billing invoice ID.' },
+  { table: accessProviderPeriods, column: accessProviderPeriods.lineId, reason: 'Opaque recurring invoice line owned by the provider, combined with its invoice and provider binding; no local provider-line table exists.' },
+  { table: accessProviderPeriods, column: accessProviderPeriods.priceId, reason: 'Explicit opaque provider price in the normalized immutable paid-line evidence; not a local catalogue row.' },
+  { table: accessProviderEvents, column: accessProviderEvents.eventId, reason: 'Opaque provider delivery ID, deduplicated only within provider/account/mode/environment; no local provider-event table exists.' },
   { table: accountEvents, column: accountEvents.userId,
     reason: 'The DELETED account the event announces. Its `users` row is gone (or archived) by the time relying parties read this, which is the point of the event; a foreign key could only CASCADE the announcement away with the account or RESTRICT the deletion. Swept after `ACCOUNT_EVENT_RETENTION_SECONDS`.' },
   { table: storageObjectDeletions, column: storageObjectDeletions.accountId,

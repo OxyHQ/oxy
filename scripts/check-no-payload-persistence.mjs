@@ -249,6 +249,10 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
   { table: 'verifiable_credentials', column: 'claims', holds: 'the claims of a verifiable credential' },
 
   // ---- misc -------------------------------------------------------------------
+  { table: 'access_provider_periods', column: 'payload', holds: 'strict whitelisted normalized paid-line access projection: provider/account/live/environment, invoice/line/price IDs, subscription/source/segment IDs, payer/beneficiary, offer/version/origin, quantity one and period; no raw provider event, inference content or financial balance' },
+  { table: 'access_provider_periods', column: 'payloadSha256', holds: 'SHA-256 of that canonical normalized paid-line access projection, never its raw provider payload' },
+  { table: 'access_provider_events', column: 'payload', holds: 'strict normalized delivery mapping: schema version, provider/account/live/environment, event ID/time, source/evidence IDs and paid-line projection SHA-256; no raw provider event, inference content or financial balance' },
+  { table: 'access_provider_events', column: 'payloadSha256', holds: 'SHA-256 of that canonical normalized delivery mapping, never raw provider content' },
   { table: 'topics', column: 'translations', holds: 'per-locale topic labels' },
   { table: 'user_analytics', column: 'demographicsCountries', holds: 'aggregate audience counts per country; no per-user location and no IP' },
   { table: 'user_analytics', column: 'demographicsLanguages', holds: 'aggregate audience counts per language' },

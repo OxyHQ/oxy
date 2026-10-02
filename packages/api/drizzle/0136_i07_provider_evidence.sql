@@ -1,0 +1,64 @@
+-- oxy:deploy-phase=pre
+CREATE TABLE "access_provider_events" (
+	"provider" text NOT NULL,
+	"provider_account_ref" text NOT NULL,
+	"mode" text NOT NULL,
+	"environment" text NOT NULL,
+	"event_id" text NOT NULL,
+	"evidence_id" text NOT NULL,
+	"source_id" text NOT NULL,
+	"payload" jsonb NOT NULL,
+	"payload_sha256" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
+	CONSTRAINT "access_provider_events_delivery_pk" PRIMARY KEY("provider","provider_account_ref","mode","environment","event_id"),
+	CONSTRAINT "access_provider_events_identity_check" CHECK (length("access_provider_events"."event_id") between 1 and 160),
+	CONSTRAINT "access_provider_events_payload_check" CHECK (jsonb_typeof("access_provider_events"."payload") = 'object' and "access_provider_events"."payload_sha256" ~ '^[0-9a-f]{64}$')
+);
+--> statement-breakpoint
+CREATE TABLE "access_provider_periods" (
+	"id" text PRIMARY KEY NOT NULL,
+	"provider" text NOT NULL,
+	"provider_account_ref" text NOT NULL,
+	"mode" text NOT NULL,
+	"environment" text NOT NULL,
+	"invoice_id" text NOT NULL,
+	"line_id" text NOT NULL,
+	"price_id" text NOT NULL,
+	"source_id" text NOT NULL,
+	"provider_subscription_id" text NOT NULL,
+	"beneficiary_account_id" text NOT NULL,
+	"payer_account_id" text NOT NULL,
+	"segment_id" text NOT NULL,
+	"offer_id" text NOT NULL,
+	"offer_version" integer NOT NULL,
+	"origin" text NOT NULL,
+	"period_start" timestamp with time zone NOT NULL,
+	"period_end" timestamp with time zone NOT NULL,
+	"payload" jsonb NOT NULL,
+	"payload_sha256" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
+	CONSTRAINT "access_provider_periods_financial_key" UNIQUE("provider","provider_account_ref","mode","environment","invoice_id","line_id"),
+	CONSTRAINT "access_provider_periods_event_binding_key" UNIQUE("id","source_id","provider","provider_account_ref","mode","environment"),
+	CONSTRAINT "access_provider_periods_binding_check" CHECK ("access_provider_periods"."mode" = 'live' and "access_provider_periods"."environment" = 'production' and length("access_provider_periods"."provider_account_ref") between 1 and 160),
+	CONSTRAINT "access_provider_periods_provider_check" CHECK ("access_provider_periods"."provider" in ('stripe', 'peable')),
+	CONSTRAINT "access_provider_periods_identity_check" CHECK (length("access_provider_periods"."invoice_id") between 1 and 160 and length("access_provider_periods"."line_id") between 1 and 160 and length("access_provider_periods"."price_id") between 1 and 160),
+	CONSTRAINT "access_provider_periods_payload_check" CHECK (jsonb_typeof("access_provider_periods"."payload") = 'object' and "access_provider_periods"."payload_sha256" ~ '^[0-9a-f]{64}$'),
+	CONSTRAINT "access_provider_periods_period_check" CHECK ("access_provider_periods"."period_end" > "access_provider_periods"."period_start")
+);
+--> statement-breakpoint
+ALTER TABLE "access_offer_segments" ADD CONSTRAINT "access_offer_segments_evidence_key" UNIQUE("id","subscription_id","beneficiary_account_id","offer_id","offer_version","origin","period_start","period_end");
+--> statement-breakpoint
+ALTER TABLE "access_subscription_sources" ADD CONSTRAINT "access_subscription_sources_evidence_key" UNIQUE("id","beneficiary_account_id","payer_account_id","provider","provider_account_ref","mode","environment","provider_subscription_id");
+--> statement-breakpoint
+ALTER TABLE "access_provider_events" ADD CONSTRAINT "access_provider_events_period_fk" FOREIGN KEY ("evidence_id","source_id","provider","provider_account_ref","mode","environment") REFERENCES "public"."access_provider_periods"("id","source_id","provider","provider_account_ref","mode","environment") ON DELETE restrict ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "access_provider_periods" ADD CONSTRAINT "access_provider_periods_source_fk" FOREIGN KEY ("source_id","beneficiary_account_id","payer_account_id","provider","provider_account_ref","mode","environment","provider_subscription_id") REFERENCES "public"."access_subscription_sources"("id","beneficiary_account_id","payer_account_id","provider","provider_account_ref","mode","environment","provider_subscription_id") ON DELETE restrict ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "access_provider_periods" ADD CONSTRAINT "access_provider_periods_segment_fk" FOREIGN KEY ("segment_id","source_id","beneficiary_account_id","offer_id","offer_version","origin","period_start","period_end") REFERENCES "public"."access_offer_segments"("id","subscription_id","beneficiary_account_id","offer_id","offer_version","origin","period_start","period_end") ON DELETE restrict ON UPDATE no action;
+--> statement-breakpoint
+
+CREATE TRIGGER access_provider_periods_immutable BEFORE UPDATE OR DELETE ON access_provider_periods
+FOR EACH ROW EXECUTE FUNCTION product_access_immutable();
+--> statement-breakpoint
+CREATE TRIGGER access_provider_events_immutable BEFORE UPDATE OR DELETE ON access_provider_events
+FOR EACH ROW EXECUTE FUNCTION product_access_immutable();

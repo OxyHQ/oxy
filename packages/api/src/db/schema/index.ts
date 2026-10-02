@@ -189,3 +189,4 @@ export * from './storageObjectDeletions';
 export * from './stickers';
 
 export * from './productAccess';
+export * from './productProviderEvidence';
