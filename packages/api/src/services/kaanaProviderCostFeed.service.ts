@@ -61,7 +61,9 @@ export const providerCostAttemptEventSchema = z.object({
   attemptIndex: z.number().int().nonnegative(),
   provider: z.string().min(1).max(128),
   keyId: z.string().min(1).max(256),
-  keyClass: z.string().min(1).max(64),
+  // Historical operator rows may omit their classification as an empty
+  // string. Preserve that fact; ingestion does not grant key authority.
+  keyClass: z.string().max(64),
   deploymentId: z.string().min(1).max(256),
   modelReference: z.string().min(1).max(512),
   cost: operatorAmountSchema.nullable(),

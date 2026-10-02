@@ -1,0 +1,14 @@
+$ jest --runInBand src/services/__tests__/productAccessPersistence.test.ts src/services/__tests__/productAccessClosure.test.ts src/routes/__tests__/productAccess.test.ts src/services/__tests__/productAccess.test.ts src/services/__tests__/accountFinancialHolds.service.test.ts src/db/schema/__tests__/foreignKeys.test.ts src/db/schema/__tests__/schemaInvariants.test.ts src/db/schema/__tests__/protectedColumns.test.ts src/services/__tests__/kaanaProviderCostFeed.service.test.ts
+{"level":30,"time":1790962444560,"pid":3025302,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790962445099,"pid":3025302,"hostname":"SuperPC","sessionId":"5c4c60e5","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790962445099,"pid":3025302,"hostname":"SuperPC","sessionId":"5c4c60e5","operatorId":"01a0fdae-2ad2-7188-9ac0-eb2e64d216e9","accountId":"01a0fdae-2aad-78e3-9dd1-39d1df2ef79a","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":30,"time":1790962445632,"pid":3025302,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790962446861,"pid":3025302,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790962447444,"pid":3025302,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790962448966,"pid":3025302,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 9 passed, 9 total
+Tests:       101 passed, 101 total
+Snapshots:   0 total
+Time:        5.201 s, estimated 6 s
+Ran all test suites matching src/services/__tests__/productAccessPersistence.test.ts|src/services/__tests__/productAccessClosure.test.ts|src/routes/__tests__/productAccess.test.ts|src/services/__tests__/productAccess.test.ts|src/services/__tests__/accountFinancialHolds.service.test.ts|src/db/schema/__tests__/foreignKeys.test.ts|src/db/schema/__tests__/schemaInvariants.test.ts|src/db/schema/__tests__/protectedColumns.test.ts|src/services/__tests__/kaanaProviderCostFeed.service.test.ts.

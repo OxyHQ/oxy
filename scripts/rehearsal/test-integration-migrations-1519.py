@@ -74,7 +74,7 @@ def main():
                             'NODE_ENV': 'test'}
         # Apply the exact journal prefix through 0133 using the SAME shared
         # migration engine as db:migrate, then prove the readback refuses it.
-        # The complete db:migrate invocations below upgrade it to 0134.
+        # The complete db:migrate invocations below apply this checkout through 0135.
         source = ROOT / 'packages/api/drizzle'
         prefix = owned / 'drizzle-0133'
         (prefix / 'meta').mkdir(parents=True)
@@ -114,9 +114,9 @@ def main():
         result = subprocess.run(['bun', 'run', str(runner), 'full'], cwd=ROOT / 'packages/api',
                                 env=env, text=True, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, check=False)
-        (owned / 'readback-0134.log').write_text(result.stdout)
+        (owned / 'readback-current.log').write_text(result.stdout)
         result.check_returncode()
-        print('Readback schema ready after 0134; provider activation remains unauthorized')
+        print('Readback schema ready on the current journal; provider activation remains unauthorized')
         journal = json.loads((ROOT / 'packages/api/drizzle/meta/_journal.json').read_text())
         count = int(sql('SELECT count(*) FROM drizzle.__drizzle_migrations', db))
         assert count == len(journal['entries']), (count, len(journal['entries']))
@@ -140,11 +140,26 @@ def main():
         checks = int(sql("SELECT count(*) FROM pg_constraint WHERE conrelid = "
                          "'billing_stripe_events'::regclass AND contype = 'c'", db))
         assert checks == 3, checks
+        access_tables = ('access_products', 'access_offers', 'access_offer_benefits',
+                         'access_subscription_sources', 'access_offer_segments', 'access_grants')
+        for table in access_tables:
+            assert sql(f"SELECT to_regclass('public.{table}') IS NOT NULL", db) == 't', table
+            assert sql(f'SELECT count(*) FROM {table}', db) == '0', table
+        access_triggers = int(sql("SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal "
+                                  "AND tgenabled = 'O' AND tgrelid IN "
+                                  "('access_products'::regclass, 'access_offers'::regclass, "
+                                  "'access_offer_benefits'::regclass, 'access_subscription_sources'::regclass, "
+                                  "'access_offer_segments'::regclass, 'access_grants'::regclass)", db))
+        assert access_triggers == 7, access_triggers
+        assert sql("SELECT count(*) FROM information_schema.columns WHERE "
+                   "table_name = 'access_offers' AND column_name = 'expected_benefit_count' "
+                   "AND is_nullable = 'NO' AND data_type = 'integer'", db) == '1'
         print(json.dumps({'newLocalServerPid': pid, 'dataDirectory': str(data),
                           'database': db, 'migrationRows': count,
                           'repeatMigrationPassed': True, 'billingEventChecks': checks,
                           'nullableLineageColumns': len(lineage_columns), 'lineageConstraints': 2,
-                          'lineageParentIndex': True}))
+                          'lineageParentIndex': True, 'emptyProductAccessTables': len(access_tables),
+                          'productAccessGuardTriggers': access_triggers}))
     finally:
         if server_started:
             print(run([PG / 'pg_ctl', '-D', data, '-m', 'fast', '-w', 'stop']))

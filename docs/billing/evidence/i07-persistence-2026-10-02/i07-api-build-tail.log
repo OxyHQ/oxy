@@ -1,0 +1,30 @@
+@oxy.so/federation build: @oxy.so/contracts build: Exited with code 0
+@oxy.so/federation build: @oxy.so/protocol build: $ tsc -p tsconfig.cjs.json
+@oxy.so/federation build: @oxy.so/protocol build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/federation build: @oxy.so/protocol build: ESM imports fixed
+@oxy.so/federation build: @oxy.so/protocol build: $ tsc -p tsconfig.types.json
+@oxy.so/federation build: @oxy.so/protocol build: Exited with code 0
+@oxy.so/federation build: @oxy.so/core build: @oxy.so/telemetry build: $ rm -rf dist
+@oxy.so/federation build: @oxy.so/core build: @oxy.so/telemetry build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/federation build: @oxy.so/core build: @oxy.so/telemetry build: $ tsc -p tsconfig.esm.json
+@oxy.so/federation build: @oxy.so/core build: @oxy.so/telemetry build: $ tsc -p tsconfig.types.json
+@oxy.so/federation build: @oxy.so/core build: @oxy.so/telemetry build: Exited with code 0
+@oxy.so/federation build: @oxy.so/core build: $ tsc -p tsconfig.cjs.json
+@oxy.so/federation build: @oxy.so/core build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/federation build: @oxy.so/core build: ESM imports fixed
+@oxy.so/federation build: @oxy.so/core build: $ tsc -p tsconfig.types.json
+@oxy.so/federation build: @oxy.so/core build: Exited with code 0
+@oxy.so/federation build: $ tsc -p tsconfig.cjs.json
+@oxy.so/federation build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/federation build: ESM imports fixed
+@oxy.so/federation build: $ tsc -p tsconfig.types.json
+@oxy.so/federation build: Exited with code 0
+@oxy.so/db build: $ tsc -p tsconfig.cjs.json
+@oxy.so/db build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/db build: ESM imports fixed
+@oxy.so/db build: $ tsc -p tsconfig.types.json
+@oxy.so/db build: Exited with code 0
+@oxy.so/mcp build: $ tsc -p tsconfig.cjs.json
+@oxy.so/mcp build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/mcp build: $ tsc -p tsconfig.types.json
+@oxy.so/mcp build: Exited with code 0
