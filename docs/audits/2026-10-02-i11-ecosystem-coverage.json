@@ -6878,7 +6878,8 @@
       ],
       "primary_evidence": [
         "packages/console/src/hooks/use-billing.ts",
-        "packages/create-oxy-app/src/index.ts"
+        "packages/create-oxy-app/src/index.ts",
+        "packages/api/src/capabilities/inbox-mcp-http.ts"
       ],
       "declared": [
         {
