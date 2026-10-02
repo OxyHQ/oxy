@@ -3,19 +3,14 @@
  *
  * The Mongoose model mocks this suite used to carry could only assert the query
  * SHAPE. Two guarantees here are about stored state rather than call arguments —
- * that cancelling REVOKES analytics sharing, and that it CANCELS the legacy row
+ * that cancelling leaves the account's analytics-sharing preference EXACTLY as
+ * the person set it (issue #1524), and that it CANCELS the legacy row
  * rather than deleting it — so they are asserted against real rows.
  *
  * Only Stripe is stubbed: it is a third-party network call.
  */
 
-const mockInvalidate = jest.fn();
 const mockStripeSubscriptionsUpdate = jest.fn();
-
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: { invalidate: (...args: unknown[]) => mockInvalidate(...args) },
-}));
 
 jest.mock('../../utils/stripeClient', () => ({
   getStripe: () => ({
@@ -53,6 +48,14 @@ beforeEach(() => {
 async function account(): Promise<string> {
   const [user] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   return user.id;
+}
+
+async function analyticsSharing(userId: string): Promise<boolean> {
+  const [user] = await getDb()
+    .select({ analyticsSharing: users.privacyAnalyticsSharing })
+    .from(users)
+    .where(eq(users.id, userId));
+  return user.analyticsSharing;
 }
 
 function requestFor(userId: string): AuthRequest {
@@ -139,8 +142,8 @@ describe('cancelSubscription', () => {
       .from(billingSubscriptions)
       .where(eq(billingSubscriptions.userId, userId));
     expect(row.cancelAtPeriodEnd).toBe(true);
+    expect(await analyticsSharing(userId)).toBe(true);
 
-    expect(mockInvalidate).toHaveBeenCalledWith(userId);
     expect(json).toHaveBeenCalledWith(expect.objectContaining({
       plan: 'pro',
       status: 'active',
@@ -148,7 +151,27 @@ describe('cancelSubscription', () => {
     }));
   });
 
-  it('cancels a legacy-only subscription and revokes analytics sharing', async () => {
+  it.each([true, false])(
+    'leaves analytics sharing at %s when a plan is cancelled',
+    async (preference) => {
+      const userId = await account();
+      await getDb()
+        .update(users)
+        .set({ privacyAnalyticsSharing: preference })
+        .where(eq(users.id, userId));
+      await giveBillingSubscription(userId);
+      await giveLegacySubscription(userId);
+
+      const { res } = responseSpy();
+      await cancelSubscription(requestFor(userId), res);
+
+      // A commercial act. The privacy choice is the person's, and neither turns
+      // off nor — the worse failure — turns on because a plan ended.
+      expect(await analyticsSharing(userId)).toBe(preference);
+    }
+  );
+
+  it('cancels a legacy-only subscription and keeps it as a record', async () => {
     const userId = await account();
     await giveLegacySubscription(userId);
 
@@ -165,14 +188,8 @@ describe('cancelSubscription', () => {
       .where(eq(subscriptions.userId, userId));
     expect(row).toEqual({ status: 'canceled', plan: 'pro' });
 
-    // The privacy revocation is the part a call-shape assertion could not see.
-    const [user] = await getDb()
-      .select({ analyticsSharing: users.privacyAnalyticsSharing })
-      .from(users)
-      .where(eq(users.id, userId));
-    expect(user.analyticsSharing).toBe(false);
+    expect(await analyticsSharing(userId)).toBe(true);
 
-    expect(mockInvalidate).toHaveBeenCalledWith(userId);
     expect(json).toHaveBeenCalledWith(expect.objectContaining({
       plan: 'pro',
       status: 'canceled',
