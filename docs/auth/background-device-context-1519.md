@@ -1,0 +1,9 @@
+# Background credential retirement and concurrency (#1519)
+
+A background credential issued for an organization could survive exact retirement of its original operator context and then mint as a remaining operator. The [external P1 review](https://github.com/OxyHQ/oxy/pull/1549#issuecomment-5960698679) was reproduced with real PostgreSQL, sessions, JWT and the bearerless HTTP endpoint. Four new regressions fail on the prior runtime: cross-operator mint after autoheal, late issuance after removal, mint after concurrent credential replacement, and HTTP returning 200 instead of 401.
+
+Context retirement now clears the affected account's background hash/account/expiry in the same locked device transaction. Issuance validates the live session outside that lock, then compares the exact context/session and revision under the lock before persisting. Mint validates the live session outside the lock and finally compares the current credential hash, expiry, account and original context/session under the same lock. Session minting remains outside this transaction to avoid its device foreign-key write contending with the device lock.
+
+The existing storage identifies an account, not an original principal/context. Retirement therefore conservatively invalidates any background credential for the affected account. Surviving operator sessions and holder credentials remain valid; a background binding for another account survives. This change introduces no new persistent binding, DDL, secret format, TTL or permission.
+
+[Tracked source and raw evidence](../audits/1519-background-context-2026-10-02/proof.json): six relevant API suites / 189 tests; newly owned and stopped PostgreSQL; API/scripts TypeScript, API build and scoped ESLint/Biome pass. A real failing UPDATE trigger verifies transaction rollback preserves the context, session, revision and background hash. No production, device, deployment or release operation occurred. I01 and I11 acceptance remain open.
