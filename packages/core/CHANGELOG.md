@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## Unreleased (MINOR — additive; needs the next `@oxy.so/contracts` MINOR)
+
+### Added
+
+- `server.middleware.auth()` exposes who acted (#1520): `getOxyActor(req)`
+  returns the `AccountActorChain` the session authority read off the session
+  row, or `null` when the API sent none. A chain that does not describe the
+  validated session is refused (`SESSION_ACTOR_MISMATCH`). No header or token
+  claim can move it. `SessionValidation.actor` carries it on the client.
+
 ## 4.1.0
 
 Requires `@oxy.so/contracts` ^4.7.0 (inference contract set 3.5.0).

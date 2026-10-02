@@ -6,7 +6,7 @@
  * token belongs to: validating it, listing the sessions beside it, signing out.
  */
 import { jwtDecode } from 'jwt-decode';
-import type { DeviceProof } from '@oxy.so/contracts';
+import type { AccountActorChain, DeviceProof } from '@oxy.so/contracts';
 import type { OxyContext } from '../client/context';
 import type { ClientSession } from '../models/session';
 import type { User } from '../models/interfaces';
@@ -26,6 +26,8 @@ export interface SessionValidation {
   user: User;
   sessionId?: string;
   source?: string;
+  /** Who acted, and as whom, read off the session row (issue #1520). */
+  actor?: AccountActorChain;
 }
 
 interface AccessTokenClaims {

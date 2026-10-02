@@ -40,6 +40,7 @@ export type {
 export {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
+  getOxyActor,
   getOxyAuthRefusal,
   getOxyBillingPrincipal,
   getOxyDelegatedUserId,
