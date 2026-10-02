@@ -105,10 +105,12 @@ browser-safe ephemeral token, are follow-ups.
 A session is one request: one hold, one receipt.
 
 - **Hold:** per authorized route, `maxResponses × context window` at the dearest
-  of the four input token units and `maxResponses × per-response output cap` at
-  the dearest of the three output units, plus `requests`. Every unit must be
-  priced. The hold expires after the session's maximum duration, the resume
-  window and a grace, not after the one-shot 15 minutes.
+  of the four input token units and `maxResponses × route output cap` at the
+  dearest of the three output units, plus `requests`. The route cap, rather than
+  the opening config's cap, covers later session updates and per-response
+  overrides. Every unit must be priced. The hold expires after the session's
+  maximum duration, the resume window and a grace, not after the one-shot 15
+  minutes.
 - **Settle, in order of authority:** the usage report Kaana sends after
   `session.closed`; if that frame is lost, the units `session.closed` carried,
   else the sum of `response.done` units (never `completed`); else zero units

@@ -3209,10 +3209,11 @@ function partitionScenarios(
  * Every operation but a realtime session is bounded by its request body alone,
  * so the route contributes only its output cap. A session is bounded by the
  * route too: each of its at most `maxResponses` responses reads at most the
- * route's context window and writes at most its per-response output cap
- * (`config.maxOutputTokens`, else the model's). Kaana enforces `maxResponses`
- * exactly (it closes the session with `limit_exceeded` rather than exceed it),
- * which is what makes the product a bound rather than an estimate.
+ * route's context window and writes at most the route's output cap. The opening
+ * config cannot reduce the hold because later session updates and per-response
+ * overrides may raise that cap. Kaana enforces `maxResponses` exactly (it
+ * closes the session with `limit_exceeded` rather than exceed it), which is
+ * what makes the product a bound rather than an estimate.
  */
 export function routeCeilingScenarios(
   request: NormalizedEdgeRequest,
@@ -3223,12 +3224,11 @@ export function routeCeilingScenarios(
   if (request.operation.kind !== 'realtime_session') {
     return ceilingQuoteScenarios(request.operation, estimatedInputTokens, maxOutputTokens);
   }
-  const perResponseOutput = request.maxOutputTokens ?? route.maxOutputTokens;
   const responses = request.operation.maxResponses;
   return ceilingQuoteScenarios(
     request.operation,
     responses * route.maxContextTokens,
-    responses * perResponseOutput
+    responses * route.maxOutputTokens
   );
 }
 
