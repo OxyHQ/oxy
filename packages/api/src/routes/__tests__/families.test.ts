@@ -44,14 +44,35 @@ jest.mock('../../utils/resolveUserIdentifier', () => ({
 // `requireOperatorId`/`resolveOperatorId` reads.
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { user?: { _id: string; id: string } },
+    req: {
+      headers: { authorization?: string };
+      user?: { _id: string; id: string };
+      oxyToken?: { applicationId: string };
+    },
     _res: unknown,
     next: () => void
   ) => {
     req.user = { _id: OPERATOR_ID, id: OPERATOR_ID };
+    if (req.headers.authorization === 'Bearer third-party-token') {
+      req.oxyToken = { applicationId: 'third-party-app' };
+    }
     next();
   },
   serviceAuthMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
+jest.mock('../../middleware/firstPartyDeviceAccess', () => ({
+  requireFirstPartyDeviceAccess: (
+    req: { oxyToken?: { applicationId: string } },
+    res: { status: (code: number) => { json: (body: unknown) => void } },
+    next: () => void
+  ) => {
+    if (req.oxyToken?.applicationId === 'third-party-app') {
+      res.status(403).json({ error: 'third_party_device_access_denied' });
+      return;
+    }
+    next();
+  },
 }));
 
 jest.mock('../../middleware/rateLimiter', () => ({
@@ -92,6 +113,25 @@ function fakeFamily(overrides: Partial<Record<string, unknown>> = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+describe('application authorization', () => {
+  it.each([
+    ['read', 'get', '/families/me'],
+    ['write', 'post', '/families'],
+  ] as const)(
+    'rejects a third-party application-bound token before a %s operation',
+    async (_lane, method, path) => {
+      const res = await request(app)[method](path)
+        .set('Authorization', 'Bearer third-party-token')
+        .send(method === 'post' ? { name: 'Compromised' } : undefined);
+
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ error: 'third_party_device_access_denied' });
+      expect(mockGetMyFamilies).not.toHaveBeenCalled();
+      expect(mockCreateFamily).not.toHaveBeenCalled();
+    }
+  );
 });
 
 describe('POST /families', () => {
