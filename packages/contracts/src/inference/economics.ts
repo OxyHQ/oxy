@@ -20,8 +20,8 @@
  *
  * ## Four numbers that never merge
  *
- * A usage report separates what was consumed (units), what the upstream
- * invoiced (`providerCost`, from Kaana's operator feed), what the published
+ * A usage report separates what was consumed (units), upstream cost evidence
+ * (`providerCost`, reported or rate-card-estimated by Kaana's operator feed), what the published
  * tariff would have charged (`tariff`) and what a customer was actually charged
  * (`customerCharge`, from settled receipts only). A tariff is not a cost, and an
  * UNKNOWN cost is reported as unknown — counted, never summed as zero.
@@ -84,7 +84,7 @@ export const costCenterUsageSchema = z
     units: z.record(z.string(), nonNegativeCount),
     /** The published tariff at each request's pinned price version. Not a cost. */
     tariff: knownAmountSchema,
-    /** What upstream providers invoiced, per attempt, failed failovers included. */
+    /** Upstream cost evidence, reported or estimated, per attempt including failed failovers. */
     providerCost: knownAmountSchema.extend({
       /** Attempts with a known subtotal and incomplete upstream cost coverage. */
       partialCount: nonNegativeCount.default(0),
@@ -92,6 +92,12 @@ export const costCenterUsageSchema = z
       missingRequestCount: nonNegativeCount.default(0),
       /** Attempts priced in a different currency, excluded without currency conversion. */
       otherCurrencyCount: nonNegativeCount.default(0),
+      /** Amount stated by the provider; this is not a copy of its invoice. */
+      providerReportedAmount: exactDecimalSchema.default('0'),
+      providerReportedCount: nonNegativeCount.default(0),
+      /** Amount estimated from Kaana's immutable rate card, never described as invoiced. */
+      estimatedAmount: exactDecimalSchema.default('0'),
+      estimatedCount: nonNegativeCount.default(0),
     }),
     /**
      * What customers were actually charged, from settled receipts only. A
