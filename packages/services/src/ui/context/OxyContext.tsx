@@ -39,6 +39,8 @@ import {
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { resolveDeliveryPlatform } from '../utils/deliveryPlatform';
 import { runProviderColdBoot } from '../boot/runProviderColdBoot';
+import { resolveApplicationSessionLane } from '../oauth/applicationSessionLane';
+import { handleAuthError } from '../utils/errorHandlers';
 import { hasPersistedSessionCredential, loadPersistedDeviceCredential } from '../utils/deviceCredential';
 import { createTokenLossRecovery } from '../session/tokenLossRecovery';
 import { bindAuthStoreToRuntime } from '../stores/authStore';
@@ -113,7 +115,7 @@ type OxyAuthActionsContextState = Pick<
   | 'showBottomSheet'
   | 'openAvatarPicker'
   | 'openAccountDialog'
->;
+> & { ensureDeviceSessionLane: () => void | Promise<void> };
 
 const OxyAuthActionsContext = createContext<OxyAuthActionsContextState | null>(null);
 
@@ -199,8 +201,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // instance. Device-scoped sockets connect with deviceId+deviceSecret when no
   // bearer is planted yet, so cross-origin apps sync via `session_state`.
   const runtimeRef = useRef<OxyRuntime | null>(null);
-  const registeredLaneRef = useRef<{ clientId: string | undefined; lane: 'device' | 'oauth' | null }>({ clientId: clientIdProp, lane: null });
-  if (registeredLaneRef.current.clientId !== clientIdProp) registeredLaneRef.current = { clientId: clientIdProp, lane: null };
+  const registeredLaneRef = useRef<{ clientId: string | undefined; services: OxyServices; lane: 'device' | 'oauth' | null; pending: Promise<'device' | 'oauth'> | null }>({ clientId: clientIdProp, services: oxyServices, lane: null, pending: null });
+  if (registeredLaneRef.current.clientId !== clientIdProp || registeredLaneRef.current.services !== oxyServices) {
+    registeredLaneRef.current = { clientId: clientIdProp, services: oxyServices, lane: null, pending: null };
+  }
   const sessionClientPairRef = useRef<ReturnType<typeof createSessionClient> | null>(null);
   if (!sessionClientPairRef.current) {
     sessionClientPairRef.current = createSessionClient(
@@ -486,7 +490,49 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     sessionClientHost.setDeviceCredential(cred);
   }, [authStore, sessionClientHost]);
 
+  // Provider-owned classification: never accept a caller/button's trust verdict.
+  // Recovery asks freshly; concurrent boot/recovery requests share one lookup.
+  const resolveRegisteredLane = useCallback(async (): Promise<'device' | 'oauth'> => {
+    const selected = registeredLaneRef.current;
+    if (selected.clientId !== clientIdProp || selected.services !== oxyServices) throw new Error('Provider classification was superseded');
+    if (selected.pending) return selected.pending;
+    selected.lane = null;
+    const pending = (async () => {
+      const lane = await resolveApplicationSessionLane(oxyServices, clientIdProp);
+      if (registeredLaneRef.current !== selected) throw new Error('Provider classification was superseded');
+      if (lane === 'oauth' && !hasIsolatedOAuthSession(runtime)) {
+        sessionClient.resetLocalState();
+        sessionClientHost.setDeviceCredential(null);
+        await clearSessionStateRef.current();
+      }
+      if (registeredLaneRef.current !== selected) throw new Error('Provider classification was superseded');
+      selected.lane = lane;
+      return lane;
+    })();
+    selected.pending = pending;
+    try { return await pending; } finally { if (selected.pending === pending) selected.pending = null; }
+  }, [oxyServices, clientIdProp, runtime, sessionClient, sessionClientHost]);
+
+  const ensureDeviceSessionLane = useCallback((): void | Promise<void> => {
+    if (registeredLaneRef.current.clientId !== clientIdProp || registeredLaneRef.current.services !== oxyServices) {
+      throw new Error('Provider classification was superseded');
+    }
+    if (registeredLaneRef.current.lane === 'oauth' || hasIsolatedOAuthSession(runtime)) {
+      throw new Error('This application requires explicit OAuth sign-in');
+    }
+    if (registeredLaneRef.current.lane === 'device') return;
+    return resolveRegisteredLane().then((lane) => {
+      if (registeredLaneRef.current.clientId !== clientIdProp || registeredLaneRef.current.services !== oxyServices) {
+        throw new Error('Provider classification was superseded');
+      }
+      if (lane !== 'device' || hasIsolatedOAuthSession(runtime)) {
+        throw new Error('This application requires explicit OAuth sign-in');
+      }
+    });
+  }, [resolveRegisteredLane, runtime, clientIdProp, oxyServices]);
+
   const { signIn, logout, logoutAll } = useAuthOperations({
+    ensureDeviceSessionLane,
     oxyServices,
     store: authStore,
     storage,
@@ -975,7 +1021,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     runtime,
   ]);
 
-  const openAccountDialog = useCallback((view?: AccountDialogView): void => {
+  const openClassifiedAccountDialog = useCallback((view?: AccountDialogView): void => {
+    if (registeredLaneRef.current.clientId !== clientIdProp || registeredLaneRef.current.services !== oxyServices) return;
     if (registeredLaneRef.current.lane !== 'device' || hasIsolatedOAuthSession(runtime)) return;
     if (isIdentityBound) {
       // No controller was built, and there is nothing to choose: this app's user
@@ -1033,7 +1080,20 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       }
     });
     setAccountDialogOpen(true);
-  }, [isIdentityBound, startBrowserBridge, runtime]);
+  }, [isIdentityBound, startBrowserBridge, runtime, clientIdProp, oxyServices]);
+
+  const openAccountDialog = useCallback((view?: AccountDialogView): void => {
+    if (registeredLaneRef.current.clientId !== clientIdProp || registeredLaneRef.current.services !== oxyServices) return;
+    if (registeredLaneRef.current.lane === 'device') {
+      // Preserve the browser bridge's synchronous user-gesture path.
+      openClassifiedAccountDialog(view);
+      return;
+    }
+    void Promise.resolve().then(() => ensureDeviceSessionLane()).then(() => openClassifiedAccountDialog(view)).catch((error) => {
+      handleAuthError(error, { defaultMessage: 'Sign in failed', code: 'LOGIN_ERROR', onError,
+        setAuthError: (message) => runtime.setError(message), logger });
+    });
+  }, [ensureDeviceSessionLane, openClassifiedAccountDialog, onError, runtime, logger, clientIdProp, oxyServices]);
 
   const closeAccountDialog = useCallback((): void => {
     accountDialogControllerRef.current?.cancelSignIn();
@@ -1084,17 +1144,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       authRedirectUri,
       sessionMode,
       identity: identity?.binding,
-      onClassified: async (lane) => {
-        if (registeredLaneRef.current.clientId !== clientIdProp) throw new Error('Provider classification was superseded');
-        registeredLaneRef.current.lane = lane;
-        if (lane === 'oauth') {
-          sessionClient.resetLocalState();
-          sessionClientHost.setDeviceCredential(null);
-          // Do not load or erase a durable secret during classification. The
-          // callback commit later owns local credential teardown, if it succeeds.
-          await clearSessionStateRef.current();
-        }
-      },
+      resolveSessionLane: resolveRegisteredLane,
       beforeDeviceBoot: identity ? async () => { await identity.ensurePinnedAccountId(); } : undefined,
       afterDeviceBoot: identity ? async () => { await identity.refreshPinnedAccountId(); } : undefined,
       sessionClient,
@@ -1107,6 +1157,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     // whose key no longer exists, so re-resolve rather than trusting the memo
     // taken before it ran.
   }, [
+    resolveRegisteredLane,
     oxyServices,
     authStore,
     clientIdProp,
@@ -1115,7 +1166,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     identity,
     syncDeviceCredentialToHost,
     sessionClient,
-    sessionClientHost,
     setTokenReady,
   ]);
 
@@ -1437,6 +1487,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
 
   const authActionsValue = useMemo<OxyAuthActionsContextState>(
     () => ({
+      ensureDeviceSessionLane,
       signIn,
       logout,
       logoutAll,
@@ -1450,6 +1501,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       openAccountDialog,
     }),
     [
+      ensureDeviceSessionLane,
       signIn,
       logout,
       logoutAll,

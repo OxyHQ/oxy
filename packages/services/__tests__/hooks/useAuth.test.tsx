@@ -20,6 +20,7 @@ interface MockOxyState {
   isPrivateApiPending: boolean;
   isAuthResolved: boolean;
   error: string | null;
+  ensureDeviceSessionLane: jest.Mock;
   signIn: jest.Mock;
   logout: jest.Mock;
   logoutAll: jest.Mock;
@@ -42,8 +43,9 @@ const defaultMockState = (): MockOxyState => ({
   isPrivateApiPending: true,
   isAuthResolved: false,
   error: null,
+  ensureDeviceSessionLane: jest.fn(async () => undefined),
   signIn: jest.fn(async (key: string) => ({ id: 'u1', username: 'native-user', publicKey: key })),
-  logout: jest.fn(async () => undefined),
+  logout: jest.fn(async () => ({ status: 'signed-out' })),
   logoutAll: jest.fn(async () => undefined),
   refreshSessions: jest.fn(async () => undefined),
   oxyServices: {},

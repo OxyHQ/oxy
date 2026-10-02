@@ -180,9 +180,12 @@ export function useAuth(): UseAuthReturn {
     showBottomSheet,
     openAvatarPicker,
     openAccountDialog,
+    ensureDeviceSessionLane,
   } = useOxyAuthActions();
 
   const signIn = useCallback(async (publicKey?: string): Promise<SignInOutcome> => {
+    const classification = ensureDeviceSessionLane();
+    if (classification) await classification;
     // Native: sign in directly with the cryptographic identity when a public key
     // is provided, or an existing keychain identity is found.
     if (publicKey) {
@@ -205,10 +208,11 @@ export function useAuth(): UseAuthReturn {
     // report the initiated UI action instead of leaking a promise that never settles.
     openAccountDialog('signin');
     return { status: 'dialog-opened' };
-  }, [oxySignIn, hasIdentity, getPublicKey, openAccountDialog]);
+  }, [oxySignIn, hasIdentity, getPublicKey, openAccountDialog, ensureDeviceSessionLane]);
 
   const signOut = useCallback(async (): Promise<void> => {
-    await logout();
+    const result = await logout();
+    if (result.status === 'failed') throw result.error;
   }, [logout]);
 
   const signOutAll = useCallback(async (): Promise<void> => {
