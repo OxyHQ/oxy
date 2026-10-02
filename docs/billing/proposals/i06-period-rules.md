@@ -104,6 +104,15 @@ invoice, or a paid invoice of 0. It never triggers a grant.
 | cap | total already 43,332 | upgrade worth 9,668 | granted 6,668 (to 50,000), detail names the cap |
 | unpaid | proration invoice `open`/failed | `invoice.payment_failed` | 0 granted |
 
+### Unresolved ordering requirement
+
+Reserving the base grant before applying a cap is necessary: a proration arriving
+first cannot consume capacity required by the base period. A cap applied to the
+currently delivered sum alone is NOT order-independent. Before implementing P1,
+reconcile all paid invoices for the period and compute a deterministic target
+from immutable invoice evidence; late invoices must never make earlier grants
+invalid. Approval of the rule does not prove this storage/algorithm requirement.
+
 ### Recommendation and consequences
 
 **Recommend P1** (top-up on paid upgrades, no clawback on downgrades, cap).
@@ -211,8 +220,13 @@ grant, never below zero.
   invoice, read from the provider (re-read the charge), not summed from events.
 - Clawback target for the grant: `floor(granted × f)`.
 - Applied now: `clawback = max(0, min(remaining_of_grant, target − already_clawed))`.
-  Using the cumulative `f` and `already_clawed` makes several partial refunds,
-  replays and reordering converge to the same result.
+  Use exact integer minor-unit rational arithmetic for `floor(granted × f)`,
+  rather than binary floating point. A refund-before-grant leaves
+  `granted − floor(granted × f)`, the same rounding as grant-then-refund.
+  Persist the full logical grant and cumulative clawback even when net issuance
+  is zero. Replays and reordered provider cumulative snapshots then converge
+  when no consumption intervenes. Consumption between refund observations can
+  change the amount removable; immutable consumption evidence must explain it.
 - Credits already consumed stay consumed. If support wants to refund less
   because credits were used, that is decided at refund time in Stripe, not by
   the webhook.
@@ -244,7 +258,7 @@ does **not** exist today, and the balance cannot be split retroactively.
 | replay | clawback applied | same event again | `duplicate`, no change |
 | two partials | — | f = 0.333 then f = 1 (cumulative) | −3,334 then −6,666 |
 | partials reordered | — | the f = 1 event processed before the f = 0.333 one | −10,000 then 0 (target already reached) |
-| refund before grant | invoice not granted yet | `charge.refunded` f = 1 then `invoice.paid` | invoice.paid re-reads the charge, grants `floor(credits × (1 − f))` = 0 |
+| refund before grant | invoice not granted yet | `charge.refunded` f = 1 then `invoice.paid` | invoice.paid re-reads the charge, grants `credits − floor(credits × f)` = 0 |
 | purchased untouched | 5,000 purchased, grant remaining 0 | f = 1 | purchased still 5,000 |
 | dispute lost | grant remaining 7,000 | `charge.dispute.closed` lost | −7,000 |
 | dispute won | — | `charge.dispute.closed` won | nothing |
@@ -255,8 +269,8 @@ does **not** exist today, and the balance cannot be split retroactively.
 
 **Recommend: keep today's behaviour (record, no automatic clawback) until I07's
 per-grant ledger exists, then enable P3.** Consequences: today a refunded
-customer keeps the credits of that period (exposure: at most one period's
-credits per refund, visible in `billing_stripe_events` as `ignored · refund
+customer keeps the credits of that period (exposure: retained credits accumulate across refunded periods, with NO global
+cap; each invoice must be reconciled independently, visible in `billing_stripe_events` as `ignored · refund
 recorded`, and support can act by hand). Enabling clawback against
 `credits_paid` now would also eat purchased top-ups, which the issue's
 invariants forbid. P3 then gives a precise, idempotent rule that never touches
