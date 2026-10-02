@@ -1,0 +1,179 @@
+[
+  {
+    "package": "@oxy.so/contracts",
+    "checkedAt": "2026-10-02T20:46:32.668032+00:00",
+    "latest": "4.8.0",
+    "dist": {
+      "shasum": "e37d3b5dbb40e8352b073f0c38877ece58a2d6c7",
+      "tarball": "https://registry.npmjs.org/@oxy.so/contracts/-/contracts-4.8.0.tgz",
+      "fileCount": 180,
+      "integrity": "sha512-6A9jTeMFrqJtXlw0HThZfRcSGwWGCMxF8pGlmL1iFxa+NShDnthSv/l7W93gpVMwZnaKQf/kDPrYmUueax4Ujw==",
+      "signatures": [
+        {
+          "sig": "MEYCIQDSa/wtlBgmd3uADZshHDmWifjRB4ay8EbitRJREx1fHwIhAIBgPJauP8XpRCQDSFfSe3BtY/qiAj01uQB08JHinHKq",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        },
+        {
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+          "sig": "MEYCIQCim9y9cCToufsBjtTGXGMHMWudhDhpqTrLDFHWqj8bTwIhAKYv44y/dQHUNZSln26DmSBsnHRwxRo5QEbsHhgHwrno"
+        }
+      ],
+      "unpackedSize": 3502744
+    },
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/types/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "default": "./dist/esm/index.js",
+        "require": {
+          "types": "./dist/types/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        },
+        "react-native": "./dist/esm/index.js"
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  {
+    "package": "@oxy.so/core",
+    "checkedAt": "2026-10-02T20:46:33.352094+00:00",
+    "latest": "4.1.0",
+    "dist": {
+      "shasum": "00cccc4c705acd56aafe5bcc7183e00e1005a4eb",
+      "tarball": "https://registry.npmjs.org/@oxy.so/core/-/core-4.1.0.tgz",
+      "fileCount": 569,
+      "integrity": "sha512-on4ir5Qx7KmJIZxYp8Y9GtJDdae4bAPARJIx8w+UXTs6Ygb+zHPESWzm9Mt4x+6Ey1EkDZq1s2OiXTInWs0Hhw==",
+      "signatures": [
+        {
+          "sig": "MEQCIGGYaWenu51GhyGtEtoOudh5TeaPoT9cXsiqiinDlMiXAiA6lDl4q6ZvhJsW7I0j5njQrrag1LsakT6xXdgG/JM4UQ==",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        },
+        {
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+          "sig": "MEYCIQC+OD/+Uo/1zcqzCX3HaC3uBrZb27XnKBsRaAiYha2yvAIhAJBmNZH8UFkbepB3ZijU3hd4+rKICUQPeuWcHOvw6aCt"
+        }
+      ],
+      "unpackedSize": 5920308
+    },
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/types/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "default": "./dist/esm/index.js",
+        "require": {
+          "types": "./dist/types/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        },
+        "react-native": "./dist/esm/index.js"
+      },
+      "./civic": {
+        "import": {
+          "types": "./dist/types/civic/index.d.ts",
+          "default": "./dist/esm/civic/index.js"
+        },
+        "default": "./dist/esm/civic/index.js",
+        "require": {
+          "types": "./dist/types/civic/index.d.ts",
+          "default": "./dist/cjs/civic/index.js"
+        },
+        "react-native": "./dist/esm/civic/index.js"
+      },
+      "./crypto": {
+        "import": {
+          "types": "./dist/types/crypto/index.d.ts",
+          "default": "./dist/esm/crypto/index.js"
+        },
+        "default": "./dist/esm/crypto/index.js",
+        "require": {
+          "types": "./dist/types/crypto/index.d.ts",
+          "default": "./dist/cjs/crypto/index.js"
+        },
+        "react-native": "./dist/esm/crypto/index.js"
+      },
+      "./logger": {
+        "import": {
+          "types": "./dist/types/logger/index.d.ts",
+          "default": "./dist/esm/logger/index.js"
+        },
+        "default": "./dist/esm/logger/index.js",
+        "require": {
+          "types": "./dist/types/logger/index.d.ts",
+          "default": "./dist/cjs/logger/index.js"
+        },
+        "react-native": "./dist/esm/logger/index.js"
+      },
+      "./server": {
+        "import": {
+          "types": "./dist/types/server/index.d.ts",
+          "default": "./dist/esm/server/index.js"
+        },
+        "default": "./dist/esm/server/index.js",
+        "require": {
+          "types": "./dist/types/server/index.d.ts",
+          "default": "./dist/cjs/server/index.js"
+        }
+      },
+      "./session": {
+        "import": {
+          "types": "./dist/types/session/index.d.ts",
+          "default": "./dist/esm/session/index.js"
+        },
+        "default": "./dist/esm/session/index.js",
+        "require": {
+          "types": "./dist/types/session/index.d.ts",
+          "default": "./dist/cjs/session/index.js"
+        },
+        "react-native": "./dist/esm/session/index.js"
+      },
+      "./inference": {
+        "import": {
+          "types": "./dist/types/inference/index.d.ts",
+          "default": "./dist/esm/inference/index.js"
+        },
+        "default": "./dist/esm/inference/index.js",
+        "require": {
+          "types": "./dist/types/inference/index.d.ts",
+          "default": "./dist/cjs/inference/index.js"
+        },
+        "react-native": "./dist/esm/inference/index.js"
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "checkedAt": "2026-10-02T20:46:33.545435+00:00",
+    "latest": "1.0.0",
+    "dist": {
+      "integrity": "sha512-FDKoxHdHLszzKzfrIsgNqRlxopyRySR04nnjtxHlImNsZydVXn6/Crs6R+Biv9W8DErjcdjtyVtwEnm0AIu+4Q==",
+      "shasum": "7aef1e3552fc9bdd3ed28fd32f21d10126018f5d",
+      "tarball": "https://registry.npmjs.org/@oxy.so/mcp/-/mcp-1.0.0.tgz",
+      "fileCount": 31,
+      "unpackedSize": 471144,
+      "signatures": [
+        {
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+          "sig": "MEUCIDX133FpsJheUg3lBh1VsRM4Ii8/vSDpsL5ZbnmhJwEQAiEAxhhKk8uWpneC/54kOCKcoQbyxaDEaaSVrci0XS4yQ3c="
+        }
+      ]
+    },
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/types/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "require": {
+          "types": "./dist/types/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        },
+        "default": "./dist/esm/index.js"
+      },
+      "./package.json": "./package.json"
+    }
+  }
+]

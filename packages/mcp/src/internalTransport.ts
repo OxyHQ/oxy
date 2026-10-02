@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { canonicalCapabilityJson, inputSatisfiesCapabilityLimits, appCapabilityCatalogSchema, capabilityCatalogBindingSchema, invocationPrincipalSchema, resourceRefSchema,
+import { canonicalCapabilityJson, idempotencyKeySchema, inputSatisfiesCapabilityLimits, appCapabilityCatalogSchema, capabilityCatalogBindingSchema, invocationPrincipalSchema, resourceRefSchema,
   type AppCapabilityCatalog, type CapabilityCatalogBinding, type CapabilityTicketClaims, type ResourceRef } from '@oxy.so/contracts';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -10,6 +10,10 @@ import { BodyTooLargeError, closeServerAfterResponse, configureCors, readJsonBod
 import { jsonObjectSchemaToZod } from './jsonSchema';
 import type { InvocationContext, InvocationHandlers } from './invocationAdapter';
 
+type InternalInvocationContext = Omit<InvocationContext, 'principal'> & {
+  readonly principal: Extract<InvocationContext['principal'], { kind: 'capability' }>;
+};
+
 export interface InternalCatalogMcpHttpServiceOptions {
   catalog: AppCapabilityCatalog;
   binding: CapabilityCatalogBinding;
@@ -17,7 +21,7 @@ export interface InternalCatalogMcpHttpServiceOptions {
   /** Private server configuration: signature validation AND live introspection. */
   verifyTicket: (ticket: string, options: { signal: AbortSignal }) => Promise<CapabilityTicketClaims>;
   /** Trusted input-to-resource contract; never a caller-supplied principal. */
-  resolveResource: (input: Readonly<Record<string, unknown>>, context: Pick<InvocationContext, 'appId' | 'tool'>) => ResourceRef | Promise<ResourceRef>;
+  resolveResource: (input: Readonly<Record<string, unknown>>, context: InternalInvocationContext) => ResourceRef | Promise<ResourceRef>;
   authorize: (input: Readonly<Record<string, unknown>>, context: InvocationContext) => Promise<CatalogMcpAuthorizationDecision>;
   allowedOrigins?: readonly string[];
   maxBodyBytes?: number;
@@ -84,7 +88,10 @@ export function createInternalCatalogMcpHttpService(options: InternalCatalogMcpH
           server.registerTool(tool.name, { description: tool.description, inputSchema, ...(outputSchema ? { outputSchema } : {}) }, async (untrusted, extra) => {
             const input = freeze(requireRecord(inputSchema.parse(untrusted), `${tool.name} input`));
             const current = await verify();
-            const context: InvocationContext = Object.freeze({ appId: catalog.appId, tool, principal: current, request: extra });
+            const key = singleHeader(request.headers['idempotency-key']);
+            if ((key !== undefined && !idempotencyKeySchema.safeParse(key.trim()).success)
+              || (tool.idempotency === 'required' && key === undefined)) throw new Error('Valid idempotency key required');
+            const context: InternalInvocationContext = Object.freeze({ appId: catalog.appId, tool, principal: current, request: extra });
             const resource = resourceRefSchema.parse(await options.resolveResource(input, context));
             if (canonicalCapabilityJson(resource) !== canonicalCapabilityJson(current.claims.resource) || !inputSatisfiesCapabilityLimits(tool.name, input, current.claims.limits)) throw new Error('Capability resource or limits mismatch');
             const decision = await options.authorize(input, context);
