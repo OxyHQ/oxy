@@ -9,6 +9,7 @@
  * `payment.controller`, `wallet.routes` in `packages/api`); `Date` columns
  * arrive as ISO-8601 strings.
  */
+import { subjectProductAccessQuerySchema, subjectProductAccessSchema, type SubjectProductAccessQuery, type SubjectProductAccess } from '@oxy.so/contracts';
 import type { OxyContext } from '../client/context';
 
 const SUBSCRIPTION_TTL = 2 * 60 * 1000;
@@ -104,6 +105,15 @@ export interface WalletTransactionsPage {
 
 export class BillingApi {
   constructor(protected readonly ctx: OxyContext) {}
+
+  /** Product rights only; requires a production application-bound user session. Never cached. */
+  async productAccess(query: SubjectProductAccessQuery): Promise<SubjectProductAccess> {
+    const parsed = subjectProductAccessQuerySchema.parse(query);
+    const response = await this.ctx.request<unknown>('GET',
+      `/v1/products/${encodeURIComponent(parsed.productId)}/access/${encodeURIComponent(parsed.subjectAccountId)}`,
+      undefined, { cache: false });
+    return subjectProductAccessSchema.parse(response);
+  }
 
   /** The signed-in user's payment history. Never cached. */
   async payments(): Promise<Payment[]> {

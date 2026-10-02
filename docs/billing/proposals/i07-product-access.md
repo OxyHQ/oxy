@@ -1,5 +1,8 @@
 # I07 product access candidate — 2026-10-02
 
+**Structural followup (2026-10-02):** the independent persistence, authorized query and SDK source are now implemented and locally verified in [i07-product-access-persistence.md](i07-product-access-persistence.md). This earlier contract snapshot records the initial partial state; it does not override the newer source evidence or claim catalogue activation/publication.
+
+
 Status: partial implementation for review, not an approved catalogue or deployed
 product access authority. Parent #1519; child #1525. No commercial offer is
 registered, no migration/backfill writes run and no existing plan reader changes.

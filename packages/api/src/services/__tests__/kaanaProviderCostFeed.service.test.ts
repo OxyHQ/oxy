@@ -8,6 +8,8 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { createHash, createPublicKey, generateKeyPairSync, randomUUID, verify } from 'node:crypto';
 import { eq } from 'drizzle-orm';
@@ -95,7 +97,7 @@ describe('ingestProviderCostAttempts', () => {
 
     const rows = await stored(requestId);
     expect(rows).toHaveLength(2);
-    // The failed failover attempt keeps its cost: the provider invoices it.
+    // A failed failover keeps its recorded estimate; this is no invoice proof.
     expect(rows[0]).toMatchObject({ served: false, costAmount: '0.003060000000', outcome: null });
     expect(rows[1]).toMatchObject({ served: true, costAmount: '0.003060000000', outcome: 'succeeded', latencyMs: 120 });
   });
@@ -173,6 +175,16 @@ describe('ingestProviderCostAttempts', () => {
 });
 
 describe('providerCostAttemptEventSchema units', () => {
+  it('preserves an unsupplied historical key class without assigning authority', async () => {
+    const requestId = randomUUID();
+    const historical = attempt(requestId, 0, { keyClass: '' });
+    expect(providerCostAttemptEventSchema.parse(historical).keyClass).toBe('');
+    for (const keyClass of [undefined, null, 0, false, 'x'.repeat(65)]) {
+      expect(providerCostAttemptEventSchema.safeParse({ ...historical, keyClass }).success).toBe(false);
+    }
+    await ingestProviderCostAttempts([historical]);
+    expect((await stored(requestId))[0].keyClass).toBe('');
+  });
   it('accepts every unit Oxy prices', () => {
     for (const unit of USAGE_UNITS) {
       expect(providerCostAttemptEventSchema.safeParse(attempt('r', 0, { units: [{ unit, quantity: 1 }] })).success).toBe(true);
@@ -231,6 +243,50 @@ describe('syncProviderCostFeed', () => {
 });
 
 describe('HttpKaanaProviderCostFeedReader', () => {
+  it('reads and replays the pseudonymized historical live page locally without fabricating cost or class', async () => {
+    const fixture = JSON.parse(readFileSync(join(__dirname, '__fixtures__/providerCostFeedLive20261002.json'), 'utf8'));
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+    let requests = 0;
+    const server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => {
+        requests += 1;
+        const body = Buffer.concat(chunks);
+        expect(req.url).toBe('/internal/v1/provider-telemetry/attempts');
+        expect(JSON.parse(body.toString('utf8'))).toEqual({ schemaVersion: 1, limit: 25 });
+        const signature = Buffer.from(String(req.headers['x-oxy-kaana-signature']).replace(/^v1=/, ''), 'base64');
+        expect(verify(null, providerTelemetrySigningInput('fixture-edge', Number(req.headers['x-oxy-kaana-timestamp']), body), publicKey, signature)).toBe(true);
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(fixture.response));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const reader = new HttpKaanaProviderCostFeedReader({ baseUrl: `http://127.0.0.1:${port}`, keyId: 'fixture-edge', privateKey });
+      const page = await reader.readPage(null, 25);
+      expect(page.attempts).toHaveLength(25);
+      expect(page.attempts.filter((event) => event.keyClass === '')).toHaveLength(21);
+      expect(new Set(page.attempts.map((event) => event.requestId)).size).toBe(23);
+      expect(await ingestProviderCostAttempts(page.attempts)).toEqual({ inserted: 25, duplicates: 0, mismatches: 0 });
+      expect(await ingestProviderCostAttempts((await reader.readPage(null, 25)).attempts)).toEqual({ inserted: 0, duplicates: 25, mismatches: 0 });
+      expect(requests).toBe(2);
+      // A later producer fix cannot rewrite a digest already admitted from the
+      // ambiguous old wire shape. This is why the fix precedes live ingestion.
+      expect(await ingestProviderCostAttempts([{ ...page.attempts[0], units: null }])).toEqual({ inserted: 0, duplicates: 0, mismatches: 1 });
+      for (const event of page.attempts) {
+        const row = (await stored(event.requestId)).find((attempt) => attempt.attemptIndex === event.attemptIndex);
+        expect(row).toMatchObject({ keyClass: event.keyClass, costSource: 'unknown', costAmount: null, costCurrency: null });
+        // The old producer encoded unknown historical units as []. This proves
+        // preservation of the wire value only, never that those units were measured.
+        // Production ingestion must wait for the NULL-preserving producer fix.
+        expect(event.units).toEqual([]);
+      }
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
   it('signs under the provider-telemetry domain only, with the edge key', async () => {
     const { privateKey, publicKey } = generateKeyPairSync('ed25519');
     let seen: { headers: http.IncomingHttpHeaders; body: Buffer } | undefined;

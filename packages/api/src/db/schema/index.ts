@@ -187,3 +187,5 @@ export * from './families';
 export * from './accountEvents';
 export * from './storageObjectDeletions';
 export * from './stickers';
+
+export * from './productAccess';

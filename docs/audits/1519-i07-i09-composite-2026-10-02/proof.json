@@ -1,0 +1,124 @@
+{
+  "status": "LOCAL_COMPOSITE_VERIFIED_FULL_CI_PENDING",
+  "baseHead": "4f11aa410d01b6120aed578f45e175c763317f20",
+  "sources": {
+    "I07": "e4487c6900abbcdb04d7aa9a50bc7f428b17c141",
+    "I07benefitSetFix": "a59d69d5dde6373c4671f4d729d9d47cee4f015f",
+    "I09feed": "55cef389b7c281f2349cc9fe8a1c4564c6fe1621"
+  },
+  "tests": {
+    "I07schemaAuthorityAndI09Feed": {
+      "suites": 9,
+      "tests": 101
+    },
+    "I10Readback": {
+      "suites": 4,
+      "tests": 212
+    },
+    "contracts": {
+      "suites": 52,
+      "tests": 911
+    },
+    "billingSDK": {
+      "suites": 1,
+      "tests": 7
+    }
+  },
+  "denominatorsOverlap": true,
+  "migration0135ExecutableSHA256": "0e903526237bef344e97acc19e40b23ac9d86afb838e799e7921cf063876fed6",
+  "migrationSourceEquality": true,
+  "generatedSnapshotTables": 215,
+  "schemaColumns": 2534,
+  "ownedPG": {
+    "newServerPid": 3025375,
+    "journalRows": 135,
+    "prefix133BlocksReadback": true,
+    "repeatMigrationPassed": true,
+    "emptyProductAccessTables": 6,
+    "productAccessGuardTriggers": 7,
+    "serverStopped": true
+  },
+  "buildAll": {
+    "successful": 19,
+    "total": 19,
+    "cached": 18
+  },
+  "apiTypeScriptExit": 0,
+  "sourceScopedESLint": {
+    "files": 16,
+    "exitCode": 0
+  },
+  "serverESLintLimitation": "Full server.ts has 7 pre-existing no-explicit-any warnings; unchanged HEAD baseline control also fails max-warnings=0 with the same 7 warnings. No lint gate was weakened.",
+  "noProductionOperations": true,
+  "inputSHA256": {
+    "packages/api/drizzle/0135_i07_product_access.sql": "4779dc3b8356fbabc510634879b1124beb69ae3422af1063a0a49b4571ae0887",
+    "packages/api/drizzle/meta/0135_snapshot.json": "563936df864d561eda9ae09d0e510be867c2f9409717438d63f3df39fc38d7d2",
+    "packages/api/drizzle/meta/_journal.json": "9a15082d5f22bb7864ec5537d3fd7fe35bf315ffa5e4117c635f393d60329d85",
+    "packages/api/openapi.json": "9f04b41c23c88168b9e0e7ce2f6715be1dbc3dadd15d798feb861a5bb9280cd6",
+    "packages/api/scripts/generate-openapi.ts": "b01107654ec9fdd06ad652db5cbd63f4441b8562facdaae696110840ddcfa7c6",
+    "packages/api/src/db/schema/deferredForeignKeys.ts": "bc11e23dc882da947acd5e5d2c5cdc0eddb234e71329d1386382efd57dc2e08c",
+    "packages/api/src/db/schema/index.ts": "a83b56e36b09f45a2e4f59f377dce9979acc9f9cdf7b298df1e2151c8e18750e",
+    "packages/api/src/db/schema/productAccess.ts": "d0a9da22e2c939d78863653092083528354a8ace7cdd71923f31470814059214",
+    "packages/api/src/db/schema/productAccessImmutability.ts": "0fd03a9c4e23f43dac04f716334ebf3153a133e6714afc58f531e90f2008ebc6",
+    "packages/api/src/routes/__tests__/productAccess.test.ts": "c0f6e4a188bb37794cb5f831cc19f9151c2741073dfd17e5d02df608bc074327",
+    "packages/api/src/routes/productAccess.ts": "b53c1abbadd9073c34d8d374efe1da34e5bea273cca3ae5292d7e9abc7a9b63f",
+    "packages/api/src/schemas/productAccess.schemas.ts": "e8f2755dbbccdc79c802f47a0eacbc0d2eb046a66070d6229a805198aebeb6b2",
+    "packages/api/src/server.ts": "81788ac3775ee1e9059c2fbe5f6dee5b16b8e17750d8ad9c76be651eb5f51785",
+    "packages/api/src/services/__tests__/__fixtures__/providerCostFeedLive20261002.json": "0f3d3380ea7de703e3c94664124dc9607349f68cb8324178fc78c5368a0420ab",
+    "packages/api/src/services/__tests__/fixtures/productAccessFixtures.ts": "c860b280981675fb80d31f0e13cfa62776977c4761d7aa6a3e3e0390bf729948",
+    "packages/api/src/services/__tests__/kaanaProviderCostFeed.service.test.ts": "cb5ae2d6baa0315c3b5fcd2a49456d4d3c09ffb70868629f1f10290d61f56042",
+    "packages/api/src/services/__tests__/productAccessClosure.test.ts": "839b34fd2782177cb4ed919ddedd81418cda1d7fff6f8122f94dbf4c2a6e7445",
+    "packages/api/src/services/__tests__/productAccessPersistence.test.ts": "be710f3329ad5becd85e8376dee69679a7107a4daf14a332e6051fae8d920933",
+    "packages/api/src/services/accountFinancialHolds.service.ts": "50ae5ad6a96bb5aee73ce6ec407d8fad72b32fabe5e92b1df9be0417c7971a4c",
+    "packages/api/src/services/kaanaProviderCostFeed.service.ts": "583d6d61e743011262c42521481358332cdfe5ba5b38f6c3d2354039a34695b4",
+    "packages/api/src/services/productAccessAuthorization.service.ts": "bfb790347cddc9cef4bfe4c1b791a98353c70c7c58711759a871e8fb67f8bb6d",
+    "packages/api/src/services/productAccessMapping.ts": "265d8a4a8abf02270f4663232f8bd470666873f19e8269d41b61a94bf3e7c7b6",
+    "packages/api/src/services/productAccessPersistence.service.ts": "7b59c7d9190e0c4abf8ba4c671548217fe24b1844e3f2751d62051d130008e03",
+    "packages/core/src/api/__tests__/billing.test.ts": "f8b4f4a663df54d4d397d7086c6af9b045aaf1fe7e3cf056069f00deec5201bf",
+    "packages/core/src/api/billing.ts": "88eeccb2de98eb934885d1f2fbf5ea31baf210ccaeea1d6c382fc6e867770844",
+    "scripts/check-openapi-fresh.mjs": "e58387595921d4b9314b6f2c4037ff92277ccaa56186630ced01f9519819b1bd",
+    "scripts/rehearsal/test-integration-migrations-1519.py": "96da38f451aff4b0b1f4d4f12846cc50a261f45439fd1a3b706313862e68cc91"
+  },
+  "rawRecords": [
+    {
+      "file": "i07-p2-i09-composite-api-tests.txt",
+      "sha256": "1c9af3bce267ff2292d9bd35eecbf349e6dc26172a7caec4ae85ca7db5771a90"
+    },
+    {
+      "file": "i07-p2-i09-composite-readback-tests.txt",
+      "sha256": "4a4f24afa8eac4de6a78c4f79d949c0b38f47caa9c933daf41bd9d1c330eb5ab"
+    },
+    {
+      "file": "i07-p2-composite-owned-pg.txt",
+      "sha256": "92537556968ece8fab5f8bc122815c98a6fab7654c4f46fde4b6fb90936aa2ef"
+    },
+    {
+      "file": "i07-p2-i09-composite-api-tsc.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "i07-p2-i09-composite-source-lint.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "i07-p2-i09-composite-build-all.txt",
+      "sha256": "570e5984b9d6e5270c8ff31c2abbe296696fb5bf031a80d287836bb8ce85bd22"
+    },
+    {
+      "file": "i07-composite-contracts-tests.txt",
+      "sha256": "fe72c2bd85cba952346efc6a93b97d39c35bf309610f2ecd083139d5016b4e59"
+    },
+    {
+      "file": "i07-composite-sdk-tests.txt",
+      "sha256": "a6fdf7c8624cf5b73477b019fb0f7b29689e374aeead9795c2f7dcfe254f235e"
+    },
+    {
+      "file": "i07-composite-api-lint.txt",
+      "sha256": "6b069f55fab42d652e1aac5ef3c1b6bf3eb8079f2e7bf4b857671f71deba01d3"
+    },
+    {
+      "file": "i07-server-baseline-lint.txt",
+      "sha256": "5ec2ce4f6fbfe1b69e65be06f60d464e2c7b61b5324b7a3d9a02e14af9449fe4"
+    }
+  ]
+}
