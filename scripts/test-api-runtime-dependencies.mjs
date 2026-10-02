@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { inventory } from './forge-remediation-proof-proposal.mjs';
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -21,6 +22,11 @@ const fixture = mkdtempSync(join(cache, 'oxy-runtime-closure-'));
 try {
   for (const file of ['package.json', 'bun.lock']) copyFileSync(join(root, file), join(fixture, file));
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  for (const patch of Object.values(manifest.patchedDependencies ?? {})) {
+    assert.ok(typeof patch === 'string' && patch.startsWith('patches/') && !patch.includes('..'));
+    mkdirSync(dirname(join(fixture, patch)), { recursive: true });
+    copyFileSync(join(root, patch), join(fixture, patch));
+  }
   const workspaces = Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.workspaces.packages;
   for (const workspace of workspaces) {
     assert.ok(!workspace.includes('*'), 'Fixture must expand a newly introduced workspace glob');
@@ -46,6 +52,17 @@ try {
     }
     console.log('Required database peers load from the frozen production graph without connecting.');
   `], { cwd: fixture, stdio: 'inherit', timeout: 30_000 });
+  const candidate = JSON.parse(readFileSync(join(root, 'docs/security/forge-candidate/candidate-hashes.json'), 'utf8'));
+  const copies = inventory(fixture);
+  assert.ok(copies.length > 0, 'Production graph must exercise materialized Forge bytes');
+  for (const copy of copies) {
+    assert.equal(copy.version, '1.4.0');
+    for (const [file, hashes] of Object.entries(candidate.files)) {
+      assert.equal(copy.files[file], hashes.candidateSha256,
+        'Unpatched or changed production distribution: ' + copy.path + '/' + file);
+    }
+  }
+  console.log('Complete production fixture inventory matches pinned Forge library/bundle/map bytes.');
 } finally {
   rmSync(fixture, { recursive: true, force: true });
 }
