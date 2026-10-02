@@ -1,0 +1,7 @@
+{
+  "lib/rsa.js": true,
+  "dist/forge.min.js": true,
+  "dist/forge.min.js.map": true,
+  "dist/forge.all.min.js": true,
+  "dist/forge.all.min.js.map": true
+}

@@ -21,6 +21,11 @@ const fixture = mkdtempSync(join(cache, 'oxy-runtime-closure-'));
 try {
   for (const file of ['package.json', 'bun.lock']) copyFileSync(join(root, file), join(fixture, file));
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  for (const patch of Object.values(manifest.patchedDependencies ?? {})) {
+    assert.ok(typeof patch === 'string' && patch.startsWith('patches/') && !patch.includes('..'));
+    mkdirSync(dirname(join(fixture, patch)), { recursive: true });
+    copyFileSync(join(root, patch), join(fixture, patch));
+  }
   const workspaces = Array.isArray(manifest.workspaces) ? manifest.workspaces : manifest.workspaces.packages;
   for (const workspace of workspaces) {
     assert.ok(!workspace.includes('*'), 'Fixture must expand a newly introduced workspace glob');

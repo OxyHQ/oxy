@@ -971,6 +971,9 @@
     "better-sqlite3",
     "@shopify/react-native-skia",
   ],
+  "patchedDependencies": {
+    "node-forge@1.4.0": "patches/node-forge@1.4.0.patch",
+  },
   "overrides": {
     "@oxy.so/bloom": "catalog:",
     "@radix-ui/react-slot": "1.2.3",
