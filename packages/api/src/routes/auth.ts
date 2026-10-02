@@ -68,6 +68,7 @@ import { formatUserResponse } from '../utils/userTransform';
 import { exchangeAuthCode, AUTH_CODE_TTL_MS } from '../services/oauthCode.service';
 import {
   approvalMintsSession,
+  resolveApprovalOperator,
   claimAuthSession,
   authorizeSessionWithSignedChallenge,
   authorizeSessionWithBearer,
@@ -1190,6 +1191,19 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
   // device session for an OAuth-purpose row.
   let newSessionId: string | undefined;
   if (approvalMintsSession(authSession)) {
+    // An operated bearer keeps its operator on the session it mints, and a
+    // bot's seat is never handed to a device (`resolveApprovalOperator`).
+    // Checked before anything is written, so a refusal leaves the request pending.
+    const operator = await resolveApprovalOperator(req.sessionId, authenticatedUserId);
+    if (!operator.ok) {
+      logger.warn('Session authorize refused: operated seat', {
+        sessionToken: sessionToken.substring(0, 8) + '...',
+        userId: authenticatedUserId,
+        reason: operator.reason,
+      });
+      throw new ForbiddenError('This account cannot approve a sign-in from this session');
+    }
+
     // Resolve the bound Application for the device-name label. The session can't
     // exist without a valid applicationId; fall back to a generic label only if
     // the app was hard-deleted between create and authorize.
@@ -1210,6 +1224,7 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
         // approver's device. A fresh identity prevents createSession from
         // reusing and later invalidating that browser's existing session.
         deviceId: generateDeviceId(),
+        ...(operator.operatedByUserId ? { operatedByUserId: operator.operatedByUserId } : {}),
       }
     );
     newSessionId = newSession.sessionId;
@@ -1392,7 +1407,11 @@ router.post(
 
     // Pull the deviceId from the underlying Session for the response.
     const [approvedSession] = await getDb()
-      .select({ deviceId: sessionsTable.deviceId, deviceName: sessionsTable.deviceName })
+      .select({
+        deviceId: sessionsTable.deviceId,
+        deviceName: sessionsTable.deviceName,
+        operatedByUserId: sessionsTable.operatedByUserId,
+      })
       .from(sessionsTable)
       .where(eq(sessionsTable.sessionId, authSession.authorizedSessionId))
       .limit(1);
@@ -1421,9 +1440,14 @@ router.post(
         // A new session ON the proven device, and the approval's own retired:
         // its tokens carry the claim-only device id, and a refresh keeps the id
         // its token names, so moving the row would not move the session.
+        // The approval's operator travels with it: a join must not turn an
+        // operated session into an unoperated one (`resolveApprovalOperator`).
         const joined = await sessionService.createSession(authSession.authorizedUserId, req, {
           deviceName: approvedSession.deviceName ?? undefined,
           deviceId: provenDeviceId,
+          ...(approvedSession.operatedByUserId
+            ? { operatedByUserId: approvedSession.operatedByUserId }
+            : {}),
         });
         await sessionService.deactivateSession(authSession.authorizedSessionId);
         session = { sessionId: joined.sessionId, deviceId: joined.deviceId };
@@ -1782,6 +1806,7 @@ router.post(
       authenticatedPublicKey: authenticatedUser.publicKey,
       deviceName,
       deviceFingerprint,
+      approvingSessionId: req.sessionId,
       req,
     });
 

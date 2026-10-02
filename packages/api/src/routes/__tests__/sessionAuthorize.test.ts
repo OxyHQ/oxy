@@ -27,7 +27,7 @@ const mockEmitAuthSessionUpdate = jest.fn();
 const mockBroadcastSessionAccountsChanged = jest.fn();
 const mockVerifyActingAs = jest.fn();
 
-let authenticatedUser: { _id: string; username?: string; publicKey?: string } | null = null;
+let authenticatedUser: { _id: string; username?: string; publicKey?: string; sessionId?: string } | null = null;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (req: { user?: unknown }, res: { status: (code: number) => { json: (body: unknown) => void } }, next: () => void) => {
@@ -36,6 +36,8 @@ jest.mock('../../middleware/auth', () => ({
       return;
     }
     req.user = authenticatedUser;
+    // The real middleware sets the bearer's own session id; so does this stub.
+    (req as { sessionId?: string }).sessionId = authenticatedUser.sessionId;
     next();
   },
   serviceAuthMiddleware: jest.fn(),
@@ -85,6 +87,7 @@ import { authSessions } from '../../db/schema/authSessions';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import authRouter from '../auth';
+import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 
 interface JsonResponse {
   status: number;
@@ -137,6 +140,11 @@ async function application(fields: Partial<typeof applications.$inferInsert> = {
     .values({ name: `App ${randomUUID()}`, ...fields, ownerAccountId })
     .returning({ id: applications.id });
   return row.id;
+}
+
+/** Authenticate as `userId` with a real session row, the only bearer the real middleware admits. */
+async function signInAs(user: { _id: string; username?: string; publicKey?: string }): Promise<void> {
+  authenticatedUser = { ...user, sessionId: await insertBearerSession(user._id) };
 }
 
 async function pendingRequest(
@@ -225,7 +233,7 @@ describe('POST /auth/session/authorize/:sessionToken — the bearer is the princ
       .from(users)
       .where(eq(users.id, approverId))
       .limit(1);
-    authenticatedUser = { _id: approverId, username: 'nate', publicKey: approver.publicKey ?? undefined };
+    await signInAs({ _id: approverId, username: 'nate', publicKey: approver.publicKey ?? undefined });
     const sessionToken = await pendingRequest();
 
     const res = await post(`/auth/session/authorize/${sessionToken}`, {}, {
@@ -247,7 +255,7 @@ describe('POST /auth/session/authorize/:sessionToken — the bearer is the princ
   });
 
   it('labels the minted session with the bound application name', async () => {
-    authenticatedUser = { _id: await account(), username: 'nate' };
+    await signInAs({ _id: await account(), username: 'nate' });
     const applicationId = await application({ name: 'Acme Widgets' });
     const sessionToken = await pendingRequest({ applicationId, deviceId: 'dev-abc' });
 
@@ -264,7 +272,7 @@ describe('POST /auth/session/authorize/:sessionToken — the bearer is the princ
   });
 
   it('404s a request that is not pending, without minting anything', async () => {
-    authenticatedUser = { _id: await account() };
+    await signInAs({ _id: await account() });
     const sessionToken = await pendingRequest({ status: 'cancelled' });
 
     const res = await post(`/auth/session/authorize/${sessionToken}`);
@@ -274,7 +282,7 @@ describe('POST /auth/session/authorize/:sessionToken — the bearer is the princ
   });
 
   it('400s an expired request and writes the expiry back', async () => {
-    authenticatedUser = { _id: await account() };
+    await signInAs({ _id: await account() });
     const sessionToken = await pendingRequest({ expiresAt: new Date(Date.now() - 1000) });
 
     const res = await post(`/auth/session/authorize/${sessionToken}`);
@@ -288,7 +296,7 @@ describe('POST /auth/session/authorize/:sessionToken — the bearer is the princ
 describe('POST /auth/session/authorize/:sessionToken — an OAuth request mints NO session', () => {
   it('authorizes an OAuth-bound request without creating a session', async () => {
     const approverId = await account();
-    authenticatedUser = { _id: approverId };
+    await signInAs({ _id: approverId });
     const sessionToken = await pendingRequest(oauthBinding(null));
 
     const res = await post(`/auth/session/authorize/${sessionToken}`);
@@ -305,7 +313,7 @@ describe('POST /auth/session/authorize/:sessionToken — an OAuth request mints 
 
   it('refuses an approval whose identity cannot act as the DELEGATED subject', async () => {
     const approverId = await account();
-    authenticatedUser = { _id: approverId };
+    await signInAs({ _id: approverId });
     const org = await account({ kind: 'organization' });
     const sessionToken = await pendingRequest(oauthBinding(org));
     mockVerifyActingAs.mockResolvedValue(null);
@@ -320,7 +328,7 @@ describe('POST /auth/session/authorize/:sessionToken — an OAuth request mints 
 
   it('authorizes a PERMITTED delegated subject, still without minting a session', async () => {
     const approverId = await account();
-    authenticatedUser = { _id: approverId };
+    await signInAs({ _id: approverId });
     const org = await account({ kind: 'organization' });
     const sessionToken = await pendingRequest(oauthBinding(org));
     mockVerifyActingAs.mockResolvedValue('admin');
@@ -336,7 +344,7 @@ describe('POST /auth/session/authorize/:sessionToken — an OAuth request mints 
   });
 
   it('never accepts a PERSONAL account as a delegated subject', async () => {
-    authenticatedUser = { _id: await account() };
+    await signInAs({ _id: await account() });
     const personal = await account({ kind: 'personal' });
     const sessionToken = await pendingRequest(oauthBinding(personal));
     // Even a permissive account service cannot rescue this: assuming a human
