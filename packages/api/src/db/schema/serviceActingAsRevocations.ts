@@ -26,7 +26,8 @@
  *
  * ## Undoing it takes a real decision, not an auto-approval
  *
- * The marker is cleared by `recordAppGrant` only when the granted scopes name
+ * The marker is cleared by `persistOAuthAuthorization` (`oauthConsent.service.ts`)
+ * only when the request explicitly named and the code carries
  * `acting-as:offline`, and that scope is in `USER_CONSENT_REQUIRED_SCOPES` — so
  * a request carrying it ALWAYS reaches the consent screen, for a trusted
  * application exactly as for a third-party one. Reaching the authorize endpoint

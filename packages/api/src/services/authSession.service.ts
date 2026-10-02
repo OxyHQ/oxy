@@ -39,7 +39,6 @@ import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
 import { v7 as uuidv7 } from 'uuid';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
-import { appGrants } from '../db/schema/appGrants';
 import { applications } from '../db/schema/applications';
 import { authChallenges } from '../db/schema/authChallenges';
 import { authSessions } from '../db/schema/authSessions';
@@ -47,10 +46,10 @@ import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { users } from '../db/schema/users';
 import SignatureService from './signature.service';
 import sessionService from './session.service';
-import { issueAuthCode, AUTH_CODE_TTL_MS } from './oauthCode.service';
+import { AUTH_CODE_TTL_MS } from './oauthCode.service';
+import { decideOAuthConsent, persistOAuthAuthorization } from './oauthConsent.service';
 import { intersectScopes } from '../utils/applicationScopes';
 import { isAllowedRedirectUri } from '../utils/oauthRedirect';
-import { isTrustedApplication } from '../utils/trustedApplication';
 import type { AccountRole } from '../utils/accountRoles';
 import { logger } from '../utils/logger';
 
@@ -767,62 +766,38 @@ export async function finalizeOAuthAuthorization(
     oauth.scopes.length > 0 ? intersectScopes(oauth.scopes, appScopes) : appScopes;
 
   try {
-    const { code } = await issueAuthCode({
-      codeId,
-      userId: grantUserId,
-      appId: app.id,
-      redirectUri: oauth.redirectUri,
-      codeChallenge: oauth.codeChallenge,
-      codeChallengeMethod: 'S256',
-      scopes: effectiveScopes,
-      ...(subjectAccountId ? { operatedByUserId: identityUserId } : {}),
-      // Thread the originating RP device so the token exchange lands on the same
-      // DeviceSession the flow started from instead of sprawling a new device.
-      ...(existing.deviceId ? { deviceId: existing.deviceId } : {}),
+    // Consent and code commit TOGETHER, through the same decision and the same
+    // transaction `POST /auth/oauth/authorize` uses (`oauthConsent.service.ts`),
+    // so both entries leave identical state for the same request. The consent
+    // belongs to the account the code authorizes — the delegated subject when
+    // there is one — never to the approving identity.
+    //
+    // The request is already spent by the claim above. If the transaction
+    // fails, NOTHING it would have written exists — no code, no grant, no
+    // cleared revocation — and the user restarts: fail closed, and recoverable
+    // because a fresh request repeats an idempotent upsert.
+    const decision = decideOAuthConsent({
+      application: app,
+      requestedScopes: oauth.scopes,
+      grantedScopes: effectiveScopes,
     });
-
-    // Same returning-user consent bookkeeping as `POST /auth/oauth/authorize`:
-    // only third-party grants are revocable "Connected apps" entries; trusted
-    // apps are auto-approved and never recorded. Best-effort — a bookkeeping
-    // failure must never invalidate an already-issued code.
-    if (!isTrustedApplication(app)) {
-      try {
-        await db
-          .insert(appGrants)
-          .values({
-            userId: grantUserId,
-            applicationId: app.id,
-            scopes: effectiveScopes,
-            firstGrantedAt: now,
-            lastUsedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: [appGrants.userId, appGrants.applicationId],
-            set: {
-              lastUsedAt: now,
-              updatedAt: now,
-              // Mongo's `$addToSet: { scopes: { $each: … } }`. The union keeps
-              // each scope's FIRST position, so an existing grant's order is
-              // preserved and genuinely new scopes are appended — `array_agg
-              // (distinct …)` alone would silently re-sort the stored set.
-              scopes: sql`(
-                select coalesce(array_agg(scope order by first_seen), '{}'::text[])
-                from (
-                  select scope, min(pos) as first_seen
-                  from unnest(${appGrants.scopes} || excluded.scopes)
-                    with ordinality as merged(scope, pos)
-                  group by scope
-                ) as unioned
-              )`,
-            },
-          });
-      } catch (error) {
-        logger.warn('[AuthSession] Failed to record AppGrant on finalize', {
-          applicationId: app.id,
-          err: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
+    const { code } = await persistOAuthAuthorization({
+      decision,
+      code: {
+        codeId,
+        userId: grantUserId,
+        appId: app.id,
+        redirectUri: oauth.redirectUri,
+        codeChallenge: oauth.codeChallenge,
+        codeChallengeMethod: 'S256',
+        scopes: effectiveScopes,
+        ...(subjectAccountId ? { operatedByUserId: identityUserId } : {}),
+        // Thread the originating RP device so the token exchange lands on the
+        // same DeviceSession the flow started from instead of sprawling a new
+        // device.
+        ...(existing.deviceId ? { deviceId: existing.deviceId } : {}),
+      },
+    });
 
     logger.info('[AuthSession] OAuth authorization finalized', {
       sessionToken: sessionToken.substring(0, 8) + '...',
