@@ -21,7 +21,7 @@ import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 import express from 'express';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 const mockFinalizeOAuthAuthorization = jest.fn();
 const mockAuthMiddleware = jest.fn((req: { user?: unknown }, _res: unknown, next: () => void) => {
@@ -84,6 +84,7 @@ interface JsonResponse {
 
 const REDIRECT_URI = 'https://rp.example/oauth/callback';
 const CODE_CHALLENGE = 'x'.repeat(43);
+const CLIENT_SECRET = 'confidential-client-secret';
 
 let server: http.Server;
 
@@ -148,7 +149,8 @@ async function client(
     applicationId: app.id,
     name: 'client',
     publicKey: clientId,
-    type: 'public',
+    type: 'confidential',
+    secretHash: createHash('sha256').update(CLIENT_SECRET).digest('hex'),
     environment: 'production',
   });
   return { clientId, applicationId: app.id };
@@ -167,6 +169,7 @@ const token = () => `at_${randomUUID().replace(/-/g, '')}`;
 
 function oauthBody(overrides: Record<string, unknown> = {}) {
   return {
+    clientSecret: CLIENT_SECRET,
     redirectUri: REDIRECT_URI,
     codeChallenge: CODE_CHALLENGE,
     codeChallengeMethod: 'S256',
@@ -198,6 +201,32 @@ beforeEach(() => {
 });
 
 describe('POST /auth/session/create — the OAuth binding', () => {
+  it('rejects an OAuth binding without confidential-client authentication', async () => {
+    const { clientId } = await client();
+    const sessionToken = token();
+    const oauth = oauthBody();
+    delete (oauth as Partial<typeof oauth>).clientSecret;
+
+    const res = await post('/auth/session/create', { sessionToken, clientId, oauth });
+
+    expect(res.status).toBe(400);
+    expect(await stored(sessionToken)).toBeUndefined();
+  });
+
+  it('rejects an OAuth binding with an invalid client secret', async () => {
+    const { clientId } = await client();
+    const sessionToken = token();
+
+    const res = await post('/auth/session/create', {
+      sessionToken,
+      clientId,
+      oauth: oauthBody({ clientSecret: 'wrong-secret' }),
+    });
+
+    expect(res.status).toBe(401);
+    expect(await stored(sessionToken)).toBeUndefined();
+  });
+
   it('writes the binding and the purpose TOGETHER', async () => {
     const { clientId, applicationId } = await client();
     const sessionToken = token();
