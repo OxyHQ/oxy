@@ -24,5 +24,44 @@
       "stockSha256": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1",
       "candidateSha256": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
     }
+  },
+  "intentionalDanglingSharpLinks": [
+    {
+      "path": "node_modules/.bun/node_modules/@img/sharp-libvips-linux-arm64",
+      "target": "../../@img+sharp-libvips-linux-arm64@1.3.3/node_modules/@img/sharp-libvips-linux-arm64"
+    },
+    {
+      "path": "node_modules/.bun/node_modules/@img/sharp-linux-arm64",
+      "target": "../../@img+sharp-linux-arm64@0.35.4/node_modules/@img/sharp-linux-arm64"
+    },
+    {
+      "path": "node_modules/.bun/node_modules/ffmpeg-static",
+      "target": "../ffmpeg-static@5.3.0+759ce506b1ed1a42/node_modules/ffmpeg-static"
+    },
+    {
+      "path": "node_modules/.bun/node_modules/ffprobe-static",
+      "target": "../ffprobe-static@3.1.0/node_modules/ffprobe-static"
+    },
+    {
+      "path": "node_modules/.bun/sharp@0.35.4+5d01d69d87a479a5/node_modules/@img/sharp-libvips-linux-arm64",
+      "target": "../../../@img+sharp-libvips-linux-arm64@1.3.3/node_modules/@img/sharp-libvips-linux-arm64"
+    },
+    {
+      "path": "node_modules/.bun/sharp@0.35.4+5d01d69d87a479a5/node_modules/@img/sharp-linux-arm64",
+      "target": "../../../@img+sharp-linux-arm64@0.35.4/node_modules/@img/sharp-linux-arm64"
+    },
+    {
+      "path": "packages/api/node_modules/ffmpeg-static",
+      "target": "../../../node_modules/.bun/ffmpeg-static@5.3.0+759ce506b1ed1a42/node_modules/ffmpeg-static"
+    },
+    {
+      "path": "packages/api/node_modules/ffprobe-static",
+      "target": "../../../node_modules/.bun/ffprobe-static@3.1.0/node_modules/ffprobe-static"
+    }
+  ],
+  "pruningReceipt": {
+    "sourceSha": "81442f48fc8c5a7251dd4ae290e02c4afb1aa633",
+    "imageDigest": "sha256:d11e581d88b3dcf92d5b09add482406f31db68f45be81af19a559967a70c4b67",
+    "receiptSha256": "4b3c6d088ea21592c6ee683cba3adc348c437591b515bf783e0f39d9ce4525dd"
   }
 }
