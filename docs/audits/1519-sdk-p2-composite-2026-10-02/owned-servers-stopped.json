@@ -1,0 +1,14 @@
+[
+  {
+    "pid": 3134138,
+    "cwd": "/home/nate/Oxy/oxy/.worktrees/1519-integration",
+    "port": "17967",
+    "executable": "/home/nate/.nvm/versions/node/v24.21.0/bin/node"
+  },
+  {
+    "pid": 3133627,
+    "cwd": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/sdk-p2/consumer",
+    "port": "17968",
+    "executable": "/home/nate/.nvm/versions/node/v24.21.0/bin/node"
+  }
+]

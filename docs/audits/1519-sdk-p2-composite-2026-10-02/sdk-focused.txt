@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath __tests__/context/browserBridge.test.tsx __tests__/context/coldBoot.test.tsx __tests__/context/useAuthOperations.test.tsx __tests__/hooks/useAuth.test.tsx __tests__/components/OxySignInButton.test.tsx src/ui/oauth/__tests__/nativeAuthTransport.test.ts
+
+Test Suites: 6 passed, 6 total
+Tests:       95 passed, 95 total
+Snapshots:   0 total
+Time:        3.586 s
+Ran all test suites within paths "__tests__/context/browserBridge.test.tsx", "__tests__/context/coldBoot.test.tsx", "__tests__/context/useAuthOperations.test.tsx", "__tests__/hooks/useAuth.test.tsx", "__tests__/components/OxySignInButton.test.tsx", "src/ui/oauth/__tests__/nativeAuthTransport.test.ts".

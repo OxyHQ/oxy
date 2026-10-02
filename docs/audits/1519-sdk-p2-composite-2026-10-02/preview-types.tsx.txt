@@ -1,0 +1,6 @@
+/// <reference types="nativewind/types" />
+import { OxyProvider, OxySignInButton } from '@oxy.so/services';
+import { Text } from 'react-native';
+const typedNativeClass = <Text className="fixture-preview">fixture</Text>;
+const registeredProvider = <OxyProvider clientId="oxy_dk_fixture_not_registered" baseURL="http://127.0.0.1:17855"><OxySignInButton /></OxyProvider>;
+void typedNativeClass; void registeredProvider;
