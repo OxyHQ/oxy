@@ -15,7 +15,7 @@
  * nothing more.
  */
 
-import { eq, sql } from 'drizzle-orm';
+import { eq, ne, or } from 'drizzle-orm';
 import { getDb } from '../../config/postgres';
 import { mastodonAppRegistrations } from '../../db/schema/userLinkedAccounts';
 import { logger } from '../../utils/logger';
@@ -74,53 +74,75 @@ interface AppRegistration {
 
 /**
  * Oxy's client at `host`, registering (or re-registering after a config change)
- * when needed. Serialized per instance with a transaction-scoped advisory lock,
- * so concurrent first starts at one instance register once and share it rather
- * than each overwriting the other's client (which would fail the loser's token
- * exchange).
+ * when needed. Concurrent work in this process is coalesced, while a conditional
+ * upsert makes the first registration canonical across processes. No database
+ * connection is retained while the user-selected instance is contacted.
  */
-async function ensureAppRegistration(host: string): Promise<AppRegistration> {
-  const redirectUri = linkedAccountCallbackUrl('activitypub');
-  return getDb().transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`mastodon-app:${host}`}))`);
-    const [existing] = await tx
-      .select({
-        clientId: mastodonAppRegistrations.clientId,
-        clientSecret: mastodonAppRegistrations.clientSecret,
-        redirectUri: mastodonAppRegistrations.redirectUri,
-        scopes: mastodonAppRegistrations.scopes,
-      })
-      .from(mastodonAppRegistrations)
-      .where(eq(mastodonAppRegistrations.host, host))
-      .limit(1);
-    if (existing && existing.redirectUri === redirectUri && existing.scopes === MASTODON_LINK_SCOPES) {
-      return existing;
-    }
+const registrationsInFlight = new Map<string, Promise<AppRegistration>>();
 
-    const response = await linkedAccountTransport().fetch(`https://${host}/api/v1/apps`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        client_name: CLIENT_NAME,
-        redirect_uris: redirectUri,
-        scopes: MASTODON_LINK_SCOPES,
-        website: CLIENT_WEBSITE,
-      }),
-    });
-    const body = (await readJson(response)) as { client_id?: unknown; client_secret?: unknown } | null;
-    if (!response.ok || typeof body?.client_id !== 'string' || typeof body.client_secret !== 'string') {
-      throw new LinkedAccountStartRefusal('That server did not accept an app registration; is it a Mastodon-compatible server?');
-    }
-    const registration = { clientId: body.client_id, clientSecret: body.client_secret, redirectUri };
-    await tx
-      .insert(mastodonAppRegistrations)
-      .values({ host, ...registration, scopes: MASTODON_LINK_SCOPES })
-      .onConflictDoUpdate({
-        target: mastodonAppRegistrations.host,
-        set: { ...registration, scopes: MASTODON_LINK_SCOPES },
-      });
-    return registration;
+async function registerApp(host: string): Promise<AppRegistration> {
+  const redirectUri = linkedAccountCallbackUrl('activitypub');
+  const fields = {
+    clientId: mastodonAppRegistrations.clientId,
+    clientSecret: mastodonAppRegistrations.clientSecret,
+    redirectUri: mastodonAppRegistrations.redirectUri,
+    scopes: mastodonAppRegistrations.scopes,
+  };
+  const [existing] = await getDb()
+    .select(fields)
+    .from(mastodonAppRegistrations)
+    .where(eq(mastodonAppRegistrations.host, host))
+    .limit(1);
+  if (existing && existing.redirectUri === redirectUri && existing.scopes === MASTODON_LINK_SCOPES) return existing;
+
+  const response = await linkedAccountTransport().fetch(`https://${host}/api/v1/apps`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      client_name: CLIENT_NAME,
+      redirect_uris: redirectUri,
+      scopes: MASTODON_LINK_SCOPES,
+      website: CLIENT_WEBSITE,
+    }),
   });
+  const body = (await readJson(response)) as { client_id?: unknown; client_secret?: unknown } | null;
+  if (!response.ok || typeof body?.client_id !== 'string' || typeof body.client_secret !== 'string') {
+    throw new LinkedAccountStartRefusal('That server did not accept an app registration; is it a Mastodon-compatible server?');
+  }
+  const registration = { clientId: body.client_id, clientSecret: body.client_secret, redirectUri };
+  const [saved] = await getDb()
+    .insert(mastodonAppRegistrations)
+    .values({ host, ...registration, scopes: MASTODON_LINK_SCOPES })
+    .onConflictDoUpdate({
+      target: mastodonAppRegistrations.host,
+      set: { ...registration, scopes: MASTODON_LINK_SCOPES },
+      setWhere: or(
+        ne(mastodonAppRegistrations.redirectUri, redirectUri),
+        ne(mastodonAppRegistrations.scopes, MASTODON_LINK_SCOPES),
+      ),
+    })
+    .returning(fields);
+  if (saved) return saved;
+
+  const [canonical] = await getDb()
+    .select(fields)
+    .from(mastodonAppRegistrations)
+    .where(eq(mastodonAppRegistrations.host, host))
+    .limit(1);
+  if (!canonical) throw new Error('Mastodon app registration was not persisted');
+  return canonical;
+}
+
+async function ensureAppRegistration(host: string): Promise<AppRegistration> {
+  const pending = registrationsInFlight.get(host);
+  if (pending) return pending;
+  const registration = registerApp(host);
+  registrationsInFlight.set(host, registration);
+  try {
+    return await registration;
+  } finally {
+    if (registrationsInFlight.get(host) === registration) registrationsInFlight.delete(host);
+  }
 }
 
 interface StartInput {
