@@ -333,6 +333,7 @@ flags, gates and dated evidence are in [status.md](./status.md) and
 | [streaming.md](./streaming.md) | stream events, cancellation, retryability and idempotency |
 | [realtime.md](./realtime.md) | audio chat and realtime voice sessions |
 | [billing.md](./billing.md) | reserve → settle → refund, prices, spending limits |
+| [internal-metering.md](./internal-metering.md) | `commercial` vs `internal_metered` (Alia → Kaana), durable usage and provider cost, the cost-centre usage report |
 | [attribution.md](./attribution.md) | who is charged, and delegated users |
 | [byok.md](./byok.md) | using your own provider key |
 | [data-policy.md](./data-policy.md) | what is retained, and what a route does with your data |
