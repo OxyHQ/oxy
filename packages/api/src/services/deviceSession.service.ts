@@ -1399,6 +1399,7 @@ class DeviceSessionService {
           id: deviceSessions.id,
           deviceId: deviceSessions.deviceId,
           activeContextId: deviceSessions.activeContextId,
+          backgroundSecretAccountId: deviceSessions.backgroundSecretAccountId,
           revision: deviceSessions.revision,
           updatedAt: deviceSessions.updatedAt,
         })
@@ -1550,7 +1551,7 @@ class DeviceSessionService {
    */
   private async removeContextRows(
     tx: Queryable,
-    device: { id: string; activeContextId: string | null },
+    device: { id: string; activeContextId: string | null; backgroundSecretAccountId: string | null },
     contexts: readonly DeviceContextRow[],
     principals: readonly DevicePrincipalRow[],
     victims: readonly DeviceContextRow[]
@@ -1582,6 +1583,12 @@ class DeviceSessionService {
       .set({
         ...this.activeFieldsFor(elected),
         revision: sql`${deviceSessions.revision} + 1`,
+        // Legacy storage names only the account, not its original context.
+        // Retiring any context of that account invalidates this credential;
+        // another account's binding and every surviving holder remain intact.
+        ...(victims.some((context) => context.accountId === device.backgroundSecretAccountId)
+          ? this.clearedBackgroundCredentialFields()
+          : {}),
       })
       .where(eq(deviceSessions.id, device.id));
     await this.revokeHolderCredentialsIfSignedOut(tx, device.id);
@@ -1630,6 +1637,7 @@ class DeviceSessionService {
         .select({
           id: deviceSessions.id,
           activeContextId: deviceSessions.activeContextId,
+          backgroundSecretAccountId: deviceSessions.backgroundSecretAccountId,
           revision: deviceSessions.revision,
         })
         .from(deviceSessions)
@@ -1961,24 +1969,35 @@ class DeviceSessionService {
     deviceId: string,
     accountId: string,
   ): Promise<{ deviceId: string; secret: string; accountId: string; expiresAt: string } | null> {
-    const state = await this.getState(deviceId);
-    const token = await this.resolveTokenForAccount(state, accountId);
+    await this.getState(deviceId);
+    const current = await this.load(getDb(), deviceId);
+    const targets = current?.contexts.filter((context) => context.accountId === accountId) ?? [];
+    if (!current || targets.length !== 1 || !targets[0].sessionId) return null;
+    const target = targets[0];
+    const token = await this.resolveTokenForAccount(projectState(current), accountId);
     if (!token) return null;
 
     const rawSecret = base64UrlEncode(crypto.randomBytes(DEVICE_SECRET_BYTES));
     const secretHash = sha256Hex(rawSecret);
     const expiresAt = new Date(Date.now() + BACKGROUND_CREDENTIAL_TTL_MS);
 
-    const updated = await getDb()
-      .update(deviceSessions)
-      .set({
+    // Mint outside the row lock: session writes can take a device FK lock.
+    // Persist only if the exact validated context/revision survives the await.
+    const issued = await getDb().transaction(async (tx) => {
+      await tx.select({ id: deviceSessions.id }).from(deviceSessions)
+        .where(eq(deviceSessions.id, current.id)).for('update');
+      const latest = await this.load(tx, deviceId);
+      const matching = latest?.contexts.filter((context) => context.accountId === accountId) ?? [];
+      if (!latest || latest.revision !== current.revision || matching.length !== 1
+        || matching[0].contextId !== target.contextId || matching[0].sessionId !== target.sessionId) return false;
+      await tx.update(deviceSessions).set({
         backgroundSecretHash: secretHash,
         backgroundSecretAccountId: accountId,
         backgroundSecretExpiresAt: expiresAt,
-      })
-      .where(eq(deviceSessions.deviceId, deviceId))
-      .returning({ id: deviceSessions.id });
-    if (updated.length === 0) return null;
+      }).where(eq(deviceSessions.id, latest.id));
+      return true;
+    });
+    if (!issued) return null;
 
     return {
       deviceId,
@@ -2026,6 +2045,24 @@ class DeviceSessionService {
       return { ok: false, reason: 'account_not_on_device' };
     }
 
+    // Retirement or reprovisioning may happen while the live minter awaits.
+    // Serialize the final proof/context comparison with those writes.
+    const accepted = await getDb().transaction(async (tx) => {
+      await tx.select({ id: deviceSessions.id }).from(deviceSessions)
+        .where(eq(deviceSessions.id, doc.id)).for('update');
+      const latest = await this.load(tx, deviceId);
+      const original = doc.contexts.filter((context) => context.accountId === boundAccountId);
+      const matching = latest?.contexts.filter((context) => context.accountId === boundAccountId) ?? [];
+      return latest !== null && typeof latest.backgroundSecretHash === 'string'
+        && timingSafeStringEqual(hash, latest.backgroundSecretHash)
+        && latest.backgroundSecretAccountId === boundAccountId
+        && latest.backgroundSecretExpiresAt instanceof Date
+        && latest.backgroundSecretExpiresAt.getTime() > Date.now()
+        && original.length === 1 && matching.length === 1
+        && matching[0].contextId === original[0].contextId
+        && matching[0].sessionId === original[0].sessionId;
+    });
+    if (!accepted) return { ok: false, reason: 'background_credential_invalid' };
     return {
       ok: true,
       accessToken: token.accessToken,
