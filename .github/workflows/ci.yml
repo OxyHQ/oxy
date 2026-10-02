@@ -825,7 +825,11 @@ jobs:
       - name: 'Security Audit: read committed policy setup'
         id: forge-policy
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        env:
+          EXPECTED_AUDIT_HEAD: ${{ github.sha }}
         run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_AUDIT_HEAD"
           bun -e 'import { readCommittedPolicyStatus } from "./scripts/forge-audit-policy.mjs"; console.log("active=" + (readCommittedPolicyStatus() === "ACTIVE"));' >> "$GITHUB_OUTPUT"
       - name: 'Security Audit: install scoped policy byte inventory'
         if: ${{ !cancelled() && steps.forge-policy.outputs.active == 'true' }}

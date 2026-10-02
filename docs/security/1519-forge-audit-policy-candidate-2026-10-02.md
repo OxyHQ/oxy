@@ -108,6 +108,16 @@ A realizable later sequence is:
    Any failed precondition retains a red gate. A later code change needs a new
    frozen target and decision; the policy cannot reference its own commit SHA.
 
+For a pull request, Guards checks the synthetic merge commit at `github.sha`,
+not the PR source SHA. Its setup verifies that the actual checkout matches that
+event SHA. The target remains the source SHA built by the ARM workflow. A clean
+merge descendant can pass only if its entire diff from that source consists of
+the two declarative files. Additional content from a changed main branch fails,
+even when it does not conflict. Such a merge requires a new frozen target and
+ARM evidence. Real Git fixture merges verify both shapes; they exercise only Git
+mechanics and do not claim authenticated live policy eligibility. Current CI
+runs remain INACTIVE, so they cannot demonstrate a successful active exception.
+
 The source target and later declarative decision commit are deliberately
 separate. This avoids requiring a file to contain the hash of its own commit.
 Nothing in this candidate activates that sequence today. The pending permission

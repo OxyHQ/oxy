@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import {
@@ -82,6 +83,37 @@ for (const [name, mutate] of cases) {
   assert.equal(result.structurallyEligible, false, name); assertions++;
   assert.equal(result.authorized, false, name); assertions++;
 }
+// Real Git mechanics only: fixture executable bytes/proposal stay SYNTHETIC.
+const mergeRoot = mkdtempSync(join(tmpdir(), 'forge-policy-merge-fixture-'));
+try {
+  const git = (...args) => execFileSync('/usr/bin/git', ['-C', mergeRoot, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const put = (path, bytes) => { mkdirSync(dirname(join(mergeRoot, path)), { recursive: true }); writeFileSync(join(mergeRoot, path), bytes); };
+  git('init', '--initial-branch=main');
+  for (const path of [...paths, ...DECLARATIVE_PATHS]) put(path, 'synthetic baseline fixture\n');
+  git('add', '--', ...paths, ...DECLARATIVE_PATHS); git('commit', '-m', 'Synthetic baseline fixture');
+  const baseline = git('rev-parse', 'HEAD');
+  git('checkout', '-b', 'frozen-source'); put('scripts/forge-audit-policy.mjs', 'synthetic frozen executable fixture\n');
+  git('add', '--', 'scripts/forge-audit-policy.mjs'); git('commit', '-m', 'Synthetic frozen target fixture');
+  const target = git('rev-parse', 'HEAD');
+  git('checkout', '-b', 'declarative-decision');
+  for (const path of DECLARATIVE_PATHS) put(path, 'synthetic later declarative fixture\n');
+  git('add', '--', ...DECLARATIVE_PATHS); git('commit', '-m', 'Synthetic declaration fixture');
+  for (const advanced of [false, true]) {
+    git('checkout', '-b', advanced ? 'advanced-main' : 'unchanged-main', baseline);
+    if (advanced) { put('README.md', 'unreviewed main change fixture\n'); git('add', '--', 'README.md'); git('commit', '-m', 'Synthetic unrelated main change'); }
+    git('merge', '--no-ff', 'declarative-decision', '-m', 'Synthetic PR merge fixture');
+    git('merge-base', '--is-ancestor', target, 'HEAD');
+    const x = fixture(); x.decision.targetSourceHead = target; x.facts.pins.sourceSha = target;
+    x.facts.git = { head: git('rev-parse', 'HEAD'), clean: git('status', '--porcelain') === '', sourceIsAncestor: true,
+      changedPaths: git('diff', '--name-only', target, 'HEAD').split('\n').filter(Boolean) };
+    x.blobs = { source: Object.fromEntries(paths.map(path => [path, git('rev-parse', `${target}:${path}`)])),
+      current: Object.fromEntries(paths.map(path => [path, git('rev-parse', `HEAD:${path}`)])) };
+    const result = checkForgePolicyStructure(x);
+    assert.equal(result.structurallyEligible, !advanced, 'synthetic merge must reject extra main content'); assertions++;
+    assert.equal(result.authorized, false, 'real Git mechanics still do not authenticate a human'); assertions++;
+  }
+} finally { rmSync(mergeRoot, { recursive: true, force: true }); }
+
 const inactive = JSON.parse(readFileSync(join(root, DECISION_PATH)));
 assert.equal(readCommittedPolicyStatus(), 'INACTIVE'); assertions++;
 assert.equal(inactive.status, 'INACTIVE'); assertions++;
