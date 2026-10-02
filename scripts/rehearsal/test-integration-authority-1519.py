@@ -77,7 +77,12 @@ def main():
                    'src/services/__tests__/internalMcpParity.db.test.ts',
                    'src/services/__tests__/capabilityAuthority.policy.test.ts',
                    'src/routes/__tests__/capabilitiesPayloadRefusal.test.ts',
-                   'src/routes/__tests__/isolatedOAuthLogout.test.ts']
+                   'src/routes/__tests__/isolatedOAuthLogout.test.ts',
+                   'src/services/__tests__/deviceSession.service.test.ts',
+                   'src/services/__tests__/deviceDirectory.service.test.ts',
+                   'src/services/__tests__/session.service.test.ts',
+                   'src/routes/__tests__/sessionDeviceDirectory.test.ts',
+                   'src/routes/__tests__/sessionDeviceThirdParty.test.ts']
         result = subprocess.run(command, cwd=ROOT / 'packages/api', env=env,
                                 text=True, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, check=False)
