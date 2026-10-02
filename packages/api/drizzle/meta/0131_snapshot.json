@@ -1,5 +1,5 @@
 {
-  "id": "a9a690d2-1871-4ffa-b719-2822aea2d25f",
+  "id": "48c6eb32-e867-47e8-baa1-4ebc6de6b209",
   "prevId": "2b73de1e-7e38-4205-9d21-1259701a5931",
   "version": "7",
   "dialect": "postgresql",
@@ -15608,11 +15608,116 @@
           "primaryKey": false,
           "notNull": true
         },
-        "units": {
-          "name": "units",
-          "type": "jsonb",
+        "units_measured": {
+          "name": "units_measured",
+          "type": "boolean",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
+        },
+        "input_tokens": {
+          "name": "input_tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "cached_input_tokens": {
+          "name": "cached_input_tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "output_tokens": {
+          "name": "output_tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "reasoning_tokens": {
+          "name": "reasoning_tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "requests": {
+          "name": "requests",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "images": {
+          "name": "images",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "audio_input_milliseconds": {
+          "name": "audio_input_milliseconds",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "audio_output_milliseconds": {
+          "name": "audio_output_milliseconds",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "video_milliseconds": {
+          "name": "video_milliseconds",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "characters": {
+          "name": "characters",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "embeddings": {
+          "name": "embeddings",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "audio_input_tokens": {
+          "name": "audio_input_tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "cached_audio_input_tokens": {
+          "name": "cached_audio_input_tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "audio_output_tokens": {
+          "name": "audio_output_tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "session_milliseconds": {
+          "name": "session_milliseconds",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "outcome": {
           "name": "outcome",
@@ -15697,6 +15802,14 @@
         "inference_provider_cost_attempts_currency_check": {
           "name": "inference_provider_cost_attempts_currency_check",
           "value": "\"inference_provider_cost_attempts\".\"cost_currency\" is null or \"inference_provider_cost_attempts\".\"cost_currency\" ~ '^[A-Z]{3}$'"
+        },
+        "inference_provider_cost_attempts_units_check": {
+          "name": "inference_provider_cost_attempts_units_check",
+          "value": "\"inference_provider_cost_attempts\".\"input_tokens\" >= 0 and \"inference_provider_cost_attempts\".\"cached_input_tokens\" >= 0 and \"inference_provider_cost_attempts\".\"output_tokens\" >= 0 and \"inference_provider_cost_attempts\".\"reasoning_tokens\" >= 0 and \"inference_provider_cost_attempts\".\"requests\" >= 0 and \"inference_provider_cost_attempts\".\"images\" >= 0 and \"inference_provider_cost_attempts\".\"audio_input_milliseconds\" >= 0 and \"inference_provider_cost_attempts\".\"audio_output_milliseconds\" >= 0 and \"inference_provider_cost_attempts\".\"video_milliseconds\" >= 0 and \"inference_provider_cost_attempts\".\"characters\" >= 0 and \"inference_provider_cost_attempts\".\"embeddings\" >= 0 and \"inference_provider_cost_attempts\".\"audio_input_tokens\" >= 0 and \"inference_provider_cost_attempts\".\"cached_audio_input_tokens\" >= 0 and \"inference_provider_cost_attempts\".\"audio_output_tokens\" >= 0 and \"inference_provider_cost_attempts\".\"session_milliseconds\" >= 0"
+        },
+        "inference_provider_cost_attempts_unmeasured_check": {
+          "name": "inference_provider_cost_attempts_unmeasured_check",
+          "value": "\"inference_provider_cost_attempts\".\"units_measured\" or (\"inference_provider_cost_attempts\".\"input_tokens\" + \"inference_provider_cost_attempts\".\"cached_input_tokens\" + \"inference_provider_cost_attempts\".\"output_tokens\" + \"inference_provider_cost_attempts\".\"reasoning_tokens\" + \"inference_provider_cost_attempts\".\"requests\" + \"inference_provider_cost_attempts\".\"images\" + \"inference_provider_cost_attempts\".\"audio_input_milliseconds\" + \"inference_provider_cost_attempts\".\"audio_output_milliseconds\" + \"inference_provider_cost_attempts\".\"video_milliseconds\" + \"inference_provider_cost_attempts\".\"characters\" + \"inference_provider_cost_attempts\".\"embeddings\" + \"inference_provider_cost_attempts\".\"audio_input_tokens\" + \"inference_provider_cost_attempts\".\"cached_audio_input_tokens\" + \"inference_provider_cost_attempts\".\"audio_output_tokens\" + \"inference_provider_cost_attempts\".\"session_milliseconds\") = 0"
         },
         "inference_provider_cost_attempts_latency_check": {
           "name": "inference_provider_cost_attempts_latency_check",

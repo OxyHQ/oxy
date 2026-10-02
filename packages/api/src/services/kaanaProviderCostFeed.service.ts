@@ -28,12 +28,14 @@
 import { createHash, sign } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { usageUnitSchema, type UsageUnit } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { resolveKaanaDataPlane, type KaanaDataPlaneConfig } from '../config/kaanaDataPlane';
 import {
   inferenceProviderCostAttempts,
   inferenceProviderCostFeedCursors,
 } from '../db/schema/inferenceProviderCostAttempts';
+import { usageUnitColumnValues } from '../db/schema/ledgerColumns';
 import { logger } from '../utils/logger';
 
 const ATTEMPT_FEED_PATH = '/internal/v1/provider-telemetry/attempts';
@@ -69,8 +71,13 @@ export const providerCostAttemptEventSchema = z.object({
   served: z.boolean(),
   occurredAt: z.string().datetime({ offset: true }),
   // Null for an attempt Kaana recorded before attempts measured their units.
+  // A closed set: a unit this reader does not know refuses the page rather
+  // than being stored as an opaque document (see the table's header).
   units: z
-    .array(z.object({ unit: z.string().min(1).max(64), quantity: z.number().int().nonnegative() }))
+    .array(z.object({ unit: usageUnitSchema, quantity: z.number().int().nonnegative() }))
+    .refine((units) => new Set(units.map((u) => u.unit)).size === units.length, {
+      message: 'a unit appears more than once',
+    })
     .nullable(),
   telemetry: z
     .object({
@@ -148,6 +155,15 @@ export function attemptFactsDigest(event: ProviderCostAttemptEvent): string {
   return createHash('sha256').update(JSON.stringify(facts)).digest('hex');
 }
 
+/** An attempt's units as `{ unit: quantity }`; empty when Kaana never measured them. */
+function attemptUnits(event: ProviderCostAttemptEvent): Partial<Record<UsageUnit, number>> {
+  const units: Partial<Record<UsageUnit, number>> = {};
+  for (const { unit, quantity } of event.units ?? []) {
+    units[unit] = quantity;
+  }
+  return units;
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Ingestion                                                                 */
 /* -------------------------------------------------------------------------- */
@@ -186,7 +202,8 @@ export async function ingestProviderCostAttempts(
         costComplete: event.costComplete,
         served: event.served,
         occurredAt: new Date(event.occurredAt),
-        units: event.units,
+        unitsMeasured: event.units !== null,
+        ...usageUnitColumnValues(attemptUnits(event)),
         outcome: event.telemetry?.outcome ?? null,
         failureCode: event.telemetry?.failureCode ?? null,
         latencyMs: event.telemetry?.latencyMs ?? null,

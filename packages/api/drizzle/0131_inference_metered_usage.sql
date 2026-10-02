@@ -81,7 +81,22 @@ CREATE TABLE "inference_provider_cost_attempts" (
 	"cost_complete" boolean NOT NULL,
 	"served" boolean NOT NULL,
 	"occurred_at" timestamp with time zone NOT NULL,
-	"units" jsonb,
+	"units_measured" boolean NOT NULL,
+	"input_tokens" bigint DEFAULT 0 NOT NULL,
+	"cached_input_tokens" bigint DEFAULT 0 NOT NULL,
+	"output_tokens" bigint DEFAULT 0 NOT NULL,
+	"reasoning_tokens" bigint DEFAULT 0 NOT NULL,
+	"requests" bigint DEFAULT 0 NOT NULL,
+	"images" bigint DEFAULT 0 NOT NULL,
+	"audio_input_milliseconds" bigint DEFAULT 0 NOT NULL,
+	"audio_output_milliseconds" bigint DEFAULT 0 NOT NULL,
+	"video_milliseconds" bigint DEFAULT 0 NOT NULL,
+	"characters" bigint DEFAULT 0 NOT NULL,
+	"embeddings" bigint DEFAULT 0 NOT NULL,
+	"audio_input_tokens" bigint DEFAULT 0 NOT NULL,
+	"cached_audio_input_tokens" bigint DEFAULT 0 NOT NULL,
+	"audio_output_tokens" bigint DEFAULT 0 NOT NULL,
+	"session_milliseconds" bigint DEFAULT 0 NOT NULL,
 	"outcome" text,
 	"failure_code" text,
 	"latency_ms" integer,
@@ -94,6 +109,8 @@ CREATE TABLE "inference_provider_cost_attempts" (
 	CONSTRAINT "inference_provider_cost_attempts_amount_check" CHECK (("inference_provider_cost_attempts"."cost_source" <> 'unknown') = ("inference_provider_cost_attempts"."cost_amount" is not null and "inference_provider_cost_attempts"."cost_currency" is not null)
         and ("inference_provider_cost_attempts"."cost_source" <> 'unknown' or ("inference_provider_cost_attempts"."cost_amount" is null and "inference_provider_cost_attempts"."cost_currency" is null))),
 	CONSTRAINT "inference_provider_cost_attempts_currency_check" CHECK ("inference_provider_cost_attempts"."cost_currency" is null or "inference_provider_cost_attempts"."cost_currency" ~ '^[A-Z]{3}$'),
+	CONSTRAINT "inference_provider_cost_attempts_units_check" CHECK ("inference_provider_cost_attempts"."input_tokens" >= 0 and "inference_provider_cost_attempts"."cached_input_tokens" >= 0 and "inference_provider_cost_attempts"."output_tokens" >= 0 and "inference_provider_cost_attempts"."reasoning_tokens" >= 0 and "inference_provider_cost_attempts"."requests" >= 0 and "inference_provider_cost_attempts"."images" >= 0 and "inference_provider_cost_attempts"."audio_input_milliseconds" >= 0 and "inference_provider_cost_attempts"."audio_output_milliseconds" >= 0 and "inference_provider_cost_attempts"."video_milliseconds" >= 0 and "inference_provider_cost_attempts"."characters" >= 0 and "inference_provider_cost_attempts"."embeddings" >= 0 and "inference_provider_cost_attempts"."audio_input_tokens" >= 0 and "inference_provider_cost_attempts"."cached_audio_input_tokens" >= 0 and "inference_provider_cost_attempts"."audio_output_tokens" >= 0 and "inference_provider_cost_attempts"."session_milliseconds" >= 0),
+	CONSTRAINT "inference_provider_cost_attempts_unmeasured_check" CHECK ("inference_provider_cost_attempts"."units_measured" or ("inference_provider_cost_attempts"."input_tokens" + "inference_provider_cost_attempts"."cached_input_tokens" + "inference_provider_cost_attempts"."output_tokens" + "inference_provider_cost_attempts"."reasoning_tokens" + "inference_provider_cost_attempts"."requests" + "inference_provider_cost_attempts"."images" + "inference_provider_cost_attempts"."audio_input_milliseconds" + "inference_provider_cost_attempts"."audio_output_milliseconds" + "inference_provider_cost_attempts"."video_milliseconds" + "inference_provider_cost_attempts"."characters" + "inference_provider_cost_attempts"."embeddings" + "inference_provider_cost_attempts"."audio_input_tokens" + "inference_provider_cost_attempts"."cached_audio_input_tokens" + "inference_provider_cost_attempts"."audio_output_tokens" + "inference_provider_cost_attempts"."session_milliseconds") = 0),
 	CONSTRAINT "inference_provider_cost_attempts_latency_check" CHECK ("inference_provider_cost_attempts"."latency_ms" is null or "inference_provider_cost_attempts"."latency_ms" >= 0)
 );
 --> statement-breakpoint
