@@ -129,6 +129,9 @@ Stripe keeps events for 30 days; older gaps need a decision, not a script.
 
 ## 6. Open decisions (not encoded; nothing is guessed)
 
+Concrete proposals with examples and tests, pending decision:
+[docs/billing/proposals/i06-period-rules.md](../billing/proposals/i06-period-rules.md).
+
 - Credits for a mid-period plan change (`subscription_update`, prorated).
 - Credits for a zero-amount period (trial, full discount).
 - Whether a refund claws back credits already granted for its period.
