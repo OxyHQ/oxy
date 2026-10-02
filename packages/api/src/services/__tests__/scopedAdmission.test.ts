@@ -8,6 +8,7 @@ import * as flags from '../../config/rolloutFlags';
 import * as telemetry from '../inferenceTelemetry.service';
 import { buildEnvelope, admitRequest, PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY, type EdgeExecutionContext } from '../inferenceEdge.service';
 import type { ScopedExecutionAudience } from '@oxy.so/contracts';
+import * as metered from '../inferenceMeteredUsage.service';
 
 const context: EdgeExecutionContext = {
   requestId: 'req-synthetic-scoped', receivedAt: 1, apiFormat: 'decisions', endpoint: '/v1/decisions',
@@ -48,6 +49,9 @@ beforeEach(() => {
   jest.spyOn(ledger, 'quoteUnits').mockResolvedValue({ status: 'quoted', amount: '0.001', currency: 'USD' });
   jest.spyOn(ledger, 'reserve').mockResolvedValue({ status: 'reserved', reservation: hold, softStopsPassed: [] });
   jest.spyOn(telemetry, 'recordInferenceUsage').mockResolvedValue(undefined);
+  // Every admission now claims its durable usage row first (#1526); this suite stubs the database.
+  jest.spyOn(metered, 'claimMeteredAdmission').mockResolvedValue({ status: 'claimed', meteredUsageId: 'synthetic-metered' });
+  jest.spyOn(metered, 'settleMeteredUsage').mockResolvedValue({ status: 'not-admitted' });
 });
 afterEach(() => jest.restoreAllMocks());
 const client = () => ({ attestDeployments: jest.fn().mockResolvedValue(attestation), execute: jest.fn(), stream: jest.fn() });
