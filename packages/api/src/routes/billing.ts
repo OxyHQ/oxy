@@ -800,6 +800,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventRe
   }
 
   if (invoice.amount_paid <= 0) {
+    // Zero-amount trials/discounts await a declared commercial rule.
     return { outcome: 'not_granted', detail: 'invoice collected no money' };
   }
 
@@ -848,11 +849,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventRe
       detail: `invoice currency ${invoice.currency} does not match plan currency ${plan.currency}`,
     };
   }
-  if (invoice.amount_paid <= 0) {
-    // A zero-amount invoice (trial, full discount) collected no money, and
-    // whether such a period earns credits is not a rule anyone has decided.
-    return { outcome: 'not_granted', detail: 'invoice collected no money' };
-  }
+
 
   const periodStart = new Date(line.period.start * 1000);
   const amountDetail =
