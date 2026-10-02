@@ -41,6 +41,27 @@ Each relationship declares `maxConcurrentRequests` and `maxRequestsPerUtcDay`
 per application + environment. Running out of capacity answers `rate_limited`
 (concurrency) or `quota_exceeded` (daily) and never asks for a top-up.
 
+**Alia → Kaana limits are a proposal pending approval (#1526), not policy.**
+Measured from production `inference_usage_events`, Alia, 2026-09-02..10-02
+(read-only aggregates, charging off, 7 distinct subjects):
+
+| Measured | Value |
+| --- | --- |
+| Requests, 30 days | 937 over 19 active days |
+| Per UTC day | median 18, p95 148, max 185 |
+| Busiest minute | 16 |
+| In flight at once (overlap of latency windows) | max 3 |
+| Latency | mean 2.5 s, p95 8.9 s, max 70 s |
+| Tokens per request | ~4,029 in, ~70 out (82 % on `openai/gpt-oss-120b`) |
+| Published tariff, 30 days (estimate at the highest active gpt-oss-120b card) | ≈ USD 1.65 |
+
+Proposed: 32 in flight (~10x the measured peak) and 5,000 a day (~27x the
+busiest day). Both are estimates with headroom, not measured capacity. Counts
+do not bound cost: the worst case of 5,000 requests a day is ≈ USD 96 at
+gpt-oss-120b prices with a 46k-token prompt, but far more on the most
+expensive active card, so model eligibility (the routing policy) or a daily
+tariff ceiling is what bounds spend — the second is a proposal, not built.
+
 ## Durable records
 
 | Table | One row per | Written | Holds |
