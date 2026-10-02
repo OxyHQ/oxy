@@ -195,7 +195,7 @@ it("preserves actual choice/score confidence and reply and rejects missing or in
   const { reply, ...missingReply } = answer;
   expect(confidence).toBe(0.43);
   expect(reply).toBe("b");
-  for (const value of [missingConfidence, missingReply, {...answer, confidence: NaN}]) expect(decisionAnswerSchema.safeParse(value).success).toBe(false);
+  for (const value of [missingConfidence, missingReply, {...answer, confidence: Number.NaN}]) expect(decisionAnswerSchema.safeParse(value).success).toBe(false);
   expect(decisionAnswerSchema.safeParse({id: "q", kind: "score", reply: 0.6, confidence: 0.71, mean: 0.6, distribution: [0.4, 0.6]}).success).toBe(true);
   expect(decisionAnswerSchema.safeParse({id: "q", kind: "score", reply: 0.9, confidence: 0.71, mean: 0.6, distribution: [0.4, 0.6]}).success).toBe(false);
 });
