@@ -1,0 +1,1 @@
+ci-scope.mjs behaves: 38 cases — each suite alone, must-run paths, workflow-derived roots, lockfile walk (direct, transitive, phantom, global sections), fail-toward-run, merge-commit base, and the closure census per suite.
