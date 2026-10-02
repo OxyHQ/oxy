@@ -1,0 +1,3 @@
+¿Autorizas la política acotada preparada en OxyHQ/oxy#1546 para GHSA-86w9-cpqp-85rv: parche y hashes exactos, expiración máxima de 7 días y rechazo si cambia la evidencia, incluyendo Actions:read para verificar artefactos? Las pruebas y la imagen ARM están verificadas; no se ha demostrado una falsificación sin conocer la clave privada. Esto no autoriza fusionar ni desplegar. La issue padre reserva esta decisión de seguridad a Nate.
+
+Activar la política acotada tras revalidar la imagen final

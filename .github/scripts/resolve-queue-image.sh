@@ -44,7 +44,23 @@ emit() {
   exit 0
 }
 
+# Future ACTIVE policies must never fall back to an uninspected rebuild.
+scoped_policy="$(git show HEAD:docs/security/forge-candidate/provenance/audit-policy-decision.json | python3 -c '
+import json,sys
+x=json.load(sys.stdin)
+assert set(x)==set(["schemaVersion","status","targetSourceHead","expiresAt","authorizationRecord","independentEvidence"])
+assert x["schemaVersion"]==1 and x["status"] in ["INACTIVE","ACTIVE"]
+if x["status"]=="INACTIVE": assert all(x[k] is None for k in ["targetSourceHead","expiresAt","authorizationRecord","independentEvidence"])
+print(x["status"])
+')"
+if [[ "$scoped_policy" == ACTIVE ]]; then
+  QUEUE_WORKFLOW=forge-queue-image-inspection.yml
+fi
 build_instead() {
+  if [[ "$scoped_policy" == ACTIVE ]]; then
+    echo "::error::ACTIVE Forge policy requires the inspected image for exact main SHA $SHA ($1); no rebuild or different-SHA reuse." >&2
+    exit 1
+  fi
   echo "::notice::No merge-queue image for $SHA ($1); building it here." >&2
   emit ""
 }
@@ -109,5 +125,15 @@ if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
   build_instead "$REPOSITORY:mq-$SHA is not in ECR"
 fi
 
+# The inspection workflow's success includes post-CI publication with the
+# archive/manifest digest comparison. Authenticate the frozen source policy,
+# exact main execution, producer, streamed OCI ZIP and actual ECR manifest again.
+# No caller JSON or tag constitutes evidence; the companion performs fixed GETs.
+if [[ "$scoped_policy" == ACTIVE ]]; then
+  test "$(git rev-parse HEAD)" = "$SHA"
+  test "$REPOSITORY" = oxy/oxy-api
+  proof="$(bun scripts/check-published-forge-image.mjs)"
+  jq -e --arg sha "$SHA" --arg digest "$digest" '.authenticatedProvenance == true and .machineChecksPassed == true and .authorized == false and .executionSha == $sha and .manifestDigest == $digest' <<< "$proof" >/dev/null
+fi
 echo "Reusing the merge-queue image $REPOSITORY:mq-$SHA -> $digest" >&2
 emit "$digest"

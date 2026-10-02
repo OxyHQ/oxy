@@ -1,0 +1,3 @@
+16 real Git SQUASH source-binding assertions pass; metadata is explicitly synthetic, no live approval.
+39 synthetic final-image binding assertions pass; no real image, publication or approval claimed.
+Forge audit policy: 115 structural and isolated policy assertions passed; no live or human authorization claimed.
