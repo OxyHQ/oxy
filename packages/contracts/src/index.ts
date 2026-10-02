@@ -1501,3 +1501,4 @@ export type {
     ProductOfferSegment,
     SubjectProductAccess,
 } from './products/access';
+export { meteredGenerationSchema, type MeteredGeneration } from "./inference/economics";

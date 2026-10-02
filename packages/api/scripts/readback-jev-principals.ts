@@ -245,6 +245,20 @@ async function readback(): Promise<boolean> {
           ? await readUsdLedger(tx, aliaBilling.billingAccount.accountId)
           : { balances: [], journals: [] };
 
+      // The same read-only snapshot as identity. Availability is evidence only,
+      // never a reservation and never authority to activate a provider.
+      const [meteringSchema] = await tx.execute<{ available: boolean }>(sql`
+        select to_regclass('public.inference_metered_usage') is not null as available`);
+      const [capacity] = meteringSchema?.available === true
+        ? await tx.execute<{ active: number; daily: number }>(sql`
+            select count(*) filter (where status = 'admitted' and expires_at > now())::int as active,
+              count(*) filter (where status <> 'refused' and created_at >= date_trunc('day', now() at time zone 'UTC') at time zone 'UTC')::int as daily
+            from inference_metered_usage where application_id = ${JEV_ALIA_APPLICATION_ID}
+              and environment = 'production' and economic_treatment = 'internal_metered'`)
+        : [];
+      const technicalMetering = { schemaAvailable: meteringSchema?.available ?? false,
+        activeAdmissions: capacity?.active ?? 0, dailyAdmissions: capacity?.daily ?? 0 };
+
       // ---- Kaana -------------------------------------------------------------
       const kaanaApp = await readApplication(tx, JEV_KAANA_APPLICATION_ID);
       const kaanaCredentials = await tx
@@ -256,7 +270,7 @@ async function readback(): Promise<boolean> {
         transactionReadOnly,
         transactionIsolation,
         observedAt,
-        alia: { applications: aliaApp.applicationRows, owners: aliaApp.owners, bindings: aliaBindings, credentials: aliaCredentials, billing: aliaBilling, balances: aliaLedger.balances, journals: aliaLedger.journals },
+        alia: { technicalMetering, applications: aliaApp.applicationRows, owners: aliaApp.owners, bindings: aliaBindings, credentials: aliaCredentials, billing: aliaBilling, balances: aliaLedger.balances, journals: aliaLedger.journals },
         mention: {
           applications: mentionApp.applicationRows,
           owners: mentionApp.owners,
