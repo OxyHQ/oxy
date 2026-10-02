@@ -123,7 +123,9 @@ with `costComplete=false`. `knownCount` counts complete attempts only;
 `partialCount` counts incomplete known subtotals, `unknownCount` counts attempts
 without an amount, `missingRequestCount` counts requests with no ingested attempt,
 and `otherCurrencyCount` counts priced attempts excluded from the requested
-currency. Missing feed evidence never asserts zero provider cost.
+currency. `providerReportedAmount`/`providerReportedCount` separately show
+provider-reported evidence; `estimatedAmount`/`estimatedCount` show immutable
+rate-card estimates. Their sum is the known subtotal, never an asserted invoice. Missing feed evidence never asserts zero provider cost.
 
 An expired admission without terminal evidence is reported as `expiredCount`,
 not `inFlightCount`. It retains its idempotency key and never permits replay.
