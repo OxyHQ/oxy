@@ -218,6 +218,12 @@ expectScope(
   { platform: 'packages/stickers/src/index.ts is in packages/stickers' }
 );
 expectScope(
+  'mcp-runs-its-own-platform-suite-and-api-dependents',
+  (root) => write(root, 'packages/mcp/src/internalTransport.ts', 'export {};\n'),
+  { api: true, platform: true, apps: false },
+  { api: 'is in packages/mcp', platform: 'is in packages/mcp', apps: 'Nothing reaches this suite' }
+);
+expectScope(
   'packages-api-runs-only-api',
   (root) => write(root, 'packages/api/src/server.ts', '// edited\n'),
   { api: true, platform: false, apps: false },
@@ -304,6 +310,7 @@ expectScope(
       ['api', 'packages/api'],
       ['platform', 'packages/db'],
       ['platform', 'packages/federation'],
+      ['platform', 'packages/mcp'],
       ['platform', 'packages/stickers'],
       ['apps', 'packages/services'],
       ['apps', 'packages/console'],
