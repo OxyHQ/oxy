@@ -15,26 +15,57 @@ export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 // Traverse physical directories, including nested workspace installs and Bun's store.
 // Resolve symlinks and deduplicate realpaths; unreadable paths throw (never silently omit).
+export const ARM_PRUNING_RECEIPT = Object.freeze({ sourceSha: '81442f48fc8c5a7251dd4ae290e02c4afb1aa633', imageDigest: 'sha256:d11e581d88b3dcf92d5b09add482406f31db68f45be81af19a559967a70c4b67', receiptSha256: '4b3c6d088ea21592c6ee683cba3adc348c437591b515bf783e0f39d9ce4525dd' });
+export const ARM_PRUNED_LINKS = [
+  {
+    "path": "node_modules/.bun/node_modules/@img/sharp-libvips-linux-arm64",
+    "target": "../../@img+sharp-libvips-linux-arm64@1.3.3/node_modules/@img/sharp-libvips-linux-arm64"
+  },
+  {
+    "path": "node_modules/.bun/node_modules/@img/sharp-linux-arm64",
+    "target": "../../@img+sharp-linux-arm64@0.35.4/node_modules/@img/sharp-linux-arm64"
+  },
+  {
+    "path": "node_modules/.bun/node_modules/ffmpeg-static",
+    "target": "../ffmpeg-static@5.3.0+759ce506b1ed1a42/node_modules/ffmpeg-static"
+  },
+  {
+    "path": "node_modules/.bun/node_modules/ffprobe-static",
+    "target": "../ffprobe-static@3.1.0/node_modules/ffprobe-static"
+  },
+  {
+    "path": "node_modules/.bun/sharp@0.35.4+5d01d69d87a479a5/node_modules/@img/sharp-libvips-linux-arm64",
+    "target": "../../../@img+sharp-libvips-linux-arm64@1.3.3/node_modules/@img/sharp-libvips-linux-arm64"
+  },
+  {
+    "path": "node_modules/.bun/sharp@0.35.4+5d01d69d87a479a5/node_modules/@img/sharp-linux-arm64",
+    "target": "../../../@img+sharp-linux-arm64@0.35.4/node_modules/@img/sharp-linux-arm64"
+  },
+  {
+    "path": "packages/api/node_modules/ffmpeg-static",
+    "target": "../../../node_modules/.bun/ffmpeg-static@5.3.0+759ce506b1ed1a42/node_modules/ffmpeg-static"
+  },
+  {
+    "path": "packages/api/node_modules/ffprobe-static",
+    "target": "../../../node_modules/.bun/ffprobe-static@3.1.0/node_modules/ffprobe-static"
+  }
+];
 export function inventory(root, { intentionalDanglingSharpLinks = [] } = {}) {
   root = realpathSync(resolve(root));
   const seen = new Set(); const copies = []; const omissions = []; const used = new Set();
-  const sharpName = /^(sharp-linux|sharp-libvips-linux)-(arm|arm64|ia32|x64|ppc64|s390x|riscv64)$/;
+  if (intentionalDanglingSharpLinks.length && canonicalAudit(intentionalDanglingSharpLinks) !== canonicalAudit(ARM_PRUNED_LINKS)) throw new Error('Exact eight reviewed ARM receipt pairs required');
   function approvedDanglingLink(path, error) {
     if (error.code !== 'ENOENT') return false;
     const rel = relative(root, path);
-    const prefix = 'node_modules/.bun/node_modules/@img/';
-    if (!rel.startsWith(prefix) || rel.slice(prefix.length).includes('/')) return false;
-    const name = rel.slice(prefix.length);
-    if (!sharpName.test(name)) return false;
-    const target = readlinkSync(path); // ordinary missing files and unreadable links fail
+    const target = readlinkSync(path);
     const exact = intentionalDanglingSharpLinks.find(entry => entry.path === rel && entry.target === target);
     if (!exact) return false;
-    const destination = resolve(path, '..', target);
-    const store = join(root, 'node_modules/.bun');
-    const expected = new RegExp(`^@img\\+${name}@[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-zA-Z0-9.-]+)?/node_modules/@img/${name}$`);
-    if (!expected.test(relative(store, destination))) return false;
+    // Exact receipt pairs pin parent directory, package version/peer suffix and
+    // same-package destination. No regex or packages/* path exemption exists.
+    const recorded = ARM_PRUNED_LINKS.find(entry => entry.path === rel && entry.target === target);
+    if (!recorded) return false;
     // The physical store is traversed independently; this omission cannot suppress
-    // any extant directory or a node-forge target. Only the deleted Sharp target qualifies.
+    // any extant directory or a node-forge target. Only these eight explicitly Docker-pruned targets qualify.
     used.add(exact);
     omissions.push({ path: rel, target });
     return true;
@@ -92,10 +123,12 @@ export function evaluate({ audit, manifest, patchBytes, copies, evidenceBytes })
     if (copy.version !== '1.4.0') fail(`Unexpected version at ${copy.realpath}`);
     for (const name of FILES) if (!hash(manifest?.files?.[name]) || copy.files?.[name] !== manifest.files[name]) fail(`Missing/unpatched distribution ${name} at ${copy.realpath}`);
   }
+  if ((copies?.intentionalDanglingSharpLinks?.length ?? 0) > 0 && canonicalAudit(manifest?.pruningReceipt) !== canonicalAudit(ARM_PRUNING_RECEIPT)) fail('Missing or changed source-image pruning receipt');
   const inventorySha256 = inventoryHash(copies);
   if (!hash(manifest?.testEvidenceSha256) || sha256(evidenceBytes ?? '') !== manifest.testEvidenceSha256) fail('Missing or mismatched test evidence');
   let evidence;
   try { evidence = JSON.parse(evidenceBytes); } catch { fail('Invalid test evidence'); }
+  if ((copies?.intentionalDanglingSharpLinks?.length ?? 0) > 0 && canonicalAudit(evidence?.pruningReceipt) !== canonicalAudit(ARM_PRUNING_RECEIPT)) fail('Test evidence does not bind source-image pruning receipt');
   if (evidence?.rawAuditSha256 !== rawAuditSha256 || evidence?.rawAuditSha256 !== manifest?.rawAuditSha256) fail('Tests do not bind the reviewed whole-audit baseline');
   if (evidence?.patchSha256 !== manifest?.patchSha256 || evidence?.inventorySha256 !== inventorySha256) fail('Tests do not bind this patch and installed inventory');
   for (const suite of SUITES) if (evidence?.suites?.[suite] !== 'pass') fail(`Missing/pending/failed suite: ${suite}`);
