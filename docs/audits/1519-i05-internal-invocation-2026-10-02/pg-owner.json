@@ -1,0 +1,7 @@
+{
+  "pid": 3091735,
+  "port": 5557,
+  "binary": "/usr/lib/postgresql/17/bin/postgres",
+  "dataDirectory": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i11-mcp-pg/data",
+  "loopbackListenerOwnerVerified": true
+}

@@ -33,7 +33,10 @@ revocation, timeout or cancellation refuses the operation.
 
 The server requires exact catalog registration/version/digest, tool, app,
 resource, effective account, required capabilities and signed input limits.
-`resolveResource` derives the complete `ResourceRef` from the domain input;
+`resolveResource` receives the verified capability context and derives the
+complete `ResourceRef` using the domain's resource contract. Account-root
+products derive the effective account from `context.principal.claims.resource`,
+never an owner/requester fallback or caller-supplied authority;
 `authorize` still checks current domain access. Only the signed tool, when
 exposed internally, is registered. `tools/list` grants no later execution right.
 
@@ -105,7 +108,10 @@ if (!grant.decision.allowed || !grant.ticket) throw new Error('Action refused');
 const client = createInternalCatalogMcpClient({
   endpoint: new URL('/_oxy/mcp', registration.catalog.internalBaseUrl).href,
 });
-const result = await client.callTool(grant.ticket, toolName, input, { signal });
+const result = await client.callTool(grant.ticket, toolName, input, {
+  signal,
+  idempotencyKey: operationKey, // preserve the existing domain operation identity
+});
 ```
 
 Select the registration by the intended app and resource, not by list order.
@@ -115,6 +121,15 @@ sends proof only in the transport header, omits cookies, refuses redirects and
 does not reconnect/retry automatically. Tickets never belong in tool arguments,
 session state or logs. An MCP tool refusal may be a result with `isError: true`;
 transport/authentication failures can reject the promise. Handle both forms.
+
+`idempotencyKey` is a per-`callTool` option, transported as `Idempotency-Key`
+and never added to tool arguments or retained on the client. The ephemeral
+call's handshake carries the same header; discovery through `listTools` does
+not inherit it. Keys use the shared contract (1–255 characters after trimming)
+and must be valid HTTP header values. The receiving transport validates keys
+on tool execution and requires one for `tool.idempotency === 'required'`
+before domain authorization or execution; initialize/list requests and tools
+with `none` or `supported` do not require a key.
 
 Idempotency remains the canonical domain handler's responsibility. A retry
 keeps the same authorized operation identity; a deliberate new intent needs a
