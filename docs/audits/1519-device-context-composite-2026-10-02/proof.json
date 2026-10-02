@@ -28,41 +28,41 @@
       "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
       "bytes": 31
     },
-    "handoff-api-build.log": {
-      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
-      "bytes": 4358
-    },
-    "handoff-api-typecheck-final.log": {
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "bytes": 0
-    },
-    "handoff-biome-lint-final.log": {
-      "sha256": "5d01e71c42c16dde3c6e5a457a8e7c426db406c1a70e66089536f5d948392af2",
-      "bytes": 43
-    },
-    "handoff-eslint-final.log": {
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "bytes": 0
-    },
-    "handoff-legacy-race-negative-control.log": {
-      "sha256": "4d677982f8d0328380f55847941268f0c4fe6e55a0a8c1fdab9e350d856e8ba8",
-      "bytes": 1401
-    },
     "handoff-proof.json": {
       "sha256": "71217f78a9aaa8f6a7bc620ecde5bad6696fa4054c36136ab96e91f946869a6c",
       "bytes": 2864
     },
-    "handoff-regression-green-final.log": {
-      "sha256": "a53de9a706369596f20d0e479f1d04f87ec1b35351ebd3255d095e6d1cabdf5c",
-      "bytes": 329
+    "handoff-reproduction-final.txt": {
+      "sha256": "f516d1b9800077aeea0447dd426494ac694dd0030d51db55f4ce31f5aabb1245",
+      "bytes": 5720
     },
-    "handoff-relevant-suites-final.log": {
+    "handoff-relevant-suites-final.txt": {
       "sha256": "60036fe18e800008dec300a78af630a07d3474c9f4406d3b2fd8f9a6dc77d77c",
       "bytes": 4979
     },
-    "handoff-reproduction-final.log": {
-      "sha256": "f516d1b9800077aeea0447dd426494ac694dd0030d51db55f4ce31f5aabb1245",
-      "bytes": 5720
+    "handoff-regression-green-final.txt": {
+      "sha256": "a53de9a706369596f20d0e479f1d04f87ec1b35351ebd3255d095e6d1cabdf5c",
+      "bytes": 329
+    },
+    "handoff-api-build.txt": {
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    "handoff-biome-lint-final.txt": {
+      "sha256": "5d01e71c42c16dde3c6e5a457a8e7c426db406c1a70e66089536f5d948392af2",
+      "bytes": 43
+    },
+    "handoff-api-typecheck-final.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "handoff-eslint-final.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "handoff-legacy-race-negative-control.txt": {
+      "sha256": "4d677982f8d0328380f55847941268f0c4fe6e55a0a8c1fdab9e350d856e8ba8",
+      "bytes": 1401
     }
   },
   "acceptance": {

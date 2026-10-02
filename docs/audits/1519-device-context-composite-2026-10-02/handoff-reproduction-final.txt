@@ -1,0 +1,118 @@
+$ jest --runInBand src/services/__tests__/deviceDirectory.service.test.ts -t "#1544"
+FAIL src/services/__tests__/deviceDirectory.service.test.ts
+  ● removal — one context and one principal are different operations › #1544 mints the stored active context when two live principals operate the same organization
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "01a0fe26-8b60-7561-8ff0-3f4bfbb61658"
+    Received: "01a0fe26-8b60-7b32-8a2f-385d50fa8b41"
+
+      745 |     const token = await deviceSessionService.resolveActiveToken(state);
+      746 |     const claims = validateAccessToken(token?.accessToken ?? '').payload;
+    > 747 |     expect(claims?.device_context_id).toBe(shared.viaAlice);
+          |                                       ^
+      748 |     expect(claims?.act?.sub).toBe(shared.alice);
+      749 |   });
+      750 |
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:747:39
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+  ● removal — one context and one principal are different operations › #1544 refuses ambiguous legacy account-only mint and switch without changing active context
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Object {
+    -   "activeContextId": "01a0fe26-8c1c-7d8c-9d42-120b6b2db69f",
+    -   "minted": false,
+    -   "switched": false,
+    +   "activeContextId": "01a0fe26-8c1c-7aab-82ef-2e21a127b295",
+    +   "minted": true,
+    +   "switched": true,
+      }
+
+      755 |     const switched = await deviceSessionService.switchActive(shared.device, shared.org);
+      756 |     expect({ minted: token !== null, switched: switched.ok, activeContextId: (await storedDevice(shared.device)).activeContextId })
+    > 757 |       .toEqual({ minted: false, switched: false, activeContextId: shared.viaAlice });
+          |        ^
+      758 |   });
+      759 |
+      760 |   it('#1544 keeps the second active operator when the first operator membership is revoked', async () => {
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:757:8
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+  ● removal — one context and one principal are different operations › #1544 keeps the second active operator when the first operator membership is revoked
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Object {
+    -   "activeContextId": "01a0fe26-8ccc-75ee-9909-9decadb6e0cf",
+    -   "actor": "01a0fe26-8c92-790f-9e88-6bc093edd60f",
+    -   "aliceContextSession": "e48d4c62-b304-4fac-8ba6-84ac1b429663",
+    -   "aliceSessionActive": true,
+    +   "activeContextId": "01a0fe26-8ca3-75dc-b226-e4e87626b07a",
+    +   "actor": "01a0fe26-8c90-70ca-8edc-3dee761dc030",
+    +   "aliceContextSession": undefined,
+    +   "aliceSessionActive": false,
+      }
+
+      773 |       aliceContextSession: contexts.find((row) => row.id === shared.viaAlice)?.sessionId,
+      774 |       actor: claims?.act?.sub })
+    > 775 |       .toEqual({ activeContextId: shared.viaAlice, aliceSessionActive: true,
+          |        ^
+      776 |         aliceContextSession: shared.aliceOrgSession, actor: shared.alice });
+      777 |   });
+      778 |
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:775:8
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+  ● removal — one context and one principal are different operations › #1544 heals only the revoked active context and preserves the other operator session
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      786 |     expect(await sessionService.getAccessToken(shared.nateOrgSession)).toBeNull();
+      787 |     await deviceSessionService.getState(shared.device);
+    > 788 |     expect(await sessionIsActive(shared.aliceOrgSession)).toBe(true);
+          |                                                           ^
+      789 |     expect((await storedContexts(shared.device)).find((row) => row.id === shared.viaAlice)?.sessionId)
+      790 |       .toBe(shared.aliceOrgSession);
+      791 |     expect((await storedContexts(shared.device)).some((row) => row.id === shared.viaNate)).toBe(false);
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:788:59
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+  ● removal — one context and one principal are different operations › #1544 refuses stale flat state after a concurrent switch between operators of the same account
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      796 |     const oldState = await deviceSessionService.getState(shared.device);
+      797 |     await deviceSessionService.activateContext(shared.device, shared.viaNate, request());
+    > 798 |     expect((await deviceSessionService.resolveActiveToken(oldState)) === null).toBe(true);
+          |                                                                                ^
+      799 |   });
+      800 |
+      801 |   it('removing one context leaves another person operating the SAME account untouched', async () => {
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:798:80
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 36 skipped, 41 total
+Snapshots:   0 total
+Time:        1.584 s, estimated 3 s
+Ran all test suites matching src/services/__tests__/deviceDirectory.service.test.ts with tests matching "#1544".
+error: script "test" exited with code 1
