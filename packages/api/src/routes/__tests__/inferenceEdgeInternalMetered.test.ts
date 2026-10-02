@@ -129,6 +129,21 @@ function post(body: unknown, headers: Record<string, string>): Promise<RawRespon
   });
 }
 
+function getGeneration(id: string, headers: Record<string, string>): Promise<RawResponse> {
+  const { port } = server.address() as AddressInfo;
+  return new Promise((resolve, reject) => {
+    const req = http.request({ hostname: '127.0.0.1', port,
+      path: `/v1/generations/${encodeURIComponent(id)}`, method: 'GET', headers }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode ?? 0,
+        body: JSON.parse(Buffer.concat(chunks).toString('utf8')) }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 function completionFor(envelope: InferenceRequest): KaanaCompletion {
   const route = envelope.authorizedRoutes[0];
   const now = new Date().toISOString();
@@ -194,7 +209,8 @@ async function makeAccount(kind: 'personal' | 'bot' = 'personal', parentAccountI
 async function makeCredential(
   applicationId: string,
   ownerAccountId: string,
-  environment: 'production' | 'development'
+  environment: 'production' | 'development',
+  scopes: string[] = ['inference:invoke']
 ): Promise<{ credentialId: string; token: string }> {
   const minted = generateMachineCredentialToken();
   const [credential] = await getDb()
@@ -207,7 +223,7 @@ async function makeCredential(
       tokenHash: minted.tokenHash,
       type: 'machine',
       environment,
-      scopes: ['inference:invoke'],
+      scopes,
       status: 'active',
       createdByUserId: ownerAccountId,
     })
@@ -341,7 +357,7 @@ async function customer(fund?: string): Promise<Caller> {
 }
 
 /** A service JWT as `POST /auth/service-token` mints one; the edge re-reads the row. */
-function serviceToken(caller: Caller): string {
+function serviceToken(caller: Caller, scopes: string[] = ['inference:invoke']): string {
   return signServiceTokenEd25519({
     type: 'service',
     appId: caller.applicationId,
@@ -349,7 +365,7 @@ function serviceToken(caller: Caller): string {
     credentialId: caller.credentialId,
     ownerAccountId: caller.accountId,
     environment: 'production',
-    scopes: ['inference:invoke'],
+    scopes,
     iss: 'oxy-auth',
     aud: 'oxy-api',
     exp: Math.floor(Date.now() / 1_000) + 3_600,
@@ -416,6 +432,34 @@ describe('one installation, charging armed', () => {
       usageReceiptId: money.receipts[0].id,
     });
     expect(executions).toBe(2);
+  });
+
+  it('reads a delegated commercial receipt after key rotation without requiring the attribution header', async () => {
+    const external = await customer('10.000000000000');
+    const delegated = await makeAccount();
+    const response = await post(body(external), { ...bearer(external.machineToken), 'X-Oxy-User-Id': delegated });
+    expect(response.status).toBe(200);
+    const money = await moneyRowsFor(external.accountId);
+    expect(money.receipts).toHaveLength(1);
+    expect(money.receipts[0].delegatedUserId).toBe(delegated);
+    await getDb().update(applications).set({ scopes: ['inference:invoke', 'inference:usage:read'] }).where(eq(applications.id, external.applicationId));
+    const rotated = await makeCredential(external.applicationId, external.accountId, 'development', ['inference:invoke', 'inference:usage:read']);
+    await getDb().update(applicationCredentials).set({ status: 'revoked' }).where(eq(applicationCredentials.id, external.credentialId));
+    const id = String(response.body.requestId);
+    const record = await getGeneration(id, bearer(rotated.token));
+    expect(record).toMatchObject({ status: 200, body: { data: { schemaVersion: 1, requestId: id,
+      credentialId: external.credentialId, delegatedUserId: delegated, billedAmount: '0.033000000000' } } });
+    expect(await getGeneration(id, { ...bearer(rotated.token), 'X-Oxy-User-Id': delegated })).toEqual(record);
+    expect(await getGeneration(id, { ...bearer(rotated.token), 'X-Oxy-User-Id': await makeAccount() })).toMatchObject({ status: 404 });
+    expect(await getGeneration(id, bearer(external.machineToken))).toMatchObject({ status: 401 });
+    const noReadScope = await makeCredential(external.applicationId, external.accountId, 'development');
+    expect(await getGeneration(id, bearer(noReadScope.token))).toMatchObject({ status: 404 });
+    const other = await customer();
+    await getDb().update(applications).set({ scopes: ['inference:invoke', 'inference:usage:read'] }).where(eq(applications.id, other.applicationId));
+    const otherCredential = await makeCredential(other.applicationId, other.accountId, 'development', ['inference:invoke', 'inference:usage:read']);
+    expect(await getGeneration(id, bearer(otherCredential.token))).toMatchObject({ status: 404 });
+    expect((await moneyRowsFor(external.accountId)).receipts).toEqual(money.receipts);
+    expect(executions).toBe(1);
   });
 
   it('recovers an actual metering write failure after the edge committed its receipt without re-executing or charging twice', async () => {
@@ -654,14 +698,18 @@ describe('I10 durable internal Auto and generation records', () => {
     const record = await readGenerationReceipt(f.context.principal, parent.requestId, f.context.delegatedUserId);
     expect(record).toMatchObject({ status: 'found', receipt: { schemaVersion: 2, kind: 'metered_usage', customerCharge: { status: 'not_charged' } } });
     expect(JSON.stringify(record)).not.toContain('receiptId');
-    expect(await readGenerationReceipt({ ...f.context.principal, credentialId: `foreign-${tag()}` }, parent.requestId, f.context.delegatedUserId)).toEqual({ status: 'not-found' });
-    expect(await readGenerationReceipt(f.context.principal, parent.requestId)).toEqual({ status: 'not-found' });
+    const rotated = await makeCredential(f.caller.applicationId, f.caller.accountId, 'production', ['inference:invoke', 'inference:usage:read']);
+    expect(await readGenerationReceipt({ ...f.context.principal, credentialId: rotated.credentialId }, parent.requestId)).toEqual(record);
+    expect(await readGenerationReceipt(f.context.principal, parent.requestId)).toEqual(record);
     expect(await readGenerationReceipt(f.context.principal, parent.requestId, `foreign-${tag()}`)).toEqual({ status: 'not-found' });
     const childRecord = await readGenerationReceipt(f.context.principal, children[0].requestId, f.context.delegatedUserId);
     expect(childRecord).toMatchObject({ status: 'found', receipt: { parentRequestId: parent.requestId, requestId: children[0].requestId } });
 
-    expect(await readGenerationReceipt({ ...f.context.principal, ownerAccountId: `foreign-${tag()}` }, parent.requestId)).toEqual({ status: 'not-found' });
-    expect(await readGenerationReceipt({ ...f.context.principal, environment: 'development' }, parent.requestId)).toEqual({ status: 'not-found' });
+    expect(await readGenerationReceipt({ ...f.context.principal, applicationId: `foreign-${tag()}` }, parent.requestId)).toEqual({ status: 'not-found' });
+    expect(await readGenerationReceipt({ ...f.context.principal, scopes: ['inference:invoke'] }, parent.requestId)).toEqual({ status: 'not-found' });
+    await getDb().update(applications).set({ scopes: ['inference:invoke', 'inference:usage:read'] }).where(eq(applications.id, f.caller.applicationId));
+    const rotatedCaller = { ...f.caller, credentialId: rotated.credentialId, machineToken: rotated.token };
+    expect(await getGeneration(parent.requestId, bearer(serviceToken(rotatedCaller, ['inference:invoke', 'inference:usage:read'])))).toMatchObject({ status: 200, body: { data: record.status === 'found' ? record.receipt : {} } });
   });
   it('retains parent key and child units when final qualification refuses after child execution', async () => {
     const f = await internalAutoFixture();

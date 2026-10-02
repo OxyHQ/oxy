@@ -4288,6 +4288,8 @@ export type GenerationReceiptLookup =
  * exists and is somebody else's — the same reasoning the catalogue applies to
  * internal-only routes. Reading another account's spend history through an
  * application you can reach is exactly what the epic's negative test forbids.
+ * Credential rotation preserves that entitlement. An optional delegated-user
+ * selector filters attribution; omitting it does not restrict application reads.
  */
 export async function readGenerationReceipt(
   principal: EdgePrincipal,
@@ -4305,10 +4307,7 @@ export async function readGenerationReceipt(
     .where(
       and(
         eq(usageReceipts.applicationId, principal.applicationId),
-        eq(usageReceipts.accountId, principal.ownerAccountId),
-        eq(usageReceipts.environment, principal.environment),
-        eq(usageReceipts.applicationCredentialId, principal.credentialId),
-        sql`${usageReceipts.delegatedUserId} is not distinct from ${delegatedUserId ?? null}`,
+        delegatedUserId === undefined ? undefined : eq(usageReceipts.delegatedUserId, delegatedUserId),
         or(eq(usageReceipts.requestId, id), eq(usageReceipts.generationId, id))
       )
     )
@@ -4318,10 +4317,7 @@ export async function readGenerationReceipt(
   if (!row) {
     const [usage] = await db.select().from(inferenceMeteredUsage).where(and(
       eq(inferenceMeteredUsage.applicationId, principal.applicationId),
-      eq(inferenceMeteredUsage.accountId, principal.ownerAccountId),
-      eq(inferenceMeteredUsage.environment, principal.environment),
-      eq(inferenceMeteredUsage.applicationCredentialId, principal.credentialId),
-      sql`${inferenceMeteredUsage.delegatedUserId} is not distinct from ${delegatedUserId ?? null}`,
+      delegatedUserId === undefined ? undefined : eq(inferenceMeteredUsage.delegatedUserId, delegatedUserId),
       eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
       eq(inferenceMeteredUsage.status, 'settled'),
       or(eq(inferenceMeteredUsage.requestId, id), eq(inferenceMeteredUsage.generationId, id)),
