@@ -96,6 +96,14 @@ export const billingSubscriptions = pgTable(
     currentPeriodStart: timestamptz().notNull(),
     currentPeriodEnd: timestamptz().notNull(),
     cancelAtPeriodEnd: boolean().notNull().default(false),
+    /**
+     * When the webhook STARTED the provider read this row now mirrors. Webhook
+     * events arrive out of order, so the handler re-reads the subscription from
+     * Stripe instead of trusting the event payload, and only overwrites a row
+     * whose last read started earlier — a slow read that began first can never
+     * roll back a newer one. Null on rows mirrored before this column existed.
+     */
+    providerSyncedAt: timestamptz(),
 
     // ---- plan snapshot -----------------------------------------------------
     // A nested object with a fully known shape: real columns, not `jsonb`. It is
