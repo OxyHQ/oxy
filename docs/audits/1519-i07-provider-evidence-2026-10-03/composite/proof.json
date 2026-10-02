@@ -1,0 +1,160 @@
+{
+  "sourceHead": "1db2f8aa5e05ca8fb6451a3072ff1dbfcb0130e5",
+  "checkedAtUTC": "2026-10-02T22:49:14.609185+00:00",
+  "sources": [
+    {
+      "path": "packages/api/src/db/schema/productProviderEvidence.ts",
+      "sha256": "43457b452fe4689c68088e5580562a5ba575775e54b71923f612fa23a2da1d19"
+    },
+    {
+      "path": "packages/api/src/db/schema/productProviderEvidenceImmutability.ts",
+      "sha256": "eb77273504b5c61b3914c85de4f2749ce89d84e663bc27091564958c0cab9477"
+    },
+    {
+      "path": "packages/api/src/db/schema/productAccess.ts",
+      "sha256": "6f013f81ec5e77ede0d8553503d4f8e46edc7a07258567cc243300cc2d3ef490"
+    },
+    {
+      "path": "packages/api/src/db/schema/deferredForeignKeys.ts",
+      "sha256": "a678b85f3482019d97b54be9b565cda4abeaed3487f3803221c23510fddf933f"
+    },
+    {
+      "path": "packages/api/src/db/schema/index.ts",
+      "sha256": "ba3e320e3c3a0f7b13f9a9ae8a2f7c4bf18434dbcbbdc009ff901d263cbe4c6b"
+    },
+    {
+      "path": "packages/api/src/services/productProviderEvidence.service.ts",
+      "sha256": "7d77e43b438b9ef041d07f44c9e4f6805a1359dd60326ea5aabf14b0c6767066"
+    },
+    {
+      "path": "packages/api/src/services/productAccessPersistence.service.ts",
+      "sha256": "7b59c7d9190e0c4abf8ba4c671548217fe24b1844e3f2751d62051d130008e03"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/productProviderEvidence.test.ts",
+      "sha256": "9cd7561abd0217dac867fd88ba043ca3dc65dce104007f4104c7460e5cf7f809"
+    },
+    {
+      "path": "scripts/rehearsal/test-product-provider-evidence-1519.py",
+      "sha256": "ca890487baf806f29686be0cc925b9cbd3acd22d614da3af8b8c0703eb8763ea"
+    },
+    {
+      "path": "scripts/check-no-payload-persistence.mjs",
+      "sha256": "cb6597cfafd35c718caeb198ea0c559ea13ed76f116cfae925637eef643fcee6"
+    },
+    {
+      "path": "packages/api/drizzle/0136_i07_provider_evidence.sql",
+      "sha256": "da33529390168ecad58f5289e9349b94bc4847f3027df2d7d1be7162903c75da"
+    },
+    {
+      "path": "packages/api/drizzle/meta/0136_snapshot.json",
+      "sha256": "773108768c91dc505c8cac6b9484b240ea1e6d42b8c59c0565f17ccb41c6f99f"
+    },
+    {
+      "path": "packages/api/drizzle/meta/_journal.json",
+      "sha256": "1671dd8acd01997bdd01a79a49cb9b87aa8303bfd11f2eefbccd00edc2a1de6e"
+    },
+    {
+      "path": "packages/api/drizzle.config.ts",
+      "sha256": "250d3058690cc8c5f9fb17ba8c1e28a2307e17da53945cc083b2c2ca2154373b"
+    },
+    {
+      "path": "packages/api/package.json",
+      "sha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510"
+    },
+    {
+      "path": "packages/api/jest.globalSetup.ts",
+      "sha256": "fac28745836e9a52f791a9b317ac0f1aae8677765426a042f1b29629a471f440"
+    },
+    {
+      "path": "packages/api/src/db/testDatabase.ts",
+      "sha256": "9e1d3327bef9d34244ca5926da97ca1b74b71753c7120f9dc815b9e6ea3d7a12"
+    },
+    {
+      "path": "packages/api/src/db/migrate.ts",
+      "sha256": "35f66a152a01d01ac145036c1c1b14ee13b7b19edaae84c214913d35a4da4098"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "bf08c0ad978c1b8598924624cb1902e2f8bb65c7d2371c232166814e9aca4695"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/1519-i07-provider-evidence-2026-10-03/composite/api-tsc.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/1519-i07-provider-evidence-2026-10-03/composite/journal.txt",
+      "bytes": 150,
+      "sha256": "eb04ddae0f2f42330063de4c2a8ce844d485f15af32d80a781d54ac82de791d3"
+    },
+    {
+      "path": "docs/audits/1519-i07-provider-evidence-2026-10-03/composite/migrate-fresh.txt",
+      "bytes": 8559,
+      "sha256": "4b4d3f2079d866d942b4a9b20a913d3044df9d717d8da692f4971796954312aa"
+    },
+    {
+      "path": "docs/audits/1519-i07-provider-evidence-2026-10-03/composite/migrate-repeat.txt",
+      "bytes": 173,
+      "sha256": "bd2087ee0bc9fbe43099ebf6f32c12b9a2f8ad6fb1b43f7c9a524184551bad03"
+    },
+    {
+      "path": "docs/audits/1519-i07-provider-evidence-2026-10-03/composite/owned-postgres.txt",
+      "bytes": 1768,
+      "sha256": "fedc0ae5e3331d2077b157fdd50a9ecaba9f67e532a5c6aecad2533213a5b58b"
+    },
+    {
+      "path": "docs/audits/1519-i07-provider-evidence-2026-10-03/composite/payload.txt",
+      "bytes": 195,
+      "sha256": "445931607059ffd9c384b11c39629e1acde4c241ee4d938611a756139529cd54"
+    },
+    {
+      "path": "docs/audits/1519-i07-provider-evidence-2026-10-03/composite/phases.txt",
+      "bytes": 212,
+      "sha256": "2c4b9f621dfbfe854238df6f18bb321e265b6ceba4754be510ace4ac9bf0bbfa"
+    },
+    {
+      "path": "docs/audits/1519-i07-provider-evidence-2026-10-03/composite/scripts-tsc.txt",
+      "bytes": 31,
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407"
+    },
+    {
+      "path": "docs/audits/1519-i07-provider-evidence-2026-10-03/composite/tests.txt",
+      "bytes": 1973,
+      "sha256": "cdd70cec62a673ba0ce2eeaf9b8cc60c84e0866bd58c68f3e7093ed9f7198e15"
+    }
+  ],
+  "isolatedAcceptedSource": "7682131dcdcdb10fa3e833b17c84432985ac7902",
+  "all18SourceBytesEqual": true,
+  "mcpWorkflowPreservedFrom": "a94fda43ff4f825834a0b6a80b1e3046831bb090",
+  "focused": {
+    "suites": 7,
+    "tests": 77,
+    "wrapperCases": 13,
+    "exitCode": 0,
+    "freshNormalMigrationEntries": 136,
+    "repeatNoPending": true,
+    "newOwnedPostgresPID": 3204607,
+    "serverStopped": true
+  },
+  "apiTypeScriptExitCode": 0,
+  "scriptsTypeScriptExitCode": 0,
+  "payloadPhasesJournalExitCodes": [
+    0,
+    0,
+    0
+  ],
+  "limitations": [
+    "No hook, route, activation, commercial catalogue, money/credit ledger, backfill, deployment or publication.",
+    "Trusted normalized input is not remote provider authentication; explicit bound provider/account/live/production and registered offer are required.",
+    "One unambiguous paid recurring line, quantity exactly one.",
+    "Raw writer still permits separate segments by contract; the raw RED10\u219220 diagnostic motivates a provider mapping requirement, not an equivalent frozen adapter RED\u2192GREEN.",
+    "Wrapper period/grants/evidence/delivery are atomic. Named renewal transition is a separate committed transaction; full transition plus award atomicity remains an activation gate.",
+    "Failed renewal award can retry its same line; old paid-line replay never rewinds current source state.",
+    "Feature-based draft checks are not full CI; composed a94+I07 must run current main-target integration CI.",
+    "These checks cover actual composed source on 1db, not a future security change or Actions run.",
+    "The following proof commit contains only records/metadata; its source tree is not silently treated as approved security/image evidence."
+  ]
+}
