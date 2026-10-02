@@ -1,0 +1,7 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/internalMcpParity.db.test.ts
+{"level":30,"time":1790974582923,"pid":3133368,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        2.432 s
+Ran all test suites within paths "src/services/__tests__/internalMcpParity.db.test.ts".

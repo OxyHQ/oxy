@@ -1,0 +1,2 @@
+$ biome lint --error-on-warnings ./src
+Checked 21 files in 9ms. No fixes applied.

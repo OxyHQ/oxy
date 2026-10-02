@@ -34,29 +34,31 @@ async function main() {
   const origin = 'http://127.0.0.1:' + server.address().port;
   let active = true;
   let effects = 0;
-  const catalog = contracts.appCapabilityCatalogSchema.parse({ schemaVersion: '1', appId: 'packed', version: '1', audience: 'packed-api', internalBaseUrl: origin, accountResourceType: 'workspace', events: [], tools: [{ name: 'read', version: '1', description: 'Packed fixture.', inputSchema: { type: 'object', properties: { resource: { type: 'string' } }, required: ['resource'], additionalProperties: false }, outputSchema: { type: 'object', properties: { count: { type: 'integer' } }, required: ['count'], additionalProperties: false }, capabilityPackage: 'read', requiredCapabilities: ['read'], resourceTypes: ['workspace'], effect: 'read', idempotency: 'none', rollback: 'none', exposure: ['internal'], limitKeys: [], invocation: { method: 'GET', path: '/read' } }] });
+  const catalog = contracts.appCapabilityCatalogSchema.parse({ schemaVersion: '1', appId: 'packed', version: '1', audience: 'packed-api', internalBaseUrl: origin, accountResourceType: 'workspace', events: [], tools: [{ name: 'read', version: '1', description: 'Packed fixture.', inputSchema: { type: 'object', properties: { resource: { type: 'string' } }, required: ['resource'], additionalProperties: false }, outputSchema: { type: 'object', properties: { count: { type: 'integer' } }, required: ['count'], additionalProperties: false }, capabilityPackage: 'read', requiredCapabilities: ['read'], resourceTypes: ['workspace'], effect: 'read', idempotency: 'required', rollback: 'none', exposure: ['internal'], limitKeys: [], invocation: { method: 'GET', path: '/read' } }] });
   const binding = { registrationId: 'packed-registration', version: catalog.version, digest: createHash('sha256').update(contracts.canonicalCapabilityJson(catalog)).digest('hex') };
   const ticket = core.issueCapabilityTicket({ aud: catalog.audience, sub: 'alia:owner', requesterAccountId: 'owner', ownerAccountId: 'owner', actor: { type: 'alia', ownerAccountId: 'owner' }, coordinator: { applicationId: 'alia', credentialId: 'credential' }, executionAuthorization: { kind: 'direct_request', id: 'operation' }, runId: 'run', catalog: binding, resource: { appId: 'packed', effectiveAccountId: 'workspace', resourceType: 'workspace', resourceId: 'resource-A' }, tool: 'read', capabilities: ['read'], limits: [], autonomy: 'read_only' }, { issuer: 'https://api.oxy.so', privateKey: keys.privateKey, keyId: 'packed-key' });
   const verification = { issuer: 'https://api.oxy.so', audience: catalog.audience, resolvePublicKey: () => keys.publicKey };
   const claims = core.verifyCapabilityTicket(ticket, verification);
   const verify = core.createLiveCapabilityTicketVerifier({ ...verification, introspect: async () => ({ active, claims }) });
-  service = mcp.createInternalCatalogMcpHttpService({ catalog, binding, verifyTicket: verify, handlers: { read: async (_input, context) => { assert.equal(context.principal.kind, 'capability'); assert.equal(context.principal.claims.executionAuthorization.id, 'operation'); effects++; return { structuredContent: { count: effects } }; } }, resolveResource: input => ({ ...claims.resource, resourceId: input.resource }), authorize: async () => ({ allowed: true, effectiveAccountId: 'workspace' }) });
+  service = mcp.createInternalCatalogMcpHttpService({ catalog, binding, verifyTicket: verify, handlers: { read: async (_input, context) => { assert.equal(context.principal.kind, 'capability'); assert.equal(context.principal.claims.executionAuthorization.id, 'operation'); assert.equal(context.request.requestInfo.headers['idempotency-key'], 'packed-operation'); effects++; return { structuredContent: { count: effects } }; } }, resolveResource: (input, context) => ({ ...context.principal.claims.resource, resourceId: input.resource }), authorize: async () => ({ allowed: true, effectiveAccountId: 'workspace' }) });
   const captures = [];
   const client = mcp.createInternalCatalogMcpClient({ endpoint: origin + '/_oxy/mcp', fetch: async (url, init) => { captures.push({ headers: new Headers(init?.headers), body: String(init?.body ?? '') }); return fetch(url, init); } });
   try {
     assert.deepEqual((await client.listTools(ticket)).tools.map(tool => tool.name), ['read']);
     assert.equal(effects, 0);
-    assert.equal((await client.callTool(ticket, 'read', { resource: 'resource-A' })).structuredContent.count, 1);
-    assert.equal((await client.callTool(ticket, 'read', { resource: 'resource-B' })).isError, true);
+    assert.equal((await client.callTool(ticket, 'read', { resource: 'resource-A' }, { idempotencyKey: 'packed-operation' })).structuredContent.count, 1);
+    assert.equal((await client.callTool(ticket, 'read', { resource: 'resource-B' }, { idempotencyKey: 'packed-operation' })).isError, true);
+    assert.equal(effects, 1);
+    assert.equal((await client.callTool(ticket, 'read', { resource: 'resource-A' })).isError, true);
     assert.equal(effects, 1);
     assert.ok(captures.every(item => item.headers.get('authorization') === 'Capability ' + ticket && !item.headers.has('mcp-session-id') && !item.body.includes(ticket)));
     active = false;
-    await assert.rejects(client.callTool(ticket, 'read', { resource: 'resource-A' }));
+    await assert.rejects(client.callTool(ticket, 'read', { resource: 'resource-A' }, { idempotencyKey: 'packed-operation' }));
     assert.equal(effects, 1);
     const oxy = new core.OxyServer({ baseURL: 'http://127.0.0.1:3999', serviceAuth: { apiKey: 'fixture', apiSecret: 'fixture' } });
     for (const method of ['serviceCatalogs', 'issueCapabilityTicket', 'introspectCapabilityTicket', 'createExecutionAuthorization']) assert.equal(typeof oxy.agency[method], 'function');
   } finally { await new Promise(resolve => server.close(resolve)); }
-  console.log(mode + ': packed signature/live authority/client/resource/revocation assertions passed');
+  console.log(mode + ': packed signature/live authority/client/key/resource/revocation assertions passed');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
 `;

@@ -108,7 +108,7 @@ it('preserves origin A → active B, exact A/B resources, live revocation and du
   const legacy = await fetch(`${origin}/_oxy/capabilities/writeResource`, { method: 'POST', headers: { authorization: `Capability ${ticket}`, 'content-type': 'application/json' }, body: JSON.stringify(input) });
   expect(legacy.status).toBe(200);
   const first = await legacy.json();
-  const retry = await client.callTool(ticket, 'writeResource', input);
+  const retry = await client.callTool(ticket, 'writeResource', input, { idempotencyKey: operation });
   const oauth = await (await externalCall(input)).json();
   expect(retry.structuredContent).toEqual(first.structuredContent);
   expect(oauth.result.structuredContent).toEqual(first.structuredContent);
@@ -116,11 +116,11 @@ it('preserves origin A → active B, exact A/B resources, live revocation and du
   const legacyCall = (value: Record<string, unknown>, proof = ticket) => fetch(`${origin}/_oxy/capabilities/writeResource`, { method: 'POST', headers: { authorization: `Capability ${proof}`, 'content-type': 'application/json' }, body: JSON.stringify(value) });
   const wrongAccount = { ...input, account: 'account-A' };
   expect((await legacyCall(wrongAccount)).status).toBe(403);
-  expect((await client.callTool(ticket, 'writeResource', wrongAccount)).isError).toBe(true);
+  expect((await client.callTool(ticket, 'writeResource', wrongAccount, { idempotencyKey: operation })).isError).toBe(true);
   expect((await (await externalCall(wrongAccount)).json()).result.isError).toBe(true);
   const conflict = { ...input, resource: 'resource-2' };
   expect((await legacyCall(conflict)).status).toBe(403);
-  expect((await client.callTool(ticket, 'writeResource', conflict)).isError).toBe(true);
+  expect((await client.callTool(ticket, 'writeResource', conflict, { idempotencyKey: operation })).isError).toBe(true);
   expect((await (await externalCall(conflict)).json()).result.isError).toBe(true);
   // New intent has a new authority identity; a client parameter cannot widen the old ticket.
   const nextOperation = 'operation-new-intent';
@@ -129,13 +129,13 @@ it('preserves origin A → active B, exact A/B resources, live revocation and du
   claims = verifyCapabilityTicket(nextTicket, verification);
   const nextInput = { ...input, operation: nextOperation };
   expect((await legacyCall(nextInput, nextTicket)).status).toBe(200);
-  expect((await client.callTool(nextTicket, 'writeResource', nextInput)).structuredContent).toEqual(first.structuredContent);
+  expect((await client.callTool(nextTicket, 'writeResource', nextInput, { idempotencyKey: nextOperation })).structuredContent).toEqual(first.structuredContent);
   expect((await (await externalCall(nextInput)).json()).result.structuredContent).toEqual(first.structuredContent);
   expect((await getDb().execute(sql`SELECT count(*)::int AS count FROM i04_parity_effects`))[0].count).toBe(2);
   claims = previousClaims;
   await client.listTools(ticket);
   await getDb().execute(sql`UPDATE i04_parity_access SET allowed = false WHERE account = 'account-B'`);
-  await expect(client.callTool(ticket, 'writeResource', input)).rejects.toThrow();
+  await expect(client.callTool(ticket, 'writeResource', input, { idempotencyKey: operation })).rejects.toThrow();
   expect((await externalCall(input)).status).toBe(401);
   const revokedLegacy = await fetch(`${origin}/_oxy/capabilities/writeResource`, { method: 'POST', headers: { authorization: `Capability ${ticket}`, 'content-type': 'application/json' }, body: JSON.stringify(input) });
   expect(revokedLegacy.status).toBe(403);
