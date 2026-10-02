@@ -54,10 +54,13 @@ function rootsFor(proof, extra = []) {
   return { diagnosticOnly: true, approval: false, root: '/', excluded: ['/dev', '/proc', '/proof/scripts', '/sys'], installRoots: ['/app', '/app/packages/api', '/usr/local/lib'],
     forgeCopies: [...proof.copies.map(({ realpath, version, files }) => ({ path: realpath, version, files })), ...extra] };
 }
+const CONFIG_ID = 'sha256:a0b41f5fb84990cd0c3d341a44d81cd86414ed7c0b3284f61b1c3612a9a23532';
+const mountTargets = (change = () => {}) => { const m = { diagnosticOnly: true, approval: false, mounts: 'none', sourceSha: SOURCE, imageId: CONFIG_ID,
+  targets: ['/proof/scripts', '/proof/hashes', '/proof/patches'].map(path => ({ path, present: false })) }; change(m); return m; };
 // SYNTHETIC future-run control: the real artifact plus a whole-image root scan, as the hardened workflow emits.
 function complete() {
   const x = real();
-  repack(x, ({ json, put }) => put('forge-image-roots.json', rootsFor(json('forge-image-regression-proof.json'))), { api: true });
+  repack(x, ({ json, put }) => { put('forge-image-roots.json', rootsFor(json('forge-image-regression-proof.json'))); put('forge-image-mount-targets.json', mountTargets()); }, { api: true });
   x.github.job.steps = TRUSTED_WORKFLOW.steps.map(name => ({ name, conclusion: 'success' }));
   x.github.blobsAtMerge['scripts/forge-candidate-image-roots.mjs'] = x.git.blobsAtSource['scripts/forge-candidate-image-roots.mjs'] = 'f'.repeat(40);
   return x;
@@ -92,9 +95,11 @@ function refuse(x, pattern, label) {
 {
   const r = run(real());
   assert.deepEqual(r.errors, [
-    'Job steps differ from the trusted workflow (whole-image root discovery missing or a step did not succeed)',
+    'Job steps differ from the trusted workflow (mount-target check or whole-image root discovery missing, or a step did not succeed)',
     'Executed scripts/forge-candidate-image-roots.mjs differs from (or is absent in) the evidence source',
-    'Artifact lacks forge-image-roots.json: complete installed-root set cannot be derived']);
+    'Artifact lacks forge-image-roots.json: complete installed-root set cannot be derived',
+    'Artifact lacks forge-image-mount-targets.json',
+    'Unmounted image does not prove every proof mount target absent for this source and image']);
   assert.equal(r.authenticatedProvenance, false); assert.equal(r.approved, false);
   assert.equal(r.inventorySha256, '9b26d6c467879547de77b44152153dc37701799a09dd7f0229b9409291808a51');
   assert.deepEqual(r.image, { configId: 'sha256:a0b41f5fb84990cd0c3d341a44d81cd86414ed7c0b3284f61b1c3612a9a23532', manifestDigest: 'sha256:3c4bdb6bee266f7ce022639d4109f8ef10d06d8005d0ae95d7e7113c7221031e', platform: 'linux/arm64' });
@@ -224,6 +229,33 @@ refuse(rewriteProof(p => { p.approved = true; }), /Image proof does not bind/, '
 { const x = repack(complete(), ({ json, put }) => { const d = json('forge-image-dangling-links.json'); d.danglingLinks.pop(); put('forge-image-dangling-links.json', d); }, { api: true }); refuse(x, /exactly the eight reviewed/, 'seven dangling links'); }
 { const x = repack(complete(), ({ json, put }) => { const d = json('forge-image-dangling-links.json'); d.danglingLinks.push({ path: 'node_modules/node-forge', target: '../x', absoluteResolution: '/app/x', errorCode: 'ENOENT' }); put('forge-image-dangling-links.json', d); }, { api: true }); refuse(x, /exactly the eight reviewed/, 'extra dangling Forge link'); }
 
+// ── Proof mount targets must be absent from the unmounted image ─────────────
+const MOUNT = /every proof mount target absent/;
+const withTargets = (m, api = true) => repack(complete(), ({ put }) => put('forge-image-mount-targets.json', m), { api });
+refuse(withTargets(mountTargets(m => { m.targets[0].present = true; })), MOUNT, 'occupied /proof/scripts');
+refuse(withTargets(mountTargets(m => { m.targets[2].present = true; })), MOUNT, 'symlink at /proof/patches (lstat sees it)');
+refuse(withTargets(mountTargets(m => { m.targets.pop(); })), MOUNT, 'target /proof/patches not checked');
+refuse(withTargets(mountTargets(m => { m.targets.push({ path: '/proof/extra', present: false }); })), MOUNT, 'extra target list');
+refuse(withTargets(mountTargets(m => { m.mounts = 'scripts'; })), MOUNT, 'check ran with a mount');
+refuse(withTargets(mountTargets(m => { m.sourceSha = '81442f48fc8c5a7251dd4ae290e02c4afb1aa633'; })), MOUNT, 'stale check from the receipt source');
+refuse(withTargets(mountTargets(m => { m.imageId = `sha256:${'d'.repeat(64)}`; })), MOUNT, 'check of another image');
+refuse(withTargets(mountTargets(m => { m.approval = true; })), MOUNT, 'check claims approval');
+refuse(repack(complete(), ({ entries }) => entries.delete('forge-image-mount-targets.json'), { api: true }), /lacks forge-image-mount-targets.json/, 'missing mount-target artifact');
+refuse(withTargets(mountTargets(m => { m.targets[1].present = true; }), false), /Artifact identity\/digest differs/, 'tampered check, GitHub digest unchanged');
+{ const x = complete(); x.github.job.steps = x.github.job.steps.filter(step => !/mount targets/.test(step.name)); refuse(x, /Job steps differ/, 'mount-target step missing from the run'); }
+{ const x = complete(); x.github.job.steps.find(step => /mount targets/.test(step.name)).conclusion = 'failure'; refuse(x, /Job steps differ/, 'mount-target step failed'); }
+// Coherent caller spoof: the caller pair agrees with an occupied-target artifact; still refused.
+{ const x = withTargets(mountTargets(m => { m.targets[0].present = true; })); refuse(seal(x, callerPair(x)), MOUNT, 'coherent caller spoof of an occupied target'); }
+// The reviewed step runs before any proof mount, with no mounts, no network and a read-only root.
+{
+  const workflow = readFileSync(join(repo, '.github/workflows/forge-candidate-image-proof.yml'), 'utf8');
+  const step = workflow.slice(workflow.indexOf('- name: Verify proof mount targets are absent'), workflow.indexOf('- name: Record actual final-image dangling links'));
+  assert.ok(workflow.indexOf('- name: Verify proof mount targets are absent') < workflow.indexOf('dst=/proof/'));
+  assert.ok(!/--mount|--volume|-v /.test(step) && /--network none/.test(step) && /--read-only/.test(step) && /lstatSync/.test(step));
+  for (const target of TRUSTED_WORKFLOW.mountTargets) assert.ok(workflow.includes(`dst=${target},readonly`) && step.includes(`"${target}"`), target);
+  assert.equal(new Set([...workflow.matchAll(/dst=(\/proof\/[a-z]+)/g)].map(match => match[1])).size, TRUSTED_WORKFLOW.mountTargets.length);
+  checks++;
+}
 // In-place byte mutation (buffers cannot be frozen) trips the pinned digest and baseline.
 { const x = complete(); const bytes = Buffer.from(x.artifactZip); x.artifactZip = bytes; bytes[bytes.length - 30] ^= 1; refuse(x, /Artifact/, 'artifact bytes mutated in place'); }
 { const x = complete(); const bytes = Buffer.from(x.git.patchBytes); x.git.patchBytes = bytes; bytes[0] ^= 1; refuse(x, /Source patch differs/, 'patch bytes mutated in place'); }

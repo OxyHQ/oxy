@@ -148,10 +148,13 @@ export const TRUSTED_WORKFLOW = freeze({
     'scripts/forge-candidate-image-roots.mjs', 'patches/node-forge@1.4.0.patch', 'docs/security/forge-candidate/candidate-hashes.json'],
   steps: ['Set up job', 'Run actions/checkout@v7', 'Verify the exact candidate source', 'Run docker/setup-buildx-action@v4',
     'Run crazy-max/ghaction-github-runtime@v4', 'Build the final production Dockerfile locally on ARM',
+    'Verify proof mount targets are absent from the unmounted image',
     'Record actual final-image dangling links without exemptions', 'Discover every installed root in the whole image filesystem',
     'Verify all materialized copies and run own-key controls without network', 'Run actions/upload-artifact@v7',
     'Post Run docker/setup-buildx-action@v4', 'Post Run actions/checkout@v7', 'Complete job'],
-  artifactFiles: ['forge-build-metadata.json', 'forge-image-dangling-links.json', 'forge-image-identity.txt', 'forge-image-regression-proof.json', 'forge-image-roots.json'],
+  artifactFiles: ['forge-build-metadata.json', 'forge-image-dangling-links.json', 'forge-image-identity.txt', 'forge-image-regression-proof.json', 'forge-image-roots.json', 'forge-image-mount-targets.json'],
+  // Bind-mount destinations used by later proof steps; each must be absent from the unmounted image.
+  mountTargets: ['/proof/scripts', '/proof/hashes', '/proof/patches'],
 });
 // The only commit-to-commit difference tolerated between evidence source and the evaluating HEAD:
 // recording the reviewed pins/fixtures for that source. Any code, workflow or image input change fails.
@@ -246,7 +249,7 @@ function checkGithub(github, git, pins, zip, now, fail) {
     || run?.head_repository?.full_name !== W.repository || !run?.pull_requests?.some(pr => pr.number === pins.pullRequest)) fail('Workflow run identity differs from the pinned run of the trusted workflow');
   if (job?.id !== pins.jobId || job?.run_id !== pins.runId || job?.run_attempt !== pins.runAttempt || job?.name !== W.job || job?.workflow_name !== W.name
     || job?.head_sha !== pins.sourceSha || job?.status !== 'completed' || job?.conclusion !== 'success' || !same(job?.labels, W.runnerLabels)) fail('Job identity/architecture differs from the trusted ARM job');
-  if (!same(job?.steps?.map(step => step.name), W.steps) || job?.steps?.some(step => step.conclusion !== 'success')) fail('Job steps differ from the trusted workflow (whole-image root discovery missing or a step did not succeed)');
+  if (!same(job?.steps?.map(step => step.name), W.steps) || job?.steps?.some(step => step.conclusion !== 'success')) fail('Job steps differ from the trusted workflow (mount-target check or whole-image root discovery missing, or a step did not succeed)');
   const zipDigest = `sha256:${sha256(zip ?? '')}`;
   if (artifact?.id !== pins.artifactId || artifact?.name !== `forge-candidate-image-proof-${pins.runId}` || artifact?.digest !== pins.artifactDigest || zipDigest !== pins.artifactDigest
     || artifact?.size_in_bytes !== zip?.length || artifact?.expired !== false || artifact?.workflow_run?.id !== pins.runId
@@ -289,6 +292,10 @@ function checkArtifact(entries, pins, fail) {
     || environment?.github_event_payload?.pull_request?.head?.sha !== pins.sourceSha || environment?.github_event_payload?.number !== pins.pullRequest) fail('Build provenance does not bind this source, run, workflow and ARM platform');
   if (!same(pins.image, { configId, manifestDigest })) fail('Pinned image identity differs from the artifact image');
   derived.image = { configId, manifestDigest, platform: `${W.os}/${W.architecture}` };
+  // Mount targets: proven absent, before any mount, in this exact source's image.
+  const mountTargets = json('forge-image-mount-targets.json');
+  if (!same(mountTargets, { diagnosticOnly: true, approval: false, mounts: 'none', sourceSha: pins.sourceSha, imageId: configId,
+    targets: W.mountTargets.map(path => ({ path, present: false })) })) fail('Unmounted image does not prove every proof mount target absent for this source and image');
   // Pruning receipt: the current image's raw (unexempted) diagnostic must reproduce the reviewed receipt bytes exactly.
   const dangling = json('forge-image-dangling-links.json');
   if (sha256(entries.get('forge-image-dangling-links.json') ?? '') !== ARM_PRUNING_RECEIPT.receiptSha256 || dangling?.root !== W.installedRoot || dangling?.approval !== false

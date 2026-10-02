@@ -44,6 +44,24 @@ jobs:
           docker buildx build --platform linux/arm64             --cache-from type=gha,scope=oxy-api-backend             --label "org.opencontainers.image.revision=$SOURCE_SHA"             --metadata-file "$RUNNER_TEMP/forge-build-metadata.json"             --load -f Dockerfile -t "oxy-forge-candidate:$SOURCE_SHA" .
           docker image inspect "oxy-forge-candidate:$SOURCE_SHA"             --format '{{json .Id}} {{json .Architecture}} {{json .Os}} {{json (index .Config.Labels "org.opencontainers.image.revision")}}'             > "$RUNNER_TEMP/forge-image-identity.txt"
           test "$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Architecture}}')" = arm64
+      # Before any proof mount: the three bind-mount targets must not exist in the image, so later
+      # mounts cannot hide original image content. No mounts, no network; fails if any target exists.
+      - name: Verify proof mount targets are absent from the unmounted image
+        run: |
+          set -euo pipefail
+          IMAGE_ID="$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Id}}')"
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
+            --entrypoint node "$IMAGE_ID" -e '
+              const { lstatSync } = require("node:fs");
+              const [sourceSha, imageId] = process.argv.slice(1);
+              const targets = ["/proof/scripts", "/proof/hashes", "/proof/patches"].map(path => {
+                try { lstatSync(path); return { path, present: true }; }
+                catch (error) { if (error.code !== "ENOENT") throw error; return { path, present: false }; }
+              });
+              console.log(JSON.stringify({ diagnosticOnly: true, approval: false, mounts: "none", sourceSha, imageId, targets }));
+              process.exitCode = targets.some(target => target.present) ? 1 : 0;
+            ' "$SOURCE_SHA" "$IMAGE_ID" > "$RUNNER_TEMP/forge-image-mount-targets.json"
       - name: Record actual final-image dangling links without exemptions
         run: |
           set -euo pipefail
@@ -77,5 +95,6 @@ jobs:
             ${{ runner.temp }}/forge-image-dangling-links.json
             ${{ runner.temp }}/forge-image-regression-proof.json
             ${{ runner.temp }}/forge-image-roots.json
+            ${{ runner.temp }}/forge-image-mount-targets.json
           if-no-files-found: error
           retention-days: 14
