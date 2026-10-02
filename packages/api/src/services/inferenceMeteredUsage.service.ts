@@ -42,7 +42,9 @@ import type {
 } from '../config/inferenceEconomicPolicy';
 import { inferenceMeteredUsage } from '../db/schema/inferenceMeteredUsage';
 import { internalCostCenters } from '../db/schema/internalCostCenters';
-import { usageUnitColumnValues } from '../db/schema/ledgerColumns';
+import { usageUnitColumnValues, USAGE_UNIT_COLUMN_KEYS } from '../db/schema/ledgerColumns';
+import { usageReceipts } from '../db/schema/usageReceipts';
+import { logger } from '../utils/logger';
 import { quoteUnits } from './inferenceLedger.service';
 
 /* -------------------------------------------------------------------------- */
@@ -256,6 +258,90 @@ export async function settleMeteredUsage(input: MeteredSettlementInput): Promise
     : { status: 'settled', tariff: tariff.tariffStatus };
 }
 
+/**
+ * Recover the crash window after a commercial receipt commits but before usage
+ * is linked. Only immutable receipts with the exact authenticated attribution
+ * can recover a terminal fact; provider-cost subtotals do not prove completion.
+ * No reservation, charge or provider request is made by this reconciliation.
+ */
+export async function reconcileMeteredReceipts(limit = 100): Promise<number> {
+  const matchingUnits = sql.join(Object.values(USAGE_UNIT_COLUMN_KEYS)
+    .map((key) => sql`${inferenceMeteredUsage[key]} = ${usageReceipts[key]}`), sql` and `);
+  const pending = await getDb().select({ metering: inferenceMeteredUsage, receipt: usageReceipts })
+    .from(inferenceMeteredUsage)
+    .innerJoin(usageReceipts, and(
+      eq(usageReceipts.requestId, inferenceMeteredUsage.requestId),
+      eq(usageReceipts.idempotencyKey, inferenceMeteredUsage.idempotencyKey),
+      eq(usageReceipts.accountId, inferenceMeteredUsage.accountId),
+      eq(usageReceipts.applicationId, inferenceMeteredUsage.applicationId),
+      eq(usageReceipts.applicationCredentialId, inferenceMeteredUsage.applicationCredentialId),
+      eq(usageReceipts.environment, inferenceMeteredUsage.environment),
+      sql`${usageReceipts.delegatedUserId} is not distinct from ${inferenceMeteredUsage.delegatedUserId}`,
+    ))
+    .where(sql`${inferenceMeteredUsage.economicTreatment} = 'commercial'
+      and ${inferenceMeteredUsage.status} in ('admitted', 'settled')
+      and ${inferenceMeteredUsage.usageReceiptId} is null
+      and (${inferenceMeteredUsage.status} = 'admitted' or (
+        ${inferenceMeteredUsage.outcome} = ${usageReceipts.outcome}
+        and ${inferenceMeteredUsage.usageSource} = ${usageReceipts.usageSource}
+        and ${inferenceMeteredUsage.resolvedModelReference} = ${usageReceipts.resolvedModelReference}
+        and ${inferenceMeteredUsage.servingProvider} = ${usageReceipts.servingProvider}
+        and ${inferenceMeteredUsage.generationId} is not distinct from ${usageReceipts.generationId}
+        and ${inferenceMeteredUsage.settledPriceVersionId} = ${usageReceipts.priceVersionId}
+        and ${matchingUnits}
+      ))`)
+    .limit(limit);
+  let recovered = 0;
+  for (const { metering, receipt } of pending) {
+    const units = Object.fromEntries(Object.entries(USAGE_UNIT_COLUMN_KEYS)
+      .map(([unit, key]) => [unit, receipt[key]]));
+    if (metering.status === 'admitted') {
+      const result = await settleMeteredUsage({
+        meteredUsageId: metering.id,
+        outcome: receipt.outcome, usageSource: receipt.usageSource, units,
+        resolvedModelReference: receipt.resolvedModelReference,
+        servingProvider: receipt.servingProvider,
+        generationId: receipt.generationId ?? undefined,
+        priceVersionId: receipt.priceVersionId, usageReceiptId: receipt.id,
+      });
+      if (result.status === 'settled') recovered += 1;
+    } else {
+      // Link only if the already-recorded technical facts agree. Conflicting
+      // evidence remains unresolved; never replace technical usage or receipts.
+      const matchingUnits = sql.join(Object.keys(USAGE_UNIT_COLUMN_KEYS)
+        .map((unit) => sql.raw(`m.${unit} = r.${unit}`)), sql` and `);
+      const rows = await executeRows(getDb(), sql`
+        update inference_metered_usage m set usage_receipt_id = r.id
+        from usage_receipts r where m.id = ${metering.id} and r.id = ${receipt.id}
+          and m.status = 'settled' and m.usage_receipt_id is null
+          and m.outcome = r.outcome and m.usage_source = r.usage_source
+          and m.resolved_model_reference = r.resolved_model_reference
+          and m.serving_provider = r.serving_provider
+          and m.generation_id is not distinct from r.generation_id
+          and m.settled_price_version_id = r.price_version_id and ${matchingUnits}
+        returning m.id`);
+      recovered += rows.length;
+    }
+  }
+  return recovered;
+}
+
+/** Recover committed receipts on every API task, without depending on Kaana configuration. */
+export function startMeteredReceiptReconciliationSchedule(): { stop(): void } {
+  let running = false;
+  const tick = (): void => {
+    if (running) return;
+    running = true;
+    reconcileMeteredReceipts().catch((error: unknown) =>
+      logger.error('inference.metered_usage.reconciliation_failed',
+        error instanceof Error ? error : new Error(String(error))))
+      .finally(() => { running = false; });
+  };
+  const interval = setInterval(tick, 60_000);
+  interval.unref();
+  return { stop(): void { clearInterval(interval); } };
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Report                                                                    */
 /* -------------------------------------------------------------------------- */
@@ -271,12 +357,16 @@ type UsageReportRow = Record<string, unknown> & {
   economic_treatment: InferenceEconomicTreatment;
   request_count: string;
   in_flight_count: string;
+  expired_count: string;
   tariff_amount: string;
   tariff_known: string;
   tariff_unknown: string;
   provider_amount: string;
   provider_known: string;
   provider_unknown: string;
+  provider_partial: string;
+  provider_missing: string;
+  provider_other_currency: string;
   charge_amount: string;
   charge_count: string;
 };
@@ -314,8 +404,10 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
       costs as (
         select a.request_id,
           sum(a.cost_amount) filter (where a.cost_currency = ${query.currency}) as known_amount,
-          count(*) filter (where a.cost_currency = ${query.currency}) as known_count,
-          count(*) filter (where a.cost_source = 'unknown') as unknown_count
+          count(*) filter (where a.cost_currency = ${query.currency} and a.cost_complete) as known_count,
+          count(*) filter (where a.cost_amount is null) as unknown_count,
+          count(*) filter (where a.cost_currency = ${query.currency} and not a.cost_complete) as partial_count,
+          count(*) filter (where a.cost_currency <> ${query.currency}) as other_currency_count
         from inference_provider_cost_attempts a
         where a.request_id in (select request_id from scoped)
         group by a.request_id
@@ -324,7 +416,8 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
         r.cost_center_account_id,
         r.economic_treatment,
         count(*) filter (where r.status = 'settled')::text as request_count,
-        count(*) filter (where r.status = 'admitted')::text as in_flight_count,
+        count(*) filter (where r.status = 'admitted' and r.expires_at > now())::text as in_flight_count,
+        count(*) filter (where r.status = 'admitted' and r.expires_at <= now())::text as expired_count,
         ${unitSums},
         coalesce(round(sum(r.tariff_amount) filter (where r.status = 'settled'
           and r.tariff_status = 'quoted' and r.tariff_currency = ${query.currency}), 12), 0)::text as tariff_amount,
@@ -334,6 +427,9 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
         coalesce(round(sum(c.known_amount), 12), 0)::text as provider_amount,
         coalesce(sum(c.known_count), 0)::text as provider_known,
         coalesce(sum(c.unknown_count), 0)::text as provider_unknown,
+        coalesce(sum(c.partial_count), 0)::text as provider_partial,
+        count(*) filter (where c.request_id is null)::text as provider_missing,
+        coalesce(sum(c.other_currency_count), 0)::text as provider_other_currency,
         coalesce(round(sum(rc.billed_amount) filter (where rc.currency = ${query.currency}), 12), 0)::text as charge_amount,
         count(rc.id) filter (where rc.currency = ${query.currency})::text as charge_count
       from scoped r
@@ -383,6 +479,7 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
       periodEnd: end,
       requestCount: Number(row.request_count),
       inFlightCount: Number(row.in_flight_count),
+      expiredCount: Number(row.expired_count),
       units,
       tariff: {
         amount: row.tariff_amount,
@@ -393,6 +490,9 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
         amount: row.provider_amount,
         knownCount: Number(row.provider_known),
         unknownCount: Number(row.provider_unknown),
+        partialCount: Number(row.provider_partial),
+        missingRequestCount: Number(row.provider_missing),
+        otherCurrencyCount: Number(row.provider_other_currency),
       },
       customerCharge: { amount: row.charge_amount, receiptCount: Number(row.charge_count) },
     });

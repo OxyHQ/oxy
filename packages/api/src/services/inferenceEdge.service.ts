@@ -2253,6 +2253,13 @@ export async function executeInferenceRequest(
           settlementStatus: settlement.status,
         }
       );
+      // Technical usage survives a failed financial settlement. The durable
+      // receipt reconciler links any later committed receipt without replaying inference.
+      await recordMeteredSettlement(context, admitted, {
+        units, usageSource: completion.usage.usageSource,
+        outcome: completion.usage.outcome, generationId: completion.generationId,
+        servingProvider,
+      }, servedRoute, undefined);
       return {
         status: 'refused',
         error: refuseRequest(
