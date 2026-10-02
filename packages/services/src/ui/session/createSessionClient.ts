@@ -40,11 +40,21 @@ export function createSessionClient(
   oxyServices: OxyServices,
   onUnauthenticated?: (origin: SessionStateOrigin) => void,
   getPinnedAccountId?: () => string | null,
+  isDeviceSessionAllowed: () => boolean = () => true,
 ): {
   client: SessionClient;
   host: ReturnType<typeof createSessionClientHost>;
 } {
-  const host = createSessionClientHost(oxyServices);
+  const baseHost = createSessionClientHost(oxyServices);
+  const host = {
+    ...baseHost,
+    getAccessToken: () => isDeviceSessionAllowed() ? baseHost.getAccessToken() : null,
+    setTokens: (token: string) => { if (isDeviceSessionAllowed()) baseHost.setTokens(token); },
+    makeRequest: async <T>(method: 'GET' | 'POST', url: string, data?: unknown, requestOptions?: { cache?: boolean }): Promise<T> => {
+      if (!isDeviceSessionAllowed()) throw new Error('An isolated OAuth session cannot access the shared device');
+      return baseHost.makeRequest<T>(method, url, data, requestOptions);
+    },
+  };
   const transport = createTokenTransport(oxyServices, getPinnedAccountId);
   const client = new SessionClient(host, {
     transport,

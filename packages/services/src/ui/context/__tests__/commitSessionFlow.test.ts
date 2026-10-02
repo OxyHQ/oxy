@@ -242,3 +242,16 @@ describe('commitDeviceSetAndResolve — deliberate sign-in (activate: true)', ()
     expect(settled).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('isolated OAuth session commit', () => {
+  it('hydrates and resolves without device registration, projection or socket', async () => {
+    const order: string[] = [];
+    const deps = buildDeps(order, { activate: true, isolatedOAuth: true });
+    await commitDeviceSetAndResolve(deps);
+    expect(order).toEqual(['getCurrentUser', 'loginSuccess', 'onAuthStateChange', 'markAuthResolved']);
+    expect(deps.registerAndActivate).not.toHaveBeenCalled();
+    expect(deps.addCurrentAccount).not.toHaveBeenCalled();
+    expect(deps.startSocket).not.toHaveBeenCalled();
+    expect(deps.syncFromClient).not.toHaveBeenCalled();
+  });
+});

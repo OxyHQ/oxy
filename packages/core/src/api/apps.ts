@@ -565,13 +565,13 @@ export class AppsApi {
    * consent, authorize, and device-flow approval screens before any session
    * exists.
    */
-  async getPublic(clientId: string): Promise<PublicApplication> {
+  async getPublic(clientId: string, options: { cache?: boolean } = {}): Promise<PublicApplication> {
     const res = await this.ctx.request<{ application: PublicApplication }>(
       'GET',
       `/auth/oauth/client/${enc(clientId)}`,
       undefined,
       // Public client metadata (pre-session consent UI) — skip the bearer preflight.
-      { cache: true, cacheTTL: MEDIUM_TTL, skipAuth: true },
+      { cache: options.cache ?? true, cacheTTL: MEDIUM_TTL, skipAuth: true },
     );
     return res.application;
   }

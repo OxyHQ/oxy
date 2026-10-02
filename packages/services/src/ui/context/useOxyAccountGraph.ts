@@ -16,6 +16,7 @@ interface UseOxyAccountGraphParams {
    * permanently. The graph is therefore never fetched and every switch rejects.
    */
   identityBound: boolean;
+  isolatedOAuth: boolean;
   oxyServices: OxyServices;
   sessionClient: SessionClient;
   syncFromClient: () => Promise<void>;
@@ -29,6 +30,7 @@ export function useOxyAccountGraph({
   tokenReady,
   initialized,
   identityBound,
+  isolatedOAuth,
   oxyServices,
   sessionClient,
   syncFromClient,
@@ -39,7 +41,7 @@ export function useOxyAccountGraph({
   const [accounts, setAccounts] = useState<AccountNode[]>([]);
 
   const refreshAccounts = useCallback(async (): Promise<void> => {
-    if (identityBound || !isAuthenticated || !tokenReady || !oxyServices.session.accessToken) {
+    if (identityBound || isolatedOAuth || !isAuthenticated || !tokenReady || !oxyServices.session.accessToken) {
       setAccounts([]);
       return;
     }
@@ -56,17 +58,18 @@ export function useOxyAccountGraph({
         loggerUtil.debug('Failed to load accounts', { component: 'OxyContext' }, err as unknown);
       }
     }
-  }, [identityBound, isAuthenticated, oxyServices, tokenReady, clearSessionStateRef]);
+  }, [identityBound, isolatedOAuth, isAuthenticated, oxyServices, tokenReady, clearSessionStateRef]);
 
   useEffect(() => {
-    if (!identityBound && isAuthenticated && initialized && tokenReady) {
+    if (!identityBound && !isolatedOAuth && isAuthenticated && initialized && tokenReady) {
       refreshAccounts();
       void accountDialogControllerRef.current?.refresh();
     }
-  }, [identityBound, isAuthenticated, initialized, tokenReady, refreshAccounts, accountDialogControllerRef]);
+  }, [identityBound, isolatedOAuth, isAuthenticated, initialized, tokenReady, refreshAccounts, accountDialogControllerRef]);
 
   const switchToAccount = useCallback(
     async (accountId: string): Promise<void> => {
+      if (isolatedOAuth) throw new Error('An isolated OAuth session cannot switch shared device accounts');
       if (identityBound) {
         // Loud rejection, never a silent no-op: a resolved promise here would
         // read to the caller as a completed switch that simply left the user
@@ -103,7 +106,7 @@ export function useOxyAccountGraph({
     // runs inside the runtime's subject transition, BEFORE any subscriber is
     // woken — so a socket-pushed switch (which never reached this function at
     // all) gets it too.
-    [identityBound, oxyServices, sessionClient, syncFromClient, commitSession],
+    [identityBound, isolatedOAuth, oxyServices, sessionClient, syncFromClient, commitSession],
   );
 
   const createAccount = useCallback(

@@ -88,6 +88,7 @@ function buildStub(overrides: { devices?: Record<string, unknown> } = {}) {
       getSessionBaseUrl: () => API_BASE_URL,
       session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => { currentToken = token; }, clear: () => { currentToken = null; } },
 cache: { clear: jest.fn() },
+apps: { getPublic: jest.fn(async () => ({ id: 'registered-fixture', name: 'Registered Fixture', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] })) },
 devices: { mintToken: jest.fn(async () => ({
         accessToken: 'cb.minted.access',
         expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
