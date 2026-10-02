@@ -1,0 +1,147 @@
+{
+  "recordedAt": "2026-10-02T02:21:52.705Z",
+  "note": "Recorded read-only GitHub API responses (trimmed). Test fixture only; the CLI re-fetches live.",
+  "run": {
+    "id": 36951283961,
+    "name": "Forge candidate image proof",
+    "path": ".github/workflows/forge-candidate-image-proof.yml",
+    "head_sha": "da4121cea3040f42d471456a703a1c32da0dba37",
+    "head_branch": "candidate/forge-remediation-review-20261002",
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "success",
+    "run_attempt": 1,
+    "workflow_id": 372697979,
+    "repository": {
+      "id": 973881060,
+      "full_name": "OxyHQ/oxy"
+    },
+    "head_repository": {
+      "full_name": "OxyHQ/oxy"
+    },
+    "pull_requests": [
+      {
+        "number": 1517,
+        "head": {
+          "sha": "da4121cea3040f42d471456a703a1c32da0dba37"
+        }
+      }
+    ],
+    "created_at": "2026-10-02T01:30:46Z",
+    "updated_at": "2026-10-02T01:34:05Z"
+  },
+  "job": {
+    "id": 110664570688,
+    "run_id": 36951283961,
+    "run_attempt": 1,
+    "name": "candidate-image",
+    "head_sha": "da4121cea3040f42d471456a703a1c32da0dba37",
+    "status": "completed",
+    "conclusion": "success",
+    "labels": [
+      "ubuntu-24.04-arm"
+    ],
+    "runner_name": "GitHub Actions 1000163443",
+    "workflow_name": "Forge candidate image proof",
+    "started_at": "2026-10-02T01:30:51Z",
+    "completed_at": "2026-10-02T01:34:05Z",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@v7",
+        "conclusion": "success"
+      },
+      {
+        "name": "Verify the exact candidate source",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run docker/setup-buildx-action@v4",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run crazy-max/ghaction-github-runtime@v4",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build the final production Dockerfile locally on ARM",
+        "conclusion": "success"
+      },
+      {
+        "name": "Record actual final-image dangling links without exemptions",
+        "conclusion": "success"
+      },
+      {
+        "name": "Verify all materialized copies and run own-key controls without network",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/upload-artifact@v7",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run docker/setup-buildx-action@v4",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@v7",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "artifact": {
+    "id": 11204327594,
+    "name": "forge-candidate-image-proof-36951283961",
+    "size_in_bytes": 9170,
+    "digest": "sha256:79cec99e4f65b0dda8ac0627d3c8274935971bd4eec9b0bffc79d542faf28245",
+    "expired": false,
+    "created_at": "2026-10-02T01:33:49Z",
+    "expires_at": "2026-10-16T01:33:48Z",
+    "workflow_run": {
+      "id": 36951283961,
+      "repository_id": 973881060,
+      "head_repository_id": 973881060,
+      "head_branch": "candidate/forge-remediation-review-20261002",
+      "head_sha": "da4121cea3040f42d471456a703a1c32da0dba37"
+    }
+  },
+  "mergeCommit": {
+    "sha": "8f346598a71a592ab7c6a111b8dbe37287cddd70",
+    "parents": [
+      "4b145040afca38be93ad4096241d4c60e12e1c82",
+      "da4121cea3040f42d471456a703a1c32da0dba37"
+    ]
+  },
+  "blobsAtMerge": {
+    ".github/workflows/forge-candidate-image-proof.yml": "a5810c03e68a298112a901fd3e8ab8611aabaf87",
+    "Dockerfile": "a5318bfaa9c0ac12c360e5b3e43a4bdcd621c47f",
+    "scripts/forge-candidate-image-proof.mjs": "15bf95ada17af42f7d41659938419ae7e1330ac6",
+    "scripts/forge-remediation-proof-proposal.mjs": "d18869dc0adc5fdd58fef4961f23baa5ddf231bb",
+    "scripts/forge-candidate-regression.cjs": "2aac319e163384f3b224d1fd439f4782ccbde143",
+    "scripts/forge-candidate-dangling-links.mjs": "4c8bc8f1ae52957d602309ba504ac12583909e47",
+    "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
+    "docs/security/forge-candidate/candidate-hashes.json": "b437b35cb06a44ab6e1bf3fc585e3cd00f081aee"
+  },
+  "advisory": {
+    "ghsa_id": "GHSA-86w9-cpqp-85rv",
+    "severity": "high",
+    "withdrawn_at": null,
+    "vulnerabilities": [
+      {
+        "package": {
+          "ecosystem": "npm",
+          "name": "node-forge"
+        },
+        "vulnerable_version_range": "<= 1.4.0",
+        "first_patched_version": null
+      }
+    ]
+  }
+}

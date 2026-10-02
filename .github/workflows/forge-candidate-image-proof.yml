@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   candidate-image:
-    if: github.repository == 'OxyHQ/oxy' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'candidate/forge-remediation-review-20261002'
+    if: github.repository == 'OxyHQ/oxy' && github.event.pull_request.head.repo.full_name == github.repository && (github.head_ref == 'candidate/forge-remediation-review-20261002' || github.head_ref == 'candidate/forge-provenance-claude-20261002')
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 40
     env:
@@ -53,6 +53,16 @@ jobs:
             --entrypoint node "oxy-forge-candidate:$SOURCE_SHA" \
             /proof/scripts/forge-candidate-dangling-links.mjs /app \
             > "$RUNNER_TEMP/forge-image-dangling-links.json"
+      # Derives the complete installed-root set: any node-forge copy outside /app fails the evaluator.
+      - name: Discover every installed root in the whole image filesystem
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
+            --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly" \
+            --entrypoint node "oxy-forge-candidate:$SOURCE_SHA" \
+            /proof/scripts/forge-candidate-image-roots.mjs / \
+            > "$RUNNER_TEMP/forge-image-roots.json"
       - name: Verify all materialized copies and run own-key controls without network
         run: |
           set -euo pipefail
@@ -66,5 +76,6 @@ jobs:
             ${{ runner.temp }}/forge-image-identity.txt
             ${{ runner.temp }}/forge-image-dangling-links.json
             ${{ runner.temp }}/forge-image-regression-proof.json
-          if-no-files-found: warn
+            ${{ runner.temp }}/forge-image-roots.json
+          if-no-files-found: error
           retention-days: 14

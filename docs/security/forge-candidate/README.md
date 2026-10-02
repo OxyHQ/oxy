@@ -12,3 +12,14 @@ Frozen whole-workspace installation matched every materialized Forge copy to all
 
 ## Candidate image evidence
 The candidate-only PR workflow builds the existing final Dockerfile on the existing ARM runner, without AWS, registry publication or deployment. Its isolated container has no network, no injected secrets, read-only mounts and no added capabilities. The image proof verifies every materialized Forge distribution and runs all 321 own-key protocol controls. This is technical evidence, not security-policy authorization; the ordinary version-based audit remains unchanged and failing for this advisory.
+
+## Provenance enforcement (inert)
+`node scripts/forge-remediation-proof-proposal.mjs [CLAIM.json [TEST_EVIDENCE.json]]` gathers every fact itself: git objects of the pinned source, a fresh `bun audit --json` from a fixed-location Bun 1.4.2, authenticated read-only `gh api --method GET` calls (run, job, artifact, merge ref, executed blobs, live GHSA), and the artifact ZIP whose bytes must match GitHub's digest. It always exits 1 and `approved` is always false.
+
+- Trusted in reviewed code: exact advisory, version 1.4.0, patch hash, five distribution hashes, the whole-audit hash, the single lock resolution, the eight Docker-pruned links and their receipt, and the workflow identity (repository, workflow id/path, ARM job, step list, executed files).
+- `provenance/pins.json` names one run (source, run, job, artifact, merge ref, image). It is checked against GitHub and the artifact, never trusted alone. HEAD may differ from the pinned source only inside `provenance/`; any other change means the run does not prove the current source.
+- The complete root set comes from `forge-image-roots.json`: a scan of the whole image filesystem, excluding only `/dev`, `/proc`, `/sys` and the read-only `/proof` mount. Every physical Forge copy must be the one `/app` inventory copy. A Forge-shaped directory whose manifest is renamed, missing a version or malformed fails the scan.
+- Caller claim and evidence can only add errors. Review or approval fields are refused. Facts not returned by `collect()` in the same process are structural only (`authenticatedProvenance: false`).
+- Never machine-verified: caller-run Forge/Expo suites, the authenticity of the security review, and audit-policy authorization.
+
+Run 36951283961 (source da4121ce) predates the whole-image root scan, so it fails closed. A new run of the hardened workflow, plus a reviewed commit pinning it, must come before any decision.
