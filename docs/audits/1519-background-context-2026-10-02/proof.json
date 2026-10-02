@@ -1,0 +1,80 @@
+{
+  "sourceHead": "c81fd3c63f6c5d70c4de0771ca95a1c36c8864df",
+  "baseHead": "bb72a550e77842e73344813b8450c8df107f7d8f",
+  "verifiedAtUTC": "2026-10-02T20:38:52.143971+00:00",
+  "sources": {
+    "packages/api/src/services/deviceSession.service.ts": "254cc6c0890e86e196e2f05fc5734c027b879b769d787aec38c135734f25a741",
+    "packages/api/src/services/__tests__/deviceDirectory.service.test.ts": "99ad6bea326d364b2c6bfbf535fc05834ce475ea014f15676d26f42399f310b8",
+    "packages/api/src/routes/__tests__/sessionDeviceDirectory.test.ts": "0157d473750576f2fd483d4d5a36466ef17692a5a6aed57d18e8c9ec205e5c7f",
+    "scripts/rehearsal/test-background-context-1519.py": "04411b9eea4beab48baa687f8057e8ebd13e9a4726df65ee140a283a1b7ce483"
+  },
+  "records": {
+    "api-build.txt": {
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    "api-typecheck.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "biome.txt": {
+      "sha256": "2728194355acf8fcf788fe40e9be1e646937632048223e4ce19163ea06ffc34b",
+      "bytes": 43
+    },
+    "eslint.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "owned-pg.txt": {
+      "sha256": "98bed5ab82b47de2f55d75c16cae972edcfc722b0b13cd6f128a2726c04efdab",
+      "bytes": 1741
+    },
+    "red-owned-pg.txt": {
+      "sha256": "0104057ebacfee7a1b6276741b2351356d50a171fde577838161abc09abdffb2",
+      "bytes": 2359
+    },
+    "red-tests-redacted.txt": {
+      "sha256": "88696173d6ffd7fba973ce641dd0f77f809643b39a8779e927b6b61e0e1ae793",
+      "bytes": 4572
+    },
+    "relevant-tests.txt": {
+      "sha256": "57aab5961a79f3465699cc86c73865991859f7139883cb6a08f5ddce618eef19",
+      "bytes": 5238
+    },
+    "scripts-typecheck.txt": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    }
+  },
+  "redControl": {
+    "runtimeSource": "bb72a550e77842e73344813b8450c8df107f7d8f",
+    "newTestsWereWip": true,
+    "failedRegressions": 4,
+    "otherTestsPassed": 58,
+    "fixtureSecretRedacted": true,
+    "originalLocalRawLogSha256": "54e18a30aac9fe82e1f4e840591e282cd393215101439dd71fcf5b22caff19ac",
+    "finding": "Bearerless HTTP returns 200 and real minted JWT carries remaining operator act.sub; stale issuance and concurrent secret replacement also fail."
+  },
+  "acceptance": {
+    "realPostgresSuites": 6,
+    "realPostgresTests": 189,
+    "newOwnedPostgresPid": 3125474,
+    "database": "oxy_rehearsal_1519_84d628a3fa2b4ae5",
+    "dataDirectory": "/tmp/oxy-background-pg-ppc1gcso/data",
+    "postgreSQLStopped": true,
+    "apiTypecheckExit": 0,
+    "scriptsTypecheckExit": 0,
+    "apiBuildExit": 0,
+    "scopedESLintWarnings": 0,
+    "scopedBiomeExit": 0,
+    "rollback": "Real database trigger fails the retirement UPDATE; context, session, revision and background hash survive rollback; real mint succeeds after removing the fixture trigger.",
+    "realEdges": "Real PostgreSQL/account graph/session minter/JWT signer and HTTP router. Existing rate-limit/auth-edge/audit/socket mocks retained; bearerless background-token does not invoke bearer middleware. Mint barriers wrap real session getAccessToken."
+  },
+  "limits": [
+    "Legacy storage binds background authority to accountId only. Any retired context of that account conservatively clears its triple; persistent principal/context binding is not claimed.",
+    "Surviving operator sessions and device holder credentials, plus background credentials for another account, are preserved.",
+    "No productive DDL, migrations, public secret format, TTL, permissions, SDK runtime or commercial policies changed.",
+    "Red logs are a derivative with a generated disposable fixture secret redacted; no production secrets or identities were used.",
+    "I01/I11 and parent acceptance remain open; no merge, deployment, real-device operation or publication."
+  ]
+}
