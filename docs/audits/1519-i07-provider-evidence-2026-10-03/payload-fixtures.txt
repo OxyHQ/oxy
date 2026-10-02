@@ -1,0 +1,34 @@
+ok   a schema with no payload column passes
+ok   a promptText column is flagged
+ok   a systemPrompt column is flagged
+ok   a completionText column is flagged
+ok   a debugPayload column is flagged
+ok   a conversationTranscript column is flagged
+ok   a chatLog column is flagged
+ok   a toolArguments column is flagged
+ok   a toolCallResult column is flagged
+ok   a rawRequest column is flagged
+ok   a requestBody column is flagged
+ok   a rawResponse column is flagged
+ok   a responseBody column is flagged
+ok   a messageBody column is flagged
+ok   a messages column is flagged
+ok   a modelOutput column is flagged
+ok   a generatedText column is flagged
+ok   a debugCapture column is flagged
+ok   a capturedBody column is flagged
+ok   an undeclared jsonb column with an innocuous name is flagged
+ok   an undeclared jsonb column called `d` is flagged
+ok   a payload-named text[] column is flagged
+ok   an undeclared jsonb[] column is flagged
+ok   an integer[] column does NOT fire
+ok   boolean flags whose names contain banned words do NOT fire
+ok   the product's own free-text columns do NOT fire
+ok   a declared column that no longer exists FAILS the run
+ok   a declared column narrowed to a boolean FAILS as stale
+ok   a schema missing a required table FAILS
+ok   a schema module that exports no table FAILS the floor
+ok   a schema far smaller than the real one cannot pass silently
+ok   a schema module that throws on import FAILS loudly
+
+All 32 payload-persistence cases passed — 10 banned patterns each covered by a planted column, 45 declared columns and 4 required tables, taken from the guard itself.
