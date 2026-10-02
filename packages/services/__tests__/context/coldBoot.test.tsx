@@ -298,7 +298,9 @@ it.each([false, true])('device -> isolated OAuth keeps only the exchanged bearer
     await context.commitSession({ sessionId: 'isolated-new', accessToken: 'new-isolated-bearer', userId: USER_ID, user: { id: USER_ID, username: 'cbuser' } });
     return { status: 'signed-in' };
   });
-  await act(async () => { await capturedContext!.startWebOAuthSignIn({ redirectUri: 'https://external.fixture/callback' }); });
+  const context = capturedContext;
+  if (!context) throw new Error('Expected a mounted provider context');
+  await act(async () => { await context.startWebOAuthSignIn({ redirectUri: 'https://external.fixture/callback' }); });
   expect(stub.session.accessToken).toBe('new-isolated-bearer');
   expect(capturedContext?.activeSessionId).toBe('isolated-new');
   expect(capturedContext?.sessions.map((entry) => entry.sessionId)).toEqual(['isolated-new']);
@@ -309,7 +311,7 @@ it.each([false, true])('device -> isolated OAuth keeps only the exchanged bearer
   expect(fakeSessionClient.start).not.toHaveBeenCalled();
   expect(window.localStorage.getItem(AUTH_STATE_STORAGE_KEY)).toBeNull();
   expect(revoke).not.toHaveBeenCalled();
-  await act(async () => { expect(await capturedContext!.logout()).toEqual({ status: 'signed-out' }); });
+  await act(async () => { expect(await context.logout()).toEqual({ status: 'signed-out' }); });
   expect(revoke).toHaveBeenCalledWith('isolated-new');
   expect(stub.session.accessToken).toBeNull();
   expect(capturedContext?.isAuthenticated).toBe(false);

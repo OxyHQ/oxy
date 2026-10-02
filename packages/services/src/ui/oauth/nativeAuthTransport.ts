@@ -58,8 +58,9 @@ export async function startNativeOAuthSignIn(
     if ([...new URL(options.redirectUri).searchParams.keys()].some((key) => parameters.has(key))) return { status: 'failed', reason: 'native-callback-invalid' };
     if (['code', 'state', 'error', 'error_description'].some((key) => parameters.getAll(key).length > 1)) return { status: 'failed', reason: 'native-callback-invalid' };
     if (parameters.get('state') !== prepared.handshake.state) return { status: 'failed', reason: 'state-mismatch' };
-    if (parameters.has('error') || !parameters.get('code')) return { status: 'failed', reason: 'native-callback-invalid' };
-    const completion = await completeOAuthCode({ oxyServices: context.oxyServices, clientId: context.clientId, code: parameters.get('code')!, returnedState: parameters.get('state'), handshake: prepared.handshake, redirectUri: options.redirectUri, commitSession: context.commitSession });
+    const code = parameters.get('code');
+    if (parameters.has('error') || !code) return { status: 'failed', reason: 'native-callback-invalid' };
+    const completion = await completeOAuthCode({ oxyServices: context.oxyServices, clientId: context.clientId, code, returnedState: parameters.get('state'), handshake: prepared.handshake, redirectUri: options.redirectUri, commitSession: context.commitSession });
     return completion.ok ? { status: 'signed-in' } : { status: 'failed', reason: completion.reason };
   } catch { return { status: 'failed', reason: 'exchange-failed' }; }
   finally { attempts.delete(context.oxyServices); }

@@ -45,7 +45,8 @@ describe('SessionClient socket', () => {
     const host = makeHost();
     const client = new SessionClient(host);
     await client.start();
-    const oldCallback = fakeSocket.handlers.get('session_state')![0];
+    const oldCallback = fakeSocket.handlers.get('session_state')?.[0];
+    if (!oldCallback) throw new Error('Expected a registered session_state callback');
     client.resetLocalState();
     client.adoptState(STATE(2));
     (host.setTokens as jest.Mock).mockClear();

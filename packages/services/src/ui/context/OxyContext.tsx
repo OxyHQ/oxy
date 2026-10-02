@@ -902,7 +902,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   useEffect(() => {
     if (!isWebBrowser()) return undefined;
     return oxyServices.session.setDeviceCredentialProvider(() => registeredLaneRef.current.lane === 'device' && !hasIsolatedOAuthSession(runtime) ? loadPersistedDeviceCredential(authStore) : Promise.resolve(null));
-  }, [oxyServices, authStore]);
+  }, [oxyServices, authStore, runtime]);
 
   // ── The browser bridge (ADR 0029 D2) ──────────────────────────────────────
   // The first time a person presses sign-in in this app on the web and it holds
@@ -972,6 +972,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     authStore,
     sessionClientHost,
     logger,
+    runtime,
   ]);
 
   const openAccountDialog = useCallback((view?: AccountDialogView): void => {
@@ -1032,7 +1033,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       }
     });
     setAccountDialogOpen(true);
-  }, [isIdentityBound, startBrowserBridge]);
+  }, [isIdentityBound, startBrowserBridge, runtime]);
 
   const closeAccountDialog = useCallback((): void => {
     accountDialogControllerRef.current?.cancelSignIn();
@@ -1114,6 +1115,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     identity,
     syncDeviceCredentialToHost,
     sessionClient,
+    sessionClientHost,
     setTokenReady,
   ]);
 
@@ -1156,7 +1158,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [oxyServices, sessionClient, sessionClientHost, syncFromClient]);
+  }, [oxyServices, sessionClient, sessionClientHost, syncFromClient, runtime]);
 
   // Reconnect heal: when connectivity transitions offline→online while there is
   // no live access token but a persisted device credential exists, re-mint ONCE
@@ -1192,7 +1194,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         await syncFromClient();
       })().catch(() => undefined);
     });
-  }, [oxyServices, sessionClient, sessionClientHost, syncFromClient]);
+  }, [oxyServices, sessionClient, sessionClientHost, syncFromClient, runtime]);
 
   // Exposed `refreshSessions`: re-bootstrap the server-authoritative device
   // state and reproject — the manual counterpart to the realtime socket.
