@@ -70,10 +70,14 @@ Both candidates report the same upstream Forge suite (828 passing, four
 pending), Expo public API compatibility (14 checks), and Oxy signing/manifest
 tests (34). Their documented reproduction removes upstream `describe.only`
 only in the temporary Forge test checkout. The suite's upstream source,
-toolchain lock and five generated outputs are pinned. This reviewer inspected
-the tracked parity/reproduction records, but did not independently rerun the
-upstream rebuild or Forge/Expo suites in this integration pass. Their reported
-results must not be relabeled as newly independently executed evidence.
+toolchain lock and five generated outputs are pinned. The initial integration
+review inspected those records without rerunning the suites. A separate
+subagent then independently reproduced the exact #1528 source, stock/candidate
+builds, both 828-pass/four-pending suites, an owned Expo14 public API harness,
+Oxy34 consumer tests, and stock/candidate321 known-key controls. Its durable
+[reproduction and logs](1519-forge-independent-suites-2026-10-02.md) distinguish
+initial harness assertion failures from the corrected final results. This is
+new independent execution evidence; it does not constitute policy approval.
 The #1528 evaluator explicitly leaves caller-run Forge/Expo suites and review
 authenticity unverified; `technicalEvidenceComplete:false` is correct.
 
@@ -82,11 +86,11 @@ authenticity unverified; `technicalEvidenceComplete:false` is correct.
 1. Keep the existing audit policy and leave the queue blocked until a verified
    upstream patched version is available. A patch alone cannot satisfy this
    version-based gate.
-2. Request independent reproduction of the pinned stock/candidate builds,
-   full Forge suite and Expo signing paths, and authenticated security review
-   of the exact #1528 patch and image receipts. Keep the gate unchanged during
-   that review. A no-key exploit regression may be requested as additional
-   evidence, with its absence stated accurately.
+2. Review the independent pinned stock/candidate builds, full Forge suite and
+   Expo signing reproduction, and obtain authenticated security review of the
+   exact #1528 patch and image receipts. Keep the gate unchanged during that
+   review. A no-key exploit regression may be requested as additional evidence,
+   with its absence stated accurately.
 3. After that review, explicitly decide whether a narrowly scoped,
    time-bounded mitigation policy is acceptable for this one advisory, pinned
    to exact patch/distribution/image bytes, truthful version, expiry, owner and
