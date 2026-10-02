@@ -10,9 +10,11 @@ published by this document.
 `catalogAdapter.ts` registers only tools exposed as `mcp`, authenticates
 `McpPrincipal` from OAuth `authInfo`, and binds domain authorization to
 `activeAccountId`. `httpTransport.ts` introspects each HTTP request before
-constructing a stateless server. `ServerAgencyApi` exposes requester assertions,
-but ticket issuance/introspection, service catalog discovery and authenticated
-execution-authorization creation are not complete server SDK methods.
+constructing a stateless server. The candidate `ServerAgencyApi` adds
+`serviceCatalogs`, `issueCapabilityTicket`, `introspectCapabilityTicket`, and
+`createExecutionAuthorization` alongside the existing requester assertions.
+Execution authorization uses an explicitly supplied requester bearer and the
+existing user-authority route; service identity never becomes requester identity.
 
 The existing `CatalogInvocationContext` and OAuth-only overload remain unchanged.
 A new overload/generic context provides a discriminated invocation principal;
@@ -69,8 +71,26 @@ calling the change additive does not establish compatibility.
 
 ## Decisions and remaining evidence
 
-The internal ticket mechanism already exists; the MCP transport design must
-still receive ADR 0018 review. I03 has not approved a new freshness maximum,
+The first implementation milestone adds an optional `expectedCatalog` binding
+to ticket requests and the corresponding signed `catalog` claim. Issuance and
+live introspection compare the registration ID, version and digest with the
+active catalog. Legacy requests and tickets without this field retain their
+existing behavior; they cannot authenticate through the planned internal MCP
+entrypoint. A legacy strict claim decoder must be upgraded before receiving a
+pinned ticket. This is an opt-in wire extension, not a rollout claim.
+
+Authority SDK calls disable caching, deduplication, retries and implicit
+authentication retries. The five-second request timeout does not change the
+existing ticket TTL or establish an I03 freshness SLA. Tests cover explicit
+requester authority, abort and network failure, legacy ticket compatibility,
+wrong bindings, signature verification, and a catalog change that retains the
+same tool name. Local verification passed 9 contract tests, 18 server SDK tests,
+22 API authority tests against isolated PostgreSQL, all 19 package builds,
+strict core typechecking and scoped Biome with zero warnings. MCP transport,
+resource resolution, packed ESM/CJS fixtures and consumer parity remain pending.
+
+The internal ticket mechanism already exists; the additive boundary above was
+reviewed against ADR 0018. I03 has not approved a new freshness maximum,
 service-credential revocation guarantee, or internal header/session binding
 policy. The two-process session-cache test and bot-own-session acceptance are
 not supplied by source inspection. Package artifacts, integration traces and

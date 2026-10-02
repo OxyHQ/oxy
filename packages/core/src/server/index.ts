@@ -26,6 +26,12 @@ export {
   ServerNotificationsApi,
   ServerReputationApi,
 } from './namespaces';
+export type {
+  CapabilityTicketGrant,
+  CapabilityTicketIntrospection,
+  CreateExecutionAuthorizationInput,
+  ServiceCapabilityCatalog,
+} from './namespaces';
 export { OxyAccountEventError, OXY_ACCOUNT_DELETED_EVENT_URI } from './middleware';
 export type {
   AuthMiddlewareOptions,

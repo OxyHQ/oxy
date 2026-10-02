@@ -1,6 +1,7 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { isCheckViolation } from '@oxy.so/db';
+import { verifyCapabilityTicket } from '@oxy.so/core/server';
 import type {
   AppCapabilityCatalog,
   AutonomyLevel,
@@ -36,9 +37,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (originalKeyId === undefined) delete process.env.CAPABILITY_TICKET_SIGNING_KEY_ID;
+  if (originalKeyId === undefined) Reflect.deleteProperty(process.env, 'CAPABILITY_TICKET_SIGNING_KEY_ID');
   else process.env.CAPABILITY_TICKET_SIGNING_KEY_ID = originalKeyId;
-  if (originalPrivateKey === undefined) delete process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY;
+  if (originalPrivateKey === undefined) Reflect.deleteProperty(process.env, 'CAPABILITY_TICKET_SIGNING_PRIVATE_KEY');
   else process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY = originalPrivateKey;
   await closePostgres();
 });
@@ -198,6 +199,37 @@ describe('capability authority over live database state', () => {
       allowed: false,
       reason: 'ticket_execution_authorization_mismatch',
     });
+  });
+
+  it('signs an opt-in catalogue pin and refuses changed catalogue semantics with the same tool name', async () => {
+    const input = await fixture('execute_on_request');
+    const request = { executionAuthorizationId: input.authorizationId, coordinator: input.coordinator };
+    const expectedCatalog = { registrationId: input.catalogRegistrationId, version: '1.0.0', digest: '0'.repeat(64) };
+    const legacy = await evaluateCapabilityAuthority(request, { issueTicket: true });
+    expect(legacy.claims).not.toHaveProperty('catalog');
+    for (const wrong of [
+      { ...expectedCatalog, registrationId: randomUUID() },
+      { ...expectedCatalog, version: '2.0.0' },
+      { ...expectedCatalog, digest: 'f'.repeat(64) },
+    ]) {
+      expect((await evaluateCapabilityAuthority({ ...request, expectedCatalog: wrong }, { issueTicket: true })).decision)
+        .toEqual({ allowed: false, reason: 'ticket_catalog_no_longer_current' });
+    }
+    const issued = await evaluateCapabilityAuthority({ ...request, expectedCatalog }, { issueTicket: true });
+    if (!issued.ticket || !issued.claims) throw new Error('Expected a pinned ticket');
+    const verified = verifyCapabilityTicket(issued.ticket, { audience: `${input.appSlug}-api`,
+      issuer: process.env.OXY_API_URL ?? 'https://api.oxy.so', resolvePublicKey: () => keyPair.publicKey });
+    expect(verified.catalog).toEqual(expectedCatalog);
+    expect(await reauthorizeCapabilityTicket(verified)).toMatchObject({ allowed: true });
+    const [current] = await getDb().select().from(appCapabilityCatalogRegistrations)
+      .where(eq(appCapabilityCatalogRegistrations.id, input.catalogRegistrationId));
+    await getDb().update(appCapabilityCatalogRegistrations).set({ digest: '1'.repeat(64),
+      catalog: { ...current.catalog, tools: current.catalog.tools.map((tool) => ({ ...tool, description: 'Changed semantics, same name/capabilities.' })) } })
+      .where(eq(appCapabilityCatalogRegistrations.id, input.catalogRegistrationId));
+    expect(await reauthorizeCapabilityTicket(verified)).toEqual({ allowed: false, reason: 'ticket_catalog_no_longer_current' });
+    // The optional lane does not silently change legacy ticket authority.
+    if (!legacy.claims) throw new Error('Expected legacy claims');
+    expect(await reauthorizeCapabilityTicket(legacy.claims)).toMatchObject({ allowed: true });
   });
 
   it('rejects an execution authorization after its expiry', async () => {
