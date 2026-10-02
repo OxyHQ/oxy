@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { checkFinalImageBinding } from './forge-final-image-binding.mjs';
+import { checkFinalImageBinding, FINAL_IMAGE_EXECUTED_PATHS } from './forge-final-image-binding.mjs';
 import { sha256 } from './forge-remediation-proof-proposal.mjs';
 const head = 'a'.repeat(40);
 function fixture(phase = 'prepublish') {
@@ -9,9 +9,9 @@ function fixture(phase = 'prepublish') {
   const proofZipBytes = Buffer.from('SYNTHETIC proof ZIP; not authenticated evidence');
   const digest = `sha256:${sha256(manifestBytes)}`;
   return { execution: { event: 'merge_group', head, repository: 'OxyHQ/oxy', repositoryId: 973881060 },
-    producer: { run: { id: 123, event: 'merge_group', head_sha: head, repository: { id: 973881060, full_name: 'OxyHQ/oxy' }, head_repository: { full_name: 'OxyHQ/oxy' }, path: '.github/workflows/forge-queue-image-inspection.yml' },
-      job: { run_id: 123, head_sha: head, name: 'inspection', status: 'completed', conclusion: 'success', labels: ['ubuntu-24.04-arm'] },
-      executedBlobs: { source: { 'workflow-and-scan-fixture': 'b'.repeat(40) }, current: { 'workflow-and-scan-fixture': 'b'.repeat(40) } } },
+    producer: { run: { id: 123, run_attempt: 1, event: 'merge_group', head_sha: head, repository: { id: 973881060, full_name: 'OxyHQ/oxy' }, head_repository: { full_name: 'OxyHQ/oxy' }, path: '.github/workflows/forge-queue-image-inspection.yml' },
+      job: { run_id: 123, run_attempt: 1, head_sha: head, name: 'inspection', status: 'completed', conclusion: 'success', labels: ['ubuntu-24.04-arm'] },
+      executedBlobs: { source: Object.fromEntries(FINAL_IMAGE_EXECUTED_PATHS.map(path => [path, 'b'.repeat(40)])), current: Object.fromEntries(FINAL_IMAGE_EXECUTED_PATHS.map(path => [path, 'b'.repeat(40)])) } },
     artifact: { workflow_run: { id: 123, head_sha: head, repository_id: 973881060 }, expired: false, expires_at: '2026-10-09T12:00:00Z', digest: `sha256:${sha256(proofZipBytes)}`, size_in_bytes: proofZipBytes.length },
     receipt: { schemaVersion: 1, sourceSha: head, runId: '123', archiveSha256: sha256(archiveBytes), manifestDigest: digest, approval: false },
     archiveBytes, manifestBytes, configBytes, proofZipBytes,
@@ -34,7 +34,9 @@ for (const [name, mutate] of [
   ['extra receipt field', x => { x.receipt.accepted = true; }],
   ['no archive', x => { x.archiveBytes = null; }],
   ['expired artifact', x => { x.artifact.expires_at = x.now; }],
-  ['changed producer executable', x => { x.producer.executedBlobs.current['workflow-and-scan-fixture'] = 'f'.repeat(40); }],
+  ['omitted scan executable', x => { delete x.producer.executedBlobs.source['scripts/forge-candidate-image-proof.mjs']; delete x.producer.executedBlobs.current['scripts/forge-candidate-image-proof.mjs']; }],
+  ['unexpected executable', x => { x.producer.executedBlobs.source['arbitrary-code.mjs'] = 'b'.repeat(40); }],
+  ['changed producer executable', x => { x.producer.executedBlobs.current[FINAL_IMAGE_EXECUTED_PATHS[0]] = 'f'.repeat(40); }],
   ['unfinished inspection', x => { x.producer.job.status = 'in_progress'; }],
   ['different published digest', x => { x.published.digest = `sha256:${'f'.repeat(64)}`; }],
   ['different published manifest', x => { x.published.manifestBytes = Buffer.from('rebuild'); }],

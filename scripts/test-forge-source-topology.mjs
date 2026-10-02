@@ -25,6 +25,17 @@ try {
       currentGithub: { run: { repository: { id: 973881060, full_name: 'OxyHQ/oxy' }, head_repository: { full_name: 'OxyHQ/oxy' }, event: 'merge_group', head_sha: head, head_branch: `gh-readonly-queue/main/pr-1546-${base}`, pull_requests: [] }, commit: { sha: head, tree, parents } } };
     assert.equal(checkSourceTopologyStructure(facts, { sourceSha: source }, base).eligible, !advanced); count++;
     assert.equal(checkFrozenSourceTopology(facts, { sourceSha: source }).eligible, false, 'synthetic base cannot override frozen runtime base'); count++;
+    if (!advanced) {
+      const main = structuredClone(facts);
+      main.currentGithub.queueRun = structuredClone(main.currentGithub.run);
+      main.currentGithub.run.event = 'push'; main.currentGithub.run.head_branch = 'main';
+      assert.equal(checkSourceTopologyStructure(main, { sourceSha: source }, base).eligible, true); count++;
+      for (const mutate of [
+        x => { x.currentGithub.run.head_sha = 'f'.repeat(40); },
+        x => { x.currentGithub.queueRun.head_sha = 'f'.repeat(40); },
+        x => { delete x.currentGithub.queueRun; },
+      ]) { const x = structuredClone(main); mutate(x); assert.equal(checkSourceTopologyStructure(x, { sourceSha: source }, base).eligible, false); count++; }
+    }
     if (!advanced) for (const mutate of [
       x => { x.currentGithub.run.head_sha = 'f'.repeat(40); },
       x => { x.currentGithub.run.event = 'pull_request'; },

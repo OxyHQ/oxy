@@ -49,23 +49,49 @@ the actual registry manifest and digest to equal the inspected one. Every fixtur
 is synthetic and returns authorized:false. No OCI image or registry operation
 was run by these tests.
 
-## Required companion work before applying this diff
+## Companions prepared; activation and real image evidence pending
 
-The future live collector must authenticate the exact queue inspection run/job,
-its frozen workflow and all executed scan blobs, small proof ZIP digest and
-closed receipt, plus the actual Forge whole-image census and 321 control results.
-It must bind the separately uploaded OCI transport to the trusted producer and
-validate the manifest/config relation. No caller JSON or synthetic success flag
-can stand in for these GETs or artifact bytes. The publisher validates downloaded
-archive bytes again before use.
+The prepared collector uses fixed authenticated GitHub GETs for the exact queue
+inspection run/job, a closed list of all workflow/build/scan/publish/collector
+blobs, and the small proof ZIP digest. Its eleven required files include the
+closed OCI receipt, manifest/config bytes, four scan IDs and producing workflow
+execution. It runs the original whole-image Forge census, physical hash checks,
+mount checks and 321 control-result validation. Caller facts remain synthetic
+and cannot obtain the collector's private authentication marker.
 
-The current preparation diff deliberately leaves the ACTIVE deployment resolver
-blocked until that receipt collector and its real script fixtures exist. Guards
-also explicitly refuses queue/main image authorization, including a descendant
-merge_group topology. The collector, polling limits, frozen executed-blob list,
-strict resolver and its error cases are unfinished companion implementations.
-The workflows must not be materialized while they are absent. This is a concrete
-remaining blocker, not a claim that a permanently failing pipeline is ready.
+The OCI ZIP is separately authenticated and streamed through a fixed Python
+helper into an owned temporary directory, with a 4 GiB ZIP limit, 8 GiB archive
+limit and 600 second deadline. The helper checks the actual ZIP/tar hashes,
+bounded metadata, all blob filenames/hashes, config, manifest and referenced
+layers without extracting files or keeping the archive in Node memory. Missing
+bytes, null verification, duplicate files, path traversal, oversized metadata,
+ambiguous jobs/artifacts, malformed pagination and elapsed polling fail closed.
+The publisher compares the downloaded archive/config and inspected IDs again,
+then checks the registry manifest digest after copying with preserved digests.
+
+The strict resolver companion performs the normal live dependency audit, full
+source-policy validation, exact main execution binding and published ECR manifest
+comparison before returning a digest. ACTIVE cannot fall back to a rebuild;
+INACTIVE retains the previous image selection/fallback behavior. The unapplied
+diff connects this companion. An owned temporary Git fixture applies the diff
+only to synthetic files, parses every YAML file and exercises actual shell
+commands with synthetic gh/aws/bun receivers. No real workflow was applied.
+
+Guards and deployment login receivers remove GH_TOKEN, GITHUB_TOKEN and
+GH_CONFIG_DIR before storing the ephemeral token under the runner's OS home,
+matching the collectors' scrubbed environment. Guards cleanup runs whenever
+ACTIVE setup was attempted; deployment logout runs on EXIT, including a resolver
+failure. Tests execute these exact diff commands with a fictitious token; they
+never contact GitHub or write a real auth configuration. The future Guards time
+cap is 45 minutes to cover bounded inspection waiting and streaming verification.
+All these workflow and permission changes remain unapplied review artifacts.
+
+The small baseline ZIP used to derive content fixtures is the authenticated
+historical PR artifact for `8f4485`, SHA256
+`47811e6da747bab767d3be4fe175bf1a04affbac614317bd865ce39a61ee8b79`.
+Tests project its content into explicitly synthetic queue/config/execution
+fixtures. Those rewritten bytes are not queue evidence and never authorize a
+real audit. No queue inspection, registry publication or deployment was run.
 
 After the companions pass, freeze a new source target and collect its own ARM
 proof. Existing `8f4485` evidence is historical and cannot authenticate the new

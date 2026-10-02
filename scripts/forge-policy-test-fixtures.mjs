@@ -12,7 +12,7 @@ export function policyTestRepository(decision = SYNTHETIC_INACTIVE) {
   const source = join(dirname(fileURLToPath(import.meta.url)), '..');
   const root = mkdtempSync(join(tmpdir(), 'forge-policy-offline-fixture-'));
   const paths = ['scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs',
-    'scripts/forge-remediation-proof-proposal.mjs', 'scripts/forge-source-topology.mjs', 'scripts/forge-candidate-image-roots.mjs'];
+    'scripts/forge-remediation-proof-proposal.mjs', 'scripts/forge-source-topology.mjs', 'scripts/forge-final-image-binding.mjs', 'scripts/forge-final-image-collector.mjs', 'scripts/forge-policy-record.mjs', 'scripts/forge-candidate-image-roots.mjs'];
   for (const path of paths) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), readFileSync(join(source, path)));

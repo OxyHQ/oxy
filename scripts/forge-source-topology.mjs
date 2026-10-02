@@ -16,7 +16,7 @@ export function checkSourceTopologyStructure(git, pins, frozenBaseHead) {
   const allowed = ['docs/security/forge-candidate/provenance/pins.json', 'docs/security/forge-candidate/provenance/audit-policy-decision.json'];
   if (git?.changedPaths?.some(path => !allowed.includes(path))) errors.push('Squash tree differs outside the exact two declarative paths');
   const context = git?.currentGithub;
-  const run = context?.run;
+  const run = context?.queueRun ?? context?.run;
   const commit = context?.commit;
   if (!run || run.repository?.id !== 973881060 || run.repository?.full_name !== 'OxyHQ/oxy'
     || run.head_repository?.full_name !== 'OxyHQ/oxy' || run.event !== 'merge_group'

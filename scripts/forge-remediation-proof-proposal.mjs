@@ -267,7 +267,7 @@ function checkGithub(github, git, pins, zip, now, fail) {
     || vulnerabilities[0]?.vulnerable_version_range !== TRUSTED_BASELINE.ghsaVulnerableRange || vulnerabilities[0]?.first_patched_version !== null) fail('Live GHSA record changed (scope, severity, withdrawal or an upstream fix now exists)');
 }
 
-function checkArtifact(entries, pins, fail) {
+function checkArtifact(entries, pins, fail, profile = 'pull_request') {
   const W = TRUSTED_WORKFLOW;
   const derived = {};
   if (!entries) { fail('Artifact bytes unavailable'); return derived; }
@@ -283,15 +283,16 @@ function checkArtifact(entries, pins, fail) {
   const metadata = json('forge-build-metadata.json');
   const environment = metadata?.['buildx.build.provenance']?.invocation?.environment;
   const request = metadata?.['buildx.build.provenance']?.invocation?.parameters?.root?.request?.args;
-  const manifestDigest = metadata?.['containerimage.digest'];
-  if (metadata?.['containerimage.config.digest'] !== configId || !/^sha256:[0-9a-f]{64}$/.test(manifestDigest ?? '') || manifestDigest === configId
+  const manifestDigest = profile === 'queue' ? pins.image.manifestDigest : metadata?.['containerimage.digest'];
+  if (profile === 'pull_request' && (metadata?.['containerimage.config.digest'] !== configId || !/^sha256:[0-9a-f]{64}$/.test(manifestDigest ?? '') || manifestDigest === configId
     || metadata?.['containerimage.descriptor']?.digest !== manifestDigest || !same(metadata?.['containerimage.descriptor']?.platform, { architecture: W.architecture, os: W.os })
     || metadata?.['image.name'] !== `docker.io/library/oxy-forge-candidate:${pins.sourceSha}`
     || request?.['vcs:revision'] !== pins.sourceSha || request?.['vcs:source'] !== `https://github.com/${W.repository}` || request?.['label:org.opencontainers.image.revision'] !== pins.sourceSha
     || environment?.github_run_id !== String(pins.runId) || environment?.github_run_attempt !== String(pins.runAttempt) || environment?.github_job !== W.job
     || environment?.github_repository !== W.repository || environment?.github_repository_id !== String(W.repositoryId) || environment?.github_workflow_sha !== pins.workflowMergeSha
     || environment?.github_runner_arch !== 'ARM64' || environment?.github_runner_environment !== 'github-hosted' || environment?.platform !== `${W.os}/${W.architecture}`
-    || environment?.github_event_payload?.pull_request?.head?.sha !== pins.sourceSha || environment?.github_event_payload?.number !== pins.pullRequest) fail('Build provenance does not bind this source, run, workflow and ARM platform');
+    || environment?.github_event_payload?.pull_request?.head?.sha !== pins.sourceSha || environment?.github_event_payload?.number !== pins.pullRequest)) fail('Build provenance does not bind this source, run, workflow and ARM platform');
+  if (profile === 'queue' && (metadata?.['containerimage.config.digest'] !== configId || metadata?.['containerimage.digest'] !== pins.image.manifestDigest)) fail('Queue build metadata differs from inspected config/OCI digest');
   if (!same(pins.image, { configId, manifestDigest })) fail('Pinned image identity differs from the artifact image');
   derived.image = { configId, manifestDigest, platform: `${W.os}/${W.architecture}` };
   // Mount targets: proven absent, before any mount, in this exact source's image.
@@ -339,6 +340,15 @@ function checkArtifact(entries, pins, fail) {
   derived.copies = copies;
   derived.inventorySha256 = inventoryHash(copies);
   return derived;
+}
+
+/** Queue artifact content only: authentication/OCI transport are a separate collector. */
+export function checkQueueForgeImageContent(entries, sourceSha, image) {
+  const errors = [];
+  const originalEntries = new Map(TRUSTED_WORKFLOW.artifactFiles.filter(name => entries.has(name)).map(name => [name, entries.get(name)]));
+  const pins = { sourceSha, image, artifactFiles: Object.fromEntries([...originalEntries].map(([name, bytes]) => [name, sha256(bytes)])) };
+  const derived = checkArtifact(originalEntries, pins, message => errors.push(message), 'queue');
+  return { structurallyEligible: errors.length === 0, authorized: false, errors, derived };
 }
 
 function checkCallerAssertions({ claim, testEvidenceBytes }, derived, pins, fail, unverified) {
@@ -477,6 +487,17 @@ export function collect(options = {}) {
     facts.currentGithub = { run: api(`${R}/actions/runs/${currentRunId}`), commit: {
       sha: currentCommit.sha, tree: currentCommit.tree?.sha, parents: currentCommit.parents.map(parent => parent.sha),
     } };
+    if (['push', 'workflow_dispatch'].includes(facts.currentGithub.run.event)) {
+      // Deploy reuses exactly the queue SHA. Authenticate that queue run as a
+      // separate source attestation, rather than pretending a push is merge_group.
+      const queueRuns = api(`${R}/actions/workflows/ci.yml/runs?head_sha=${head}&event=merge_group&per_page=100`).workflow_runs;
+      const queue = queueRuns.filter(run => run.head_sha === head && run.event === 'merge_group'
+        && run.repository?.id === TRUSTED_WORKFLOW.repositoryId && run.head_repository?.full_name === TRUSTED_WORKFLOW.repository)
+        .sort((a, b) => b.id - a.id)[0];
+      if (!queue || queue.status !== 'completed' || queue.conclusion !== 'success') throw new Error('Actual main execution requires its successful exact-SHA merge-group CI');
+      facts.currentGithub.queueRun = queue;
+    }
+
   }
   const contents = path => { try { return api(`${R}/contents/${path}?ref=${pins.workflowMergeSha}`).sha; } catch { return null; } };
   const mergeCommit = api(`${R}/git/commits/${pins.workflowMergeSha}`);

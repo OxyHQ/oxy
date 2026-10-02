@@ -1,4 +1,6 @@
 /** A disabled policy candidate. Human authorization is a separate session decision. */
+import { checkScopedPolicyRecord } from './forge-policy-record.mjs';
+import { collectFinalImageProof, inspectFinalImageFacts } from './forge-final-image-collector.mjs';
 import { checkFrozenSourceTopology } from './forge-source-topology.mjs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
@@ -18,7 +20,9 @@ const EXECUTED_PATHS = Object.freeze([
   '.github/workflows/ci.yml', 'scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs',
   'scripts/test-forge-audit-policy.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs',
   'scripts/forge-source-topology.mjs', 'scripts/test-forge-source-topology.mjs',
-  'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs', ...TRUSTED_WORKFLOW.executedPaths,
+  'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs',
+  'scripts/forge-final-image-collector.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/forge-policy-record.mjs', 'scripts/test-forge-future-dag.mjs',
+  'scripts/check-published-forge-image.mjs', 'scripts/verify-forge-oci-artifact.py', 'scripts/test-verify-forge-oci-artifact.py', ...TRUSTED_WORKFLOW.executedPaths,
 ]);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exact = (value, keys) => object(value) && canonicalAudit(Object.keys(value).sort()) === canonicalAudit([...keys].sort());
@@ -31,7 +35,7 @@ const same = (a, b) => canonicalAudit(a) === canonicalAudit(b);
 export function checkForgePolicyStructure(input) {
   const errors = [];
   const fail = message => errors.push(message);
-  const { decision, audit, facts, proposal, proofBytes, recordBytes, copies, blobs, independentInputs, now } = input;
+  const { decision, audit, facts, proposal, proofBytes, recordBytes, copies, blobs, independentInputs, finalImageProof, now } = input;
   if (!exact(decision, ['schemaVersion', 'status', 'targetSourceHead', 'expiresAt', 'authorizationRecord', 'independentEvidence'])
     || decision.schemaVersion !== 1 || !['INACTIVE', 'ACTIVE'].includes(decision.status)) fail('Invalid closed policy schema');
   if (decision?.status !== 'ACTIVE') fail('Scoped policy is inactive');
@@ -56,7 +60,10 @@ export function checkForgePolicyStructure(input) {
   // Queue source equivalence is separate from its image. PR artifact never proves
   // the queue image: the future no-publish build/scan/Guards/publish DAG must supply it.
   const execution = facts?.git?.currentGithub?.run;
-  if (topology.kind === 'squash' || ['merge_group', 'push', 'workflow_dispatch'].includes(execution?.event)) fail('Final execution image evidence binding is not wired; PR image cannot authorize queue/main publication');
+  if (topology.kind === 'squash' || ['merge_group', 'push', 'workflow_dispatch'].includes(execution?.event)) {
+    if (finalImageProof?.machineChecksPassed !== true || finalImageProof?.authenticatedProvenance !== true
+      || finalImageProof.executionSha !== facts?.git?.head) fail('Own authenticated execution image proof required; PR image cannot authorize queue/main publication');
+  }
   if (!Array.isArray(facts?.git?.changedPaths) || facts.git.changedPaths.some(path => !DECLARATIVE_PATHS.includes(path))) fail('Only the two exact declarative paths may differ from target');
   for (const path of EXECUTED_PATHS) if (!blobs?.source?.[path] || blobs.source[path] !== blobs?.current?.[path]) fail(`Executed code changed: ${path}`);
   if (!Array.isArray(copies) || copies.length === 0) fail('Installed Forge inventory is missing');
@@ -103,9 +110,8 @@ function gitReader(repositoryRoot) {
 export function readCommittedPolicyStatus() {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const decision = JSON.parse(gitReader(repositoryRoot)('show', `HEAD:${DECISION_PATH}`));
-  if (!exact(decision, ['schemaVersion', 'status', 'targetSourceHead', 'expiresAt', 'authorizationRecord', 'independentEvidence'])
-    || decision.schemaVersion !== 1 || !['INACTIVE', 'ACTIVE'].includes(decision.status)
-    || (decision.status === 'INACTIVE' && ['targetSourceHead', 'expiresAt', 'authorizationRecord', 'independentEvidence'].some(key => decision[key] !== null))) throw new Error('Invalid committed policy setup record');
+  const record = checkScopedPolicyRecord(decision, new Date().toISOString());
+  if (!record.valid) throw new Error(record.errors.join('; '));
   return decision.status;
 }
 
@@ -126,6 +132,8 @@ export function inspectForgeAuditPolicy(audit) {
     }
     return { remediated: false, policyActive: false, reason: 'Scoped policy is inactive; no authorization inferred' };
   }
+  const record = checkScopedPolicyRecord(decision, new Date().toISOString());
+  if (!record.valid) return { remediated: false, configurationInvalid: true, policyActive: true, reason: record.errors.join('; ') };
   // Audit fixtures can never activate the real gate, even when policy is later enabled.
   if (process.env.DEPENDENCY_AUDIT_INPUT !== undefined) return { remediated: false, policyActive: true, reason: 'Injected audit payload cannot authorize remediation' };
   try {
@@ -150,8 +158,11 @@ export function inspectForgeAuditPolicy(audit) {
       independentInputs.reviewed[path] = git('rev-parse', `${proof.candidateCommit}:${path}`).toString().trim();
       independentInputs.target[path] = git('rev-parse', `${target}:${path}`).toString().trim();
     }
+    const execution = facts.git.currentGithub?.run;
+    const finalImageProof = !facts.git.sourceIsAncestor || ['merge_group', 'push', 'workflow_dispatch'].includes(execution?.event)
+      ? inspectFinalImageFacts(collectFinalImageProof(repositoryRoot)) : null;
     const check = checkForgePolicyStructure({ decision, audit: facts.audit, facts, proposal, proofBytes, recordBytes,
-      copies: inventory(repositoryRoot), blobs, independentInputs, now: facts.now });
+      copies: inventory(repositoryRoot), blobs, independentInputs, finalImageProof, now: facts.now });
     if (!check.structurallyEligible) return { remediated: false, policyActive: true, reason: check.errors.join('; ') };
     // This trusts the separately reviewed SOURCE POLICY, not JSON supplied by a caller,
     // an actor name, a GitHub comment or a prototype's approved flag. Editing ACTIVE
