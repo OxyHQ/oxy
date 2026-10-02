@@ -44,6 +44,7 @@ import { appEndorsementEdges } from './appEndorsementEdges';
 import { appUpdates } from './appUpdates';
 import { authCodes } from './authCodes';
 import { authSessions } from './authSessions';
+import { billingStripeEvents } from './billingStripeEvents';
 import { billingSubscriptions } from './billingSubscriptions';
 import { billingTransactions } from './billingTransactions';
 import { capabilityExecutionAuthorizations } from './agency';
@@ -448,6 +449,27 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       "Stripe's identifier for the subscription this payment covers. Pointing " +
       'it at the local mirror would let an incomplete mirror reject a real ' +
       'payment record; Stripe is the authority for both.',
+  },
+  {
+    table: billingTransactions,
+    column: billingTransactions.stripeInvoiceId,
+    reason:
+      "Stripe's identifier for the paid invoice that evidences a renewal grant. " +
+      'Not a row in this database.',
+  },
+  {
+    table: billingStripeEvents,
+    column: billingStripeEvents.stripeEventId,
+    reason:
+      "Stripe's identifier for the webhook event (`evt_…`). Not a row in this " +
+      'database; it is what a redelivery is recognised by.',
+  },
+  {
+    table: billingStripeEvents,
+    column: billingStripeEvents.stripeObjectId,
+    reason:
+      "Stripe's identifier for the event's object — an invoice, subscription, " +
+      'session or charge, discriminated by `type`. Never a row here.',
   },
   {
     table: notifications,
