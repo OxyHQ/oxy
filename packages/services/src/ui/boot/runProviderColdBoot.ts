@@ -81,6 +81,8 @@ export interface RunProviderColdBootOptions {
   /** The identity binding required by `sessionMode: 'identity'`. */
   identity?: IdentityBinding;
   sessionClient: SessionClient;
+  /** Provider-owned fresh classifier, also used by explicit action recovery. */
+  resolveSessionLane?: () => Promise<'device' | 'oauth'>;
   /** Identity pin work may run only after a fresh device classification. */
   onClassified?: (lane: 'device' | 'oauth') => void | Promise<void>;
   beforeDeviceBoot?: () => Promise<void>;
@@ -131,7 +133,7 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
   try {
     // Classification precedes every local-secret, shared-credential and identity
     // probe. Unavailable registry metadata fails closed, including offline boot.
-    const lane = await resolveApplicationSessionLane(oxyServices, clientId);
+    const lane = await (opts.resolveSessionLane?.() ?? resolveApplicationSessionLane(oxyServices, clientId));
     await opts.onClassified?.(lane);
     if (identityBound && lane !== 'device') return;
     // The redirect transport's RETURN leg. An app reaches it whenever the browser

@@ -1,0 +1,59 @@
+{
+  "baseCommit": "0eea750838b4a4327be2b9e6fd9ffa6b54ca1226",
+  "verifiedAtUTC": "2026-10-02T20:50:20.591201+00:00",
+  "status": "candidate-reviewed-awaiting-integration",
+  "environment": "Linux/Bun1.4.2; Jest/jsdom, real provider/hooks/button and browser bridge orchestration; external network, native identity and SessionClient fixture boundaries",
+  "results": {
+    "initialRegressionRed": 6,
+    "servicesFull": {
+      "suites": 112,
+      "tests": 1026
+    },
+    "finalTargeted": {
+      "suites": 4,
+      "tests": 55
+    },
+    "finalTypescript": "passed",
+    "scopedBiomeLint": "4 files, zero warnings/errors"
+  },
+  "logs": [
+    {
+      "path": "docs/audits/1519-sdk-p2-2026-10-02/reproduction.txt",
+      "sha256": "336c9be830275838dbdc3ddbed8687ebac1966d2f5cebf8f08891f4db18ff9cd"
+    },
+    {
+      "path": "docs/audits/1519-sdk-p2-2026-10-02/services-full.txt",
+      "sha256": "71407efeca3c016ce1980bf415967beafa0ec4c5e6d214a01d96b43cbafa9c16"
+    },
+    {
+      "path": "docs/audits/1519-sdk-p2-2026-10-02/final-regressions.txt",
+      "sha256": "171b815b3ff906905bb4c79569730d1a8d1383b1b3dad360e67c9a714dcd0b68"
+    },
+    {
+      "path": "docs/audits/1519-sdk-p2-2026-10-02/biome-final.txt",
+      "sha256": "43b9da7bdad300b02fd18782ff4735a9dcacd046cb417463e22d0c0e7f824618"
+    },
+    {
+      "path": "docs/audits/1519-sdk-p2-2026-10-02/typescript-final.txt",
+      "sha256": "7d26c6ecc2d5061aa553334c914743e9b22caa425d5a2dd2173cd61e58e1b1b4"
+    }
+  ],
+  "sourceSha256": {
+    "packages/services/__tests__/context/browserBridge.test.tsx": "f69ddad850e0f7ed69c8e8da24099385d96712a6928312020237bdff1b5aa38c",
+    "packages/services/__tests__/context/coldBoot.test.tsx": "b2198faf2280eeecdf33674b775bd3582244b10bbdabc15bdc8edbdd812f525a",
+    "packages/services/__tests__/context/useAuthOperations.test.tsx": "12bf27e641a8e220ee8c2d1a1fa6293a25f33dd88c3f31a8d8c9980bbb387c01",
+    "packages/services/__tests__/hooks/useAuth.test.tsx": "b94d906cab60d661651639ab8e553d3651aea74e945f72a6a5e1b3846dbfa4d8",
+    "packages/services/src/ui/boot/runProviderColdBoot.ts": "9664224ed2ddbb0d0a1006f2530682a515229b044844ba752b86d9fe0852b49c",
+    "packages/services/src/ui/context/OxyContext.tsx": "1ce02a2c5fc9d71d131f22b52230b68455dd7b10ff6da4118000799cf3ee6dd5",
+    "packages/services/src/ui/context/hooks/useAuthOperations.ts": "38244d3dd65468ee2385cd82bb71381b3600a8768ad3fe977da821b7063a6e0c",
+    "packages/services/src/ui/hooks/useAuth.ts": "9f3a81a5f67224d89929c546297c577090b3984d40242992b1e433a0c6e79498"
+  },
+  "scopeNotes": [
+    "The full services run precedes the final asynchronous supersession guards and hook dependency cleanup; the final 4-suite/55-test run, TypeScript and Biome cover the final source.",
+    "Recovery uses fresh provider-owned registry lookup after null/error; known trusted classification retains the synchronous bridge path and introduces no extra registry request. No caller-supplied trust verdict.",
+    "Native and explicit-key tests reproduce SDK behavior; they do not demonstrate a backend exploit.",
+    "Negatives cover external/unknown/inactive/malformed, native identity probe and explicit-key hook/direct sign-in. Same-mount failures/timeouts recover; old callbacks cannot classify another client.",
+    "Isolated logout 503/network errors preserve session and report onError/runtime/rejected hook promise; retry/401/no-active-session paths covered.",
+    "No public API shape, contracts, API server, policy, package version or deployment changes."
+  ]
+}
