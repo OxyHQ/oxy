@@ -58,6 +58,7 @@ import { executeRows } from '@oxy.so/db';
 import { getDb, type Transaction } from '../config/postgres';
 import { LIVE_PRODUCT_PLAN_STATUSES } from '@oxy.so/contracts';
 import { inferenceProviderConnections } from '../db/schema/inferenceProviderConnections';
+import { accessSubscriptionSources } from '../db/schema/productAccess';
 import { users } from '../db/schema/users';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
 import { ConflictError, NotFoundError } from '../utils/error';
@@ -118,7 +119,7 @@ export interface RetainedRecordCount {
 
 export interface AccountFinancialHolds {
   readonly accountId: string;
-  /** Stripe subscriptions still `active` or `trialing`. */
+  /** Legacy billing subscriptions or product sources still `active` or `trialing`. */
   readonly liveSubscriptionIds: readonly string[];
   /** Reservations still `held` — money neither spent nor returned. */
   readonly heldReservations: number;
@@ -174,7 +175,7 @@ export interface AccountFinancialHolds {
    * ({@link deleteDisposableWallets}). See the module header.
    */
   readonly disposableWalletIds: readonly string[];
-  /** True when Stripe would keep charging a deleted customer. */
+  /** True for the existing LIVE_PRODUCT_PLAN_STATUSES in either billing source. */
   readonly hasLiveSubscription: boolean;
   /** True when a credential of this account is still active in Kaana custody. */
   readonly hasLiveProviderConnection: boolean;
@@ -233,6 +234,10 @@ export async function describeAccountFinancialHolds(
       select id
       from billing_subscriptions
       where user_id = ${accountId}
+        and status = any(${sql.param([...LIVE_PRODUCT_PLAN_STATUSES])}::text[])
+      union
+      select id from access_subscription_sources
+      where (payer_account_id = ${accountId} or beneficiary_account_id = ${accountId})
         and status = any(${sql.param([...LIVE_PRODUCT_PLAN_STATUSES])}::text[])
     `
   );
@@ -425,6 +430,14 @@ async function establishAccountClosureFence(
     if (!account) {
       throw new NotFoundError('Account not found');
     }
+
+    // Product source creation/update takes the same account row lock. Re-read
+    // after acquiring it so a concurrent award cannot race the closure fence.
+    const liveSources = await tx.select({ id: accessSubscriptionSources.id }).from(accessSubscriptionSources)
+      .where(sql`(${accessSubscriptionSources.payerAccountId} = ${account.id} or ${accessSubscriptionSources.beneficiaryAccountId} = ${account.id})
+        and ${accessSubscriptionSources.status} = any(${sql.param([...LIVE_PRODUCT_PLAN_STATUSES])}::text[])`);
+    if (liveSources.length) throw new ConflictError('This account has a live product subscription source. Cancel it before closing the account.',
+      { subscriptions: liveSources.map(row => row.id) });
 
     const outstandingCustody = await tx
       .select({ id: inferenceProviderConnections.id })

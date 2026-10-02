@@ -1,0 +1,86 @@
+{
+  "observedAtUTC": "2026-10-02T17:00:31Z",
+  "base": "7920fef6330de5e0e58051035eefa296791b4474",
+  "database": "owned PostgreSQL17 loopback5549; Jest-created disposable database per suite invocation",
+  "securityApproved": false,
+  "records": [
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-persistence-tests-2.log",
+      "sha256": "d79db09ea257b3278b8ac384086bfb54580861a7195588eb6af54158b72add8d",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-closure-tests.log",
+      "sha256": "5c2c1c158f89e7ba85d8285c6d1ae4397c02bfdfd6c63599e7bec16aa904d81f",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-authorization-tests-2.log",
+      "sha256": "73398d963a15ce93d73e340ee6a28ed6e9321ea9459a0a54349abadff30da9e4",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-sdk-tests.log",
+      "sha256": "f66ab3048c5cb0d4c9c560da704870a745c1dd09057c9fd33a19dcf57326245b",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-focused-tests.log",
+      "sha256": "84b46594f3b24e410dd72fade66d40d7637c5684a70cd8a2df0677dae515dabc",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-authority-protected-tests.log",
+      "sha256": "8633d85dd1b633410e0a90bd770d89cb1319b8e949bb101e8993dd9c02f6ad65",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-openapi-route-tests.log",
+      "sha256": "a6d0663660bfa11ea4cd364beada4dc02318532656471176d63e9ecd6645d48a",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-snapshot-sync.log",
+      "sha256": "2ef7bdfe76ffcdce2e9e05ebcf44071ec03491105ad7bebdddc3497904e4ef1d",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-openapi-check.log",
+      "sha256": "37f368a247834cce66bba60fffbda37ccb9081ecd93c579c3be6b8cc73fb6593",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-account-scan.log",
+      "sha256": "a30702f29b76f65534b74481f9be5f403705f89966b5e707bfd5a650707efbb9",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-mongo-scan.log",
+      "sha256": "cfb8c88c216806abb4bdcd46cc34b5ba2d044c7c7b7fdf6cf4ed0c7a8d45983c",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-api-typecheck.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-api-lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-core-lint.log",
+      "sha256": "967c1eb73ff103928ef8edf73b47e89032eeb26ac7ff0f457c68f8c3928f9618",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-api-build-tail.log",
+      "sha256": "0df03da8a6ef0cba3deac7e1a07818893f37af67bcf0f2debacecf5ef4b2360d",
+      "exitCode": 0,
+      "originalLog": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i07-api-build.log",
+      "originalSha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "excerpt": "last30lines"
+    }
+  ]
+}

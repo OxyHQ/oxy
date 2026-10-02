@@ -1,0 +1,7 @@
+$ jest --runInBand src/services/__tests__/productAccessClosure.test.ts
+{"level":30,"time":1790959869042,"pid":2985253,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        0.877 s
+Ran all test suites matching src/services/__tests__/productAccessClosure.test.ts.

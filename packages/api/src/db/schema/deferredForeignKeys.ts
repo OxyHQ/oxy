@@ -1,3 +1,4 @@
+import { accessSubscriptionSources } from './productAccess';
 import { emailSignInRequests } from './emailSignInRequests';
 import { signInSecondFactorChallenges } from './signInChallenges';
 import { externalIdentities, externalIdentityClaims } from './externalIdentities';
@@ -113,6 +114,7 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  { table: accessSubscriptionSources, column: accessSubscriptionSources.providerSubscriptionId, reason: 'Opaque subscription ID owned by Stripe or Peable; no local provider-subscription table exists.' },
   { table: accountEvents, column: accountEvents.userId,
     reason: 'The DELETED account the event announces. Its `users` row is gone (or archived) by the time relying parties read this, which is the point of the event; a foreign key could only CASCADE the announcement away with the account or RESTRICT the deletion. Swept after `ACCOUNT_EVENT_RETENTION_SECONDS`.' },
   { table: storageObjectDeletions, column: storageObjectDeletions.accountId,
@@ -775,6 +777,22 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: inferenceMeteredUsage,
     column: inferenceMeteredUsage.admittedDeploymentId,
     reason: '(f) Same as `inference_usage_events.deployment_id`.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.parentRequestId,
+    reason:
+      'The parent edge request correlation key, preserved in the child usage record ' +
+      'and the versioned generation response across Oxy and Kaana. It is not the ' +
+      'parent metering row id. Parent admission is enforced before child execution ' +
+      'by the edge; this classification preserves the correlation without adding ' +
+      'a new foreign-key lifecycle or erasure policy to migration 0134.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.finalAuthorizedDeploymentId,
+    reason: '(f) Same as `inference_metered_usage.admitted_deployment_id`, ' +
+      'snapshotted after final Auto requalification rather than initial admission.',
   },
   {
     table: inferenceMeteredUsage,

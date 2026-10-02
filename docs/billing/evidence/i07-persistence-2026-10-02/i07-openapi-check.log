@@ -1,0 +1,2 @@
+[generate-openapi] wrote /home/nate/Oxy/oxy/.worktrees/1519-i07-persistence/packages/api/openapi.json with 354 paths, 409 operations.
+packages/api/openapi.json is fresh, describes 12 named inference path(s), 52 credentialled inference operation-path(s) and 12 /v1 operation payload(s).

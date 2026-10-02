@@ -1,0 +1,10 @@
+$ jest --runInBand src/routes/__tests__/productAccess.test.ts src/__tests__/openapiRouteWalker.test.ts src/__tests__/openapiZodConverter.test.ts
+{"level":30,"time":1790960275654,"pid":2992806,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790960276197,"pid":2992806,"hostname":"SuperPC","sessionId":"a3f50848","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790960276198,"pid":2992806,"hostname":"SuperPC","sessionId":"a3f50848","operatorId":"01a0fd8d-128c-74ca-bc6c-bb8d760e9b51","accountId":"01a0fd8d-1269-7ec3-ad35-8ea86a4891d4","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+
+Test Suites: 3 passed, 3 total
+Tests:       40 passed, 40 total
+Snapshots:   0 total
+Time:        1.665 s, estimated 2 s
+Ran all test suites matching src/routes/__tests__/productAccess.test.ts|src/__tests__/openapiRouteWalker.test.ts|src/__tests__/openapiZodConverter.test.ts.
