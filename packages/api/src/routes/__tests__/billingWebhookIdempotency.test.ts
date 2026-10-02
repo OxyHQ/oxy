@@ -39,6 +39,9 @@ let nextEvent: unknown = null;
 /** Stripe's side of every subscription, as `subscriptions.retrieve` answers it. */
 const invoiceLinePages = new Map<string, Array<{ data: Record<string, unknown>[]; has_more: boolean }>>();
 const invoiceLineCalls: Array<{ id: string; cursor?: string }> = [];
+const currentInvoices = new Map<string, Record<string, unknown>>();
+const invoiceRetrieveCalls: string[] = [];
+let failNextInvoiceRetrieve = false;
 
 const stripeSubscriptions = new Map<string, Record<string, unknown>>();
 /** When set, the NEXT `subscriptions.retrieve` waits for this before answering. */
@@ -68,6 +71,16 @@ jest.mock('../../utils/stripeClient', () => ({
       },
     },
     invoices: {
+      retrieve: async (id: string) => {
+        invoiceRetrieveCalls.push(id);
+        if (failNextInvoiceRetrieve) {
+          failNextInvoiceRetrieve = false;
+          throw new Error('invoice retrieval timed out');
+        }
+        const invoice = currentInvoices.get(id);
+        if (!invoice) throw new Error('invoice retrieval unavailable');
+        return structuredClone(invoice);
+      },
       listLineItems: async (id: string, params: { starting_after?: string }) => {
         invoiceLineCalls.push({ id, cursor: params.starting_after });
         const pages = invoiceLinePages.get(id);
@@ -185,6 +198,9 @@ beforeEach(() => {
   failNextGrant = false;
   invoiceLinePages.clear();
   invoiceLineCalls.length = 0;
+  currentInvoices.clear();
+  invoiceRetrieveCalls.length = 0;
+  failNextInvoiceRetrieve = false;
   holdNextRetrieve = null;
   checkoutCreateDelayMs = 0;
   checkoutCreateCalls.length = 0;
@@ -861,6 +877,69 @@ describe('POST /billing/checkout/subscription — Idempotency-Key', () => {
     const plain = await postCheckout(userId, CHECKOUT_BODY);
     expect(plain).toMatchObject({ status: 200 });
     expect(checkoutCreateCalls.at(-1)?.options).toBeUndefined();
+  });
+});
+
+describe('historical invoice.paid API shape recovery', () => {
+  async function historicalFixture() {
+    const sub = await subscriber();
+    const modern = invoiceEvent(sub);
+    const current = { ...modern.data.object, object: 'invoice', livemode: false };
+    currentInvoices.set(current.id, current);
+    const legacy = {
+      ...modern, livemode: false,
+      data: { object: {
+        ...modern.data.object, parent: undefined, subscription: sub.subscriptionId,
+        lines: { has_more: false, data: [{ id: 'il_legacy', price: { id: PRO_PRICE_ID },
+          subscription: sub.subscriptionId, type: 'subscription', proration: false }] },
+      } },
+    };
+    return { sub, current, legacy };
+  }
+
+  it('retrieves historical evidence in the current API shape and grants exactly once across old/current replays', async () => {
+    const { sub, legacy, current } = await historicalFixture();
+    expect(await postWebhook(legacy)).toBe(200);
+    expect(await postWebhook(legacy)).toBe(200);
+    expect(await postWebhook(envelope('invoice.paid', current))).toBe(200);
+    expect(invoiceRetrieveCalls).toEqual([current.id]);
+    expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
+    expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(1);
+  });
+
+  it('retries a timed-out provider read without a receipt or grant', async () => {
+    const { sub, legacy } = await historicalFixture();
+    failNextInvoiceRetrieve = true;
+    expect(await postWebhook(legacy)).toBe(500);
+    expect((await eventRow(legacy.id)).outcome).toBe('failed');
+    expect(await paidBalance(sub.userId)).toBe(0);
+    expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(0);
+    expect(await postWebhook(legacy)).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
+    expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(1);
+  });
+
+  it.each(['id', 'mode', 'customer', 'subscription'] as const)('refuses contradictory retrieved %s, then allows the corrected redelivery', async (kind) => {
+    const { sub, legacy, current } = await historicalFixture();
+    const changed = structuredClone(current);
+    if (kind === 'id') changed.id = 'in_other';
+    if (kind === 'mode') changed.livemode = true;
+    if (kind === 'customer') changed.customer = 'cus_other';
+    if (kind === 'subscription') changed.parent.subscription_details.subscription = 'sub_other';
+    currentInvoices.set(current.id, changed);
+    expect(await postWebhook(legacy)).toBe(500);
+    expect(await paidBalance(sub.userId)).toBe(0);
+    expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(0);
+    currentInvoices.set(current.id, current);
+    expect(await postWebhook(legacy)).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
+  });
+
+  it('uses current event evidence directly', async () => {
+    const sub = await subscriber();
+    expect(await postWebhook(invoiceEvent(sub))).toBe(200);
+    expect(invoiceRetrieveCalls).toEqual([]);
+    expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
   });
 });
 
