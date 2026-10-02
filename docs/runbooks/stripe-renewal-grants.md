@@ -27,6 +27,32 @@ would trigger.
    `invoice.payment_failed` and `charge.refunded` are recorded when sent and are
    optional. Changing the endpoint's event list is a production change in the
    Stripe dashboard and needs its own approval.
+
+   **Mandatory preflight, before the deploy and after any edit of the
+   endpoint** (read-only: it only lists webhook endpoints; a restricted key
+   with read access to webhook endpoints is enough, and the key is never
+   printed):
+
+   ```bash
+   STRIPE_SECRET_KEY=<restricted key, webhook endpoints: read> \
+     node packages/api/scripts/check-stripe-webhook-events.mjs
+   # OXY_STRIPE_WEBHOOK_URL=… to check an endpoint other than
+   # https://api.oxy.so/billing/webhook
+   ```
+
+   Exit `0` = exactly one enabled endpoint for the Oxy URL sends every event
+   the handler requires (or `*`); `1` = not ready (no endpoint, disabled, two
+   enabled endpoints, or a required event such as `invoice.paid` missing — the
+   output names it); `2` = could not check (no key, Stripe error). Do not
+   deploy on `1` or `2`. Its required/optional lists are pinned to the
+   handler's `switch` by `check-stripe-webhook-events.test.mjs`, which CI runs,
+   so a newly handled event cannot be forgotten here.
+
+   *Option for Nate (not done):* run the same preflight as a step of
+   `deploy-aws.yml` before the API deploy, with a read-only restricted key in
+   the deploy environment. That changes the deploy workflow and adds a
+   credential, so it needs approval; until then it is a manual step and its
+   output is pasted into the deploy record.
 2. Migration `0131_billing_stripe_event_ledger` is additive (`pre` phase): a new
    table and two nullable columns. It rewrites no row.
 3. Periods already granted by the old path keep their receipts. The idempotency
