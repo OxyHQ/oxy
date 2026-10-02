@@ -1,0 +1,1 @@
+check-ci-complete.mjs behaves: 43 fixtures, covering every `needs.*.result` value, the coverage guard, both workflow-trigger guards, and the gate's own vacuity floors.
