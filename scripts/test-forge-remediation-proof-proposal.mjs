@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ADVISORY, FILES, SUITES, sha256, canonicalAudit, inventory, evaluate } from './forge-remediation-proof-proposal.mjs';
+import { ADVISORY, FILES, SUITES, sha256, canonicalAudit, inventory, inventoryHash, evaluate } from './forge-remediation-proof-proposal.mjs';
 let checks = 0;
 function fixture() {
   const patchBytes = Buffer.from('synthetic patch');
@@ -11,7 +11,7 @@ function fixture() {
   const patchSha256 = sha256(patchBytes);
   const audit = { 'node-forge': [{ url: `https://github.com/advisories/${ADVISORY}`, severity: 'high' }] };
   const rawAuditSha256 = sha256(canonicalAudit(audit));
-  const evidenceBytes = JSON.stringify({ rawAuditSha256, patchSha256, inventorySha256: sha256(JSON.stringify(copies)), suites: Object.fromEntries(SUITES.map(name => [name,'pass'])) });
+  const evidenceBytes = JSON.stringify({ rawAuditSha256, patchSha256, inventorySha256: inventoryHash(copies), suites: Object.fromEntries(SUITES.map(name => [name,'pass'])) });
   return { audit, manifest: { advisory: ADVISORY, package: 'node-forge', version: '1.4.0', rawAuditSha256, patchSha256, files, testEvidenceSha256: sha256(evidenceBytes), independentSecurityReview: { reviewer: 'synthetic-review-only', reviewedPatchSha256: patchSha256 } }, patchBytes, copies, evidenceBytes };
 }
 function reject(change) { const input = fixture(); change(input); assert.equal(evaluate(input).technicalEvidenceComplete, false); checks++; }
@@ -54,6 +54,24 @@ try {
   create('packages/app/node_modules/node-forge');
   symlinkSync(first,join(root,'node_modules/node-forge'),'dir');
   assert.equal(inventory(root).length,2); checks++;
+  const sharpPath='node_modules/.bun/node_modules/@img/sharp-libvips-linux-arm64';
+  const sharpTarget='../../@img+sharp-libvips-linux-arm64@1.2.3/node_modules/@img/sharp-libvips-linux-arm64';
+  mkdirSync(join(root,sharpPath,'..'),{recursive:true});
+  symlinkSync(sharpTarget,join(root,sharpPath));
+  assert.throws(()=>inventory(root),/ENOENT/);checks++;
+  const option={intentionalDanglingSharpLinks:[{path:sharpPath,target:sharpTarget}]};
+  const allowed=inventory(root,option);
+  assert.equal(allowed.length,2);assert.deepEqual(allowed.intentionalDanglingSharpLinks,option.intentionalDanglingSharpLinks);checks++;
+  assert.notEqual(inventoryHash(allowed),inventoryHash([...allowed]));checks++;
+  assert.throws(()=>inventory(root,{intentionalDanglingSharpLinks:[{path:sharpPath,target:'wrong'}]}));checks++;
+  const forgeLink='packages/app/node_modules/missing-forge';symlinkSync('/missing/node-forge',join(root,forgeLink));
+  assert.throws(()=>inventory(root,{intentionalDanglingSharpLinks:[...option.intentionalDanglingSharpLinks,{path:forgeLink,target:'/missing/node-forge'}]}));checks++;
+  rmSync(join(root,forgeLink));
+  assert.throws(()=>inventory(root,{intentionalDanglingSharpLinks:[...option.intentionalDanglingSharpLinks,{path:'unused',target:'unused'}]}));checks++;
+  rmSync(join(root,sharpPath));
+  symlinkSync('../../node-forge@1.4.0/node_modules/node-forge',join(root,sharpPath));
+  assert.throws(()=>inventory(root,{intentionalDanglingSharpLinks:[{path:sharpPath,target:'../../node-forge@1.4.0/node_modules/node-forge'}]}));checks++;
+  rmSync(join(root,sharpPath));
   writeFileSync(join(first,'dist/forge.min.js'),'modified');
   assert.notEqual(inventory(root)[0].files['dist/forge.min.js'],sha256('dist/forge.min.js')); checks++;
 } finally { rmSync(root,{recursive:true,force:true}); }
