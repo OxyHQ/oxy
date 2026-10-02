@@ -35,6 +35,7 @@ import {
   users,
 } from '../../db/schema';
 import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
+import { reconcileMeteredReceipts } from '../../services/inferenceMeteredUsage.service';
 import type { KaanaClient, KaanaCompletion } from '../../services/kaanaClient';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
@@ -407,6 +408,46 @@ describe('one installation, charging armed', () => {
       usageReceiptId: money.receipts[0].id,
     });
     expect(executions).toBe(2);
+  });
+
+  it('recovers an actual metering write failure after the edge committed its receipt without re-executing or charging twice', async () => {
+    const external = await customer('10.000000000000');
+    const key = `recovery-${tag()}`;
+    const db = getDb();
+    const triggerName = `metering_failure_${tag()}`;
+    await db.execute(sql`
+      create function ${sql.raw(triggerName)}() returns trigger language plpgsql as $$
+      begin raise exception 'synthetic terminal metering write failure'; end $$`);
+    await db.execute(sql`create trigger ${sql.raw(triggerName)} before update on inference_metered_usage
+      for each row when (new.status = 'settled' and old.account_id = '${sql.raw(external.accountId)}')
+      execute function ${sql.raw(triggerName)}()`);
+    let response: RawResponse;
+    try {
+      response = await post(body(external), { ...bearer(external.machineToken), 'Idempotency-Key': key });
+      expect(response.status).toBe(200);
+      expect(executions).toBe(1);
+      const usage = await meteredFor(response.body.requestId);
+      const money = await moneyRowsFor(external.accountId);
+      expect(usage).toMatchObject({ status: 'admitted', usageReceiptId: null });
+      expect(money.receipts).toHaveLength(1);
+      expect(money.receipts[0]).toMatchObject({ inputTokens: 1000, outputTokens: 2000,
+        billedAmount: '0.033000000000' });
+    } finally {
+      await db.execute(sql`drop trigger ${sql.raw(triggerName)} on inference_metered_usage`);
+      await db.execute(sql`drop function ${sql.raw(triggerName)}()`);
+    }
+    expect(await reconcileMeteredReceipts()).toBe(1);
+    const recovered = await meteredFor(response!.body.requestId);
+    expect(recovered).toMatchObject({ status: 'settled', inputTokens: 1000, outputTokens: 2000,
+      tariffAmount: '0.033000000000' });
+    expect(recovered.usageReceiptId).not.toBeNull();
+    expect(await reconcileMeteredReceipts()).toBe(0);
+    const replay = await post(body(external), { ...bearer(external.machineToken), 'Idempotency-Key': key });
+    expect(replay).toMatchObject({ status: 409, body: { code: 'idempotency_conflict' } });
+    expect(executions).toBe(1);
+    const money = await moneyRowsFor(external.accountId);
+    expect(money.receipts).toHaveLength(1);
+    expect(money.balances[0].purchasedBalance).toBe('9.967000000000');
   });
 
   it('still refuses an external customer with no funds, before anything is forwarded', async () => {
