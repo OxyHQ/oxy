@@ -415,6 +415,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
             startOfficialSignIn,
             startThirdPartyOAuth,
             clientId,
+            notifyNotConfigured,
             notifyFailed,
         ],
     );

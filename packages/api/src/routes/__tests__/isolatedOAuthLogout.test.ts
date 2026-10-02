@@ -21,8 +21,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
@@ -144,17 +144,21 @@ beforeAll(async () => {
   });
 });
 
+const originalAccessTokenV1Window = process.env.ACCESS_TOKEN_V1_WINDOW;
+
 afterAll(async () => {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()));
   });
   await closePostgres();
+  if (originalAccessTokenV1Window === undefined) Reflect.deleteProperty(process.env, 'ACCESS_TOKEN_V1_WINDOW');
+  else process.env.ACCESS_TOKEN_V1_WINDOW = originalAccessTokenV1Window;
 });
 
 beforeEach(() => {
   sessionCache.clear();
   userCache.clear();
-  delete process.env.ACCESS_TOKEN_V1_WINDOW;
+  Reflect.deleteProperty(process.env, 'ACCESS_TOKEN_V1_WINDOW');
 });
 
 
