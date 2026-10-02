@@ -6,6 +6,7 @@ import * as policies from '../inferenceRoutingPolicy.service';
 import * as ledger from '../inferenceLedger.service';
 import * as flags from '../../config/rolloutFlags';
 import * as telemetry from '../inferenceTelemetry.service';
+import * as metered from '../inferenceMeteredUsage.service';
 import { buildEnvelope, admitRequest, PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY, type EdgeExecutionContext } from '../inferenceEdge.service';
 import type { ScopedExecutionAudience } from '@oxy.so/contracts';
 
@@ -48,6 +49,10 @@ beforeEach(() => {
   jest.spyOn(ledger, 'quoteUnits').mockResolvedValue({ status: 'quoted', amount: '0.001', currency: 'USD' });
   jest.spyOn(ledger, 'reserve').mockResolvedValue({ status: 'reserved', reservation: hold, softStopsPassed: [] });
   jest.spyOn(telemetry, 'recordInferenceUsage').mockResolvedValue(undefined);
+  // This qualification suite stubs the DB; durable metering is verified by
+  // the real-Postgres internal-metered route and metering-service suites.
+  jest.spyOn(metered, 'claimMeteredAdmission').mockResolvedValue({ status: 'claimed', meteredUsageId: 'synthetic-metered' });
+  jest.spyOn(metered, 'settleMeteredUsage').mockResolvedValue({ status: 'not-admitted' });
 });
 afterEach(() => jest.restoreAllMocks());
 const client = () => ({ attestDeployments: jest.fn().mockResolvedValue(attestation), execute: jest.fn(), stream: jest.fn() });
