@@ -32,11 +32,10 @@ function digestInfo(algorithm, variant) {
   if(variant === 'trailing') der = Buffer.concat([der, tlv(5, [])]);
   return {der, digest: crypto.createHash(algorithm).update(message).digest()};
 }
+// Use the supported signing API and normal PKCS#1 v1.5 padding with our own key.
+const fixtureSigner = source.pki.privateKeyFromPem(privateKey.export({type: 'pkcs1', format: 'pem'}).toString());
 function signEncoded(der) {
-  const paddingLength = 256 - der.length - 3;
-  assert(paddingLength >= 8);
-  return crypto.privateEncrypt({key: privateKey, padding: crypto.constants.RSA_NO_PADDING},
-    Buffer.concat([Buffer.from([0, 1]), Buffer.alloc(paddingLength, 255), Buffer.from([0]), der]));
+  return Buffer.from(fixtureSigner.sign(der.toString('binary'), 'NONE'), 'binary');
 }
 function accepted(forge, digest, signature) {
   try { return forge.pki.publicKeyFromPem(pem).verify(digest.toString('binary'), signature.toString('binary')); }
@@ -51,7 +50,7 @@ for(const filename of ['forge.min.js', 'forge.all.min.js']) {
   distributions.push([filename, sandbox.forge]);
 }
 const rows = [];
-for(const algorithm of ['sha1', 'sha224', 'sha256', 'sha384', 'sha512', 'md5']) {
+for(const algorithm of ['sha1', 'sha224', 'sha256', 'sha384', 'sha512', 'sha512-224', 'sha512-256', 'md5']) {
   for(const variant of ['empty-null', 'absent-null', 'extra-nested', 'nonempty-null', 'extra-outer', 'trailing', 'wrong-digest']) {
     const {der, digest} = digestInfo(algorithm, variant);
     const signature = signEncoded(der);
