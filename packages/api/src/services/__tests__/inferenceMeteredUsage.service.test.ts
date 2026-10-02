@@ -429,13 +429,16 @@ describe('the cost-centre usage report', () => {
     if (partial.status !== 'claimed' || expired.status !== 'claimed') throw new Error('fixture claim failed');
     await settle(fixture, partial.meteredUsageId);
     await ingestProviderCostAttempts([attempt(input.requestId, 0, { costComplete: false }),
-      attempt(input.requestId, 1, { cost: { currency: 'EUR', amountPicos: '10000000000' } })]);
+      attempt(input.requestId, 1, { cost: { currency: 'EUR', amountPicos: '10000000000' } }),
+      attempt(input.requestId, 2, { costSource: 'provider_reported', cost: { currency: 'USD', amountPicos: '20000000000' } })]);
     const report = await costCenterUsage({ periodStart: new Date(Date.now() - 60_000),
       periodEnd: new Date(Date.now() + 60_000), currency: 'USD' });
     expect(report.find((entry) => entry.costCenter?.accountId === fixture.accountId)).toMatchObject({
       requestCount: 1, inFlightCount: 0, expiredCount: 1,
-      providerCost: { amount: '0.010000000000', knownCount: 0, unknownCount: 0,
-        partialCount: 1, missingRequestCount: 1, otherCurrencyCount: 1 },
+      providerCost: { amount: '0.030000000000', knownCount: 1, unknownCount: 0,
+        partialCount: 1, missingRequestCount: 1, otherCurrencyCount: 1,
+        providerReportedAmount: '0.020000000000', providerReportedCount: 1,
+        estimatedAmount: '0.010000000000', estimatedCount: 1 },
     });
     expect((await row(expired.meteredUsageId)).status).toBe('admitted');
   });

@@ -367,6 +367,10 @@ type UsageReportRow = Record<string, unknown> & {
   provider_partial: string;
   provider_missing: string;
   provider_other_currency: string;
+  provider_reported_amount: string;
+  provider_reported_count: string;
+  provider_estimated_amount: string;
+  provider_estimated_count: string;
   charge_amount: string;
   charge_count: string;
 };
@@ -407,7 +411,11 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
           count(*) filter (where a.cost_currency = ${query.currency} and a.cost_complete) as known_count,
           count(*) filter (where a.cost_amount is null) as unknown_count,
           count(*) filter (where a.cost_currency = ${query.currency} and not a.cost_complete) as partial_count,
-          count(*) filter (where a.cost_currency <> ${query.currency}) as other_currency_count
+          count(*) filter (where a.cost_currency <> ${query.currency}) as other_currency_count,
+          sum(a.cost_amount) filter (where a.cost_currency = ${query.currency} and a.cost_source = 'provider_reported') as reported_amount,
+          count(*) filter (where a.cost_currency = ${query.currency} and a.cost_source = 'provider_reported') as reported_count,
+          sum(a.cost_amount) filter (where a.cost_currency = ${query.currency} and a.cost_source = 'rate_card') as estimated_amount,
+          count(*) filter (where a.cost_currency = ${query.currency} and a.cost_source = 'rate_card') as estimated_count
         from inference_provider_cost_attempts a
         where a.request_id in (select request_id from scoped)
         group by a.request_id
@@ -430,6 +438,10 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
         coalesce(sum(c.partial_count), 0)::text as provider_partial,
         count(*) filter (where c.request_id is null)::text as provider_missing,
         coalesce(sum(c.other_currency_count), 0)::text as provider_other_currency,
+        coalesce(round(sum(c.reported_amount), 12), 0)::text as provider_reported_amount,
+        coalesce(sum(c.reported_count), 0)::text as provider_reported_count,
+        coalesce(round(sum(c.estimated_amount), 12), 0)::text as provider_estimated_amount,
+        coalesce(sum(c.estimated_count), 0)::text as provider_estimated_count,
         coalesce(round(sum(rc.billed_amount) filter (where rc.currency = ${query.currency}), 12), 0)::text as charge_amount,
         count(rc.id) filter (where rc.currency = ${query.currency})::text as charge_count
       from scoped r
@@ -493,6 +505,10 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
         partialCount: Number(row.provider_partial),
         missingRequestCount: Number(row.provider_missing),
         otherCurrencyCount: Number(row.provider_other_currency),
+        providerReportedAmount: row.provider_reported_amount,
+        providerReportedCount: Number(row.provider_reported_count),
+        estimatedAmount: row.provider_estimated_amount,
+        estimatedCount: Number(row.provider_estimated_count),
       },
       customerCharge: { amount: row.charge_amount, receiptCount: Number(row.charge_count) },
     });
