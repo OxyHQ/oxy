@@ -2496,10 +2496,15 @@ router.post(
     // cannot be stored fails the request: handing out a code whose consent was
     // never recorded would report an authorization the user cannot see, revoke
     // or rely on. The code is persisted as a hash, never the raw value.
+    // The code can never carry more than the application is registered for —
+    // the same ceiling `finalizeOAuthAuthorization` applies. A scope the
+    // platform never granted the app is dropped here, so neither the code nor
+    // the consent row can hold it, whatever the client asked for.
+    const grantedScopes = intersectScopes(requestedScopes, app.scopes);
     const decision = decideOAuthConsent({
       application: app,
       requestedScopes,
-      grantedScopes: requestedScopes,
+      grantedScopes,
     });
     const { code: rawCode } = await persistOAuthAuthorization({
       decision,
@@ -2509,7 +2514,7 @@ router.post(
         redirectUri,
         codeChallenge,
         codeChallengeMethod: codeChallenge ? 'S256' : undefined,
-        scopes: requestedScopes,
+        scopes: grantedScopes,
         deviceId: oauthDeviceId,
       },
     });
@@ -2608,12 +2613,16 @@ router.get(
     }
 
     const requestedScopes = scope ? scope.split(/\s+/).filter(Boolean) : [];
+    // Decided over what `POST /oauth/authorize` will actually grant — the request
+    // narrowed to the application's registered scopes — so the screen never
+    // offers a permission the platform did not give this application.
+    const grantableScopes = intersectScopes(requestedScopes, app.scopes);
     // Scopes over the USER's own data — the follow graph — are never decided on
     // the user's behalf. They are the one thing platform trust does not answer
     // for: the relationships belong to the user, the people on the other end can
     // see them, and being first-party is not a reason to be handed them without
     // being asked. Everything else keeps the "Google with its own apps" model.
-    const mustAsk = userConsentRequiredScopes(requestedScopes);
+    const mustAsk = userConsentRequiredScopes(grantableScopes);
 
     // Each arm builds a `const dto: OauthConsentDecision` and parses it on the
     // way out. Both halves of the guard matter: the annotation makes a missing
@@ -2636,7 +2645,7 @@ router.get(
 
     if (grant) {
       const granted = new Set(grant.scopes ?? []);
-      const covered = requestedScopes.every((s) => granted.has(s));
+      const covered = grantableScopes.every((s) => granted.has(s));
       if (covered) {
         decide({ consentRequired: false, reason: 'granted' });
         return;
