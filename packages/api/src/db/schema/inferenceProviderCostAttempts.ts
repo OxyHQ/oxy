@@ -22,6 +22,17 @@
  * `sum()` cannot fold an unpriced attempt in as free traffic. Reports count
  * those rows beside the sum instead.
  *
+ * ## Units are columns, not a document
+ *
+ * Kaana's units are a closed set (`USAGE_UNITS`), so each is its own `bigint`
+ * column — the same {@link usageUnitColumns} every ledger table carries —
+ * rather than a `jsonb` list that could hold anything (ADR 0016: Oxy persists
+ * no payload, and an open-shaped column is where one would land). A unit the
+ * reader does not know refuses the page instead of being stored. Kaana omits
+ * units for attempts recorded before it measured them; `units_measured =
+ * false` says so, and its columns are all zero by CHECK, so "not measured" can
+ * never be read back as a measured zero.
+ *
  * ## Failed attempts are here on purpose
  *
  * A failover attempt that produced nothing for the customer is on no receipt
@@ -35,14 +46,19 @@ import {
   check,
   index,
   integer,
-  jsonb,
   pgTable,
   primaryKey,
   text,
 } from 'drizzle-orm/pg-core';
 import { createdAt, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import { PROVIDER_COST_SOURCES } from '@oxy.so/contracts';
-import { currencyCodeCheck, exactAmount } from './ledgerColumns';
+import {
+  currencyCodeCheck,
+  exactAmount,
+  totalUsageUnitsExpression,
+  usageUnitColumns,
+  usageUnitsNonNegativeCheck,
+} from './ledgerColumns';
 
 export const PROVIDER_COST_SOURCE_VALUES = PROVIDER_COST_SOURCES;
 
@@ -68,8 +84,9 @@ export const inferenceProviderCostAttempts = pgTable(
     costComplete: boolean().notNull(),
     served: boolean().notNull(),
     occurredAt: timestamptz().notNull(),
-    /** The attempt's own `[{unit, quantity}]`, verbatim; NULL when Kaana never measured them. */
-    units: jsonb(),
+    /** False when Kaana never measured this attempt's units; its unit columns are then all zero. */
+    unitsMeasured: boolean().notNull(),
+    ...usageUnitColumns(),
     /** `succeeded` | `cancelled` | `failed`, or NULL for an attempt measured before Kaana recorded it. */
     outcome: text(),
     failureCode: text(),
@@ -97,6 +114,12 @@ export const inferenceProviderCostAttempts = pgTable(
     check(
       'inference_provider_cost_attempts_currency_check',
       sql`${t.costCurrency} is null or ${currencyCodeCheck(t.costCurrency)}`
+    ),
+    usageUnitsNonNegativeCheck('inference_provider_cost_attempts_units_check', t),
+    // Unmeasured is not a measured zero: an unmeasured attempt carries no quantity.
+    check(
+      'inference_provider_cost_attempts_unmeasured_check',
+      sql`${t.unitsMeasured} or (${totalUsageUnitsExpression(t)}) = 0`
     ),
     check(
       'inference_provider_cost_attempts_latency_check',

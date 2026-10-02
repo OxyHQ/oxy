@@ -11,6 +11,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createHash, createPublicKey, generateKeyPairSync, randomUUID, verify } from 'node:crypto';
 import { eq } from 'drizzle-orm';
+import { USAGE_UNITS } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceProviderCostAttempts,
@@ -20,6 +21,7 @@ import {
   HttpKaanaProviderCostFeedReader,
   ingestProviderCostAttempts,
   picosToDecimal,
+  providerCostAttemptEventSchema,
   providerTelemetrySigningInput,
   syncProviderCostFeed,
   type ProviderCostAttemptEvent,
@@ -120,8 +122,76 @@ describe('ingestProviderCostAttempts', () => {
       costSource: 'unknown',
       costAmount: null,
       costCurrency: null,
-      units: null,
+      unitsMeasured: false,
+      inputTokens: 0,
     });
+  });
+
+  it('stores each unit in its own column, and unmeasured is not a measured zero', async () => {
+    const requestId = randomUUID();
+    await ingestProviderCostAttempts([
+      attempt(requestId, 0, {
+        units: [
+          { unit: 'output_tokens', quantity: 77 },
+          { unit: 'input_tokens', quantity: 1020 },
+          { unit: 'audio_input_milliseconds', quantity: 3500 },
+        ],
+      }),
+      attempt(requestId, 1, { units: [] }),
+      attempt(requestId, 2, { units: null }),
+    ]);
+    const [measured, measuredEmpty, unmeasured] = await stored(requestId);
+    expect(measured).toMatchObject({
+      unitsMeasured: true,
+      inputTokens: 1020,
+      outputTokens: 77,
+      audioInputMilliseconds: 3500,
+      cachedInputTokens: 0,
+    });
+    expect(measuredEmpty).toMatchObject({ unitsMeasured: true, inputTokens: 0 });
+    expect(unmeasured).toMatchObject({ unitsMeasured: false, inputTokens: 0, outputTokens: 0 });
+  });
+
+  it('the table itself refuses an unmeasured attempt that carries a quantity', async () => {
+    const requestId = randomUUID();
+    await ingestProviderCostAttempts([attempt(requestId, 0)]);
+    const thrown = await getDb()
+      .update(inferenceProviderCostAttempts)
+      .set({ unitsMeasured: false })
+      .where(eq(inferenceProviderCostAttempts.requestId, requestId))
+      .then(
+        () => undefined,
+        (error: unknown) => error
+      );
+    // Drizzle wraps the driver error; the constraint is named on its cause.
+    let constraint: unknown;
+    for (let current = thrown; current instanceof Error; current = current.cause) {
+      constraint ??= Reflect.get(current, 'constraint_name');
+    }
+    expect(constraint).toBe('inference_provider_cost_attempts_unmeasured_check');
+  });
+});
+
+describe('providerCostAttemptEventSchema units', () => {
+  it('accepts every unit Oxy prices', () => {
+    for (const unit of USAGE_UNITS) {
+      expect(providerCostAttemptEventSchema.safeParse(attempt('r', 0, { units: [{ unit, quantity: 1 }] })).success).toBe(true);
+    }
+  });
+
+  it('refuses a unit it does not know instead of storing it', () => {
+    const event = { ...attempt('r', 0), units: [{ unit: 'prompt_text', quantity: 1 }] };
+    expect(providerCostAttemptEventSchema.safeParse(event).success).toBe(false);
+  });
+
+  it('refuses a unit reported twice', () => {
+    const event = attempt('r', 0, {
+      units: [
+        { unit: 'input_tokens', quantity: 1 },
+        { unit: 'input_tokens', quantity: 2 },
+      ],
+    });
+    expect(providerCostAttemptEventSchema.safeParse(event).success).toBe(false);
   });
 });
 

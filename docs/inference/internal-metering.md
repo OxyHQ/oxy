@@ -46,7 +46,7 @@ per application + environment. Running out of capacity answers `rate_limited`
 | Table | One row per | Written | Holds |
 |---|---|---|---|
 | `inference_metered_usage` | admitted request | claimed at admission, settled once | treatment + policy version, attribution, cost-centre snapshot, admitted route, ceiling, units, outcome, **tariff snapshot**, receipt link only when charged |
-| `inference_provider_cost_attempts` | upstream attempt (`request_id`, `attempt_index`) | read from Kaana's signed operator feed | provider cost with its provenance (`provider_reported`, `rate_card`, `unknown`), served or failed-over, units, outcome |
+| `inference_provider_cost_attempts` | upstream attempt (`request_id`, `attempt_index`) | read from Kaana's signed operator feed | provider cost with its provenance (`provider_reported`, `rate_card`, `unknown`), served or failed-over, units as typed columns (`units_measured = false` when Kaana never measured them; an unknown unit refuses the page), outcome |
 
 - **Idempotency no longer depends on a hold.** The admission claim is unique
   on the ledger key among rows that were not refused. Concurrent retries of
