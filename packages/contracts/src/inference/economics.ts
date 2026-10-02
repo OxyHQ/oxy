@@ -78,12 +78,21 @@ export const costCenterUsageSchema = z
     requestCount: nonNegativeCount,
     /** Requests admitted and not yet settled when the report was read. */
     inFlightCount: nonNegativeCount,
+    /** Expired admissions with no authoritative terminal usage; never called in-flight. */
+    expiredCount: nonNegativeCount.default(0),
     /** Metered units, by unit name, summed over the settled requests. */
     units: z.record(z.string(), nonNegativeCount),
     /** The published tariff at each request's pinned price version. Not a cost. */
     tariff: knownAmountSchema,
     /** What upstream providers invoiced, per attempt, failed failovers included. */
-    providerCost: knownAmountSchema,
+    providerCost: knownAmountSchema.extend({
+      /** Attempts with a known subtotal and incomplete upstream cost coverage. */
+      partialCount: nonNegativeCount.default(0),
+      /** Requests with no ingested provider-cost attempt yet; never measured zero. */
+      missingRequestCount: nonNegativeCount.default(0),
+      /** Attempts priced in a different currency, excluded without currency conversion. */
+      otherCurrencyCount: nonNegativeCount.default(0),
+    }),
     /**
      * What customers were actually charged, from settled receipts only. A
      * request with no receipt was not charged — an internal one by

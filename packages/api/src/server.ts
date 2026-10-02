@@ -67,6 +67,7 @@ import { attachRealtimeEdge } from './routes/inferenceRealtime';
 import { createKaanaRealtimeClient } from './services/kaanaRealtimeClient';
 import { startKaanaCatalogueSyncSchedule } from './services/kaanaCatalogueSync.service';
 import { startProviderCostFeedSchedule } from './services/kaanaProviderCostFeed.service';
+import { startMeteredReceiptReconciliationSchedule } from './services/inferenceMeteredUsage.service';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
 import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
 import inferenceProviderConnectionRoutes from './routes/inferenceProviderConnections';
@@ -1343,6 +1344,7 @@ export async function bootstrap(
   // Kaana's per-attempt upstream cost, read over its signed operator feed into
   // `inference_provider_cost_attempts` (#1526). Read-only; same edge key.
   startProviderCostFeedSchedule();
+  startMeteredReceiptReconciliationSchedule();
 
   // Outbound relay readiness. Say it at boot: without a relay every send is
   // refused, and the failure is otherwise only discoverable by a user trying to
