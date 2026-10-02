@@ -78,4 +78,4 @@ for(const algorithm of ['sha1', 'sha224', 'sha256', 'sha384', 'sha512', 'sha512-
   }
 }
 console.log(JSON.stringify({mode, node: process.version, openssl: process.versions.openssl,
-  packageVersion: '1.4.0', packageFiles, knownKeyControlsOnly: true, count: rows.length, rows}, null, 2));
+  packageVersion: '1.4.0', packageFiles, publicKeySha256: crypto.createHash('sha256').update(pem).digest('hex'), knownKeyControlsOnly: true, count: rows.length, rows}, null, 2));
