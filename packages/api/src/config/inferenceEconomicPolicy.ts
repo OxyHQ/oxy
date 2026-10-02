@@ -46,7 +46,7 @@ import type { InferenceEnvironment, InferenceEconomicTreatment } from '@oxy.so/c
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-02.1';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-02.2';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -92,9 +92,16 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
     providerProduct: 'kaana',
     environments: ['production'],
     lane: 'service_token',
+    // PROPOSED, pending Nate's approval on #1526 — not an approved limit.
+    // Sized from Alia's measured production traffic (inference_usage_events,
+    // 2026-09-02..2026-10-02, read-only): busiest UTC day 185 requests (p95
+    // 148, median 18), busiest minute 16, at most 3 requests in flight at once,
+    // p95 latency 8.9 s. 32 in flight is ~10x the measured peak; 5,000 a day is
+    // ~27x the busiest day. Either refuses with a 429 and never asks for a top-up.
+    // Request counts do not bound cost by themselves: model eligibility does.
     capacity: {
-      maxConcurrentRequests: 256,
-      maxRequestsPerUtcDay: 500_000,
+      maxConcurrentRequests: 32,
+      maxRequestsPerUtcDay: 5_000,
     },
   },
 ];
