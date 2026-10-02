@@ -37,7 +37,7 @@ random test databases. No production connection, funds or credentials are used.
 | Same tests with foundation's auth route and AuthSession service | 13 failed / 10 passed; own files restored with byte verification. |
 | API `bun run test --runInBand authorityValidationProcesses` | 3 passed. Two independent Bun processes each own the real session service, local cache and pool. Both caches are hot, one process revokes a row or membership, the other's controller denies without clock advancement or invalidation. Only the listener/socket server module is stubbed. |
 | Same process tests with foundation's controller | 3 failed: stale process responds 200; own controller restored with byte verification. |
-| API `bun run test --runInBand oauthConsentFinalizers` | 34 passed, including first-party/third-party × explicit/empty × first consent/revoked and both finalizers. Empty request behavior remains a decision; the test records its current asynchrony, not approval. |
+| API `bun run test --runInBand oauthConsentFinalizers` | 34 passed, including first-party/third-party × explicit/empty × first consent/revoked and both finalizers. Empty request behavior remains a decision; the test records its current asymmetry, not approval. |
 | API targeted OAuth/controller selection | 10 suites / 238 passed before adding the eight consent characterization cases. |
 | Core `bun run test --runInBand` | 170 suites / 2,105 passed; denial-to-grant clock and app/account isolation included. |
 | Core `bun run lint` | Biome error-on-warnings clean. |
@@ -47,9 +47,14 @@ random test databases. No production connection, funds or credentials are used.
 The unsharded whole API run exceeded Node heap limits. It also observed an
 inference ledger reserved-balance fixture failure and a token fixture missing
 live membership. The latter is corrected; the ledger finding is delegated to
-I09. Six API shards are being run with the repository's own worker ceiling;
-this document does not claim a complete green API until final results are
-attached to the draft PR.
+I09. The six API shards subsequently passed: 560 suites / 8,421 tests, zero failures
+and omissions. `bun run test --listTests --json` independently lists 560 unique
+files. Commands were `NODE_OPTIONS=--max-old-space-size=4096
+TEST_DATABASE_URL=postgres://oxy@127.0.0.1:5549/postgres bun run test --shard=N/6`
+for N=1 through 6. Counts per shard: 1318, 1608, 1393, 1550, 1404, 1148.
+This verifies the I01/I02 composition and current corrections, not I09 billing
+or inference changes absent from this foundation. The initial unsharded ledger
+failure remains evidence of run-order/fixture sensitivity to investigate.
 
 These tests prove authority reads in independent processes, not production
 latency, a full deployed HTTP load profile, event delivery/ordering, epochs,
