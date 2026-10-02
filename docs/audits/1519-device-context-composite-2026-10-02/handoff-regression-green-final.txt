@@ -1,0 +1,6 @@
+$ jest --runInBand src/services/__tests__/deviceDirectory.service.test.ts -t "#1544"
+Test Suites: 1 passed, 1 total
+Tests:       36 skipped, 7 passed, 43 total
+Snapshots:   0 total
+Time:        2.06 s, estimated 4 s
+Ran all test suites matching src/services/__tests__/deviceDirectory.service.test.ts with tests matching "#1544".

@@ -1,0 +1,26 @@
+$ jest --runInBand src/services/__tests__/deviceDirectory.service.test.ts -t "second operator arrives during"
+FAIL src/services/__tests__/deviceDirectory.service.test.ts
+  ● removal — one context and one principal are different operations › #1544 refuses an account-only mint if a second operator arrives during its await
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      854 |       expect(activated.ok).toBe(true);
+      855 |       barrier.release();
+    > 856 |       expect((await pending) === null).toBe(true);
+          |                                        ^
+      857 |       expect((await storedDevice(shared.device)).activeContextId).toBe(aliceContext);
+      858 |       const session = (await storedContexts(shared.device)).find((context) => context.id === aliceContext)?.sessionId ?? '';
+      859 |       expect(await sessionIsActive(session)).toBe(true);
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:856:40
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 42 skipped, 43 total
+Snapshots:   0 total
+Time:        0.968 s, estimated 3 s
+Ran all test suites matching src/services/__tests__/deviceDirectory.service.test.ts with tests matching "second operator arrives during".
+error: script "test" exited with code 1
