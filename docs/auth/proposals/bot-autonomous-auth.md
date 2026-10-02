@@ -335,7 +335,7 @@ pruebas de aceptación de la implementación propuesta.
 | P6 | Alta de una clave pública ajena, sin prueba de posesión | 400 | propuesta |
 | P7 | Alta o recuperación sin reauth fresco, o sin `credentials:manage` | 401 / 403 | propuesta |
 | P8 | Alta de `agent_key` en una cuenta que no es bot | 403 | propuesta |
-| P9 | El bot, con su sesión, intenta quitar a su propietario, transferir la propiedad o desarchivarse | 403 (gobierno ≠ capacidad, D3) | propuesta |
+| P9 | El bot, con su sesión, intenta quitar a su propietario, transferir la propiedad o desarchivarse | Según D2/D3 y la política de archivo que Nate apruebe: verificar la autoridad de gobierno explícita y su ausencia; no asumir permiso ni un 403 incondicional | pendiente de decisión |
 | P10 | El bot rota su clave sin persona | Correcto con firma de la vieja + prueba de la nueva; sin la vieja → 400 | propuesta |
 | P11 | Recibe fondos y paga con su sesión | Saldo y recibo del bot; el saldo del propietario no se mueve; sin aprobación del propietario | propuesta (simulado) |
 | P12 | Misma acción con mismo rol y plan, persona vs bot con clave | Mismo resultado y mismo tratamiento comercial | propuesta |
