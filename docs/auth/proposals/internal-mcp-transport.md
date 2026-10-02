@@ -1,0 +1,77 @@
+# Candidate design — shared internal and external MCP transport
+
+Status: review candidate, not activated. I04 [#1523](https://github.com/OxyHQ/oxy/issues/1523)
+under [#1519](https://github.com/OxyHQ/oxy/issues/1519). The authority policy in I03
+and autonomous bot authentication in I01 remain decision gates. No package is
+published by this document.
+
+## Current source and compatibility
+
+`catalogAdapter.ts` registers only tools exposed as `mcp`, authenticates
+`McpPrincipal` from OAuth `authInfo`, and binds domain authorization to
+`activeAccountId`. `httpTransport.ts` introspects each HTTP request before
+constructing a stateless server. `ServerAgencyApi` exposes requester assertions,
+but ticket issuance/introspection, service catalog discovery and authenticated
+execution-authorization creation are not complete server SDK methods.
+
+The existing `CatalogInvocationContext` and OAuth-only overload remain unchanged.
+A new overload/generic context provides a discriminated invocation principal;
+existing handlers are not forced to read a union with missing OAuth properties.
+An internal capability ticket is never converted to `McpAccessTokenClaims`.
+
+## Concrete implementation boundary
+
+1. Contracts add separate external OAuth and internal capability invocation
+   principals. Preserve origin account, active/effective account, actor, app,
+   tool, resource and catalog version/digest as separate fields. Schema parsing
+   is structural validation, never authentication.
+2. Core `/server` adds live service methods for catalog discovery, ticket
+   issuance/introspection and execution authorization. All service credentials
+   remain in the server namespace. Authority lookups disable caching; transient
+   network failures fail closed and authority mutations are not automatically
+   retried. Requester bearer assertions stay bound to the intended audience.
+3. MCP transport receives internal proof in an authenticated transport header,
+   not arbitrary tool arguments or logs. It selects a verifier from proof
+   format and allowed mechanism, not a client flag. OAuth cannot authenticate
+   as Capability, and Capability cannot authenticate as OAuth.
+4. The internal verifier validates ticket signature, issuer, audience and TTL,
+   then performs live Oxy ticket introspection using the receiving service's own
+   credential. For a call, it binds the ticket to the exact catalog digest,
+   version, tool, effective account, resource and execution authorization. A
+   ticket for tool A cannot discover or invoke tool B by changing the body.
+5. An authenticated internal principal is injected privately into that request's
+   server/adapter closure. A domain `authorize` callback is still required for
+   resource authorization, but cannot create authenticated internal identity.
+   The same canonical handlers and input/output validation serve both routes.
+6. Tool exposure is evaluated separately for internal and external surfaces.
+   Internal-only tools never appear in external `tools/list`, including when
+   a caller supplies a forged flag. Discovery evidence is not reusable
+   execution proof: every `tools/call` revalidates current authority.
+7. Native bot self-authentication support is added only after I01 approval and
+   live-key implementation. Own-account capability does not bypass action,
+   resource, tool, policy, spend limits or execution authority.
+
+## Migration and verification
+
+The legacy HTTP capability route remains available through I05 comparison and
+consumer adoption. I04 does not silently migrate Noted/Mercaria resource
+ownership semantics; it supplies fixtures for origin A, active B, A/B resources
+and B revoked, shared with Inbox/website. I11 owns product changes.
+
+Acceptance requires type/audience/signature negative cases, tool A/B mismatch,
+resource/account mismatch, changed catalog digest/version, revoke between list
+and call, timeout/recovery, independent requests, and idempotent effect retry.
+Run these against both ESM and CJS from tarballs built and packed in the same
+command with `bun run build && bun pm pack`; fixture projects must resolve the
+packed package, not workspace source. Coordinate one version window with I07
+for contracts/core/mcp. A real breaking API requires its own version decision;
+calling the change additive does not establish compatibility.
+
+## Decisions and remaining evidence
+
+The internal ticket mechanism already exists; the MCP transport design must
+still receive ADR 0018 review. I03 has not approved a new freshness maximum,
+service-credential revocation guarantee, or internal header/session binding
+policy. The two-process session-cache test and bot-own-session acceptance are
+not supplied by source inspection. Package artifacts, integration traces and
+pilot parity remain required before I04 can be completed or published.
