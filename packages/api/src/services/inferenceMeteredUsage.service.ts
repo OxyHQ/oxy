@@ -53,6 +53,7 @@ import { quoteUnits } from './inferenceLedger.service';
 
 export interface MeteredAdmissionInput {
   readonly requestId: string;
+  readonly parentRequestId?: string;
   readonly idempotencyKey: string;
   readonly economics: EconomicTreatmentDecision;
   readonly accountId: string;
@@ -115,6 +116,7 @@ function capacityLockKey(applicationId: string, environment: string): bigint {
 export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promise<MeteredAdmission> {
   const values = {
     requestId: input.requestId,
+    parentRequestId: input.parentRequestId ?? null,
     idempotencyKey: input.idempotencyKey,
     economicTreatment: input.economics.treatment,
     economicPolicyVersion: input.economics.policyVersion,
@@ -179,6 +181,39 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
       ? { status: 'duplicate' }
       : { status: 'claimed', meteredUsageId: row.id };
   });
+}
+
+/** Preserve the admitted floor, and append one final authorization before dispatch. */
+export async function finalizeMeteredAuthorization(
+  meteredUsageId: string, input: MeteredAdmissionInput
+): Promise<boolean> {
+  const rows = await getDb().update(inferenceMeteredUsage).set({
+    finalAuthorizedModelReference: input.admittedModelReference,
+    finalAuthorizedProvider: input.admittedProvider,
+    finalAuthorizedDeploymentId: input.admittedDeploymentId,
+    finalAuthorizedCeilingAmount: input.ceiling?.amount ?? null,
+    finalAuthorizedCeilingCurrency: input.ceiling?.currency ?? null,
+  }).where(and(eq(inferenceMeteredUsage.id, meteredUsageId),
+    eq(inferenceMeteredUsage.requestId, input.requestId),
+    eq(inferenceMeteredUsage.idempotencyKey, input.idempotencyKey),
+    eq(inferenceMeteredUsage.accountId, input.accountId),
+    eq(inferenceMeteredUsage.applicationId, input.applicationId),
+    eq(inferenceMeteredUsage.applicationCredentialId, input.applicationCredentialId),
+    eq(inferenceMeteredUsage.environment, input.environment),
+    eq(inferenceMeteredUsage.status, 'admitted'),
+    sql`${inferenceMeteredUsage.expiresAt} > now()`,
+    sql`${inferenceMeteredUsage.finalAuthorizedDeploymentId} is null`))
+    .returning({ id: inferenceMeteredUsage.id });
+  return rows.length === 1;
+}
+
+/** Dispatch-time proof of the durable internal claim; expiry never permits replay. */
+export async function hasActiveInternalMeteredAdmission(meteredUsageId: string, requestId: string): Promise<boolean> {
+  const rows = await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+    .where(and(eq(inferenceMeteredUsage.id, meteredUsageId), eq(inferenceMeteredUsage.requestId, requestId),
+      eq(inferenceMeteredUsage.status, 'admitted'), eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
+      sql`${inferenceMeteredUsage.expiresAt} > now()`)).limit(1);
+  return rows.length === 1;
 }
 
 /**

@@ -34,11 +34,19 @@ import {
   usageReservations,
   users,
 } from '../../db/schema';
-import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
+import { provisionBillingProfile, recordTopUp, recordPromotionalGrant } from '../../services/inferenceLedger.service';
 import { reconcileMeteredReceipts } from '../../services/inferenceMeteredUsage.service';
 import type { KaanaClient, KaanaCompletion } from '../../services/kaanaClient';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
+import * as autoConfig from '../../config/autoClassification';
+import * as decisionConfig from '../../config/decisionAvailability';
+import * as catalogue from '../../services/inferenceCatalogue.service';
+import * as powerLevels from '../../services/inferencePowerLevels.service';
+import * as scoped from '../../services/scopedExecution.service';
+import * as rollout from '../../config/rolloutFlags';
+import { executeInferenceRequest, readGenerationReceipt, type EdgeExecutionContext } from '../../services/inferenceEdge.service';
+import { resolveEffectiveRoutingPolicy } from '../../services/inferenceRoutingPolicy.service';
 import {
   attestFixtureDeployments,
   createNeutralRoutingPolicy,
@@ -208,7 +216,7 @@ async function makeCredential(
 }
 
 /** One priced ($3/M in, $15/M out), approved, servable route and a neutral policy. */
-async function makeRoute(ownerAccountId: string, applicationId: string): Promise<string> {
+async function makeRoute(ownerAccountId: string, applicationId: string, createPolicy = true): Promise<string> {
   const db = getDb();
   const t = tag();
   const publisherSlug = `pub${t}`;
@@ -263,7 +271,7 @@ async function makeRoute(ownerAccountId: string, applicationId: string): Promise
     priceVersionId: price.id,
     changedByUserId: ownerAccountId,
   });
-  await createNeutralRoutingPolicy({ accountId: ownerAccountId, applicationId });
+  if (createPolicy) await createNeutralRoutingPolicy({ accountId: ownerAccountId, applicationId });
   return `${publisherSlug}/${modelSlug}`;
 }
 
@@ -543,7 +551,7 @@ describe('internal_metered keeps the guards a hold used to imply', () => {
         'internal_metered', 'fixture', 'alia-kaana', ${internal.accountId}, ${internal.applicationId},
         ${internal.credentialId}, 'production', '/v1/responses', 'x/y', 'x/y', 'p', 'd',
         now() + interval '10 minutes'
-      from generate_series(1, 256) g
+      from generate_series(1, 32) g
     `);
     try {
       const response = await post(body(internal), bearer(serviceToken(internal)));
@@ -566,5 +574,192 @@ describe('internal_metered keeps the guards a hold used to imply', () => {
     const row = await meteredFor(response.body.requestId);
     expect(row).toMatchObject({ status: 'settled', outcome: 'failed', usageReceiptId: null });
     expect((await moneyRowsFor(internal.accountId)).receipts).toEqual([]);
+  });
+});
+
+
+/** Real claims/metering/ledger; catalogue review and data plane are synthetic. */
+async function internalAutoFixture() {
+  const caller = await alia();
+  const highModel = await makeRoute(caller.accountId, caller.applicationId, false);
+  const db = getDb();
+  const routeFor = async (model: string): Promise<catalogue.EdgeRoute> => {
+    const [price] = await db.select().from(priceVersions).where(sql`${priceVersions.modelReference} like ${`${model}@%`}`).limit(1);
+    const [deployment] = await db.select().from(inferenceDeployments).where(eq(inferenceDeployments.priceVersionId, price.id)).limit(1);
+    if (deployment.internalRouteId === null) throw new Error('Fixture lacks deployment');
+    return { modelReference: price.modelReference, provider: price.provider, priceVersionId: price.id,
+      deploymentId: deployment.internalRouteId, regions: ['us-west-2'], maxContextTokens: 200_000, maxOutputTokens: 8192,
+      fundingPriority: 4, routingScore: 100, reasoning: false, availabilityScope: 'public_payg',
+      inputModalities: ['text'], outputModalities: ['text'], reasoningEfforts: [], acceptedParameters: null,
+      apiFormats: ['responses', 'decisions'] };
+  };
+  const floor = await routeFor(caller.modelReference);
+  const high = await routeFor(highModel);
+  await db.update(priceVersionUnitPrices).set({ amount: '0.010000000000' }).where(and(eq(priceVersionUnitPrices.priceVersionId, floor.priceVersionId), eq(priceVersionUnitPrices.unit, 'input_tokens')));
+  await db.update(priceVersionUnitPrices).set({ amount: '0.000000000000' }).where(and(eq(priceVersionUnitPrices.priceVersionId, floor.priceVersionId), eq(priceVersionUnitPrices.unit, 'output_tokens')));
+  const principal = { lane: 'service_token' as const, ownerAccountId: caller.accountId,
+    applicationId: caller.applicationId, credentialId: caller.credentialId, environment: 'production' as const,
+    scopes: ['inference:invoke', 'inference:usage:read'], applicationIsInternal: true, applicationType: 'internal' as const };
+  const pinned = await resolveEffectiveRoutingPolicy(principal.applicationId);
+  if (pinned.status !== 'resolved') throw new Error('Fixture lacks policy');
+  jest.spyOn(autoConfig, 'autoClassifierApproval').mockReturnValue({ reviewId: 'synthetic-only', reviewVersion: 1,
+    deploymentId: floor.deploymentId, modelReference: floor.modelReference, provider: floor.provider, regions: floor.regions,
+    routingPolicy: { routingPolicyId: pinned.stored.policy.routingPolicyId, policyVersion: pinned.stored.policy.policyVersion },
+    commercial: true, internalEligibility: true, privacy: true, zdr: true });
+  jest.spyOn(decisionConfig, 'decisionAvailability').mockReturnValue({ available: true, reason: 'synthetic-only' });
+  jest.spyOn(catalogue, 'resolveRoutingProfileForEdgeById').mockResolvedValue({ status: 'power-level', routingProfileId: 'fixture-auto', powerLevel: 'auto', slug: 'auto', optimiseFor: 'price' });
+  jest.spyOn(powerLevels, 'powerLevelProfileIds').mockResolvedValue(new Map([['instant', 'fixture-instant'], ['medium', 'fixture-medium'], ['high', 'fixture-high'], ['xhigh', 'fixture-xhigh']]));
+  jest.spyOn(powerLevels, 'powerLevelEfforts').mockResolvedValue(new Map());
+  jest.spyOn(catalogue, 'powerLevelCandidates').mockImplementation(async (_viewer, levels) => [{ modelReference: floor.modelReference, priority: 0, level: 'instant' as const }, { modelReference: high.modelReference, priority: 2, level: 'high' as const }].filter(candidate => levels.includes(candidate.level)));
+  const routes = jest.spyOn(catalogue, 'resolveEdgeRoute').mockImplementation(async (_viewer, reference) => ({ status: 'resolved', route: reference === high.modelReference ? high : floor, alternates: [] }));
+  const forwarded: InferenceRequest[] = [];
+  let afterChild: (() => Promise<void>) | undefined;
+  const client: KaanaClient = {
+    attestDeployments: async (ids) => ({ snapshotId: 'synthetic-only', deployments: ids.map(id => id === high.deploymentId ? high : floor) }),
+    execute: async (envelope) => {
+      forwarded.push(envelope);
+      await new Promise(resolve => setTimeout(resolve, 30));
+      const result = completionFor(envelope);
+      if (envelope.input.format === 'decisions') {
+        await afterChild?.();
+        return { ...result, output: [], usage: { ...result.usage, units: [{ unit: 'input_tokens', quantity: 1000 }, { unit: 'output_tokens', quantity: 0 }] }, decisions: [{ id: 'auto-power-level', kind: 'choice', reply: 'high', confidence: 1, probabilities: [0, 0, 1, 0] }] };
+      }
+      return result;
+    },
+  };
+  const context: EdgeExecutionContext = { requestId: `auto-${tag()}`, receivedAt: performance.now(), principal,
+    delegatedUserId: caller.accountId, idempotencyKey: `auto-key-${tag()}`,
+    request: { operation: { kind: 'completion' }, target: { kind: 'routing_profile_id', routingProfileId: 'fixture-auto' }, input: { format: 'text', text: 'Synthetic puzzle' }, tools: [], sampling: {}, stream: false, maxOutputTokens: 3000 },
+    signal: new AbortController().signal, kaanaClient: client, endpoint: '/v1/responses', apiFormat: 'responses' };
+  return { caller, context, floor, high, routes, forwarded, setAfterChild: (f: () => Promise<void>) => { afterChild = f; } };
+}
+
+describe('I10 durable internal Auto and generation records', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it('claims parent before a racing child, meters both and takes no financial hold', async () => {
+    const f = await internalAutoFixture();
+    const results = await Promise.all([executeInferenceRequest(f.context), executeInferenceRequest({ ...f.context, requestId: `raced-${tag()}` })]);
+    if (!results.some(r => r.status === 'completed')) throw new Error(JSON.stringify(results));
+    expect(results.filter(r => r.status === 'completed')).toHaveLength(1);
+    expect(results.filter(r => r.status === 'refused')).toHaveLength(1);
+    expect(f.forwarded).toHaveLength(2);
+    const [parent] = await getDb().select().from(inferenceMeteredUsage).where(and(eq(inferenceMeteredUsage.idempotencyKey, `oxy-edge:idem:${f.context.principal.credentialId}:${f.context.idempotencyKey}`), eq(inferenceMeteredUsage.status, 'settled')));
+    if (parent === undefined) throw new Error(JSON.stringify(results));
+    expect(parent).toMatchObject({ admittedModelReference: f.floor.modelReference, finalAuthorizedModelReference: f.high.modelReference, resolvedModelReference: f.high.modelReference, inputTokens: 1000, outputTokens: 2000, usageReceiptId: null });
+    const children = await getDb().select().from(inferenceMeteredUsage).where(eq(inferenceMeteredUsage.parentRequestId, parent.requestId));
+    expect(children).toHaveLength(1);
+    expect(children[0]).toMatchObject({ status: 'settled', economicTreatment: 'internal_metered', inputTokens: 1000, outputTokens: 0, usageReceiptId: null, delegatedUserId: f.caller.accountId });
+    expect(children[0].idempotencyKey).toMatch(/^oxy-edge:auto:/);
+    expect(await moneyRowsFor(f.caller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+    const record = await readGenerationReceipt(f.context.principal, parent.requestId, f.context.delegatedUserId);
+    expect(record).toMatchObject({ status: 'found', receipt: { schemaVersion: 2, kind: 'metered_usage', customerCharge: { status: 'not_charged' } } });
+    expect(JSON.stringify(record)).not.toContain('receiptId');
+    expect(await readGenerationReceipt({ ...f.context.principal, credentialId: `foreign-${tag()}` }, parent.requestId, f.context.delegatedUserId)).toEqual({ status: 'not-found' });
+    expect(await readGenerationReceipt(f.context.principal, parent.requestId)).toEqual({ status: 'not-found' });
+    expect(await readGenerationReceipt(f.context.principal, parent.requestId, `foreign-${tag()}`)).toEqual({ status: 'not-found' });
+    const childRecord = await readGenerationReceipt(f.context.principal, children[0].requestId, f.context.delegatedUserId);
+    expect(childRecord).toMatchObject({ status: 'found', receipt: { parentRequestId: parent.requestId, requestId: children[0].requestId } });
+
+    expect(await readGenerationReceipt({ ...f.context.principal, ownerAccountId: `foreign-${tag()}` }, parent.requestId)).toEqual({ status: 'not-found' });
+    expect(await readGenerationReceipt({ ...f.context.principal, environment: 'development' }, parent.requestId)).toEqual({ status: 'not-found' });
+  });
+  it('retains parent key and child units when final qualification refuses after child execution', async () => {
+    const f = await internalAutoFixture();
+    f.setAfterChild(async () => { f.routes.mockResolvedValue({ status: 'capacity-unavailable', modelReference: f.high.modelReference }); });
+    expect(await executeInferenceRequest(f.context)).toMatchObject({ status: 'refused' });
+    expect(f.forwarded).toHaveLength(1);
+    const parent = await meteredFor(f.context.requestId);
+    expect(parent).toMatchObject({ status: 'settled', outcome: 'failed', usageReceiptId: null });
+    const [child] = await getDb().select().from(inferenceMeteredUsage).where(eq(inferenceMeteredUsage.parentRequestId, parent.requestId));
+    expect(child).toMatchObject({ status: 'settled', inputTokens: 1000, outputTokens: 0, usageReceiptId: null });
+    f.routes.mockImplementation(async (_viewer, reference) => ({ status: 'resolved', route: reference === f.high.modelReference ? f.high : f.floor, alternates: [] }));
+    expect(await executeInferenceRequest({ ...f.context, requestId: `replay-${tag()}` })).toMatchObject({ status: 'refused', error: { code: 'idempotency_conflict' } });
+    expect(f.forwarded).toHaveLength(1);
+  });
+  it('preserves missing independent review despite internal accounting readiness', async () => {
+    const f = await internalAutoFixture();
+    jest.mocked(decisionConfig.decisionAvailability).mockReturnValue({ available: false, reason: 'review missing' });
+    const result = await executeInferenceRequest(f.context);
+    if (result.status !== 'completed') throw new Error(JSON.stringify(result));
+    expect(result).toMatchObject({ status: 'completed' });
+    expect(f.forwarded).toHaveLength(1);
+    expect(f.forwarded[0].input.format).toBe('text');
+    expect(await moneyRowsFor(f.caller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+  });
+});
+
+
+async function scopedFixture(commercial = false) {
+  const f = await internalAutoFixture();
+  const caller = commercial ? await customer() : f.caller;
+  const principal = commercial ? { ...f.context.principal, lane: 'machine_credential' as const,
+    ownerAccountId: caller.accountId, applicationId: caller.applicationId, credentialId: caller.credentialId,
+    environment: 'development' as const, applicationIsInternal: false } : f.context.principal;
+  const policy = await resolveEffectiveRoutingPolicy(caller.applicationId);
+  if (policy.status !== 'resolved') throw new Error('Scoped fixture lacks policy');
+  const context: EdgeExecutionContext = { ...f.context, principal, delegatedUserId: undefined,
+    request: { operation: { kind: 'decisions' }, target: { kind: 'model', modelReference: f.floor.modelReference },
+      input: { format: 'decisions', decisions: { state: 'SYNTHETIC'.repeat(1200), questions: [{ id: 'auto-power-level', kind: 'choice',
+        question: 'Synthetic?', options: ['instant', 'medium', 'high', 'xhigh'] }] } }, tools: [], sampling: {}, stream: false },
+    endpoint: '/v1/decisions', apiFormat: 'decisions' };
+  const permit = { permitId: `fixture-${tag()}`, idempotencyKey: context.idempotencyKey ?? '',
+    fixtureSha256: scoped.hashScopedInput(context.request.input), expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    principal: { accountId: principal.ownerAccountId, applicationId: principal.applicationId, credentialId: principal.credentialId, environment: principal.environment },
+    policy: { routingPolicyId: policy.stored.policy.routingPolicyId, policyVersion: policy.stored.policy.policyVersion },
+    deploymentId: f.floor.deploymentId, provider: f.floor.provider, keyId: 'synthetic-provider-key',
+    modelReference: f.floor.modelReference, upstreamModelId: 'fixture', priceVersionId: f.floor.priceVersionId,
+    providerRateCardVersionId: 'synthetic-card', providerSourceVersion: 'synthetic-source', maxCostUsd: '0.01' };
+  const route: catalogue.EdgeRoute = { ...f.floor, scopedCatalogueEvidence: {
+    modelRevisionId: 'synthetic-revision', deploymentId: permit.deploymentId, priceVersionId: permit.priceVersionId,
+    commercialPermission: 'standard_application_use', permissionState: 'approved', legalReviewStatus: 'approved', legalReviewEvidenceRef: 'synthetic-only',
+    eligibility: { availabilityScope: 'platform_internal', licenseId: 'apache-2.0', commercialUseAllowed: true,
+      retainsPayloads: false, retentionDays: 0, trainsOnCustomerData: false, zeroDataRetentionAvailable: true,
+      policyAdmitted: true, capabilityAdmitted: true, privacyAdmitted: true } } };
+  f.routes.mockResolvedValue({ status: 'resolved', route, alternates: [] });
+  jest.spyOn(scoped, 'scopedPermitForContext').mockImplementation(c => scoped.bindScopedPermit(permit, c));
+  jest.mocked(decisionConfig.decisionAvailability).mockReturnValue({ available: false, reason: 'general review remains closed' });
+  if (context.kaanaClient === undefined) throw new Error('Missing fixture client');
+  const client = { ...context.kaanaClient, attestDeployments: async () => ({ snapshotId: 'synthetic-only',
+    scopedExecutionContractVersion: '3.6.0' as const, deployments: [{ ...permit, regions: route.regions, scopedExecution: permit }] }) };
+  return { ...f, caller, context: { ...context, kaanaClient: client } };
+}
+
+describe('I10 scoped execution with durable economic admission', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it('executes an exact reviewed internal scoped claim without money even with charging off, then refuses replay', async () => {
+    const f = await scopedFixture();
+    jest.spyOn(rollout, 'isChargingAuthorized').mockReturnValue(false);
+    expect(await executeInferenceRequest(f.context)).toMatchObject({ status: 'completed' });
+    expect(f.forwarded).toHaveLength(1);
+    expect(f.forwarded[0].schemaVersion).toBe(3);
+    expect(await meteredFor(f.context.requestId)).toMatchObject({ status: 'settled', economicTreatment: 'internal_metered', inputTokens: 1000, outputTokens: 0, usageReceiptId: null });
+    expect(await moneyRowsFor(f.caller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+    expect(await executeInferenceRequest({ ...f.context, requestId: `replay-${tag()}` })).toMatchObject({ status: 'refused', error: { code: 'idempotency_conflict' } });
+    expect(f.forwarded).toHaveLength(1);
+  });
+  it('retains commercial promotional-only reserve/settlement and charging gates for an external caller', async () => {
+    let f = await scopedFixture(true);
+    const charging = jest.spyOn(rollout, 'isChargingAuthorized').mockReturnValue(false);
+    expect(await executeInferenceRequest(f.context)).toMatchObject({ status: 'refused' });
+    expect(f.forwarded).toHaveLength(0);
+    charging.mockReturnValue(true);
+    expect(await executeInferenceRequest(f.context)).toMatchObject({ status: 'refused', error: { code: 'insufficient_balance' } });
+    f = await scopedFixture(true);
+    await recordPromotionalGrant({ idempotencyKey: `scoped-grant-${tag()}`, accountId: f.caller.accountId,
+      currency: 'USD', amount: '1.000000000000', actor: { kind: 'staff', userId: f.caller.accountId } });
+    const result = await executeInferenceRequest({ ...f.context, requestId: `funded-${tag()}` });
+    if (result.status !== 'completed') throw new Error(JSON.stringify(result));
+    expect(result).toMatchObject({ status: 'completed' });
+    expect(f.forwarded).toHaveLength(1);
+    const money = await moneyRowsFor(f.caller.accountId);
+    expect(money.receipts).toHaveLength(1);
+    expect(money.receipts[0].billedAmount).toBe('0.000010000000');
+    expect(money.reservations).toHaveLength(1);
+    expect(money.reservations[0].status).toBe('settled');
+  });
+  it('refuses mismatched scoped identity before dispatch despite internal treatment', async () => {
+    const f = await scopedFixture();
+    expect(await executeInferenceRequest({ ...f.context, principal: { ...f.context.principal, credentialId: `foreign-${tag()}` } })).toMatchObject({ status: 'refused' });
+    expect(f.forwarded).toHaveLength(0);
   });
 });

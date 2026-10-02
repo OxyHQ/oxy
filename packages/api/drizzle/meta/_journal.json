@@ -932,6 +932,13 @@
       "when": 1790952217662,
       "tag": "0133_inference_metered_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1790955056705,
+      "tag": "0134_inference_auto_lineage",
+      "breakpoints": true
     }
   ]
 }

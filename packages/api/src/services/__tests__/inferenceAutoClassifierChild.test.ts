@@ -160,6 +160,7 @@ async function admissionFixture() {
   const quote = jest.spyOn(ledger, 'quoteUnits').mockResolvedValue({ status: 'quoted', amount: '0.000500000000', currency: 'USD' });
   const reserve = jest.spyOn(ledger, 'reserve').mockResolvedValue({ status: 'reserved', reservation: {} } as Awaited<ReturnType<typeof ledger.reserve>>);
   // The durable usage claim (#1526) is a database boundary like the ledger's.
+  jest.spyOn(metered, 'finalizeMeteredAuthorization').mockResolvedValue(true);
   jest.spyOn(metered, 'claimMeteredAdmission').mockResolvedValue({ status: 'claimed', meteredUsageId: 'synthetic-metered' });
   jest.spyOn(metered, 'markMeteredAdmissionRefused').mockResolvedValue(undefined);
   const limit = jest.fn(async () => []);

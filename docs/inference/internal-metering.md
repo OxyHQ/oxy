@@ -80,7 +80,7 @@ tariff ceiling is what bounds spend — the second is a proposal, not built.
   An attempt Kaana could not cost has no amount and no currency, which the
   database enforces with a CHECK constraint.
 - **Failovers keep their cost.** A failed attempt is on no receipt but is
-  still invoiced upstream, so it stays in the cost table.
+  can have measured or estimated upstream cost, so its evidence stays in the cost table.
 
 ### The Kaana feed
 
@@ -100,7 +100,7 @@ advances by compare-and-set.
 
 - units;
 - `tariff`, what the published price would have charged. This is not a cost;
-- `providerCost`, what upstreams invoiced, with failed failovers included;
+- `providerCost`, reported or rate-card-estimated upstream amounts, with failed failovers included;
 - `customerCharge`, from receipts only, which is always zero for `internal_metered`.
 
 Unknown tariffs and costs appear as `unknownCount` beside each sum.
@@ -108,11 +108,9 @@ Unknown tariffs and costs appear as `unknownCount` beside each sum.
 
 ## Not covered here
 
-- The Auto/Jev semantic classifier child still requires a charged commercial
-  parent. An internal parent keeps the deterministic floor until I10 decouples
-  the child.
-- `GET /v1/generations/:id` reads receipts, so it has nothing to return for an
-  internal request.
+- The I10 candidate below adapts the Auto/Jev child and generation readback.
+  Final integration, Alia's product price snapshot and deployed evidence remain
+  pending; local implementation does not approve its production gates.
 - Provider gates (`decisionAvailability`, Kaana's reviewed audiences) are
   unchanged and stay closed.
 
@@ -143,3 +141,47 @@ makes no inference request or financial write. Failed financial settlement still
 records technical usage when storage is available. If an internal terminal write
 was lost and no authoritative terminal record exists, expiry remains explicitly
 unresolved; neither a fabricated zero nor a provider retry is a recovery strategy.
+
+
+## I10 candidate compatibility and technical readback
+
+The generated additive migration `0134` in the local #1516/#1529/#1531
+composition adds nullable `parent_request_id` and nullable final authorization
+columns. Its index must be regenerated over the final integration head, without
+merging snapshot JSON by hand. Initial admitted model/provider/deployment and
+ceiling remain immutable; Auto appends its final requalified authorization once.
+The parent claims its key before any classifier can execute. Each parent/child
+claim consumes one admission under the same application/environment concurrency
+and UTC-day limits. A parent refused after the classifier executed retains its
+key and settles as failed with estimated parent units; the child's measured
+units remain independently durable. No commercial hold is introduced internally.
+
+Scoped internal dispatch checks the exact retained durable claim and its expiry,
+and the exact unexpired scoped permit. Commercial scoped dispatch retains its
+promotional-only hold and charging authorization. `preapprovedManifest` stays
+undefined; accounting readiness grants no provider/rights/privacy/capability or
+source-review authority.
+
+`GET /v1/generations/:id` returns the existing financial receipt at schema version
+1 or an internal `metered_usage` record at version 2. The latter has its stored
+usage, pinned tariff evidence and explicit `customerCharge.status: not_charged`;
+it has no fabricated receipt ID, invoice or provider cost. Only settled technical
+rows qualify. Authority is scope plus owning application/account, exact credential
+and environment. The delegated-user selector is matched null-safely as attribution
+inside that credential, never as proof of delegated identity or financial treatment.
+Parent and child IDs return their own record and preserve lineage.
+
+The SDK keeps `getGeneration(): Promise<OxyGenerationReceipt>` unchanged. A new
+`getGenerationRecord(): Promise<OxyGenerationRecord>` admits either wire variant;
+consumers narrow on `schemaVersion`. The legacy method throws a structured
+protocol error for an internal record and points to the new method. Adding the
+new method avoids changing an existing caller's financial TypeScript return type;
+raw endpoint consumers must handle the versioned response. A local packed SDK
+candidate is test evidence, not proof that Alia has adopted a published release.
+
+The metadata-only Jev readback keeps its version-1 result when no Alia candidate
+is supplied, and returns version 2 with an Alia candidate. Internal Alia readiness
+uses versioned economics, existing workload identity and technical schema/count
+proof instead of promotional funds. Commercial candidates retain funding proof.
+The snapshot does not reserve capacity; `providerActivationAuthorized` is false.
+Mention's status remains separate from Alia's candidate status.
