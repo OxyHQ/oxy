@@ -60,8 +60,12 @@ An internal capability ticket is never converted to `McpAccessTokenClaims`.
 The legacy HTTP capability route remains available through I05 comparison and
 consumer adoption. I04 does not silently migrate Noted/Mercaria resource
 ownership semantics; it supplies fixtures for origin A, active B, A/B resources
-and B revoked. Reduced fixtures cover Noted, Mercaria and website; the pinned
-Inbox tree has no MCP/capabilities surface. I11 owns product changes.
+and B revoked. Reduced fixtures cover Noted, Mercaria and website. The pinned
+Inbox frontend tree has no MCP surface; the real Inbox producer lives in Oxy
+(`packages/api/src/capabilities/inbox-mcp-http.ts`). Its separate
+[I11 fixture](../../audits/1519-inbox-mcp-2026-10-03/report.md) covers external MCP
+with real Inbox SQL and an explicit synthetic introspection boundary. Internal
+transport adoption and full product parity remain pending. I11 owns product changes.
 
 Acceptance requires type/audience/signature negative cases, tool A/B mismatch,
 resource/account mismatch, changed catalog digest/version, revoke between list
