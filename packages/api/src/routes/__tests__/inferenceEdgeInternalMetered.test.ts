@@ -458,6 +458,15 @@ describe('one installation, charging armed', () => {
     await getDb().update(applications).set({ scopes: ['inference:invoke', 'inference:usage:read'] }).where(eq(applications.id, other.applicationId));
     const otherCredential = await makeCredential(other.applicationId, other.accountId, 'development', ['inference:invoke', 'inference:usage:read']);
     expect(await getGeneration(id, bearer(otherCredential.token))).toMatchObject({ status: 404 });
+    // Authentication validates each credential's own environment. Application
+    // entitlement can then read a historical receipt from another environment.
+    const production = await makeCredential(external.applicationId, external.accountId, 'production', ['inference:invoke', 'inference:usage:read']);
+    const productionCaller = { ...external, credentialId: production.credentialId, machineToken: production.token };
+    expect(await getGeneration(id, bearer(serviceToken(productionCaller, ['inference:invoke', 'inference:usage:read'])))).toEqual(record);
+    const newOwner = await makeAccount();
+    await getDb().update(applications).set({ ownerAccountId: newOwner }).where(eq(applications.id, external.applicationId));
+    const transferred = await makeCredential(external.applicationId, newOwner, 'development', ['inference:invoke', 'inference:usage:read']);
+    expect(await getGeneration(id, bearer(transferred.token))).toEqual(record);
     expect((await moneyRowsFor(external.accountId)).receipts).toEqual(money.receipts);
     expect(executions).toBe(1);
   });
@@ -710,6 +719,14 @@ describe('I10 durable internal Auto and generation records', () => {
     await getDb().update(applications).set({ scopes: ['inference:invoke', 'inference:usage:read'] }).where(eq(applications.id, f.caller.applicationId));
     const rotatedCaller = { ...f.caller, credentialId: rotated.credentialId, machineToken: rotated.token };
     expect(await getGeneration(parent.requestId, bearer(serviceToken(rotatedCaller, ['inference:invoke', 'inference:usage:read'])))).toMatchObject({ status: 200, body: { data: record.status === 'found' ? record.receipt : {} } });
+    const development = await makeCredential(f.caller.applicationId, f.caller.accountId, 'development', ['inference:invoke', 'inference:usage:read']);
+    expect(await getGeneration(parent.requestId, bearer(development.token))).toMatchObject({ status: 200, body: { data: record.status === 'found' ? record.receipt : {} } });
+    const newOwner = await makeAccount();
+    await getDb().update(applications).set({ ownerAccountId: newOwner }).where(eq(applications.id, f.caller.applicationId));
+    const transferred = await makeCredential(f.caller.applicationId, newOwner, 'development', ['inference:invoke', 'inference:usage:read']);
+    expect(await getGeneration(parent.requestId, bearer(transferred.token))).toMatchObject({ status: 200, body: { data: record.status === 'found' ? record.receipt : {} } });
+    // This shared Alia fixture belongs to later tests too; restore its owner.
+    await getDb().update(applications).set({ ownerAccountId: f.caller.accountId }).where(eq(applications.id, f.caller.applicationId));
   });
   it('retains parent key and child units when final qualification refuses after child execution', async () => {
     const f = await internalAutoFixture();

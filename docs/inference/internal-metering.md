@@ -166,10 +166,20 @@ source-review authority.
 1 or an internal `metered_usage` record at version 2. The latter has its stored
 usage, pinned tariff evidence and explicit `customerCharge.status: not_charged`;
 it has no fabricated receipt ID, invoice or provider cost. Only settled technical
-rows qualify. Authority is scope plus owning application/account, exact credential
-and environment. The delegated-user selector is matched null-safely as attribution
-inside that credential, never as proof of delegated identity or financial treatment.
-Parent and child IDs return their own record and preserve lineage.
+rows qualify. Read entitlement is the application plus `inference:usage:read`
+scope, preserving the existing financial-receipt contract. A valid replacement
+credential can read the application's historical records after key rotation,
+owner transfer or a change of credential environment; authentication still
+validates that credential and its environment before lookup. A supplied
+delegated-user selector filters attribution. Omitting it permits the application's
+records with or without delegated attribution. The selector does not prove user
+identity or change financial treatment. Parent and child IDs return their own
+record and preserve lineage.
+
+Receipt-to-metering reconciliation remains a separate immutable matching step:
+account, application, original credential, environment and null-safe delegated
+attribution must all match exactly. Application-level read entitlement does not
+relax that reconciliation join.
 
 The SDK keeps `getGeneration(): Promise<OxyGenerationReceipt>` unchanged. A new
 `getGenerationRecord(): Promise<OxyGenerationRecord>` admits either wire variant;
@@ -185,3 +195,11 @@ uses versioned economics, existing workload identity and technical schema/count
 proof instead of promotional funds. Commercial candidates retain funding proof.
 The snapshot does not reserve capacity; `providerActivationAuthorized` is false.
 Mention's status remains separate from Alia's candidate status.
+
+The readback verifies the six required I10 columns with their types and
+nullability, both validated lineage checks and the parent index before reporting
+technical schema availability. A table present at migration 0133 alone is
+insufficient. Capacity uses the same query as admission: all non-refused
+application/environment rows in the two-day window, with live expiry for
+concurrency and the current UTC day for daily limits, across economic treatments.
+These observations are a read-only snapshot, not a reservation or activation grant.

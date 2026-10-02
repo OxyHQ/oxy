@@ -1,0 +1,7 @@
+$ jest --runInBand src/services/__tests__/inferenceMeteredUsage.service.test.ts src/scripts/__tests__/jevPrincipalsReadback.test.ts src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/routes/__tests__/inferenceEdge.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       212 passed, 212 total
+Snapshots:   0 total
+Time:        13.837 s, estimated 15 s
+Ran all test suites matching src/services/__tests__/inferenceMeteredUsage.service.test.ts|src/scripts/__tests__/jevPrincipalsReadback.test.ts|src/routes/__tests__/inferenceEdgeInternalMetered.test.ts|src/routes/__tests__/inferenceEdge.test.ts.

@@ -1,0 +1,2 @@
+{"level":30,"time":1790957546459,"pid":2950552,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+OWNED_SCHEMA_READBACK {"schemaAvailable":true,"activeAdmissions":0,"dailyAdmissions":0}
