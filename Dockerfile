@@ -27,6 +27,7 @@ WORKDIR /app
 # Keep every manifest while discarding unrelated source before the install
 # stages, so dependency resolution is reproducible without building the apps.
 COPY package.json bun.lock ./
+COPY patches/ patches/
 COPY packages/ packages/
 RUN find packages -type f ! -name package.json -delete
 
