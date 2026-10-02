@@ -139,8 +139,12 @@ rotación), con un tope pequeño (p. ej. 5). Solo se admiten en cuentas `kind = 
    del bot. A partir de ahí la persona **no** aparece como actor de nada de lo
    que el bot haga.
 
-La persona solo aporta la prueba inicial. No obtiene ninguna sesión del bot ni
-puede firmar por él: no tiene la clave privada.
+La prueba de posesión demuestra que el runtime de la clave registrada puede
+firmar; no demuestra custodia independiente de la persona administradora.
+Quien puede registrar una clave de reemplazo puede elegir un runtime bajo su
+control y obtener después una sesión autónoma del bot, con acceso efectivo a sus
+recursos y fondos. La auditoría distingue el acto de gobierno de las firmas
+posteriores; esa distinción no elimina el poder de recuperación.
 
 ### Inicio de sesión del bot
 
@@ -189,24 +193,26 @@ POST /auth/agent/verify      { publicKey, challenge, signature, timestamp }
   - se revocan en la misma transacción todas las sesiones autenticadas con las
     claves revocadas;
   - sin reauth → 401; sin `credentials:manage` → 403.
-- La recuperación no da a la persona acceso a los fondos ni a los recursos del
-  bot. Solo restablece una vía de entrada que sigue estando en manos del runtime.
+- La recuperación permite cambiar qué runtime controla al bot. Por tanto,
+  atribuye a su gobernante control efectivo potencial sobre recursos y fondos;
+  reauth prueba la identidad de quien recupera, no custodia independiente.
+  Esta autoridad requiere la decisión D2/D3 de Nate.
 
 ### Revocación
 
 | Qué se revoca | Efecto | Plazo objetivo |
 |---|---|---|
-| Una clave | Se desactivan sus sesiones (`auth_method_id`) en la misma transacción, se invalida `sessionCache`/`userCache` y se emite `session_update` | Inmediato en lecturas de decisión; ≤ 60 s en la ruta normal |
+| Una clave | Se desactivan sus sesiones (`auth_method_id`) en la misma transacción, se invalida `sessionCache`/`userCache` y se emite `session_update` | Lectura autoritativa en decisiones; plazo normal pendiente de I03 |
 | Todas las sesiones del bot | `deactivateAllSessions(botId)` | Igual |
 | El bot entero (archivo o suspensión) | Todas las claves y sesiones; challenges pendientes inválidos | Igual |
 
 La sesión de un bot no está operada, así que hoy no pasaría por
-`ensureManagedSessionAuthorized`. La propuesta añade una recomprobación
-equivalente para las sesiones con `auth_method_id`: la clave sigue activa y el
-bot no está archivado. Usa la misma cadencia de 60 s
-(`MANAGED_SESSION_RECHECK_MS`) y `useCache:false` en las decisiones de
-autoridad. El plazo final lo fija I03 (#1522); esta propuesta solo se alinea
-con él.
+`ensureManagedSessionAuthorized`. La propuesta debe comprobar para las sesiones con `auth_method_id` que la
+clave sigue activa y el bot no está archivado. Las decisiones de autoridad leen
+el estado vivo sin caché. La cadencia de la ruta normal y su máximo duro son
+pendientes de I03 (#1522); la invalidación en un mapa local no alcanza los mapas
+de otros procesos. Una sesión cuyo vínculo se borra no puede convertirse en una
+sesión ordinaria sin método.
 
 ### Límites
 
@@ -260,10 +266,16 @@ personal. El grant sigue siendo obligatorio para actuar sobre **otra** cuenta
 (`botHasNoWayInOfItsOwn.test.ts`; #1530 lo dejó así a propósito).
 
 Propuesta: una sesión del bot **autenticada con su clave** es `owner` de su
-propia cuenta en recursos, contenido, hijos, saldo y pagos. La **gobernanza** de
-la cuenta bot sigue en manos de quien la creó: quién puede recuperarla,
-suspenderla o archivarla, y la membresía `owner` humana. El bot no puede
-quitarse a su propietario ni transferir su propiedad (decisión D3).
+propia cuenta en recursos, contenido, hijos, saldo y pagos. La **gobernanza** es una decisión independiente pendiente: recuperación,
+suspensión, archivo, transferencia y membresías `owner`/`admin` no se deducen
+de la criptografía ni de haber creado la cuenta.
+
+La opción de gobierno transferible conserva responsables `owner`/`admin` con
+reauth, reconoce explícitamente su control efectivo de recuperación y permite
+transferir responsabilidad bajo las reglas comunes de cuenta. La alternativa
+soberana permite al bot retirar gobernantes y asumir pérdida de recuperación.
+No se propone un creador perpetuo ni una prohibición de transferencia sin una
+decisión expresa (D2/D3).
 
 Sin una vía de entrada propia, esto **no** debe activarse. Una sesión delegada
 cuya lectura de operador falle pasaría a tener permisos de propietario. Por eso
@@ -319,7 +331,7 @@ pruebas de aceptación de la implementación propuesta.
 | P2 | Sesión con clave de agente contra `/internal/*` o como service token | 401/403; sin scopes de app | propuesta |
 | P3 | Replay del challenge `agent_signin` | La segunda vez 401 (quema atómica); dos `verify` concurrentes → una sola sesión | propuesta |
 | P4 | Firma de `agent_key_enroll` o `rotate` usada como `agent_signin` | 401 (acción y audiencia en el mensaje) | propuesta |
-| P5 | Clave revocada | Challenge y verify → 401; sus sesiones mueren al instante en decisión y en ≤ 60 s en la ruta normal; el refresco → 401 | propuesta |
+| P5 | Clave revocada | Challenge y verify → 401; sus sesiones se deniegan con lectura autoritativa en decisión y dentro del plazo normal aprobado por I03; el refresco → 401 | propuesta |
 | P6 | Alta de una clave pública ajena, sin prueba de posesión | 400 | propuesta |
 | P7 | Alta o recuperación sin reauth fresco, o sin `credentials:manage` | 401 / 403 | propuesta |
 | P8 | Alta de `agent_key` en una cuenta que no es bot | 403 | propuesta |
@@ -355,7 +367,7 @@ Cambios que implicaría la propuesta:
   - un CHECK de que `agent_key` solo existe en un `kind = 'bot'` (vía trigger o
     validación en servicio);
   - `auth_challenges.purpose` admite `agent_signin`, `agent_key_enroll` y `agent_key_rotate`;
-  - `sessions.auth_method_id` (FK nullable, `on delete set null` + desactivación en servicio).
+  - `sessions.auth_method_id` (FK nullable con FK que impide borrar físicamente una clave referenciada; revocación por tombstone y desactivación transaccional de sesiones).
 - **API:**
   - rutas `POST /auth/agent/challenge` y `POST /auth/agent/verify`, y
     `GET|POST|DELETE /accounts/:botId/agent-keys`;
@@ -373,7 +385,7 @@ Cambios que implicaría la propuesta:
 
 Impacto en otras hijas:
 
-- **I03 (#1522):** fija el plazo de revocación que aquí se toma como ≤ 60 s y la
+- **I03 (#1522):** fija el plazo de revocación normal todavía pendiente y la
   invalidación por clave. También la regla de D4 de que, cuando la cuenta
   efectiva es el propio actor, no hace falta grant.
 - **I04 (#1523):** el principal MCP de una sesión de bot. Interno, verificado por
@@ -389,15 +401,29 @@ Impacto en otras hijas:
 | # | Decisión | Recomendación | Consecuencias |
 |---|---|---|---|
 | D1 | Aprobar la **clave de agente** como la vía de entrada propia del bot: un par de claves registrado como método de autenticación, que entra con challenge y firma y obtiene una sesión normal sin operador | **Sí.** | Cumple el requisito sin privilegio extra. Exige migración, rutas nuevas y un ADR. Sin esto, I01 sigue bloqueada |
-| D2 | Quién da de alta y recupera las claves | **El operador con `credentials:manage`** sobre el bot (`owner` o `admin`, heredado de la org si cuelga de ella), siempre con reauth fresco | Una org gobierna sus bots sin depender de una sola persona. Un `editor` no puede tomar el control de un bot. Hace falta añadir el permiso al catálogo |
-| D3 | El bot con sesión de clave es **propietario de sí mismo** en recursos y fondos. La **gobernanza** (recuperar, suspender, archivar, membresía `owner` humana) sigue en su creador | **Sí, separando capacidad de gobernanza.** | El bot actúa en lo suyo sin pedir permiso. Hay alguien que puede pararlo o recuperarlo y el bot no puede deshacerse de esa persona. Alternativa: soberanía total, en la que el bot puede quitarse al propietario; se pierde la recuperación y la responsabilidad legal queda sin dueño |
+| D2 | Quién da de alta y recupera las claves | **Gobierno transferible por `owner`/`admin` con `credentials:manage` y reauth**, reconociendo control efectivo de recuperación | Registrar una clave de reemplazo puede dar control de recursos y fondos. Decidir herencia, transferencia y responsabilidad; no atribuir al creador un poder perpetuo. Hace falta añadir el permiso al catálogo |
+| D3 | El bot con sesión de clave tiene autoridad propia en recursos y fondos; decidir quién gobierna y cómo se transfiere | **Gobierno transferible con responsables actuales `owner`/`admin`**, si Nate lo aprueba | Autonomía operativa y recuperación administrada son distintas. Alternativa soberana: el bot puede retirar gobernantes y asumir pérdida de recuperación; no inferir consecuencias legales sin decisión comercial |
 | D4 | Las capacidades sobre su **propia** cuenta no exigen `DelegationGrant` | **Sí.** El grant solo hace falta para actuar sobre otra cuenta (ADR 0018) | Quita una restricción por ser bot que hoy existe (`capabilityAuthority.service.ts:245-252`). Lo implementa I03/I04 |
 | D5 | Fondos reales que salen de la plataforma (pagos a terceros, retiradas) para un receptor no humano: a quién se aplica el KYC | **Saldo interno con las mismas reglas que una persona.** Para retirar a un banco o a un tercero externo, el KYC es el de la persona u organización legal responsable del bot | Cumple con «sus propios fondos» dentro de Oxy y Peable sin inventar una identidad legal para la IA. Las retiradas externas pasan por una verificación que el bot no puede hacer solo. Afecta a I08 |
 | D6 | El algoritmo de la clave | **secp256k1**, como Commons | Un único verificador (`SignatureService`). AWS KMS lo soporta (`ECC_SECG_P256K1`). Ed25519 sería un segundo camino sin ganancia |
-| D7 | El plazo de revocación de una clave o un bot | **Inmediato en decisiones de autoridad; ≤ 60 s en la ruta normal** | Mismo contrato que las sesiones operadas. I03 puede endurecerlo para todos |
+| D7 | El plazo de revocación de una clave o un bot | **Lectura autoritativa al decidir efectos; plazo normal pendiente de I03** | Los 60 s anteriores son una propuesta, no una garantía medida. Los mapas locales de cinco minutos no prueban revocación entre procesos; definir máximo duro y p99 por separado |
 
 ## 7. Lo que este documento NO hace
 
 - No implementa ni habilita ninguna ruta, credencial, método de entrada ni permiso.
 - No crea ninguna clave, sesión ni membresía en ningún entorno.
 - No cambia las reglas financieras. Solo usa el sujeto financiero de #1530.
+
+
+## Revisión del candidato · 2026-10-02
+
+Este documento sigue siendo una propuesta. La revisión declara el poder real de
+recuperación y retira las suposiciones de creador perpetuo, intransferibilidad y
+borrado de claves con `SET NULL`. Ninguna aprobación, credencial ni política se
+activa con este texto. D1/D6, D2/D3, D4/D7 y D5 requieren decisiones expresas.
+
+El compuesto local de #1530 y #1532 conserva además el operador a través de
+OAuth directo y ambas aprobaciones bearer: la identidad aprobadora y la cuenta
+efectiva se almacenan por separado, y la membresía se consulta al finalizar y
+canjear. Este arreglo de sesiones operadas no implementa la entrada propia del
+bot. Las suites que usan sesiones fabricadas conservan su alcance parcial.

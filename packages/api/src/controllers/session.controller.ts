@@ -754,8 +754,8 @@ export class SessionController {
         });
       }
 
-      // Use session service for optimized validation with caching
-      const result = await sessionService.validateSessionById(sessionId, true);
+      // Remote validation is an authority decision: read the live row and membership.
+      const result = await sessionService.validateSessionById(sessionId, true, { useCache: false });
 
       if (!result || !result.session || !result.user) {
         return res.status(401).json({
@@ -795,8 +795,8 @@ export class SessionController {
         });
       }
 
-      // Use session service for optimized validation with caching
-      const result = await sessionService.validateSessionById(sessionId, true);
+      // Remote validation is an authority decision: read the live row and membership.
+      const result = await sessionService.validateSessionById(sessionId, true, { useCache: false });
 
       if (!result || !result.session || !result.user) {
         return res.status(401).json({
