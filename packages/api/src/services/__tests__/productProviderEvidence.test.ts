@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { productOfferSchema, productSubscriptionSourceSchema } from '@oxy.so/contracts';
+import { isCheckViolation, isForeignKeyViolation } from '@oxy.so/db';
 import { eq, and, sql } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { accessProviderPeriods, accessProviderEvents, accessOfferSegments, accessSubscriptionSources, accessGrants } from '../../db/schema';
@@ -16,6 +17,11 @@ async function failSyntheticDeliveryInserts() {
 }
 async function restoreDeliveryInserts() {
   await getDb().execute(sql`DROP TRIGGER i07_synthetic_delivery_failure ON access_provider_events; DROP FUNCTION i07_synthetic_delivery_failure();`);
+}
+async function expectConstraint(operation: Promise<unknown>, predicate: (error: unknown) => boolean) {
+  let caught: unknown;
+  try { await operation; } catch (error) { caught = error; }
+  expect(predicate(caught)).toBe(true);
 }
 
 async function fixture() {
@@ -191,10 +197,11 @@ it('database prevents rewriting/deleting either evidence record and rejects cros
   const f = await fixture(); const first = await recordProductProviderPeriod(f.input);
   const [period] = await getDb().select().from(accessProviderPeriods).where(eq(accessProviderPeriods.id, first.evidenceId));
   const [event] = await getDb().select().from(accessProviderEvents).where(and(eq(accessProviderEvents.eventId, f.input.event.id), eq(accessProviderEvents.providerAccountRef, f.providerBinding.providerAccountRef)));
-  await expect(getDb().update(accessProviderPeriods).set({ priceId: 'different' }).where(eq(accessProviderPeriods.id, period.id))).rejects.toThrow();
-  await expect(getDb().delete(accessProviderPeriods).where(eq(accessProviderPeriods.id, period.id))).rejects.toThrow();
-  await expect(getDb().update(accessProviderEvents).set({ payload: {} }).where(eq(accessProviderEvents.eventId, event.eventId))).rejects.toThrow();
-  await expect(getDb().delete(accessProviderEvents).where(eq(accessProviderEvents.eventId, event.eventId))).rejects.toThrow();
-  await expect(getDb().insert(accessProviderEvents).values({ ...event, eventId: `evt_${randomUUID()}`, sourceId: randomUUID() })).rejects.toThrow();
-  await expect(getDb().insert(accessProviderPeriods).values({ ...period, id: randomUUID(), invoiceId: `in_${randomUUID()}`, payerAccountId: f.beneficiary })).rejects.toThrow();
+  await expectConstraint(getDb().update(accessProviderPeriods).set({ priceId: 'different' }).where(eq(accessProviderPeriods.id, period.id)), isCheckViolation);
+  // A foreign-key restriction alone must not masquerade as the immutable guard.
+  await expectConstraint(getDb().delete(accessProviderPeriods).where(eq(accessProviderPeriods.id, period.id)), isCheckViolation);
+  await expectConstraint(getDb().update(accessProviderEvents).set({ payload: {} }).where(eq(accessProviderEvents.eventId, event.eventId)), isCheckViolation);
+  await expectConstraint(getDb().delete(accessProviderEvents).where(eq(accessProviderEvents.eventId, event.eventId)), isCheckViolation);
+  await expectConstraint(getDb().insert(accessProviderEvents).values({ ...event, eventId: `evt_${randomUUID()}`, sourceId: randomUUID() }), isForeignKeyViolation);
+  await expectConstraint(getDb().insert(accessProviderPeriods).values({ ...period, id: randomUUID(), invoiceId: `in_${randomUUID()}`, payerAccountId: f.beneficiary }), isForeignKeyViolation);
 });
