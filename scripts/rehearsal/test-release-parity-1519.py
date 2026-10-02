@@ -73,7 +73,8 @@ def main():
         env = clean_env() | {'DATABASE_URL': f'postgresql://oxy@127.0.0.1:{PORT}/{db}',
                             'NODE_ENV': 'test'}
         command = ['bun', 'run', 'test', '--runInBand', '--runTestsByPath',
-                   'src/services/__tests__/internalMcpParity.db.test.ts']
+                   'src/services/__tests__/internalMcpParity.db.test.ts',
+                   'src/capabilities/__tests__/inbox-mcp-postgres.test.ts']
         result = subprocess.run(command, cwd=ROOT / 'packages/api', env=env,
                                 text=True, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, check=False)
