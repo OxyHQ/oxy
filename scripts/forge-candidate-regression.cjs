@@ -50,7 +50,15 @@ for(const filename of ['forge.min.js', 'forge.all.min.js']) {
   distributions.push([filename, sandbox.forge]);
 }
 const rows = [];
+const packageFiles = Object.fromEntries(['lib/rsa.js', 'dist/forge.min.js', 'dist/forge.all.min.js'].map(file =>
+  [file, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]));
 for(const algorithm of ['sha1', 'sha224', 'sha256', 'sha384', 'sha512', 'sha512-224', 'sha512-256', 'md5']) {
+  const normalDigest = crypto.createHash(algorithm).update(message).digest();
+  const normalSignature = crypto.sign(algorithm, message, privateKey);
+  for(const [distribution, forge] of distributions) {
+    assert(accepted(forge, normalDigest, normalSignature), algorithm + '/normal-sign/' + distribution);
+    rows.push({algorithm, variant: 'normal-sign', distribution, forgeAccepted: true, nodeAccepted: true});
+  }
   for(const variant of ['empty-null', 'absent-null', 'extra-nested', 'nonempty-null', 'extra-outer', 'trailing', 'wrong-digest']) {
     const {der, digest} = digestInfo(algorithm, variant);
     const signature = signEncoded(der);
@@ -69,4 +77,4 @@ for(const algorithm of ['sha1', 'sha224', 'sha256', 'sha384', 'sha512', 'sha512-
   }
 }
 console.log(JSON.stringify({mode, node: process.version, openssl: process.versions.openssl,
-  packageVersion: '1.4.0', knownKeyControlsOnly: true, count: rows.length, rows}, null, 2));
+  packageVersion: '1.4.0', packageFiles, knownKeyControlsOnly: true, count: rows.length, rows}, null, 2));
