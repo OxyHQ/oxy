@@ -898,6 +898,7 @@ jobs:
           node scripts/test-check-kaana-signed-canary.mjs
           node scripts/check-kaana-signed-canary.mjs
           node --test packages/api/scripts/run-kaana-signed-canary.test.mjs
+          node --test packages/api/scripts/check-stripe-webhook-events.test.mjs
           node scripts/test-check-inbox-routing-profile-readback.mjs
           node scripts/check-inbox-routing-profile-readback.mjs
           node scripts/test-check-kaana-catalogue-bootstrap-workflow.mjs
