@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import { OAUTH_POPUP_HTML, OAUTH_MISMATCH_POPUP_HTML } from './isolated-oauth-popup-html.mjs';
 const {chromium} = await import(process.env.OXY_PLAYWRIGHT_MODULE || 'playwright');
 const browser=await chromium.launch({headless:true});
 const arguments_=process.argv.slice(2);
@@ -16,8 +17,7 @@ try {for(const port of ports) for(const mismatch of [false,true]) {
   if(url.hostname==='localhost'&&url.port===String(port))return route.continue();
   if(url.origin==='https://auth.oxy.so'&&url.pathname==='/authorize'){
    authorize.push(Object.fromEntries(url.searchParams));
-   const state=url.searchParams.get('state'),target=new URL(url.searchParams.get('redirect_uri')).origin;
-   return route.fulfill({contentType:'text/html',body:`<script>setTimeout(()=>{window.opener.postMessage(${JSON.stringify({type:'oxy:oauth:code',code:'fixture-code',state:mismatch?'mismatched-state':state})},${JSON.stringify(target)});},100);</script>`});
+   return route.fulfill({contentType:'text/html',body:mismatch ? OAUTH_MISMATCH_POPUP_HTML : OAUTH_POPUP_HTML});
   }
   if(url.hostname!=='127.0.0.1'||url.port!=='17855')return route.abort();
   const headers={'Access-Control-Allow-Origin':`http://localhost:${port}`,'Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Credentials':'true'};

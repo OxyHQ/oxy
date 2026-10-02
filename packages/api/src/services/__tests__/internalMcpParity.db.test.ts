@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { sql } from 'drizzle-orm';
 import { appCapabilityCatalogSchema, canonicalCapabilityJson, inputSatisfiesCapabilityLimits, type AppCapabilityCatalog,
   type CapabilityTicketClaims, type InvocationPrincipal, type ResourceRef } from '@oxy.so/contracts';
@@ -49,6 +50,9 @@ beforeAll(async () => {
   await getDb().execute(sql`CREATE TABLE i04_parity_access(account text PRIMARY KEY, allowed boolean NOT NULL)`);
   await getDb().execute(sql`CREATE TABLE i04_parity_effects(operation text PRIMARY KEY, digest text NOT NULL, account text NOT NULL, resource text NOT NULL)`);
   const app = express();
+  // Bound synthetic loopback requests before auth/domain work, without storing IPs.
+  app.use(rateLimit({ windowMs: 60_000, limit: 128,
+    keyGenerator: () => 'synthetic-parity-fixture', standardHeaders: true, legacyHeaders: false }));
   app.post('/_oxy/capabilities/writeResource', express.json(), createCapabilityTicketMiddleware({ ...verification, authorize: async (value) => ({ allowed: await hasAccess(value.resource.effectiveAccountId), reason: 'fixture_live_membership' }) }), async (req: CapabilityTicketRequest, res) => {
     const value = req.capabilityTicket;
     if (!value || canonicalCapabilityJson(resourceFor(req.body)) !== canonicalCapabilityJson(value.resource)
