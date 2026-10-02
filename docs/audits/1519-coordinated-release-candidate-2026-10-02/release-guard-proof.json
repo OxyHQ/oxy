@@ -1,0 +1,46 @@
+{
+  "sourceHead": "39cd42004cfd7512ce9c88aab567a5f7843c75e3",
+  "checkedAtUTC": "2026-10-02T21:36:18.081865+00:00",
+  "sources": [
+    {
+      "path": ".github/scripts/release-decisions-packages.test.mjs",
+      "sha256": "02a8e47cd55d131dcbd9cc1b6093dc4160f972b078ac098e3ec23db921ea9e5e"
+    },
+    {
+      "path": ".github/scripts/release-decisions-packages.mjs",
+      "sha256": "1a2dbbbf7d2446f81311c08cc3612ab8f45a2cb690121d2f74e6ac815601f241"
+    },
+    {
+      "path": ".github/workflows/release-decisions-packages.yml",
+      "sha256": "268dba1195d17a40ddbcc1286bfabf3130ba43aee759634045c66dbe629b8e52"
+    },
+    {
+      "path": ".github/scripts/decisions-release-smoke/smoke.mjs",
+      "sha256": "7fb6e1add064af38e283daf084309a8e50cac331be8475b124654db2c1ffc292"
+    },
+    {
+      "path": ".github/scripts/decisions-release-smoke/smoke.cjs",
+      "sha256": "4971691541aaacdfa9fc8d11a47dbe9f2c1f4874d22a965177e6c2dc6d40bcba"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/1519-coordinated-release-candidate-2026-10-02/release-guards-tracked.txt",
+      "sha256": "e17442564544e347fdb50ec1ec97fe96b4cb9eb6e2a9ea5fb70342093587f938",
+      "bytes": 2757
+    }
+  ],
+  "command": "node --test .github/scripts/release-external-identity-packages.test.mjs .github/scripts/release-decisions-packages.test.mjs",
+  "tests": 29,
+  "passed": 29,
+  "skipped": 0,
+  "runtimePinsAndWorkflowUnchangedFrom": "65003bc2daea627510b1bf3e567517f27ba29ec7",
+  "syntheticExecutablesOnly": true,
+  "realPublication": false,
+  "limits": [
+    "The historical release remains contracts4.8 with published floors core4.1/protocol1.2.1.",
+    "The actual prepare command rejects source4.9/4.7/wrongname/null before build or publication.",
+    "Positive exact4.8 reaches a synthetic build executable and stops deliberately; it is not a real build/release.",
+    "Candidate packages still require a separately authorized coordinated release."
+  ]
+}
