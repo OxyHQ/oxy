@@ -26,6 +26,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AUTH_STATE_STORAGE_KEY } from '@oxy.so/core/session';
 import { type User } from '@oxy.so/core';
 
+const mockOAuthCompletion = jest.fn();
+jest.mock('../../src/ui/oauth/browserAuthTransport', () => {
+  const actual = jest.requireActual('../../src/ui/oauth/browserAuthTransport');
+  return { ...actual, startWebOAuthSignIn: (...args: unknown[]) => mockOAuthCompletion(...args) };
+});
 const redirectToAuthorize = jest.fn();
 jest.mock('../../src/ui/components/oauthNavigation', () => ({
   redirectToAuthorize: (...args: unknown[]) => redirectToAuthorize(...args),
@@ -38,6 +43,7 @@ const fakeSessionClientHost = {
 };
 const fakeSessionClient = {
   getState: jest.fn(() => null),
+  resetLocalState: jest.fn(),
   // The dialog controller reads the directory on every snapshot build, and the
   // runtime reaches the context lane through the same client, so a stand-in
   // that omits these is not a SessionClient. Null is the honest answer for a
@@ -98,6 +104,7 @@ function buildStub(overrides: Record<string, unknown> = {}) {
       getSessionBaseUrl: () => API_BASE_URL,
       session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => { currentToken = token; }, clear: () => { currentToken = null; } },
 cache: { clear: jest.fn() },
+apps: { getPublic: jest.fn(async () => ({ id: 'registered-app', name: 'Registered App', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] })) },
 devices: { mintToken: jest.fn(async () => ({
         accessToken: 'cb.minted.access',
         expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -275,4 +282,35 @@ describe('OxyContext cold boot (device-first)', () => {
     expect(stub.devices.mintToken).toHaveBeenCalledWith('dev-legacy', 'legacy.secret');
     expect(redirectToAuthorize).not.toHaveBeenCalled();
   });
+});
+
+it.each([false, true])('device -> isolated OAuth keeps only the exchanged bearer; self-logout expired=%s', async (expired) => {
+  window.localStorage.setItem(AUTH_STATE_STORAGE_KEY, JSON.stringify({ sessionId: 'device-old', userId: USER_ID, deviceId: 'prior-device', deviceSecret: 'prior-secret', accessToken: 'old-device-bearer', expiresAt: new Date(Date.now()+3600000).toISOString() }));
+  const { stub } = buildStub();
+  const revoke = jest.fn(async () => { if (expired) throw Object.assign(new Error('Session expired'), {status:401}); });
+  Object.assign(stub.session, { logout: revoke });
+  renderProvider(stub);
+  await waitFor(() => expect(capturedContext?.isAuthenticated).toBe(true));
+  fakeSessionClient.registerAndActivate.mockClear(); fakeSessionClient.addCurrentAccount.mockClear(); fakeSessionClient.start.mockClear(); fakeSessionClient.refreshDirectory.mockClear();
+  mockOAuthCompletion.mockImplementation(async (context) => {
+    // exchangeCode plants its bearer before entering the commit funnel.
+    stub.session.setAccessToken('new-isolated-bearer');
+    await context.commitSession({ sessionId: 'isolated-new', accessToken: 'new-isolated-bearer', userId: USER_ID, user: { id: USER_ID, username: 'cbuser' } });
+    return { status: 'signed-in' };
+  });
+  await act(async () => { await capturedContext!.startWebOAuthSignIn({ redirectUri: 'https://external.fixture/callback' }); });
+  expect(stub.session.accessToken).toBe('new-isolated-bearer');
+  expect(capturedContext?.activeSessionId).toBe('isolated-new');
+  expect(capturedContext?.sessions.map((entry) => entry.sessionId)).toEqual(['isolated-new']);
+  expect(fakeSessionClient.resetLocalState).toHaveBeenCalled();
+  expect(fakeSessionClientHost.setDeviceCredential).toHaveBeenLastCalledWith(null);
+  expect(fakeSessionClient.registerAndActivate).not.toHaveBeenCalled();
+  expect(fakeSessionClient.addCurrentAccount).not.toHaveBeenCalled();
+  expect(fakeSessionClient.start).not.toHaveBeenCalled();
+  expect(window.localStorage.getItem(AUTH_STATE_STORAGE_KEY)).toBeNull();
+  expect(revoke).not.toHaveBeenCalled();
+  await act(async () => { expect(await capturedContext!.logout()).toEqual({ status: 'signed-out' }); });
+  expect(revoke).toHaveBeenCalledWith('isolated-new');
+  expect(stub.session.accessToken).toBeNull();
+  expect(capturedContext?.isAuthenticated).toBe(false);
 });

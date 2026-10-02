@@ -643,6 +643,15 @@ export class SessionController {
   // Logout from a specific session
   static async logoutSession(req: AuthRequest, res: Response) {
     try {
+      // An app-bound OAuth bearer may revoke only itself (ADR 0029). The
+      // middleware already verified this identity against its session row.
+      if (req.oxyToken?.applicationId && (
+        req.sessionId !== req.oxyToken.sessionId ||
+        req.params.sessionId !== req.oxyToken.sessionId ||
+        (req.params.targetSessionId && req.params.targetSessionId !== req.oxyToken.sessionId)
+      )) {
+        return res.status(403).json({ code: 'third_party_session_access_denied', message: 'An application session may sign out only itself' });
+      }
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
 
@@ -695,6 +704,9 @@ export class SessionController {
   // Logout all sessions for current user
   static async logoutAllSessions(req: AuthRequest, res: Response) {
     try {
+      if (req.oxyToken?.applicationId) {
+        return res.status(403).json({ code: 'third_party_session_access_denied', message: 'An application session cannot revoke other sessions' });
+      }
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
       const { sessionId, userId } = acting;
@@ -837,6 +849,9 @@ export class SessionController {
   // Get device sessions for a specific device
   static async getDeviceSessions(req: AuthRequest, res: Response) {
     try {
+      if (req.oxyToken?.applicationId) {
+        return res.status(403).json({ message: 'Third-party sessions cannot access shared device metadata', code: 'third_party_device_access_denied' });
+      }
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
 
@@ -921,6 +936,9 @@ export class SessionController {
   // Logout all sessions for a specific device
   static async logoutAllDeviceSessions(req: AuthRequest, res: Response) {
     try {
+      if (req.oxyToken?.applicationId) {
+        return res.status(403).json({ code: 'third_party_device_access_denied', message: 'An application session cannot sign out a shared device' });
+      }
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
 
@@ -937,6 +955,9 @@ export class SessionController {
   // Update device name for a session
   static async updateDeviceName(req: AuthRequest, res: Response) {
     try {
+      if (req.oxyToken?.applicationId) {
+        return res.status(403).json({ message: 'Third-party sessions cannot access shared device metadata', code: 'third_party_device_access_denied' });
+      }
       const { deviceName } = req.body;
       if (!deviceName) {
         return res.status(400).json({ message: 'Device name is required' });

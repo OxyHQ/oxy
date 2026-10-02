@@ -1,3 +1,4 @@
+import { AppsApi } from '../../../core/src/api/apps';
 /**
  * A cleared bearer with the device credential intact is NOT a sign-out
  * (OxyHQ/Mention#1140).
@@ -90,7 +91,7 @@ const renderProvider = (sink: { current: OxyContextState | null }): RenderResult
   return render(
     <QueryClientProvider client={queryClient}>
       {/* Only baseURL is passed: the provider builds its own instance. */}
-      <OxyRuntimeProvider baseURL="https://api.oxy.so">
+      <OxyRuntimeProvider baseURL="https://api.oxy.so" clientId="oxy_test_registered">
         <Capture sink={sink} />
       </OxyRuntimeProvider>
     </QueryClientProvider>,
@@ -98,6 +99,7 @@ const renderProvider = (sink: { current: OxyContextState | null }): RenderResult
 };
 
 describe('OxyRuntimeProvider after its access token is cleared', () => {
+  beforeEach(() => { jest.spyOn(AppsApi.prototype, 'getPublic').mockResolvedValue({ id: 'registered-fixture', name: 'Registered Fixture', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] } as never); });
   afterEach(() => {
     useAuthStore.getState().logout();
     mockHasDeviceCredential = true;
@@ -107,7 +109,7 @@ describe('OxyRuntimeProvider after its access token is cleared', () => {
   it('keeps the user signed in while the device credential survives, and restores the token by re-minting', async () => {
     const sink = makeCapture();
     renderProvider(sink);
-    await waitFor(() => expect(sink.current).not.toBeNull());
+    await waitFor(() => expect(sink.current?.isAuthResolved).toBe(true));
     const providerInstance = requireContext(sink).oxyServices;
     const user = { id: 'user_transient', username: 'still-me' } as User;
 
@@ -146,7 +148,7 @@ describe('OxyRuntimeProvider after its access token is cleared', () => {
   it('signs out when the device credential is gone (a real revocation)', async () => {
     const sink = makeCapture();
     renderProvider(sink);
-    await waitFor(() => expect(sink.current).not.toBeNull());
+    await waitFor(() => expect(sink.current?.isAuthResolved).toBe(true));
     const providerInstance = requireContext(sink).oxyServices;
     const user = { id: 'user_revoked', username: 'revoked' } as User;
 

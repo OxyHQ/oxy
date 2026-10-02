@@ -12,6 +12,8 @@ export interface CommitDeviceSetAndResolveDeps {
    * reconciles the device set in the background).
    */
   activate: boolean;
+  /** Trusted provider provenance from the completed third-party OAuth exchange. */
+  isolatedOAuth?: boolean;
   /** Cold boot already carries authoritative device state from the mint. */
   hasDeviceState?: boolean;
   /** The committing account id (only used by `registerAndActivate`). */
@@ -48,6 +50,7 @@ export async function commitDeviceSetAndResolve(
 ): Promise<void> {
   const {
     activate,
+    isolatedOAuth = false,
     hasDeviceState = false,
     userId,
     fallbackUser,
@@ -110,6 +113,11 @@ export async function commitDeviceSetAndResolve(
     }
     markAuthResolved();
   };
+
+  if (isolatedOAuth) {
+    await hydrateAndResolve();
+    return;
+  }
 
   if (activate) {
     // Deliberate sign-in: block on the device-set reconcile (unchanged ordering)
