@@ -925,6 +925,13 @@
       "when": 1790942604346,
       "tag": "0132_billing_stripe_event_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1790942621807,
+      "tag": "0133_inference_metered_usage",
+      "breakpoints": true
     }
   ]
 }
