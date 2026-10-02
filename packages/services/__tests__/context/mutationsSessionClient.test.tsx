@@ -216,6 +216,7 @@ function buildStub(baseURL: string) {
       getSessionBaseUrl: () => baseURL,
       session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => { currentToken = token; }, clear: () => { currentToken = null; }, logoutAll: logoutAllSessions },
 cache: { clear: jest.fn() },
+apps: { getPublic: jest.fn(async () => ({ id: 'registered-fixture', name: 'Registered Fixture', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] })) },
 devices: { mintToken: jest.fn(async () => ({
         accessToken: 'a1.access.token',
         expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -270,7 +271,7 @@ function renderProvider(oxyServices: unknown, baseURL: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider oxyServices={oxyServices as never} baseURL={baseURL}>
+      <OxyRuntimeProvider oxyServices={oxyServices as never} baseURL={baseURL} clientId="oxy_test_registered">
         <Capture />
       </OxyRuntimeProvider>
     </QueryClientProvider>,

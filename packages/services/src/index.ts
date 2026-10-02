@@ -436,3 +436,5 @@ export {
   closeAccountDialog,
   subscribeToAccountDialog,
 } from './ui/navigation/accountDialogManager';
+
+export type { StartNativeOAuthSignInOptions, NativeOAuthSignInResult } from './ui/oauth/nativeAuthTransport';

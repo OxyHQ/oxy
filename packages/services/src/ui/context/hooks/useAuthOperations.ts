@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { logoutIsolatedOAuthSession, readIsolatedOAuthSession } from '../isolatedOAuthSession';
 import type { ApiError, User } from '@oxy.so/core';
 import type { AuthStateStore, IdentityBinding, SessionClient } from '@oxy.so/core/session';
 import type { ClientSession, SessionLoginResponse } from '@oxy.so/core';
@@ -298,6 +299,16 @@ export const useAuthOperations = ({
       const activeSessionId = runtime.getSnapshot().activeSessionId;
       if (!activeSessionId) return { status: 'signed-out' };
 
+      const isolated = readIsolatedOAuthSession(runtime);
+      if (isolated) {
+        return logoutIsolatedOAuthSession({
+          session: isolated,
+          targetSessionId,
+          revokeSelf: (sessionId) => oxyServices.session.logout(sessionId),
+          clearSessionState,
+        });
+      }
+
       const sessionToLogout = targetSessionId || activeSessionId;
 
       try {
@@ -358,6 +369,7 @@ export const useAuthOperations = ({
     },
     [
       clearSessionState,
+      oxyServices,
       store,
       logger,
       onError,
@@ -371,6 +383,9 @@ export const useAuthOperations = ({
    * Logout from all sessions
    */
   const logoutAll = useCallback(async (): Promise<void> => {
+    if (readIsolatedOAuthSession(runtime)) {
+      throw new Error('An isolated OAuth session cannot sign out other sessions');
+    }
     const activeSessionId = runtime.getSnapshot().activeSessionId;
     if (!activeSessionId) {
       const error = new Error('No active session found');
