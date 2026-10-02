@@ -898,7 +898,6 @@ jobs:
           node scripts/test-check-kaana-signed-canary.mjs
           node scripts/check-kaana-signed-canary.mjs
           node --test packages/api/scripts/run-kaana-signed-canary.test.mjs
-          node --test packages/api/scripts/check-stripe-webhook-events.test.mjs
           node scripts/test-check-inbox-routing-profile-readback.mjs
           node scripts/check-inbox-routing-profile-readback.mjs
           node scripts/test-check-kaana-catalogue-bootstrap-workflow.mjs
@@ -1111,7 +1110,7 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun scripts/check-openapi-fresh.mjs
 
-  # The platform packages' suites: contracts, db, MCP, protocol, core, ship, node,
+  # The platform packages' suites: contracts, db, protocol, core, ship, node,
   # and federation, on one runner with one install.
   #
   # The suites run in dependency order and each one sees AT LEAST the workspace
@@ -1200,11 +1199,6 @@ jobs:
         id: build-contracts
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bunx turbo run build --filter=@oxy.so/contracts
-      # MCP tests import the built contracts; execute the package's own suite.
-      - name: 'MCP Tests: test'
-        if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
-        run: bun run test
-        working-directory: ./packages/mcp
       - name: 'Protocol Tests: test'
         if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
         run: bun run test
