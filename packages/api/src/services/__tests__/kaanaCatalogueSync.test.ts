@@ -83,6 +83,7 @@ function reader(models: readonly WireModel[], routes: readonly WireRoute[]): Kaa
     }),
     attestDeployments: async (ids) => ({
       snapshotId: 'snap_test',
+      scopedExecutionContractVersion: '3.6.0',
       deployments: routes
         .filter((route) => ids.includes(route.deploymentId))
         .map((route) => ({
@@ -94,6 +95,7 @@ function reader(models: readonly WireModel[], routes: readonly WireRoute[]): Kaa
     }),
     listPublishedDeployments: async () => ({
       snapshotId: 'snap_test',
+      scopedExecutionContractVersion: '3.6.0',
       deployments: routes.map((route) => ({
         deploymentId: route.deploymentId,
         provider: route.provider,

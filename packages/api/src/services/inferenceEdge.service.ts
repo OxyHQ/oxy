@@ -159,6 +159,8 @@ import {
   type UsageSource,
   type UsageUnit,
 } from '@oxy.so/contracts';
+import { scopedPermitForContext, attestScopedPermit, scopedFundingIntegrationAvailable, scopedFundingRestriction } from './scopedExecution.service';
+import { scopedInferenceRequestSchema, type ScopedExecution, type ScopedInferenceRequest } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { isChargingAuthorized, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
 import { applications } from '../db/schema/applications';
@@ -661,6 +663,7 @@ export interface EdgeStreamHead {
 
 /** Everything admission resolved, and the hold it took. */
 export interface AdmittedRequest {
+  readonly scopedExecution?: ScopedExecution;
   readonly route: EdgeRoute;
   /** The caller's concrete target or routing profile, preserved for the envelope. */
   readonly routingTarget: RoutingTarget;
@@ -871,6 +874,7 @@ async function admitWithAutoDecision(
 ): Promise<Admission> {
   const { requestId, principal, request } = context;
   const charging = isChargingAuthorized();
+  const scopedPermit = scopedPermitForContext(context);
 
   const refuse = (
     code: InferenceErrorCode,
@@ -901,7 +905,7 @@ async function admitWithAutoDecision(
 
   if (request.operation.kind === 'decisions' || request.input.format === 'decisions' || context.apiFormat === 'decisions') {
     const gate = decisionAvailability();
-    if (!gate.available) return refuse('service_unavailable', gate.reason, { reason: 'decisions-review-required' });
+    if (!gate.available && scopedPermit === undefined) return refuse('service_unavailable', gate.reason, { reason: 'decisions-review-required' });
     if (request.operation.kind !== 'decisions' || request.input.format !== 'decisions' || context.apiFormat !== 'decisions' || request.stream) {
       return refuse('invalid_request', 'Decisions require the typed nonstreaming decisions endpoint.');
     }
@@ -999,7 +1003,11 @@ async function admitWithAutoDecision(
         ? 0
         : requestedOutput ?? ('model-maximum' as const),
   };
+  if (scopedPermit !== undefined && (!charging || !scopedFundingIntegrationAvailable())) {
+    return refuse('service_unavailable', 'Scoped promotional funding integration is unavailable.');
+  }
   const authenticatedRoutingContext = {
+    ...(scopedPermit === undefined ? {} : { scopedExecution: scopedPermit }),
     applicationId: principal.applicationId,
     environment: principal.environment,
   };
@@ -1421,7 +1429,7 @@ async function admitWithAutoDecision(
   // availability fact like capacity: it is dropped here, before the authorized
   // set is built, rather than signed and then refused wholesale by the exact
   // attestation below. See `kaanaDeploymentPublication.service.ts`.
-  const liveness = routeGroups.length === 0 ? undefined : await currentDeploymentLiveness();
+  const liveness = routeGroups.length === 0 || scopedPermit !== undefined ? undefined : await currentDeploymentLiveness();
   if (liveness?.status === 'unavailable') {
     return kaanaEvidenceRefusal(
       requestedModelReference || requestedTargetReference,
@@ -1692,7 +1700,7 @@ async function admitWithAutoDecision(
   try {
     attestation = await context.kaanaClient.attestDeployments(
       authorizedRoutes.map((authorized) => authorized.deploymentId),
-      { signal: context.signal }
+      { signal: context.signal, ...(scopedPermit === undefined ? {} : { scopedExecutionContractVersion: '3.6.0' as const }) }
     );
   } catch (error) {
     logger.error(
@@ -1710,6 +1718,15 @@ async function admitWithAutoDecision(
       { requestId, reason: attestationMismatch }
     );
     return kaanaEvidenceRefusal(requestedModelReference, attestationMismatch);
+  }
+
+  let scopedExecution: ScopedExecution | undefined;
+  if (scopedPermit !== undefined) {
+    if (authorizedRoutes.length !== 1 || route.scopedCatalogueEvidence === undefined) {
+      return refuse('service_unavailable', 'Scoped normal catalogue evidence is unavailable.');
+    }
+    scopedExecution = attestScopedPermit(scopedPermit, attestation, requestId, { ...route.scopedCatalogueEvidence, policy: routingPolicy });
+    if (scopedExecution === undefined) return refuse('service_unavailable', 'Scoped deployment evidence did not match.');
   }
 
   // 6c. Size the hold at the exact maximum of every partition the request can
@@ -1777,6 +1794,9 @@ async function admitWithAutoDecision(
     }
   }
 
+  if (scopedPermit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, scopedPermit.maxCostUsd))) {
+    return refuse('policy_violation', 'Scoped quote exceeds the authorized USD cost.');
+  }
   const ledgerKey = ledgerIdempotencyKey(context);
 
   // Idempotency is a CHARGE guarantee, not response replay: prompts and
@@ -1833,6 +1853,7 @@ async function admitWithAutoDecision(
     return { status: 'refused', error };
   };
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
+  if (scopedPermit !== undefined && Date.parse(scopedPermit.expiresAt) <= Date.now()) return refuse('policy_violation', 'Scoped authorization expired before reservation.');
   if (pendingAuto !== undefined && resolvedAuto === undefined) {
     // The parent is already fully qualified, attested, quoted and past its
     // idempotency check (a known attempt never reaches a child) at its
@@ -1874,6 +1895,7 @@ async function admitWithAutoDecision(
   }
   if (charging) {
     const reservation = await reserve({
+      ...(scopedPermit === undefined ? {} : { fundingRestriction: scopedFundingRestriction }),
       idempotencyKey: ledgerKey,
       attribution: ledgerAttribution,
       knownUnits: request.operation.kind === 'speech'
@@ -1895,6 +1917,11 @@ async function admitWithAutoDecision(
 
     // `already-reserved` is a refusal, never a borrowed hold: a concurrent
     // request owns it, whether this is a classifier or the final generation.
+    if (scopedPermit !== undefined && reservation.status !== 'reserved') {
+      const denied = reservationOrRefusal(reservation, requestId, quote.currency);
+      if ('error' in denied) return refuseReservation(reservation, denied.error);
+      return refuse('service_unavailable', 'Scoped execution requires its own exact reserved hold.');
+    }
     const held = reservationOrRefusal(reservation, requestId, quote.currency);
     if ('error' in held) return refuseReservation(reservation, held.error);
     hold = held.reservation;
@@ -1903,6 +1930,7 @@ async function admitWithAutoDecision(
   return {
     status: 'admitted',
     admitted: {
+      ...(scopedExecution === undefined ? {} : { scopedExecution }),
       route,
       routingTarget: admittedRoutingTarget,
       authorizedRoutes,
@@ -1953,6 +1981,9 @@ export async function executeInferenceRequest(
   try {
     if (context.kaanaClient === undefined) {
       throw new DataPlaneNotConfiguredError();
+    }
+    if (admitted.scopedExecution !== undefined && (hold === undefined || hold.expiresAt.getTime() <= Date.now() || Date.parse(admitted.scopedExecution.expiresAt) <= Date.now())) {
+      throw new Error('Scoped dispatch requires its retained unexpired hold and permit.');
     }
     completion = await context.kaanaClient.execute(envelope, { signal: context.signal });
   } catch (error) {
@@ -3229,11 +3260,11 @@ export function unitsFromQuantities(
  * admitted by a deployment with a data plane streams, and there is exactly one
  * call site for each value.
  */
-function buildEnvelope(
+export function buildEnvelope(
   context: EdgeExecutionContext,
   admitted: AdmittedRequest,
   stream: boolean
-): InferenceRequest {
+): InferenceRequest | ScopedInferenceRequest {
   const { request } = context;
   const { route, routingTarget, authorizedRoutes, maxOutputTokens, routingPolicy } = admitted;
   const apiFormat = context.apiFormat;
@@ -3246,8 +3277,9 @@ function buildEnvelope(
     (authorized) => modelLineOf(authorized.modelReference) !== modelLineOf(route.modelReference)
   );
 
-  return inferenceRequestSchema.parse({
-    schemaVersion: 2,
+  return (admitted.scopedExecution === undefined ? inferenceRequestSchema : scopedInferenceRequestSchema).parse({
+    schemaVersion: admitted.scopedExecution === undefined ? 2 : 3,
+    ...(admitted.scopedExecution === undefined ? {} : { scopedExecution: admitted.scopedExecution }),
     attribution: attributionFor(context),
     // The signed route list pins every executable destination. Preserve a
     // profile, and preserve an unpinned concrete target only when its versioned
