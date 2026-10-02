@@ -6,6 +6,11 @@ import { fileURLToPath } from 'node:url';
 export const ADVISORY = 'GHSA-86w9-cpqp-85rv';
 export const FILES = ['lib/rsa.js', 'dist/forge.min.js', 'dist/forge.min.js.map', 'dist/forge.all.min.js', 'dist/forge.all.min.js.map'];
 export const SUITES = ['rsa-regressions', 'forge-suite', 'browser-bundles', 'expo-certificates', 'expo-update-signing', 'production-image'];
+export function canonicalAudit(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalAudit).join(',')}]`;
+  if (value !== null && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalAudit(value[key])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 // Traverse physical directories, including nested workspace installs and Bun's store.
@@ -45,6 +50,8 @@ export function evaluate({ audit, manifest, patchBytes, copies, evidenceBytes })
   const errors = [];
   const fail = text => errors.push(text);
   if (!audit || typeof audit !== 'object' || Array.isArray(audit)) fail('Missing raw audit object');
+  const rawAuditSha256 = sha256(canonicalAudit(audit) ?? '');
+  if (!hash(manifest?.rawAuditSha256) || manifest.rawAuditSha256 !== rawAuditSha256) fail('Whole raw audit differs from reviewed baseline');
   const advisories = audit?.['node-forge'];
   if (!Array.isArray(advisories) || advisories.length !== 1 || advisories[0]?.url !== `https://github.com/advisories/${ADVISORY}` || advisories[0]?.severity !== 'high') fail('Exact single raw Forge advisory required; new advisory fails');
   if (manifest?.advisory !== ADVISORY || manifest?.package !== 'node-forge' || manifest?.version !== '1.4.0') fail('Exact advisory/package/version required');
@@ -58,10 +65,11 @@ export function evaluate({ audit, manifest, patchBytes, copies, evidenceBytes })
   if (!hash(manifest?.testEvidenceSha256) || sha256(evidenceBytes ?? '') !== manifest.testEvidenceSha256) fail('Missing or mismatched test evidence');
   let evidence;
   try { evidence = JSON.parse(evidenceBytes); } catch { fail('Invalid test evidence'); }
+  if (evidence?.rawAuditSha256 !== rawAuditSha256 || evidence?.rawAuditSha256 !== manifest?.rawAuditSha256) fail('Tests do not bind the reviewed whole-audit baseline');
   if (evidence?.patchSha256 !== manifest?.patchSha256 || evidence?.inventorySha256 !== inventorySha256) fail('Tests do not bind this patch and installed inventory');
   for (const suite of SUITES) if (evidence?.suites?.[suite] !== 'pass') fail(`Missing/pending/failed suite: ${suite}`);
   if (!manifest?.independentSecurityReview?.reviewer || !hash(manifest?.independentSecurityReview?.reviewedPatchSha256) || manifest.independentSecurityReview.reviewedPatchSha256 !== manifest.patchSha256) fail('Independent security review absent or mismatched');
-  return { proposalOnly: true, approved: false, technicalEvidenceComplete: errors.length === 0, errors, rawAudit: audit, inventorySha256, remainingDecision: 'Separate parent policy authorization and verified review authenticity are mandatory. This script never approves or suppresses an advisory.' };
+  return { proposalOnly: true, approved: false, technicalEvidenceComplete: errors.length === 0, errors, rawAudit: audit, rawAuditSha256, inventorySha256, remainingDecision: 'Separate parent policy authorization and verified review authenticity are mandatory. This script never approves or suppresses an advisory.' };
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [root, auditPath, manifestPath, patchPath, evidencePath] = process.argv.slice(2);
