@@ -1,3 +1,5 @@
+import { isLoopbackOrigin } from '@oxy.so/contracts';
+export { isLoopbackOrigin } from '@oxy.so/contracts';
 /**
  * Official first-party web origin allowlist — shared by OAuth redirect
  * validation and the server-side trusted-origin checks.
@@ -24,19 +26,6 @@ const OFFICIAL_APEXES = new Set([
  * Whether an origin is a loopback / local-dev origin (`localhost`, `127.0.0.1`,
  * or `[::1]` on any port, http or https).
  */
-export function isLoopbackOrigin(origin: string): boolean {
-  try {
-    const parsed = new URL(origin);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return false;
-    }
-    const host = parsed.hostname.toLowerCase();
-    return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
-  } catch {
-    return false;
-  }
-}
-
 /** Whether an origin belongs to the official Oxy web ecosystem. */
 export function isOfficialWebOrigin(origin: string): boolean {
   if (isLoopbackOrigin(origin)) {

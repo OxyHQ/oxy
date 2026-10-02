@@ -1369,12 +1369,14 @@ export {
     capabilityCatalogBindingSchema,
     executionAuthorizationRefSchema,
     capabilityCoordinatorSchema,
+    capabilityTicketRequestSchema,
     delegationGrantSchema,
     automationTriggerSchema,
     automationActorSelectionSchema,
     automationDataFlowSchema,
     automationDefinitionSchema,
     capabilityTicketClaimsSchema,
+    invocationPrincipalSchema,
     policyDecisionSchema,
     auditResultSchema,
     auditEventSchema,
@@ -1395,11 +1397,13 @@ export type {
     CapabilityCatalogBinding,
     ExecutionAuthorizationRef,
     CapabilityCoordinator,
+    CapabilityTicketRequest,
     DelegationGrant,
     AutomationTrigger,
     AutomationActorSelection,
     AutomationDefinition,
     CapabilityTicketClaims,
+    InvocationPrincipal,
     PolicyDecision,
     AuditEvent,
     CatalogTool,
@@ -1502,3 +1506,5 @@ export type {
     SubjectProductAccess,
 } from './products/access';
 export { meteredGenerationSchema, type MeteredGeneration } from "./inference/economics";
+
+export { canonicalCapabilityJson, inputSatisfiesCapabilityLimits, isLoopbackOrigin } from './capabilityBindings';
