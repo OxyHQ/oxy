@@ -202,6 +202,24 @@ router.post('/logout-all/:sessionId', authMiddleware, validate({ params: session
  *                 expiresAt:
  *                   type: string
  *                   format: date-time
+ *                 actor:
+ *                   type: object
+ *                   description: >
+ *                     Who acted, and as whom, read off the session row
+ *                     (`AccountActorChain` in `@oxy.so/contracts`).
+ *                     `actorAccountId` differs from `effectiveAccountId`
+ *                     exactly when `delegated` is true; a bot acting with
+ *                     nobody operating it is its own actor.
+ *                   properties:
+ *                     schemaVersion:
+ *                       type: integer
+ *                       enum: [1]
+ *                     effectiveAccountId:
+ *                       type: string
+ *                     actorAccountId:
+ *                       type: string
+ *                     delegated:
+ *                       type: boolean
  *       404:
  *         description: Session not found or expired.
  */
