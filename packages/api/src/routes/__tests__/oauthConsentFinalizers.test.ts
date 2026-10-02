@@ -426,8 +426,9 @@ describe('a revocation survives a first-party sign-in on either entry', () => {
   it('finalize: a request that named NO scopes cannot undo it through the fallback set', async () => {
     // An AuthSession that names no scopes is issued the application's whole
     // registered set — here including `acting-as:offline`. Nobody was asked
-    // about that scope, so it must neither record a consent-required grant nor
-    // clear the refusal, even though the code carries it.
+    // about that scope, so for this TRUSTED application it must neither record
+    // a consent-required grant nor clear the refusal, even though the code
+    // carries it. (A third party's fallback is #1521 decision 2, still open.)
     const app = await client(ACTING_APP);
     const userId = await account();
     await revoke(userId, app.applicationId);
@@ -479,6 +480,105 @@ describe('a revocation survives a first-party sign-in on either entry', () => {
  * A write that cannot be stored hands out nothing usable. Each failure is a real
  * Postgres error raised inside the transaction, not a mocked rejection.
  */
+/** `GET /auth/oauth/consent` as `userId` — whether the screen must ask, and about what. */
+function getConsent(userId: string, app: Client, scope: string): Promise<JsonResponse> {
+  authenticatedUser = { _id: userId };
+  const address = server.address() as AddressInfo;
+  const query = new URLSearchParams({ clientId: app.clientId, redirectUri: REDIRECT, scope });
+  return new Promise((resolve, reject) => {
+    http
+      .get({ host: '127.0.0.1', port: address.port, path: `/auth/oauth/consent?${query}` }, (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+        );
+      })
+      .on('error', reject);
+  });
+}
+
+/**
+ * The application's registered scopes are a ceiling neither entry can exceed:
+ * a scope the platform never gave the app reaches neither the code nor the
+ * consent row, whatever the request named, and the consent screen never offers
+ * it. Only the application's registration can widen that ceiling.
+ */
+describe('a request cannot exceed the scopes the application is registered for', () => {
+  it.each(ENTRIES)(
+    '%s: a third party not registered for acting-as:offline cannot obtain it',
+    async (entry) => {
+      const app = await client({ type: 'third_party', scopes: ['user:read'] });
+      const userId = await account();
+
+      const result = await finalizeWith(entry)(userId, app, 'user:read acting-as:offline');
+
+      expect(result.status).toBe(200);
+      expect(await stateOf(userId, app.applicationId)).toEqual({
+        grantScopes: ['user:read'],
+        revoked: false,
+        codeScopes: [['user:read']],
+        actingAs: false,
+      });
+    },
+  );
+
+  it.each(ENTRIES)(
+    '%s: a first party not registered for acting-as:offline gets the ordinary sign-in, no grant',
+    async (entry) => {
+      const app = await client({ type: 'first_party', scopes: ['user:read'] });
+      const userId = await account();
+
+      const result = await finalizeWith(entry)(userId, app, 'user:read acting-as:offline');
+
+      expect(result.status).toBe(200);
+      expect(await stateOf(userId, app.applicationId)).toEqual({
+        grantScopes: null,
+        revoked: false,
+        codeScopes: [['user:read']],
+        actingAs: false,
+      });
+    },
+  );
+
+  it('consent: the screen never asks about a scope the third party is not registered for', async () => {
+    const app = await client({ type: 'third_party', scopes: ['user:read'] });
+    const userId = await account();
+
+    const res = await getConsent(userId, app, 'user:read acting-as:offline');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ consentRequired: true, reason: 'new' });
+  });
+
+  it('consent: a registered consent-required scope is still asked about', async () => {
+    const app = await client({ type: 'third_party', scopes: ['user:read', 'acting-as:offline'] });
+    const userId = await account();
+
+    const res = await getConsent(userId, app, 'user:read acting-as:offline');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      consentRequired: true,
+      reason: 'new',
+      userConsentScopes: ['acting-as:offline'],
+    });
+  });
+
+  it('consent: a grant covering every grantable scope is not asked again for one the app lacks', async () => {
+    const app = await client({ type: 'third_party', scopes: ['user:read'] });
+    const userId = await account();
+    expect((await viaAuthorize(userId, app, 'user:read')).status).toBe(200);
+
+    const res = await getConsent(userId, app, 'user:read acting-as:offline');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ consentRequired: false, reason: 'granted' });
+  });
+});
+
 describe('a persistence failure leaves no code and no grant', () => {
   it('authorize: a grant that cannot be stored fails the request — no code is issued', async () => {
     const app = await client();

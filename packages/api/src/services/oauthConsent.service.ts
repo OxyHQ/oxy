@@ -37,9 +37,21 @@
  *
  * Only an explicit, carried `acting-as:offline` clears a revocation of it. A
  * scope that reaches the code by FALLBACK (an `AuthSession` that named no scopes
- * is issued the application's registered set) was never put in front of anyone
- * as a choice, so it can neither record a consent-required grant nor undo a
- * refusal. That is what keeps "revoke, then sign in again" revoked.
+ * is issued the application's registered set) never undoes a refusal, for any
+ * application. That is what keeps "revoke, then sign in again" revoked.
+ *
+ * For a TRUSTED application a fallback scope also never records a
+ * consent-required grant. For a THIRD-PARTY application it does: every
+ * third-party authorization records a grant of the scopes the code carries, and
+ * the fallback set includes any consent-required scope the application is
+ * registered for. Whether such scopes may arrive by fallback at all is an open
+ * decision (#1521, decision 2); until it is taken this path behaves as it did
+ * before the two finalizers were unified.
+ *
+ * Both finalizers hand {@link decideOAuthConsent} scopes already narrowed to the
+ * application's registered set (`intersectScopes`), so a third party can never
+ * be granted — in the code or in its consent row — a scope the platform did not
+ * give it, whatever its request named.
  *
  * ## The transition
  *
@@ -80,7 +92,11 @@ export interface OAuthConsentInput {
   application: ConsentApplication;
   /** The scopes the REQUEST named, as the client sent them. May be empty. */
   requestedScopes: readonly string[];
-  /** The scopes the CODE will carry — what the authorization actually grants. */
+  /**
+   * The scopes the CODE will carry — what the authorization actually grants:
+   * the request narrowed to the application's registered scopes
+   * (`intersectScopes`), or that registered set when the request named none.
+   */
   grantedScopes: readonly string[];
 }
 
