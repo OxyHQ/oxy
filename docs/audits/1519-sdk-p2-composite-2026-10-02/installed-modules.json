@@ -122,12 +122,6 @@
       "relativePath": "lib/module/ui/boot/runProviderColdBoot.js",
       "sha256": "d72622f1ea8d3df49f567020a28b7991cbcb9f501211c28c6c33bfa2f6bd6dfa",
       "matchesCurrentBuild": true
-    },
-    {
-      "package": "services",
-      "relativePath": "lib/module/ui/context/OxyContext.js",
-      "sha256": "a70396734835aff174804a17aaa00b55733d9064a2af221037b17f0f2c0022b3",
-      "matchesCurrentBuild": true
     }
   ]
 }
