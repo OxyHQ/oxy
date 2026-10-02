@@ -639,7 +639,7 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
  *
  * These drive the real `POST /auth/oauth/authorize` rather than calling
  * `clearServiceActingAsRevocation` directly, and that is the whole point of
- * them: the condition guarding the clear lives in `recordAppGrant`, so a test
+ * them: the condition guarding the clear lives in `decideOAuthConsent`, so a test
  * that calls the clear itself proves the clear works and says nothing about WHEN
  * it runs. Mutation-verified — removing the `acting-as:offline` condition and
  * clearing on every authorize survived the suite until these existed.
@@ -649,7 +649,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
     // The scope here has to be consent-required but NOT `acting-as:offline`,
     // and that is the whole subtlety of this test.
     //
-    // `recordAppGrant` — where the clear lives — is only called when the app is
+    // The grant — and with it the clear — is only written when the app is
     // untrusted OR the request names a consent-required scope. So an ORDINARY
     // first-party authorize (`user:read`) never reaches the clear at all, and a
     // test using one passes whether the condition exists or not. Measured: with
