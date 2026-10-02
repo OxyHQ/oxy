@@ -15,10 +15,10 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 
@@ -71,6 +71,7 @@ import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 import sessionDeviceRouter from '../sessionDevice';
 import { errorHandler } from '../../middleware/errorHandler';
+import { validateAccessToken } from '../../utils/sessionUtils';
 
 let server: http.Server;
 let callerAccountId = '';
@@ -110,7 +111,7 @@ function callerIs(deviceId: string, accountId: string, sessionId: string): void 
   callerSessionId = sessionId;
 }
 
-async function requestJson(method: string, path: string, payload?: unknown) {
+async function requestJson(method: string, path: string, payload?: unknown, bearer = true) {
   const address = server.address() as AddressInfo;
   const body = payload === undefined ? '' : JSON.stringify(payload);
   return new Promise<{ status: number; body: Record<string, unknown> }>((resolve, reject) => {
@@ -123,7 +124,7 @@ async function requestJson(method: string, path: string, payload?: unknown) {
         headers: {
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(body),
-          Authorization: 'Bearer t',
+          ...(bearer ? { Authorization: 'Bearer t' } : {}),
         },
       },
       (res) => {
@@ -428,5 +429,39 @@ describe('POST /session/device/signout — the removal meanings', () => {
 
     const all = await requestJson('POST', '/session/device/signout', { all: true });
     expect(all.status).toBe(200);
+  });
+});
+
+
+describe('#1549 bearerless background-token context binding', () => {
+  it('rejects a former operator secret after autoheal while the other operator stays usable', async () => {
+    const device = `dev-${randomUUID()}`;
+    const first = await account();
+    const second = await account();
+    const org = await organization(first);
+    await signIn(device, first);
+    const firstContext = contextFor(await deviceSessionService.getDirectory(device), first, org)?.id ?? '';
+    expect((await deviceSessionService.activateContext(device, firstContext, { headers: {} } as never)).ok).toBe(true);
+    const firstState = await deviceSessionService.getState(device);
+    const firstSession = firstState.accounts.find((row) => row.accountId === org)?.sessionId ?? '';
+    const credential = await deviceSessionService.issueBackgroundCredential(device, org);
+    if (!credential) throw new Error('Expected initial real background issuance');
+    await getDb().insert(accountMembers).values({ accountId: org, memberUserId: second, role: 'admin', status: 'active' });
+    await signIn(device, second);
+    const secondContext = contextFor(await deviceSessionService.getDirectory(device), second, org)?.id ?? '';
+    expect((await deviceSessionService.activateContext(device, secondContext, { headers: {} } as never)).ok).toBe(true);
+    expect((await deviceSessionService.activateContext(device, firstContext, { headers: {} } as never)).ok).toBe(true);
+    await getDb().delete(accountMembers).where(and(eq(accountMembers.accountId, org), eq(accountMembers.memberUserId, first)));
+    expect(await sessionService.getAccessToken(firstSession)).toBeNull();
+    const healed = await deviceSessionService.getState(device);
+    const surviving = await deviceSessionService.resolveTokenForAccount(healed, org);
+    expect(validateAccessToken(surviving?.accessToken ?? '').payload?.act?.sub).toBe(second);
+    mockAuthMiddleware.mockClear();
+    const response = await requestJson('POST', '/session/device/background-token', { deviceId: device, secret: credential.secret }, false);
+    expect(mockAuthMiddleware).not.toHaveBeenCalled();
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'background_credential_invalid' });
+    expect((await storedContextIds(device)).includes(secondContext)).toBe(true);
+    expect((await storedContextIds(device)).includes(firstContext)).toBe(false);
   });
 });

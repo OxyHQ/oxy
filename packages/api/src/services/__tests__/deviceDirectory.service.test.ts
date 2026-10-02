@@ -20,7 +20,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../securityActivityService', () => ({
@@ -738,6 +738,127 @@ describe('removal — one context and one principal are different operations', (
       .limit(1);
     return row.isActive;
   }
+
+  async function backgroundPair(addSecond = true) {
+    const device = newDeviceId();
+    const first = await account();
+    const second = await account();
+    const org = await organization(first);
+    await signIn(device, first);
+    const firstContext = contextFor(await deviceSessionService.getDirectory(device), first, org)?.id ?? '';
+    const activated = await deviceSessionService.activateContext(device, firstContext, request());
+    expect(activated.ok).toBe(true);
+    const firstSession = (await storedContexts(device)).find((row) => row.id === firstContext)?.sessionId ?? '';
+    const credential = await deviceSessionService.issueBackgroundCredential(device, org);
+    expect(credential).not.toBeNull();
+    if (!credential) throw new Error('Expected real initial background credential');
+    let secondContext = '';
+    let secondSession = '';
+    if (addSecond) {
+      await getDb().insert(accountMembers).values({ accountId: org, memberUserId: second, role: 'admin', status: 'active' });
+      await signIn(device, second);
+      secondContext = contextFor(await deviceSessionService.getDirectory(device), second, org)?.id ?? '';
+      expect((await deviceSessionService.activateContext(device, secondContext, request())).ok).toBe(true);
+      secondSession = (await storedContexts(device)).find((row) => row.id === secondContext)?.sessionId ?? '';
+      expect((await deviceSessionService.activateContext(device, firstContext, request())).ok).toBe(true);
+    }
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected live device holder');
+    return { device, first, second, org, firstContext, firstSession, secondContext, secondSession, credential, holder };
+  }
+
+  it('#1549 background secret cannot follow the remaining operator after exact autoheal', async () => {
+    const pair = await backgroundPair();
+    await getDb().delete(accountMembers).where(and(eq(accountMembers.accountId, pair.org), eq(accountMembers.memberUserId, pair.first)));
+    expect(await sessionService.getAccessToken(pair.firstSession)).toBeNull();
+    await deviceSessionService.getState(pair.device);
+    expect((await storedContexts(pair.device)).some((row) => row.id === pair.firstContext)).toBe(false);
+    expect(await sessionIsActive(pair.secondSession)).toBe(true);
+    expect(await deviceSessionService.getStateBySecret(pair.device, pair.holder)).not.toBeNull();
+    const secondToken = await sessionService.getAccessToken(pair.secondSession);
+    expect(validateAccessToken(secondToken?.accessToken ?? '').payload?.act?.sub).toBe(pair.second);
+    const minted = await deviceSessionService.mintFromBackgroundSecret(pair.device, pair.credential.secret);
+    const mintedActor = minted.ok ? validateAccessToken(minted.accessToken).payload?.act?.sub : null;
+    expect({ ok: minted.ok, actor: mintedActor, hash: (await storedDevice(pair.device)).backgroundSecretHash })
+      .toEqual({ ok: false, actor: null, hash: null });
+  });
+
+  it('#1549 cannot persist an issuance after its exact context was removed during validation', async () => {
+    const pair = await backgroundPair(false);
+    const resolve = deviceSessionService.resolveTokenForAccount.bind(deviceSessionService);
+    let entered = () => {};
+    let release = () => {};
+    const reached = new Promise<void>((done) => { entered = done; });
+    const resume = new Promise<void>((done) => { release = done; });
+    const spy = jest.spyOn(deviceSessionService, 'resolveTokenForAccount').mockImplementation(async (state, accountId) => {
+      const token = await resolve(state, accountId);
+      entered(); await resume; return token;
+    });
+    try {
+      const pending = deviceSessionService.issueBackgroundCredential(pair.device, pair.org);
+      await reached;
+      expect((await deviceSessionService.removeContext(pair.device, pair.firstContext)).ok).toBe(true);
+      release();
+      expect((await pending) === null).toBe(true);
+      expect((await storedDevice(pair.device)).backgroundSecretHash).toBeNull();
+    } finally { release(); spy.mockRestore(); }
+  });
+
+  it('#1549 background mint rejects a secret replaced while its real session mint awaits', async () => {
+    const pair = await backgroundPair(false);
+    const barrier = pauseMint(pair.firstSession);
+    try {
+      const pending = deviceSessionService.mintFromBackgroundSecret(pair.device, pair.credential.secret);
+      await barrier.reached;
+      const replacement = await deviceSessionService.issueBackgroundCredential(pair.device, pair.first);
+      expect(replacement).not.toBeNull();
+      barrier.release();
+      expect((await pending).ok).toBe(false);
+      if (!replacement) throw new Error('Expected other-account credential');
+      expect((await deviceSessionService.mintFromBackgroundSecret(pair.device, replacement.secret)).ok).toBe(true);
+    } finally { barrier.release(); barrier.restore(); }
+  });
+
+  it('#1549 preserves another account background binding when an organization context is removed', async () => {
+    const pair = await backgroundPair();
+    const own = await deviceSessionService.issueBackgroundCredential(pair.device, pair.second);
+    if (!own) throw new Error('Expected own-account credential');
+    expect((await deviceSessionService.removeContext(pair.device, pair.firstContext)).ok).toBe(true);
+    const token = await deviceSessionService.mintFromBackgroundSecret(pair.device, own.secret);
+    expect(token.ok).toBe(true);
+    if (!token.ok) throw new Error('Expected preserved own-account mint');
+    expect(validateAccessToken(token.accessToken).payload?.sub).toBe(pair.second);
+    expect(await sessionIsActive(pair.secondSession)).toBe(true);
+  });
+
+  it('#1549 rolls back context retirement and background invalidation together on write failure', async () => {
+    const pair = await backgroundPair(false);
+    const before = await storedDevice(pair.device);
+    const name = `background_rollback_${randomUUID().replaceAll('-', '')}`;
+    await getDb().execute(sql`CREATE FUNCTION ${sql.identifier(name)}() RETURNS trigger AS $$
+      BEGIN
+        IF OLD.device_id = TG_ARGV[0] THEN RAISE EXCEPTION 'synthetic background rollback'; END IF;
+        RETURN NEW;
+      END;
+    $$ LANGUAGE plpgsql`);
+    try {
+      await getDb().execute(sql`CREATE TRIGGER ${sql.identifier(name)} BEFORE UPDATE OF background_secret_hash
+        ON device_sessions FOR EACH ROW EXECUTE FUNCTION ${sql.identifier(name)}(${sql.raw(`'${pair.device.replaceAll("'", "''")}'`)})`);
+      await expect(deviceSessionService.removeContext(pair.device, pair.firstContext)).rejects.toThrow();
+      const after = await storedDevice(pair.device);
+      expect(after.backgroundSecretHash).toBe(before.backgroundSecretHash);
+      expect(after.revision).toBe(before.revision);
+      expect((await storedContexts(pair.device)).some((row) => row.id === pair.firstContext)).toBe(true);
+      expect(await sessionIsActive(pair.firstSession)).toBe(true);
+    } finally {
+      await getDb().execute(sql`DROP TRIGGER IF EXISTS ${sql.identifier(name)} ON device_sessions`);
+      await getDb().execute(sql`DROP FUNCTION ${sql.identifier(name)}()`);
+    }
+    const minted = await deviceSessionService.mintFromBackgroundSecret(pair.device, pair.credential.secret);
+    expect(minted.ok).toBe(true);
+    if (!minted.ok) throw new Error('Expected retained background proof after rollback');
+    expect(validateAccessToken(minted.accessToken).payload?.act?.sub).toBe(pair.first);
+  });
 
   it('#1544 mints the stored active context when two live principals operate the same organization', async () => {
     const shared = await sharedOrganization();
