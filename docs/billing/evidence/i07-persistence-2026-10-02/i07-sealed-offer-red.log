@@ -1,0 +1,27 @@
+$ jest --runInBand src/services/__tests__/productAccessPersistence.test.ts "--testNamePattern=sealed offer"
+{"level":30,"time":1790961809536,"pid":3020405,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/services/__tests__/productAccessPersistence.test.ts
+  ● sealed offer rejects same-product append before and after its first segment; replay IDs all exist
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      12 | beforeAll(connectPostgres); afterAll(closePostgres);
+      13 | async function rejected(operation: Promise<unknown>, predicate: (error: unknown) => boolean) {
+    > 14 |   try { await operation; throw new Error('expected rejection'); } catch (error) { expect(predicate(error)).toBe(true); }
+         |                                                                                                            ^
+      15 | }
+      16 | it('persists two products for a bot beneficiary distinct from payer without financial disclosure', async () => {
+      17 |   const f = await fixture(); expect((await recordProductAccessPeriod(f.input())).grantIds).toHaveLength(2);
+
+      at src/services/__tests__/productAccessPersistence.test.ts:14:108
+      at fulfilled (src/services/__tests__/productAccessPersistence.test.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 15 skipped, 16 total
+Snapshots:   0 total
+Time:        0.514 s, estimated 2 s
+Ran all test suites matching src/services/__tests__/productAccessPersistence.test.ts with tests matching "sealed offer".
+error: script "test" exited with code 1
