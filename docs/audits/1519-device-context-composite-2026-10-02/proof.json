@@ -1,0 +1,91 @@
+{
+  "sourceHead": "e69d3cf050d6aef53fcacf3fc28cf53a31e87805",
+  "handoffHead": "f519e681d372088b094c49ca91f25c999d68b077",
+  "verifiedAtUTC": "2026-10-02T20:10:36.998269+00:00",
+  "sourceSha256": {
+    "packages/api/src/services/__tests__/deviceDirectory.service.test.ts": "2283b48c3b37a659bd01575a1d33e76568c8c8cd2654c641f1251b4db0d88c23",
+    "packages/api/src/services/deviceSession.service.ts": "e786048e382c378bd769d45a03ca02168875c3596cdb023df9490d234916c764",
+    "scripts/rehearsal/test-integration-authority-1519.py": "098ebd324b48707c69606894fd162b2c49ddb5b67af43c8d9952c98c381462be"
+  },
+  "records": {
+    "api-focused.txt": {
+      "sha256": "cbffd981bd84ae50a7068b7702b3f8d62a8e42394767fb65063af653601326dd",
+      "bytes": 6138
+    },
+    "device-api-tsc.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "device-biome.txt": {
+      "sha256": "d53ddc0c5e991e7f36c1040ef2fe05575996fa4d537380aae8468ae1c8210dab",
+      "bytes": 43
+    },
+    "device-owned-pg.txt": {
+      "sha256": "490f8e99cd76acd61ca379f3ef9d2596e1a94b9dc11a5408ed556ec779a6c3d3",
+      "bytes": 2116
+    },
+    "device-scripts-tsc.txt": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    },
+    "handoff-api-build.log": {
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    "handoff-api-typecheck-final.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "handoff-biome-lint-final.log": {
+      "sha256": "5d01e71c42c16dde3c6e5a457a8e7c426db406c1a70e66089536f5d948392af2",
+      "bytes": 43
+    },
+    "handoff-eslint-final.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "handoff-legacy-race-negative-control.log": {
+      "sha256": "4d677982f8d0328380f55847941268f0c4fe6e55a0a8c1fdab9e350d856e8ba8",
+      "bytes": 1401
+    },
+    "handoff-proof.json": {
+      "sha256": "71217f78a9aaa8f6a7bc620ecde5bad6696fa4054c36136ab96e91f946869a6c",
+      "bytes": 2864
+    },
+    "handoff-regression-green-final.log": {
+      "sha256": "a53de9a706369596f20d0e479f1d04f87ec1b35351ebd3255d095e6d1cabdf5c",
+      "bytes": 329
+    },
+    "handoff-relevant-suites-final.log": {
+      "sha256": "60036fe18e800008dec300a78af630a07d3474c9f4406d3b2fd8f9a6dc77d77c",
+      "bytes": 4979
+    },
+    "handoff-reproduction-final.log": {
+      "sha256": "f516d1b9800077aeea0447dd426494ac694dd0030d51db55f4ce31f5aabb1245",
+      "bytes": 5720
+    }
+  },
+  "acceptance": {
+    "realPostgresSuites": 10,
+    "realPostgresTests": 209,
+    "newOwnedPostgresPid": 3103726,
+    "ownedPostgresStopped": true,
+    "apiTypecheckExit": 0,
+    "scriptsTypecheckExit": 0,
+    "scopedBiomeExit": 0,
+    "sourceEquality": "both runtime/test files exactly match approved f519e681d372088b094c49ca91f25c999d68b077",
+    "previousCoreFull": "172 suites / 2121 tests, 0eea fixture correction"
+  },
+  "ciBaseline": {
+    "head": "0eea750838b4a4327be2b9e6fd9ffa6b54ca1226",
+    "run": 37057507341,
+    "functionalJobs": "PASS",
+    "failure": "Guards/Security Audit; consequent CI complete"
+  },
+  "limits": [
+    "No DDL, SDK runtime, public-contract or commercial-policy changes.",
+    "External PR1544 was reviewed, not merged or closed.",
+    "No release, deployment, device operation or global I01/I11 acceptance.",
+    "New combined head requires its own full CI; baseline CI is not extrapolated."
+  ]
+}

@@ -1,0 +1,33 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/capabilityAuthority.db.test.ts src/services/__tests__/internalMcpParity.db.test.ts src/services/__tests__/capabilityAuthority.policy.test.ts src/routes/__tests__/capabilitiesPayloadRefusal.test.ts src/routes/__tests__/isolatedOAuthLogout.test.ts src/services/__tests__/deviceSession.service.test.ts src/services/__tests__/deviceDirectory.service.test.ts src/services/__tests__/session.service.test.ts src/routes/__tests__/sessionDeviceDirectory.test.ts src/routes/__tests__/sessionDeviceThirdParty.test.ts
+{"level":30,"time":1790971516516,"pid":3103740,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790971516699,"pid":3103740,"hostname":"SuperPC","component":"SessionService","method":"createSession","userId":"01a0fe38-9703-7e31-beb2-cda6063d26c2","sessionId":"3b2383c1","fromDeviceId":"a9b8d37e","toDeviceId":"dev-a565","msg":"[SessionService] Migrated reused session onto caller device"}
+{"level":30,"time":1790971516762,"pid":3103740,"hostname":"SuperPC","component":"SessionService","method":"createSession","userId":"01a0fe38-971f-7cff-8c06-d61e78aa227a","sessionId":"b0edd1ea","fromDeviceId":"a747c2c4","toDeviceId":"dev-2e0d","msg":"[SessionService] Migrated reused session onto caller device"}
+{"level":30,"time":1790971516807,"pid":3103740,"hostname":"SuperPC","component":"SessionService","method":"createSession","userId":"01a0fe38-976f-77d9-a002-886fa7912008","sessionId":"ab9f2435","fromDeviceId":"b3558e97","toDeviceId":"dev-1561","msg":"[SessionService] Migrated reused session onto caller device"}
+{"level":30,"time":1790971516994,"pid":3103740,"hostname":"SuperPC","sessionId":"e751286a","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790971517013,"pid":3103740,"hostname":"SuperPC","sessionId":"b2fe1681","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790971517035,"pid":3103740,"hostname":"SuperPC","sessionId":"4baca55b","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790971517036,"pid":3103740,"hostname":"SuperPC","sessionId":"4baca55b","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790971517066,"pid":3103740,"hostname":"SuperPC","count":2,"userId":"01a0fe38-986d-7a78-bf6e-4cb2aefc1fe4","msg":"[SessionService] Deactivated sessions for user"}
+{"level":30,"time":1790971517101,"pid":3103740,"hostname":"SuperPC","count":1,"userId":"01a0fe38-9891-7317-8b1b-72024d2da89f","msg":"[SessionService] Deactivated sessions for user"}
+{"level":30,"time":1790971517139,"pid":3103740,"hostname":"SuperPC","sessionId":"b9dd574d","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790971517185,"pid":3103740,"hostname":"SuperPC","sessionId":"e5f59da0","msg":"[SessionService] Refresh token grace period used"}
+{"level":30,"time":1790971517228,"pid":3103740,"hostname":"SuperPC","sessionId":"b65c2878","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790971517436,"pid":3103740,"hostname":"SuperPC","sessionId":"ed0c4760","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790971517436,"pid":3103740,"hostname":"SuperPC","sessionId":"ed0c4760","operatorId":"01a0fe38-99e9-750f-acfe-553739a2bda4","accountId":"01a0fe38-99ed-70ee-91e1-212c28acef99","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":30,"time":1790971517473,"pid":3103740,"hostname":"SuperPC","sessionId":"f1d01190","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790971517473,"pid":3103740,"hostname":"SuperPC","sessionId":"f1d01190","operatorId":"01a0fe38-9a0c-7d84-995d-15473ff0339a","accountId":"01a0fe38-9a10-7977-a25f-6a4f84df5e39","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":40,"time":1790971517738,"pid":3103740,"hostname":"SuperPC","component":"SessionService","method":"validateSession","sessionId":"ca7c4c23","reason":"client_mismatch","msg":"[SessionService] Access token rejected by binding check"}
+{"level":30,"time":1790971518000,"pid":3103740,"hostname":"SuperPC","sessionId":"de85377a","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790971518001,"pid":3103740,"hostname":"SuperPC","sessionId":"de85377a","operatorId":"01a0fe38-9c0e-7439-a3f5-517e3a0511c3","accountId":"01a0fe38-9c12-7ea1-b384-45b3669e687d","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":30,"time":1790971518075,"pid":3103740,"hostname":"SuperPC","sessionId":"776d049c","msg":"[SessionService] Refresh token grace period used"}
+{"level":30,"time":1790971518240,"pid":3103740,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790971519046,"pid":3103740,"hostname":"SuperPC","deviceId":"dev-1aacbc67-f69e-4633-9fbd-e8583a10d0f2","accountId":"01a0fe38-a014-7b27-a9d2-b66ede82c54f","msg":"deviceSession.getState: dropping revoked managed active account"}
+{"level":30,"time":1790971528314,"pid":3103740,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1790971528803,"pid":3103740,"hostname":"SuperPC","kid":"dev-ephemeral-6201570913d0","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1790971529624,"pid":3103740,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 10 passed, 10 total
+Tests:       209 passed, 209 total
+Snapshots:   0 total
+Time:        14.34 s
+Ran all test suites within paths "src/services/__tests__/capabilityAuthority.db.test.ts", "src/services/__tests__/internalMcpParity.db.test.ts", "src/services/__tests__/capabilityAuthority.policy.test.ts", "src/routes/__tests__/capabilitiesPayloadRefusal.test.ts", "src/routes/__tests__/isolatedOAuthLogout.test.ts", "src/services/__tests__/deviceSession.service.test.ts", "src/services/__tests__/deviceDirectory.service.test.ts", "src/services/__tests__/session.service.test.ts", "src/routes/__tests__/sessionDeviceDirectory.test.ts", "src/routes/__tests__/sessionDeviceThirdParty.test.ts".
