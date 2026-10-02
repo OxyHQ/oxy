@@ -1,0 +1,66 @@
+✔ RSA pair has the default 2048-bit modulus and matching public exponent (0.752961ms)
+✔ key-pair PEM round trip preserves both moduli (0.242894ms)
+✔ public-key PEM round trip preserves exponent and modulus (0.151102ms)
+✔ private-key PEM round trip preserves private exponent (0.183192ms)
+✔ certificate PEM round trip verifies its self-signature (0.78468ms)
+✔ valid certificate and corresponding pair satisfy Expo validation (0.718344ms)
+✔ Expo manifest signature verifies with independent Node/OpenSSL SHA256 (0.611361ms)
+✔ altered manifest bytes fail independent Node/OpenSSL verification (0.209297ms)
+✖ private key from another pair is rejected by Expo signing verification (21.19283ms)
+✔ reversed certificate validity interval is rejected (0.484409ms)
+✔ expired certificate is rejected by Expo validation (20.904102ms)
+✔ CSR PEM round trip verifies its signature and requested identity (1.159389ms)
+✖ development certificate verifies its issuer and contains requested project scope (22.342937ms)
+✔ tampered CSR signature is rejected before development certificate issuance (0.969847ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 12
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 75.608394
+
+✖ failing tests:
+
+test at scripts/forge-independent-expo-compat.cjs:57:1
+✖ private key from another pair is rejected by Expo signing verification (21.19283ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /not valid for certificate/. Input:
+  
+  'Error: Encryption block is invalid.'
+  
+      at TestContext.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-forge-independent/scripts/forge-independent-expo-compat.cjs:58:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: Encryption block is invalid.
+        at _decodePkcs1_v1_5 (/home/nate/Oxy/oxy/.worktrees/1519-forge-independent/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge/lib/rsa.js:1665:11)
+        at Object.verify (/home/nate/Oxy/oxy/.worktrees/1519-forge-independent/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge/lib/rsa.js:1165:15)
+        at key.verify (/home/nate/Oxy/oxy/.worktrees/1519-forge-independent/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge/lib/rsa.js:1229:19)
+        at Object.signBufferRSASHA256AndVerify (/home/nate/Oxy/oxy/.worktrees/1519-forge-independent/node_modules/.bun/@expo+code-signing-certificates@0.0.6/node_modules/@expo/code-signing-certificates/build/main.js:203:52)
+        at /home/nate/Oxy/oxy/.worktrees/1519-forge-independent/scripts/forge-independent-expo-compat.cjs:58:28
+        at getActual (node:assert:611:5)
+        at strict.throws (node:assert:759:24)
+        at TestContext.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-forge-independent/scripts/forge-independent-expo-compat.cjs:58:10)
+        at Test.runInAsyncScope (node:async_hooks:227:14)
+        at Test.run (node:internal/test_runner/test:1402:25),
+    expected: /not valid for certificate/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts/forge-independent-expo-compat.cjs:76:1
+✖ development certificate verifies its issuer and contains requested project scope (22.342937ms)
+  TypeError: Cannot read properties of null (reading 'value')
+      at TestContext.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-forge-independent/scripts/forge-independent-expo-compat.cjs:81:64)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)

@@ -1,0 +1,150 @@
+$ webpack
+Hash: 3d33ec60bd159ae6234a87058bbf7e5c2b6ccc2013dfe3c55f6868d72d6b115bb9856bba213e7724b313947edefa10452007feb2e3f71c38f09bbc13
+Version: webpack 4.47.0
+Child
+    Hash: 3d33ec60bd159ae6234a
+    Time: 477ms
+    Built at: 10/02/2026 6:10:53 PM
+       Asset     Size  Chunks             Chunk Names
+    forge.js  882 KiB   forge  [emitted]  forge
+    Entrypoint forge = forge.js
+    [0] multi ./lib/index.js 28 bytes {forge} [built]
+    [./lib/aes.js] 38.1 KiB {forge} [built]
+    [./lib/aesCipherSuites.js] 8.9 KiB {forge} [built]
+    [./lib/asn1.js] 44.3 KiB {forge} [built]
+    [./lib/cipher.js] 6.51 KiB {forge} [built]
+    [./lib/des.js] 20 KiB {forge} [built]
+    [./lib/ed25519.js] 24.8 KiB {forge} [built]
+    [./lib/forge.js] 200 bytes {forge} [built]
+    [./lib/hmac.js] 3.74 KiB {forge} [built]
+    [./lib/index.js] 640 bytes {forge} [built]
+    [./lib/kem.js] 5.09 KiB {forge} [built]
+    [./lib/log.js] 9.05 KiB {forge} [built]
+    [./lib/md.all.js] 251 bytes {forge} [built]
+    [./lib/mgf1.js] 1.61 KiB {forge} [built]
+    [./lib/pbkdf2.js] 5.67 KiB {forge} [built]
+        + 30 hidden modules
+Child
+    Hash: 87058bbf7e5c2b6ccc20
+    Time: 1410ms
+    Built at: 10/02/2026 6:10:54 PM
+               Asset       Size  Chunks                          Chunk Names
+        forge.min.js    277 KiB       0  [emitted]        [big]  forge
+    forge.min.js.map  113 bytes       0  [emitted] [dev]         forge
+    Entrypoint forge [big] = forge.min.js forge.min.js.map
+     [0] ./lib/forge.js 200 bytes {0} [built]
+     [1] ./lib/util.js 68.2 KiB {0} [built]
+     [2] ./lib/random.js 5.31 KiB {0} [built]
+     [3] ./lib/asn1.js 44.3 KiB {0} [built]
+     [5] ./lib/aes.js 38.1 KiB {0} [built]
+     [7] ./lib/pem.js 6.54 KiB {0} [built]
+     [8] ./lib/hmac.js 3.74 KiB {0} [built]
+    [10] ./lib/des.js 20 KiB {0} [built]
+    [13] ./lib/cipher.js 6.51 KiB {0} [built]
+    [15] ./lib/pbkdf2.js 5.67 KiB {0} [built]
+    [18] ./lib/pss.js 7.67 KiB {0} [built]
+    [20] ./lib/tls.js 130 KiB {0} [built]
+    [21] ./lib/pki.js 2.59 KiB {0} [built]
+    [32] multi ./lib/index.js 28 bytes {0} [built]
+    [33] ./lib/index.js 640 bytes {0} [built]
+        + 30 hidden modules
+    
+    WARNING in asset size limit: The following asset(s) exceed the recommended size limit (244 KiB).
+    This can impact web performance.
+    Assets: 
+      forge.min.js (277 KiB)
+    
+    WARNING in entrypoint size limit: The following entrypoint(s) combined asset size exceeds the recommended limit (244 KiB). This can impact web performance.
+    Entrypoints:
+      forge (277 KiB)
+          forge.min.js
+    
+    
+    WARNING in webpack performance recommendations: 
+    You can limit the size of your bundles by using import() or require.ensure to lazy load some parts of your application.
+    For more info visit https://webpack.js.org/guides/code-splitting/
+Child
+    Hash: 13dfe3c55f6868d72d6b
+    Time: 551ms
+    Built at: 10/02/2026 6:10:53 PM
+           Asset     Size  Chunks             Chunk Names
+    forge.all.js  966 KiB   forge  [emitted]  forge
+    Entrypoint forge = forge.all.js
+    [0] multi ./lib/index.all.js 28 bytes {forge} [built]
+    [./lib/aes.js] 38.1 KiB {forge} [built]
+    [./lib/aesCipherSuites.js] 8.9 KiB {forge} [built]
+    [./lib/asn1.js] 44.3 KiB {forge} [built]
+    [./lib/cipher.js] 6.51 KiB {forge} [built]
+    [./lib/des.js] 20 KiB {forge} [built]
+    [./lib/ed25519.js] 24.8 KiB {forge} [built]
+    [./lib/forge.js] 200 bytes {forge} [built]
+    [./lib/form.js] 3.79 KiB {forge} [built]
+    [./lib/http.js] 38.2 KiB {forge} [built]
+    [./lib/index.all.js] 366 bytes {forge} [built]
+    [./lib/index.js] 640 bytes {forge} [built]
+    [./lib/socket.js] 8.13 KiB {forge} [built]
+    [./lib/tlssocket.js] 6.8 KiB {forge} [built]
+    [./lib/xhr.js] 21.6 KiB {forge} [built]
+        + 36 hidden modules
+Child
+    Hash: 115bb9856bba213e7724
+    Time: 1530ms
+    Built at: 10/02/2026 6:10:54 PM
+                   Asset       Size  Chunks                          Chunk Names
+        forge.all.min.js    298 KiB       0  [emitted]        [big]  forge
+    forge.all.min.js.map  121 bytes       0  [emitted] [dev]         forge
+    Entrypoint forge [big] = forge.all.min.js forge.all.min.js.map
+     [0] ./lib/forge.js 200 bytes {0} [built]
+     [1] ./lib/util.js 68.2 KiB {0} [built]
+     [2] ./lib/random.js 5.31 KiB {0} [built]
+     [3] ./lib/asn1.js 44.3 KiB {0} [built]
+     [5] ./lib/aes.js 38.1 KiB {0} [built]
+     [7] ./lib/pem.js 6.54 KiB {0} [built]
+     [8] ./lib/hmac.js 3.74 KiB {0} [built]
+    [32] ./lib/socket.js 8.13 KiB {0} [built]
+    [33] ./lib/http.js 38.2 KiB {0} [built]
+    [34] multi ./lib/index.all.js 28 bytes {0} [built]
+    [35] ./lib/index.all.js 366 bytes {0} [built]
+    [36] ./lib/index.js 640 bytes {0} [built]
+    [48] ./lib/form.js 3.79 KiB {0} [built]
+    [49] ./lib/tlssocket.js 6.8 KiB {0} [built]
+    [50] ./lib/xhr.js 21.6 KiB {0} [built]
+        + 36 hidden modules
+    
+    WARNING in asset size limit: The following asset(s) exceed the recommended size limit (244 KiB).
+    This can impact web performance.
+    Assets: 
+      forge.all.min.js (298 KiB)
+    
+    WARNING in entrypoint size limit: The following entrypoint(s) combined asset size exceeds the recommended limit (244 KiB). This can impact web performance.
+    Entrypoints:
+      forge (298 KiB)
+          forge.all.min.js
+    
+    
+    WARNING in webpack performance recommendations: 
+    You can limit the size of your bundles by using import() or require.ensure to lazy load some parts of your application.
+    For more info visit https://webpack.js.org/guides/code-splitting/
+Child
+    Hash: b313947edefa10452007
+    Time: 212ms
+    Built at: 10/02/2026 6:10:52 PM
+              Asset      Size  Chunks             Chunk Names
+    prime.worker.js  47.3 KiB   forge  [emitted]  forge
+    Entrypoint forge = prime.worker.js
+    [0] multi ./lib/prime.worker.js ./lib/forge.js 40 bytes {forge} [built]
+    [./lib/forge.js] 200 bytes {forge} [built]
+    [./lib/jsbn.js] 36 KiB {forge} [built]
+    [./lib/prime.worker.js] 4.69 KiB {forge} [built]
+Child
+    Hash: feb2e3f71c38f09bbc13
+    Time: 555ms
+    Built at: 10/02/2026 6:10:53 PM
+                      Asset       Size  Chunks                   Chunk Names
+        prime.worker.min.js     21 KiB       0  [emitted]        forge
+    prime.worker.min.js.map  121 bytes       0  [emitted] [dev]  forge
+    Entrypoint forge = prime.worker.min.js prime.worker.min.js.map
+    [0] ./lib/forge.js 200 bytes {0} [built]
+    [1] multi ./lib/prime.worker.js ./lib/forge.js 40 bytes {0} [built]
+    [2] ./lib/prime.worker.js 4.69 KiB {0} [built]
+    [3] ./lib/jsbn.js 36 KiB {0} [built]
