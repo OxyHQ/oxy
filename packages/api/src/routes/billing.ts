@@ -799,19 +799,49 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventRe
     return { outcome: 'not_granted', detail: 'no account for the Stripe customer' };
   }
 
-  let plan: (typeof SUBSCRIPTION_PLANS)[number] | undefined;
-  let line: Stripe.InvoiceLineItem | undefined;
-  for (const candidate of invoice.lines.data) {
-    const priceId = linePriceId(candidate);
-    const match = priceId ? SUBSCRIPTION_PLANS.find((p) => p.stripePriceId === priceId) : undefined;
-    if (match) {
-      plan = match;
-      line = candidate;
-      break;
-    }
+  if (invoice.amount_paid <= 0) {
+    // Zero-amount trials/discounts await a declared commercial rule.
+    return { outcome: 'not_granted', detail: 'invoice collected no money' };
   }
-  if (!plan || !line) {
+
+  // Stripe embeds only the first page. Inspect every line before accepting a
+  // recurring period; an early known-price line may be a proration.
+  const lines = [...invoice.lines.data];
+  let page = invoice.lines;
+  const seenCursors = new Set<string>();
+  while (page.has_more) {
+    const cursor = page.data.at(-1)?.id;
+    if (!cursor || seenCursors.has(cursor) || seenCursors.size >= 100) {
+      throw new Error('Invoice line pagination made no progress; refusing incomplete evidence');
+    }
+    seenCursors.add(cursor);
+    page = await getStripe().invoices.listLineItems(invoice.id, { limit: 100, starting_after: cursor });
+    lines.push(...page.data);
+  }
+  const candidates = lines.filter((candidate) => {
+    const parent = candidate.parent;
+    const details = parent?.subscription_item_details;
+    return parent?.type === 'subscription_item_details'
+      && details?.subscription === subscriptionId && details.proration === false;
+  });
+  const planLines = candidates.filter((candidate) => {
+    const priceId = linePriceId(candidate);
+    return priceId && SUBSCRIPTION_PLANS.some((entry) => entry.stripePriceId === priceId);
+  });
+  if (planLines.length === 0) {
     return { outcome: 'not_granted', detail: 'no invoice line for a plan price this API sells' };
+  }
+  // Our checkout sells one recurring item at quantity one. An ambiguous
+  // invoice needs a reviewed mapping, never an arbitrary first line.
+  if (candidates.length !== 1 || planLines.length !== 1) {
+    return { outcome: 'not_granted', detail: 'ambiguous recurring invoice lines or periods' };
+  }
+  const [line] = planLines;
+  const plan = SUBSCRIPTION_PLANS.find((entry) => entry.stripePriceId === linePriceId(line))!;
+  if (line.currency !== invoice.currency || line.quantity !== 1 || line.amount <= 0
+    || !Number.isSafeInteger(line.period.start) || !Number.isSafeInteger(line.period.end)
+    || line.period.start <= 0 || line.period.end <= line.period.start) {
+    return { outcome: 'not_granted', detail: 'recurring line currency, quantity, amount or period is invalid' };
   }
   if (invoice.currency !== plan.currency) {
     return {
@@ -819,11 +849,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventRe
       detail: `invoice currency ${invoice.currency} does not match plan currency ${plan.currency}`,
     };
   }
-  if (invoice.amount_paid <= 0) {
-    // A zero-amount invoice (trial, full discount) collected no money, and
-    // whether such a period earns credits is not a rule anyone has decided.
-    return { outcome: 'not_granted', detail: 'invoice collected no money' };
-  }
+
 
   const periodStart = new Date(line.period.start * 1000);
   const amountDetail =
