@@ -143,3 +143,32 @@ makes no inference request or financial write. Failed financial settlement still
 records technical usage when storage is available. If an internal terminal write
 was lost and no authoritative terminal record exists, expiry remains explicitly
 unresolved; neither a fabricated zero nor a provider retry is a recovery strategy.
+
+
+### Bounded live feed read, 2026-10-02
+
+The [projected evidence](internal-metered-feed-evidence-2026-10-02.json) records a
+read-only HTTPS query signed with the existing Oxy edge identity, limit25 and no
+after cursor. The first page returned25 attempts/23 request IDs, all costs
+unknown;21 rows had an empty key classification. That empty string means the
+classification was not supplied. The reader preserves it as provenance and does
+not infer platform class, funding, eligibility or authorization. Missing, null,
+non-string and oversized classifications remain invalid. Raw operator evidence
+stays local with restricted file permissions; the committed fixture consistently
+pseudonymizes opaque references and is a derived replay fixture.
+
+The bounded Oxy database query used an existing tunnel and READ ONLY transaction,
+5s statement/1s lock timeout, exact23 request IDs and projected columns. It found
+no matching usage_reservations or usage_receipts. The current database did not
+have the candidate metered/cost-attempt tables. This is evidence of no matches
+in that sample, not successful admission/cost reconciliation.
+
+**Before the first live ingestion**, deploy and verify the NULL-preserving
+[Kaana#150](https://github.com/OxyHQ/Kaana/pull/150) producer fix through the normal
+approval process. The captured old producer emitted units=[] for every row;
+that wire value does not establish measured empty usage. Ingesting those facts
+first would pin the immutable digest, and a later corrected units=null for the
+same attempt must be rejected as a mismatch rather than rewriting history. The
+local fixture proves transport compatibility, exact unknown-cost preservation,
+idempotent replay and mismatch refusal only. It cannot certify measured units,
+invoice amounts, live ingestion, rollout or provider readiness.
