@@ -1376,6 +1376,7 @@ export {
     automationDataFlowSchema,
     automationDefinitionSchema,
     capabilityTicketClaimsSchema,
+    invocationPrincipalSchema,
     policyDecisionSchema,
     auditResultSchema,
     auditEventSchema,
@@ -1402,6 +1403,7 @@ export type {
     AutomationActorSelection,
     AutomationDefinition,
     CapabilityTicketClaims,
+    InvocationPrincipal,
     PolicyDecision,
     AuditEvent,
     CatalogTool,
@@ -1504,3 +1506,5 @@ export type {
     SubjectProductAccess,
 } from './products/access';
 export { meteredGenerationSchema, type MeteredGeneration } from "./inference/economics";
+
+export { canonicalCapabilityJson, inputSatisfiesCapabilityLimits, isLoopbackOrigin } from './capabilityBindings';

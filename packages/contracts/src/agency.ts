@@ -236,6 +236,27 @@ export const capabilityTicketClaimsSchema = z.object({
     }
 });
 
+/** Structural projections only: an authenticated transport must produce these. */
+export const invocationPrincipalSchema = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal('oauth'),
+        subject: identifierSchema,
+        clientId: identifierSchema,
+        originAccountId: identifierSchema,
+        activeAccountId: identifierSchema,
+        scopes: z.array(identifierSchema),
+        resource: z.string().url(),
+    }).strict(),
+    z.object({
+        kind: z.literal('capability'),
+        claims: capabilityTicketClaimsSchema.refine((claims) => claims.catalog !== undefined, {
+            message: 'internal MCP requires a signed catalogue binding',
+        }),
+    }).strict(),
+]);
+
+export type InvocationPrincipal = z.infer<typeof invocationPrincipalSchema>;
+
 export const policyDecisionSchema = z.object({
     allowed: z.boolean(),
     reason: identifierSchema,

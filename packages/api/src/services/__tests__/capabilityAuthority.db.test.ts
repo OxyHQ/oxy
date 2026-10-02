@@ -1,4 +1,6 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
+import express from 'express';
+import request from 'supertest';
 import { eq } from 'drizzle-orm';
 import { isCheckViolation } from '@oxy.so/db';
 import { verifyCapabilityTicket } from '@oxy.so/core/server';
@@ -18,6 +20,8 @@ import {
   delegationGrants,
 } from '../../db/schema/agency';
 import { users } from '../../db/schema/users';
+import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
+import capabilitiesRouter from '../../routes/capabilities';
 import {
   evaluateCapabilityAuthority,
   reauthorizeCapabilityTicket,
@@ -430,4 +434,32 @@ describe('capability authority over live database state', () => {
       reason: 'ticket_grant_is_no_longer_current',
     });
   });
+});
+
+it('serializes pinned issuance and live introspection through HTTP with real service signatures and PostgreSQL authority', async () => {
+  const f = await fixture('execute_on_request');
+  const scopes = ['capability-tickets:issue', 'capabilities:read'];
+  await getDb().update(applications).set({ scopes, capabilities: ['agency:coordinate', `catalog:${f.appSlug}`] }).where(eq(applications.id, f.coordinator.applicationId));
+  await getDb().update(applicationCredentials).set({ scopes }).where(eq(applicationCredentials.id, f.coordinator.credentialId));
+  const serviceToken = signServiceTokenEd25519({ type: 'service', appId: f.coordinator.applicationId,
+    appName: 'HTTP authority fixture', credentialId: f.coordinator.credentialId, ownerAccountId: f.ownerId,
+    environment: 'production', tier: 'internal', scopes, iss: 'oxy-auth', aud: 'oxy-api',
+    iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 60 });
+  const app = express(); app.use(express.json()); app.use('/capabilities', capabilitiesRouter);
+  const pin = { registrationId: f.catalogRegistrationId, version: '1.0.0', digest: '0'.repeat(64) };
+  const issue = (expectedCatalog: unknown) => request(app).post('/capabilities/tickets').set('Authorization', `Bearer ${serviceToken}`)
+    .send({ executionAuthorizationId: f.authorizationId, expectedCatalog });
+  expect((await request(app).post('/capabilities/tickets').send({ executionAuthorizationId: f.authorizationId })).status).toBe(401);
+  expect((await issue({ ...pin, digest: 'malformed' })).status).toBe(400);
+  expect((await issue({ ...pin, version: 'wrong-version' })).status).toBe(403);
+  const issued = await issue(pin);
+  expect(issued.status).toBe(201);
+  expect(verifyCapabilityTicket(issued.body.ticket, { audience: `${f.appSlug}-api`, issuer: process.env.OXY_API_URL ?? 'https://api.oxy.so', resolvePublicKey: () => keyPair.publicKey }).catalog).toEqual(pin);
+  const introspect = () => request(app).post('/capabilities/tickets/introspect').set('Authorization', `Bearer ${serviceToken}`).send({ ticket: issued.body.ticket });
+  const live = await introspect();
+  expect(live.status).toBe(200); expect(live.body.active).toBe(true); expect(live.body.claims.catalog).toEqual(pin);
+  await getDb().update(appCapabilityCatalogRegistrations).set({ digest: '1'.repeat(64) }).where(eq(appCapabilityCatalogRegistrations.id, f.catalogRegistrationId));
+  const changed = await introspect();
+  expect(changed.body.active).toBe(false);
+  expect(changed.body.decision.reason).toBe('ticket_catalog_no_longer_current');
 });

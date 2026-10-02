@@ -1,0 +1,15 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [249]
+Saved lockfile
+
++ @oxy.so/contracts@/home/nate/Oxy/oxy/.worktrees/i04-common-agency-20261002/packages/contracts/oxy.so-contracts-4.8.0.tgz
++ @oxy.so/core@/home/nate/Oxy/oxy/.worktrees/i04-common-agency-20261002/packages/core/oxy.so-core-4.1.0.tgz
++ @oxy.so/mcp@/home/nate/Oxy/oxy/.worktrees/i04-common-agency-20261002/packages/mcp/oxy.so-mcp-1.0.0.tgz
++ @oxy.so/protocol@/home/nate/Oxy/oxy/.worktrees/i04-common-agency-20261002/packages/protocol/oxy.so-protocol-1.2.1.tgz
++ @oxy.so/telemetry@/home/nate/Oxy/oxy/.worktrees/i04-common-agency-20261002/packages/telemetry/oxy.so-telemetry-1.2.0.tgz
+
+120 packages installed [3.34s]
+cjs: packed signature/live authority/client/resource/revocation assertions passed
+esm: packed signature/live authority/client/resource/revocation assertions passed
+{"fixture":"/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-nOsZpG","hashes":{"@oxy.so/contracts":{"version":"4.8.0","sha256":"ede0085d911806a1204e2d9215fbbdba961bf232ebb3f7ffbb8574ac6df8c42a"},"@oxy.so/core":{"version":"4.1.0","sha256":"3e55760f8dd4879bac9cf544c497e669845fcfdf64f06e036aaef9db7ff6a875"},"@oxy.so/mcp":{"version":"1.0.0","sha256":"4337a78ce90fb5666532d4ad92a46d2796ad26ee00e19ec9b288ad97bfbef99c"},"@oxy.so/protocol":{"version":"1.2.1","sha256":"8529978f922269198faa664dde8caaa036c2965b1d143536e45a6ef2d2cb2e88"},"@oxy.so/telemetry":{"version":"1.2.0","sha256":"c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12"}},"published":false}
