@@ -51,6 +51,26 @@ try {
     }
     console.log('Required database peers load from the frozen production graph without connecting.');
   `], { cwd: fixture, stdio: 'inherit', timeout: 30_000 });
+  const candidate = JSON.parse(readFileSync(join(root, 'docs/security/forge-candidate/candidate-hashes.json'), 'utf8'));
+  execFileSync(process.execPath, ['-e', `
+    const assert = require('node:assert/strict');
+    const { createHash } = require('node:crypto');
+    const { existsSync, readdirSync, readFileSync } = require('node:fs');
+    const { join } = require('node:path');
+    const expected = JSON.parse(process.argv[1]);
+    const isolated = join(process.cwd(), 'node_modules/.bun');
+    const copies = readdirSync(isolated).filter(name => name.startsWith('node-forge@'));
+    assert.ok(copies.length > 0, 'Production graph must exercise materialized Forge bytes');
+    for (const copy of copies) {
+      const packageRoot = join(isolated, copy, 'node_modules/node-forge');
+      assert.equal(JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')).version, '1.4.0');
+      for (const [file, hashes] of Object.entries(expected.files)) {
+        const hash = createHash('sha256').update(readFileSync(join(packageRoot, file))).digest('hex');
+        assert.equal(hash, hashes.candidateSha256, 'Unpatched or changed production distribution: ' + file);
+      }
+    }
+    console.log('Every materialized production Forge library/bundle/map matches pinned candidate bytes.');
+  `, JSON.stringify(candidate)], { cwd: fixture, stdio: 'inherit', timeout: 30_000 });
 } finally {
   rmSync(fixture, { recursive: true, force: true });
 }
