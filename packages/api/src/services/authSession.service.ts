@@ -35,7 +35,11 @@
 
 import type { Request } from 'express';
 import { and, eq, gt, sql } from 'drizzle-orm';
-import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
+import {
+  isDelegatedActAsEligibleKind,
+  isOperatorSwitchTargetKind,
+  type AccountKind,
+} from '@oxy.so/contracts';
 import { v7 as uuidv7 } from 'uuid';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
@@ -43,6 +47,7 @@ import { applications } from '../db/schema/applications';
 import { authChallenges } from '../db/schema/authChallenges';
 import { authSessions } from '../db/schema/authSessions';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
+import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import SignatureService from './signature.service';
 import sessionService from './session.service';
@@ -239,6 +244,63 @@ async function gateApprovalDelegation(
  */
 export function approvalMintsSession(authSession: Pick<PublicAuthSession, 'purpose'>): boolean {
   return authSession.purpose !== 'oauth_authorization';
+}
+
+export type ApprovalOperatorOutcome =
+  | { ok: true; operatedByUserId: string | null }
+  | { ok: false; reason: 'approving_session_unreadable' | 'seat_not_assumable' };
+
+/**
+ * Who OPERATES the bearer that approves a sign-in, so the session the approval
+ * mints carries the same operator (issue #1520, I01).
+ *
+ * A bearer approval mints a session for the approving SUBJECT. On an operated
+ * session that subject is the managed account and the authority is the person
+ * recorded as `operatedByUserId`. Minting without that person launders an
+ * operated seat into an unoperated one: the actor chain then names the managed
+ * account as its own actor, and the managed-session recheck — which only runs
+ * on operated sessions — no longer ends the session when the person loses the
+ * account.
+ *
+ *  - unoperated bearer → `null`: the subject approves for itself, as before;
+ *  - operated bearer on an organization/project → the operator, carried onto
+ *    the minted session exactly as `POST /accounts/:id/switch` records it;
+ *  - operated bearer on a bot (or channel) → refused. A person never occupies a
+ *    bot's seat (`isOperatorSwitchTargetKind`), so no approval hands one to a
+ *    device. A bot signs in as itself only through a way in of its own.
+ *
+ * Read from the session ROW, never a header or claim, and fail closed: the
+ * middleware validated this session a moment ago, so a row that cannot be read
+ * now is not evidence that nobody operates it.
+ */
+export async function resolveApprovalOperator(
+  approvingSessionId: string | undefined,
+  subjectAccountId: string,
+): Promise<ApprovalOperatorOutcome> {
+  if (!approvingSessionId) {
+    return { ok: false, reason: 'approving_session_unreadable' };
+  }
+  const db = getDb();
+  const [approving] = await db
+    .select({ userId: sessions.userId, operatedByUserId: sessions.operatedByUserId })
+    .from(sessions)
+    .where(and(eq(sessions.sessionId, approvingSessionId), eq(sessions.isActive, true)))
+    .limit(1);
+  if (!approving || approving.userId !== subjectAccountId) {
+    return { ok: false, reason: 'approving_session_unreadable' };
+  }
+  if (!approving.operatedByUserId) {
+    return { ok: true, operatedByUserId: null };
+  }
+  const [subject] = await db
+    .select({ kind: users.kind })
+    .from(users)
+    .where(eq(users.id, subjectAccountId))
+    .limit(1);
+  if (!subject || !isOperatorSwitchTargetKind(subject.kind as AccountKind)) {
+    return { ok: false, reason: 'seat_not_assumable' };
+  }
+  return { ok: true, operatedByUserId: approving.operatedByUserId };
 }
 
 /**
@@ -492,6 +554,11 @@ export interface AuthorizeBearerOptions {
   authenticatedPublicKey?: string;
   deviceName?: string;
   deviceFingerprint?: string;
+  /**
+   * The bearer's own session id (`authMiddleware` sets it). Read for its
+   * operator — see {@link resolveApprovalOperator}.
+   */
+  approvingSessionId: string | undefined;
   req: Request;
 }
 
@@ -529,7 +596,15 @@ export type AuthorizeBearerOutcome =
 export async function authorizeSessionWithBearer(
   options: AuthorizeBearerOptions
 ): Promise<AuthorizeBearerOutcome> {
-  const { authorizeCode, authenticatedUserId, authenticatedPublicKey, deviceName, deviceFingerprint, req } = options;
+  const {
+    authorizeCode,
+    authenticatedUserId,
+    authenticatedPublicKey,
+    deviceName,
+    deviceFingerprint,
+    approvingSessionId,
+    req,
+  } = options;
   const db = getDb();
 
   // Peek first for a precise reason (mirrors claimAuthSession) — the atomic
@@ -557,6 +632,22 @@ export async function authorizeSessionWithBearer(
       reason: delegation.reason,
     });
     return { ok: false, status: 403, message: 'Not authorized to act as the requested account' };
+  }
+
+  // The operator gate runs BEFORE the claim too, so a refusal leaves the
+  // request pending rather than authorized-with-no-session.
+  let operatedByUserId: string | null = null;
+  if (approvalMintsSession(existing)) {
+    const operator = await resolveApprovalOperator(approvingSessionId, authenticatedUserId);
+    if (!operator.ok) {
+      logger.warn('[AuthSession] Bearer approval refused: operated seat', {
+        authorizeCode: authorizeCode.substring(0, 8) + '...',
+        identityUserId: authenticatedUserId,
+        reason: operator.reason,
+      });
+      return { ok: false, status: 403, message: 'This account cannot approve a sign-in from this session' };
+    }
+    operatedByUserId = operator.operatedByUserId;
   }
 
   // `session_token` is named explicitly on the way out: the route notifies the
@@ -613,6 +704,7 @@ export async function authorizeSessionWithBearer(
     // The unauthenticated requester must never choose an existing device whose
     // durable restore secret it will receive from `/auth/session/claim`.
     deviceId: uuidv7(),
+    ...(operatedByUserId ? { operatedByUserId } : {}),
   });
 
   // Only the winner of the atomic claim above ever reaches here, so this

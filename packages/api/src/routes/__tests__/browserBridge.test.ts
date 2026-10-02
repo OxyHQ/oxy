@@ -22,7 +22,7 @@ import request from 'supertest';
 // The whole subject is which device the minted token names, so the real signer.
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 
-let authenticatedUser: { _id: string; username?: string } | null = null;
+let authenticatedUser: { _id: string; username?: string; sessionId?: string } | null = null;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
@@ -35,6 +35,8 @@ jest.mock('../../middleware/auth', () => ({
       return;
     }
     req.user = authenticatedUser;
+    // The real middleware sets the bearer's own session id; so does this stub.
+    (req as { sessionId?: string }).sessionId = authenticatedUser.sessionId;
     next();
   },
   serviceAuthMiddleware: jest.fn(),
@@ -87,6 +89,7 @@ import deviceSessionService from '../../services/deviceSession.service';
 import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 import authRouter from '../auth';
+import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 import sessionDeviceRouter from '../sessionDevice';
 import { mintSignInSession } from '../../services/signInSession.service';
 
@@ -193,7 +196,7 @@ async function qrSignIn(
     expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     status: 'pending',
   });
-  authenticatedUser = { _id: signer.id, username: signer.username };
+  authenticatedUser = { _id: signer.id, username: signer.username, sessionId: await insertBearerSession(signer.id) };
   const approved = await request(app)
     .post(`/auth/session/authorize/${sessionToken}`)
     .set('user-agent', USER_AGENT)
