@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
   checkForgePolicyStructure, inspectForgeAuditPolicy, DECISION_PATH, DECLARATIVE_PATHS, EVIDENCE_PATH, INDEPENDENT_INPUT_PATHS, readCommittedPolicyStatus,
 } from './forge-audit-policy.mjs';
@@ -94,6 +94,13 @@ for (const key of ['FORGE_ACK', 'FORGE_APPROVED', 'FORGE_AUDIT_POLICY_ACTIVE', '
   assert.equal(inspectForgeAuditPolicy(audit).remediated, false, key); assertions++;
   delete process.env[key];
 }
+const gate = spawnSync(process.execPath, [join(root, 'scripts/check-dependency-audit.mjs')], {
+  cwd: root, encoding: 'utf8', env: { ...process.env,
+    DEPENDENCY_AUDIT_INPUT: join(root, 'docs/security/forge-candidate/provenance/run-36951283961/raw-bun-audit.json'),
+    FORGE_ACK: '1', FORGE_APPROVED: '1', FORGE_AUDIT_POLICY_ACTIVE: '1', DEPENDENCY_AUDIT_SKIP_FORGE: '1' },
+});
+assert.equal(gate.status, 1, 'normal gate must reject the unapproved Forge fixture'); assertions++;
+assert.match(gate.stderr, /node-forge carries a high advisory nobody has acknowledged: GHSA-86w9-cpqp-85rv/); assertions++;
 const committed = execFileSync('/usr/bin/git', ['-C', root, 'show', `HEAD:${DECISION_PATH}`]).toString();
 assert.deepEqual(JSON.parse(committed), inactive); assertions++;
 console.log(`Forge audit policy: ${assertions} structural/inactive assertions passed; no live or human authorization claimed.`);
