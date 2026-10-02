@@ -73,10 +73,16 @@ it('concurrent new event IDs for one paid line commit two deliveries and only on
   expect(access.quotas[0].included).toBe(10); expect(access.quotas[0].grantIds).toHaveLength(1);
 });
 
-it('same event on a different line rolls back the new period, segment and grants', async () => {
+it('same event on incompatible lines or parties rolls back every provisional source, period, segment and grant', async () => {
   const f = await fixture(); const first = await recordProductProviderPeriod(f.input);
-  const changed = { ...f.input, paidLine: { ...f.input.paidLine, lineId: `il_${randomUUID()}` } };
-  await expect(recordProductProviderPeriod(changed)).rejects.toThrow('provider evidence');
+  const variants = [{ ...f.input, paidLine: { ...f.input.paidLine, lineId: `il_${randomUUID()}` } },
+    { ...f.input, subscription: { ...f.input.subscription, providerSubscriptionId: `sub_${randomUUID()}`,
+      beneficiaryAccountId: f.payer, payerAccountId: f.beneficiary },
+      paidLine: { ...f.input.paidLine, invoiceId: `in_${randomUUID()}` } }];
+  for (const changed of variants) await expect(recordProductProviderPeriod(changed)).rejects.toThrow('provider evidence');
+  expect(await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerAccountRef, f.providerBinding.providerAccountRef))).toHaveLength(1);
+  expect(await getDb().select().from(accessProviderPeriods).where(eq(accessProviderPeriods.providerAccountRef, f.providerBinding.providerAccountRef))).toHaveLength(1);
+  expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, f.payer))).toHaveLength(0);
   expect(await getDb().select().from(accessProviderPeriods).where(eq(accessProviderPeriods.sourceId, first.sourceId))).toHaveLength(1);
   expect(await getDb().select().from(accessOfferSegments).where(eq(accessOfferSegments.subscriptionId, first.sourceId))).toHaveLength(1);
   expect((await readSubjectProductAccess(f.beneficiary, f.products[0].id, f.now)).quotas[0].included).toBe(10);
