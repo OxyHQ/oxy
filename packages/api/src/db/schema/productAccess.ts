@@ -64,6 +64,7 @@ export const accessSubscriptionSources = pgTable('access_subscription_sources', 
 }, t => [
   unique('access_subscription_sources_provider_key').on(t.provider, t.providerAccountRef, t.mode, t.environment, t.providerSubscriptionId),
   unique('access_subscription_sources_beneficiary_key').on(t.id, t.beneficiaryAccountId),
+  unique('access_subscription_sources_evidence_key').on(t.id, t.beneficiaryAccountId, t.payerAccountId, t.provider, t.providerAccountRef, t.mode, t.environment, t.providerSubscriptionId),
   index('access_subscription_sources_beneficiary_idx').on(t.beneficiaryAccountId, t.status),
   check('access_subscription_sources_live_check', sql`${t.mode} = 'live' and ${t.environment} = 'production' and length(${t.providerAccountRef}) > 0`),
   check('access_subscription_sources_provider_check', sql`${t.provider} in (${sql.raw(inList(PRODUCT_SUBSCRIPTION_PROVIDERS))})`),
@@ -79,6 +80,7 @@ export const accessOfferSegments = pgTable('access_offer_segments', {
   periodStart: timestamptz().notNull(), periodEnd: timestamptz().notNull(), createdAt: createdAt(),
 }, t => [
   unique('access_offer_segments_provenance_key').on(t.id, t.beneficiaryAccountId, t.offerId, t.offerVersion, t.origin),
+  unique('access_offer_segments_evidence_key').on(t.id, t.subscriptionId, t.beneficiaryAccountId, t.offerId, t.offerVersion, t.origin, t.periodStart, t.periodEnd),
   foreignKey({ name: 'access_offer_segments_subject_fk', columns: [t.subscriptionId, t.beneficiaryAccountId], foreignColumns: [accessSubscriptionSources.id, accessSubscriptionSources.beneficiaryAccountId] }).onDelete('restrict'),
   foreignKey({ name: 'access_offer_segments_offer_fk', columns: [t.offerId, t.offerVersion, t.origin], foreignColumns: [accessOffers.id, accessOffers.version, accessOffers.kind] }).onDelete('restrict'),
   index('access_offer_segments_source_idx').on(t.subscriptionId),
