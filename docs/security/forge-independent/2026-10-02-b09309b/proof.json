@@ -190,6 +190,27 @@
       "completedFileMtimeUTC": "2026-10-02T15:15:13.222543+00:00",
       "command": "node scripts/forge-candidate-regression.cjs .forge-independent/candidate candidate",
       "exitCode": 0
+    },
+    {
+      "file": "hashes-after-build-2.json",
+      "sha256": "cfa84fd5651fe22dd404a19c00891c90cae9266b72367f41e2ed8c0cd23092cc",
+      "completedFileMtimeUTC": "2026-10-02T15:15:08.493294+00:00",
+      "command": "Python hashlib SHA-256 snapshot after candidate build 2, before build 3",
+      "exitCode": 0
+    },
+    {
+      "file": "candidate-build-repeat.json",
+      "sha256": "5b4b22dbb33db144dde5a94cd6fb67269f981705b9a55b519b6a2d6f00934143",
+      "completedFileMtimeUTC": "2026-10-02T15:17:04.442002+00:00",
+      "command": "Python hashlib SHA-256 snapshot after candidate build 3; asserted equality with build 2 snapshot",
+      "exitCode": 0
     }
-  ]
+  ],
+  "retainedPaths": {
+    "evidenceRoot": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002",
+    "stockClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock",
+    "candidateClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate",
+    "exactOxyWorktree": "/home/nate/Oxy/oxy/.worktrees/1519-forge-independent",
+    "installedForge": "/home/nate/Oxy/oxy/.worktrees/1519-forge-independent/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge"
+  }
 }

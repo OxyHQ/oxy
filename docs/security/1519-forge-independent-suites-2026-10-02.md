@@ -85,6 +85,30 @@ TEST_DATABASE_URL=postgres://oxy@127.0.0.1:5549/postgres bun run test --runInBan
   src/routes/__tests__/updatesManifest.test.ts
 ```
 
+The historical execution commands above used the scratch directory before it
+was moved to keep the Git worktree clean. The clones and toolchains are retained
+at `/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/{stock,candidate}`;
+the installed candidate remains under
+`/home/nate/Oxy/oxy/.worktrees/1519-forge-independent/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge`.
+The [snapshot after build 2](forge-independent/2026-10-02-b09309b/hashes-after-build-2.json)
+was saved before build 3; the [snapshot after build 3](forge-independent/2026-10-02-b09309b/candidate-build-repeat.json)
+was then compared with it. Both snapshots are committed and hash-addressed.
+
+For inspection or reproduction from the retained clones, use their current
+paths; the Expo harness resolves packages from the exact Oxy worktree:
+
+```sh
+review_evidence=/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002
+review_worktree=/home/nate/Oxy/oxy/.worktrees/1519-forge-independent
+cd "$review_evidence/stock" # or "$review_evidence/candidate"
+bun run build
+NODE_ENV=test node node_modules/mocha/bin/mocha -t 30000 -R dot tests/unit/index.js
+cd "$review_worktree"
+node scripts/forge-candidate-regression.cjs "$review_evidence/stock" stock
+node scripts/forge-candidate-regression.cjs "$review_evidence/candidate" candidate
+node scripts/forge-independent-expo-compat.cjs "$review_worktree/packages/api"
+```
+
 Upstream ships a `describe.only` in `tests/unit/jsbn.js`; leaving it intact
 would execute only five tests. The stock clone diff contained solely the
 one-marker test change. The candidate clone diff contained that test change and
