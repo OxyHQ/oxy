@@ -47,6 +47,7 @@ export * from './billingInvoices';
 export * from './billingLedgerEntries';
 export * from './billingProfiles';
 export * from './billingReconciliation';
+export * from './billingStripeEvents';
 export * from './billingSubscriptions';
 export * from './billingTransactions';
 export * from './blocks';
