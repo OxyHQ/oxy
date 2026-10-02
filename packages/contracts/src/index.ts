@@ -40,6 +40,28 @@ export type {
 } from './accountGraph';
 
 export {
+    ACCOUNT_ACTOR_NATURES,
+    ACCOUNT_SUBJECT_CONTRACT_VERSION,
+    FINANCIAL_EFFECT_DIRECTIONS,
+    KIND_INDEPENDENT_ACCOUNT_DIMENSIONS,
+    accountActorChainFromSession,
+    accountActorChainSchema,
+    accountActorNatureSchema,
+    accountKindActorNature,
+    accountKindActsAsItself,
+    attributeFinancialEffect,
+    financialEffectAttributionSchema,
+} from './accountSubject';
+
+export type {
+    AccountActorChain,
+    AccountActorNature,
+    FinancialEffectAttribution,
+    FinancialEffectDirection,
+    KindIndependentAccountDimension,
+} from './accountSubject';
+
+export {
     usernameSchema,
     usernameSchemaForAccountKind,
     isValidUsername,

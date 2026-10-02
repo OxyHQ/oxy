@@ -13,11 +13,18 @@ import { usernameSchema, usernameSchemaForAccountKind } from './username';
 /**
  * Account-graph classification — the ONE authority for the kind vocabulary.
  *
- * `personal` is the only kind minted by signup and the only one that carries
- * its own credentials; every other kind is a child account created under a
- * parent and operated through `account_members`. The API schema, the Drizzle
+ * `personal` is the only kind minted by signup and the only one that signs in
+ * as a device principal; every other kind is a child account created under a
+ * parent and reached through `account_members`. The API schema, the Drizzle
  * table and the SDK all derive from this list rather than restating it, so a
  * new kind is one edit here instead of four literals that can drift.
+ *
+ * The kind names what an account IS. It does not, on its own, answer who may
+ * switch into it, who may act as it, who the actor is, or anything commercial —
+ * each of those has its own predicate or contract, tabulated at the top of
+ * `accountSubject.ts`. In particular a `bot` is a COMPLETE account (issue
+ * #1520): it owns resources, holds roles, plans and a balance, receives funds
+ * and pays for itself under the same rules as a person, and is its own actor.
  */
 export type AccountKind = 'personal' | 'organization' | 'project' | 'bot' | 'channel';
 
@@ -90,6 +97,12 @@ export const childAccountKindSchema = z.enum(CHILD_ACCOUNT_KINDS);
  *
  * Consumers must gate on this predicate rather than testing `kind === 'personal'`,
  * which silently admits every kind added after it was written.
+ *
+ * Being act-as-eligible is NOT being without an identity of one's own. A bot is
+ * act-as-eligible AND its own actor (`accountKindActorNature` → `'agent'` in
+ * `accountSubject.ts`): an application acting as it on a person's authority
+ * records that person as the actor, and the bot acting with nobody operating it
+ * records the bot. Neither ever records the bot's owner in the bot's place.
  */
 export function isDelegatedActAsEligibleKind(kind: AccountKind | null | undefined): boolean {
   return kind === 'organization' || kind === 'project' || kind === 'bot';
@@ -104,11 +117,13 @@ export function isDelegatedActAsEligibleKind(kind: AccountKind | null | undefine
  * The two differ on exactly one kind, `bot`, and that difference is the whole
  * reason both exist.
  *
- * **A bot is not something you become. It is something that operates on your
- * behalf.** Its whole purpose is to act while nobody is present: an application
- * holds a credential, names the human whose authority it borrows, and speaks as
- * the bot. That is delegation, and it is what
- * {@link isDelegatedActAsEligibleKind} admits it for.
+ * **A bot is not something you become. It is somebody of its own.** It is an
+ * agent's identity, with its own resources, roles, plan and balance, and it is
+ * the actor of what it does unoperated. A person may still act AS it on their
+ * own authority — that is delegation, recorded with the person as actor, and it
+ * is what {@link isDelegatedActAsEligibleKind} admits it for. What a person
+ * never does is occupy its seat. This is a refusal of a SEAT, not a capability
+ * restriction: nothing a bot may do depends on this predicate.
  *
  * Handing a person the bot's seat instead inverts that. It puts a human inside
  * the identity that exists to act without one, and it does so on the human's own
