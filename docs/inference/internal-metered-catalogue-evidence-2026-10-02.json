@@ -1,0 +1,35 @@
+{
+  "snapshotId": "snap_8801d0c4e843149f",
+  "count": 272,
+  "candidates": [
+    {
+      "deploymentId": "dep_cerebras_gpt_oss_120b_observed_2026_09_01",
+      "modelReference": "openai/gpt-oss-120b@observed-2026-09-01",
+      "provider": "cerebras",
+      "regions": []
+    },
+    {
+      "deploymentId": "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+      "modelReference": "openai/gpt-oss-120b@observed-2026-09-01",
+      "provider": "groq",
+      "regions": []
+    },
+    {
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "modelReference": "openai/gpt-oss-120b@observed-2026-09-01",
+      "provider": "openrouter",
+      "regions": []
+    }
+  ],
+  "inferenceRequests": 0,
+  "ledgerWrites": 0,
+  "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:691",
+  "capturedAtUTC": "2026-10-02T14:17:07.198843+00:00",
+  "readerSourceHead": "198d0bc14",
+  "transport": "HTTPS request with Oxy Ed25519 signature; no response signature asserted",
+  "method": "POST /internal/v1/deployments/query",
+  "requestBody": "{}",
+  "providerEligibilityVerified": false,
+  "priceReadbackVerified": false,
+  "credentialBindingVerified": false
+}
