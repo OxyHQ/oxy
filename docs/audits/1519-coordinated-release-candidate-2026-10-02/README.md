@@ -65,3 +65,14 @@ Package runtime is identical to the preserved build source, so tarballs were
 not repacked. External CodeQL and full CI must confirm the new draft head; the
 historical statement of Audit-only failure applies specifically to CI/CD jobs,
 not every external check.
+
+CI/CD 37066401196 on 65003bc2d completed with every functional/Android job
+successful; Guards failed Audit and a test requiring the historical 4.8 manifest
+in every future source tree. External CodeQL completed SUCCESS with no new
+alerts. The [guard correction](release-guard-proof.json) changes only that test:
+actual prepare accepts exactly historical 4.8 before entering a synthetic build,
+and rejects 4.9, 4.7, another name or null before build/publication. Historical
+RELEASES, SDK floors, smokes and workflow remain byte-identical. Both release
+script suites pass 29 tests on tracked source. This does not authorize candidate
+versions or publication through the historical workflow. The following draft
+head requires its own CI.

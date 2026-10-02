@@ -1,0 +1,37 @@
+✔ release scope is contracts only; published SDK floors cannot be republished (1.102724ms)
+✔ both actual consumer entry points strictly require the contracts release version (0.28319ms)
+✔ core keeps its contracts workspace dependency for pack-time rewriting (0.173097ms)
+✔ prepare accepts only the fixed source release before entering build (129.698447ms)
+✔ prepare refuses @oxy.so/contracts@4.9.0 before build or publication (102.359245ms)
+✔ prepare refuses @oxy.so/contracts@4.7.0 before build or publication (101.479515ms)
+✔ prepare refuses @oxy.so/another-package@4.8.0 before build or publication (102.317807ms)
+✔ prepare refuses @oxy.so/contracts@null before build or publication (100.463317ms)
+✔ any future paired artifact must pin released contracts and published first-party floors (0.806041ms)
+✔ a consumer sees no runner file commands, tokens, NODE_OPTIONS or npm auth (0.304926ms)
+✔ rebuilt artifacts must equal the trusted build byte for byte and commit for commit (0.251969ms)
+✔ workflow: only the apply step holds NPM_TOKEN, dry run never does, permissions stay read-only (0.358884ms)
+✔ verify needs no token, calls no npm, and reports the release anonymously (120.792968ms)
+✔ publish refuses a dry run even when a token is present (38.47589ms)
+✔ apply publishes only its own contracts, never core, and a retry is idempotent (363.857156ms)
+✔ a rebuild that differs from the trusted bytes publishes nothing and verifies nothing (208.999377ms)
+✔ a different published contracts version blocks overwrite during preflight (121.974781ms)
+✔ a branch or unprotected ref, another SHA, an advanced main or a missing token publishes nothing (336.927161ms)
+✔ smoke installs the trusted bytes outside the repo with a clean env, real minimum age and exact cases (258.504617ms)
+✔ smoke refuses tampered trusted bytes before installing anything (41.364736ms)
+✔ only the fixed phases exist (87.60402ms)
+✔ smoke refuses first-party floor bytes that differ from the trusted record (57.106062ms)
+✔ a first-party floor is pinned only to a registry tarball and sha512 integrity (0.318966ms)
+✔ floors are part of the trusted-build comparison (0.113582ms)
+✔ smoke refuses missing or changed published SDK floors before any consumer runs (133.15855ms)
+✔ release scope is the exact dependency-ordered pair (0.832945ms)
+✔ source guard rejects branch execution, stale SHA and unspecified write mode (0.286282ms)
+✔ immutable publication is idempotent only for identical artifact bytes (0.517097ms)
+✔ artifact verification rejects missing exports and unresolved workspace manifests (0.300214ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2362.494242
