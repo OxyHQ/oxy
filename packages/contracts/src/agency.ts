@@ -95,6 +95,14 @@ export const capabilityCoordinatorSchema = z.object({
     credentialId: identifierSchema,
 }).strict();
 
+/** Opt-in catalogue pin; legacy issuance omits expectedCatalog and its claim. */
+export const capabilityTicketRequestSchema = z.object({
+    executionAuthorizationId: z.string().min(1),
+    runId: z.string().min(1).optional(),
+    stepId: z.string().min(1).optional(),
+    expectedCatalog: capabilityCatalogBindingSchema.optional(),
+}).strict();
+
 export const delegationGrantSchema = z.object({
     id: identifierSchema,
     ownerAccountId: identifierSchema,
@@ -166,6 +174,8 @@ export const capabilityTicketClaimsSchema = z.object({
     automationId: identifierSchema.optional(),
     executionAuthorization: executionAuthorizationRefSchema,
     coordinator: capabilityCoordinatorSchema,
+    /** Signed only for callers that explicitly requested a pinned catalogue. */
+    catalog: capabilityCatalogBindingSchema.optional(),
     grantId: identifierSchema.optional(),
     requesterAccountId: identifierSchema,
     ownerAccountId: identifierSchema,
@@ -537,6 +547,7 @@ export type GrantLimit = z.infer<typeof grantLimitSchema>;
 export type CapabilityCatalogBinding = z.infer<typeof capabilityCatalogBindingSchema>;
 export type ExecutionAuthorizationRef = z.infer<typeof executionAuthorizationRefSchema>;
 export type CapabilityCoordinator = z.infer<typeof capabilityCoordinatorSchema>;
+export type CapabilityTicketRequest = z.infer<typeof capabilityTicketRequestSchema>;
 export type DelegationGrant = z.infer<typeof delegationGrantSchema>;
 export type AutomationTrigger = z.infer<typeof automationTriggerSchema>;
 export type AutomationActorSelection = z.infer<typeof automationActorSelectionSchema>;

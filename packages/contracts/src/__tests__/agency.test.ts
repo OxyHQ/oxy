@@ -2,6 +2,7 @@ import {
     appCapabilityCatalogSchema,
     auditResultSchema,
     capabilityTicketClaimsSchema,
+    capabilityTicketRequestSchema,
     delegationGrantSchema,
     grantLimitSchema,
 } from '../index';
@@ -66,6 +67,14 @@ describe('agency contracts', () => {
         };
 
         expect(capabilityTicketClaimsSchema.safeParse(ticket).success).toBe(true);
+        expect(capabilityTicketClaimsSchema.parse(ticket)).not.toHaveProperty('catalog');
+        const catalog = { registrationId: 'registration-1', version: '1.0.0', digest: 'a'.repeat(64) };
+        expect(capabilityTicketClaimsSchema.parse({ ...ticket, catalog }).catalog).toEqual(catalog);
+        expect(capabilityTicketClaimsSchema.safeParse({ ...ticket, catalog: null }).success).toBe(false);
+        expect(capabilityTicketClaimsSchema.safeParse({ ...ticket, catalog: { ...catalog, digest: 'invalid' } }).success).toBe(false);
+        expect(capabilityTicketRequestSchema.parse({ executionAuthorizationId: 'authorization-1' })).toEqual({ executionAuthorizationId: 'authorization-1' });
+        expect(capabilityTicketRequestSchema.parse({ executionAuthorizationId: 'authorization-1', expectedCatalog: catalog }).expectedCatalog).toEqual(catalog);
+        expect(capabilityTicketRequestSchema.safeParse({ executionAuthorizationId: 'authorization-1', actor: ticket.actor }).success).toBe(false);
         expect(capabilityTicketClaimsSchema.safeParse({ ...ticket, capabilities: [] }).success).toBe(false);
         expect(capabilityTicketClaimsSchema.safeParse({ ...ticket, sub: 'different-agent' }).success).toBe(false);
         expect(capabilityTicketClaimsSchema.safeParse({

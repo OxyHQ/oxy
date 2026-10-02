@@ -6,6 +6,7 @@ import {
   auditResultSchema,
   autonomyLevelSchema,
   capabilityPackageSchema,
+  capabilityTicketRequestSchema,
   grantLimitSchema,
   resourceRefSchema,
   toolGrantOverrideSchema,
@@ -114,12 +115,6 @@ const executionAuthorizationSchema = z.object({
     }
   });
 });
-
-const ticketRequestSchema = z.object({
-  executionAuthorizationId: z.string().min(1),
-  runId: z.string().min(1).optional(),
-  stepId: z.string().min(1).optional(),
-}).strict();
 
 const accountPolicyWriteSchema = z.object({
   accountId: z.string().min(1),
@@ -797,7 +792,7 @@ router.post('/capability-map', serviceAuthMiddleware, async (request: ServiceAut
 router.post('/tickets', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
   const principal = await livePrincipal(request, response, 'capability-tickets:issue', AGENCY_COORDINATE_CAPABILITY);
   if (!principal) return;
-  const parsed = ticketRequestSchema.safeParse(request.body);
+  const parsed = capabilityTicketRequestSchema.safeParse(request.body);
   if (!parsed.success) {
     response.status(400).json({ error: 'invalid_ticket_request', details: parsed.error.flatten() });
     return;
@@ -810,6 +805,7 @@ router.post('/tickets', serviceAuthMiddleware, async (request: ServiceAuthReques
     },
     ...(parsed.data.runId ? { runId: parsed.data.runId } : {}),
     ...(parsed.data.stepId ? { stepId: parsed.data.stepId } : {}),
+    ...(parsed.data.expectedCatalog ? { expectedCatalog: parsed.data.expectedCatalog } : {}),
   }, { issueTicket: true });
   response.status(result.decision.allowed ? 201 : 403).json(result);
 });
