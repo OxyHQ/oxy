@@ -10269,7 +10269,19 @@
         "status": "not-verified",
         "evidence": null
       },
-      "adoption_status": "pending integrated acceptance"
+      "adoption_status": "pending integrated acceptance",
+      "candidate_observations": [
+        {
+          "head": "718a6c404b6b790972d74df602f107ec94d3e805",
+          "pull_request": "https://github.com/OxyHQ/website/pull/129",
+          "observed_on": "2026-10-02",
+          "scope": "FedCM metadata/header removal and updated brand CTA review assertion; no UI change",
+          "ci": "checks and browser review success",
+          "browser_review": "https://github.com/OxyHQ/website/actions/runs/37038954850/job/110944035832",
+          "deployed": "unknown",
+          "runtime_sso": "not verified"
+        }
+      ]
     },
     {
       "repository": "Willo",
