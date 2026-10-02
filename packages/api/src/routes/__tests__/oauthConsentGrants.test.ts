@@ -21,11 +21,12 @@ import { randomUUID } from 'node:crypto';
 
 const mockIssueAuthCode = jest.fn();
 
+let authenticatedSessionId: string | undefined;
 let authenticatedUser: { _id: string; username?: string } | null = null;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { user?: unknown },
+    req: { user?: unknown; sessionId?: string },
     res: { status: (code: number) => { json: (body: unknown) => void } },
     next: () => void,
   ) => {
@@ -34,6 +35,7 @@ jest.mock('../../middleware/auth', () => ({
       return;
     }
     req.user = authenticatedUser;
+    req.sessionId = authenticatedSessionId;
     next();
   },
   serviceAuthMiddleware: jest.fn(),
@@ -84,6 +86,7 @@ import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { serviceActingAsRevocations } from '../../db/schema/serviceActingAsRevocations';
 import { users } from '../../db/schema/users';
+import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 import { errorHandler } from '../../middleware/errorHandler';
 import { resolveServiceActingAsGrant } from '../../services/serviceActingAs.service';
 import authRouter from '../auth';
@@ -208,6 +211,7 @@ beforeEach(async () => {
   mockIssueAuthCode.mockResolvedValue({ code: 'raw-code', expiresAt: new Date() });
   const [user] = await getDb().insert(users).values({}).returning({ id: users.id });
   authenticatedUser = { _id: user.id, username: 'nate' };
+  authenticatedSessionId = await insertBearerSession(user.id);
 });
 
 describe('GET /auth/oauth/consent', () => {

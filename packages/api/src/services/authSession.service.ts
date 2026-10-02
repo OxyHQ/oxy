@@ -276,6 +276,7 @@ export type ApprovalOperatorOutcome =
 export async function resolveApprovalOperator(
   approvingSessionId: string | undefined,
   subjectAccountId: string,
+  options: { delegatedOAuth?: boolean } = {},
 ): Promise<ApprovalOperatorOutcome> {
   if (!approvingSessionId) {
     return { ok: false, reason: 'approving_session_unreadable' };
@@ -284,7 +285,7 @@ export async function resolveApprovalOperator(
   const [approving] = await db
     .select({ userId: sessions.userId, operatedByUserId: sessions.operatedByUserId })
     .from(sessions)
-    .where(and(eq(sessions.sessionId, approvingSessionId), eq(sessions.isActive, true)))
+    .where(and(eq(sessions.sessionId, approvingSessionId), eq(sessions.isActive, true), gt(sessions.expiresAt, new Date())))
     .limit(1);
   if (!approving || approving.userId !== subjectAccountId) {
     return { ok: false, reason: 'approving_session_unreadable' };
@@ -297,9 +298,13 @@ export async function resolveApprovalOperator(
     .from(users)
     .where(eq(users.id, subjectAccountId))
     .limit(1);
-  if (!subject || !isOperatorSwitchTargetKind(subject.kind as AccountKind)) {
+  if (!subject || !(options.delegatedOAuth
+    ? isDelegatedActAsEligibleKind(subject.kind as AccountKind)
+    : isOperatorSwitchTargetKind(subject.kind as AccountKind))) {
     return { ok: false, reason: 'seat_not_assumable' };
   }
+  const delegation = await verifyDelegatedSubject(approving.operatedByUserId, subjectAccountId);
+  if (!delegation.ok) return { ok: false, reason: 'approving_session_unreadable' };
   return { ok: true, operatedByUserId: approving.operatedByUserId };
 }
 
@@ -621,33 +626,20 @@ export async function authorizeSessionWithBearer(
     return { ok: false, status: 400, message: 'Auth session has expired' };
   }
 
-  // Delegated subject gate — the authenticated approver must hold
-  // `account:act_as` over the account the app would act as. Checked BEFORE the
-  // atomic claim so a refusal leaves the request approvable by someone who does.
-  const delegation = await gateApprovalDelegation(existing, authenticatedUserId);
-  if (!delegation.ok) {
-    logger.warn('[AuthSession] Delegated subject refused on bearer approval', {
-      authorizeCode: authorizeCode.substring(0, 8) + '...',
-      identityUserId: authenticatedUserId,
-      reason: delegation.reason,
-    });
-    return { ok: false, status: 403, message: 'Not authorized to act as the requested account' };
+  // OAuth preserves the verified actor independently from the effective
+  // account. A bot may be represented, but never becomes an autonomous seat.
+  const oauthApproval = !approvalMintsSession(existing);
+  const operator = await resolveApprovalOperator(approvingSessionId, authenticatedUserId, {
+    delegatedOAuth: oauthApproval,
+  });
+  if (!operator.ok) {
+    return { ok: false, status: 403, message: 'This account cannot approve a sign-in from this session' };
   }
-
-  // The operator gate runs BEFORE the claim too, so a refusal leaves the
-  // request pending rather than authorized-with-no-session.
-  let operatedByUserId: string | null = null;
-  if (approvalMintsSession(existing)) {
-    const operator = await resolveApprovalOperator(approvingSessionId, authenticatedUserId);
-    if (!operator.ok) {
-      logger.warn('[AuthSession] Bearer approval refused: operated seat', {
-        authorizeCode: authorizeCode.substring(0, 8) + '...',
-        identityUserId: authenticatedUserId,
-        reason: operator.reason,
-      });
-      return { ok: false, status: 403, message: 'This account cannot approve a sign-in from this session' };
-    }
-    operatedByUserId = operator.operatedByUserId;
+  const operatedByUserId = operator.operatedByUserId;
+  const approvingActorId = operatedByUserId || authenticatedUserId;
+  const delegation = await gateApprovalDelegation(existing, approvingActorId);
+  if (!delegation.ok) {
+    return { ok: false, status: 403, message: 'Not authorized to act as the requested account' };
   }
 
   // `session_token` is named explicitly on the way out: the route notifies the
@@ -657,7 +649,9 @@ export async function authorizeSessionWithBearer(
     .update(authSessions)
     .set({
       status: 'authorized',
-      authorizedUserId: authenticatedUserId,
+      authorizedUserId: oauthApproval ? approvingActorId : authenticatedUserId,
+      ...(oauthApproval && operatedByUserId && !existing.oauthSubjectAccountId
+        ? { oauthSubjectAccountId: authenticatedUserId } : {}),
       ...(authenticatedPublicKey ? { authorizedBy: authenticatedPublicKey } : {}),
     })
     .where(

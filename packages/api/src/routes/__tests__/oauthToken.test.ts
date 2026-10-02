@@ -101,6 +101,7 @@ jest.mock('../../utils/logger', () => ({
 
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { accountMembers } from '../../db/schema/accountMembers';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
@@ -400,6 +401,8 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
     const { clientId } = await client({}, OFFICIAL_APP);
     const org = await subject({ kind: 'organization' });
     const operator = await subject();
+    await getDb().insert(accountMembers).values({ accountId: org, memberUserId: operator,
+      role: 'admin', status: 'active' });
     mockExchangeAuthCode.mockResolvedValueOnce(
       grant({ userId: org, deviceId: '  dev-shared  ', operatedByUserId: operator }),
     );
