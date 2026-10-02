@@ -1,0 +1,722 @@
+[
+  {
+    "package": "@oxy.so/telemetry",
+    "url": "https://registry.npmjs.org/%40oxy.so%2Ftelemetry",
+    "metadataSha256": "d953b3e800d4890092eb863a2f1ebadc87b1ab0ab453edc9c16b8434d0749532",
+    "fetchedAtUTC": "2026-10-02T20:45:27.627980+00:00",
+    "distTags": {
+      "latest": "1.2.0"
+    },
+    "versions": [
+      "0.1.0",
+      "0.1.1",
+      "0.1.2",
+      "1.0.0",
+      "1.1.1",
+      "1.1.0",
+      "1.2.0"
+    ],
+    "latest": "1.2.0",
+    "latestPublishedAtUTC": "2026-09-26T21:03:31.136Z",
+    "manifest": {
+      "dependencies": null,
+      "peerDependencies": null,
+      "peerDependenciesMeta": null,
+      "exports": {
+        ".": {
+          "import": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/esm/index.js"
+          },
+          "require": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/cjs/index.js"
+          }
+        },
+        "./edge": {
+          "import": {
+            "types": "./dist/types/edge.d.ts",
+            "default": "./dist/esm/edge.js"
+          },
+          "require": {
+            "types": "./dist/types/edge.d.ts",
+            "default": "./dist/cjs/edge.js"
+          }
+        },
+        "./server": {
+          "import": {
+            "types": "./dist/types/server.d.ts",
+            "default": "./dist/esm/server.js"
+          },
+          "require": {
+            "types": "./dist/types/server.d.ts",
+            "default": "./dist/cjs/server.js"
+          }
+        },
+        "./socket": {
+          "import": {
+            "types": "./dist/types/socket.d.ts",
+            "default": "./dist/esm/socket.js"
+          },
+          "require": {
+            "types": "./dist/types/socket.d.ts",
+            "default": "./dist/cjs/socket.js"
+          }
+        },
+        "./browser": {
+          "import": {
+            "types": "./dist/types/browser.d.ts",
+            "default": "./dist/esm/browser.js"
+          },
+          "browser": {
+            "import": {
+              "types": "./dist/types/browser.d.ts",
+              "default": "./dist/esm/browser.js"
+            },
+            "default": "./dist/esm/browser.js",
+            "require": {
+              "types": "./dist/types/browser.d.ts",
+              "default": "./dist/cjs/browser.js"
+            }
+          },
+          "require": {
+            "types": "./dist/types/browser.d.ts",
+            "default": "./dist/cjs/browser.js"
+          }
+        },
+        "./collector": {
+          "import": {
+            "types": "./dist/types/collector.d.ts",
+            "default": "./dist/esm/collector.js"
+          },
+          "require": {
+            "types": "./dist/types/collector.d.ts",
+            "default": "./dist/cjs/collector.js"
+          }
+        },
+        "./package.json": "./package.json"
+      },
+      "dist": {
+        "shasum": "5a495bd68212a35e319253519eb286158791ddea",
+        "tarball": "https://registry.npmjs.org/@oxy.so/telemetry/-/telemetry-1.2.0.tgz",
+        "fileCount": 33,
+        "integrity": "sha512-ryydgkL5jDUVzpG0I2O1/QF+AHYITpaHdqABXdno23J7kYeijUO+QBIXEEQxCBy/9S7AslqDvHwhWpFsGLLrzA==",
+        "signatures": [
+          {
+            "sig": "MEUCIQClOwxnVTBW3WwqIiiYaScJhww2D8oI1IFiOgtbQ+vHlQIgH4ztXZyquREFGU27Skda7a5pH6XpohkTtkY15tBcapA=",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEQCIDC6DCDcrZ4D+VGgQQyurLzcZBSUh5Lde441pWgacatYAiA8e3q3j8dS8cOG40BJqPZtyHZKlXgv3gMNqKCv1eHSGA=="
+          }
+        ],
+        "unpackedSize": 164623
+      }
+    }
+  },
+  {
+    "package": "@oxy.so/contracts",
+    "url": "https://registry.npmjs.org/%40oxy.so%2Fcontracts",
+    "metadataSha256": "fb9cc1d959f9309c9d37a072ad940e436b374809b293a142624da4382a0ae8a5",
+    "fetchedAtUTC": "2026-10-02T20:45:27.490192+00:00",
+    "distTags": {
+      "latest": "4.8.0"
+    },
+    "versions": [
+      "3.0.0",
+      "4.0.0",
+      "4.1.0",
+      "4.2.0",
+      "4.3.0",
+      "4.4.0",
+      "4.5.0",
+      "4.6.0",
+      "4.7.0",
+      "4.8.0"
+    ],
+    "latest": "4.8.0",
+    "latestPublishedAtUTC": "2026-10-01T23:07:06.458Z",
+    "manifest": {
+      "dependencies": {
+        "zod": "^3.25.64"
+      },
+      "peerDependencies": null,
+      "peerDependenciesMeta": null,
+      "exports": {
+        ".": {
+          "import": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/esm/index.js"
+          },
+          "default": "./dist/esm/index.js",
+          "require": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/cjs/index.js"
+          },
+          "react-native": "./dist/esm/index.js"
+        },
+        "./package.json": "./package.json"
+      },
+      "dist": {
+        "shasum": "e37d3b5dbb40e8352b073f0c38877ece58a2d6c7",
+        "tarball": "https://registry.npmjs.org/@oxy.so/contracts/-/contracts-4.8.0.tgz",
+        "fileCount": 180,
+        "integrity": "sha512-6A9jTeMFrqJtXlw0HThZfRcSGwWGCMxF8pGlmL1iFxa+NShDnthSv/l7W93gpVMwZnaKQf/kDPrYmUueax4Ujw==",
+        "signatures": [
+          {
+            "sig": "MEYCIQDSa/wtlBgmd3uADZshHDmWifjRB4ay8EbitRJREx1fHwIhAIBgPJauP8XpRCQDSFfSe3BtY/qiAj01uQB08JHinHKq",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEYCIQCim9y9cCToufsBjtTGXGMHMWudhDhpqTrLDFHWqj8bTwIhAKYv44y/dQHUNZSln26DmSBsnHRwxRo5QEbsHhgHwrno"
+          }
+        ],
+        "unpackedSize": 3502744
+      }
+    }
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "url": "https://registry.npmjs.org/%40oxy.so%2Fprotocol",
+    "metadataSha256": "bbd498a3ed75d697468f30738a4d742b02a9f2c1caee595bdeaa16a5cf39982f",
+    "fetchedAtUTC": "2026-10-02T20:45:27.862414+00:00",
+    "distTags": {
+      "latest": "1.2.1"
+    },
+    "versions": [
+      "1.0.0",
+      "1.0.1",
+      "1.1.0",
+      "1.1.1",
+      "1.1.2",
+      "1.1.3",
+      "1.1.4",
+      "1.2.0",
+      "1.2.1"
+    ],
+    "latest": "1.2.1",
+    "latestPublishedAtUTC": "2026-09-30T14:12:16.302Z",
+    "manifest": {
+      "dependencies": {
+        "zod": "^3.25.64",
+        "@noble/curves": "^1.9.7",
+        "@oxy.so/contracts": "^4.4.0"
+      },
+      "peerDependencies": {
+        "express": "^4.18.0 || ^5.0.0",
+        "expo-crypto": "*",
+        "expo-modules-core": "*",
+        "expo-secure-store": "*",
+        "@react-native-async-storage/async-storage": "*"
+      },
+      "peerDependenciesMeta": {
+        "express": {
+          "optional": true
+        },
+        "expo-crypto": {
+          "optional": true
+        },
+        "expo-secure-store": {
+          "optional": true
+        },
+        "@react-native-async-storage/async-storage": {
+          "optional": true
+        }
+      },
+      "exports": {
+        ".": {
+          "import": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/esm/index.js"
+          },
+          "default": "./dist/esm/index.js",
+          "require": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/cjs/index.js"
+          },
+          "react-native": "./dist/esm/index.js"
+        },
+        "./node": {
+          "import": {
+            "types": "./dist/types/node/index.d.ts",
+            "default": "./dist/esm/node/index.js"
+          },
+          "default": "./dist/esm/node/index.js",
+          "require": {
+            "types": "./dist/types/node/index.d.ts",
+            "default": "./dist/cjs/node/index.js"
+          }
+        },
+        "./random": {
+          "import": {
+            "types": "./dist/types/random.d.ts",
+            "default": "./dist/esm/random.js"
+          },
+          "default": "./dist/esm/random.js",
+          "require": {
+            "types": "./dist/types/random.d.ts",
+            "default": "./dist/cjs/random.js"
+          },
+          "react-native": "./dist/esm/random.js"
+        },
+        "./secp256k1": {
+          "import": {
+            "types": "./dist/types/secp256k1.d.ts",
+            "default": "./dist/esm/secp256k1.js"
+          },
+          "default": "./dist/esm/secp256k1.js",
+          "require": {
+            "types": "./dist/types/secp256k1.d.ts",
+            "default": "./dist/cjs/secp256k1.js"
+          },
+          "react-native": "./dist/esm/secp256k1.js"
+        },
+        "./package.json": "./package.json"
+      },
+      "dist": {
+        "shasum": "d98e746e8fb90634425b992be4be6df4e5997588",
+        "tarball": "https://registry.npmjs.org/@oxy.so/protocol/-/protocol-1.2.1.tgz",
+        "fileCount": 145,
+        "integrity": "sha512-lOiVUUb3XZsV+IbLFUeRLsKvu/hJbnF5RWzQRBXnAQYVM1EY21qpN5e/miokMulC6Q66mMEw4J7IJibyCXzVXA==",
+        "signatures": [
+          {
+            "sig": "MEYCIQCFCoEQkoNQ6RWRLBwly7k16tx9pV9XsmIkR9ruwKo4dAIhAM4UOn6Tm3D1yw2xRx29SiQmsntaiFiQdjg4j13/5Vrt",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEQCIFdlXAAcmNfGidWXd6CZVuxK7OzKhW+3JJwBH1LFXWGEAiAzSoSyiKfm6bxo3nnf31eRHAaj2XrqhcHNfk8zO1IuPA=="
+          }
+        ],
+        "unpackedSize": 1127107
+      }
+    }
+  },
+  {
+    "package": "@oxy.so/core",
+    "url": "https://registry.npmjs.org/%40oxy.so%2Fcore",
+    "metadataSha256": "bf5cdf42f6b499d5654faea2d05a82b12825d5a8235d230cb59f19d7196bf0a1",
+    "fetchedAtUTC": "2026-10-02T20:45:27.621448+00:00",
+    "distTags": {
+      "latest": "4.1.0"
+    },
+    "versions": [
+      "1.18.0",
+      "1.18.1",
+      "3.0.0",
+      "3.0.1",
+      "3.0.2",
+      "3.0.3",
+      "3.1.0",
+      "3.2.0",
+      "4.0.0",
+      "4.1.0"
+    ],
+    "latest": "4.1.0",
+    "latestPublishedAtUTC": "2026-10-01T09:58:18.517Z",
+    "manifest": {
+      "dependencies": {
+        "zod": "^3.25.64",
+        "tldts": "^7.4.10",
+        "buffer": "^6.0.3",
+        "helmet": "^8.0.0",
+        "invariant": "^2.2.4",
+        "jwt-decode": "^4.0.0",
+        "@scure/bip39": "^1.6.0",
+        "@noble/hashes": "^1.8.0",
+        "@noble/ciphers": "^1.3.0",
+        "@oxy.so/protocol": "^1.2.1",
+        "socket.io-client": "^4.8.1",
+        "@oxy.so/contracts": "^4.7.0",
+        "@oxy.so/telemetry": "^1.2.0",
+        "express-rate-limit": "^8.6.0"
+      },
+      "peerDependencies": {
+        "express": "^4.0.0",
+        "expo-crypto": "*",
+        "expo-secure-store": "*",
+        "@react-native-async-storage/async-storage": "*"
+      },
+      "peerDependenciesMeta": {
+        "express": {
+          "optional": true
+        },
+        "expo-crypto": {
+          "optional": true
+        },
+        "expo-secure-store": {
+          "optional": true
+        },
+        "@react-native-async-storage/async-storage": {
+          "optional": true
+        }
+      },
+      "exports": {
+        ".": {
+          "import": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/esm/index.js"
+          },
+          "default": "./dist/esm/index.js",
+          "require": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/cjs/index.js"
+          },
+          "react-native": "./dist/esm/index.js"
+        },
+        "./civic": {
+          "import": {
+            "types": "./dist/types/civic/index.d.ts",
+            "default": "./dist/esm/civic/index.js"
+          },
+          "default": "./dist/esm/civic/index.js",
+          "require": {
+            "types": "./dist/types/civic/index.d.ts",
+            "default": "./dist/cjs/civic/index.js"
+          },
+          "react-native": "./dist/esm/civic/index.js"
+        },
+        "./crypto": {
+          "import": {
+            "types": "./dist/types/crypto/index.d.ts",
+            "default": "./dist/esm/crypto/index.js"
+          },
+          "default": "./dist/esm/crypto/index.js",
+          "require": {
+            "types": "./dist/types/crypto/index.d.ts",
+            "default": "./dist/cjs/crypto/index.js"
+          },
+          "react-native": "./dist/esm/crypto/index.js"
+        },
+        "./logger": {
+          "import": {
+            "types": "./dist/types/logger/index.d.ts",
+            "default": "./dist/esm/logger/index.js"
+          },
+          "default": "./dist/esm/logger/index.js",
+          "require": {
+            "types": "./dist/types/logger/index.d.ts",
+            "default": "./dist/cjs/logger/index.js"
+          },
+          "react-native": "./dist/esm/logger/index.js"
+        },
+        "./server": {
+          "import": {
+            "types": "./dist/types/server/index.d.ts",
+            "default": "./dist/esm/server/index.js"
+          },
+          "default": "./dist/esm/server/index.js",
+          "require": {
+            "types": "./dist/types/server/index.d.ts",
+            "default": "./dist/cjs/server/index.js"
+          }
+        },
+        "./session": {
+          "import": {
+            "types": "./dist/types/session/index.d.ts",
+            "default": "./dist/esm/session/index.js"
+          },
+          "default": "./dist/esm/session/index.js",
+          "require": {
+            "types": "./dist/types/session/index.d.ts",
+            "default": "./dist/cjs/session/index.js"
+          },
+          "react-native": "./dist/esm/session/index.js"
+        },
+        "./inference": {
+          "import": {
+            "types": "./dist/types/inference/index.d.ts",
+            "default": "./dist/esm/inference/index.js"
+          },
+          "default": "./dist/esm/inference/index.js",
+          "require": {
+            "types": "./dist/types/inference/index.d.ts",
+            "default": "./dist/cjs/inference/index.js"
+          },
+          "react-native": "./dist/esm/inference/index.js"
+        },
+        "./package.json": "./package.json"
+      },
+      "dist": {
+        "shasum": "00cccc4c705acd56aafe5bcc7183e00e1005a4eb",
+        "tarball": "https://registry.npmjs.org/@oxy.so/core/-/core-4.1.0.tgz",
+        "fileCount": 569,
+        "integrity": "sha512-on4ir5Qx7KmJIZxYp8Y9GtJDdae4bAPARJIx8w+UXTs6Ygb+zHPESWzm9Mt4x+6Ey1EkDZq1s2OiXTInWs0Hhw==",
+        "signatures": [
+          {
+            "sig": "MEQCIGGYaWenu51GhyGtEtoOudh5TeaPoT9cXsiqiinDlMiXAiA6lDl4q6ZvhJsW7I0j5njQrrag1LsakT6xXdgG/JM4UQ==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEYCIQC+OD/+Uo/1zcqzCX3HaC3uBrZb27XnKBsRaAiYha2yvAIhAJBmNZH8UFkbepB3ZijU3hd4+rKICUQPeuWcHOvw6aCt"
+          }
+        ],
+        "unpackedSize": 5920308
+      }
+    }
+  },
+  {
+    "package": "@oxy.so/services",
+    "url": "https://registry.npmjs.org/%40oxy.so%2Fservices",
+    "metadataSha256": "80a31d7d387dc73bcb38c1097c766ccf69255e2aeb1221e9ceb3ae2f8e4e924d",
+    "fetchedAtUTC": "2026-10-02T20:45:27.718702+00:00",
+    "distTags": {
+      "latest": "11.0.0"
+    },
+    "versions": [
+      "8.1.0",
+      "8.1.1",
+      "8.2.0",
+      "8.3.0",
+      "8.4.0",
+      "9.0.0",
+      "9.1.0",
+      "9.2.0",
+      "10.0.0",
+      "11.0.0"
+    ],
+    "latest": "11.0.0",
+    "latestPublishedAtUTC": "2026-09-30T14:07:28.372Z",
+    "manifest": {
+      "dependencies": {
+        "color": "^4.2.3",
+        "@oxy.so/contracts": "^4.4.0",
+        "@expo/config-plugins": "57.0.9"
+      },
+      "peerDependencies": {
+        "expo": ">=56.0.0",
+        "react": ">=18.0.0",
+        "zustand": "^5.0.0",
+        "expo-image": ">=2.0.0",
+        "nativewind": ">=5.0.0",
+        "@oxy.so/core": "^4.0.0",
+        "@types/react": "*",
+        "expo-haptics": ">=56.0.0",
+        "react-native": ">=0.85.0",
+        "@oxy.so/bloom": "^6.0.0",
+        "expo-clipboard": ">=56.0.0 <59.0.0",
+        "expo-constants": ">=56.0.0",
+        "expo-file-system": ">=56.0.0",
+        "expo-web-browser": ">=56.0.0",
+        "react-native-css": "^3.0.6",
+        "react-native-svg": ">=15.15.0",
+        "expo-image-picker": ">=56.0.0",
+        "expo-modules-core": "*",
+        "@expo/vector-icons": "^15.0.3",
+        "expo-notifications": ">=56.0.0",
+        "@types/react-native": "*",
+        "expo-document-picker": ">=56.0.0",
+        "expo-linear-gradient": ">=56.0.0",
+        "@tanstack/react-query": "^5.101",
+        "expo-image-manipulator": ">=56.0.0",
+        "react-native-qrcode-svg": "^6.3.0",
+        "react-native-reanimated": ">=4.3.0",
+        "react-native-gesture-handler": ">=2.31.1",
+        "react-native-safe-area-context": ">=5.7.0",
+        "@react-native-community/netinfo": ">=11.4.1",
+        "react-native-keyboard-controller": ">=1.21.0",
+        "@tanstack/react-query-persist-client": "^5.101",
+        "@tanstack/query-sync-storage-persister": "^5.101",
+        "@tanstack/query-async-storage-persister": "^5.101",
+        "@react-native-async-storage/async-storage": "^2.0.0"
+      },
+      "peerDependenciesMeta": {
+        "expo": {
+          "optional": true
+        },
+        "nativewind": {
+          "optional": true
+        },
+        "@types/react": {
+          "optional": true
+        },
+        "expo-haptics": {
+          "optional": true
+        },
+        "expo-clipboard": {
+          "optional": true
+        },
+        "expo-constants": {
+          "optional": true
+        },
+        "expo-web-browser": {
+          "optional": true
+        },
+        "expo-image-picker": {
+          "optional": true
+        },
+        "expo-modules-core": {
+          "optional": true
+        },
+        "expo-notifications": {
+          "optional": true
+        },
+        "@types/react-native": {
+          "optional": true
+        },
+        "expo-document-picker": {
+          "optional": true
+        },
+        "expo-linear-gradient": {
+          "optional": true
+        },
+        "expo-image-manipulator": {
+          "optional": true
+        },
+        "react-native-keyboard-controller": {
+          "optional": true
+        },
+        "@tanstack/query-sync-storage-persister": {
+          "optional": true
+        }
+      },
+      "exports": {
+        ".": {
+          "import": {
+            "types": "./lib/typescript/module/index.d.ts",
+            "default": "./lib/module/index.js"
+          },
+          "default": "./lib/module/index.js",
+          "require": {
+            "types": "./lib/typescript/commonjs/index.d.ts",
+            "default": "./lib/commonjs/index.js"
+          },
+          "react-native": "./src/index.ts"
+        },
+        "./ui": {
+          "import": {
+            "types": "./lib/typescript/module/ui/index.d.ts",
+            "default": "./lib/module/ui/index.js"
+          },
+          "default": "./lib/module/ui/index.js",
+          "require": {
+            "types": "./lib/typescript/commonjs/ui/index.d.ts",
+            "default": "./lib/commonjs/ui/index.js"
+          },
+          "react-native": "./src/ui/index.ts"
+        },
+        "./screens": {
+          "import": {
+            "types": "./lib/typescript/module/ui/screens/index.d.ts",
+            "default": "./lib/module/ui/screens/index.js"
+          },
+          "default": "./lib/module/ui/screens/index.js",
+          "require": {
+            "types": "./lib/typescript/commonjs/ui/screens/index.d.ts",
+            "default": "./lib/commonjs/ui/screens/index.js"
+          },
+          "react-native": "./src/ui/screens/index.ts"
+        },
+        "./plugins/*": "./plugins/*.js",
+        "./ui/client": {
+          "import": {
+            "types": "./lib/typescript/module/ui/client.d.ts",
+            "default": "./lib/module/ui/client.js"
+          },
+          "default": "./lib/module/ui/client.js",
+          "require": {
+            "types": "./lib/typescript/commonjs/ui/client.d.ts",
+            "default": "./lib/commonjs/ui/client.js"
+          },
+          "react-native": "./src/ui/client.ts"
+        },
+        "./ui/server": {
+          "import": {
+            "types": "./lib/typescript/module/ui/server.d.ts",
+            "default": "./lib/module/ui/server.js"
+          },
+          "default": "./lib/module/ui/server.js",
+          "require": {
+            "types": "./lib/typescript/commonjs/ui/server.d.ts",
+            "default": "./lib/commonjs/ui/server.js"
+          },
+          "react-native": "./src/ui/server.ts"
+        },
+        "./package.json": "./package.json",
+        "./notifications": {
+          "import": {
+            "types": "./lib/typescript/module/notifications/deviceNotifications.d.ts",
+            "default": "./lib/module/notifications/deviceNotifications.js"
+          },
+          "default": "./lib/module/notifications/deviceNotifications.js",
+          "require": {
+            "types": "./lib/typescript/commonjs/notifications/deviceNotifications.d.ts",
+            "default": "./lib/commonjs/notifications/deviceNotifications.js"
+          },
+          "react-native": "./src/notifications/deviceNotifications.ts"
+        },
+        "./expo-module.config.json": "./expo-module.config.json"
+      },
+      "dist": {
+        "shasum": "32b8d20a0fc0ca1e823e8b9ba8f2a3b7aae24eed",
+        "tarball": "https://registry.npmjs.org/@oxy.so/services/-/services-11.0.0.tgz",
+        "fileCount": 2388,
+        "integrity": "sha512-QvxHdm1BtgT/5W4GS44B6/JnOP+MqidjFv9K8Y7hpsJOmvw3pnL7Iq7CrlD+Gtgu1fVXaW+MlBUZ7D9u9y3Ujw==",
+        "signatures": [
+          {
+            "sig": "MEQCIFF6IKrXEuD2UxlP9lgdlSumvkoH/KG8LczTeF+WOG4OAiBZhfYUuSpUne9fFZnW2PfKfQyuDJevT0gysKUGhcZ1qw==",
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+          },
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEUCIQDz9/Hl/HUHbC0IdcgjUOsxxx+tyGP71MBZfwGNqJtXvgIgTVtdIclSFiG0lhzlxy1RHsnboZQh2jD1jCAMOnCxlLs="
+          }
+        ],
+        "unpackedSize": 11347657
+      }
+    }
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "url": "https://registry.npmjs.org/%40oxy.so%2Fmcp",
+    "metadataSha256": "d98f5f2f13a978334b2f43bb25cf153b5c9fae105b130e8a75ced0346c5cd5a3",
+    "fetchedAtUTC": "2026-10-02T20:45:27.622879+00:00",
+    "distTags": {
+      "latest": "1.0.0"
+    },
+    "versions": [
+      "1.0.0"
+    ],
+    "latest": "1.0.0",
+    "latestPublishedAtUTC": "2026-09-10T01:14:48.845Z",
+    "manifest": {
+      "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.30.0",
+        "@oxy.so/contracts": "^1.0.1",
+        "zod": "^4.5.4"
+      },
+      "peerDependencies": null,
+      "peerDependenciesMeta": null,
+      "exports": {
+        ".": {
+          "import": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/esm/index.js"
+          },
+          "require": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/cjs/index.js"
+          },
+          "default": "./dist/esm/index.js"
+        },
+        "./package.json": "./package.json"
+      },
+      "dist": {
+        "integrity": "sha512-FDKoxHdHLszzKzfrIsgNqRlxopyRySR04nnjtxHlImNsZydVXn6/Crs6R+Biv9W8DErjcdjtyVtwEnm0AIu+4Q==",
+        "shasum": "7aef1e3552fc9bdd3ed28fd32f21d10126018f5d",
+        "tarball": "https://registry.npmjs.org/@oxy.so/mcp/-/mcp-1.0.0.tgz",
+        "fileCount": 31,
+        "unpackedSize": 471144,
+        "signatures": [
+          {
+            "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+            "sig": "MEUCIDX133FpsJheUg3lBh1VsRM4Ii8/vSDpsL5ZbnmhJwEQAiEAxhhKk8uWpneC/54kOCKcoQbyxaDEaaSVrci0XS4yQ3c="
+          }
+        ]
+      }
+    }
+  }
+]
