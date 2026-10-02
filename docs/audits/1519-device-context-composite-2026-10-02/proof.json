@@ -1,5 +1,5 @@
 {
-  "sourceHead": "e69d3cf050d6aef53fcacf3fc28cf53a31e87805",
+  "sourceHead": "17d9e426aeb1537216aac1eda154332805b49ed5",
   "handoffHead": "f519e681d372088b094c49ca91f25c999d68b077",
   "verifiedAtUTC": "2026-10-02T20:10:36.998269+00:00",
   "sourceSha256": {
@@ -87,5 +87,6 @@
     "External PR1544 was reviewed, not merged or closed.",
     "No release, deployment, device operation or global I01/I11 acceptance.",
     "New combined head requires its own full CI; baseline CI is not extrapolated."
-  ]
+  ],
+  "executionSourceNote": "Runtime/test ran at e69d3cf050d6aef53fcacf3fc28cf53a31e87805; the static rehearsal script was WIP with the exact bytes committed in 17d9e426a. No runtime or test bytes changed."
 }
