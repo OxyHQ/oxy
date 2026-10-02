@@ -643,6 +643,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read # Read-only candidate artifact provenance, never approval.
     # A backstop over the step caps below: the no-install phase (~2m), the
     # install (30s), the API checks' dependency-closure step (10m cap) and the
     # builds, lint and remaining guards (~3m) at their observed maxima.
@@ -650,6 +651,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # Frozen target ancestry must be available for a future scoped policy.
 
       - name: Setup Bun
         id: bun
@@ -814,10 +817,34 @@ jobs:
       # passing path.
       - name: 'Security Audit: fixture tests'
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
-        run: bun scripts/test-check-dependency-audit.mjs
+        run: |
+          bun scripts/test-check-dependency-audit.mjs
+          bun scripts/test-forge-audit-policy.mjs
+      # INACTIVE skips both steps. A future reviewed source policy needs installed
+      # byte inventory and authenticated GETs; this token proves service access,
+      # never a human decision. No patch script or dependency hook runs here.
+      - name: 'Security Audit: read committed policy setup'
+        id: forge-policy
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: |
+          bun -e 'import { readCommittedPolicyStatus } from "./scripts/forge-audit-policy.mjs"; console.log("active=" + (readCommittedPolicyStatus() === "ACTIVE"));' >> "$GITHUB_OUTPUT"
+      - name: 'Security Audit: install scoped policy byte inventory'
+        if: ${{ !cancelled() && steps.forge-policy.outputs.active == 'true' }}
+        run: bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
+      - name: 'Security Audit: authenticate read-only provenance GETs'
+        id: forge-auth
+        if: ${{ !cancelled() && steps.forge-policy.outputs.active == 'true' }}
+        env:
+          FORGE_PROVENANCE_READ_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$FORGE_PROVENANCE_READ_TOKEN" | gh auth login --hostname github.com --with-token
       - name: 'Security Audit: check'
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: bun scripts/check-dependency-audit.mjs
+      - name: 'Security Audit: remove read-only provenance login'
+        if: ${{ always() && steps.forge-auth.outcome == 'success' }}
+        run: gh auth logout --hostname github.com
 
       # Gates the rollout logic that deploy-aws.yml runs against production. Mirrors
       # Mention's "Verify deployment transaction safeguards" step -- the two repos
