@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
-import {
-  type AppCapabilityCatalog,
-  type ActorRef,
-  type AutonomyLevel,
-  type CapabilityTicketClaims,
-  type GrantLimit,
-  type PolicyDecision,
-  type ResourceRef,
+import type {
+  AppCapabilityCatalog,
+  ActorRef,
+  AutonomyLevel,
+  CapabilityCatalogBinding,
+  CapabilityTicketClaims,
+  GrantLimit,
+  PolicyDecision,
+  ResourceRef,
 } from '@oxy.so/contracts';
 import { issueCapabilityTicket } from '@oxy.so/core/server';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
@@ -47,6 +48,8 @@ export interface AuthorityRequest {
   /** Required when durable automation authority is materialized for one run. */
   runId?: string;
   stepId?: string;
+  /** Supplied only by the new pinned-catalogue invocation lane. */
+  expectedCatalog?: CapabilityCatalogBinding;
 }
 
 export interface AuthorityResult {
@@ -217,6 +220,11 @@ export async function evaluateCapabilityAuthority(
 
   const registration = await activeCapabilityCatalog(authorization.resourceApp);
   if (!registration) return denied('catalog_not_registered');
+  if (request.expectedCatalog && (
+    request.expectedCatalog.registrationId !== registration.id
+    || request.expectedCatalog.version !== registration.version
+    || request.expectedCatalog.digest !== registration.digest
+  )) return denied('ticket_catalog_no_longer_current');
   const tool = registration.catalog.tools.find((entry) => entry.name === authorization.tool);
   if (!tool || !tool.exposure.includes('internal')) return denied('tool_not_exposed_internally');
   if (!tool.resourceTypes.includes(authorization.resourceType)) return denied('resource_type_mismatch');
@@ -327,6 +335,7 @@ export async function evaluateCapabilityAuthority(
     ...(automationId ? { automationId } : {}),
     executionAuthorization,
     coordinator: request.coordinator,
+    ...(request.expectedCatalog ? { catalog: request.expectedCatalog } : {}),
     ...(grantParts ? { grantId: grantParts.grant.id } : {}),
     requesterAccountId: authorization.requesterAccountId,
     ownerAccountId: authorization.ownerAccountId,
@@ -417,6 +426,7 @@ export async function reauthorizeCapabilityTicket(claims: CapabilityTicketClaims
   const request = {
     executionAuthorizationId: claims.executionAuthorization.id,
     coordinator: claims.coordinator,
+    ...(claims.catalog ? { expectedCatalog: claims.catalog } : {}),
     ...(claims.executionAuthorization.kind === 'automation' ? {
       runId: claims.runId,
       ...(claims.stepId ? { stepId: claims.stepId } : {}),
