@@ -1,3 +1,4 @@
+import { meteredGenerationSchema } from '@oxy.so/contracts';
 /**
  * The PUBLIC dialects of the Oxy inference edge, and their normalization into
  * the one internal envelope (issue #972 workstream 4, ADR 0010).
@@ -531,7 +532,7 @@ export const realtimeOpenFrameSchema = z
 
 export type RealtimeOpenFrame = z.infer<typeof realtimeOpenFrameSchema>;
 
-export const generationReceiptSchema = z
+const commercialGenerationReceiptSchema = z
   .object({
     schemaVersion: z.literal(1),
     receiptId: z.string().min(1),
@@ -566,6 +567,8 @@ export const generationReceiptSchema = z
     settledAt: z.string().datetime(),
   })
   .strict();
+
+export const generationReceiptSchema = z.union([commercialGenerationReceiptSchema, meteredGenerationSchema]);
 
 export type GenerationReceipt = z.infer<typeof generationReceiptSchema>;
 
@@ -1051,7 +1054,7 @@ export function normalizeSpeechRequest(request: SpeechRequest): NormalizedEdgeRe
     operation: { kind: 'speech' as const, characters: request.input.length },
     target: request.routingProfileId !== undefined
       ? { kind: 'routing_profile_id' as const, routingProfileId: request.routingProfileId }
-      : { kind: 'model' as const, modelReference: request.model! },
+      : { kind: 'model' as const, modelReference: request.model ?? (() => { throw new Error('Validated request has no model'); })() },
     input: { format: 'text' as const, text: request.input },
     stream: false,
     sampling: {},

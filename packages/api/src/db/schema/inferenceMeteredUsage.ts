@@ -75,6 +75,8 @@ export const inferenceMeteredUsage = pgTable(
     id: generatedId(),
 
     requestId: text().notNull(),
+    /** Authenticated Auto classifier lineage; never supplied by a public request. */
+    parentRequestId: text(),
     /** The edge's ledger key. Unique among rows that were not refused. */
     idempotencyKey: text().notNull(),
 
@@ -116,6 +118,13 @@ export const inferenceMeteredUsage = pgTable(
     ceilingAmount: exactAmount(),
     ceilingCurrency: text(),
 
+    /** Final authorization after Auto requalification; the initial admission stays immutable. */
+    finalAuthorizedModelReference: text(),
+    finalAuthorizedProvider: text(),
+    finalAuthorizedDeploymentId: text(),
+    finalAuthorizedCeilingAmount: exactAmount(),
+    finalAuthorizedCeilingCurrency: text(),
+
     status: text({ enum: METERED_USAGE_STATUSES }).notNull().default('admitted'),
     /** The in-flight deadline capacity counts against; a hold's TTL, without a hold. */
     expiresAt: timestamptz().notNull(),
@@ -152,6 +161,17 @@ export const inferenceMeteredUsage = pgTable(
       t.createdAt
     ),
     index('inference_metered_usage_settled_idx').on(t.settledAt),
+    index('inference_metered_usage_parent_idx').on(t.parentRequestId),
+    check('inference_metered_usage_parent_check',
+      sql`${t.parentRequestId} is null or (${t.parentRequestId} <> ${t.requestId} and length(${t.parentRequestId}) > 0)`),
+    check('inference_metered_usage_final_authorization_check',
+      sql`(${t.finalAuthorizedModelReference} is null and ${t.finalAuthorizedProvider} is null
+        and ${t.finalAuthorizedDeploymentId} is null and ${t.finalAuthorizedCeilingAmount} is null
+        and ${t.finalAuthorizedCeilingCurrency} is null) or
+        (${t.finalAuthorizedModelReference} is not null and ${t.finalAuthorizedProvider} is not null
+        and ${t.finalAuthorizedDeploymentId} is not null
+        and (${t.finalAuthorizedCeilingAmount} is null) = (${t.finalAuthorizedCeilingCurrency} is null)
+        and (${t.finalAuthorizedCeilingCurrency} is null or ${currencyCodeCheck(t.finalAuthorizedCeilingCurrency)}))`),
 
     check(
       'inference_metered_usage_treatment_check',

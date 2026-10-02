@@ -1,3 +1,4 @@
+import type { MeteredGeneration } from '@oxy.so/contracts';
 /**
  * The Oxy inference client — one surface, two credential lanes (issue #972,
  * workstream 15).
@@ -262,6 +263,9 @@ export interface OxyGenerationReceipt {
     readonly platformFeeOnly: boolean;
     readonly settledAt: string;
 }
+
+/** The endpoint returns either a customer receipt or internal technical usage. */
+export type OxyGenerationRecord = OxyGenerationReceipt | MeteredGeneration;
 
 /**
  * Anything the inference API refused.
@@ -688,12 +692,22 @@ export class OxyInferenceClient {
      */
     async getGeneration(
         id: string,
-        options: { signal?: AbortSignal } = {},
+        options: { signal?: AbortSignal; delegatedUserId?: string } = {},
     ): Promise<OxyGenerationReceipt> {
-        const body = await this.#request<{ data: OxyGenerationReceipt }>(
-            'GET',
-            `/v1/generations/${encodeURIComponent(id)}`,
-            { ...(options.signal === undefined ? {} : { signal: options.signal }) },
+        const record = await this.getGenerationRecord(id, options);
+        if (record.schemaVersion !== 1) {
+            throw new OxyInferenceProtocolError('Internal usage has no financial receipt. Use getGenerationRecord().', record.requestId);
+        }
+        return record;
+    }
+
+    /** Read a financial receipt (v1) or an internal technical record (v2). */
+    async getGenerationRecord(
+        id: string,
+        options: { signal?: AbortSignal; delegatedUserId?: string } = {},
+    ): Promise<OxyGenerationRecord> {
+        const body = await this.#request<{ data: OxyGenerationRecord }>(
+            'GET', `/v1/generations/${encodeURIComponent(id)}`, options,
         );
         return body.data;
     }

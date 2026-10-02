@@ -22,6 +22,7 @@ export {
 } from './OxyInferenceClient';
 export type {
   OxyGenerationReceipt,
+  OxyGenerationRecord,
   OxyInferenceClientOptions,
   OxyInferenceCredential,
   OxyInferenceFetch,

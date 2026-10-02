@@ -1458,3 +1458,5 @@ export { SCOPED_EXECUTION_CONTRACT_VERSION, SCOPED_REQUEST_ENVELOPE_VERSION, sco
 export type { ScopedExecutionAudience, ScopedExecution } from './inference/scopedExecution';
 export { scopedInferenceRequestSchema } from './inference/request';
 export type { ScopedInferenceRequest } from './inference/request';
+
+export { meteredGenerationSchema, type MeteredGeneration } from "./inference/economics";

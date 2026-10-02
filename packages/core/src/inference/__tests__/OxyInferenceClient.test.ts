@@ -941,3 +941,44 @@ describe('decisions response request identity', () => {
         expect(stub.calls).toHaveLength(1);
     });
 });
+
+
+describe('financial and internal generation records', () => {
+  const internal = { schemaVersion: 2, kind: 'metered_usage', meteredUsageId: 'usage-1', requestId: 'req-1',
+    applicationId: 'app-1', credentialId: 'credential-1', delegatedUserId: 'user-1', environment: 'production',
+    economicTreatment: 'internal_metered', economicPolicyVersion: 'policy-2', outcome: 'completed',
+    usageSource: 'provider_reported', units: [{ unit: 'input_tokens', quantity: 1000 }],
+    resolvedModelReference: 'acme/model@revision', servingProvider: 'acme',
+    tariff: { status: 'quoted', amount: '0.001000000000', currency: 'USD', priceVersionId: 'price-1' },
+    customerCharge: { status: 'not_charged' }, settledAt: '2026-10-02T12:00:00.000Z' };
+  it('reads technical records through the additive method and carries the attribution selector', async () => {
+    const { impl, calls } = stubFetch([{ status: 200, body: { data: internal } }]);
+    const client = new OxyInferenceClient({ credential: 'synthetic-key', baseURL: 'http://test.invalid', fetch: impl });
+    const record = await client.getGenerationRecord('req-1', { delegatedUserId: 'user-1' });
+    expect(record).toEqual(internal);
+    expect(calls[0].url).toBe('http://test.invalid/v1/generations/req-1');
+    expect(headerOf(calls[0].init, 'X-Oxy-User-Id')).toBe('user-1');
+    if (record.schemaVersion === 2) expect(record.customerCharge.status).toBe('not_charged');
+  });
+  it('preserves the financial method signature and rejects technical records without exposing response or bearer', async () => {
+    const { impl } = stubFetch([{ status: 200, body: { data: { ...internal, secretBody: 'private-body' } } }]);
+    const client = new OxyInferenceClient({ credential: 'private-bearer', baseURL: 'http://test.invalid', fetch: impl });
+    const error = await client.getGeneration('req-1').catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(OxyInferenceProtocolError);
+    expect(error).toMatchObject({ requestId: 'req-1', message: 'Internal usage has no financial receipt. Use getGenerationRecord().' });
+    expect(JSON.stringify(error)).not.toMatch(/private-body|private-bearer/);
+  });
+  it('continues returning a v1 financial receipt through the existing method', async () => {
+    const receipt = { schemaVersion: 1, receiptId: 'receipt-1', requestId: 'req-1', applicationId: 'app-1',
+      credentialId: 'credential-1', environment: 'production', outcome: 'completed', usageSource: 'provider_reported',
+      units: [{ unit: 'input_tokens', quantity: 1000 }], resolvedModelReference: 'acme/model@revision', servingProvider: 'acme',
+      priceSnapshot: { priceVersionId: 'price-1', currency: 'USD', unitPrices: [] }, billedAmount: '0.001000000000',
+      currency: 'USD', platformFeeOnly: false, settledAt: '2026-10-02T12:00:00.000Z' };
+    const { impl } = stubFetch([{ status: 200, body: { data: receipt } }]);
+    const client = new OxyInferenceClient({ credential: 'synthetic-key', baseURL: 'http://test.invalid', fetch: impl });
+    const result = await client.getGeneration('req-1');
+    const billed: string = result.billedAmount;
+    expect(billed).toBe('0.001000000000');
+    expect(result).toEqual(receipt);
+  });
+});

@@ -1,3 +1,4 @@
+import { resolveEconomicTreatment } from '../config/inferenceEconomicPolicy';
 import { canonicalWorkloadSubject } from "../services/workloadIdentityBinding.service";
 import { workloadAttestationHandle } from "../services/workloadAttestation.service";
 import { intersectScopes, workloadBindingScopes } from "../utils/applicationScopes";
@@ -120,7 +121,9 @@ export interface JevPrincipalsReadbackInput {
   readonly transactionReadOnly: boolean;
   readonly transactionIsolation: string;
   readonly observedAt: Date;
-  readonly alia?: JevPrincipalsReadbackInput["mention"];
+  readonly alia?: JevPrincipalsReadbackInput["mention"] & {
+    readonly technicalMetering?: { readonly schemaAvailable: boolean; readonly activeAdmissions: number; readonly dailyAdmissions: number };
+  };
   readonly mention: {
     readonly applications: readonly JevApplicationRow[];
     readonly owners: readonly JevOwnerRow[];
@@ -177,7 +180,7 @@ export interface JevCredentialSummary {
 }
 
 export interface JevPrincipalsReadbackResult {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 1 | 2;
   readonly status: "ready" | "blocked";
   readonly blockedReasons: readonly JevPrincipalsBlockedReason[];
   readonly database: {
@@ -186,7 +189,14 @@ export interface JevPrincipalsReadbackResult {
     readonly transactionIsolation: typeof INBOX_PRINCIPAL_READBACK_ISOLATION;
     readonly writes: 0;
   };
-  readonly alia?: JevPrincipalsReadbackResult["mention"] & { readonly status: "ready" | "blocked"; readonly blockedReasons: readonly string[] };
+  readonly alia?: JevPrincipalsReadbackResult["mention"] & { readonly status: "ready" | "blocked"; readonly blockedReasons: readonly string[];
+    readonly economicTreatment: "commercial" | "internal_metered";
+    readonly economicPolicyVersion: string;
+    readonly commercialFundingRequired: boolean;
+    readonly technicalMetering: { readonly schemaAvailable: boolean; readonly activeAdmissions: number | null;
+      readonly dailyAdmissions: number | null; readonly maxInFlight: number | null; readonly maxRequestsPerDay: number | null };
+    readonly providerActivationAuthorized: false;
+  };
   readonly mention: {
     readonly applicationId: string;
     readonly ownerAccountId: string | null;
@@ -275,7 +285,7 @@ function checkOwner(
 
 function validateWorkloadReadback(
   input: JevPrincipalsReadbackInput,
-  target = { app: JEV_MENTION_APPLICATION_ID, role: JEV_MENTION_WORKLOAD_ROLE_ARN, handle: deriveJevMentionWorkloadCredentialId },
+  target: { app: string; role: string; handle: () => string; requireCommercialFunding?: boolean } = { app: JEV_MENTION_APPLICATION_ID, role: JEV_MENTION_WORKLOAD_ROLE_ARN, handle: deriveJevMentionWorkloadCredentialId },
 ): JevPrincipalsReadbackResult {
   if (input.transactionReadOnly !== true) {
     fail("PostgreSQL did not confirm a read-only transaction");
@@ -386,10 +396,10 @@ function validateWorkloadReadback(
   let reserved: bigint | null = null;
   let promotionalAfterReserves: bigint | null = null;
   let ledgerReconciled = false;
-  if (mentionApp !== undefined && billingAccount === undefined) {
+  if (target.requireCommercialFunding !== false && mentionApp !== undefined && billingAccount === undefined) {
     reasons.add("mention_billing_not_provisioned");
   }
-  if (billingAccount !== undefined) {
+  if (target.requireCommercialFunding !== false && billingAccount !== undefined) {
     if (billingAccount.billingMode === "prepaid" || billingAccount.billingMode === "invoiced") {
       accountMode = billingAccount.billingMode;
     } else {
@@ -514,10 +524,33 @@ function validateWorkloadReadback(
 export function validateJevPrincipalsReadback(input: JevPrincipalsReadbackInput): JevPrincipalsReadbackResult {
   const result = validateWorkloadReadback(input);
   if (input.alia === undefined) return result;
+  const app = onlyRow(input.alia.applications, "Alia application");
+  const economics = resolveEconomicTreatment({ lane: 'service_token', applicationId: JEV_ALIA_APPLICATION_ID,
+    environment: 'production', applicationIsInternal: app?.isInternal ?? false });
+  const internal = economics.treatment === 'internal_metered';
   const candidate = validateWorkloadReadback({ ...input, mention: input.alia }, {
     app: JEV_ALIA_APPLICATION_ID, role: JEV_ALIA_WORKLOAD_ROLE_ARN, handle: deriveJevAliaWorkloadCredentialId,
+    requireCommercialFunding: !internal,
   });
   const blockedReasons = candidate.blockedReasons.filter(reason => reason.startsWith("mention_"))
     .map(reason => reason.replace(/^mention_/, "alia_"));
-  return { ...result, alia: { ...candidate.mention, status: blockedReasons.length === 0 ? "ready" : "blocked", blockedReasons } };
+  const evidence = input.alia.technicalMetering;
+  const limits = economics.treatment === 'internal_metered' ? economics.relationship.capacity : undefined;
+  if (internal) {
+    if (evidence?.schemaAvailable !== true) blockedReasons.push('alia_technical_metering_unavailable');
+    else {
+      if (!Number.isSafeInteger(evidence.activeAdmissions) || evidence.activeAdmissions < 0
+        || !Number.isSafeInteger(evidence.dailyAdmissions) || evidence.dailyAdmissions < 0) fail('Invalid technical capacity measurement');
+      if (limits !== undefined && evidence.activeAdmissions >= limits.maxConcurrentRequests) blockedReasons.push('alia_technical_concurrency_exhausted');
+      if (limits !== undefined && evidence.dailyAdmissions >= limits.maxRequestsPerUtcDay) blockedReasons.push('alia_technical_daily_exhausted');
+    }
+  }
+  return { ...result, schemaVersion: 2, alia: { ...candidate.mention,
+    status: blockedReasons.length === 0 ? "ready" : "blocked", blockedReasons,
+    economicTreatment: economics.treatment, economicPolicyVersion: economics.policyVersion,
+    commercialFundingRequired: !internal, providerActivationAuthorized: false,
+    technicalMetering: { schemaAvailable: evidence?.schemaAvailable ?? false,
+      activeAdmissions: evidence?.activeAdmissions ?? null, dailyAdmissions: evidence?.dailyAdmissions ?? null,
+      maxInFlight: limits?.maxConcurrentRequests ?? null, maxRequestsPerDay: limits?.maxRequestsPerUtcDay ?? null },
+  } };
 }

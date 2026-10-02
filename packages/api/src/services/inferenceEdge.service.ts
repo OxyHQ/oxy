@@ -108,7 +108,7 @@ import { decisionAvailability } from '../config/decisionAvailability';
 
 import { createHash, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
-import { and, asc, desc, eq, or } from 'drizzle-orm';
+import { sql, and, asc, desc, eq, or } from 'drizzle-orm';
 import type { z } from 'zod';
 import {
   currentDeploymentLiveness,
@@ -180,6 +180,8 @@ import { verifyServiceToken } from '../middleware/serviceToken';
 import { resolveServiceTokenPrincipal } from './attribution.service';
 import {
   claimMeteredAdmission,
+  finalizeMeteredAuthorization,
+  hasActiveInternalMeteredAdmission,
   markMeteredAdmissionRefused,
   settleMeteredUsage,
 } from './inferenceMeteredUsage.service';
@@ -234,6 +236,7 @@ import {
   type GenerationReceipt,
   type NormalizedEdgeRequest,
 } from '../schemas/inferenceEdge.schemas';
+import { inferenceMeteredUsage } from '../db/schema/inferenceMeteredUsage';
 import { machineCredentialTokenPrefix } from '../utils/machineCredentialToken';
 
 /* -------------------------------------------------------------------------- */
@@ -913,11 +916,13 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
 /** A semantic decision can restart routing once, with no hold and the SAME pinned policy. */
 async function admitWithAutoDecision(
   context: EdgeExecutionContext,
-  resolvedAuto?: { readonly decision: AutoPowerDecision; readonly policy: EffectiveRoutingPolicyResolution }
+  resolvedAuto?: { readonly decision: AutoPowerDecision; readonly policy: EffectiveRoutingPolicyResolution },
+  preclaimedMeteredUsageId?: string
 ): Promise<Admission> {
   const { requestId, principal, request } = context;
   const charging = isChargingAuthorized();
   const scopedPermit = scopedPermitForContext(context);
+  const economics = resolveEconomicTreatment(principal);
 
   const refuse = (
     code: InferenceErrorCode,
@@ -930,7 +935,7 @@ async function admitWithAutoDecision(
 
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
   if (context.autoClassificationChild !== undefined && (
-    !charging || request.operation.kind !== 'decisions' || request.target?.kind !== 'model'
+    (!charging && economics.treatment === 'commercial') || request.operation.kind !== 'decisions' || request.target?.kind !== 'model'
     || request.target.modelReference !== context.autoClassificationChild.modelReference
     || !request.target.modelReference.includes('@')
   )) {
@@ -948,8 +953,6 @@ async function admitWithAutoDecision(
 
   // The economic treatment, from the AUTHENTICATED principal only. Read once,
   // like the charging flag, so admission and settlement cannot disagree.
-  const economics = resolveEconomicTreatment(principal);
-
   if (request.operation.kind === 'decisions' || request.input.format === 'decisions' || context.apiFormat === 'decisions') {
     const gate = decisionAvailability();
     if (!gate.available && scopedPermit === undefined) return refuse('service_unavailable', gate.reason, { reason: 'decisions-review-required' });
@@ -1050,7 +1053,7 @@ async function admitWithAutoDecision(
         ? 0
         : requestedOutput ?? ('model-maximum' as const),
   };
-  if (scopedPermit !== undefined && (!charging || !scopedFundingIntegrationAvailable())) {
+  if (scopedPermit !== undefined && economics.treatment === 'commercial' && (!charging || !scopedFundingIntegrationAvailable())) {
     return refuse('service_unavailable', 'Scoped promotional funding integration is unavailable.');
   }
   const authenticatedRoutingContext = {
@@ -1901,48 +1904,6 @@ async function admitWithAutoDecision(
   };
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
   if (scopedPermit !== undefined && Date.parse(scopedPermit.expiresAt) <= Date.now()) return refuse('policy_violation', 'Scoped authorization expired before reservation.');
-  if (pendingAuto !== undefined && resolvedAuto === undefined) {
-    // The parent is already fully qualified, attested, quoted and past its
-    // idempotency check (a known attempt never reaches a child) at its
-    // deterministic floor. A child runs only when a STRICTLY higher level is
-    // viable too, since a semantic recommendation can only raise the floor.
-    const { decision: floorDecision, levels: ladder } = pendingAuto;
-    const rank = (level: string): number => (AUTO_POWER_LEVELS as readonly string[]).indexOf(level);
-    const floor = rank(floorDecision.level);
-    const viable = new Set(capacityCompatible.map((candidate) =>
-      rank(ladder[candidate.priority] ?? floorDecision.level)));
-    const classifier = Math.max(...viable) > floor
-      ? createJevAutoClassifier(context, policy, executeInferenceRequest, routingPolicy)
-      : undefined;
-    // The semantic child previews a COMMERCIAL reservation, so it runs only for
-    // a charged commercial parent; an internal parent keeps the deterministic
-    // floor until the child is decoupled from charging (#1526's follow-up, I10).
-    if (classifier !== undefined && charging && economics.treatment === 'commercial') {
-      const preview = await previewReservation({
-        idempotencyKey: ledgerKey, attribution: ledgerAttribution,
-        ceilingPriceVersionId, maxAmount, currency: quote.currency,
-        expiresInSeconds: RESERVATION_TTL_SECONDS,
-      });
-      // A raced key (`already-reserved`) refuses here like any ledger refusal,
-      // before any task text reaches a child.
-      if (preview.status !== 'eligible') {
-        const denied = reservationOrRefusal(preview, requestId, quote.currency);
-        if ('error' in denied) return refuseReservation(preview, denied.error);
-      }
-      const semantic = await createAutoPowerLevelResolver(classifier)(pendingAuto.features, {
-        requestId, signal: context.signal,
-        state: () => JSON.stringify({ input: request.input, tools: request.tools }),
-      });
-      // A level with no viable route at or above it would refuse a request the
-      // deterministic floor admits; the floor stands instead.
-      const decision: AutoPowerDecision = [...viable].some((index) => index >= rank(semantic.level))
-        ? semantic
-        : { ...floorDecision, classification: { source: 'deterministic', reason: 'not_viable', version: AUTO_CLASSIFIER_VERSION } };
-      // Requalify even an unchanged level: policy stays pinned, live permissions,
-      // capability/privacy evidence, spending and exact attestation are read again.
-      return admitWithAutoDecision(context, { decision, policy });
-    }
-  }
   const holdTtlSeconds =
     request.operation.kind === 'realtime_session'
       ? Math.max(RESERVATION_TTL_SECONDS, request.operation.reservationTtlSeconds)
@@ -1951,8 +1912,9 @@ async function admitWithAutoDecision(
   // 6c'. Claim the durable usage row: the idempotency guard for EVERY
   //      treatment, and the technical capacity check for `internal_metered`.
   //      Nothing is reserved or forwarded unless this succeeds.
-  const claim = await claimMeteredAdmission({
+  const meteredInput = {
     requestId,
+    ...(context.autoClassificationChild === undefined ? {} : { parentRequestId: context.autoClassificationChild.parentRequestId }),
     idempotencyKey: ledgerKey,
     economics,
     accountId: principal.ownerAccountId,
@@ -1968,7 +1930,10 @@ async function admitWithAutoDecision(
     routingPolicyVersionId,
     ceiling: { amount: maxAmount, currency: quote.currency },
     expiresInSeconds: holdTtlSeconds,
-  });
+  };
+  const claim = preclaimedMeteredUsageId === undefined
+    ? await claimMeteredAdmission(meteredInput)
+    : { status: 'claimed' as const, meteredUsageId: preclaimedMeteredUsageId };
   if (claim.status === 'duplicate') {
     return refuse(
       'idempotency_conflict',
@@ -2005,6 +1970,65 @@ async function admitWithAutoDecision(
         );
   }
 
+  if (preclaimedMeteredUsageId !== undefined && !(await finalizeMeteredAuthorization(preclaimedMeteredUsageId, meteredInput))) {
+    return refuse('internal_error', 'Final Auto authorization could not be recorded.');
+  }
+
+  if (pendingAuto !== undefined && resolvedAuto === undefined) {
+    // The parent is already fully qualified, attested, quoted and past its
+    // idempotency check (a known attempt never reaches a child) at its
+    // deterministic floor. A child runs only when a STRICTLY higher level is
+    // viable too, since a semantic recommendation can only raise the floor.
+    const { decision: floorDecision, levels: ladder } = pendingAuto;
+    const rank = (level: string): number => (AUTO_POWER_LEVELS as readonly string[]).indexOf(level);
+    const floor = rank(floorDecision.level);
+    const viable = new Set(capacityCompatible.map((candidate) =>
+      rank(ladder[candidate.priority] ?? floorDecision.level)));
+    const classifier = Math.max(...viable) > floor
+      ? createJevAutoClassifier(context, policy, executeInferenceRequest, routingPolicy)
+      : undefined;
+    // Internal parents and children keep separate durable capacity claims.
+    // Commercial parents additionally preview the financial reservation before
+    // task text can reach the classifier; all independent reviews still apply.
+    if (classifier !== undefined && (economics.treatment === 'internal_metered' || charging)) {
+      const preview = economics.treatment === 'internal_metered' ? { status: 'eligible' as const } : await previewReservation({
+        idempotencyKey: ledgerKey, attribution: ledgerAttribution,
+        ceilingPriceVersionId, maxAmount, currency: quote.currency,
+        expiresInSeconds: RESERVATION_TTL_SECONDS,
+      });
+      // A raced key (`already-reserved`) refuses here like any ledger refusal,
+      // before any task text reaches a child.
+      if (preview.status !== 'eligible') {
+        const denied = reservationOrRefusal(preview, requestId, quote.currency);
+        if ('error' in denied) {
+          await markMeteredAdmissionRefused(claim.meteredUsageId);
+          return refuseReservation(preview, denied.error);
+        }
+      }
+      const semantic = await createAutoPowerLevelResolver(classifier)(pendingAuto.features, {
+        requestId, signal: context.signal,
+        state: () => JSON.stringify({ input: request.input, tools: request.tools }),
+      });
+      // A level with no viable route at or above it would refuse a request the
+      // deterministic floor admits; the floor stands instead.
+      const decision: AutoPowerDecision = [...viable].some((index) => index >= rank(semantic.level))
+        ? semantic
+        : { ...floorDecision, classification: { source: 'deterministic', reason: 'not_viable', version: AUTO_CLASSIFIER_VERSION } };
+      // Requalify even an unchanged level: policy stays pinned, live permissions,
+      // capability/privacy evidence, spending and exact attestation are read again.
+      const rerouted = await admitWithAutoDecision(context, { decision, policy }, claim.meteredUsageId);
+      if (rerouted.status === 'refused') {
+        // A child may have executed. Retain the parent key and record its
+        // failed generation, independently of the child's measured usage.
+        await settleMeteredUsage({ meteredUsageId: claim.meteredUsageId,
+          outcome: 'failed', usageSource: 'estimated', units: {},
+          resolvedModelReference: route.modelReference, servingProvider: route.provider,
+          generationId: undefined, priceVersionId: route.priceVersionId });
+      }
+      return rerouted;
+    }
+  }
+
   if (charging && economics.treatment === 'commercial') {
     const reservation = await reserve({
       ...(scopedPermit === undefined ? {} : { fundingRestriction: scopedFundingRestriction }),
@@ -2035,7 +2059,7 @@ async function admitWithAutoDecision(
     if ('error' in held) {
       // Refused before anything was forwarded: free the key and the slot, as a
       // refused reservation always has.
-      await markMeteredAdmissionRefused(claim.meteredUsageId);
+      if (preclaimedMeteredUsageId === undefined) await markMeteredAdmissionRefused(claim.meteredUsageId);
       return refuseReservation(reservation, held.error);
     }
     hold = held.reservation;
@@ -2098,8 +2122,13 @@ export async function executeInferenceRequest(
     if (context.kaanaClient === undefined) {
       throw new DataPlaneNotConfiguredError();
     }
-    if (admitted.scopedExecution !== undefined && (hold === undefined || hold.expiresAt.getTime() <= Date.now() || Date.parse(admitted.scopedExecution.expiresAt) <= Date.now())) {
-      throw new Error('Scoped dispatch requires its retained unexpired hold and permit.');
+    if (admitted.scopedExecution !== undefined) {
+      const economicAdmissionActive = admitted.economics.treatment === 'internal_metered'
+        ? await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId)
+        : hold !== undefined && hold.expiresAt.getTime() > Date.now();
+      if (!economicAdmissionActive || Date.parse(admitted.scopedExecution.expiresAt) <= Date.now()) {
+        throw new Error('Scoped dispatch requires its retained unexpired economic admission and permit.');
+      }
     }
     completion = await context.kaanaClient.execute(envelope, { signal: context.signal });
   } catch (error) {
@@ -4262,7 +4291,8 @@ export type GenerationReceiptLookup =
  */
 export async function readGenerationReceipt(
   principal: EdgePrincipal,
-  id: string
+  id: string,
+  delegatedUserId?: string
 ): Promise<GenerationReceiptLookup> {
   if (!principal.scopes.includes('inference:usage:read')) {
     return { status: 'not-found' };
@@ -4275,6 +4305,10 @@ export async function readGenerationReceipt(
     .where(
       and(
         eq(usageReceipts.applicationId, principal.applicationId),
+        eq(usageReceipts.accountId, principal.ownerAccountId),
+        eq(usageReceipts.environment, principal.environment),
+        eq(usageReceipts.applicationCredentialId, principal.credentialId),
+        sql`${usageReceipts.delegatedUserId} is not distinct from ${delegatedUserId ?? null}`,
         or(eq(usageReceipts.requestId, id), eq(usageReceipts.generationId, id))
       )
     )
@@ -4282,7 +4316,35 @@ export async function readGenerationReceipt(
     .limit(1);
 
   if (!row) {
-    return { status: 'not-found' };
+    const [usage] = await db.select().from(inferenceMeteredUsage).where(and(
+      eq(inferenceMeteredUsage.applicationId, principal.applicationId),
+      eq(inferenceMeteredUsage.accountId, principal.ownerAccountId),
+      eq(inferenceMeteredUsage.environment, principal.environment),
+      eq(inferenceMeteredUsage.applicationCredentialId, principal.credentialId),
+      sql`${inferenceMeteredUsage.delegatedUserId} is not distinct from ${delegatedUserId ?? null}`,
+      eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
+      eq(inferenceMeteredUsage.status, 'settled'),
+      or(eq(inferenceMeteredUsage.requestId, id), eq(inferenceMeteredUsage.generationId, id)),
+    )).orderBy(desc(inferenceMeteredUsage.settledAt)).limit(1);
+    if (usage === undefined) return { status: 'not-found' };
+    return { status: 'found', receipt: generationReceiptSchema.parse({
+      schemaVersion: 2, kind: 'metered_usage', meteredUsageId: usage.id,
+      requestId: usage.requestId,
+      ...(usage.generationId === null ? {} : { generationId: usage.generationId }),
+      ...(usage.parentRequestId === null ? {} : { parentRequestId: usage.parentRequestId }),
+      applicationId: usage.applicationId, credentialId: usage.applicationCredentialId,
+      ...(usage.delegatedUserId === null ? {} : { delegatedUserId: usage.delegatedUserId }),
+      environment: usage.environment, economicTreatment: usage.economicTreatment,
+      economicPolicyVersion: usage.economicPolicyVersion,
+      outcome: usage.outcome, usageSource: usage.usageSource,
+      units: Object.entries(USAGE_UNIT_COLUMN_KEYS).map(([unit, key]) => ({ unit, quantity: usage[key] })),
+      resolvedModelReference: usage.resolvedModelReference, servingProvider: usage.servingProvider,
+      tariff: usage.tariffStatus === 'quoted'
+        ? { status: 'quoted', amount: usage.tariffAmount, currency: usage.tariffCurrency,
+            priceVersionId: usage.settledPriceVersionId }
+        : { status: 'unpriced', priceVersionId: usage.settledPriceVersionId },
+      customerCharge: { status: 'not_charged' }, settledAt: usage.settledAt?.toISOString(),
+    }) };
   }
 
   const snapshotRows = await db
