@@ -484,7 +484,7 @@ describe('delegation', () => {
           .data
       ).toEqual({ authorized: false, scopes: [] });
 
-      // The real thing does — this is what `recordAppGrant` calls.
+      // The real thing does — this is what `persistOAuthAuthorization` calls.
       await clearServiceActingAsRevocation(subjectUser, subject.appId);
       await getDb()
         .update(appGrants)

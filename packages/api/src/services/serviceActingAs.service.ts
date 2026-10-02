@@ -60,6 +60,10 @@ import { appGrants } from '../db/schema/appGrants';
 import { applications } from '../db/schema/applications';
 import { serviceActingAsRevocations } from '../db/schema/serviceActingAsRevocations';
 
+/** The database handle a helper runs on — the pool, or an open transaction. */
+type Db = ReturnType<typeof getDb>;
+type Executor = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
+
 /**
  * The scope every application's grant must name before it may act for a user.
  * Not merely one of the scopes a delegated call might need — it is the
@@ -191,21 +195,27 @@ export async function revokeServiceActingAs(
 /**
  * Clear `userId`'s refusal of `applicationId`, if there is one.
  *
- * Called ONLY from `recordAppGrant` and ONLY when the granted scopes name
- * {@link SERVICE_ACTING_AS_SCOPE}. That scope is consent-required, so a request
- * carrying it always reaches the consent screen — for a trusted application
- * exactly as for a third-party one — and reaching authorize with it means a
- * person read that screen and approved.
+ * Called ONLY from `persistOAuthAuthorization` (`oauthConsent.service.ts`),
+ * inside the transaction that records the grant and writes the code, and ONLY
+ * when the request EXPLICITLY named {@link SERVICE_ACTING_AS_SCOPE} and the code
+ * carries it. That scope is consent-required, so a request carrying it always
+ * reaches the consent screen — for a trusted application exactly as for a
+ * third-party one — and reaching a finalizer with it means a person read that
+ * screen and approved.
  *
  * Clearing on any successful authorize would have made revocation worthless: a
  * first-party application is auto-approved, so its very next sign-in would
  * silently undo a deliberate refusal.
+ *
+ * `db` is the pool by default, or the caller's open transaction — the clear must
+ * never commit without the grant and the code it belongs to.
  */
 export async function clearServiceActingAsRevocation(
   userId: string,
-  applicationId: string
+  applicationId: string,
+  db: Executor = getDb()
 ): Promise<void> {
-  await getDb()
+  await db
     .delete(serviceActingAsRevocations)
     .where(
       and(

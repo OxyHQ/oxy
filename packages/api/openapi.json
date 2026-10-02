@@ -6904,6 +6904,9 @@
           },
           "403": {
             "description": "Redirect URI is not registered for this client."
+          },
+          "500": {
+            "description": "The consent or the code could not be stored. Nothing was written — no code was issued and no grant recorded — so retrying is safe.\n"
           }
         },
         "operationId": "postAuthOauthAuthorize"
