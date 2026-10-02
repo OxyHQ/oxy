@@ -128,3 +128,23 @@ See [independent reproduction](1519-forge-independent-suites-2026-10-02.md) and
 [raw proof](forge-independent/2026-10-02-b09309b/proof.json). Tests of this candidate
 cover structural eligibility and rejection paths; they never assert that a human
 has approved a live exception.
+
+## Local validation of tracked candidate source
+
+On `c79d348bc`, all executed source and fixtures were committed before testing.
+The [validation proof](forge-candidate/audit-policy-validation-2026-10-02/proof.json)
+records source hashes, raw output digests and exact exit statuses:
+
+| Command | Result |
+| --- | --- |
+| `bun scripts/test-forge-audit-policy.mjs` | 94 structural/inactive assertions pass; synthetic positives never authorize |
+| `bun scripts/test-check-dependency-audit.mjs` | 9 original audit cases pass |
+| `node scripts/test-forge-remediation-proof-proposal.mjs` | 131 original inert assertions pass |
+| `bun scripts/test-ci-scope.mjs` | 38 cases pass |
+| `bun scripts/check-dependency-audit.mjs` | Expected exit 1, only the unacknowledged Forge GHSA reported |
+
+The validator additionally invokes the normal gate with the recorded Forge
+payload and all four tempting environment flags. It still exits 1 for the GHSA.
+The current branch has no installed dependency inventory; INACTIVE neither
+installs one nor infers a waiver from its absence. A fresh ARM run for this
+candidate source is still required before any activation proposal.
