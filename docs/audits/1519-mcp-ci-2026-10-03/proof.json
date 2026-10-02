@@ -1,0 +1,245 @@
+{
+  "packageTestSourceHead": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+  "workflowSourceHead": "01b02d9d1d1035f9726305a9dade4758a0ab0105",
+  "checkedAtUTC": "2026-10-02T22:02:46.003110+00:00",
+  "sources": [
+    {
+      "path": "packages/mcp/CHANGELOG.md",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "687d8e7b6e3c0c17e353c68496b8e0c7dedcc401f3078801b94f32ac815516d6"
+    },
+    {
+      "path": "packages/mcp/LICENSE",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "539f022f2d903e1fe4435a65f04e8d3ad29484a910debfb575a687269378460c"
+    },
+    {
+      "path": "packages/mcp/jest.config.cjs",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "6c989290e2d33cf1efa46836fa61690ecd6e256d4846d6ac0d93d7a189a5a849"
+    },
+    {
+      "path": "packages/mcp/package.json",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "8bbc30593a85a30ccfef483ed65d5562b93436ce3858391a2ee3f6c2415117be"
+    },
+    {
+      "path": "packages/mcp/scripts/fix-esm-imports.mjs",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "36f4c9c2ec2e1d27f1d89ee7189590f2067053599a6d51aa2fa71b6116d278a0"
+    },
+    {
+      "path": "packages/mcp/scripts/verify-internal-packed.mjs",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "ee1e5349e07de6ddd3e6d2b29fd3a1cd4f2ee41e074db356b7958ebe9b64c4e4"
+    },
+    {
+      "path": "packages/mcp/src/__tests__/catalogAdapter.test.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "7b5956afda608bb8671627c0fc236143d330b46cb6eeb41ac8a553c1d103d93f"
+    },
+    {
+      "path": "packages/mcp/src/__tests__/consumerAccountBinding.test.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "db5888f7934fa2f28b9446f9140a5f7f4232860cdb8b726b77fe7058cf9f0786"
+    },
+    {
+      "path": "packages/mcp/src/__tests__/http.test.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "c99ff1868b1f26ce62784b1ee5d8c8f576e0c29474b59a17056619fd2a3647ec"
+    },
+    {
+      "path": "packages/mcp/src/__tests__/httpTransport.test.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "65d4b377a6d5275942b32151fe9c5dc102bcdbcb290035808f8032648c9790fc"
+    },
+    {
+      "path": "packages/mcp/src/__tests__/internalInvocation.test.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "d766ace8c57a416f49e8ba93b2ac5cd2ce47135bdf13f3c23cf9351c99da7a80"
+    },
+    {
+      "path": "packages/mcp/src/__tests__/internalTransport.test.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "1ce080f7ce43e14764ff4ef3dc6942cccb41127f33786f2a1fcf734c78134733"
+    },
+    {
+      "path": "packages/mcp/src/__tests__/introspection.test.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "35e231160a0b7fc4bc6351c98019837081c502ae135de3b0ad0c6ad29748d3b0"
+    },
+    {
+      "path": "packages/mcp/src/__tests__/jsonSchema.test.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "b88a20a99858c7c219e656e1b7fa7fcb54897076b0de14249f81a994bbcbdd6a"
+    },
+    {
+      "path": "packages/mcp/src/__tests__/oauth.test.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "ee2b663644c1105438e8597c7a6372c1d0866a62d06f3388499a47e5cc4af37f"
+    },
+    {
+      "path": "packages/mcp/src/catalogAdapter.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "af8c2483c130d7c17f4e54ef7753def3fceb3cece007acc79033be63e5d03944"
+    },
+    {
+      "path": "packages/mcp/src/connections.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "153f957f6fc9b6d1177b4958d17cfd9293f072b4bc499b48ee644f1a6263c603"
+    },
+    {
+      "path": "packages/mcp/src/http.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "390fb1a42658565c562d66434b791b1ea1a30580e54cea1cf88c80d9e6e9e89c"
+    },
+    {
+      "path": "packages/mcp/src/httpTransport.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "3474733ca4f98234da8e3224ae81226d4fac7d9fbfa0a5d0746775dc07995102"
+    },
+    {
+      "path": "packages/mcp/src/index.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "9b839a9fca8dc1d320139d4d2642dc1674c6ba5948c945482663c43fc5b2be78"
+    },
+    {
+      "path": "packages/mcp/src/internalClient.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "56b78d57a958e371226399c443750d77390438f76cb5fa5fd0dd0cff80cd93f9"
+    },
+    {
+      "path": "packages/mcp/src/internalTransport.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "afb73aa49e2137fa966fafff8d72fab60cb5b9ac33ac117fc61dac48a58ffaa1"
+    },
+    {
+      "path": "packages/mcp/src/introspection.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "7fe0c91daccc86156a58bfca51ddc85698c73a59fd6775a53dc8b46f8323a66c"
+    },
+    {
+      "path": "packages/mcp/src/invocationAdapter.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "fb76f6138e0753cbaae15a146fd6dc77c30b691fa06e5cf8b7233188b19d59c8"
+    },
+    {
+      "path": "packages/mcp/src/jsonSchema.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "41869ce0c6d19ca61a5cc62af8fbea1232f141379603c957bbc1993e64da3b34"
+    },
+    {
+      "path": "packages/mcp/src/oauth.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "5969369cbbd025d423ec30d9c5663cb6a6998578db86f32a3d39fcb3587e73bf"
+    },
+    {
+      "path": "packages/mcp/src/serviceRequest.ts",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "f80ff980248e90f3eeff8962aa53473c9bcfbe1e96f6cad101e818089ad93081"
+    },
+    {
+      "path": "packages/mcp/tsconfig.cjs.json",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "7de3db1833f9a73baa017d91839a112d3bce18d20bf2970c80bc5debcf6af4b4"
+    },
+    {
+      "path": "packages/mcp/tsconfig.esm.json",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "b1924558269edc22c36064c28c24d2904ca3de43f5f9ca93f11126438b92350d"
+    },
+    {
+      "path": "packages/mcp/tsconfig.json",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "2bb886a2aac06f19e515c51aeac515945d4ca9cda551470fe1756946514cd6a4"
+    },
+    {
+      "path": "packages/mcp/tsconfig.types.json",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "4bdb4865fcc51a178a0fde11930d7d3b0908faaa6f6fc2f1838b25f809050212"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sourceCommit": "01b02d9d1d1035f9726305a9dade4758a0ab0105",
+      "sha256": "bf08c0ad978c1b8598924624cb1902e2f8bb65c7d2371c232166814e9aca4695"
+    },
+    {
+      "path": "scripts/test-ci-scope.mjs",
+      "sourceCommit": "01b02d9d1d1035f9726305a9dade4758a0ab0105",
+      "sha256": "cf0dfeb513931c4c63dca37bb8d12d04a2ba27f74112fb581c00e0ba65a34fa8"
+    },
+    {
+      "path": "packages/contracts/package.json",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "fbff525612eab798d50948c8e56590e1434721bd780b6ab48faa8cc96b0e11a2"
+    },
+    {
+      "path": "bun.lock",
+      "sourceCommit": "a93c1016e73f6d13963d1d936bf5aca5f3fa9149",
+      "sha256": "7c536a3602b626d92f3566c4e9c7823237a08338e84b1b4525da93fc34a5f183"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/1519-mcp-ci-2026-10-03/ci-build-cache-fixtures.log",
+      "sha256": "315fa2df8ee3ddee801c5665f0b85804231e1304988c7e7b4258c349d02545ff",
+      "bytes": 193
+    },
+    {
+      "path": "docs/audits/1519-mcp-ci-2026-10-03/ci-build-cache.log",
+      "sha256": "5486c71b87c762a678315d1dd70a3ae4add93d81e9b8e68d96597109a26019ea",
+      "bytes": 216
+    },
+    {
+      "path": "docs/audits/1519-mcp-ci-2026-10-03/ci-complete-fixtures.log",
+      "sha256": "bd4168b14350b69de405c65920d33c3cb421aaa901c4250d0214175f84c63a9b",
+      "bytes": 168
+    },
+    {
+      "path": "docs/audits/1519-mcp-ci-2026-10-03/ci-scope.log",
+      "sha256": "6319566864eeb67678ec006c29ff58a798dba5d168da26b377536e25b0048eed",
+      "bytes": 225
+    },
+    {
+      "path": "docs/audits/1519-mcp-ci-2026-10-03/mcp-a93-tests.log",
+      "sha256": "213e871a6be20b7d48da4836377d221142c3dd30c0308576c5c0f464da196a7a",
+      "bytes": 153
+    }
+  ],
+  "commands": [
+    {
+      "cwd": "packages/mcp",
+      "command": "bun run test",
+      "exitCode": 0,
+      "suites": 9,
+      "tests": 49,
+      "record": "mcp-a93-tests.log"
+    },
+    {
+      "command": "bun scripts/test-ci-scope.mjs",
+      "exitCode": 0,
+      "cases": 39
+    },
+    {
+      "command": "bun scripts/check-ci-build-cache.mjs",
+      "exitCode": 0
+    },
+    {
+      "command": "bun scripts/test-check-ci-build-cache.mjs",
+      "exitCode": 0,
+      "cases": 28
+    },
+    {
+      "command": "bun scripts/test-check-ci-complete.mjs",
+      "exitCode": 0,
+      "cases": 43
+    }
+  ],
+  "limits": [
+    "MCP suite result is local on exact a93 source, not an Actions execution.",
+    "Workflow and scope fixtures were rerun on tracked commit 01b02d9d1d1035f9726305a9dade4758a0ab0105.",
+    "Current Actions a93 had no MCP suite step; new Actions execution remains pending.",
+    "No runtime, package version, dependency resolution, permissions or deployment changes.",
+    "Security Audit remains unchanged and failing; no exception is activated."
+  ]
+}
