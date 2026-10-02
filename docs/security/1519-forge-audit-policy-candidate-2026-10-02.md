@@ -141,13 +141,13 @@ has approved a live exception.
 
 ## Local validation of tracked candidate source
 
-On `c79d348bc`, all executed source and fixtures were committed before testing.
+On `2880ee1d2`, all executed source and fixtures were committed before testing.
 The [validation proof](forge-candidate/audit-policy-validation-2026-10-02/proof.json)
 records source hashes, raw output digests and exact exit statuses:
 
 | Command | Result |
 | --- | --- |
-| `bun scripts/test-forge-audit-policy.mjs` | 94 structural/inactive assertions pass; synthetic positives never authorize |
+| `bun scripts/test-forge-audit-policy.mjs` | 98 structural/inactive assertions pass; synthetic positives never authorize |
 | `bun scripts/test-check-dependency-audit.mjs` | 9 original audit cases pass |
 | `node scripts/test-forge-remediation-proof-proposal.mjs` | 131 original inert assertions pass |
 | `bun scripts/test-ci-scope.mjs` | 38 cases pass |

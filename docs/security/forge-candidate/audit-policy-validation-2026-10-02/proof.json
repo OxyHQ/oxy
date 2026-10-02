@@ -1,12 +1,12 @@
 {
   "status": "INACTIVE_UNAPPROVED_CANDIDATE",
-  "testedSourceHead": "c79d348bc8da8456ff9ff344476e1dbd40875257",
+  "testedSourceHead": "2880ee1d282887dffd29af14d8999df7963b0579",
   "authorizationClaimed": false,
   "inputSha256": {
     "scripts/forge-audit-policy.mjs": "793f312dcaf17c41bb3d480ff43169a7c9416a7cab49891209b2db3edaa47d96",
-    "scripts/test-forge-audit-policy.mjs": "f41233991721d4fdb9fc3c3ec044a94e466a74eb3d4bcb8d766488c413c1086f",
+    "scripts/test-forge-audit-policy.mjs": "c454c73df013f11613e9ba7f893f6372d615c7f5f20d2e2d2f16238a696f4f02",
     "scripts/check-dependency-audit.mjs": "b707db877fa8bd8b0e15f8a2af376c3c06ef65aaccd18f2196911c70afa3249c",
-    ".github/workflows/ci.yml": "ac1de144af07db91fefe848727f31c43e618da96f293e13e784a63991a2a48c8",
+    ".github/workflows/ci.yml": "2ea8d63c4932cfb66f9e2de00f809c591fd1e4c6fdeea615b0e87fc936d2e11e",
     ".github/workflows/forge-candidate-image-proof.yml": "43ec27570ee78f6f9359c622b7f184e8a7774fb0ede59bdf13551a3b9fef6ecc",
     "docs/security/forge-candidate/provenance/audit-policy-decision.json": "1f6548d819af8f247cf599b3c6cbbab98f5fcaad3a911a28d9fa13e6562a518e"
   },
@@ -19,7 +19,7 @@
       "exitCode": 0,
       "expectedExitCode": 0,
       "file": "policy-fixtures.txt",
-      "sha256": "556d49728054ec280f0c57a4b9fd868f39967c2f7257bc6802b14b3928612cc7"
+      "sha256": "a421e8ecb48040ee0151cac6c8e2f9e42d7d25f92e79646cfa62bc3c03903937"
     },
     {
       "command": [
