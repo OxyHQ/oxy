@@ -84,12 +84,26 @@ def main():
             assert sql(f"SELECT to_regclass('public.{table}') IS NOT NULL", db) == 't', table
         assert sql("SELECT count(*) FROM information_schema.columns WHERE "
                    "table_name = 'inference_deployments' AND column_name = 'scoped_execution'", db) == '1'
+        lineage_columns = ('parent_request_id', 'final_authorized_model_reference',
+                           'final_authorized_provider', 'final_authorized_deployment_id',
+                           'final_authorized_ceiling_amount', 'final_authorized_ceiling_currency')
+        for column in lineage_columns:
+            assert sql("SELECT count(*) FROM information_schema.columns WHERE "
+                       f"table_name = 'inference_metered_usage' AND column_name = '{column}' "
+                       "AND is_nullable = 'YES'", db) == '1', column
+        assert sql("SELECT count(*) FROM pg_constraint WHERE conrelid = "
+                   "'inference_metered_usage'::regclass AND conname IN "
+                   "('inference_metered_usage_parent_check', "
+                   "'inference_metered_usage_final_authorization_check')", db) == '2'
+        assert sql("SELECT to_regclass('public.inference_metered_usage_parent_idx') IS NOT NULL", db) == 't'
         checks = int(sql("SELECT count(*) FROM pg_constraint WHERE conrelid = "
                          "'billing_stripe_events'::regclass AND contype = 'c'", db))
         assert checks == 3, checks
         print(json.dumps({'newLocalServerPid': pid, 'dataDirectory': str(data),
                           'database': db, 'migrationRows': count,
-                          'repeatMigrationPassed': True, 'billingEventChecks': checks}))
+                          'repeatMigrationPassed': True, 'billingEventChecks': checks,
+                          'nullableLineageColumns': len(lineage_columns), 'lineageConstraints': 2,
+                          'lineageParentIndex': True}))
     finally:
         if server_started:
             print(run([PG / 'pg_ctl', '-D', data, '-m', 'fast', '-w', 'stop']))
