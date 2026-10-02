@@ -385,7 +385,7 @@ function checkCallerAssertions({ claim, testEvidenceBytes }, derived, pins, fail
  * claim/evidence can only add errors, never authority.
  */
 export function evaluate(facts = {}, { claim, testEvidenceBytes } = {}) {
-  const { audit, pins, git, github, artifactZip, now } = facts;
+  const { audit, pins, git, github, artifactZip } = facts;
   // Authenticated only when these exact facts came from collect() in this process.
   const authenticatedProvenance = COLLECTED.has(facts);
   const errors = [];
@@ -396,13 +396,21 @@ export function evaluate(facts = {}, { claim, testEvidenceBytes } = {}) {
   const safePins = validPins ? pins : {};
   let entries = null;
   if (artifactZip) { try { entries = readZip(artifactZip); } catch (error) { fail(`Artifact unreadable: ${error.message}`); } }
-  if (validPins) { checkGit(git, safePins, fail); checkGithub(github, git, safePins, artifactZip, now, fail); }
+  if (validPins) {
+    checkGit(git, safePins, fail);
+    checkGithub(github, git, safePins, artifactZip,
+      authenticatedProvenance ? new Date().toISOString() : facts.now, fail);
+  }
   const derived = validPins ? checkArtifact(entries, safePins, fail) : {};
   const unverified = [];
   checkCallerAssertions({ claim, testEvidenceBytes }, derived, validPins ? safePins : undefined, fail, unverified);
   if (testEvidenceBytes === undefined) for (const suite of LOCAL_ONLY_SUITES) unverified.push(`Caller-run suite ${suite} has no machine-verifiable evidence`);
   unverified.push('Authenticity of the independent security review (never accepted from a caller field)', 'Audit-policy authorization for this advisory');
   if (!authenticatedProvenance) unverified.unshift('Provenance facts were supplied by the caller, not gathered by the live collector: structural check only');
+  // Live facts can be held across other collectors/waits. Recheck provenance
+  // expiry at this verdict; synthetic fixture time is never runtime authority.
+  if (validPins && authenticatedProvenance) checkGithub(github, git, safePins, artifactZip,
+    new Date().toISOString(), fail);
   return { proposalOnly: true, approved: false, authenticatedProvenance, structuralChecksPassed: errors.length === 0,
     machineChecksPassed: authenticatedProvenance && errors.length === 0, technicalEvidenceComplete: authenticatedProvenance && errors.length === 0 && unverified.length === 0,
     evaluationBasis: authenticatedProvenance ? 'action-time: git objects, bun audit, authenticated read-only GitHub GET, digest-checked artifact bytes' : 'STRUCTURAL ONLY: caller-supplied facts; grants no authenticated status',

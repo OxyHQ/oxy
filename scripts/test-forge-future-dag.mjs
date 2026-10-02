@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FINAL_PROOF_FILES } from './forge-final-image-collector.mjs';
+import { FINAL_PROOF_FILES, checkFinalProofFreshness } from './forge-final-image-collector.mjs';
 const source = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const root = mkdtempSync(join(tmpdir(), 'forge-unapplied-dag-fixture-'));
 const sha = 'a'.repeat(40), digest = `sha256:${'b'.repeat(64)}`;
@@ -30,6 +30,21 @@ try {
   check(pipeline.jobs.publish.permissions['id-token'], 'write');
   check(pipeline.jobs.publish.needs.includes('authorize'), true);
   execFileSync('/bin/bash', ['-n', join(root, '.github/scripts/resolve-queue-image.sh')]); assertions++;
+  // Real Git proves external transport preserves the exact clean-source gate.
+  git('add', '--', ...paths, '.github/workflows/forge-queue-image-inspection.yml');
+  git('commit', '-qm', 'Synthetic reviewed future DAG only');
+  const layout = mkdtempSync(join(tmpdir(), 'forge-download-layout-'));
+  try {
+    for (const step of pipeline.jobs.publish.steps.filter(step => step.uses?.startsWith('actions/download-artifact'))) {
+      const location = step.with.path.replace('${{ runner.temp }}', layout).replace('${{ github.run_id }}', '123');
+      mkdirSync(location, { recursive: true }); writeFileSync(join(location, 'transport-fixture.txt'), 'synthetic transport');
+    }
+    check(git('status', '--porcelain', '--untracked-files=all').trim(), '');
+    mkdirSync(join(root, 'proof')); writeFileSync(join(root, 'proof/transport.json'), '{}');
+    check(git('status', '--porcelain', '--untracked-files=all').includes('proof/transport.json'), true, 'Old workspace layout is rejected');
+    rmSync(join(root, 'proof'), { recursive: true });
+    check(git('status', '--porcelain', '--untracked-files=all').trim(), '');
+  } finally { rmSync(layout, { recursive: true, force: true }); }
   const bin = join(root, 'bin'); mkdirSync(bin);
   const script = (name, body) => writeFileSync(join(bin, name), `#!/bin/bash\nset -euo pipefail\n${body}\n`, { mode: 0o700 });
   // Explicit synthetic stand-ins exist only in this owned fixture directory.
@@ -41,7 +56,11 @@ try {
     echo "$2" >> "$FIXTURE_AUTH_LOG"
     exit 0
   fi
-  cat "$FIXTURE_RUNS"`); script('aws', 'cat "$FIXTURE_ECR"');
+  cat "$FIXTURE_RUNS"`); script('aws', `if [[ "$*" == *get-login-password* ]]; then echo synthetic-password;
+  elif [[ "$*" == *--query* ]]; then echo "$FIXTURE_DIGEST";
+  else cat "$FIXTURE_ECR"; fi`);
+  script('skopeo', `if [[ "$1" == copy ]]; then echo copy >> "$FIXTURE_COPY_LOG";
+  elif [[ "$1" == login ]]; then read -r password || true; [[ "$password" == synthetic-password ]]; fi`);
   script('bun', 'echo called > "$FIXTURE_CALLED"; if [[ "$FIXTURE_BUN_FAIL" == 1 ]]; then exit 1; fi; cat "$FIXTURE_PROOF"');
   const runPath = join(root, 'runs.json'), ecrPath = join(root, 'ecr.json'), proofPath = join(root, 'proof.json'), policyPath = join(root, 'policy.json'), called = join(root, 'called');
   const run = workflow => ({ status: 'completed', conclusion: 'success', event: 'merge_group', head_sha: sha, head_repository: { full_name: 'OxyHQ/oxy' }, path: `.github/workflows/${workflow}` });
@@ -79,5 +98,33 @@ try {
   // Force the actual resolver to fail after login; EXIT still logs out.
   const result = spawnSync('/bin/bash', ['-euo', 'pipefail', '-c', login], { cwd: root, encoding: 'utf8', env: { ...authEnv, REPOSITORY: 'oxy/oxy-api', SHA: sha, GITHUB_REPOSITORY: 'OxyHQ/oxy', FIXTURE_POLICY: policyPath, FIXTURE_RUNS: runPath, FIXTURE_ECR: ecrPath, FIXTURE_PROOF: proofPath, FIXTURE_CALLED: called, FIXTURE_SHA: sha, FIXTURE_BUN_FAIL: '1' } });
   check(result.status === 0, false); check(readFileSync(authLog, 'utf8'), 'login\nlogout\nlogin\nlogout\n');
+  // Execute the exact future publication boundary. A controlled synthetic clock
+  // advances during wait/stream/CI; failed final revalidation must prevent even
+  // the mocked skopeo copy. This does not invoke a registry or human authority.
+  const publisher = pipeline.jobs.publish.steps.find(step => step.name === 'Publish the inspected OCI bytes without rebuild').run;
+  const copyLog = join(root, 'copies.log');
+  const transport = mkdtempSync(join(tmpdir(), 'forge-publisher-transport-'));
+  mkdirSync(join(transport, 'proof'));
+  check(pipeline.jobs.publish.steps.filter(step => step.uses?.startsWith('actions/download-artifact')).every(step => step.with.path.startsWith('${{ runner.temp }}/')), true);
+  writeFileSync(join(transport, 'proof/forge-oci-receipt.json'), JSON.stringify({ manifestDigest: digest }));
+  const clockDecision = { schemaVersion: 1, status: 'ACTIVE', targetSourceHead: sha, expiresAt: '2026-10-02T12:30:00.000Z',
+    authorizationRecord: { channel: 'explicit-user-session', reference: 'SYNTHETIC CLOCK FIXTURE ONLY', instructionSha256: 'a'.repeat(64), recordedAt: '2026-10-02T11:00:00.000Z' },
+    independentEvidence: { sourceHead: sha, proofSha256: 'a'.repeat(64) } };
+  const clockArtifacts = [0, 1].map(() => ({ expired: false, expires_at: '2026-10-02T13:00:00.000Z' }));
+  writeFileSync(proofPath, JSON.stringify({ authenticatedProvenance: true, machineChecksPassed: true, authorized: false, executionSha: sha, manifestDigest: digest }));
+  for (const phase of ['valid', 'wait', 'streaming', 'CI']) {
+    rmSync(copyLog, { force: true });
+    check(checkFinalProofFreshness(clockDecision, sha, clockArtifacts, '2026-10-02T12:00:00.000Z').valid, true);
+    const fresh = checkFinalProofFreshness(clockDecision, sha, clockArtifacts,
+      phase === 'valid' ? '2026-10-02T12:20:00.000Z' : '2026-10-02T12:30:00.000Z');
+    const boundary = spawnSync('/bin/bash', ['-euo', 'pipefail', '-c', publisher], { cwd: root, encoding: 'utf8', env: {
+      ...authEnv, FORGE_TRANSPORT_DIR: transport, ECR_REGISTRY: 'synthetic-registry.invalid', GITHUB_SHA: sha, FIXTURE_COPY_LOG: copyLog, FIXTURE_DIGEST: digest,
+      FIXTURE_PROOF: proofPath, FIXTURE_ECR: ecrPath, FIXTURE_CALLED: called, FIXTURE_BUN_FAIL: fresh.valid ? '0' : '1',
+    } });
+    check(boundary.status === 0, fresh.valid, boundary.stderr);
+    const copies = (() => { try { return readFileSync(copyLog, 'utf8'); } catch { return ''; } })();
+    check(copies, fresh.valid ? 'copy\n' : '', `No publication after expiry during ${phase}`);
+  }
+  rmSync(transport, { recursive: true, force: true });
 } finally { rmSync(root, { recursive: true, force: true }); }
 console.log(`${assertions} unapplied DAG/resolver assertions pass in synthetic owned Git only; authorized:false.`);

@@ -21,7 +21,7 @@
 +    if: github.event_name == 'merge_group' && github.repository == 'OxyHQ/oxy' && needs.policy.outputs.active != 'true'
 --- /dev/null
 +++ b/.github/workflows/forge-queue-image-inspection.yml
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,234 @@
 +# UNAPPLIED preparation: independent image proof; no AWS or registry publication.
 +name: Forge queue image inspection
 +on:
@@ -190,29 +190,43 @@
 +      actions: read
 +      id-token: write
 +    steps:
++      - uses: actions/checkout@v7
++        with:
++          ref: ${{ github.sha }}
++          fetch-depth: 0
++          persist-credentials: false
++      - uses: oven-sh/setup-bun@v2
++        with:
++          bun-version-file: package.json
++      - name: Validate explicit policy and install exact byte inventory
++        run: |
++          bun -e 'import {readCommittedPolicyStatus} from "./scripts/forge-audit-policy.mjs"; if (readCommittedPolicyStatus() !== "ACTIVE") process.exit(1);'
++          bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
 +      - uses: actions/download-artifact@v8
 +        with:
 +          name: forge-queue-proof-${{ github.sha }}-${{ github.run_id }}
-+          path: proof
++          path: ${{ runner.temp }}/forge-publish-${{ github.run_id }}/proof
 +      - uses: actions/download-artifact@v8
 +        with:
 +          name: forge-queue-oci-${{ github.sha }}-${{ github.run_id }}
-+          path: image
++          path: ${{ runner.temp }}/forge-publish-${{ github.run_id }}/image
 +      - name: Verify exact archive and source receipt
++        env:
++          FORGE_TRANSPORT_DIR: ${{ runner.temp }}/forge-publish-${{ github.run_id }}
 +        run: |
 +          set -euo pipefail
-+          jq -e --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" '.schemaVersion == 1 and .sourceSha == $sha and .runId == $run and .approval == false' proof/forge-oci-receipt.json
-+          expected="$(jq -r .archiveSha256 proof/forge-oci-receipt.json)"
++          jq -e --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" '.schemaVersion == 1 and .sourceSha == $sha and .runId == $run and .approval == false' "$FORGE_TRANSPORT_DIR/proof/forge-oci-receipt.json"
++          expected="$(jq -r .archiveSha256 "$FORGE_TRANSPORT_DIR/proof/forge-oci-receipt.json")"
 +          [[ "$expected" =~ ^[a-f0-9]{64}$ ]]
-+          test "$(sha256sum image/forge-image.oci.tar | cut -d ' ' -f 1)" = "$expected"
++          test "$(sha256sum "$FORGE_TRANSPORT_DIR/image/forge-image.oci.tar" | cut -d ' ' -f 1)" = "$expected"
 +          sudo apt-get update
 +          sudo apt-get install -y skopeo
-+          test "sha256:$(skopeo inspect --raw oci-archive:image/forge-image.oci.tar | sha256sum | cut -d ' ' -f 1)" = "$(jq -r .manifestDigest proof/forge-oci-receipt.json)"
-+          config_digest="$(jq -r .config.digest proof/forge-oci-manifest.json)"
++          test "sha256:$(skopeo inspect --raw oci-archive:"$FORGE_TRANSPORT_DIR/image/forge-image.oci.tar" | sha256sum | cut -d ' ' -f 1)" = "$(jq -r .manifestDigest "$FORGE_TRANSPORT_DIR/proof/forge-oci-receipt.json")"
++          config_digest="$(jq -r .config.digest "$FORGE_TRANSPORT_DIR/proof/forge-oci-manifest.json")"
 +          [[ "$config_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
-+          test "sha256:$(sha256sum proof/forge-oci-config.json | cut -d ' ' -f 1)" = "$config_digest"
-+          tar -xOf image/forge-image.oci.tar "blobs/sha256/${config_digest#sha256:}" | cmp - proof/forge-oci-config.json
-+          jq -e --arg digest "$config_digest" 'keys == ["dockerConfigId","mountProofImageId","regressionImageId","rootScanImageId"] and all(.[]; . == $digest)' proof/forge-scan-image-ids.json
++          test "sha256:$(sha256sum "$FORGE_TRANSPORT_DIR/proof/forge-oci-config.json" | cut -d ' ' -f 1)" = "$config_digest"
++          tar -xOf "$FORGE_TRANSPORT_DIR/image/forge-image.oci.tar" "blobs/sha256/${config_digest#sha256:}" | cmp - "$FORGE_TRANSPORT_DIR/proof/forge-oci-config.json"
++          jq -e --arg digest "$config_digest" 'keys == ["dockerConfigId","mountProofImageId","regressionImageId","rootScanImageId"] and all(.[]; . == $digest)' "$FORGE_TRANSPORT_DIR/proof/forge-scan-image-ids.json"
 +      - uses: aws-actions/configure-aws-credentials@v6
 +        with:
 +          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-queue-image-oxy
@@ -220,15 +234,26 @@
 +      - name: Publish the inspected OCI bytes without rebuild
 +        env:
 +          ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
++          FORGE_PROVENANCE_READ_TOKEN: ${{ github.token }}
++          FORGE_TRANSPORT_DIR: ${{ runner.temp }}/forge-publish-${{ github.run_id }}
 +        run: |
 +          set -euo pipefail
 +          skopeo_auth_dir="$(mktemp -d)"
 +          chmod 700 "$skopeo_auth_dir"
 +          export REGISTRY_AUTH_FILE="$skopeo_auth_dir/auth.json"
-+          trap 'skopeo logout "$ECR_REGISTRY" >/dev/null 2>&1 || true; rm -rf "$skopeo_auth_dir"' EXIT
++          forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
++          test -n "$forge_runner_home"
++          trap 'env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth logout --hostname github.com >/dev/null 2>&1 || true; skopeo logout "$ECR_REGISTRY" >/dev/null 2>&1 || true; rm -rf "$skopeo_auth_dir"' EXIT
++          printf '%s' "$FORGE_PROVENANCE_READ_TOKEN" | env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth login --hostname github.com --with-token
 +          aws ecr get-login-password --region us-west-2 | skopeo login --username AWS --password-stdin "$ECR_REGISTRY"
-+          skopeo copy --all --preserve-digests oci-archive:image/forge-image.oci.tar "docker://$ECR_REGISTRY/oxy/oxy-api:mq-$GITHUB_SHA"
-+          expected="$(jq -r .manifestDigest proof/forge-oci-receipt.json)"
++          # CI wait, credential setup and artifact transport may outlive policy.
++          # Fresh source/policy + every applicable artifact check immediately
++          # before the effect; no expiry is extended and no rebuild is permitted.
++          proof="$(bun scripts/check-published-forge-image.mjs prepublish)"
++          expected="$(jq -r .manifestDigest "$FORGE_TRANSPORT_DIR/proof/forge-oci-receipt.json")"
++          jq -e --arg sha "$GITHUB_SHA" --arg digest "$expected" '.authenticatedProvenance == true and .machineChecksPassed == true and .authorized == false and .executionSha == $sha and .manifestDigest == $digest' <<< "$proof" >/dev/null
++          skopeo copy --all --preserve-digests oci-archive:"$FORGE_TRANSPORT_DIR/image/forge-image.oci.tar" "docker://$ECR_REGISTRY/oxy/oxy-api:mq-$GITHUB_SHA"
++          expected="$(jq -r .manifestDigest "$FORGE_TRANSPORT_DIR/proof/forge-oci-receipt.json")"
 +          actual="$(aws ecr batch-get-image --repository-name oxy/oxy-api --image-ids "imageTag=mq-$GITHUB_SHA" --query 'images[0].imageId.imageDigest' --output text)"
 +          test "$actual" = "$expected"
 --- a/.github/scripts/resolve-queue-image.sh

@@ -59,6 +59,15 @@ export function listFinalPages(getPage, path, key) {
 export function assertFinalWaitDeadline(now, deadline) {
   if (!(now < deadline)) throw new Error('Bounded final-image inspection wait expired');
 }
+/** Structural clock fixture only; the live path always supplies a fresh OS time. */
+export function checkFinalProofFreshness(decision, source, artifacts, now) {
+  const record = checkScopedPolicyRecord(decision, now, source);
+  const errors = [...record.errors];
+  if (record.status !== 'ACTIVE') errors.push('Explicit ACTIVE policy required');
+  if (!Number.isFinite(Date.parse(now)) || artifacts.length !== 2
+    || artifacts.some(artifact => artifact?.expired !== false || !(Date.parse(now) < Date.parse(artifact?.expires_at)))) errors.push('Applicable proof or OCI artifact expired at the final verdict');
+  return { valid: errors.length === 0, authorized: false, errors };
+}
 export function inspectFinalImageFacts(facts) {
   const errors = [];
   const fail = message => errors.push(message);
@@ -72,7 +81,8 @@ export function inspectFinalImageFacts(facts) {
   const manifestBytes = entries?.get('forge-oci-manifest.json');
   const configBytes = entries?.get('forge-oci-config.json');
   const inspected = json('forge-scan-image-ids.json');
-  const binding = checkFinalImageBinding({ ...facts, receipt, manifestBytes, configBytes, inspected });
+  let now = COLLECTED.has(facts) ? new Date().toISOString() : facts?.now;
+  const binding = checkFinalImageBinding({ ...facts, receipt, manifestBytes, configBytes, inspected, now });
   errors.push(...binding.errors);
   const executionRecord = json('forge-queue-execution.json');
   if (!executionRecord || Object.keys(executionRecord).sort().join('|') !== ['sourceSha', 'workflowSha', 'repository', 'repositoryId', 'event', 'runId', 'runAttempt', 'job', 'approval'].sort().join('|')
@@ -86,10 +96,16 @@ export function inspectFinalImageFacts(facts) {
     const content = checkQueueForgeImageContent(entries, facts?.execution?.head, { configId, manifestDigest: receipt?.manifestDigest });
     errors.push(...content.errors);
   }
+  if (COLLECTED.has(facts)) {
+    now = new Date().toISOString();
+    errors.push(...checkFinalProofFreshness(facts.decision, facts.sourceTarget,
+      [facts.artifact, facts.archiveArtifact], now).errors);
+  }
   return { machineChecksPassed: COLLECTED.has(facts) && errors.length === 0,
     authenticatedProvenance: COLLECTED.has(facts), structurallyEligible: errors.length === 0,
     authorized: false, executionSha: facts?.execution?.head ?? null, errors, manifestDigest: receipt?.manifestDigest ?? null,
-    archiveSha256: receipt?.archiveSha256 ?? null,
+    archiveSha256: receipt?.archiveSha256 ?? null, validatedAtUTC: now,
+    artifactExpiries: [facts?.artifact?.expires_at ?? null, facts?.archiveArtifact?.expires_at ?? null],
     limitation: 'Authentication is technical evidence only. Source policy and explicit human activation remain separate.' };
 }
 /** Fixed authenticated GETs, committed source target, bounded wait. No caller evidence overrides. */
@@ -141,7 +157,7 @@ export function collectFinalImageProof(repositoryRoot, options = {}) {
     if (executedBlobs.current[path] !== executedBlobs.source[path]) throw new Error(`Frozen executable changed: ${path}`);
   }
   const producer = { run: selected.run, job: selected.job, executedBlobs };
-  const facts = { execution, producer, artifact: selected.artifact, archiveArtifact: selected.archiveArtifact,
+  const facts = { execution, producer, decision, sourceTarget: pins.sourceSha, artifact: selected.artifact, archiveArtifact: selected.archiveArtifact,
     proofZipBytes: api(`repos/${REPOSITORY}/actions/artifacts/${selected.artifact.id}/zip`, true),
     archiveBytes: null, published: null, phase: 'prepublish', now: new Date().toISOString() };
   if (`sha256:${sha256(facts.proofZipBytes)}` !== selected.artifact.digest || facts.proofZipBytes.length !== selected.artifact.size_in_bytes) throw new Error('Proof ZIP differs from authenticated metadata');
@@ -164,6 +180,12 @@ export function collectFinalImageProof(repositoryRoot, options = {}) {
     facts.phase = 'published';
     facts.published = { repository: 'oxy/oxy-api', tag: `mq-${head}`, digest: image.imageId?.imageDigest, manifestBytes: Buffer.from(image.imageManifest) };
   }
+  // Polling, GETs and streaming may outlive a valid starting decision/artifact.
+  // Never extend their original expiry. Check again after ALL blocking work.
+  facts.now = new Date().toISOString();
+  const freshness = checkFinalProofFreshness(decision, pins.sourceSha,
+    [facts.artifact, facts.archiveArtifact], facts.now);
+  if (!freshness.valid) throw new Error(freshness.errors.join('; '));
   freeze(facts); COLLECTED.add(facts); return facts;
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

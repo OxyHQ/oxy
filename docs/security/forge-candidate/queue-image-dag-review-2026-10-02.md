@@ -110,3 +110,14 @@ policy through this session or a separately established human mechanism before
 any ACTIVE change. GitHub actor/committer identity from the shared agent token is
 not proof of a human decision. Queue, merge, publication and deployment require
 their own authorization; none follows from these offline fixtures.
+
+
+## Expiry review correction (2026-10-02)
+
+External [review 5960218626](https://github.com/OxyHQ/oxy/pull/1546#issuecomment-5960218626) identified stale timing after blocking image transport and CI waits. The candidate now refreshes OS time after all collector waits, authenticated GETs and OCI streaming; it checks the decision and both applicable artifacts again after local image/content verification. The original PR artifact and decision are rechecked at the final audit verdict. No original expiry is extended.
+
+The unapplied publisher diff checks the exact committed policy/inventory and every applicable proof immediately before `skopeo copy`, after CI and credential/artifact setup. Transport downloads use a run-specific directory under `RUNNER_TEMP`; they cannot dirty the frozen source checkout. The clean-source rule is unchanged. Future credentials remain ephemeral and the diff is not materialized.
+
+The exact collector source is executed in an isolated Node VM with command dependencies and OS clock replaced only inside that test realm. Policy starts valid, then expires during actual polling or Python-streaming boundaries; both return rejection. Proof/OCI artifact expiry and a later verdict are also covered. A control mutation removing the collector's final fresh-time assignment returns facts after expiry, demonstrating that this regression detects the stale collector. These synthetic metadata/commands are not authenticated GitHub evidence and cannot activate the runtime gate. The shell fixture separately proves rejection prevents even a mocked publication; real Git demonstrates that the old workspace transport layout dirties source and the `RUNNER_TEMP` layout remains clean.
+
+This changes executed source and requires fresh exact-head image evidence. The previous ARM artifact is historical, not evidence for these changed executables or for the distinct #1537 integration input tree. Actual policy remains INACTIVE, workflows/permissions unchanged, and explicit human activation plus future queue/publisher evidence are still pending.

@@ -17,7 +17,7 @@ const proof = JSON.parse(proofBytes);
 const records = Object.fromEntries(proof.records.map(row => [row.file, readFileSync(join(root, dirname(EVIDENCE_PATH), row.file))]));
 const audit = JSON.parse(readFileSync(join(root, 'docs/security/forge-candidate/provenance/run-36951283961/raw-bun-audit.json')));
 const source = 'a'.repeat(40), head = 'b'.repeat(40);
-const paths = ['.github/workflows/ci.yml', 'scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs', 'scripts/test-forge-audit-policy.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs', 'scripts/forge-source-topology.mjs', 'scripts/test-forge-source-topology.mjs', 'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs', 'scripts/forge-final-image-collector.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/forge-policy-record.mjs', 'scripts/test-forge-future-dag.mjs', 'scripts/check-published-forge-image.mjs', 'scripts/verify-forge-oci-artifact.py', 'scripts/test-verify-forge-oci-artifact.py', ...TRUSTED_WORKFLOW.executedPaths];
+const paths = ['.github/workflows/ci.yml', 'scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs', 'scripts/test-forge-audit-policy.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs', 'scripts/forge-source-topology.mjs', 'scripts/test-forge-source-topology.mjs', 'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs', 'scripts/forge-final-image-collector.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/forge-final-image-test-fixture.mjs', 'scripts/test-forge-final-image-live-clock.mjs', 'scripts/forge-policy-record.mjs', 'scripts/test-forge-future-dag.mjs', 'scripts/check-published-forge-image.mjs', 'scripts/verify-forge-oci-artifact.py', 'scripts/test-verify-forge-oci-artifact.py', ...TRUSTED_WORKFLOW.executedPaths];
 let assertions = 0;
 // Every ACTIVE value below is SYNTHETIC. It does not name or claim a real Nate decision.
 function fixture() {
@@ -26,7 +26,7 @@ function fixture() {
       authorizationRecord: { channel: 'explicit-user-session', reference: 'SYNTHETIC fixture decision only', instructionSha256: 'c'.repeat(64), recordedAt: '2026-10-02T12:00:00.000Z' },
       independentEvidence: { sourceHead: proof.candidateCommit, proofSha256: sha256(proofBytes) } },
     audit: structuredClone(audit),
-    facts: { pins: { sourceSha: source }, git: { head, clean: true, sourceIsAncestor: true, changedPaths: [...DECLARATIVE_PATHS] } },
+    facts: { pins: { sourceSha: source }, github: { artifact: { expired: false, expires_at: '2026-10-04T12:00:00.000Z' } }, git: { head, clean: true, sourceIsAncestor: true, changedPaths: [...DECLARATIVE_PATHS] } },
     proposal: { authenticatedProvenance: true, machineChecksPassed: true, approved: false, proposalOnly: true, errors: [] },
     proofBytes, recordBytes: { ...records }, copies: [{ version: '1.4.0', files: { ...TRUSTED_BASELINE.files } }],
     blobs: { source: Object.fromEntries(paths.map(path => [path, 'd'.repeat(40)])), current: Object.fromEntries(paths.map(path => [path, 'd'.repeat(40)])) },
@@ -45,6 +45,8 @@ const cases = [
   ['unexpected evidence field', x => { x.decision.independentEvidence.approval = true; }],
   ['no explicit instruction record', x => { x.decision.authorizationRecord = null; }],
   ['GitHub actor cannot substitute for session instruction', x => { x.decision.authorizationRecord.channel = 'github-actor'; }],
+  ['original artifact expires at final verdict', x => { x.facts.github.artifact.expires_at = x.now; }],
+  ['original artifact omitted', x => { delete x.facts.github; }],
   ['expiry boundary', x => { x.decision.expiresAt = x.now; }],
   ['overlong duration', x => { x.decision.expiresAt = '2026-10-10T12:00:00.000Z'; }],
   ['future recorded decision', x => { x.decision.authorizationRecord.recordedAt = '2026-10-02T13:00:00.000Z'; }],
@@ -161,5 +163,6 @@ for (const path of ['scripts/test-forge-source-topology.mjs', 'scripts/test-forg
   assert.equal(result.status, 0, result.stderr); assertions++;
   process.stdout.write(result.stdout);
 }
+{ const result = spawnSync('node', ['--experimental-vm-modules', join(root, 'scripts/test-forge-final-image-live-clock.mjs')], { cwd: root, encoding: 'utf8' }); assert.equal(result.status, 0, result.stderr); assertions++; process.stdout.write(result.stdout); }
 { const result = spawnSync('/usr/bin/python3', [join(root, 'scripts/test-verify-forge-oci-artifact.py')], { cwd: root, encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } }); assert.equal(result.status, 0, result.stderr); assertions++; process.stdout.write(result.stderr); }
 console.log(`Forge audit policy: ${assertions} structural and isolated policy assertions passed; no live or human authorization claimed.`);

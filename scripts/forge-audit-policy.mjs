@@ -21,7 +21,7 @@ const EXECUTED_PATHS = Object.freeze([
   'scripts/test-forge-audit-policy.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs',
   'scripts/forge-source-topology.mjs', 'scripts/test-forge-source-topology.mjs',
   'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs',
-  'scripts/forge-final-image-collector.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/forge-policy-record.mjs', 'scripts/test-forge-future-dag.mjs',
+  'scripts/forge-final-image-collector.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/forge-final-image-test-fixture.mjs', 'scripts/test-forge-final-image-live-clock.mjs', 'scripts/forge-policy-record.mjs', 'scripts/test-forge-future-dag.mjs',
   'scripts/check-published-forge-image.mjs', 'scripts/verify-forge-oci-artifact.py', 'scripts/test-verify-forge-oci-artifact.py', ...TRUSTED_WORKFLOW.executedPaths,
 ]);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -53,6 +53,8 @@ export function checkForgePolicyStructure(input) {
   const advisories = audit?.['node-forge'];
   if (!Array.isArray(advisories) || advisories.length !== 1 || advisories[0]?.url !== TRUSTED_BASELINE.advisoryUrl
     || advisories[0]?.severity !== 'high' || advisories[0]?.vulnerable_versions !== '<=1.4.0') fail('Exact single Forge high advisory required');
+  if (facts?.github?.artifact?.expired !== false
+    || !(Date.parse(now) < Date.parse(facts?.github?.artifact?.expires_at))) fail('Original authenticated artifact expired at the final policy verdict');
   if (proposal?.authenticatedProvenance !== true || proposal?.machineChecksPassed !== true
     || proposal?.approved !== false || proposal?.proposalOnly !== true || proposal?.errors?.length !== 0) fail('Authenticated candidate machine proof is incomplete');
   const topology = checkFrozenSourceTopology(facts?.git, facts?.pins);
@@ -62,7 +64,9 @@ export function checkForgePolicyStructure(input) {
   const execution = facts?.git?.currentGithub?.run;
   if (topology.kind === 'squash' || ['merge_group', 'push', 'workflow_dispatch'].includes(execution?.event)) {
     if (finalImageProof?.machineChecksPassed !== true || finalImageProof?.authenticatedProvenance !== true
-      || finalImageProof.executionSha !== facts?.git?.head) fail('Own authenticated execution image proof required; PR image cannot authorize queue/main publication');
+      || finalImageProof.executionSha !== facts?.git?.head
+      || !Array.isArray(finalImageProof.artifactExpiries) || finalImageProof.artifactExpiries.length !== 2
+      || finalImageProof.artifactExpiries.some(expiry => !(Date.parse(now) < Date.parse(expiry)))) fail('Own authenticated execution image proof required; PR image cannot authorize queue/main publication');
   }
   if (!Array.isArray(facts?.git?.changedPaths) || facts.git.changedPaths.some(path => !DECLARATIVE_PATHS.includes(path))) fail('Only the two exact declarative paths may differ from target');
   for (const path of EXECUTED_PATHS) if (!blobs?.source?.[path] || blobs.source[path] !== blobs?.current?.[path]) fail(`Executed code changed: ${path}`);
@@ -116,7 +120,9 @@ export function readCommittedPolicyStatus() {
 }
 
 /** Only this action-time path can inspect real provenance; no caller decision/input override. */
-export function inspectForgeAuditPolicy(audit) {
+export function inspectForgeAuditPolicy(audit, options = {}) {
+  if (Object.keys(options).some(key => key !== 'publishedImage')
+    || (options.publishedImage !== undefined && typeof options.publishedImage !== 'boolean')) throw new Error('No source, evidence or clock overrides accepted');
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const git = gitReader(repositoryRoot);
   let decision;
@@ -138,7 +144,6 @@ export function inspectForgeAuditPolicy(audit) {
   if (process.env.DEPENDENCY_AUDIT_INPUT !== undefined) return { remediated: false, policyActive: true, reason: 'Injected audit payload cannot authorize remediation' };
   try {
     const facts = collect({ repoRoot: repositoryRoot });
-    const proposal = evaluate(facts); // Original approved:false semantics remain unchanged.
     if (!same(facts.audit, audit)) throw new Error('Audit changed between checks');
     const target = decision.targetSourceHead;
     const blobs = { source: {}, current: {} };
@@ -159,14 +164,17 @@ export function inspectForgeAuditPolicy(audit) {
       independentInputs.target[path] = git('rev-parse', `${target}:${path}`).toString().trim();
     }
     const execution = facts.git.currentGithub?.run;
-    const finalImageProof = !facts.git.sourceIsAncestor || ['merge_group', 'push', 'workflow_dispatch'].includes(execution?.event)
-      ? inspectFinalImageFacts(collectFinalImageProof(repositoryRoot)) : null;
+    const finalFacts = !facts.git.sourceIsAncestor || ['merge_group', 'push', 'workflow_dispatch'].includes(execution?.event)
+      ? collectFinalImageProof(repositoryRoot, { published: options.publishedImage === true }) : null;
+    const copies = inventory(repositoryRoot);
+    const proposal = evaluate(facts); // Fresh live expiry; original approved:false unchanged.
+    const finalImageProof = finalFacts ? inspectFinalImageFacts(finalFacts) : null;
     const check = checkForgePolicyStructure({ decision, audit: facts.audit, facts, proposal, proofBytes, recordBytes,
-      copies: inventory(repositoryRoot), blobs, independentInputs, finalImageProof, now: facts.now });
+      copies, blobs, independentInputs, finalImageProof, now: new Date().toISOString() });
     if (!check.structurallyEligible) return { remediated: false, policyActive: true, reason: check.errors.join('; ') };
     // This trusts the separately reviewed SOURCE POLICY, not JSON supplied by a caller,
     // an actor name, a GitHub comment or a prototype's approved flag. Editing ACTIVE
     // is prohibited until the user explicitly authorizes that concrete decision.
-    return { remediated: true, policyActive: true, advisory: ADVISORY, reason: 'Reviewed source policy matches the scoped machine and independent checks; the original proposal remains unapproved' };
+    return { remediated: true, policyActive: true, advisory: ADVISORY, finalImageProof, reason: 'Reviewed source policy matches the scoped machine and independent checks; the original proposal remains unapproved' };
   } catch (error) { return { remediated: false, policyActive: true, reason: `Strict policy validation failed: ${error.message.split('\n')[0]}` }; }
 }
