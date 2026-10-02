@@ -739,6 +739,130 @@ describe('removal — one context and one principal are different operations', (
     return row.isActive;
   }
 
+  it('#1544 mints the stored active context when two live principals operate the same organization', async () => {
+    const shared = await sharedOrganization();
+    const state = await deviceSessionService.getState(shared.device);
+    const token = await deviceSessionService.resolveActiveToken(state);
+    const claims = validateAccessToken(token?.accessToken ?? '').payload;
+    expect(claims?.device_context_id).toBe(shared.viaAlice);
+    expect(claims?.act?.sub).toBe(shared.alice);
+  });
+
+  it('#1544 refuses ambiguous legacy account-only mint and switch without changing active context', async () => {
+    const shared = await sharedOrganization();
+    const state = await deviceSessionService.getState(shared.device);
+    const token = await deviceSessionService.resolveTokenForAccount(state, shared.org);
+    const switched = await deviceSessionService.switchActive(shared.device, shared.org);
+    expect({ minted: token !== null, switched: switched.ok, activeContextId: (await storedDevice(shared.device)).activeContextId })
+      .toEqual({ minted: false, switched: false, activeContextId: shared.viaAlice });
+  });
+
+  it('#1544 keeps the second active operator when the first operator membership is revoked', async () => {
+    const shared = await sharedOrganization();
+    await getDb().delete(accountMembers).where(and(
+      eq(accountMembers.accountId, shared.org), eq(accountMembers.memberUserId, shared.nate),
+    ));
+    // The live minter observes the real revocation before the next state read.
+    expect(await sessionService.getAccessToken(shared.nateOrgSession)).toBeNull();
+    const state = await deviceSessionService.getState(shared.device);
+    const token = await deviceSessionService.resolveActiveToken(state);
+    const claims = validateAccessToken(token?.accessToken ?? '').payload;
+    const contexts = await storedContexts(shared.device);
+    expect({ activeContextId: (await storedDevice(shared.device)).activeContextId,
+      aliceSessionActive: await sessionIsActive(shared.aliceOrgSession),
+      aliceContextSession: contexts.find((row) => row.id === shared.viaAlice)?.sessionId,
+      actor: claims?.act?.sub })
+      .toEqual({ activeContextId: shared.viaAlice, aliceSessionActive: true,
+        aliceContextSession: shared.aliceOrgSession, actor: shared.alice });
+  });
+
+  it('#1544 heals only the revoked active context and preserves the other operator session', async () => {
+    const shared = await sharedOrganization();
+    await deviceSessionService.activateContext(shared.device, shared.viaNate, request());
+    await getDb().delete(accountMembers).where(and(
+      eq(accountMembers.accountId, shared.org), eq(accountMembers.memberUserId, shared.nate),
+    ));
+    // The live minter observes the real revocation before the next state read.
+    expect(await sessionService.getAccessToken(shared.nateOrgSession)).toBeNull();
+    await deviceSessionService.getState(shared.device);
+    expect(await sessionIsActive(shared.aliceOrgSession)).toBe(true);
+    expect((await storedContexts(shared.device)).find((row) => row.id === shared.viaAlice)?.sessionId)
+      .toBe(shared.aliceOrgSession);
+    expect((await storedContexts(shared.device)).some((row) => row.id === shared.viaNate)).toBe(false);
+  });
+
+  it('#1544 refuses stale flat state after a concurrent switch between operators of the same account', async () => {
+    const shared = await sharedOrganization();
+    const oldState = await deviceSessionService.getState(shared.device);
+    await deviceSessionService.activateContext(shared.device, shared.viaNate, request());
+    expect((await deviceSessionService.resolveActiveToken(oldState)) === null).toBe(true);
+  });
+
+  /** Pause only the selected mint's return; its real live validation still runs. */
+  function pauseMint(sessionId: string) {
+    const original = sessionService.getAccessToken.bind(sessionService);
+    let entered!: () => void;
+    let release!: () => void;
+    const reached = new Promise<void>((resolve) => { entered = resolve; });
+    const resume = new Promise<void>((resolve) => { release = resolve; });
+    let paused = false;
+    const spy = jest.spyOn(sessionService, 'getAccessToken').mockImplementation(async (id) => {
+      const token = await original(id);
+      if (id === sessionId && !paused) {
+        paused = true;
+        entered();
+        await resume;
+      }
+      return token;
+    });
+    return { reached, release, restore: () => spy.mockRestore() };
+  }
+
+  it('#1544 refuses an active mint when another context becomes active during its await', async () => {
+    const shared = await sharedOrganization();
+    const state = await deviceSessionService.getState(shared.device);
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveActiveToken(state);
+      await barrier.reached;
+      expect((await deviceSessionService.activateContext(shared.device, shared.viaNate, request())).ok).toBe(true);
+      barrier.release();
+      expect((await pending) === null).toBe(true);
+      expect((await storedDevice(shared.device)).activeContextId).toBe(shared.viaNate);
+      expect(await sessionIsActive(shared.nateOrgSession)).toBe(true);
+      expect(await sessionIsActive(shared.aliceOrgSession)).toBe(true);
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('#1544 refuses an account-only mint if a second operator arrives during its await', async () => {
+    const shared = await sharedOrganization();
+    const directory = await deviceSessionService.getDirectory(shared.device);
+    const alicePrincipal = directory.principals.find((principal) => principal.userId === shared.alice);
+    expect((await deviceSessionService.removePrincipal(shared.device, alicePrincipal?.id ?? '')).ok).toBe(true);
+    const state = await deviceSessionService.getState(shared.device);
+    const barrier = pauseMint(shared.nateOrgSession);
+    try {
+      const pending = deviceSessionService.resolveTokenForAccount(state, shared.org);
+      await barrier.reached;
+      await signIn(shared.device, shared.alice);
+      const refreshed = await deviceSessionService.getDirectory(shared.device);
+      const aliceContext = contextFor(refreshed, shared.alice, shared.org)?.id ?? '';
+      const activated = await deviceSessionService.activateContext(shared.device, aliceContext, request());
+      expect(activated.ok).toBe(true);
+      barrier.release();
+      expect((await pending) === null).toBe(true);
+      expect((await storedDevice(shared.device)).activeContextId).toBe(aliceContext);
+      const session = (await storedContexts(shared.device)).find((context) => context.id === aliceContext)?.sessionId ?? '';
+      expect(await sessionIsActive(session)).toBe(true);
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
   it('removing one context leaves another person operating the SAME account untouched', async () => {
     const shared = await sharedOrganization();
 
