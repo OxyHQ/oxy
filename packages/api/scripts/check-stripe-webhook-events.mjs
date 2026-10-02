@@ -17,6 +17,10 @@
  * 2 = could not check.
  */
 
+import Stripe from 'stripe';
+
+export const EXPECTED_STRIPE_API_VERSION = Stripe.API_VERSION;
+
 /** Events the handler must receive. Missing any of these fails the check. */
 export const REQUIRED_EVENTS = Object.freeze([
   'checkout.session.completed',
@@ -33,15 +37,24 @@ export const OPTIONAL_EVENTS = Object.freeze(['invoice.payment_failed', 'charge.
 export const DEFAULT_WEBHOOK_URL = 'https://api.oxy.so/billing/webhook';
 
 function normaliseUrl(url) {
-  return String(url).trim().replace(/\/+$/, '').toLowerCase();
+  try {
+    const parsed = new URL(String(url).trim());
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+    return parsed.href;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Pure decision over the endpoints Stripe returned. No I/O.
  * @returns {{ ok: boolean, problems: string[], notes: string[], endpointId?: string }}
  */
-export function evaluateWebhookEndpoints(endpoints, url = DEFAULT_WEBHOOK_URL) {
+export function evaluateWebhookEndpoints(endpoints, url = DEFAULT_WEBHOOK_URL, mode = 'live') {
   const target = normaliseUrl(url);
+  if (!target || !['live', 'test'].includes(mode)) {
+    return { ok: false, problems: ['invalid webhook URL or Stripe mode'], notes: [] };
+  }
   const matching = (Array.isArray(endpoints) ? endpoints : []).filter(
     (endpoint) => endpoint && normaliseUrl(endpoint.url ?? '') === target
   );
@@ -70,6 +83,16 @@ export function evaluateWebhookEndpoints(endpoints, url = DEFAULT_WEBHOOK_URL) {
     };
   }
   const [endpoint] = enabled;
+  const compatibilityProblems = [];
+  if (endpoint.livemode !== (mode === 'live')) {
+    compatibilityProblems.push(`endpoint ${endpoint.id} does not prove ${mode} mode`);
+  }
+  if (endpoint.api_version !== EXPECTED_STRIPE_API_VERSION) {
+    compatibilityProblems.push(`endpoint ${endpoint.id} API version ${endpoint.api_version ?? 'account default (unproven)'} must equal ${EXPECTED_STRIPE_API_VERSION}`);
+  }
+  if (compatibilityProblems.length) {
+    return { ok: false, problems: compatibilityProblems, notes: [], endpointId: endpoint.id };
+  }
   const events = new Set(Array.isArray(endpoint.enabled_events) ? endpoint.enabled_events : []);
   if (events.has('*')) {
     return { ok: true, problems: [], notes: ['endpoint sends every event (*)'], endpointId: endpoint.id };
@@ -95,16 +118,21 @@ export async function listWebhookEndpoints(secretKey, fetchImpl = globalThis.fet
     if (startingAfter) query.set('starting_after', startingAfter);
     const response = await fetchImpl(`https://api.stripe.com/v1/webhook_endpoints?${query}`, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${secretKey}` },
+      headers: { Authorization: `Bearer ${secretKey}`, 'Stripe-Version': EXPECTED_STRIPE_API_VERSION },
     });
     if (!response.ok) {
       throw new Error(`Stripe answered ${response.status} listing webhook endpoints`);
     }
     const body = await response.json();
-    const data = Array.isArray(body?.data) ? body.data : [];
+    if (!Array.isArray(body?.data) || typeof body.has_more !== 'boolean') {
+      throw new Error('malformed webhook endpoint page; refusing incomplete evidence');
+    }
+    const data = body.data;
     endpoints.push(...data);
-    if (!body?.has_more || data.length === 0) return endpoints;
-    startingAfter = data[data.length - 1].id;
+    if (!body.has_more) return endpoints;
+    const cursor = data.at(-1)?.id;
+    if (!cursor || cursor === startingAfter) throw new Error('pagination made no progress');
+    startingAfter = cursor;
   }
   throw new Error('more than 50 pages of webhook endpoints; refusing to guess');
 }
@@ -115,6 +143,12 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch, log 
     log.error('STRIPE_SECRET_KEY is not set; nothing was checked.');
     return 2;
   }
+  const mode = env.OXY_STRIPE_MODE || 'live';
+  const keyMode = /^(?:sk|rk)_(live|test)_/.exec(secretKey)?.[1];
+  if (keyMode !== mode) {
+    log.error('Stripe key mode must match OXY_STRIPE_MODE (default live); nothing was checked.');
+    return 2;
+  }
   const url = env.OXY_STRIPE_WEBHOOK_URL || DEFAULT_WEBHOOK_URL;
   let endpoints;
   try {
@@ -123,7 +157,7 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch, log 
     log.error(`Could not list webhook endpoints: ${error instanceof Error ? error.message : error}`);
     return 2;
   }
-  const result = evaluateWebhookEndpoints(endpoints, url);
+  const result = evaluateWebhookEndpoints(endpoints, url, mode);
   for (const note of result.notes) log.log(`note: ${note}`);
   if (!result.ok) {
     log.error(`Stripe webhook NOT ready for ${url}:`);
