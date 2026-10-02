@@ -27,10 +27,12 @@ import {
   costCenterUsage,
   markMeteredAdmissionRefused,
   settleMeteredUsage,
+  reconcileMeteredReceipts,
   type MeteredAdmissionInput,
 } from '../inferenceMeteredUsage.service';
 import { ingestProviderCostAttempts, type ProviderCostAttemptEvent } from '../kaanaProviderCostFeed.service';
-import { quoteUnits } from '../inferenceLedger.service';
+import { quoteUnits, provisionBillingProfile, recordTopUp, settle as settleLedger } from '../inferenceLedger.service';
+import { usageReceipts } from '../../db/schema/usageReceipts';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 
 jest.setTimeout(60_000);
@@ -304,6 +306,60 @@ describe('the usage record', () => {
   });
 });
 
+describe('terminal recovery from committed commercial receipts', () => {
+  it('skips conflicting terminal rows before its batch limit and links a matching later row', async () => {
+    const fixture = await makeFixture();
+    await provisionBillingProfile({ accountId: fixture.accountId });
+    await recordTopUp({ idempotencyKey: `fund-${tag()}`, accountId: fixture.accountId,
+      currency: 'USD', amount: '1.000000000000', actor: { kind: 'machine' } });
+    const ids: string[] = [];
+    for (const meteredTokens of [9, 1000]) {
+      const input = admission(fixture, commercial);
+      const claim = await claimMeteredAdmission(input);
+      if (claim.status !== 'claimed') throw new Error('fixture claim failed');
+      ids.push(claim.meteredUsageId);
+      await settle(fixture, claim.meteredUsageId, { input_tokens: meteredTokens, output_tokens: 2000 });
+      const result = await settleLedger({ idempotencyKey: input.idempotencyKey,
+        attribution: { accountId: fixture.accountId, applicationId: fixture.applicationId,
+          applicationCredentialId: fixture.credentialId, requestId: input.requestId, environment: 'production' },
+        outcome: 'completed', usageSource: 'provider_reported',
+        units: { input_tokens: 1000, output_tokens: 2000 }, resolvedModelReference: fixture.modelReference,
+        servingProvider: 'synthetic', priceVersionId: fixture.priceVersionId });
+      if (result.status !== 'settled') throw new Error(`fixture settlement failed: ${result.status}`);
+    }
+    expect(await reconcileMeteredReceipts(1)).toBe(1);
+    expect((await row(ids[0])).usageReceiptId).toBeNull();
+    expect((await row(ids[0])).inputTokens).toBe(9);
+    expect((await row(ids[1])).usageReceiptId).not.toBeNull();
+    expect(await reconcileMeteredReceipts(1)).toBe(0);
+  });
+
+  it('recovers a receipt committed before metering, without a second charge or execution', async () => {
+    const fixture = await makeFixture();
+    const input = admission(fixture, commercial);
+    const claim = await claimMeteredAdmission(input);
+    if (claim.status !== 'claimed') throw new Error('fixture claim failed');
+    await provisionBillingProfile({ accountId: fixture.accountId });
+    await recordTopUp({ idempotencyKey: `fund-${tag()}`, accountId: fixture.accountId,
+      currency: 'USD', amount: '1.000000000000', actor: { kind: 'machine' } });
+    const receipt = await settleLedger({ idempotencyKey: input.idempotencyKey,
+      attribution: { accountId: fixture.accountId, applicationId: fixture.applicationId,
+        applicationCredentialId: fixture.credentialId, requestId: input.requestId, environment: 'production' },
+      outcome: 'completed', usageSource: 'provider_reported',
+      units: { input_tokens: 1000, output_tokens: 2000 }, resolvedModelReference: fixture.modelReference,
+      servingProvider: 'synthetic', priceVersionId: fixture.priceVersionId });
+    if (receipt.status !== 'settled') throw new Error(`fixture settlement failed: ${receipt.status}`);
+    // Crash boundary: the immutable receipt exists, terminal metering does not.
+    expect((await row(claim.meteredUsageId)).status).toBe('admitted');
+    expect(await reconcileMeteredReceipts()).toBe(1);
+    expect(await row(claim.meteredUsageId)).toMatchObject({ status: 'settled',
+      inputTokens: 1000, outputTokens: 2000, usageReceiptId: receipt.receipt.receiptId });
+    expect(await reconcileMeteredReceipts()).toBe(0);
+    expect(await getDb().select().from(usageReceipts).where(eq(usageReceipts.requestId, input.requestId))).toHaveLength(1);
+    expect((await claimMeteredAdmission(input)).status).toBe('duplicate');
+  });
+});
+
 describe('the cost-centre usage report', () => {
   function attempt(requestId: string, index: number, overrides: Partial<ProviderCostAttemptEvent> = {}): ProviderCostAttemptEvent {
     return {
@@ -364,4 +420,24 @@ describe('the cost-centre usage report', () => {
       customerCharge: { amount: '0', receiptCount: 0 },
     });
   });
+  it('reports incomplete subtotals, missing feed and expired terminal evidence separately', async () => {
+    const fixture = await makeFixture();
+    const economics = internal({ maxConcurrentRequests: 10, maxRequestsPerUtcDay: 10 }, fixture.applicationId);
+    const input = admission(fixture, economics);
+    const partial = await claimMeteredAdmission(input);
+    const expired = await claimMeteredAdmission({ ...admission(fixture, economics), expiresInSeconds: -1 });
+    if (partial.status !== 'claimed' || expired.status !== 'claimed') throw new Error('fixture claim failed');
+    await settle(fixture, partial.meteredUsageId);
+    await ingestProviderCostAttempts([attempt(input.requestId, 0, { costComplete: false }),
+      attempt(input.requestId, 1, { cost: { currency: 'EUR', amountPicos: '10000000000' } })]);
+    const report = await costCenterUsage({ periodStart: new Date(Date.now() - 60_000),
+      periodEnd: new Date(Date.now() + 60_000), currency: 'USD' });
+    expect(report.find((entry) => entry.costCenter?.accountId === fixture.accountId)).toMatchObject({
+      requestCount: 1, inFlightCount: 0, expiredCount: 1,
+      providerCost: { amount: '0.010000000000', knownCount: 0, unknownCount: 0,
+        partialCount: 1, missingRequestCount: 1, otherCurrencyCount: 1 },
+    });
+    expect((await row(expired.meteredUsageId)).status).toBe('admitted');
+  });
+
 });

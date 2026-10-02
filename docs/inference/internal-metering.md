@@ -115,3 +115,29 @@ Unknown tariffs and costs appear as `unknownCount` beside each sum.
   internal request.
 - Provider gates (`decisionAvailability`, Kaana's reviewed audiences) are
   unchanged and stay closed.
+
+## Cost coverage and terminal recovery
+
+Provider cost `amount` includes known subtotals, including a rate-card attempt
+with `costComplete=false`. `knownCount` counts complete attempts only;
+`partialCount` counts incomplete known subtotals, `unknownCount` counts attempts
+without an amount, `missingRequestCount` counts requests with no ingested attempt,
+and `otherCurrencyCount` counts priced attempts excluded from the requested
+currency. Missing feed evidence never asserts zero provider cost.
+
+An expired admission without terminal evidence is reported as `expiredCount`,
+not `inFlightCount`. It retains its idempotency key and never permits replay.
+The recorded usage and cost feed can still be reconciled later. Kaana's operator
+feed preserves historical SQL NULL units as JSON null, distinct from a measured
+empty list. An attempt's units or cost alone do not prove a request terminated.
+
+Every API task reconciles committed commercial receipts to usage every 60 seconds.
+This repairs a crash after the immutable receipt committed and before its usage
+link: the receipt must match request, idempotency key and authenticated account,
+application, credential, environment and delegated-user attribution. An existing
+terminal usage row is only linked if its measurements agree; contradictory rows
+are excluded before the batch limit and are never overwritten. The reconciler
+makes no inference request or financial write. Failed financial settlement still
+records technical usage when storage is available. If an internal terminal write
+was lost and no authoritative terminal record exists, expiry remains explicitly
+unresolved; neither a fabricated zero nor a provider retry is a recovery strategy.
