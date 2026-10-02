@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { pathToFileURL } from 'node:url';
+import { policyTestRepository, SYNTHETIC_INACTIVE } from './forge-policy-test-fixtures.mjs';
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -15,7 +17,7 @@ const proof = JSON.parse(proofBytes);
 const records = Object.fromEntries(proof.records.map(row => [row.file, readFileSync(join(root, dirname(EVIDENCE_PATH), row.file))]));
 const audit = JSON.parse(readFileSync(join(root, 'docs/security/forge-candidate/provenance/run-36951283961/raw-bun-audit.json')));
 const source = 'a'.repeat(40), head = 'b'.repeat(40);
-const paths = ['.github/workflows/ci.yml', 'scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs', 'scripts/test-forge-audit-policy.mjs', ...TRUSTED_WORKFLOW.executedPaths];
+const paths = ['.github/workflows/ci.yml', 'scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs', 'scripts/test-forge-audit-policy.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs', 'scripts/forge-source-topology.mjs', 'scripts/test-forge-source-topology.mjs', 'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs', ...TRUSTED_WORKFLOW.executedPaths];
 let assertions = 0;
 // Every ACTIVE value below is SYNTHETIC. It does not name or claim a real Nate decision.
 function fixture() {
@@ -58,6 +60,9 @@ const cases = [
   ['machine checks failed', x => { x.proposal.machineChecksPassed = false; }],
   ['approval flag override', x => { x.proposal.approved = true; }],
   ['prototype error', x => { x.proposal.errors = ['mismatch']; }],
+  ['descendant queue requires own image', x => { x.facts.git.currentGithub = { run: { event: 'merge_group' } }; }],
+  ['main push requires own image', x => { x.facts.git.currentGithub = { run: { event: 'push' } }; }],
+  ['main dispatch requires own image', x => { x.facts.git.currentGithub = { run: { event: 'workflow_dispatch' } }; }],
   ['dirty checkout', x => { x.facts.git.clean = false; }],
   ['foreign ancestor', x => { x.facts.git.sourceIsAncestor = false; }],
   ['modified app code', x => { x.facts.git.changedPaths.push('packages/api/src/server.ts'); }],
@@ -114,25 +119,43 @@ try {
   }
 } finally { rmSync(mergeRoot, { recursive: true, force: true }); }
 
-const inactive = JSON.parse(readFileSync(join(root, DECISION_PATH)));
-assert.equal(readCommittedPolicyStatus(), 'INACTIVE'); assertions++;
-assert.equal(inactive.status, 'INACTIVE'); assertions++;
-assert.equal(inactive.authorizationRecord, null); assertions++;
-assert.equal(inactive.targetSourceHead, null); assertions++;
-assert.equal(inspectForgeAuditPolicy(audit).remediated, false); assertions++;
-// Shared-account metadata and tempting environment flags confer no authorization.
-for (const key of ['FORGE_ACK', 'FORGE_APPROVED', 'FORGE_AUDIT_POLICY_ACTIVE', 'DEPENDENCY_AUDIT_SKIP_FORGE']) {
-  process.env[key] = '1';
-  assert.equal(inspectForgeAuditPolicy(audit).remediated, false, key); assertions++;
-  delete process.env[key];
+// These real-code gate checks run against separately committed synthetic policies.
+// They remain valid when the reviewed repository later changes state.
+for (const [name, decision, expectedStatus, invalid] of [
+  ['inactive', SYNTHETIC_INACTIVE, 'INACTIVE', false],
+  ['synthetic active with injected audit', fixture().decision, 'ACTIVE', false],
+  ['synthetic expired with injected audit', { ...fixture().decision, expiresAt: '2026-10-01T12:00:00.000Z' }, 'ACTIVE', false],
+  ['synthetic missing evidence with injected audit', { ...fixture().decision, independentEvidence: null }, 'ACTIVE', false],
+  ['malformed', { ...SYNTHETIC_INACTIVE, unexpected: true }, null, true],
+]) {
+  const repository = policyTestRepository(decision);
+  try {
+    const module = await import(pathToFileURL(join(repository.root, 'scripts/forge-audit-policy.mjs')).href);
+    if (invalid) { assert.throws(() => module.readCommittedPolicyStatus(), /Invalid/); assertions++; }
+    else { assert.equal(module.readCommittedPolicyStatus(), expectedStatus); assertions++; }
+    const env = { ...process.env, DEPENDENCY_AUDIT_INPUT: join(root, 'docs/security/forge-candidate/provenance/run-36951283961/raw-bun-audit.json'),
+      FORGE_ACK: '1', FORGE_APPROVED: '1', FORGE_AUDIT_POLICY_ACTIVE: '1', DEPENDENCY_AUDIT_SKIP_FORGE: '1' };
+    const gate = spawnSync('bun', [join(repository.root, 'scripts/check-dependency-audit.mjs')], { cwd: repository.root, encoding: 'utf8', env });
+    assert.equal(gate.status, 1, name + ': fixtures cannot authorize the real gate'); assertions++;
+    assert.match(gate.stderr, /node-forge carries a high advisory nobody has acknowledged: GHSA-86w9-cpqp-85rv/); assertions++;
+    if (expectedStatus === 'ACTIVE') { assert.match(gate.stderr, /Injected audit payload cannot authorize remediation/); assertions++; }
+    if (invalid) { assert.match(gate.stderr, /Invalid closed policy JSON/); assertions++; }
+  } finally { repository.remove(); }
 }
-const gate = spawnSync(process.execPath, [join(root, 'scripts/check-dependency-audit.mjs')], {
-  cwd: root, encoding: 'utf8', env: { ...process.env,
-    DEPENDENCY_AUDIT_INPUT: join(root, 'docs/security/forge-candidate/provenance/run-36951283961/raw-bun-audit.json'),
-    FORGE_ACK: '1', FORGE_APPROVED: '1', FORGE_AUDIT_POLICY_ACTIVE: '1', DEPENDENCY_AUDIT_SKIP_FORGE: '1' },
-});
-assert.equal(gate.status, 1, 'normal gate must reject the unapproved Forge fixture'); assertions++;
-assert.match(gate.stderr, /node-forge carries a high advisory nobody has acknowledged: GHSA-86w9-cpqp-85rv/); assertions++;
-const committed = execFileSync('/usr/bin/git', ['-C', root, 'show', `HEAD:${DECISION_PATH}`]).toString();
-assert.deepEqual(JSON.parse(committed), inactive); assertions++;
-console.log(`Forge audit policy: ${assertions} structural/inactive assertions passed; no live or human authorization claimed.`);
+// The legacy audit fixture group must also pass when its checkout contains ACTIVE.
+// Its own offline fixture repository always has a synthetic INACTIVE policy.
+const activeCheckout = policyTestRepository(fixture().decision);
+try {
+  for (const path of ['scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs']) {
+    writeFileSync(join(activeCheckout.root, path), readFileSync(join(root, path)));
+  }
+  const group = spawnSync('bun', [join(activeCheckout.root, 'scripts/test-check-dependency-audit.mjs')], { cwd: activeCheckout.root, encoding: 'utf8' });
+  assert.equal(group.status, 0, group.stderr); assertions++;
+  assert.match(group.stdout, /All 9 dependency-audit cases passed/); assertions++;
+} finally { activeCheckout.remove(); }
+for (const path of ['scripts/test-forge-source-topology.mjs', 'scripts/test-forge-final-image-binding.mjs']) {
+  const result = spawnSync('bun', [join(root, path)], { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr); assertions++;
+  process.stdout.write(result.stdout);
+}
+console.log(`Forge audit policy: ${assertions} structural and isolated policy assertions passed; no live or human authorization claimed.`);

@@ -8,8 +8,9 @@ No exception, ACK, version rename, merge or deployment is authorized by this wor
 
 The candidate starts from #1528 at
 `b09309b62e0eb60ad9d2e43726d8fd11749180c7`. It preserves the original Forge patch,
-the five installed-file hashes, and the original provenance collector and
-proposal evaluator. That evaluator always returns `approved: false` and remains
+the five installed-file hashes and the original proposal semantics. The collector
+now also authenticates non-descendant squash run/commit provenance, as explained
+below; the evaluator always returns `approved: false` and remains
 a proposal. Its authenticated machine checks are technical inputs to the new
 validator; they are not a security decision, and its `technicalEvidenceComplete`
 flag is not rewritten.
@@ -30,7 +31,8 @@ The validator requires all of the following:
   explicitly a session decision, with a digest and timestamp; expiry is required
   and bounded to seven days.
 - `targetSourceHead` equals the source in the provenance pins. The current clean
-  checkout descends from that target. Only the two exact paths
+  checkout descends from that target, or has authenticated squash source binding
+  to the fixed main base `4b145040`. Only the two exact paths
   `docs/security/forge-candidate/provenance/pins.json` and
   `docs/security/forge-candidate/provenance/audit-policy-decision.json` may differ.
 - The normal audit script, this validator, its fixtures, CI workflow and every
@@ -66,7 +68,7 @@ needed for private artifact GETs is an unapplied
 [preparation diff](forge-candidate/audit-policy-actions-permission.diff); it is
 not granted by this candidate. The token permits provenance GETs; it does not prove a human
 approval. The login is removed afterwards. INACTIVE skips both setup steps.
-Unavailable installation, ancestry or authentication keeps validation red.
+Unavailable installation, source binding or authentication keeps validation red.
 Injected audit fixture payloads and environment ACK/approval flags cannot activate
 the live gate.
 
@@ -158,3 +160,11 @@ payload and all four tempting environment flags. It still exits 1 for the GHSA.
 The current branch has no installed dependency inventory; INACTIVE neither
 installs one nor infers a waiver from its absence. A fresh ARM run for this
 candidate source is still required before any activation proposal.
+
+## Review correction: offline fixtures and squash source binding
+
+[Review 5958099898](https://github.com/OxyHQ/oxy/pull/1546#issuecomment-5958099898) found two genuine activation blockers. Offline audit fixtures now execute copied gate code in their own committed synthetic INACTIVE repository. Policy fixtures use separate synthetic INACTIVE, ACTIVE, expired, malformed and missing-evidence repositories; their injected reports never authorize remediation. A synthetic ACTIVE checkout also runs all nine legacy audit cases successfully. The real decision row is unchanged.
+
+The authenticated example run `36945662744` has event merge_group, SHA `ffacc5266d30018ead3570b5f2477b06ba1a4911`, one parent `4b145040afca38be93ad4096241d4c60e12e1c82`, and empty run/commit pull-request arrays. Those empty arrays do not prove membership. Their absence is not replaced by an invented PR claim. Non-descendant source binding instead requires authenticated same-repository run and commit GETs, the exact checkout SHA/tree, a single fixed base parent, a queue ref carrying that same base, a complete tree diff restricted to the two declarative files, closed policy schemas and unchanged executed blobs. Caller-supplied metadata remains structural only. Real temporary Git SQUASH fixtures exercise the valid byte topology and reject advanced main, foreign repository, wrong SHA/tree/base, extra parents and extra files.
+
+**This source correction does not bind the queue image.** The PR image is evidence of the frozen candidate, not of a different queue digest. The current gate explicitly refuses squash image authorization until the future image DAG is implemented and reviewed. See the unapplied workflow diff and its permission/DAG review. A new source freeze and ARM proof are required after these executable changes; old `8f4485` evidence cannot activate this new candidate. The prior human policy question is insufficient for the new circuit.

@@ -1,4 +1,5 @@
 /** A disabled policy candidate. Human authorization is a separate session decision. */
+import { checkFrozenSourceTopology } from './forge-source-topology.mjs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +16,9 @@ export const INDEPENDENT_INPUT_PATHS = Object.freeze(['packages', 'bun.lock', 'p
 const RECORD_NAMES = Object.freeze(['expo-14.log', 'oxy-db-build.log', 'stock-install-pinned.log', 'candidate-install.log', 'oxy-install.log', 'stock-build.log', 'candidate-build-1.log', 'candidate-build-2.log', 'candidate-build-3.log', 'stock-upstream.log', 'candidate-upstream.log', 'expo-14-final.log', 'oxy-34.log', 'stock-controls.json', 'candidate-controls.json', 'hashes-after-build-2.json', 'candidate-build-repeat.json']);
 const EXECUTED_PATHS = Object.freeze([
   '.github/workflows/ci.yml', 'scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs',
-  'scripts/test-forge-audit-policy.mjs', ...TRUSTED_WORKFLOW.executedPaths,
+  'scripts/test-forge-audit-policy.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs',
+  'scripts/forge-source-topology.mjs', 'scripts/test-forge-source-topology.mjs',
+  'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs', ...TRUSTED_WORKFLOW.executedPaths,
 ]);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exact = (value, keys) => object(value) && canonicalAudit(Object.keys(value).sort()) === canonicalAudit([...keys].sort());
@@ -48,7 +51,12 @@ export function checkForgePolicyStructure(input) {
     || advisories[0]?.severity !== 'high' || advisories[0]?.vulnerable_versions !== '<=1.4.0') fail('Exact single Forge high advisory required');
   if (proposal?.authenticatedProvenance !== true || proposal?.machineChecksPassed !== true
     || proposal?.approved !== false || proposal?.proposalOnly !== true || proposal?.errors?.length !== 0) fail('Authenticated candidate machine proof is incomplete');
-  if (!commit(facts?.git?.head) || facts.git.clean !== true || facts.git.sourceIsAncestor !== true) fail('Clean descendant checkout required');
+  const topology = checkFrozenSourceTopology(facts?.git, facts?.pins);
+  for (const error of topology.errors) fail(error);
+  // Queue source equivalence is separate from its image. PR artifact never proves
+  // the queue image: the future no-publish build/scan/Guards/publish DAG must supply it.
+  const execution = facts?.git?.currentGithub?.run;
+  if (topology.kind === 'squash' || ['merge_group', 'push', 'workflow_dispatch'].includes(execution?.event)) fail('Final execution image evidence binding is not wired; PR image cannot authorize queue/main publication');
   if (!Array.isArray(facts?.git?.changedPaths) || facts.git.changedPaths.some(path => !DECLARATIVE_PATHS.includes(path))) fail('Only the two exact declarative paths may differ from target');
   for (const path of EXECUTED_PATHS) if (!blobs?.source?.[path] || blobs.source[path] !== blobs?.current?.[path]) fail(`Executed code changed: ${path}`);
   if (!Array.isArray(copies) || copies.length === 0) fail('Installed Forge inventory is missing');

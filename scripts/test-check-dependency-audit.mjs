@@ -23,7 +23,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+import { policyTestRepository } from './forge-policy-test-fixtures.mjs';
+
+const syntheticRepository = policyTestRepository();
+const repositoryRoot = syntheticRepository.root;
+process.on('exit', () => syntheticRepository.remove());
 const gate = resolve(repositoryRoot, 'scripts/check-dependency-audit.mjs');
 
 function acknowledgements() {

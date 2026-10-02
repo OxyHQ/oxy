@@ -1,5 +1,6 @@
 /** INERT proposal. Never substitutes for the dependency audit or grants approval. */
 import { readFileSync, readdirSync, realpathSync, readlinkSync, existsSync } from 'node:fs';
+import { checkFrozenSourceTopology } from './forge-source-topology.mjs';
 import { FORGE_MARKERS } from './forge-candidate-image-roots.mjs';
 import { join, resolve, relative, dirname, posix } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -144,7 +145,7 @@ export const TRUSTED_WORKFLOW = freeze({
   os: 'linux', architecture: 'arm64', installedRoot: '/app', rootScanRoot: '/', rootScanExcluded: ['/dev', '/proc', '/proof/scripts', '/sys'],
   // Executed by the run; each blob at the run's merge ref must equal the blob at the evidence source.
   executedPaths: ['.github/workflows/forge-candidate-image-proof.yml', 'Dockerfile', 'scripts/forge-candidate-image-proof.mjs',
-    'scripts/forge-remediation-proof-proposal.mjs', 'scripts/forge-candidate-regression.cjs', 'scripts/forge-candidate-dangling-links.mjs',
+    'scripts/forge-remediation-proof-proposal.mjs', 'scripts/forge-source-topology.mjs', 'scripts/forge-candidate-regression.cjs', 'scripts/forge-candidate-dangling-links.mjs',
     'scripts/forge-candidate-image-roots.mjs', 'patches/node-forge@1.4.0.patch', 'docs/security/forge-candidate/candidate-hashes.json'],
   steps: ['Set up job', 'Run actions/checkout@v7', 'Verify the exact candidate source', 'Run docker/setup-buildx-action@v4',
     'Run crazy-max/ghaction-github-runtime@v4', 'Build the final production Dockerfile locally on ARM',
@@ -226,7 +227,8 @@ function checkGit(git, pins, fail) {
   if (git.clean !== true) fail('Evaluating checkout is not clean');
   if (git.head !== pins.sourceSha) {
     // Never claim an earlier run proves changed source: only the reviewed pin record may differ.
-    if (git.sourceIsAncestor !== true) fail('Evidence source is not an ancestor of the evaluating HEAD');
+    const topology = checkFrozenSourceTopology(git, pins);
+    for (const error of topology.errors) fail(error);
     const foreign = (git.changedPaths ?? ['<unknown>']).filter(path => !path.startsWith(PROVENANCE_DIR));
     if (foreign.length) fail(`Evidence proves ${pins.sourceSha}, not current HEAD ${git.head}: changed outside the pin record: ${foreign.join(', ')}`);
   }
@@ -445,7 +447,8 @@ export function collect(options = {}) {
   const blob = (ref, path) => { try { return text('rev-parse', `${ref}:${path}`); } catch { return null; } };
   const facts = {
     head, clean: text('status', '--porcelain', '--untracked-files=all') === '', sourceIsAncestor,
-    changedPaths: sourceIsAncestor ? text('diff', '--name-only', source, head).split('\n').filter(Boolean) : ['<not a descendant>'],
+    changedPaths: text('diff', '--name-only', source, head).split('\n').filter(Boolean),
+    headParents: text('show', '-s', '--format=%P', head).split(' ').filter(Boolean), headTree: text('rev-parse', 'HEAD^{tree}'),
     blobsAtSource: Object.fromEntries(TRUSTED_WORKFLOW.executedPaths.map(path => [path, blob(source, path)])),
     sourceCommitTime: text('show', '-s', '--format=%cI', source),
     patchBytes: git('show', `${source}:patches/node-forge@1.4.0.patch`),
@@ -465,6 +468,16 @@ export function collect(options = {}) {
     const bytes = exec('gh', ['api', '--hostname', 'github.com', '--method', 'GET', path], { maxBuffer: 64 * 1024 * 1024, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] });
     return raw ? bytes : JSON.parse(bytes);
   });
+  // Non-descendant commits require actual GitHub merge-group provenance. A ref or
+  // caller object alone is not authentication; these GETs run through this collector.
+  if (!sourceIsAncestor || process.env.GITHUB_RUN_ID !== undefined) {
+    const currentRunId = process.env.GITHUB_RUN_ID;
+    if (!/^[1-9][0-9]*$/.test(currentRunId ?? '')) throw new Error('Non-descendant checkout requires a current authenticated Actions run');
+    const currentCommit = api(`${R}/git/commits/${head}`);
+    facts.currentGithub = { run: api(`${R}/actions/runs/${currentRunId}`), commit: {
+      sha: currentCommit.sha, tree: currentCommit.tree?.sha, parents: currentCommit.parents.map(parent => parent.sha),
+    } };
+  }
   const contents = path => { try { return api(`${R}/contents/${path}?ref=${pins.workflowMergeSha}`).sha; } catch { return null; } };
   const mergeCommit = api(`${R}/git/commits/${pins.workflowMergeSha}`);
   const github = {

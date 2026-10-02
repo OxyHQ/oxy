@@ -62,6 +62,7 @@ function complete() {
   const x = real();
   repack(x, ({ json, put }) => { put('forge-image-roots.json', rootsFor(json('forge-image-regression-proof.json'))); put('forge-image-mount-targets.json', mountTargets()); }, { api: true });
   x.github.job.steps = TRUSTED_WORKFLOW.steps.map(name => ({ name, conclusion: 'success' }));
+  x.github.blobsAtMerge['scripts/forge-source-topology.mjs'] = x.git.blobsAtSource['scripts/forge-source-topology.mjs'] = 'e'.repeat(40);
   x.github.blobsAtMerge['scripts/forge-candidate-image-roots.mjs'] = x.git.blobsAtSource['scripts/forge-candidate-image-roots.mjs'] = 'f'.repeat(40);
   return x;
 }
@@ -96,6 +97,7 @@ function refuse(x, pattern, label) {
   const r = run(real());
   assert.deepEqual(r.errors, [
     'Job steps differ from the trusted workflow (mount-target check or whole-image root discovery missing, or a step did not succeed)',
+    'Executed scripts/forge-source-topology.mjs differs from (or is absent in) the evidence source',
     'Executed scripts/forge-candidate-image-roots.mjs differs from (or is absent in) the evidence source',
     'Artifact lacks forge-image-roots.json: complete installed-root set cannot be derived',
     'Artifact lacks forge-image-mount-targets.json',
