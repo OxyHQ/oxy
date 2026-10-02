@@ -484,9 +484,17 @@ describe('DELETE /auth/grants/:applicationId', () => {
  * same requested scopes, and the only thing that changes the outcome is what the
  * user granted.
  */
+/**
+ * Registered for the follow graph, so a follow scope survives the narrowing to
+ * the application's registered scopes both `/oauth/consent` and
+ * `/oauth/authorize` apply — what is under test here is the consent rule, not
+ * the ceiling.
+ */
+const FOLLOW_APP_SCOPES = ['user:read', 'files:read', 'follows:read', 'follows:write'];
+
 describe('follow scopes are never auto-approved, for anybody', () => {
   it('asks a TRUSTED app for consent, and names the scope that forced it', async () => {
-    const { clientId } = await client({ isOfficial: true });
+    const { clientId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
 
     const res = await send('GET', consentUrl(clientId, 'user:read follows:write'));
 
@@ -501,7 +509,7 @@ describe('follow scopes are never auto-approved, for anybody', () => {
   it('still auto-approves that same trusted app for everything else', async () => {
     // The bypass is narrowed, not removed: an app reading its own files should
     // not start prompting because an unrelated scope family was added.
-    const { clientId } = await client({ isOfficial: true });
+    const { clientId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
 
     const res = await send('GET', consentUrl(clientId, 'user:read files:read'));
 
@@ -509,8 +517,8 @@ describe('follow scopes are never auto-approved, for anybody', () => {
   });
 
   it('gives an official and a third-party app the SAME answer for the same scopes', async () => {
-    const official = await client({ isOfficial: true });
-    const thirdParty = await client();
+    const official = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
+    const thirdParty = await client({ scopes: FOLLOW_APP_SCOPES });
 
     const officialRes = await send('GET', consentUrl(official.clientId, 'follows:read'));
     const thirdPartyRes = await send('GET', consentUrl(thirdParty.clientId, 'follows:read'));
@@ -522,7 +530,7 @@ describe('follow scopes are never auto-approved, for anybody', () => {
   it('lets the USER\u2019s grant do the authorizing, for a trusted app too', async () => {
     // Once consented, the returning-user path applies as it does for anyone —
     // the grant is what authorizes, which is the whole claim being made here.
-    const { clientId, applicationId } = await client({ isOfficial: true });
+    const { clientId, applicationId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
     await getDb().insert(appGrants).values({
       userId: authenticatedUser?._id ?? '',
       applicationId,
@@ -538,7 +546,7 @@ describe('follow scopes are never auto-approved, for anybody', () => {
     // A trusted app normally records none, because it never prompted. Here it
     // did prompt, and a permission the user granted but cannot find or withdraw
     // would be worse than one they were never asked for.
-    const { clientId, applicationId } = await client({ isOfficial: true });
+    const { clientId, applicationId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
 
     await send('POST', '/auth/oauth/authorize', {
       clientId,
@@ -639,7 +647,7 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
  *
  * These drive the real `POST /auth/oauth/authorize` rather than calling
  * `clearServiceActingAsRevocation` directly, and that is the whole point of
- * them: the condition guarding the clear lives in `recordAppGrant`, so a test
+ * them: the condition guarding the clear lives in `decideOAuthConsent`, so a test
  * that calls the clear itself proves the clear works and says nothing about WHEN
  * it runs. Mutation-verified — removing the `acting-as:offline` condition and
  * clearing on every authorize survived the suite until these existed.
@@ -649,7 +657,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
     // The scope here has to be consent-required but NOT `acting-as:offline`,
     // and that is the whole subtlety of this test.
     //
-    // `recordAppGrant` — where the clear lives — is only called when the app is
+    // The grant — and with it the clear — is only written when the app is
     // untrusted OR the request names a consent-required scope. So an ORDINARY
     // first-party authorize (`user:read`) never reaches the clear at all, and a
     // test using one passes whether the condition exists or not. Measured: with
