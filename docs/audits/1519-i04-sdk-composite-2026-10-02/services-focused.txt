@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath __tests__/context/coldBoot.test.tsx __tests__/components/OxySignInButton.test.tsx __tests__/context/browserBridge.test.tsx __tests__/context/sessionClientSocket.test.tsx __tests__/context/identitySessionMode.test.tsx src/ui/oauth/__tests__/nativeAuthTransport.test.ts src/ui/boot/__tests__/coldBootNoIdpRedirect.test.ts __tests__/boot/runProviderColdBoot.test.ts src/ui/context/__tests__/isolatedOAuthSession.test.ts src/ui/context/__tests__/commitSessionFlow.test.ts
+
+Test Suites: 10 passed, 10 total
+Tests:       96 passed, 96 total
+Snapshots:   0 total
+Time:        4.71 s
+Ran all test suites within paths "__tests__/context/coldBoot.test.tsx", "__tests__/components/OxySignInButton.test.tsx", "__tests__/context/browserBridge.test.tsx", "__tests__/context/sessionClientSocket.test.tsx", "__tests__/context/identitySessionMode.test.tsx", "src/ui/oauth/__tests__/nativeAuthTransport.test.ts", "src/ui/boot/__tests__/coldBootNoIdpRedirect.test.ts", "__tests__/boot/runProviderColdBoot.test.ts", "src/ui/context/__tests__/isolatedOAuthSession.test.ts", "src/ui/context/__tests__/commitSessionFlow.test.ts".

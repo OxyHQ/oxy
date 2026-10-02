@@ -1,0 +1,111 @@
+{
+  "consumer": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer",
+  "resolvedPackages": [
+    {
+      "name": "@oxy.so/contracts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/contracts/dist/cjs/index.js"
+    },
+    {
+      "name": "@oxy.so/core",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/core/dist/cjs/index.js"
+    },
+    {
+      "name": "@oxy.so/services",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/services/lib/commonjs/index.js"
+    },
+    {
+      "name": "@oxy.so/mcp",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/mcp/dist/cjs/index.js"
+    },
+    {
+      "name": "@oxy.so/protocol",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/protocol/dist/cjs/index.js"
+    },
+    {
+      "name": "@oxy.so/telemetry",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/telemetry/dist/cjs/index.js"
+    }
+  ],
+  "modules": [
+    {
+      "package": "core",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/core/dist/esm/api/apps.js",
+      "sha256": "067fe654be383f629be48f9053ee2e7de5fa26b49eafa20c66a22b5449046e94",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "core",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/core/dist/esm/session/SessionClient.js",
+      "sha256": "b15bdd16bf70a36caf5ebc501e1acfa19eea29bce73b73823af18c06fc9c33ae",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "core",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/core/dist/esm/server/namespaces.js",
+      "sha256": "734039c280aca9d66355444c985a9d1c9c87c398b095964f15f0cff5d3449185",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "core",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/core/dist/esm/server/liveCapabilityTicket.js",
+      "sha256": "f9b9a172a0f37850af29c5dd2325f6eb9f06300338be3fa5c807e3db078e71af",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "contracts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/contracts/dist/esm/agency.js",
+      "sha256": "9a3eac287ea027534c649b56743644b7a6a910610050d049b401b23a3051448f",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "contracts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/contracts/dist/esm/capabilityBindings.js",
+      "sha256": "cc5ef635062529f18bbc0071e0f89054ca746a875f5d77b8f20ac43e50a1f12b",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "mcp",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/mcp/dist/esm/internalTransport.js",
+      "sha256": "f1bd3186bc2fd3762389cbd53e1aeb61f3e0f9593562a4c1b55119770e12627a",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "mcp",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/mcp/dist/esm/internalClient.js",
+      "sha256": "cbaf0d002ca5681595d75d8f6273e96f6f0c157841e71d575c1b883719670a87",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "mcp",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/mcp/dist/esm/invocationAdapter.js",
+      "sha256": "e8f633ef3fdd1e7777d72d57f9a7fc1fc9e2d4ce3e41d5f083a75e8a429b73cb",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "services",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/services/lib/module/ui/context/OxyContext.js",
+      "sha256": "68e5755e4c194929ffb8776b233c7dc5b35ce9f4a3dce6f6de4dec9da86d407b",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "services",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/services/lib/module/ui/components/OxySignInButton.js",
+      "sha256": "7cae5fa918a5915803f9f82bec1e172dcddf121751e4d73680811c37be933e45",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "services",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/services/lib/module/ui/context/isolatedOAuthSession.js",
+      "sha256": "317a07a13cf8057538fa55306b80b7e1d4b2609ed80ec9d6e0e6b6100ce21f69",
+      "equalsCombinedBuiltModule": true
+    },
+    {
+      "package": "services",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/node_modules/@oxy.so/services/lib/module/ui/oauth/nativeAuthTransport.js",
+      "sha256": "13f69a49f07eaa3f21b3663181308ff5d159c9ea29fc04ffa145b97ff1f1d1b6",
+      "equalsCombinedBuiltModule": true
+    }
+  ],
+  "sourceAliases": false,
+  "publication": false
+}

@@ -1,0 +1,134 @@
+{
+  "baselineHead": "72d41bf5c39cd635453440ce258177574dc1270e",
+  "currentBroadLintExitCode": 1,
+  "baselineDiagnostics": [
+    {
+      "file": "packages/api/src/services/capabilityAuthority.service.ts",
+      "category": "lint/style/useImportType",
+      "description": "All these imports are only used as types.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/coldBoot.test.tsx",
+      "category": "lint/complexity/noForEach",
+      "description": "Prefer for...of instead of forEach.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/coldBoot.test.tsx",
+      "category": "lint/style/useImportType",
+      "description": "All these imports are only used as types.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/identitySessionMode.test.tsx",
+      "category": "lint/suspicious/noDuplicateObjectKeys",
+      "description": "This property value named getDirectory is later overwritten by an object member with the same name.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/identitySessionMode.test.tsx",
+      "category": "lint/suspicious/noDuplicateObjectKeys",
+      "description": "This property value named refreshDirectory is later overwritten by an object member with the same name.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/identitySessionMode.test.tsx",
+      "category": "lint/suspicious/noDuplicateObjectKeys",
+      "description": "This property value named activateContext is later overwritten by an object member with the same name.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/identitySessionMode.test.tsx",
+      "category": "lint/style/useImportType",
+      "description": "All these imports are only used as types.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/browserBridge.test.tsx",
+      "category": "lint/complexity/noForEach",
+      "description": "Prefer for...of instead of forEach.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/browserBridge.test.tsx",
+      "category": "lint/style/useImportType",
+      "description": "All these imports are only used as types.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/sessionClientSocket.test.tsx",
+      "category": "lint/suspicious/noDuplicateObjectKeys",
+      "description": "This property value named getDirectory is later overwritten by an object member with the same name.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/sessionClientSocket.test.tsx",
+      "category": "lint/suspicious/noDuplicateObjectKeys",
+      "description": "This property value named refreshDirectory is later overwritten by an object member with the same name.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/sessionClientSocket.test.tsx",
+      "category": "lint/suspicious/noDuplicateObjectKeys",
+      "description": "This property value named activateContext is later overwritten by an object member with the same name.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/sessionClientSocket.test.tsx",
+      "category": "lint/style/useImportType",
+      "description": "All these imports are only used as types.",
+      "count": 1
+    },
+    {
+      "file": "packages/api/src/services/__tests__/capabilityAuthority.db.test.ts",
+      "category": "lint/performance/noDelete",
+      "description": "Avoid the delete operator which can impact performance.",
+      "count": 2
+    },
+    {
+      "file": "packages/services/__tests__/context/mutationsSessionClient.test.tsx",
+      "category": "lint/suspicious/noDuplicateObjectKeys",
+      "description": "This property value named getDirectory is later overwritten by an object member with the same name.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/mutationsSessionClient.test.tsx",
+      "category": "lint/suspicious/noDuplicateObjectKeys",
+      "description": "This property value named refreshDirectory is later overwritten by an object member with the same name.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/mutationsSessionClient.test.tsx",
+      "category": "lint/suspicious/noDuplicateObjectKeys",
+      "description": "This property value named activateContext is later overwritten by an object member with the same name.",
+      "count": 1
+    },
+    {
+      "file": "packages/services/__tests__/context/mutationsSessionClient.test.tsx",
+      "category": "lint/style/useImportType",
+      "description": "All these imports are only used as types.",
+      "count": 1
+    },
+    {
+      "file": "packages/api/src/controllers/session.controller.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "description": "A Node.js builtin module should be imported with the node: protocol.",
+      "count": 1
+    },
+    {
+      "file": "packages/api/src/controllers/session.controller.ts",
+      "category": "lint/complexity/noStaticOnlyClass",
+      "description": "Avoid classes that contain only static members.",
+      "count": 1
+    },
+    {
+      "file": "packages/api/src/controllers/session.controller.ts",
+      "category": "lint/style/useTemplate",
+      "description": "Template literals are preferred over string concatenation.",
+      "count": 2
+    }
+  ],
+  "newDiagnostics": [],
+  "remainingDiagnostics": 20
+}
