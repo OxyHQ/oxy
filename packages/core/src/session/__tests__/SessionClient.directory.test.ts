@@ -305,7 +305,12 @@ describe('SessionClient — device directory', () => {
     // Positive control for the previous test: this client HAS a directory, so
     // an advancing state does fetch one.
     const observed: Array<number | undefined> = [];
-    client.subscribe(() => observed.push(client.getDirectory()?.revision));
+    const notified = new Promise<void>((resolve) => {
+      client.subscribe(() => {
+        observed.push(client.getDirectory()?.revision);
+        resolve();
+      });
+    });
     releaseDirectory = () => undefined;
 
     client.apply(stateAt(3, 'org'));
@@ -315,9 +320,7 @@ describe('SessionClient — device directory', () => {
     expect(countOf(host.urls, '/session/device/directory')).toBe(2);
 
     releaseDirectory();
-    for (let i = 0; i < 5; i++) {
-      await Promise.resolve();
-    }
+    await notified;
 
     // The one notify observed BOTH halves at revision 3.
     expect(observed).toEqual([3]);
