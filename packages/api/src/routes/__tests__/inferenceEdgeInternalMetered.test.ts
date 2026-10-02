@@ -421,7 +421,7 @@ describe('one installation, charging armed', () => {
     await db.execute(sql`create trigger ${sql.raw(triggerName)} before update on inference_metered_usage
       for each row when (new.status = 'settled' and old.account_id = '${sql.raw(external.accountId)}')
       execute function ${sql.raw(triggerName)}()`);
-    let response: RawResponse;
+    let response: RawResponse | undefined;
     try {
       response = await post(body(external), { ...bearer(external.machineToken), 'Idempotency-Key': key });
       expect(response.status).toBe(200);
@@ -437,7 +437,8 @@ describe('one installation, charging armed', () => {
       await db.execute(sql`drop function ${sql.raw(triggerName)}()`);
     }
     expect(await reconcileMeteredReceipts()).toBe(1);
-    const recovered = await meteredFor(response!.body.requestId);
+    if (response === undefined) throw new Error('missing completed edge response');
+    const recovered = await meteredFor(response.body.requestId);
     expect(recovered).toMatchObject({ status: 'settled', inputTokens: 1000, outputTokens: 2000,
       tariffAmount: '0.033000000000' });
     expect(recovered.usageReceiptId).not.toBeNull();
