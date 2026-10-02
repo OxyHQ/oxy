@@ -24,7 +24,7 @@
 
 import { createHash } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { executeRows } from '@oxy.so/db';
+import { executeRows, type SqlExecutor } from '@oxy.so/db';
 import {
   costCenterUsageSchema,
   USAGE_UNITS,
@@ -109,6 +109,28 @@ function capacityLockKey(applicationId: string, environment: string): bigint {
   return digest.readBigInt64BE(0);
 }
 
+/** Read the exact admission population; the caller decides whether to lock it. */
+export async function readMeteredCapacity(
+  executor: SqlExecutor, applicationId: string, environment: InferenceEnvironment
+): Promise<{ activeAdmissions: number; dailyAdmissions: number }> {
+  const [counts] = await executeRows<{ in_flight: string; today: string }>(
+    executor,
+    sql`
+      select
+        count(*) filter (where ${inferenceMeteredUsage.status} = 'admitted'
+          and ${inferenceMeteredUsage.expiresAt} > now())::text as in_flight,
+        count(*) filter (where ${inferenceMeteredUsage.createdAt}
+          >= (date_trunc('day', now() at time zone 'utc') at time zone 'utc'))::text as today
+      from ${inferenceMeteredUsage}
+      where ${inferenceMeteredUsage.applicationId} = ${applicationId}
+        and ${inferenceMeteredUsage.environment} = ${environment}
+        and ${inferenceMeteredUsage.status} <> 'refused'
+        and ${inferenceMeteredUsage.createdAt} >= now() - interval '2 days'
+    `
+  );
+  return { activeAdmissions: Number(counts?.in_flight ?? 0), dailyAdmissions: Number(counts?.today ?? 0) };
+}
+
 /**
  * Claim the durable usage row for an admitted request. NOTHING may be
  * forwarded unless this returned `claimed`.
@@ -147,25 +169,11 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
       await tx.execute(
         sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`
       );
-      const [counts] = await executeRows<{ in_flight: string; today: string }>(
-        tx,
-        sql`
-          select
-            count(*) filter (where ${inferenceMeteredUsage.status} = 'admitted'
-              and ${inferenceMeteredUsage.expiresAt} > now())::text as in_flight,
-            count(*) filter (where ${inferenceMeteredUsage.createdAt}
-              >= (date_trunc('day', now() at time zone 'utc') at time zone 'utc'))::text as today
-          from ${inferenceMeteredUsage}
-          where ${inferenceMeteredUsage.applicationId} = ${input.applicationId}
-            and ${inferenceMeteredUsage.environment} = ${input.environment}
-            and ${inferenceMeteredUsage.status} <> 'refused'
-            and ${inferenceMeteredUsage.createdAt} >= now() - interval '2 days'
-        `
-      );
-      if (Number(counts?.in_flight ?? 0) >= capacity.maxConcurrentRequests) {
+      const counts = await readMeteredCapacity(tx, input.applicationId, input.environment);
+      if (counts.activeAdmissions >= capacity.maxConcurrentRequests) {
         return { status: 'capacity-exceeded', limit: 'concurrency', capacity };
       }
-      if (Number(counts?.today ?? 0) >= capacity.maxRequestsPerUtcDay) {
+      if (counts.dailyAdmissions >= capacity.maxRequestsPerUtcDay) {
         return { status: 'capacity-exceeded', limit: 'daily', capacity };
       }
     }

@@ -9,7 +9,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   INFERENCE_ECONOMIC_POLICY_VERSION,
@@ -33,6 +33,7 @@ import {
 import { ingestProviderCostAttempts, type ProviderCostAttemptEvent } from '../kaanaProviderCostFeed.service';
 import { quoteUnits, provisionBillingProfile, recordTopUp, settle as settleLedger } from '../inferenceLedger.service';
 import { usageReceipts } from '../../db/schema/usageReceipts';
+import { readJevTechnicalMetering } from '../../scripts/jevMeteringReadback';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 
 jest.setTimeout(60_000);
@@ -227,6 +228,90 @@ describe('technical capacity for internal_metered', () => {
       status: 'capacity-exceeded',
       limit: 'daily',
     });
+  });
+
+  it.each([0, 1])('readback and admission count 32 live requests across treatments (%i internal)', async (internalCount) => {
+    const fixture = await makeFixture();
+    const economics = internal({ maxConcurrentRequests: 32, maxRequestsPerUtcDay: 5000 }, fixture.applicationId);
+    const ids: string[] = [];
+    for (let i = 0; i < 32; i += 1) {
+      const claim = await claimMeteredAdmission(admission(fixture, i < internalCount ? economics : commercial));
+      if (claim.status !== 'claimed') throw new Error('fixture claim failed');
+      ids.push(claim.meteredUsageId);
+    }
+    const evidence = await readJevTechnicalMetering(getDb(), fixture.applicationId, 'production');
+    expect(evidence).toEqual({ schemaAvailable: true, activeAdmissions: 32, dailyAdmissions: 32 });
+    expect(await claimMeteredAdmission(admission(fixture, economics))).toMatchObject({ status: 'capacity-exceeded', limit: 'concurrency' });
+    // Expiry releases concurrency but preserves today's non-refused admission.
+    await getDb().update(inferenceMeteredUsage).set({ expiresAt: new Date(0) }).where(eq(inferenceMeteredUsage.id, ids[0]));
+    expect(await readJevTechnicalMetering(getDb(), fixture.applicationId, 'production')).toMatchObject({ activeAdmissions: 31, dailyAdmissions: 32 });
+    expect(await claimMeteredAdmission(admission(fixture, economics))).toMatchObject({ status: 'claimed' });
+  });
+
+  it.each([0, 1])('readback and admission count 5000 expired requests for the UTC day (%i internal)', async (internalCount) => {
+    const fixture = await makeFixture();
+    const economics = internal({ maxConcurrentRequests: 32, maxRequestsPerUtcDay: 5000 }, fixture.applicationId);
+    const initial = await claimMeteredAdmission(admission(fixture, internalCount === 1 ? economics : commercial));
+    if (initial.status !== 'claimed') throw new Error('fixture claim failed');
+    await getDb().update(inferenceMeteredUsage).set({ expiresAt: new Date(0) }).where(eq(inferenceMeteredUsage.id, initial.meteredUsageId));
+    await getDb().execute(sql`
+      insert into inference_metered_usage (id, request_id, idempotency_key, economic_treatment,
+        economic_policy_version, account_id, application_id, application_credential_id,
+        environment, endpoint, requested_model_reference, admitted_model_reference,
+        admitted_provider, admitted_deployment_id, expires_at, created_at)
+      select gen_random_uuid()::text, ${fixture.applicationId} || '-day-' || n, ${fixture.applicationId} || '-key-' || n,
+        'commercial', ${INFERENCE_ECONOMIC_POLICY_VERSION}, ${fixture.accountId}, ${fixture.applicationId},
+        ${fixture.credentialId}, 'production', '/v1/responses', ${fixture.modelReference},
+        ${fixture.modelReference}, 'synthetic', 'kaana-synthetic', now() - interval '1 minute', now()
+      from generate_series(1, 4999) n`);
+    expect(await readJevTechnicalMetering(getDb(), fixture.applicationId, 'production'))
+      .toEqual({ schemaAvailable: true, activeAdmissions: 0, dailyAdmissions: 5000 });
+    expect(await claimMeteredAdmission(admission(fixture, economics))).toMatchObject({ status: 'capacity-exceeded', limit: 'daily' });
+    // Moving a row across UTC midnight changes only the daily population.
+    await getDb().execute(sql`update inference_metered_usage set created_at =
+      (date_trunc('day', now() at time zone 'utc') at time zone 'utc') - interval '1 second'
+      where id = ${initial.meteredUsageId}`);
+    expect(await readJevTechnicalMetering(getDb(), fixture.applicationId, 'production')).toMatchObject({ activeAdmissions: 0, dailyAdmissions: 4999 });
+    expect(await claimMeteredAdmission(admission(fixture, economics))).toMatchObject({ status: 'claimed' });
+  });
+
+  it('readback preserves admission boundaries for application, environment, refusal and the two-day window', async () => {
+    const fixture = await makeFixture();
+    const other = await makeFixture();
+    const active = await claimMeteredAdmission(admission(fixture, commercial));
+    const refused = await claimMeteredAdmission(admission(fixture, commercial));
+    const old = await claimMeteredAdmission(admission(fixture, commercial));
+    if (active.status !== 'claimed' || refused.status !== 'claimed' || old.status !== 'claimed') throw new Error('fixture claim failed');
+    await markMeteredAdmissionRefused(refused.meteredUsageId);
+    await getDb().execute(sql`update inference_metered_usage set created_at = now() - interval '3 days',
+      expires_at = now() + interval '1 day' where id = ${old.meteredUsageId}`);
+    await claimMeteredAdmission({ ...admission(fixture, commercial), environment: 'development' });
+    await claimMeteredAdmission(admission(other, commercial));
+    expect(await readJevTechnicalMetering(getDb(), fixture.applicationId, 'production'))
+      .toEqual({ schemaAvailable: true, activeAdmissions: 1, dailyAdmissions: 1 });
+    await getDb().transaction(async tx => {
+      await tx.execute(sql`set transaction read only, isolation level repeatable read`);
+      expect(await readJevTechnicalMetering(tx, fixture.applicationId, 'production'))
+        .toEqual({ schemaAvailable: true, activeAdmissions: 1, dailyAdmissions: 1 });
+    });
+    expect(await getDb().select().from(inferenceMeteredUsage).where(and(eq(inferenceMeteredUsage.applicationId, fixture.applicationId), eq(inferenceMeteredUsage.status, 'admitted')))).toHaveLength(3);
+  });
+
+  it.each([
+    "alter table inference_metered_usage drop column final_authorized_provider",
+    "alter table inference_metered_usage drop constraint inference_metered_usage_parent_check",
+    "alter table inference_metered_usage drop constraint inference_metered_usage_final_authorization_check",
+    "drop index inference_metered_usage_parent_idx",
+  ])('blocks readback with missing required schema evidence: %s', async statement => {
+    const fixture = await makeFixture();
+    await expect(getDb().transaction(async tx => {
+      await tx.execute(sql.raw(statement));
+      expect(await readJevTechnicalMetering(tx, fixture.applicationId, 'production'))
+        .toEqual({ schemaAvailable: false, activeAdmissions: 0, dailyAdmissions: 0 });
+      throw new Error('rollback schema fixture');
+    })).rejects.toThrow('rollback schema fixture');
+    expect(await readJevTechnicalMetering(getDb(), fixture.applicationId, 'production'))
+      .toMatchObject({ schemaAvailable: true });
   });
 
   it('applies no capacity to a commercial claim (its limit is the ledger)', async () => {

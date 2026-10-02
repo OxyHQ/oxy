@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import subprocess
 import tempfile
 import time
@@ -71,11 +72,51 @@ def main():
         sql(f'CREATE DATABASE "{db}"')
         env = clean_env() | {'DATABASE_URL': f'postgresql://oxy@127.0.0.1:{PORT}/{db}',
                             'NODE_ENV': 'test'}
+        # Apply the exact journal prefix through 0133 using the SAME shared
+        # migration engine as db:migrate, then prove the readback refuses it.
+        # The complete db:migrate invocations below upgrade it to 0134.
+        source = ROOT / 'packages/api/drizzle'
+        prefix = owned / 'drizzle-0133'
+        (prefix / 'meta').mkdir(parents=True)
+        prefix_journal = json.loads((source / 'meta/_journal.json').read_text())
+        prefix_journal['entries'] = [e for e in prefix_journal['entries'] if e['idx'] <= 133]
+        assert len(prefix_journal['entries']) == 133
+        (prefix / 'meta/_journal.json').write_text(json.dumps(prefix_journal))
+        for entry in prefix_journal['entries']:
+            shutil.copyfile(source / (entry['tag'] + '.sql'), prefix / (entry['tag'] + '.sql'))
+        runner = owned / 'readback-schema.ts'
+        runner.write_text(
+            'import { runMigrations } from ' + json.dumps(str(ROOT / 'packages/db/src/migrate/index.ts')) + ';\n'
+            'import { REQUIRED_EXTENSIONS } from ' + json.dumps(str(ROOT / 'packages/api/src/db/extensions.ts')) + ';\n'
+            'import { connectPostgres, closePostgres, getDb } from ' + json.dumps(str(ROOT / 'packages/api/src/config/postgres.ts')) + ';\n'
+            'import { readJevTechnicalMetering } from ' + json.dumps(str(ROOT / 'packages/api/src/scripts/jevMeteringReadback.ts')) + ';\n'
+            'if (process.argv[2] === "prefix") await runMigrations({ databaseUrl: process.env.DATABASE_URL!, migrationsFolder: '
+            + json.dumps(str(prefix)) + ', extensions: REQUIRED_EXTENSIONS, run: "all", logger: { info: console.log, debug: console.log } });\n'
+            'await connectPostgres();\ntry { const result = await getDb().transaction(async tx => {\n'
+            'await tx.execute((await import(' + json.dumps(str(ROOT / 'node_modules/drizzle-orm/index.js')) + ')).sql`set transaction read only, isolation level repeatable read`);\n'
+            'return readJevTechnicalMetering(tx, "schema-only-probe", "production"); });\n'
+            'if (result.schemaAvailable !== (process.argv[2] !== "prefix")) throw new Error("Unexpected schema readiness");\n'
+            'console.log("OWNED_SCHEMA_READBACK " + JSON.stringify(result));\n} finally { await closePostgres(); }\n')
+        result = subprocess.run(['bun', 'run', str(runner), 'prefix'], cwd=ROOT / 'packages/api',
+                                env=env, text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, check=False)
+        (owned / 'readback-0133.log').write_text(result.stdout)
+        result.check_returncode()
+        assert int(sql('SELECT count(*) FROM drizzle.__drizzle_migrations', db)) == 133
+        assert sql("SELECT count(*) FROM information_schema.columns WHERE table_name = "
+                   "'inference_metered_usage' AND column_name = 'parent_request_id'", db) == '0'
+        print('Readback blocks an actual 0133-only database')
         for iteration in (1, 2):
             result = subprocess.run(['bun', 'run', 'db:migrate'], cwd=ROOT / 'packages/api',
                                     env=env, text=True, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, check=True)
             (owned / f'migration-{iteration}.log').write_text(result.stdout)
+        result = subprocess.run(['bun', 'run', str(runner), 'full'], cwd=ROOT / 'packages/api',
+                                env=env, text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, check=False)
+        (owned / 'readback-0134.log').write_text(result.stdout)
+        result.check_returncode()
+        print('Readback schema ready after 0134; provider activation remains unauthorized')
         journal = json.loads((ROOT / 'packages/api/drizzle/meta/_journal.json').read_text())
         count = int(sql('SELECT count(*) FROM drizzle.__drizzle_migrations', db))
         assert count == len(journal['entries']), (count, len(journal['entries']))
