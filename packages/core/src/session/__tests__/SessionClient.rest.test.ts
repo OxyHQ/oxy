@@ -22,6 +22,25 @@ function makeHost(makeRequest: jest.Mock): SessionClientHost {
 const SYNC = (rev: number) => ({ state: STATE(rev), activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' } });
 
 describe('SessionClient REST', () => {
+  it('discards a delayed device response across isolation and a later device lifecycle', async () => {
+    let resolve!: (value: ReturnType<typeof SYNC>) => void;
+    const host = makeHost(jest.fn(() => new Promise((done) => { resolve = done; })));
+    const client = new SessionClient(host);
+    client.adoptState(STATE(1));
+    const oldBootstrap = client.bootstrap();
+    const rejection = expect(oldBootstrap).rejects.toThrow('superseded');
+    client.resetLocalState(); // device -> isolated OAuth, no remote revocation
+    expect(client.getState()).toBeNull();
+    expect(client.getDirectory()).toBeNull();
+    client.resetLocalState(); // isolated OAuth -> later device lifecycle
+    client.adoptState(STATE(2));
+    resolve(SYNC(99));
+    await rejection;
+    expect(client.getState()?.revision).toBe(2);
+    expect(host.setTokens).not.toHaveBeenCalled();
+    client.stop();
+  });
+
   it('adopts state already returned by a mint without another request', () => {
     const makeRequest = jest.fn();
     const c = new SessionClient(makeHost(makeRequest));

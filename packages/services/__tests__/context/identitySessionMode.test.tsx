@@ -172,6 +172,7 @@ function buildStub(overrides: { auth?: Record<string, unknown> } = {}) {
       currentToken = null;
     } },
 cache: { clear: jest.fn() },
+apps: { getPublic: jest.fn(async () => ({ id: 'registered-fixture', name: 'Registered Fixture', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] })) },
 devices: { mintToken: jest.fn(async () => ({
       accessToken: MINTED_PINNED_TOKEN,
       expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
