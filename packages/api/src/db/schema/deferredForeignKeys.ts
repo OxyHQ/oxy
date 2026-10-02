@@ -88,6 +88,8 @@ import { transparencyCheckpointSnapshotEntries } from './transparencyCheckpoints
 import { usageReceipts } from './usageReceipts';
 import { usageRefunds } from './usageRefunds';
 import { usageReservations } from './usageReservations';
+import { inferenceMeteredUsage } from './inferenceMeteredUsage';
+import { inferenceProviderCostAttempts } from './inferenceProviderCostAttempts';
 import { userCredits } from './userCredits';
 import { userLocations } from './userLocations';
 import { users } from './users';
@@ -752,6 +754,63 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: inferenceUsageEvents,
     column: inferenceUsageEvents.generationId,
     reason: '(f) Same as `usage_receipts.generation_id`.',
+  },
+  // --- durable metered usage and provider cost (#1526, I09) ---------------
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.requestId,
+    reason: '(e) Same as `usage_reservations.request_id`.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.delegatedUserId,
+    reason: '(d) Same as `usage_reservations.delegated_user_id`.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.generationId,
+    reason: '(f) Same as `usage_receipts.generation_id`.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.admittedDeploymentId,
+    reason: '(f) Same as `inference_usage_events.deployment_id`.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.economicRelationshipId,
+    reason:
+      'A relationship NAME from `config/inferenceEconomicPolicy.ts` (`alia-kaana`), ' +
+      'versioned in code with `economic_policy_version` beside it. There is no ' +
+      'relationship table and there must not be one: the policy is reviewed data, ' +
+      'not a row an operator can edit.',
+  },
+  {
+    table: inferenceProviderCostAttempts,
+    column: inferenceProviderCostAttempts.requestId,
+    reason:
+      '(e) Same as `usage_reservations.request_id`, as Kaana echoes it in its ' +
+      'operator feed. The attempt can arrive before, after or without a metered ' +
+      'row, so the correlation is a join, never a constraint.',
+  },
+  {
+    table: inferenceProviderCostAttempts,
+    column: inferenceProviderCostAttempts.keyId,
+    reason:
+      'Kaana’s opaque provider-key handle from its operator feed. It names a row ' +
+      'in Kaana’s database, never in ours.',
+  },
+  {
+    table: inferenceProviderCostAttempts,
+    column: inferenceProviderCostAttempts.deploymentId,
+    reason: '(f) Same as `inference_usage_events.deployment_id`.',
+  },
+  {
+    table: inferenceProviderCostAttempts,
+    column: inferenceProviderCostAttempts.rateCardVersionId,
+    reason:
+      'Kaana’s append-only rate-card version id (Kaana migration 0015). An ' +
+      'operator observation from another service’s database.',
   },
   {
     table: inferenceUsageEvents,

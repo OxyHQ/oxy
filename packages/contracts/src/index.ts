@@ -1343,6 +1343,21 @@ export type {
 } from './inference/entitlement';
 
 export {
+    // Economic treatment (I09): derived by the server, never sent by a caller.
+    INFERENCE_ECONOMIC_TREATMENTS,
+    inferenceEconomicTreatmentSchema,
+    PROVIDER_COST_SOURCES,
+    providerCostSourceSchema,
+    costCenterUsageSchema,
+} from './inference/economics';
+
+export type {
+    InferenceEconomicTreatment,
+    ProviderCostSource,
+    CostCenterUsage,
+} from './inference/economics';
+
+export {
     AUTONOMY_LEVELS,
     CAPABILITY_PACKAGES,
     autonomyLevelSchema,

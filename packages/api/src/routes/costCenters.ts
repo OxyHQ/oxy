@@ -44,6 +44,7 @@ import {
   registerCostCenter,
   retireCostCenter,
 } from '../services/entitlement.service';
+import { costCenterUsage } from '../services/inferenceMeteredUsage.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { BadRequestError, ConflictError, NotFoundError } from '../utils/error';
 import { DEFAULT_LEDGER_CURRENCY } from '../db/schema/ledgerColumns';
@@ -76,9 +77,9 @@ router.use(authMiddleware, requireStaff, costCenterLimiter);
 const requireCostCenterWrite = requireStaffCapability('billing:cost_centers');
 
 /*
- * ORDER MATTERS. `/spend` is registered BEFORE `/:slug`, or Express captures the
- * literal `spend` as a slug and the report 404s against a cost centre that does
- * not exist.
+ * ORDER MATTERS. `/spend` and `/usage` are registered BEFORE `/:slug`, or
+ * Express captures the literal segment as a slug and the report 404s against a
+ * cost centre that does not exist.
  */
 
 /**
@@ -106,6 +107,36 @@ router.get(
       currency: query.currency ?? DEFAULT_LEDGER_CURRENCY,
     });
     res.json({ data: spend, count: spend.length });
+  })
+);
+
+/**
+ * `GET /billing/cost-centers/usage`
+ *
+ * Usage and cost per cost centre AND economic treatment (#1526), from the
+ * durable `inference_metered_usage` record rather than from receipts — so
+ * `internal_metered` usage, which has no receipt by construction, is visible.
+ * Units, published tariff, upstream provider cost (failed failovers included)
+ * and customer charge are four separate figures, and unknown tariffs and costs
+ * are counted beside their sums, never added as zero.
+ */
+router.get(
+  '/usage',
+  validate({ query: costCenterSpendQuery }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const query = costCenterSpendQuery.parse(req.query);
+    const periodStart = new Date(query.periodStart);
+    const periodEnd = new Date(query.periodEnd);
+    if (periodEnd <= periodStart) {
+      throw new BadRequestError('periodEnd must be after periodStart');
+    }
+
+    const usage = await costCenterUsage({
+      periodStart,
+      periodEnd,
+      currency: query.currency ?? DEFAULT_LEDGER_CURRENCY,
+    });
+    res.json({ data: usage, count: usage.length });
   })
 );
 
