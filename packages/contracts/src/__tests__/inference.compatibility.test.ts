@@ -38,6 +38,7 @@ import * as aliaModelRelease from "../inference/aliaModelRelease";
 import * as attribution from "../inference/attribution";
 import * as catalogue from "../inference/catalogue";
 import * as decisions from "../inference/decisions";
+import * as economics from "../inference/economics";
 import * as embeddings from "../inference/embeddings";
 import * as entitlement from "../inference/entitlement";
 import * as errors from "../inference/errors";
@@ -68,6 +69,7 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   catalogue,
   embeddings,
   decisions,
+  economics,
   entitlement,
   errors,
   identifiers,
@@ -207,6 +209,8 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   costCenterSchema: 1,
   costCenterSpendSchema: 1,
   productEntitlementSchema: 1,
+  // Economic treatment and durable usage/cost reporting (#1526)
+  costCenterUsageSchema: 1,
   // Alia model release manifest (§12), and the request that ingests one beside
   // Oxy's own GPAI documentation record for the revision it releases
   aliaModelReleaseManifestSchema: 1,
@@ -1521,6 +1525,29 @@ const FIXTURES: Record<string, unknown> = {
     periodEnd: "2026-08-01T00:00:00.000Z",
     billedAmount: "412.180000000000",
     requestCount: 4821,
+  },
+
+  costCenterUsageSchema: {
+    schemaVersion: 1,
+    costCenter: {
+      schemaVersion: 1,
+      accountId: "acc_project_alia",
+      slug: "alia-production-chat",
+      label: "Alia production chat",
+      status: "active",
+      createdAt: "2026-08-01T10:00:00.000Z",
+      updatedAt: "2026-08-01T10:00:00.000Z",
+    },
+    treatment: "internal_metered",
+    currency: "USD",
+    periodStart: "2026-10-01T00:00:00.000Z",
+    periodEnd: "2026-10-02T00:00:00.000Z",
+    requestCount: 120,
+    inFlightCount: 2,
+    units: { input_tokens: 120000, output_tokens: 240000 },
+    tariff: { amount: "3.960000000000", knownCount: 119, unknownCount: 1 },
+    providerCost: { amount: "1.230000000000", knownCount: 121, unknownCount: 3 },
+    customerCharge: { amount: "0", receiptCount: 0 },
   },
 
   productEntitlementSchema: {
