@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/server/__tests__/agencyAuthority.test.ts src/server/__tests__/liveCapabilityTicket.test.ts src/session/__tests__/SessionClient.rest.test.ts src/session/__tests__/SessionClient.socket.test.ts src/api/__tests__/apps.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       43 passed, 43 total
+Snapshots:   0 total
+Time:        0.465 s, estimated 1 s
+Ran all test suites within paths "src/server/__tests__/agencyAuthority.test.ts", "src/server/__tests__/liveCapabilityTicket.test.ts", "src/session/__tests__/SessionClient.rest.test.ts", "src/session/__tests__/SessionClient.socket.test.ts", "src/api/__tests__/apps.test.ts".

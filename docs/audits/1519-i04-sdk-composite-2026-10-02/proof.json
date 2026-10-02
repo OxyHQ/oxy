@@ -1,0 +1,694 @@
+{
+  "schemaVersion": 1,
+  "observedAtUTC": "2026-10-02T19:48:49.877770+00:00",
+  "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+  "integrationBase": "72d41bf5c39cd635453440ce258177574dc1270e",
+  "inputCommits": [
+    "792eae0cc8bb8677380d3e5eab55cb4fad926c71",
+    "5130d8827152fa54befffa5d05f7695c7f853d57",
+    "c8a85b37322d5064f2d7685b0c18da9b66eb9f8d"
+  ],
+  "ownFollowup": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+  "sources": [
+    {
+      "path": "packages/api/src/controllers/session.controller.ts",
+      "sha256": "927007e16adeeb7bb1e6bf6a8c61e605ba5754e26c4acccd989b3e6e762d7ff5",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/isolatedOAuthLogout.test.ts",
+      "sha256": "8807442a91d4bd9300177ad20b0b359cdf7a6f27cfd917e540cb0e4c985d685f",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/api/src/routes/capabilities.ts",
+      "sha256": "7ddb92010a6722ff711a0c9192b1a93a581f1a855b19d6364fa11a666b17d68e",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/api/src/services/__tests__/capabilityAuthority.db.test.ts",
+      "sha256": "a78999390d80951319fd01df67363c5a7f939e3a300c66a23086a74fb186118e",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/api/src/services/__tests__/internalMcpParity.db.test.ts",
+      "sha256": "a45cbdc0fd1be7cb5d75650b08cd1be4d9942c1cc6f26d39991ddb4bbd60c226",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/api/src/services/capabilityAuthority.service.ts",
+      "sha256": "cb2106be3ba70c14808717f1e4943b3eca6a527711ad7d3c2af8e92ce0f74b30",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/api/src/services/capabilityCatalog.service.ts",
+      "sha256": "382ff1f6d9fe06f4692bc895c030f35e2612f952e78d15b6a8ef2c5640452dce",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/contracts/src/__tests__/agency.test.ts",
+      "sha256": "0915d99c0781bfe09766bc05b403775016fb6ae2e1a00a38facfc8ad05aad699",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/contracts/src/__tests__/capabilityBindings.test.ts",
+      "sha256": "892d91feffa494fd230f3ee04d9d8d40e4f53af873ac7bbc868e7082b2b91085",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/contracts/src/__tests__/usernamePolicySingleSource.test.ts",
+      "sha256": "adf7f1c9a0c7ff52c16b0b5f7738ff3184bce6d9c1f7fc15a4942f6d8ddd4693",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/contracts/src/agency.ts",
+      "sha256": "19dc226537c22985a06c9be594263d0052a1af6cdd22979fa3ef683d29989dea",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/contracts/src/capabilityBindings.ts",
+      "sha256": "3809508d684e25381522c7e3bd911c3943ef0d94f1b9fbc867705f3e25a8b3f8",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "bc6dd075f74c8f1f4b594b6ec36b98b22ce71296c1ee2366a91496685501a262",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/api/__tests__/apps.test.ts",
+      "sha256": "4501f20ff7fcfeff30621ebfcd7c0a2f9b82aff4dd88fc60830bb2844fb7a75d",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/api/apps.ts",
+      "sha256": "2887a5fbfbec1c717cc4a92d85d9debe95f12b15111d05025a283dbe0598c660",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/server/__tests__/agencyAuthority.test.ts",
+      "sha256": "b49d338ff4666620289dc41b43a6a934385c64eed34d50c23a546904cda86c29",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/server/__tests__/liveCapabilityTicket.test.ts",
+      "sha256": "74a112c9eab40e738bab93f091c247ef285c1b9e090f01c4170cfd9e3b291180",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/server/capabilityTicket.ts",
+      "sha256": "b257d4d5859f4d7ce4354b669376fecf2bfb7590f94a11ecf038364e46bde433",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/server/index.ts",
+      "sha256": "4ded808edb7dbb18f2e10de9057a6c9b39eb0323c02f1b9d7903f2b3a3f0b161",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/server/liveCapabilityTicket.ts",
+      "sha256": "b3197dbfe32b53322ef96fecbfe92444582997bdf34515a3066b1ce19ef26a15",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/server/namespaces.ts",
+      "sha256": "3ea9b4d9e61d05c5030a91d649027f77082ebc8078c00b83cc48ded8885487c7",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/session/SessionClient.ts",
+      "sha256": "3b5b2a8007d48677737a48794fab4a9abf5cbdb0841d422469244909f20dd9c3",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/session/__tests__/SessionClient.rest.test.ts",
+      "sha256": "8acb634347c0d2bc8f7a9d484ee81f10eb87c401851906c7830ad5b148c532f0",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/session/__tests__/SessionClient.socket.test.ts",
+      "sha256": "36b3c55f2d9e2cede28fdda84b764cebc3d5fc37c30ff06cf20be686dd6f1e62",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/core/src/utils/officialOrigins.ts",
+      "sha256": "5f59673fe472a1fa74d6b5a4ada06cae3c83bacd241cfd31dbf86614a5c90aa6",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/mcp/scripts/verify-internal-packed.mjs",
+      "sha256": "e391cf89614f93a22288ab2ad3c0b5f398c77fe1494115f9d56ad4188997c9fd",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/mcp/src/__tests__/consumerAccountBinding.test.ts",
+      "sha256": "db5888f7934fa2f28b9446f9140a5f7f4232860cdb8b726b77fe7058cf9f0786",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/mcp/src/__tests__/internalTransport.test.ts",
+      "sha256": "1ce080f7ce43e14764ff4ef3dc6942cccb41127f33786f2a1fcf734c78134733",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/mcp/src/catalogAdapter.ts",
+      "sha256": "af8c2483c130d7c17f4e54ef7753def3fceb3cece007acc79033be63e5d03944",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/mcp/src/httpTransport.ts",
+      "sha256": "3474733ca4f98234da8e3224ae81226d4fac7d9fbfa0a5d0746775dc07995102",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/mcp/src/index.ts",
+      "sha256": "9b839a9fca8dc1d320139d4d2642dc1674c6ba5948c945482663c43fc5b2be78",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/mcp/src/internalClient.ts",
+      "sha256": "e099401cf14a6c404ed72ecfc9d0bfa6fc010211d6dba3699aef6594a977e6fc",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/mcp/src/internalTransport.ts",
+      "sha256": "b9fb1d4e22662210648331d4e42aca4389be7b95f854739dd79ea9f23afa5387",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/mcp/src/invocationAdapter.ts",
+      "sha256": "fb76f6138e0753cbaae15a146fd6dc77c30b691fa06e5cf8b7233188b19d59c8",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/__tests__/boot/runProviderColdBoot.test.ts",
+      "sha256": "dcd647ed77c790625a30c82ea3e913427e5370054809b26de1c9abca5b58b0d3",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/__tests__/components/OxySignInButton.test.tsx",
+      "sha256": "d77bdec99e0e9cb9c75ca384fef1671d9887d1be0e53dca3fc92888164f6089e",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/__tests__/context/browserBridge.test.tsx",
+      "sha256": "a7d2f9d264f927df461733122d71924c9dbaf2a8941863207c87e3bd32bef074",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/__tests__/context/coldBoot.test.tsx",
+      "sha256": "14c3337b6c40b205f9b753a2726a8e8580d3d3c0543320894e2fb22db7b123ac",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/__tests__/context/identitySessionMode.test.tsx",
+      "sha256": "39e0e132d17c1d174bcb22f35d1d9b88301f30451e6092efc2e5d448aa481ff3",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/__tests__/context/mutationsSessionClient.test.tsx",
+      "sha256": "cb730dfc7660c75f8876ebef16cc4468b59f55ea24169473b76ed407d23a9ed4",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/__tests__/context/sessionClientSocket.test.tsx",
+      "sha256": "dd6daaa615c5b2f885c9b0df85543cc8afb14479b6e08b39c7e17a330bf8caf9",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/__tests__/context/tokenLossKeepsSession.test.tsx",
+      "sha256": "bdd403e943f930e885d88f90277f47fd154b2f23465808993214ef746c373f40",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/index.ts",
+      "sha256": "24e270cb55ca27cfca16af611ec56108071aa0d1f4c44943c3c593d93baa79ec",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/boot/__tests__/coldBootNoIdpRedirect.test.ts",
+      "sha256": "3c998415aca9f58a2742aabed422ec8755d142ee1463987c0aa630193a44dd7c",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/boot/runProviderColdBoot.ts",
+      "sha256": "958717c37e74088cd80add944a168304c95c0e654e4003cfb56e3bbb90825a39",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/components/OxySignInButton.tsx",
+      "sha256": "546f78b8c6d07fad3c5be059e8a1cff39a77a5201a2afd3f2af9e48aaf074a7b",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/context/OxyContext.tsx",
+      "sha256": "4c24b084784a806e829addcc6c6786ffb469b00415ae82911505348eecf67798",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/context/__tests__/commitSessionFlow.test.ts",
+      "sha256": "8ba81b8af2ec86ba4273b01d5bf966359ef309c7b8a6ba5429ea45c8a2692865",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/context/__tests__/isolatedOAuthSession.test.ts",
+      "sha256": "662c7030f7bbdc3dc29eca735459d0ed701ecaf12d41e146994e7e85128f1a16",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/context/commitSessionFlow.ts",
+      "sha256": "fbf0b836c96cc1622866fbc634b04ca78129047138b01a74e2aa43330e3f9fd1",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/context/hooks/useAuthOperations.ts",
+      "sha256": "1c6ef951ece1b6100fd433345da8c73f862f1ff24e50bbb25fddc02ae6d99629",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/context/isolatedOAuthSession.ts",
+      "sha256": "aab661b7ffbdc9b4a26b42ed5f90daeeeee3f27644046820f8bba8671fa40597",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/context/oxyContextTypes.ts",
+      "sha256": "59455348862ffd997a5c54359492ac1fda2c4ccf4d2f034c142798a517eaf685",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/context/useOxyAccountGraph.ts",
+      "sha256": "e25c546ea7b11144c95004e8f272259640b5bfd8c86ff5e1292207e718af3959",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/oauth/__tests__/nativeAuthTransport.test.ts",
+      "sha256": "468235d7851ebe46f99b495500b3d758474c75ce8a5373e2b45177ab70661e11",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/oauth/applicationSessionLane.ts",
+      "sha256": "8501955ae988fbdbdfbe72ba0ff0bfe476156d1103f2d1ca9459240535a9f5bd",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/oauth/nativeAuthTransport.ts",
+      "sha256": "d2e63280e450d4d2980f2242801333c2ed3c068fd1516f94624459909793bbf8",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "packages/services/src/ui/session/createSessionClient.ts",
+      "sha256": "b9d2bdab0d5e778512f745e858464fafa04a3b557912c8b28cb71c6be71d3c08",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "scripts/rehearsal/isolated-oauth-browser.mjs",
+      "sha256": "e156367053f7b504b9748665fb1a715a3fc1d568a5a7723c6e783214c1a446e3",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "scripts/rehearsal/isolated-oauth-browser/index.html",
+      "sha256": "0ba6a258bd2bd5778a8cfcb540f443f0db89c56118b8a79d28956687ade03624",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "scripts/rehearsal/isolated-oauth-browser/main.tsx",
+      "sha256": "698eb8b2bbc5a0a729bf167514496b1f75a5935d07a8d8c09645274537cc3aae",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "scripts/rehearsal/isolated-oauth-browser/vite.config.ts",
+      "sha256": "9e60a58343380a81a3aa2c0407a4974304acb4b30423d9edc34d51582411ae3b",
+      "trackedSourceMatchesHead": true
+    },
+    {
+      "path": "scripts/rehearsal/test-integration-authority-1519.py",
+      "sha256": "e2855370742819dc70a3b6be72b06659ac1f5b2d34a40068af1d90e489e731dc",
+      "trackedSourceMatchesHead": true
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/contracts-focused.txt",
+      "sha256": "ae98249bccf7e60b28c0ccfb5d1c4c056d945fc283578b5e0e04c34ec0242071",
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--runTestsByPath",
+        "src/__tests__/agency.test.ts",
+        "src/__tests__/capabilityBindings.test.ts",
+        "src/__tests__/usernamePolicySingleSource.test.ts"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/core-focused-final.txt",
+      "sha256": "cc91bb2e6320f9fb05f0fa1e00d48eee132c6682824f4b4e43777d9a1faf4f2e",
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--runTestsByPath",
+        "src/server/__tests__/agencyAuthority.test.ts",
+        "src/server/__tests__/liveCapabilityTicket.test.ts",
+        "src/session/__tests__/SessionClient.rest.test.ts",
+        "src/session/__tests__/SessionClient.socket.test.ts",
+        "src/api/__tests__/apps.test.ts"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/mcp-focused.txt",
+      "sha256": "0269e8ace28a8851426d6f804ab75787da686cedd3fddbb432f563ebf4d80502",
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/services-focused.txt",
+      "sha256": "7c938cb6d640c5417a982812cae0aa056f7f419db99a9def96b40e2b6295f546",
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--runTestsByPath",
+        "provider/button/native 10 suites: exact paths in log"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/api-focused.txt",
+      "sha256": "8c78bec3ae637a2db29d4cf90261c171dc9b425b9730949863ce093596000647",
+      "command": [
+        "python3",
+        "scripts/rehearsal/test-integration-authority-1519.py"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/owned-pg.txt",
+      "sha256": "5c168b8088b74969b5eaeb8de6b61d5b7ff694ffa2254d373fdff0d2a7213d30",
+      "command": [
+        "python3",
+        "scripts/rehearsal/test-integration-authority-1519.py"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/api-tsc.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command": [
+        "bun",
+        "x",
+        "--no-install",
+        "tsc",
+        "--noEmit"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/scripts-tsc.txt",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "command": [
+        "bun",
+        "run",
+        "typecheck:scripts"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/lint-i04-final.txt",
+      "sha256": "fb0c99da4a103e66e9374517fb1f720857ea126e868fd64a8c044f85c1afc5e6",
+      "command": [
+        "packages/contracts/node_modules/.bin/biome",
+        "lint",
+        "--error-on-warnings",
+        "27 I04 files from exact commits"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/mcp-packed.txt",
+      "sha256": "1b138acf20697b513495a2687d86bd7d6f2322643c6fa0a94b22b4868ad32531",
+      "command": [
+        "node",
+        "packages/mcp/scripts/verify-internal-packed.mjs"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/core-package.txt",
+      "sha256": "1ab7bba19bad782b161aeaa36d3b0d2c63735cf844e92731dcb85eb4d583a894",
+      "command": [
+        "bun",
+        "run",
+        "test:package"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/browser-combined.txt",
+      "sha256": "dfdebbeb012077a37eccd5530139ad7c94a265ae1cffafb13f0da5cf99a2a740",
+      "command": [
+        "node",
+        "scripts/rehearsal/isolated-oauth-browser.mjs",
+        "17957",
+        "17958"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/browser-consumer-install.txt",
+      "sha256": "0f81e60d733e428df9a4a3e3805726e196baa10416289ee371247366d1440aff",
+      "command": [
+        "bun",
+        "install",
+        "--minimum-release-age=0",
+        "--ignore-scripts",
+        "then frozen-lockfile same flags"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/openapi.txt",
+      "sha256": "f4c78cdfd57d5c1375521e6398691c72674f8e7133770fe1ec832e09f62f8b2c",
+      "command": [
+        "node",
+        "scripts/check-openapi-fresh.mjs"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/payload.txt",
+      "sha256": "88b25b741e435a1f042d04dddb9dfd293bed08e112da703776c66e96ef5ef3e0",
+      "command": [
+        "bun",
+        "scripts/check-no-payload-persistence.mjs"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/build-all.txt",
+      "sha256": "d5c11961bfe119ed308370e8aba1bb1abc6694c7dc70ed0454acaba230994b28",
+      "command": [
+        "bun",
+        "run",
+        "build:all"
+      ],
+      "exitCode": 0,
+      "sourceHead": "5ddded84e",
+      "note": "Build 19/19 before hook followup; six packages rebuilt and packed after followup"
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/pack-telemetry.txt",
+      "sha256": "70a9890a5b49ee2ac6fe2b15c0c82dcf0349e0ac7bc365da136b8e5f0f3febcd",
+      "command": [
+        "bun",
+        "run",
+        "build",
+        "then",
+        "bun",
+        "pm",
+        "pack"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/pack-contracts.txt",
+      "sha256": "eccc7c357027dbee7906fd016d9b37ba70acb153a0b44e3e12111810138663ca",
+      "command": [
+        "bun",
+        "run",
+        "build",
+        "then",
+        "bun",
+        "pm",
+        "pack"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/pack-protocol.txt",
+      "sha256": "f35ed4cc6d7e6abfa6bd9aa426eaf3b149a319a927653674e37b040449b92726",
+      "command": [
+        "bun",
+        "run",
+        "build",
+        "then",
+        "bun",
+        "pm",
+        "pack"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/pack-core.txt",
+      "sha256": "a843b10e924d3f8106e2a825ee696dc43db854c5c1849d5d5f3512e5f0d1ff66",
+      "command": [
+        "bun",
+        "run",
+        "build",
+        "then",
+        "bun",
+        "pm",
+        "pack"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/pack-mcp.txt",
+      "sha256": "8e4dfdfde4cee49458c2e8f5772eabb0e89a42c14d05ebd7cec2e52d05c22d20",
+      "command": [
+        "bun",
+        "run",
+        "build",
+        "then",
+        "bun",
+        "pm",
+        "pack"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/pack-services.txt",
+      "sha256": "aac641c4c89bdb7dbca2f2304457a503036f53eb25681e2b6c1ba96ffd2f4efc",
+      "command": [
+        "bun",
+        "run",
+        "build",
+        "then",
+        "bun",
+        "pm",
+        "pack"
+      ],
+      "exitCode": 0,
+      "sourceHead": "a92b12833a7cd3d88d49882f7cf33a33199c3fd1",
+      "note": ""
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/lint-baseline-comparison.json",
+      "sha256": "914f199f5ba8f7a11f90250474ce50370579979047de04fc479548dd1af95a93",
+      "provenance": "comparison / local pack inspection record"
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/lint-current-final.json",
+      "sha256": "7fe05cfe0484a9260fefd5ee9b205140ac958c8341329b70ee5d2a07f913c4a0",
+      "provenance": "comparison / local pack inspection record"
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/lint-baseline.json",
+      "sha256": "f3cb498e8aaea0a8ea3d388d66e710006700b88f6e9f2b3bdd7926643a79fc50",
+      "provenance": "comparison / local pack inspection record"
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/combined-pack-records.json",
+      "sha256": "34a5e41e8413097011bbc3a45de1219c6a89a89e8adf16e79d488ee2dcb0f383",
+      "provenance": "comparison / local pack inspection record"
+    },
+    {
+      "path": "docs/audits/1519-i04-sdk-composite-2026-10-02/installed-packages.json",
+      "sha256": "7fd9d3bb42bbf38404cc549dd83957eadf3acdf79622cc5f9a5c6bdce2b3492e",
+      "provenance": "comparison / local pack inspection record"
+    }
+  ],
+  "results": {
+    "contractsFocused": 18,
+    "coreFocused": 43,
+    "mcp": 35,
+    "servicesFocused": 96,
+    "apiPgFocused": 32,
+    "i04LintFiles": 27,
+    "i04LintExit": 0,
+    "broadLintRemainingBaselineDiagnostics": 20,
+    "broadLintNewDiagnostics": 0,
+    "packageCount": 6,
+    "installedCombinedModuleEquality": 13,
+    "packedMcpModes": [
+      "esm",
+      "cjs"
+    ],
+    "browserScenarios": 4,
+    "browserCookies": 0,
+    "browserPageErrors": 0,
+    "browserDeviceRequests": 0,
+    "ownedPostgresPid": 3089009,
+    "ownedPostgresStopped": true,
+    "migrationChange": false
+  },
+  "limits": [
+    "Draft stack 1547/1548 only Socket/scaffold; full functional CI belongs to this new 1537 head",
+    "Full build19 at 5dd then six changed publishable packages built/packed after hook followup; current full CI pending",
+    "Broad lint exits1 due 20 named preexisting diagnostics; only scoped I04 lint is zero",
+    "Browser server responses are synthetic, not real OAuth/device/SSO adoption",
+    "Local nominal tarballs are verification artifacts, not releases",
+    "No Forge patch or exception wiring composed; security audit remains unchanged",
+    "No queue/merge/deploy/publication/production writes"
+  ]
+}
