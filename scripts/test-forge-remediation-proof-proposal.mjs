@@ -2,15 +2,17 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ADVISORY, FILES, SUITES, sha256, inventory, evaluate } from './forge-remediation-proof-proposal.mjs';
+import { ADVISORY, FILES, SUITES, sha256, canonicalAudit, inventory, evaluate } from './forge-remediation-proof-proposal.mjs';
 let checks = 0;
 function fixture() {
   const patchBytes = Buffer.from('synthetic patch');
   const files = Object.fromEntries(FILES.map(name => [name, sha256(name)]));
   const copies = [{ realpath: '/synthetic/node_modules/node-forge', version: '1.4.0', files }];
   const patchSha256 = sha256(patchBytes);
-  const evidenceBytes = JSON.stringify({ patchSha256, inventorySha256: sha256(JSON.stringify(copies)), suites: Object.fromEntries(SUITES.map(name => [name,'pass'])) });
-  return { audit: { 'node-forge': [{ url: `https://github.com/advisories/${ADVISORY}`, severity: 'high' }] }, manifest: { advisory: ADVISORY, package: 'node-forge', version: '1.4.0', patchSha256, files, testEvidenceSha256: sha256(evidenceBytes), independentSecurityReview: { reviewer: 'synthetic-review-only', reviewedPatchSha256: patchSha256 } }, patchBytes, copies, evidenceBytes };
+  const audit = { 'node-forge': [{ url: `https://github.com/advisories/${ADVISORY}`, severity: 'high' }] };
+  const rawAuditSha256 = sha256(canonicalAudit(audit));
+  const evidenceBytes = JSON.stringify({ rawAuditSha256, patchSha256, inventorySha256: sha256(JSON.stringify(copies)), suites: Object.fromEntries(SUITES.map(name => [name,'pass'])) });
+  return { audit, manifest: { advisory: ADVISORY, package: 'node-forge', version: '1.4.0', rawAuditSha256, patchSha256, files, testEvidenceSha256: sha256(evidenceBytes), independentSecurityReview: { reviewer: 'synthetic-review-only', reviewedPatchSha256: patchSha256 } }, patchBytes, copies, evidenceBytes };
 }
 function reject(change) { const input = fixture(); change(input); assert.equal(evaluate(input).technicalEvidenceComplete, false); checks++; }
 const nominal = evaluate(fixture());
@@ -21,6 +23,11 @@ reject(x=>x.audit['node-forge'].push({url:'https://github.com/advisories/GHSA-ne
 reject(x=>x.audit['node-forge'][0].url='https://github.com/advisories/GHSA-other');
 reject(x=>x.audit['node-forge'][0].severity='critical');
 reject(x=>x.audit={});
+reject(x=>x.audit['new-package']=[{url:'https://github.com/advisories/GHSA-new',severity:'high'}]);
+reject(x=>x.audit['node-forge'][0].vulnerable_versions='<=1.4.1');
+reject(x=>delete x.manifest.rawAuditSha256);
+reject(x=>{const e=JSON.parse(x.evidenceBytes); e.rawAuditSha256='a'.repeat(64);x.evidenceBytes=JSON.stringify(e);x.manifest.testEvidenceSha256=sha256(x.evidenceBytes);});
+assert.equal(canonicalAudit({z:1,a:{b:2,a:3}}),canonicalAudit({a:{a:3,b:2},z:1}));checks++;
 reject(x=>x.manifest.version='1.4.1');
 reject(x=>x.copies[0].version='1.4.1');
 reject(x=>x.patchBytes=Buffer.from('changed'));
