@@ -198,6 +198,7 @@ const setup = (opts: SetupOpts = {}) => {
 
   const { result } = renderHook(() =>
     useAuthOperations({
+      ensureDeviceSessionLane: async () => undefined,
       // Fake services match the runtime interface but TypeScript can't see
       // through mixin composition, so cast through `never`.
       oxyServices: oxyServices as never,

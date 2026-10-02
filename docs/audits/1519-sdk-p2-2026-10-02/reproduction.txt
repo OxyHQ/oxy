@@ -1,0 +1,147 @@
+$ jest --passWithNoTests --runInBand __tests__/context/coldBoot.test.tsx -t "SDK public recovery regressions"
+FAIL __tests__/context/coldBoot.test.tsx
+  ● SDK public recovery regressions › recovers classification on the real sign-in button without remounting the provider
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    Ignored nodes: comments, script, style
+    [36m<html>[39m
+      [36m<head />[39m
+      [36m<body>[39m
+        [36m<div>[39m
+          [36m<button[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mRetry sign in[0m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</body>[39m
+    [36m</html>[39m
+
+      349 |     expect(stub.auth.signInWithCommonsIdentity).not.toHaveBeenCalled();
+      350 |     fireEvent.click(view.getByText('Retry sign in'));
+    > 351 |     await waitFor(() => expect(capturedContext?.isAccountDialogOpen).toBe(true));
+          |                                                                      ^
+      352 |   });
+      353 |
+      354 |   it.each(['external', 'unknown'])('refuses native identity probes through useAuth for %s application', async (kind) => {
+
+      at __tests__/context/coldBoot.test.tsx:351:70
+      at runWithExpensiveErrorDiagnosticsDisabled (../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:47:12)
+      at checkCallback (../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:124:77)
+      at checkRealTimersCallback (../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:118:16)
+      at Timeout.task [as _onTimeout] (../../node_modules/.bun/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:579:19)
+
+  ● SDK public recovery regressions › refuses native identity probes through useAuth for external application
+
+    expect(jest.fn()).not.toHaveBeenCalled()
+
+    Expected number of calls: 0
+    Received number of calls: 1
+
+    1: called with 0 arguments
+
+      362 |     const getPublicKey = jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(null);
+      363 |     await act(async () => { await capturedAuth!.signIn().catch(() => undefined); });
+    > 364 |     expect(hasIdentity).not.toHaveBeenCalled();
+          |                             ^
+      365 |     expect(getPublicKey).not.toHaveBeenCalled();
+      366 |   });
+      367 |
+
+      at __tests__/context/coldBoot.test.tsx:364:29
+
+  ● SDK public recovery regressions › refuses native identity probes through useAuth for unknown application
+
+    expect(jest.fn()).not.toHaveBeenCalled()
+
+    Expected number of calls: 0
+    Received number of calls: 1
+
+    1: called with 0 arguments
+
+      362 |     const getPublicKey = jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(null);
+      363 |     await act(async () => { await capturedAuth!.signIn().catch(() => undefined); });
+    > 364 |     expect(hasIdentity).not.toHaveBeenCalled();
+          |                             ^
+      365 |     expect(getPublicKey).not.toHaveBeenCalled();
+      366 |   });
+      367 |
+
+      at __tests__/context/coldBoot.test.tsx:364:29
+
+  ● SDK public recovery regressions › refuses explicit-key challenge through useAuth for external application
+
+    expect(jest.fn()).not.toHaveBeenCalled()
+
+    Expected number of calls: 0
+    Received number of calls: 1
+
+    1: "explicit-key"
+
+      375 |     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+      376 |     await act(async () => { await capturedAuth!.signIn('explicit-key').catch(() => undefined); });
+    > 377 |     expect(requestChallenge).not.toHaveBeenCalled();
+          |                                  ^
+      378 |   });
+      379 |
+      380 |   it('reports isolated logout failure through the public hook and preserves the session for retry', async () => {
+
+      at __tests__/context/coldBoot.test.tsx:377:34
+
+  ● SDK public recovery regressions › refuses explicit-key challenge through useAuth for unknown application
+
+    expect(jest.fn()).not.toHaveBeenCalled()
+
+    Expected number of calls: 0
+    Received number of calls: 1
+
+    1: "explicit-key"
+
+      375 |     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+      376 |     await act(async () => { await capturedAuth!.signIn('explicit-key').catch(() => undefined); });
+    > 377 |     expect(requestChallenge).not.toHaveBeenCalled();
+          |                                  ^
+      378 |   });
+      379 |
+      380 |   it('reports isolated logout failure through the public hook and preserves the session for retry', async () => {
+
+      at __tests__/context/coldBoot.test.tsx:377:34
+
+  ● SDK public recovery regressions › reports isolated logout failure through the public hook and preserves the session for retry
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Object {
+        "authenticated": true,
+    -   "error": "Logout unavailable",
+    -   "notified": 1,
+    -   "rejected": [Error: Logout unavailable],
+    +   "error": null,
+    +   "notified": 0,
+    +   "rejected": undefined,
+        "token": "isolated-token",
+      }
+
+      396 |     expect({ rejected, notified: onError.mock.calls.length, error: capturedAuth?.error,
+      397 |       authenticated: capturedAuth?.isAuthenticated, token: stub.session.accessToken })
+    > 398 |       .toEqual({ rejected: failure, notified: 1, error: 'Logout unavailable', authenticated: true, token: 'isolated-token' });
+          |        ^
+      399 |     await act(async () => { await capturedAuth!.signOut(); });
+      400 |     expect(stub.session.accessToken).toBeNull();
+      401 |     expect(capturedAuth?.isAuthenticated).toBe(false);
+
+      at Object.<anonymous> (__tests__/context/coldBoot.test.tsx:398:8)
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 7 skipped, 13 total
+Snapshots:   0 total
+Time:        3.106 s
+Ran all test suites matching __tests__/context/coldBoot.test.tsx with tests matching "SDK public recovery regressions".
+error: script "test" exited with code 1
