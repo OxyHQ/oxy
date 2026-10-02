@@ -26,11 +26,12 @@ import http from 'http';
 import type { AddressInfo } from 'net';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
+const bearerSessionIds = new Map<string, string>();
 let authenticatedUser: { _id: string; username?: string } | null = null;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { user?: unknown },
+    req: { user?: unknown; sessionId?: string },
     res: { status: (code: number) => { json: (body: unknown) => void } },
     next: () => void,
   ) => {
@@ -39,6 +40,7 @@ jest.mock('../../middleware/auth', () => ({
       return;
     }
     req.user = authenticatedUser;
+    req.sessionId = bearerSessionIds.get(authenticatedUser._id);
     next();
   },
   serviceAuthMiddleware: jest.fn(),
@@ -82,6 +84,7 @@ import { authSessions } from '../../db/schema/authSessions';
 import { serviceActingAsRevocations } from '../../db/schema/serviceActingAsRevocations';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 import { exchangeAuthCode } from '../../services/oauthCode.service';
 import { resolveServiceActingAsGrant } from '../../services/serviceActingAs.service';
 import authRouter from '../auth';
@@ -128,6 +131,7 @@ function post(path: string, body: unknown): Promise<JsonResponse> {
 
 async function account(): Promise<string> {
   const [row] = await getDb().insert(users).values({}).returning({ id: users.id });
+  bearerSessionIds.set(row.id, await insertBearerSession(row.id));
   return row.id;
 }
 
@@ -731,5 +735,32 @@ describe('replay and concurrency', () => {
     expect(after.id).toBe(first.id);
     expect(after.scopes).toEqual(['user:read', 'files:read']);
     expect(after.firstGrantedAt.getTime()).toBe(past.getTime());
+  });
+});
+
+// Characterization of the unresolved empty-scope policy, not policy approval.
+// A future decision must deliberately update these rows and its consent UI.
+describe('explicit and empty requests expose the remaining consent policy decision', () => {
+  it.each([
+    ['first_party', false, false], ['first_party', false, true],
+    ['first_party', true, false], ['first_party', true, true],
+    ['third_party', false, false], ['third_party', false, true],
+    ['third_party', true, false], ['third_party', true, true],
+  ] as const)('%s explicit=%s revoked=%s', async (type, explicit, revoked) => {
+    const app = await client({ type, scopes: ['user:read', 'acting-as:offline'] });
+    for (const entry of ENTRIES) {
+      const userId = await account();
+      if (revoked) await revoke(userId, app.applicationId);
+      const result = await finalizeWith(entry)(userId, app,
+        explicit ? 'user:read acting-as:offline' : '');
+      expect(result.status).toBe(200);
+      const state = await stateOf(userId, app.applicationId);
+      const codeScopes = explicit || entry === 'finalize' ? ['user:read', 'acting-as:offline'] : [];
+      expect(state.codeScopes).toEqual([codeScopes]);
+      expect(state.revoked).toBe(revoked && !explicit);
+      expect(state.grantScopes).toEqual(type === 'third_party' || explicit ? codeScopes : null);
+      expect(state.actingAs).toBe(codeScopes.includes('acting-as:offline')
+        && (type === 'third_party' || explicit) && (!revoked || explicit));
+    }
   });
 });

@@ -1138,6 +1138,7 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
   const [authSession] = await getDb()
     .select({
       id: authSessions.id,
+      authorizeCode: authSessions.authorizeCode,
       applicationId: authSessions.applicationId,
       deviceId: authSessions.deviceId,
       expiresAt: authSessions.expiresAt,
@@ -1165,6 +1166,28 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
   }
 
   const authenticatedUserId = authenticatedUser._id.toString();
+
+  // Both bearer OAuth approvals use the same atomic claim and actor binding.
+  if (!approvalMintsSession(authSession)) {
+    const outcome = await authorizeSessionWithBearer({
+      authorizeCode: authSession.authorizeCode || '',
+      authenticatedUserId,
+      authenticatedPublicKey: authenticatedUser.publicKey || undefined,
+      approvingSessionId: req.sessionId,
+      deviceName,
+      deviceFingerprint,
+      req,
+    });
+    if (!outcome.ok) {
+      if (outcome.status === 404) throw new NotFoundError(outcome.message);
+      if (outcome.status === 400) throw new BadRequestError(outcome.message);
+      throw new ForbiddenError(outcome.message);
+    }
+    emitAuthSessionUpdate(sessionToken, { status: 'authorized', userId: authenticatedUserId });
+    sendSuccess(res, { success: true, user: { id: authenticatedUserId,
+      username: authenticatedUser.username, publicKey: authenticatedUser.publicKey } });
+    return;
+  }
 
   // Delegated subject gate: approving an app acting AS another account requires
   // the authenticated identity to hold `account:act_as` over it (the same
@@ -2500,6 +2523,11 @@ router.post(
       throw new ForbiddenError('redirect_uri is not registered for this client');
     }
 
+    const operator = await resolveApprovalOperator(req.sessionId, user._id.toString(), {
+      delegatedOAuth: true,
+    });
+    if (!operator.ok) throw new ForbiddenError('Approving session is unavailable');
+
     const requestedScopes = scope ? scope.split(/\s+/).filter(Boolean) : [];
 
     let oauthDeviceId: string | undefined;
@@ -2535,6 +2563,7 @@ router.post(
       decision,
       code: {
         userId: user._id.toString(),
+        ...(operator.operatedByUserId ? { operatedByUserId: operator.operatedByUserId } : {}),
         appId: app.id,
         redirectUri,
         codeChallenge,
@@ -3141,6 +3170,11 @@ router.post(
     const operatedByUserId = exchange.code.operatedByUserId
       ? exchange.code.operatedByUserId.toString()
       : undefined;
+
+    if (operatedByUserId) {
+      const delegation = await verifyDelegatedSubject(operatedByUserId, userId);
+      if (!delegation.ok) throw OAuthError.invalidGrant(INVALID_GRANT_DESCRIPTION);
+    }
 
     const grantedScopes = Array.isArray(exchange.code.scopes) ? exchange.code.scopes : [];
 
