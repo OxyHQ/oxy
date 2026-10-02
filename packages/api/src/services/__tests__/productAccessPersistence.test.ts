@@ -6,7 +6,7 @@ import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { applications, accessGrants, accessSubscriptionSources, accessOfferSegments, accessOfferBenefits, accessOffers } from '../../db/schema';
 import { recordProductAccessPeriod, readSubjectProductAccess, updateProductAccessSourceState, revokeProductAccessGrant } from '../productAccessPersistence.service';
 import { planProductAccessMapping } from '../productAccessMapping';
-import { productAccessFixture as fixture } from './fixtures/productAccessFixtures';
+import { productAccessFixture as fixture } from '../__fixtures__/productAccessFixtures';
 
 jest.setTimeout(60_000);
 beforeAll(connectPostgres); afterAll(closePostgres);

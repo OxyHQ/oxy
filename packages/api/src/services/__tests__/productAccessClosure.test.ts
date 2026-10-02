@@ -4,7 +4,7 @@ import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { accessSubscriptionSources, accessGrants, accountClosureFences } from '../../db/schema';
 import { recordProductAccessPeriod, updateProductAccessSourceState } from '../productAccessPersistence.service';
 import { archiveAccountForRetention, beginAccountClosure, describeAccountFinancialHolds } from '../accountFinancialHolds.service';
-import { productAccessFixture as fixture } from './fixtures/productAccessFixtures';
+import { productAccessFixture as fixture } from '../__fixtures__/productAccessFixtures';
 
 jest.setTimeout(60_000);
 beforeAll(connectPostgres); afterAll(closePostgres);

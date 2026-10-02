@@ -1,0 +1,4 @@
+$ jest --listTests --runTestsByPath src/services/__tests__/productAccessPersistence.test.ts src/services/__tests__/productAccessClosure.test.ts src/routes/__tests__/productAccess.test.ts
+/home/nate/Oxy/oxy/.worktrees/1519-integration/packages/api/src/routes/__tests__/productAccess.test.ts
+/home/nate/Oxy/oxy/.worktrees/1519-integration/packages/api/src/services/__tests__/productAccessPersistence.test.ts
+/home/nate/Oxy/oxy/.worktrees/1519-integration/packages/api/src/services/__tests__/productAccessClosure.test.ts
