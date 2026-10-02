@@ -1,0 +1,9 @@
+$ jest --runInBand --runTestsByPath src/services/updates/__tests__/signing.service.test.ts src/services/updates/__tests__/manifest.service.test.ts src/routes/__tests__/updatesManifest.test.ts
+{"level":30,"time":1790981821175,"pid":3211735,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":50,"time":1790981822143,"pid":3211735,"hostname":"SuperPC","msg":"UPDATES_CODE_SIGNING_PRIVATE_KEY did not decode to a PEM private key; code signing disabled"}
+
+Test Suites: 3 passed, 3 total
+Tests:       34 passed, 34 total
+Snapshots:   0 total
+Time:        2.389 s, estimated 4 s
+Ran all test suites within paths "src/services/updates/__tests__/signing.service.test.ts", "src/services/updates/__tests__/manifest.service.test.ts", "src/routes/__tests__/updatesManifest.test.ts".
