@@ -256,8 +256,8 @@ does **not** exist today, and the balance cannot be split retroactively.
 | partial | grant 50,000, remaining 30,000 | f = 0.5 | −25,000 |
 | capped by remaining | remaining 12,000 | f = 0.5 | −12,000, balance never negative |
 | replay | clawback applied | same event again | `duplicate`, no change |
-| two partials | — | f = 0.333 then f = 1 (cumulative) | −3,334 then −6,666 |
-| partials reordered | — | the f = 1 event processed before the f = 0.333 one | −10,000 then 0 (target already reached) |
+| two partials | — | f = 1000/2999 then f = 1 (cumulative) | −3,334 then −6,666 |
+| partials reordered | — | the f = 1 event processed before the f = 1000/2999 one | −10,000 then 0 (target already reached) |
 | refund before grant | invoice not granted yet | `charge.refunded` f = 1 then `invoice.paid` | invoice.paid re-reads the charge, grants `credits − floor(credits × f)` = 0 |
 | purchased untouched | 5,000 purchased, grant remaining 0 | f = 1 | purchased still 5,000 |
 | dispute lost | grant remaining 7,000 | `charge.dispute.closed` lost | −7,000 |
