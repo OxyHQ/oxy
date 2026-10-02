@@ -709,6 +709,7 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
     expiresAt?: string | number;
     deviceId?: string;
     oauth?: {
+      clientSecret: string;
       redirectUri: string;
       codeChallenge: string;
       codeChallengeMethod: string;
@@ -752,10 +753,11 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
   // `Invalid application` 400 the guard used to produce. Keeping the check
   // would additionally have rejected every uuid v7 id minted after the cutover.
   let resolvedApp: ApplicationRow | null = null;
+  let resolvedCredential: ApplicationCredentialRow | null = null;
   if (clientId) {
-    const credential = await resolveUsableCredential(clientId);
-    if (credential) {
-      resolvedApp = await findApplicationById(credential.applicationId);
+    resolvedCredential = await resolveUsableCredential(clientId);
+    if (resolvedCredential) {
+      resolvedApp = await findApplicationById(resolvedCredential.applicationId);
     }
   } else if (applicationId) {
     resolvedApp = await findApplicationById(applicationId);
@@ -787,6 +789,26 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
       }
     | undefined;
   if (oauth) {
+    // This out-of-band flow returns its code to the session initiator rather
+    // than navigating a user agent through the registered redirect URI. PKCE
+    // alone therefore cannot authenticate a public client: an attacker could
+    // choose the verifier while impersonating its public client_id. Restrict
+    // this transport to confidential clients and authenticate the credential
+    // before storing any attacker-chosen OAuth binding. Public clients use the
+    // standard /oauth/authorize redirect flow instead.
+    if (!resolvedCredential?.secretHash) {
+      throw new UnauthorizedError('invalid_client');
+    }
+    const expectedSecretHash = Buffer.from(resolvedCredential.secretHash);
+    const providedSecretHash = Buffer.from(
+      crypto.createHash('sha256').update(oauth.clientSecret).digest('hex'),
+    );
+    if (
+      expectedSecretHash.length !== providedSecretHash.length ||
+      !crypto.timingSafeEqual(expectedSecretHash, providedSecretHash)
+    ) {
+      throw new UnauthorizedError('invalid_client');
+    }
     if (!isAllowedRedirectUri(resolvedApp, oauth.redirectUri)) {
       logger.warn('[OAuth] Rejected unregistered redirect_uri on session/create', {
         applicationId: resolvedApp.id,
