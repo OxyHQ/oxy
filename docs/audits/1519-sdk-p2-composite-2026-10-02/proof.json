@@ -38,8 +38,8 @@
       "bytes": 3351
     },
     "installed-modules.json": {
-      "sha256": "209afed60404608e56ddec3dd212bc31729f35ed52d38fb494b61b9dfa9979c4",
-      "bytes": 5023
+      "sha256": "d22dae7d3be02f195a39204a4e6443903751d41465f7c7dd47af06d919e3a5f7",
+      "bytes": 4802
     },
     "nativewind-preview-resolution-final.txt": {
       "sha256": "7f834ca139f6fbcd9c162c5e6d08ef7b4cf1daa12a1527fcdb2b5fc7acb03a29",
@@ -81,7 +81,7 @@
     "browserDeviceRequests": 0,
     "isolatedTarballs": 6,
     "rebuiltThisStep": "services",
-    "installedModulesEqualCurrentBuild": 17,
+    "installedModulesEqualCurrentBuild": 16,
     "nativewindVersion": "5.0.0-preview.3",
     "nativewindTypeResolution": "actual installed nativewind/types -> types.d.ts",
     "previewAwareRange": ">=5.0.0-preview.3 <6.0.0",
@@ -95,7 +95,7 @@
     "This focused/browser proof covers the current integration source; final handoff full services run predates its last guard, and current 95 tests cover final source.",
     "Browser scenarios verify OAuth/logout/state mismatch; P2 failure/recovery details are tested in the provider/hooks focal group.",
     "Services was rebuilt and packed in one command. The build/pack record is a truncated tool excerpt, explicitly not a complete stdout transcript.",
-    "Five other tarballs are previous verified combined builds whose runtime source is unchanged; all six actual SHA256 and 17 installed modules were verified.",
+    "Five other tarballs are previous verified combined builds whose runtime source is unchanged; all six actual SHA256 and 16 distinct installed modules were verified.",
     "Tarballs retain nominal source versions and are test-only, never published or adopted; release versions remain an unapplied proposal.",
     "Nativewind measurement is actual type resolution/TS and packed browser consumer on preview.3; no claim for untested previews or style-runtime rewrite.",
     "MCP followup composition and final versioned artifacts/CI remain pending. No merge, queue, deploy, publishing or real device operation."
