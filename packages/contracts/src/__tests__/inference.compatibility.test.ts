@@ -211,6 +211,7 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   productEntitlementSchema: 1,
   // Economic treatment and durable usage/cost reporting (#1526)
   costCenterUsageSchema: 1,
+  meteredGenerationSchema: 2,
   // Alia model release manifest (§12), and the request that ingests one beside
   // Oxy's own GPAI documentation record for the revision it releases
   aliaModelReleaseManifestSchema: 1,
@@ -1204,6 +1205,28 @@ const FIXTURES: Record<string, unknown> = {
     resolvedModelReference: "anthropic/claude-opus-5@2026-05-01",
     servingProvider: "anthropic",
     settledAt: "2026-08-15T09:41:03.100Z",
+  },
+
+  meteredGenerationSchema: {
+    schemaVersion: 2,
+    kind: "metered_usage",
+    meteredUsageId: "usage-alia-parent",
+    requestId: "req-alia-child",
+    parentRequestId: "req-alia-parent",
+    applicationId: "app-alia",
+    credentialId: "credential-alia-at-admission",
+    delegatedUserId: "account-end-user",
+    environment: "production",
+    economicTreatment: "internal_metered",
+    economicPolicyVersion: "policy-2",
+    outcome: "completed",
+    usageSource: "provider_reported",
+    units: [{ unit: "input_tokens", quantity: 1000 }],
+    resolvedModelReference: "acme/model@revision",
+    servingProvider: "acme",
+    tariff: { status: "quoted", amount: "0.001000000000", currency: "USD", priceVersionId: "price-1" },
+    customerCharge: { status: "not_charged" },
+    settledAt: "2026-10-02T12:00:00.000Z",
   },
 
   usageRefundSchema: {

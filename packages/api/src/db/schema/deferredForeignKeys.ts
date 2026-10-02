@@ -778,6 +778,22 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   },
   {
     table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.parentRequestId,
+    reason:
+      'The parent edge request correlation key, preserved in the child usage record ' +
+      'and the versioned generation response across Oxy and Kaana. It is not the ' +
+      'parent metering row id. Parent admission is enforced before child execution ' +
+      'by the edge; this classification preserves the correlation without adding ' +
+      'a new foreign-key lifecycle or erasure policy to migration 0134.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.finalAuthorizedDeploymentId,
+    reason: '(f) Same as `inference_metered_usage.admitted_deployment_id`, ' +
+      'snapshotted after final Auto requalification rather than initial admission.',
+  },
+  {
+    table: inferenceMeteredUsage,
     column: inferenceMeteredUsage.economicRelationshipId,
     reason:
       'A relationship NAME from `config/inferenceEconomicPolicy.ts` (`alia-kaana`), ' +
