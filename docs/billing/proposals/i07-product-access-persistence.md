@@ -13,6 +13,35 @@ not I07. Two ID-column classifications from integration's `422ef4c44` were appli
 locally to `deferredForeignKeys.ts` as explicitly coordinated; they already exist
 in the target. No 0134 files were regenerated.
 
+## Followup: the offer benefit set is sealed at registration
+
+External review [P2](https://github.com/OxyHQ/oxy/issues/1525#issuecomment-5957548889)
+correctly found that the initial candidate blocked row updates/deletions but
+allowed a new valid benefit index under the same offer/version. An arbitrary
+append could change a later segment's benefits, and a replay could report a
+computed grant ID that did not exist. The red SQL regression reproduced this.
+
+The corrected offer has an immutable nonnegative integer `expectedBenefitCount`
+(no default). INSERT benefits must use an index in `[0, count)`; the existing
+composite primary key and UPDATE/DELETE guards prevent replacement. Registration
+writes every index atomically. The reader checks exact count and contiguous
+indices before admission/read; incomplete stored configuration fails closed.
+There is no mutable seal transition: the closed set is fixed at offer INSERT,
+so it is also protected before the first segment. Another benefit requires a
+new offer version. Replay now reads the actual stored grants, checks their full
+expected set and returns those persisted IDs.
+
+The regenerated undeployed 0135 includes this column/check/INSERT guard; its
+Drizzle snapshot was generated from the original 0134, not hand-edited. Integration
+regenerates its own snapshot and compares DDL. Full focused regression passed
+**68/68 in seven suites**, including same-product SQL append before/after the
+first segment, all replay IDs existing, no extra entitlement on a new segment,
+and incomplete configuration refusing admission. Negative count is rejected by
+SQL. The diagnostic red run selected one test and left other tests unrun; the
+final green group runs all its cases without skips. [Followup proof and hashes](../evidence/i07-persistence-2026-10-02/sealed-offer-records.json)
+supersede the initial configuration-freezing claim; initial evidence is retained
+as historical evidence. Other commercial and adoption gates below remain open.
+
 ## Structure and boundary
 
 Migration 0135 adds six normalized tables: products, versioned offers, offer

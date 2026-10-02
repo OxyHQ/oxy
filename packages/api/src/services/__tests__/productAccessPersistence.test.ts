@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { isCheckViolation, isForeignKeyViolation } from '@oxy.so/db';
 import { productOfferSchema } from '@oxy.so/contracts';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
-import { applications, accessGrants, accessSubscriptionSources, accessOfferSegments, accessOfferBenefits } from '../../db/schema';
+import { applications, accessGrants, accessSubscriptionSources, accessOfferSegments, accessOfferBenefits, accessOffers } from '../../db/schema';
 import { recordProductAccessPeriod, readSubjectProductAccess, updateProductAccessSourceState, revokeProductAccessGrant } from '../productAccessPersistence.service';
 import { planProductAccessMapping } from '../productAccessMapping';
 import { productAccessFixture as fixture } from './fixtures/productAccessFixtures';
@@ -102,10 +102,32 @@ it('application transfer fails closed without reinterpreting the frozen product'
   await expect(readSubjectProductAccess(f.beneficiary, f.products[0].id)).rejects.toMatchObject({ code: 'PRODUCT_ACCESS_NOT_CONFIGURED' });
   await expect(recordProductAccessPeriod(f.input())).rejects.toMatchObject({ code: 'PRODUCT_ACCESS_NOT_CONFIGURED' });
 });
-it('individual offers with cross-product corruption in DB still fail closed when read', async () => {
+it('individual offers reject cross-product append at the database boundary', async () => {
   const f = await fixture(); const input = f.input(f.offers[1]); await recordProductAccessPeriod(input);
-  await getDb().insert(accessOfferBenefits).values({ offerId: f.offers[1].id, offerVersion: 1, benefitIndex: 1, productId: f.products[1].id, kind: 'capability', key: 'unexpected' });
-  await expect(readSubjectProductAccess(f.beneficiary, f.products[0].id)).rejects.toThrow('individual offers');
+  await rejected(getDb().insert(accessOfferBenefits).values({ offerId: f.offers[1].id, offerVersion: 1, benefitIndex: 1, productId: f.products[1].id, kind: 'capability', key: 'unexpected' }), isCheckViolation);
+  expect((await readSubjectProductAccess(f.beneficiary, f.products[0].id)).capabilities).toHaveLength(1);
+});
+it('incomplete sealed configuration cannot admit a source or grant; negative count is rejected', async () => {
+  const f = await fixture(); const input = f.input(f.offers[1]); input.segment.offerId = randomUUID();
+  await getDb().insert(accessOffers).values({ id: input.segment.offerId, version: 1, kind: 'individual', expectedBenefitCount: 2 });
+  await getDb().insert(accessOfferBenefits).values({ offerId: input.segment.offerId, offerVersion: 1, benefitIndex: 0,
+    productId: f.products[0].id, kind: 'capability', key: 'use' });
+  await expect(recordProductAccessPeriod(input)).rejects.toMatchObject({ code: 'PRODUCT_ACCESS_NOT_CONFIGURED' });
+  expect(await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, input.source.id))).toEqual([]);
+  await rejected(getDb().insert(accessOffers).values({ id: randomUUID(), version: 1, kind: 'bundle', expectedBenefitCount: -1 }), isCheckViolation);
+});
+it('sealed offer rejects same-product append before and after its first segment; replay IDs all exist', async () => {
+  const f = await fixture(); const input = f.input(f.offers[1]);
+  const append = () => getDb().insert(accessOfferBenefits).values({ offerId: input.segment.offerId, offerVersion: 1,
+    benefitIndex: 1, productId: f.products[0].id, kind: 'capability', key: 'extra' });
+  await rejected(append(), isCheckViolation);
+  const original = await recordProductAccessPeriod(input);
+  await rejected(append(), isCheckViolation);
+  const replay = await recordProductAccessPeriod(input); expect(replay.grantIds).toEqual(original.grantIds);
+  const stored = await getDb().select().from(accessGrants).where(eq(accessGrants.sourceSegmentId, input.segment.id));
+  expect(replay.grantIds.sort()).toEqual(stored.map(row => row.id).sort());
+  const next = await recordProductAccessPeriod(f.input(f.offers[1])); expect(next.grantIds).toHaveLength(1);
+  expect((await readSubjectProductAccess(f.beneficiary, f.products[0].id)).capabilities.map(row => row.key)).toEqual(['use']);
 });
 it('dry-run requires exact provider account/price/parties and reports ambiguity without any award', async () => {
   const f = await fixture(); const row = { rowId: randomUUID(), provider: 'stripe' as const, ...f.providerBinding,

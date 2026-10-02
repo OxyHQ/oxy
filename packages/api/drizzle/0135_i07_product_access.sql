@@ -1,5 +1,4 @@
 -- oxy:deploy-phase=pre
--- Additive I07 provenance, empty catalogue, no legacy backfill.
 CREATE TABLE "access_grants" (
 	"id" text PRIMARY KEY NOT NULL,
 	"source_segment_id" text NOT NULL,
@@ -53,11 +52,13 @@ CREATE TABLE "access_offer_segments" (
 CREATE TABLE "access_offers" (
 	"id" text NOT NULL,
 	"version" integer NOT NULL,
+	"expected_benefit_count" integer NOT NULL,
 	"kind" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
 	CONSTRAINT "access_offers_id_version_pk" PRIMARY KEY("id","version"),
 	CONSTRAINT "access_offers_origin_key" UNIQUE("id","version","kind"),
 	CONSTRAINT "access_offers_version_check" CHECK ("access_offers"."version" > 0),
+	CONSTRAINT "access_offers_benefit_count_check" CHECK ("access_offers"."expected_benefit_count" >= 0),
 	CONSTRAINT "access_offers_kind_check" CHECK ("access_offers"."kind" in ('individual', 'bundle'))
 );
 --> statement-breakpoint
@@ -114,6 +115,19 @@ BEGIN
 END;
 $$;
 --> statement-breakpoint
+CREATE OR REPLACE FUNCTION product_access_benefit_set_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE expected_count integer;
+BEGIN
+  SELECT expected_benefit_count INTO expected_count FROM access_offers
+    WHERE id = NEW.offer_id AND version = NEW.offer_version;
+  IF NOT FOUND OR NEW.benefit_index < 0 OR NEW.benefit_index >= expected_count THEN
+    RAISE EXCEPTION 'benefit index is outside the immutable offer set' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+--> statement-breakpoint
 CREATE OR REPLACE FUNCTION product_access_source_identity_immutable() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -159,6 +173,8 @@ CREATE TRIGGER access_offers_immutable BEFORE UPDATE OR DELETE ON access_offers 
 CREATE TRIGGER access_offer_benefits_immutable BEFORE UPDATE OR DELETE ON access_offer_benefits FOR EACH ROW EXECUTE FUNCTION product_access_immutable();
 --> statement-breakpoint
 CREATE TRIGGER access_offer_segments_immutable BEFORE UPDATE OR DELETE ON access_offer_segments FOR EACH ROW EXECUTE FUNCTION product_access_immutable();
+--> statement-breakpoint
+CREATE TRIGGER access_offer_benefits_set_guard BEFORE INSERT ON access_offer_benefits FOR EACH ROW EXECUTE FUNCTION product_access_benefit_set_guard();
 --> statement-breakpoint
 CREATE TRIGGER access_subscription_sources_identity_immutable BEFORE UPDATE OR DELETE ON access_subscription_sources FOR EACH ROW EXECUTE FUNCTION product_access_source_identity_immutable();
 --> statement-breakpoint

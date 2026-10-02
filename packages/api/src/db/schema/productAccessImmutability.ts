@@ -6,6 +6,19 @@ BEGIN
 END;
 $$;
 --> statement-breakpoint
+CREATE OR REPLACE FUNCTION product_access_benefit_set_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE expected_count integer;
+BEGIN
+  SELECT expected_benefit_count INTO expected_count FROM access_offers
+    WHERE id = NEW.offer_id AND version = NEW.offer_version;
+  IF NOT FOUND OR NEW.benefit_index < 0 OR NEW.benefit_index >= expected_count THEN
+    RAISE EXCEPTION 'benefit index is outside the immutable offer set' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+--> statement-breakpoint
 CREATE OR REPLACE FUNCTION product_access_source_identity_immutable() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -44,6 +57,8 @@ BEGIN
 END;
 $$;
 ${['access_products','access_offers','access_offer_benefits','access_offer_segments'].map(table => `--> statement-breakpoint\nCREATE TRIGGER ${table}_immutable BEFORE UPDATE OR DELETE ON ${table} FOR EACH ROW EXECUTE FUNCTION product_access_immutable();`).join('\n')}
+--> statement-breakpoint
+CREATE TRIGGER access_offer_benefits_set_guard BEFORE INSERT ON access_offer_benefits FOR EACH ROW EXECUTE FUNCTION product_access_benefit_set_guard();
 --> statement-breakpoint
 CREATE TRIGGER access_subscription_sources_identity_immutable BEFORE UPDATE OR DELETE ON access_subscription_sources FOR EACH ROW EXECUTE FUNCTION product_access_source_identity_immutable();
 --> statement-breakpoint

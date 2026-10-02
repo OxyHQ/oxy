@@ -1,5 +1,5 @@
 {
-  "id": "ac8c75e3-d84c-45ba-975b-37fa0cc8604f",
+  "id": "6f727403-570c-4745-902c-0303535a2ea8",
   "prevId": "d4c5b8ac-3993-42c3-ac18-39352ff11063",
   "version": "7",
   "dialect": "postgresql",
@@ -35056,6 +35056,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "expected_benefit_count": {
+          "name": "expected_benefit_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "kind": {
           "name": "kind",
           "type": "text",
@@ -35097,6 +35103,10 @@
         "access_offers_version_check": {
           "name": "access_offers_version_check",
           "value": "\"access_offers\".\"version\" > 0"
+        },
+        "access_offers_benefit_count_check": {
+          "name": "access_offers_benefit_count_check",
+          "value": "\"access_offers\".\"expected_benefit_count\" >= 0"
         },
         "access_offers_kind_check": {
           "name": "access_offers_kind_check",

@@ -68,6 +68,9 @@ async function configuredOffer(db: DatabaseOrTransaction, id: string, version: n
   const benefits = await db.select().from(accessOfferBenefits)
     .where(and(eq(accessOfferBenefits.offerId, id), eq(accessOfferBenefits.offerVersion, version)))
     .orderBy(accessOfferBenefits.benefitIndex);
+  if (benefits.length !== offer.expectedBenefitCount || benefits.some((benefit, index) => benefit.benefitIndex !== index)) {
+    throw productAccessNotConfigured();
+  }
   for (const productId of new Set(benefits.map(row => row.productId))) await readRegisteredProduct(db, productId);
   return productOfferSchema.parse({ schemaVersion: 1, id, version, kind: offer.kind, benefits: benefits.map(benefitDto) });
 }
@@ -102,7 +105,8 @@ export async function registerProductAccessConfiguration(input: { products: Prod
         const [product] = await tx.select().from(accessProducts).where(eq(accessProducts.id, benefit.productId));
         if (!product) throw productAccessNotConfigured();
       }
-      const inserted = await tx.insert(accessOffers).values({ id: offer.id, version: offer.version, kind: offer.kind }).onConflictDoNothing().returning();
+      const inserted = await tx.insert(accessOffers).values({ id: offer.id, version: offer.version, kind: offer.kind,
+        expectedBenefitCount: offer.benefits.length }).onConflictDoNothing().returning();
       if (inserted.length && offer.benefits.length) {
         await tx.insert(accessOfferBenefits).values(offer.benefits.map((benefit, benefitIndex) => ({
           offerId: offer.id, offerVersion: offer.version, benefitIndex,
@@ -170,7 +174,10 @@ export async function recordProductAccessPeriod(input: {
         benefitIndex, productId: benefit.productId, periodStart: new Date(segment.period.start), periodEnd: new Date(segment.period.end),
       })));
     }
-    return { status: inserted.length ? 'recorded' : 'replayed', grantIds };
+    const persisted = await tx.select({ id: accessGrants.id }).from(accessGrants)
+      .where(eq(accessGrants.sourceSegmentId, segment.id)).orderBy(accessGrants.benefitIndex);
+    if (persisted.length !== grantIds.length || persisted.some((grant, index) => grant.id !== grantIds[index])) throw productAccessNotConfigured();
+    return { status: inserted.length ? 'recorded' : 'replayed', grantIds: persisted.map(grant => grant.id) };
   };
   return transaction ? write(transaction) : getDb().transaction(write);
 }

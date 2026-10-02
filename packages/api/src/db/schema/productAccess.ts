@@ -21,11 +21,14 @@ export const accessProducts = pgTable('access_products', {
 
 export const accessOffers = pgTable('access_offers', {
   id: text().notNull(), version: integer().notNull(),
+  /** Immutable closed index set 0..count-1, populated atomically at registration. */
+  expectedBenefitCount: integer().notNull(),
   kind: text({ enum: PRODUCT_OFFER_KINDS }).notNull(), createdAt: createdAt(),
 }, t => [
   primaryKey({ columns: [t.id, t.version] }),
   unique('access_offers_origin_key').on(t.id, t.version, t.kind),
   check('access_offers_version_check', sql`${t.version} > 0`),
+  check('access_offers_benefit_count_check', sql`${t.expectedBenefitCount} >= 0`),
   check('access_offers_kind_check', sql`${t.kind} in (${sql.raw(inList(PRODUCT_OFFER_KINDS))})`),
 ]);
 
