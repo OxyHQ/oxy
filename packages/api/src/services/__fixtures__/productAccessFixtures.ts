@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { oxyAccountIdSchema } from '@oxy.so/contracts';
 import type { ProductOffer, ProductSubscriptionSource, ProductOfferSegment } from '@oxy.so/contracts';
 import { getDb } from '../../config/postgres';
 import { users, applications } from '../../db/schema';
 import { registerProductAccessConfiguration } from '../productAccessPersistence.service';
 export async function accessAccount(kind: 'personal' | 'bot' = 'personal') {
-  const [row] = await getDb().insert(users).values({ username: `i07-${randomUUID().slice(0, 8)}`, kind }).returning(); return row.id;
+  const [row] = await getDb().insert(users).values({ username: `i07-${randomUUID().slice(0, 8)}`, kind }).returning(); return oxyAccountIdSchema.parse(row.id);
 }
 export async function productAccessFixture() {
   const beneficiary = await accessAccount('bot'); const payer = await accessAccount(); const owner = await accessAccount();
