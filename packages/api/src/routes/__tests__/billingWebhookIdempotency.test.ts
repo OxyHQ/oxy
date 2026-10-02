@@ -941,6 +941,47 @@ describe('historical invoice.paid API shape recovery', () => {
     expect(invoiceRetrieveCalls).toEqual([]);
     expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
   });
+
+  it.each([null, 'same-subscription'] as const)('accepts modern delivery with the nullable compatibility subscription field %s without retrieval', async compatibility => {
+    const sub = await subscriber();
+    const event = invoiceEvent(sub);
+    const current = { ...event.data.object, lines: { ...event.data.object.lines,
+      data: event.data.object.lines.data.map(line => ({ ...line,
+        subscription: compatibility === null ? null : sub.subscriptionId })),
+    } };
+    const modernEvent = { ...event, data: { object: current } };
+    expect(await postWebhook(modernEvent)).toBe(200);
+    expect(await postWebhook(modernEvent)).toBe(200);
+    expect(invoiceRetrieveCalls).toEqual([]);
+    expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
+    expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(1);
+  });
+
+  it.each([null, 'same-subscription'] as const)('accepts retrieved modern lines retaining compatibility subscription %s', async compatibility => {
+    const { sub, legacy, current } = await historicalFixture();
+    currentInvoices.set(current.id, { ...current, lines: { ...current.lines,
+      data: current.lines.data.map(line => ({ ...line,
+        subscription: compatibility === null ? null : sub.subscriptionId })),
+    } });
+    expect(await postWebhook(legacy)).toBe(200);
+    expect(await postWebhook(legacy)).toBe(200);
+    expect(invoiceRetrieveCalls).toEqual([current.id]);
+    expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
+    expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(1);
+  });
+
+  it('ignores a modern non-subscription invoice with nullable parent/pricing without retrieval', async () => {
+    const sub = await subscriber();
+    const event = invoiceEvent(sub);
+    const modernEvent = { ...event, data: { object: { ...event.data.object, parent: null,
+      lines: { ...event.data.object.lines, data: [{ ...event.data.object.lines.data[0],
+        subscription: null, parent: null, pricing: null }] },
+    } } };
+    expect(await postWebhook(modernEvent)).toBe(200);
+    expect(invoiceRetrieveCalls).toEqual([]);
+    expect((await eventRow(event.id)).outcome).toBe('ignored');
+    expect(await paidBalance(sub.userId)).toBe(0);
+  });
 });
 
 describe('invoice.paid complete recurring-line reconciliation', () => {

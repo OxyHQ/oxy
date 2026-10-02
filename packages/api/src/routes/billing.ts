@@ -760,8 +760,14 @@ const PERIOD_OPENING_BILLING_REASONS: ReadonlySet<string> = new Set([
 async function currentInvoiceEvidence(event: Stripe.Event): Promise<Stripe.Invoice> {
   const invoice = event.data.object as Stripe.Invoice;
   const historical = invoice as Stripe.Invoice & { subscription?: string | { id: string } | null };
-  const legacyLines = invoice.lines.data.some((line) => 'price' in line || 'subscription' in line);
-  if (!('subscription' in historical) && !legacyLines) return invoice;
+  // Current Stripe line items still have nullable compatibility fields such as
+  // `subscription`. Their presence is not a version discriminator. Modern
+  // parent/pricing fields may themselves be null for non-recurring lines.
+  const legacyLine = (line: Stripe.InvoiceLineItem) =>
+    (line.parent === undefined || line.pricing === undefined)
+    && ('price' in line || 'subscription' in line);
+  const legacyInvoice = invoice.parent === undefined && 'subscription' in historical;
+  if (!legacyInvoice && !invoice.lines.data.some(legacyLine)) return invoice;
 
   const current = await getStripe().invoices.retrieve(invoice.id);
   const expectedSubscription = stripeIdOf(historical.subscription)
@@ -773,8 +779,7 @@ async function currentInvoiceEvidence(event: Stripe.Event): Promise<Stripe.Invoi
     || actualSubscription !== expectedSubscription) {
     throw new Error('Historical invoice retrieval returned contradictory identity, mode or attribution');
   }
-  if ('subscription' in current
-    || current.lines.data.some((line) => 'price' in line || 'subscription' in line)) {
+  if (current.parent === undefined || current.lines.data.some(legacyLine)) {
     throw new Error('Historical invoice retrieval did not return the configured SDK API shape');
   }
   return current;
