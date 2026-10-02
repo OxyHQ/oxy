@@ -1,0 +1,100 @@
+# Candidate-only evidence. No audit-policy approval, AWS, registry push or deployment.
+name: Forge candidate image proof
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'patches/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'Dockerfile'
+      - 'scripts/forge-candidate-*.mjs'
+      - 'scripts/forge-candidate-*.cjs'
+      - 'scripts/forge-remediation-proof-proposal.mjs'
+      - 'docs/security/forge-candidate/**'
+      - '.github/workflows/forge-candidate-image-proof.yml'
+permissions:
+  contents: read
+concurrency:
+  group: forge-candidate-image-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  candidate-image:
+    if: github.repository == 'OxyHQ/oxy' && github.event.pull_request.head.repo.full_name == github.repository && (github.head_ref == 'candidate/forge-remediation-review-20261002' || github.head_ref == 'candidate/forge-provenance-claude-20261002')
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify the exact candidate source
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test -z "$(git status --porcelain --untracked-files=no)"
+      - uses: docker/setup-buildx-action@v4
+      - uses: crazy-max/ghaction-github-runtime@v4
+      - name: Build the final production Dockerfile locally on ARM
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/arm64             --cache-from type=gha,scope=oxy-api-backend             --label "org.opencontainers.image.revision=$SOURCE_SHA"             --metadata-file "$RUNNER_TEMP/forge-build-metadata.json"             --load -f Dockerfile -t "oxy-forge-candidate:$SOURCE_SHA" .
+          docker image inspect "oxy-forge-candidate:$SOURCE_SHA"             --format '{{json .Id}} {{json .Architecture}} {{json .Os}} {{json (index .Config.Labels "org.opencontainers.image.revision")}}'             > "$RUNNER_TEMP/forge-image-identity.txt"
+          test "$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Architecture}}')" = arm64
+      # Before any proof mount: the three bind-mount targets must not exist in the image, so later
+      # mounts cannot hide original image content. No mounts, no network; fails if any target exists.
+      - name: Verify proof mount targets are absent from the unmounted image
+        run: |
+          set -euo pipefail
+          IMAGE_ID="$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Id}}')"
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
+            --entrypoint node "$IMAGE_ID" -e '
+              const { lstatSync } = require("node:fs");
+              const [sourceSha, imageId] = process.argv.slice(1);
+              const targets = ["/proof/scripts", "/proof/hashes", "/proof/patches"].map(path => {
+                try { lstatSync(path); return { path, present: true }; }
+                catch (error) { if (error.code !== "ENOENT") throw error; return { path, present: false }; }
+              });
+              console.log(JSON.stringify({ diagnosticOnly: true, approval: false, mounts: "none", sourceSha, imageId, targets }));
+              process.exitCode = targets.some(target => target.present) ? 1 : 0;
+            ' "$SOURCE_SHA" "$IMAGE_ID" > "$RUNNER_TEMP/forge-image-mount-targets.json"
+      - name: Record actual final-image dangling links without exemptions
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
+            --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly" \
+            --entrypoint node "oxy-forge-candidate:$SOURCE_SHA" \
+            /proof/scripts/forge-candidate-dangling-links.mjs /app \
+            > "$RUNNER_TEMP/forge-image-dangling-links.json"
+      # Derives the complete installed-root set: any node-forge copy outside /app fails the evaluator.
+      - name: Discover every installed root in the whole image filesystem
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
+            --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly" \
+            --entrypoint node "oxy-forge-candidate:$SOURCE_SHA" \
+            /proof/scripts/forge-candidate-image-roots.mjs / \
+            > "$RUNNER_TEMP/forge-image-roots.json"
+      - name: Verify all materialized copies and run own-key controls without network
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only --cap-drop ALL             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m             --tmpfs /tmp:rw,noexec,nosuid,size=32m             --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly"             --mount "type=bind,src=$PWD/docs/security/forge-candidate,dst=/proof/hashes,readonly"             --mount "type=bind,src=$PWD/patches,dst=/proof/patches,readonly"             --entrypoint node "oxy-forge-candidate:$SOURCE_SHA"             /proof/scripts/forge-candidate-image-proof.mjs /app             /proof/hashes/candidate-hashes.json /proof/scripts/forge-candidate-regression.cjs             /proof/patches/node-forge@1.4.0.patch             > "$RUNNER_TEMP/forge-image-regression-proof.json"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: forge-candidate-image-proof-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/forge-build-metadata.json
+            ${{ runner.temp }}/forge-image-identity.txt
+            ${{ runner.temp }}/forge-image-dangling-links.json
+            ${{ runner.temp }}/forge-image-regression-proof.json
+            ${{ runner.temp }}/forge-image-roots.json
+            ${{ runner.temp }}/forge-image-mount-targets.json
+          if-no-files-found: error
+          retention-days: 14

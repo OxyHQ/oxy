@@ -1,0 +1,23 @@
+{
+  "sourceSha": "d2f3d4bd1b87eaebec407f0124b5294e0f506f93",
+  "pullRequest": 1528,
+  "headBranch": "candidate/forge-provenance-claude-20261002",
+  "runId": 36960862475,
+  "runAttempt": 1,
+  "jobId": 110694012099,
+  "workflowMergeSha": "4fbac104166b38928a9884b04d67268ec2abc5f2",
+  "artifactId": 11207444939,
+  "artifactDigest": "sha256:3d27294ee6dde93972602baa2c811c7aeb2364ef43b9ea5b452401bfe8d20777",
+  "artifactFiles": {
+    "forge-image-mount-targets.json": "4914e6f2d9c9b648cb5392fe2521982085c3a758f5622dd0f35d58e73768563e",
+    "forge-image-roots.json": "2f375f25a70c77bcaaf16e94b84233c12a3d791029a269f0a65d848ab4661c2b",
+    "forge-image-regression-proof.json": "b0b1eb05d97f9e8c24533cc02086dce8571238a5395c7138805f5a09c4026fcf",
+    "forge-image-dangling-links.json": "4b3c6d088ea21592c6ee683cba3adc348c437591b515bf783e0f39d9ce4525dd",
+    "forge-image-identity.txt": "76c2c6b85a8b9cccf436b903674580e714dd7c5ed071835b5a0e5ef8288663c5",
+    "forge-build-metadata.json": "d279b2004ef5f86e24d0f5445a1b70e5255070ab1d6ff8a96c2bc316e1756029"
+  },
+  "image": {
+    "configId": "sha256:7036930e5e4996b928218cc754721c931bb0fdd376dc982016c6249d52f282ae",
+    "manifestDigest": "sha256:4099c22e7e6161dc3a5482f7e495a7b76cc604cd41daa0f63cac0fea7862914b"
+  }
+}

@@ -298,6 +298,19 @@ function staleManifestRecords() {
     }
   }
 
+  // Patch paths are part of the frozen manifest graph, just like overrides.
+  const declaredPatches = rootManifest.patchedDependencies ?? {};
+  const recordedPatches = lockfile.patchedDependencies ?? {};
+  for (const name of [...new Set([...Object.keys(declaredPatches), ...Object.keys(recordedPatches)])].sort()) {
+    const patch = declaredPatches[name];
+    if (patch !== recordedPatches[name]) {
+      findings.push(`patched dependency ${name} is ${JSON.stringify(patch ?? null)} in package.json but ${JSON.stringify(recordedPatches[name] ?? null)} in ${LOCKFILE}.`);
+    }
+    if (patch !== undefined && (typeof patch !== 'string' || !patch.startsWith('patches/') || patch.includes('..') || !existsSync(patch))) {
+      findings.push(`patched dependency ${name} must name an existing repository patch under patches/.`);
+    }
+  }
+
   // Recorded in a different order than declared, so compared as a set.
   const declaredTrusted = [...(rootManifest.trustedDependencies ?? [])].sort();
   const recordedTrusted = [...(lockfile.trustedDependencies ?? [])].sort();

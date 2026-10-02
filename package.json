@@ -209,5 +209,8 @@
     "expo-splash-screen": "~57.0.5",
     "is-arrayish": "^0.3.4",
     "react-native-worklets": "catalog:"
+  },
+  "patchedDependencies": {
+    "node-forge@1.4.0": "patches/node-forge@1.4.0.patch"
   }
 }
