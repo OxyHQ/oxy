@@ -141,7 +141,7 @@ export const TRUSTED_BASELINE = freeze({
 export const TRUSTED_WORKFLOW = freeze({
   repository: 'OxyHQ/oxy', repositoryId: 973881060, workflowId: 372697979, path: '.github/workflows/forge-candidate-image-proof.yml',
   name: 'Forge candidate image proof', job: 'candidate-image', runnerLabels: ['ubuntu-24.04-arm'], event: 'pull_request',
-  os: 'linux', architecture: 'arm64', installedRoot: '/app', rootScanRoot: '/', rootScanExcluded: ['/dev', '/proc', '/proof', '/sys'],
+  os: 'linux', architecture: 'arm64', installedRoot: '/app', rootScanRoot: '/', rootScanExcluded: ['/dev', '/proc', '/proof/scripts', '/sys'],
   // Executed by the run; each blob at the run's merge ref must equal the blob at the evidence source.
   executedPaths: ['.github/workflows/forge-candidate-image-proof.yml', 'Dockerfile', 'scripts/forge-candidate-image-proof.mjs',
     'scripts/forge-remediation-proof-proposal.mjs', 'scripts/forge-candidate-regression.cjs', 'scripts/forge-candidate-dangling-links.mjs',

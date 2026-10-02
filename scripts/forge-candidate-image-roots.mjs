@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 const FILES = ['lib/rsa.js', 'dist/forge.min.js', 'dist/forge.min.js.map', 'dist/forge.all.min.js', 'dist/forge.all.min.js.map'];
 // Files only a Forge build carries; their presence makes a directory Forge-shaped.
 export const FORGE_MARKERS = ['lib/forge.js', 'dist/forge.min.js', 'dist/forge.all.min.js'];
-export const EXCLUDED = ['/dev', '/proc', '/proof', '/sys'];
+// Only kernel virtual filesystems and the exact read-only bind mount of the proof scripts; the rest of
+// /proof (if the image has one) is physical image content and is scanned.
+export const EXCLUDED = ['/dev', '/proc', '/proof/scripts', '/sys'];
 // Physical walk (symlinks are never followed): each physical directory is visited exactly once,
 // so a copy reachable only through a symlink is still found at its real location. Errors throw.
 export function scanRoots(root = '/', excluded = EXCLUDED) {

@@ -51,7 +51,7 @@ function repack(x, change, { api = false } = {}) {
   return x;
 }
 function rootsFor(proof, extra = []) {
-  return { diagnosticOnly: true, approval: false, root: '/', excluded: ['/dev', '/proc', '/proof', '/sys'], installRoots: ['/app', '/app/packages/api', '/usr/local/lib'],
+  return { diagnosticOnly: true, approval: false, root: '/', excluded: ['/dev', '/proc', '/proof/scripts', '/sys'], installRoots: ['/app', '/app/packages/api', '/usr/local/lib'],
     forgeCopies: [...proof.copies.map(({ realpath, version, files }) => ({ path: realpath, version, files })), ...extra] };
 }
 // SYNTHETIC future-run control: the real artifact plus a whole-image root scan, as the hardened workflow emits.
@@ -197,6 +197,8 @@ for (const [label, extra] of [['unpatched copy outside /app', { path: '/usr/loca
   refuse(x, /copy outside claimed roots/, label);
 }
 { const x = repack(complete(), ({ json, put }) => { const r = rootsFor(json('forge-image-regression-proof.json')); r.excluded.push('/usr'); put('forge-image-roots.json', r); }, { api: true }); refuse(x, /not the trusted complete scan/, 'extra scan exclusion'); }
+{ const x = repack(complete(), ({ json, put }) => { const r = rootsFor(json('forge-image-regression-proof.json')); r.excluded = ['/dev', '/proc', '/proof', '/sys']; put('forge-image-roots.json', r); }, { api: true }); refuse(x, /not the trusted complete scan/, 'whole /proof excluded'); }
+{ const x = repack(complete(), ({ json, put }) => put('forge-image-roots.json', rootsFor(json('forge-image-regression-proof.json'), [{ path: '/proof/node_modules/node-forge', version: '1.4.0', files: { ...TRUSTED_BASELINE.files } }])), { api: true }); refuse(x, /copy outside claimed roots/, 'patched copy under /proof'); }
 { const x = repack(complete(), ({ json, put }) => { const r = rootsFor(json('forge-image-regression-proof.json')); r.root = '/app'; put('forge-image-roots.json', r); }, { api: true }); refuse(x, /not the trusted complete scan/, 'scan limited to /app'); }
 { const x = repack(complete(), ({ json, put }) => { const r = rootsFor(json('forge-image-regression-proof.json')); r.installRoots = ['/usr/local/lib']; put('forge-image-roots.json', r); }, { api: true }); refuse(x, /not the trusted complete scan/, 'roots without /app'); }
 { const x = repack(complete(), ({ json, put }) => { const r = rootsFor(json('forge-image-regression-proof.json')); r.forgeCopies = []; put('forge-image-roots.json', r); }, { api: true }); refuse(x, /copy outside claimed roots/, 'scan hides the /app copy'); }
@@ -222,6 +224,9 @@ refuse(rewriteProof(p => { p.approved = true; }), /Image proof does not bind/, '
 { const x = repack(complete(), ({ json, put }) => { const d = json('forge-image-dangling-links.json'); d.danglingLinks.pop(); put('forge-image-dangling-links.json', d); }, { api: true }); refuse(x, /exactly the eight reviewed/, 'seven dangling links'); }
 { const x = repack(complete(), ({ json, put }) => { const d = json('forge-image-dangling-links.json'); d.danglingLinks.push({ path: 'node_modules/node-forge', target: '../x', absoluteResolution: '/app/x', errorCode: 'ENOENT' }); put('forge-image-dangling-links.json', d); }, { api: true }); refuse(x, /exactly the eight reviewed/, 'extra dangling Forge link'); }
 
+// In-place byte mutation (buffers cannot be frozen) trips the pinned digest and baseline.
+{ const x = complete(); const bytes = Buffer.from(x.artifactZip); x.artifactZip = bytes; bytes[bytes.length - 30] ^= 1; refuse(x, /Artifact/, 'artifact bytes mutated in place'); }
+{ const x = complete(); const bytes = Buffer.from(x.git.patchBytes); x.git.patchBytes = bytes; bytes[0] ^= 1; refuse(x, /Source patch differs/, 'patch bytes mutated in place'); }
 // ── 9. Authentication cannot be injected ────────────────────────────────────
 {
   const forged = complete(); Object.freeze(forged);
@@ -267,6 +272,14 @@ refuse(rewriteProof(p => { p.approved = true; }), /Image proof does not bind/, '
     disguise('opt/vendor/forge-no-manifest', undefined);
     pkg('app/node_modules/broken-slot', '{broken'); assert.throws(() => scanRoots(fs), /Unreadable package manifest/); rmSync(join(fs, 'app/node_modules/broken-slot'), { recursive: true }); checks++;
     pkg('app/node_modules/@scope/nameless', { version: '1.0.0' }); assert.throws(() => scanRoots(fs), /lacks a string name\/version/); rmSync(join(fs, 'app/node_modules/@scope'), { recursive: true }); checks++;
+    // Only the exact /proof/scripts bind mount is skipped; any other /proof content is image content.
+    pkg('proof/scripts/node_modules/node-forge', { name: 'node-forge', version: '0.0.1' }, true);
+    assert.equal(scanRoots(fs).forgeCopies.length, 1); checks++;
+    pkg('proof/node_modules/node-forge', { name: 'node-forge', version: '1.4.0' }, true);
+    pkg('proof/hashes/vendor/node-forge', { name: 'node-forge', version: '1.4.0' }, true);
+    assert.deepEqual(scanRoots(fs).forgeCopies.map(copy => copy.path), [join(fs, 'app/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge'), join(fs, 'proof/hashes/vendor/node-forge'), join(fs, 'proof/node_modules/node-forge')]);
+    assert.ok(scanRoots(fs).installRoots.includes(join(fs, 'proof'))); checks++;
+    rmSync(join(fs, 'proof'), { recursive: true });
     assert.equal(scanRoots(fs).forgeCopies.length, 1); checks++; // clean again: refusals were not vacuous
   } finally { rmSync(fs, { recursive: true, force: true }); }
 }
