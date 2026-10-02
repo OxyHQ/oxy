@@ -159,6 +159,15 @@ const overrideFixture = createFixture();
 writeManifest(overrideFixture, '.', rootManifest({ overrides: { beta: 'workspace:*' } }));
 expectVerdict('override-added', overrideFixture, 1, 'override beta is');
 
+// Patch declarations must not escape the frozen graph or reference absent files.
+const patchFixture = createFixture();
+writeManifest(patchFixture, '.', rootManifest({ patchedDependencies: { 'node-forge@1.4.0': 'patches/absent.patch' } }));
+expectVerdict('patch-added-without-lock', patchFixture, 1, 'patched dependency node-forge@1.4.0 is');
+expectVerdict('patch-file-absent', patchFixture, 1, 'must name an existing repository patch under patches/');
+const escapePatchFixture = createFixture();
+writeManifest(escapePatchFixture, '.', rootManifest({ patchedDependencies: { 'node-forge@1.4.0': '../outside.patch' } }));
+expectVerdict('patch-path-escape', escapePatchFixture, 1, 'must name an existing repository patch under patches/');
+
 // trustedDependencies is recorded in a different ORDER than declared, so it must
 // be compared as a set — otherwise every run of this gate would cry wolf.
 const trustedFixture = createFixture();

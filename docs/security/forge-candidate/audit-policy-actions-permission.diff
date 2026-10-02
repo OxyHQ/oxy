@@ -1,0 +1,10 @@
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -643,6 +643,7 @@ jobs:
+     runs-on: ubuntu-latest
+     permissions:
+       contents: read
++      actions: read # Read-only candidate artifact provenance; never human approval.
+     # A backstop over the step caps below: the no-install phase (~2m), the
+     # install (30s), the API checks' dependency-closure step (10m cap) and the
+     # builds, lint and remaining guards (~3m) at their observed maxima.
