@@ -44,6 +44,15 @@ jobs:
           docker buildx build --platform linux/arm64             --cache-from type=gha,scope=oxy-api-backend             --label "org.opencontainers.image.revision=$SOURCE_SHA"             --metadata-file "$RUNNER_TEMP/forge-build-metadata.json"             --load -f Dockerfile -t "oxy-forge-candidate:$SOURCE_SHA" .
           docker image inspect "oxy-forge-candidate:$SOURCE_SHA"             --format '{{json .Id}} {{json .Architecture}} {{json .Os}} {{json (index .Config.Labels "org.opencontainers.image.revision")}}'             > "$RUNNER_TEMP/forge-image-identity.txt"
           test "$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Architecture}}')" = arm64
+      - name: Record actual final-image dangling links without exemptions
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
+            --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly" \
+            --entrypoint node "oxy-forge-candidate:$SOURCE_SHA" \
+            /proof/scripts/forge-candidate-dangling-links.mjs /app \
+            > "$RUNNER_TEMP/forge-image-dangling-links.json"
       - name: Verify all materialized copies and run own-key controls without network
         run: |
           set -euo pipefail
@@ -55,6 +64,7 @@ jobs:
           path: |
             ${{ runner.temp }}/forge-build-metadata.json
             ${{ runner.temp }}/forge-image-identity.txt
+            ${{ runner.temp }}/forge-image-dangling-links.json
             ${{ runner.temp }}/forge-image-regression-proof.json
           if-no-files-found: warn
           retention-days: 14
