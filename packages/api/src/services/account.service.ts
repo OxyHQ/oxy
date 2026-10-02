@@ -10,8 +10,15 @@
  *    `inherit` is true);
  *  - `verifyActingAs` generalised to "member of accountId (directly or via an
  *    inheriting ancestor) holding `account:act_as`";
- *  - members CRUD + transfer-ownership (never removes/demotes the last owner);
- *  - service credentials for `bot`-kind accounts (7-day rotation grace).
+ *  - members CRUD + transfer-ownership (never removes/demotes the last owner).
+ *
+ * It holds NO credentials. A `bot` is a complete account (issue #1520) but
+ * does not authenticate as itself through anything here: its sessions are
+ * delegated (`operatedByUserId` = the person acting as it) or it acts through
+ * the agent runtime's execution authorization (ADR 0018). Self-ownership in
+ * {@link AccountService.effectiveAccessForAccount} stays `personal`-only
+ * until a bot self-authentication lane exists that cannot be confused with a
+ * degraded session read — see `accountsCreateAsOperatedAccount.test.ts`.
  *
  * ## What the Postgres port changed
  *

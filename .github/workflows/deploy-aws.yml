@@ -58,6 +58,23 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Read committed source policy status
+        id: forge_policy
+        run: |
+          set -euo pipefail
+          status="$(git show HEAD:docs/security/forge-candidate/provenance/audit-policy-decision.json | python3 -c 'import json,sys; x=json.load(sys.stdin); assert set(x)==set(["schemaVersion","status","targetSourceHead","expiresAt","authorizationRecord","independentEvidence"]); assert x["schemaVersion"]==1 and x["status"] in ["INACTIVE","ACTIVE"]; print(x["status"])')"
+          echo "active=$([[ "$status" == ACTIVE ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: oven-sh/setup-bun@v2
+        if: steps.forge_policy.outputs.active == 'true'
+        with:
+          bun-version-file: package.json
+      - name: Validate policy before byte inventory or provenance login
+        if: steps.forge_policy.outputs.active == 'true'
+        run: |
+          bun -e 'import { readCommittedPolicyStatus } from "./scripts/forge-audit-policy.mjs"; if (readCommittedPolicyStatus() !== "ACTIVE") process.exit(1);'
+          bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
 
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v6
@@ -193,7 +210,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: oxy/${{ env.APP }}
           SHA: ${{ github.sha }}
-        run: bash .github/scripts/resolve-queue-image.sh
+        run: |
+          set -euo pipefail
+          if [[ '${{ steps.forge_policy.outputs.active }}' == true ]]; then
+            forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
+            test -n "$forge_runner_home"
+            trap 'env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth logout --hostname github.com >/dev/null 2>&1 || true' EXIT
+            printf '%s' "$GH_TOKEN" | env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth login --hostname github.com --with-token
+          fi
+          bash .github/scripts/resolve-queue-image.sh
 
       - name: Set up Docker Buildx
         if: steps.queue_image.outputs.digest == ''

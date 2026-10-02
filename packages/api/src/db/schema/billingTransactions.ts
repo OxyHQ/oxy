@@ -151,6 +151,18 @@ export function subscriptionPeriodIdempotencyPredicate(columns: {
   return sql`${columns.type} = ${sql.raw(`'${SUBSCRIPTION_PAYMENT_TYPE}'`)} and ${columns.stripeSubscriptionId} is not null and ${columns.stripeSubscriptionPeriodStart} is not null`;
 }
 
+/**
+ * One renewal grant per paid invoice. The period key above already stops a
+ * second grant for the same period; this one makes the receipt-to-invoice link
+ * a fact the database enforces, so reconciliation can join on it.
+ */
+export function subscriptionInvoiceIdempotencyPredicate(columns: {
+  type: PgColumn;
+  stripeInvoiceId: PgColumn;
+}): SQL {
+  return sql`${columns.type} = ${sql.raw(`'${SUBSCRIPTION_PAYMENT_TYPE}'`)} and ${columns.stripeInvoiceId} is not null`;
+}
+
 export const billingTransactions = pgTable(
   'billing_transactions',
   {
@@ -174,6 +186,12 @@ export const billingTransactions = pgTable(
     stripeSubscriptionId: text(),
     /** The billing period this payment covers. Half of the idempotency key. */
     stripeSubscriptionPeriodStart: timestamptz(),
+    /**
+     * The Stripe invoice whose PAYMENT is the evidence for a renewal grant
+     * (`invoice.paid`). Null on renewal rows written before grants were bound to
+     * invoices, and on every other type. See `subscriptionInvoiceIdempotencyPredicate`.
+     */
+    stripeInvoiceId: text(),
     type: text({ enum: BILLING_TRANSACTION_TYPES }).notNull(),
     /** Minor units of `currency` — 2999 is $29.99. See the header. */
     amountMinorUnits: bigint({ mode: 'number' }).notNull(),
@@ -196,6 +214,10 @@ export const billingTransactions = pgTable(
     uniqueIndex('billing_transactions_payment_intent_key')
       .on(t.stripePaymentIntentId, t.type)
       .where(creditPurchaseIdempotencyPredicate(t)),
+    // RENEWAL path, evidence side: a paid invoice backs at most one grant.
+    uniqueIndex('billing_transactions_subscription_invoice_key')
+      .on(t.stripeInvoiceId, t.type)
+      .where(subscriptionInvoiceIdempotencyPredicate(t)),
     // The transaction list: `find({userId}).sort({createdAt: -1})`
     // (`billing.ts:248`). Mongo declared this one AND a standalone `{userId}`;
     // the standalone is redundant, since a btree serves any leading prefix.

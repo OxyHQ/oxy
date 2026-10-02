@@ -39,10 +39,11 @@ const failures = [];
 
 /**
  * The route table the stub generator emits from, keyed the way the real
- * `MOUNT_MAP` is keyed. Deliberately only the inference files: the gate says
- * nothing about the rest of the API, so a fixture carrying it would be scenery.
+ * `MOUNT_MAP` is keyed. Includes the inference, email and product-access routes required by the gate.
+ * Other API routes are unnecessary for these focused controls.
  */
 const FIXTURE_ROUTES = {
+  'productAccess.ts': [['get', '/{productId}/access/{subjectAccountId}']],
   'inferenceEdge.ts': [
     ['post', '/responses'],
     ['post', '/decisions'],
@@ -66,6 +67,7 @@ const FIXTURE_ROUTES = {
 };
 
 const FIXTURE_MAP = {
+  'productAccess.ts': ['/v1/products'],
   'inferenceEdge.ts': ['/v1'],
   'inferenceCatalogue.ts': ['/v1/models', '/models'],
   'inferenceAdmin.ts': ['/inference/admin'],
@@ -204,7 +206,7 @@ function createFixture({
 
   for (const args of [
     ['init', '-q', '.'],
-    ['add', '-A'],
+    ['add', '--', 'packages/api/openapi.json', 'packages/api/scripts/generate-openapi.ts'],
     ['-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', 'commit', '-qm', 'fixture'],
   ]) {
     const step = runCommand('git', args, root);
@@ -215,7 +217,7 @@ function createFixture({
 
 function commitAll(root) {
   for (const args of [
-    ['add', '-A'],
+    ['add', '--', 'packages/api/openapi.json', 'packages/api/scripts/generate-openapi.ts'],
     ['-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', 'commit', '-qm', 'edit'],
   ]) {
     const step = runCommand('git', args, root);
@@ -258,6 +260,27 @@ expectVerdict(
   createFixture({ mountMap: droppedEdgeMap }),
   1,
   '/v1/chat/completions is not described at all.',
+);
+
+// Product access must remain present even when a dropped router regenerates a
+// byte-identical document, and its successful response must constrain the payload.
+const droppedProductAccessMap = { ...FIXTURE_MAP };
+delete droppedProductAccessMap['productAccess.ts'];
+expectVerdict(
+  'product-access-route-dropped',
+  createFixture({ mountMap: droppedProductAccessMap }),
+  1,
+  'GET /v1/products/{productId}/access/{subjectAccountId} is not described at all',
+);
+expectVerdict(
+  'product-access-success-schema-dropped',
+  createFixture({
+    payloadOverrides: {
+      '/v1/products/{productId}/access/{subjectAccountId} get': { responses: { 200: { description: 'ok' } } },
+    },
+  }),
+  1,
+  'GET /v1/products/{productId}/access/{subjectAccountId} declares no 2xx response with a constrained schema',
 );
 
 // The catalogue is mounted TWICE. A map that keeps only one prefix leaves a
@@ -525,7 +548,7 @@ withMutatedGate(
   'payload-list-shrunk',
   "  { method: 'post', path: '/v1/responses', requestBody: true },\n",
   '',
-  'below the floor of 11',
+  'below the floor of 12',
 );
 
 // The empty-schema walk going INERT, which is the one failure its own findings

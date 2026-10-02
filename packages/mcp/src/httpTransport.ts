@@ -1,4 +1,4 @@
-import type { AppCapabilityCatalog } from '@oxy.so/contracts';
+import { isLoopbackOrigin, type AppCapabilityCatalog } from '@oxy.so/contracts';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
@@ -74,13 +74,11 @@ export interface CatalogMcpHttpService {
   ): void;
 }
 
-class BodyTooLargeError extends Error {}
+export class BodyTooLargeError extends Error {}
 
 function normalizeHttpsOrigin(value: string, label: string): string {
   const url = new URL(value);
-  const local = url.hostname === 'localhost'
-    || url.hostname === '127.0.0.1'
-    || url.hostname === '[::1]';
+  const local = isLoopbackOrigin(value);
   if (url.protocol !== 'https:' && !(local && url.protocol === 'http:')) {
     throw new Error(`${label} must use HTTPS outside local development`);
   }
@@ -108,7 +106,7 @@ function setJsonHeaders(response: ServerResponse, cacheControl = 'no-store'): vo
   response.setHeader('Content-Type', 'application/json');
 }
 
-function sendJsonRpcError(
+export function sendJsonRpcError(
   response: ServerResponse,
   status: number,
   code: number,
@@ -123,7 +121,7 @@ function sendJsonRpcError(
   }));
 }
 
-function singleHeader(value: string | string[] | undefined): string | undefined {
+export function singleHeader(value: string | string[] | undefined): string | undefined {
   if (typeof value === 'string' || value === undefined) return value;
   return value.length === 1 ? value[0] : undefined;
 }
@@ -140,7 +138,7 @@ function appendVary(response: ServerResponse, value: string): void {
   response.setHeader('Vary', [...entries].join(', '));
 }
 
-function configureCors(
+export function configureCors(
   request: IncomingMessage,
   response: ServerResponse,
   allowedOrigins: ReadonlySet<string>,
@@ -163,7 +161,7 @@ function configureCors(
   return true;
 }
 
-function requireResourceHost(
+export function requireResourceHost(
   request: IncomingMessage,
   response: ServerResponse,
   expectedHost: string,
@@ -174,8 +172,12 @@ function requireResourceHost(
   return false;
 }
 
-function readJsonBody(request: IncomingMessage, maxBodyBytes: number): Promise<unknown> {
+export function readJsonBody(request: IncomingMessage, maxBodyBytes: number): Promise<unknown> {
   return new Promise((resolve, reject) => {
+    if (request.readableEnded) {
+      reject(new Error('Mount the MCP handler before middleware that consumes the request body'));
+      return;
+    }
     const contentLength = Number(singleHeader(request.headers['content-length']));
     if (Number.isFinite(contentLength) && contentLength > maxBodyBytes) {
       request.resume();
@@ -217,7 +219,7 @@ function readJsonBody(request: IncomingMessage, maxBodyBytes: number): Promise<u
   });
 }
 
-function closeServerAfterResponse(server: McpServer, response: ServerResponse): void {
+export function closeServerAfterResponse(server: McpServer, response: ServerResponse): void {
   let closed = false;
   const close = (): void => {
     if (closed) return;

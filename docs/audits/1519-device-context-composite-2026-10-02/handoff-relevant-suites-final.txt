@@ -1,0 +1,30 @@
+$ jest --runInBand src/services/__tests__/deviceSession.service.test.ts src/services/__tests__/deviceDirectory.service.test.ts src/services/__tests__/session.service.test.ts src/routes/__tests__/sessionDeviceDirectory.test.ts
+{"level":30,"time":1790970774079,"pid":3097202,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790970774598,"pid":3097202,"hostname":"SuperPC","deviceId":"dev-2efd5b54-e83d-4ba5-9c13-334ee52cf5a8","accountId":"01a0fe2d-4427-73bc-b575-c30f62c96e20","msg":"deviceSession.getState: dropping revoked managed active account"}
+{"level":30,"time":1790970775876,"pid":3097202,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790970775969,"pid":3097202,"hostname":"SuperPC","component":"SessionService","method":"createSession","userId":"01a0fe2d-4993-7d3f-87ff-d1fd65e42b19","sessionId":"143de697","fromDeviceId":"e53fcefe","toDeviceId":"dev-4615","msg":"[SessionService] Migrated reused session onto caller device"}
+{"level":30,"time":1790970776014,"pid":3097202,"hostname":"SuperPC","component":"SessionService","method":"createSession","userId":"01a0fe2d-49a5-77b0-975b-2799742a0a18","sessionId":"f292e783","fromDeviceId":"a058a2a3","toDeviceId":"dev-dbd0","msg":"[SessionService] Migrated reused session onto caller device"}
+{"level":30,"time":1790970776042,"pid":3097202,"hostname":"SuperPC","component":"SessionService","method":"createSession","userId":"01a0fe2d-49db-7283-b97e-4114fe71dcda","sessionId":"4a25b7ad","fromDeviceId":"07488671","toDeviceId":"dev-bfa8","msg":"[SessionService] Migrated reused session onto caller device"}
+{"level":30,"time":1790970776128,"pid":3097202,"hostname":"SuperPC","sessionId":"bf5c69f8","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790970776136,"pid":3097202,"hostname":"SuperPC","sessionId":"e9f6ab07","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790970776144,"pid":3097202,"hostname":"SuperPC","sessionId":"e834c60f","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790970776145,"pid":3097202,"hostname":"SuperPC","sessionId":"e834c60f","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790970776159,"pid":3097202,"hostname":"SuperPC","count":2,"userId":"01a0fe2d-4a51-7e12-8804-ca8a0a6f8174","msg":"[SessionService] Deactivated sessions for user"}
+{"level":30,"time":1790970776177,"pid":3097202,"hostname":"SuperPC","count":1,"userId":"01a0fe2d-4a63-704e-863f-8f63dd0a04cd","msg":"[SessionService] Deactivated sessions for user"}
+{"level":30,"time":1790970776194,"pid":3097202,"hostname":"SuperPC","sessionId":"c4acf8c1","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790970776223,"pid":3097202,"hostname":"SuperPC","sessionId":"0a3815fa","msg":"[SessionService] Refresh token grace period used"}
+{"level":30,"time":1790970776245,"pid":3097202,"hostname":"SuperPC","sessionId":"4aa183db","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790970776381,"pid":3097202,"hostname":"SuperPC","sessionId":"db64cec2","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790970776381,"pid":3097202,"hostname":"SuperPC","sessionId":"db64cec2","operatorId":"01a0fe2d-4b31-746f-92ee-376cea519feb","accountId":"01a0fe2d-4b33-77a6-ae99-fd4e1c34aa92","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":30,"time":1790970776407,"pid":3097202,"hostname":"SuperPC","sessionId":"0b269005","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790970776407,"pid":3097202,"hostname":"SuperPC","sessionId":"0b269005","operatorId":"01a0fe2d-4b4a-7cc7-b23b-2c7b49d2604a","accountId":"01a0fe2d-4b4c-7709-9dbd-1834c30593ea","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":40,"time":1790970776571,"pid":3097202,"hostname":"SuperPC","component":"SessionService","method":"validateSession","sessionId":"eebda529","reason":"client_mismatch","msg":"[SessionService] Access token rejected by binding check"}
+{"level":30,"time":1790970776733,"pid":3097202,"hostname":"SuperPC","sessionId":"a3d73950","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790970776733,"pid":3097202,"hostname":"SuperPC","sessionId":"a3d73950","operatorId":"01a0fe2d-4c88-78e8-bb4e-2879b28fcc23","accountId":"01a0fe2d-4c89-7a89-8e9b-dfd61d7bde98","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":30,"time":1790970776786,"pid":3097202,"hostname":"SuperPC","sessionId":"892be95e","msg":"[SessionService] Refresh token grace period used"}
+
+Test Suites: 4 passed, 4 total
+Tests:       166 passed, 166 total
+Snapshots:   0 total
+Time:        8.106 s
+Ran all test suites matching src/services/__tests__/deviceSession.service.test.ts|src/services/__tests__/deviceDirectory.service.test.ts|src/services/__tests__/session.service.test.ts|src/routes/__tests__/sessionDeviceDirectory.test.ts.

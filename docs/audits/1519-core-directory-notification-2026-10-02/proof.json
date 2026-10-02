@@ -1,0 +1,51 @@
+{
+  "observedAtUTC": "2026-10-02T19:57:01.138712+00:00",
+  "failingHead": "70ed89e63e060be9efa6584b31858e5ba8e1977d",
+  "ciRun": 37056560728,
+  "ciJob": 111002681657,
+  "source": {
+    "path": "packages/core/src/session/__tests__/SessionClient.directory.test.ts",
+    "sha256": "212fbc94971a09bdf6d5d08ac19a05a100fdbec52c64d66a378d881cc7e3f831"
+  },
+  "runtimeUnchanged": {
+    "path": "packages/core/src/session/SessionClient.ts",
+    "sha256": "3b5b2a8007d48677737a48794fab4a9abf5cbdb0841d422469244909f20dd9c3",
+    "equalsFailingHead": true
+  },
+  "records": [
+    {
+      "path": "docs/audits/1519-core-directory-notification-2026-10-02/core-directory-red.txt",
+      "sha256": "fb1b9aefbd21936e110e46adcb3b492e392b16b0b305afc6c7194c9508c0158e",
+      "exitCode": 1
+    },
+    {
+      "path": "docs/audits/1519-core-directory-notification-2026-10-02/core-directory-green.txt",
+      "sha256": "71ed1e7272651e332829a9f3d1a9bed7dc93888caacf3d1efd22ad960a2c48d2",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/audits/1519-core-directory-notification-2026-10-02/core-full-after-directory.txt",
+      "sha256": "e31e27df817250273c122a7aee3e16302675e558d8ed272758ce3146b879c0a4",
+      "exitCode": 0
+    }
+  ],
+  "results": {
+    "redTests": {
+      "passed": 23,
+      "failed": 1
+    },
+    "greenTests": 24,
+    "fullCore": {
+      "suites": 172,
+      "tests": 2121
+    }
+  },
+  "assertionsPreserved": [
+    "No notification before directory completion",
+    "Exactly two directory requests",
+    "One notification observing revision3",
+    "Active context account remains org"
+  ],
+  "fix": "Await subscriber event, replacing fixed five microtask ticks",
+  "publication": false
+}

@@ -6,6 +6,7 @@
  * Node only; reachable solely from `@oxy.so/core/server`.
  */
 import type { OxyRequestUser } from './auth';
+import { accountActorChainSchema, type AccountActorChain } from '@oxy.so/contracts';
 import { jwtDecode } from 'jwt-decode';
 import type { JsonWebKey } from 'node:crypto';
 import type { ApiError, User } from '../models/interfaces';
@@ -299,7 +300,7 @@ export interface OxyMiddlewareHost {
   validateSession(
     sessionId: string,
     options?: { deviceFingerprint?: string; useHeaderValidation?: boolean },
-  ): Promise<{ valid: boolean; user?: User } | null>;
+  ): Promise<{ valid: boolean; user?: User; actor?: unknown } | null>;
   verifyActingAs(appId: string, userId: string): Promise<ServiceActingAsVerification | null>;
 }
 
@@ -925,7 +926,44 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             return res.status(401).json(error);
           }
 
+          // Who acted, and as whom — from the session authority's answer
+          // (#1520), never from a header or this undecoded token. An API that
+          // predates the field answers without it, and that is `null` here:
+          // "not reported", never a guess that the subject acted for itself.
+          // A chain naming a DIFFERENT effective account than the session
+          // resolved to has no benign cause and is refused like a user
+          // mismatch.
+          const actor = readActorChain(validationResult.actor);
+          if (actor === 'invalid' || (actor && actor.effectiveAccountId !== validatedUserId)) {
+            logger.warn('[oxy.auth] Session rejected — actor chain does not describe the session', {
+              component: 'auth',
+              method: 'auth',
+              validatedUserId,
+            });
+            recordRefusal(req, {
+              code: 'SESSION_ACTOR_MISMATCH',
+              stage: 'session',
+              reason: 'Session actor chain does not describe the validated session',
+              status: 401,
+            });
+            if (optional) {
+              req.userId = null;
+              req.user = null;
+              return next();
+            }
+
+            const error = {
+              error: 'SESSION_ACTOR_MISMATCH',
+              message: 'Session actor does not match the session',
+              code: 'SESSION_ACTOR_MISMATCH',
+              status: 401
+            };
+            if (onError) return onError(error);
+            return res.status(401).json(error);
+          }
+
           req.userId = validatedUserId;
+          req.oxyActor = actor;
           req.accessToken = token;
           req.sessionId = sessionId;
           // Session validation already returned the full user, so `loadUser`
@@ -1484,6 +1522,17 @@ function verifyServiceTokenClaims(
   }
 }
 
+/**
+ * Parse the session authority's actor chain. `null` when the API did not send
+ * one; `'invalid'` when it sent something that is not a chain, which the caller
+ * refuses rather than ignores.
+ */
+function readActorChain(raw: unknown): AccountActorChain | null | 'invalid' {
+  if (raw === undefined || raw === null) return null;
+  const parsed = accountActorChainSchema.safeParse(raw);
+  return parsed.success ? parsed.data : 'invalid';
+}
+
 // ---------------------------------------------------------------------------
 // Local request/response/socket typing
 //
@@ -1506,6 +1555,7 @@ interface AuthReq {
   sessionId?: string | null;
   serviceApp?: ServiceApp;
   serviceActingAs?: { userId: string; scopes: string[] };
+  oxyActor?: AccountActorChain | null;
   oxyAuthRefusal?: OxyAuthRefusal;
 }
 

@@ -20,7 +20,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../securityActivityService', () => ({
@@ -738,6 +738,251 @@ describe('removal — one context and one principal are different operations', (
       .limit(1);
     return row.isActive;
   }
+
+  async function backgroundPair(addSecond = true) {
+    const device = newDeviceId();
+    const first = await account();
+    const second = await account();
+    const org = await organization(first);
+    await signIn(device, first);
+    const firstContext = contextFor(await deviceSessionService.getDirectory(device), first, org)?.id ?? '';
+    const activated = await deviceSessionService.activateContext(device, firstContext, request());
+    expect(activated.ok).toBe(true);
+    const firstSession = (await storedContexts(device)).find((row) => row.id === firstContext)?.sessionId ?? '';
+    const credential = await deviceSessionService.issueBackgroundCredential(device, org);
+    expect(credential).not.toBeNull();
+    if (!credential) throw new Error('Expected real initial background credential');
+    let secondContext = '';
+    let secondSession = '';
+    if (addSecond) {
+      await getDb().insert(accountMembers).values({ accountId: org, memberUserId: second, role: 'admin', status: 'active' });
+      await signIn(device, second);
+      secondContext = contextFor(await deviceSessionService.getDirectory(device), second, org)?.id ?? '';
+      expect((await deviceSessionService.activateContext(device, secondContext, request())).ok).toBe(true);
+      secondSession = (await storedContexts(device)).find((row) => row.id === secondContext)?.sessionId ?? '';
+      expect((await deviceSessionService.activateContext(device, firstContext, request())).ok).toBe(true);
+    }
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected live device holder');
+    return { device, first, second, org, firstContext, firstSession, secondContext, secondSession, credential, holder };
+  }
+
+  it('#1549 background secret cannot follow the remaining operator after exact autoheal', async () => {
+    const pair = await backgroundPair();
+    await getDb().delete(accountMembers).where(and(eq(accountMembers.accountId, pair.org), eq(accountMembers.memberUserId, pair.first)));
+    expect(await sessionService.getAccessToken(pair.firstSession)).toBeNull();
+    await deviceSessionService.getState(pair.device);
+    expect((await storedContexts(pair.device)).some((row) => row.id === pair.firstContext)).toBe(false);
+    expect(await sessionIsActive(pair.secondSession)).toBe(true);
+    expect(await deviceSessionService.getStateBySecret(pair.device, pair.holder)).not.toBeNull();
+    const secondToken = await sessionService.getAccessToken(pair.secondSession);
+    expect(validateAccessToken(secondToken?.accessToken ?? '').payload?.act?.sub).toBe(pair.second);
+    const minted = await deviceSessionService.mintFromBackgroundSecret(pair.device, pair.credential.secret);
+    const mintedActor = minted.ok ? validateAccessToken(minted.accessToken).payload?.act?.sub : null;
+    expect({ ok: minted.ok, actor: mintedActor, hash: (await storedDevice(pair.device)).backgroundSecretHash })
+      .toEqual({ ok: false, actor: null, hash: null });
+  });
+
+  it('#1549 cannot persist an issuance after its exact context was removed during validation', async () => {
+    const pair = await backgroundPair(false);
+    const resolve = deviceSessionService.resolveTokenForAccount.bind(deviceSessionService);
+    let entered = () => {};
+    let release = () => {};
+    const reached = new Promise<void>((done) => { entered = done; });
+    const resume = new Promise<void>((done) => { release = done; });
+    const spy = jest.spyOn(deviceSessionService, 'resolveTokenForAccount').mockImplementation(async (state, accountId) => {
+      const token = await resolve(state, accountId);
+      entered(); await resume; return token;
+    });
+    try {
+      const pending = deviceSessionService.issueBackgroundCredential(pair.device, pair.org);
+      await reached;
+      expect((await deviceSessionService.removeContext(pair.device, pair.firstContext)).ok).toBe(true);
+      release();
+      expect((await pending) === null).toBe(true);
+      expect((await storedDevice(pair.device)).backgroundSecretHash).toBeNull();
+    } finally { release(); spy.mockRestore(); }
+  });
+
+  it('#1549 background mint rejects a secret replaced while its real session mint awaits', async () => {
+    const pair = await backgroundPair(false);
+    const barrier = pauseMint(pair.firstSession);
+    try {
+      const pending = deviceSessionService.mintFromBackgroundSecret(pair.device, pair.credential.secret);
+      await barrier.reached;
+      const replacement = await deviceSessionService.issueBackgroundCredential(pair.device, pair.first);
+      expect(replacement).not.toBeNull();
+      barrier.release();
+      expect((await pending).ok).toBe(false);
+      if (!replacement) throw new Error('Expected other-account credential');
+      expect((await deviceSessionService.mintFromBackgroundSecret(pair.device, replacement.secret)).ok).toBe(true);
+    } finally { barrier.release(); barrier.restore(); }
+  });
+
+  it('#1549 preserves another account background binding when an organization context is removed', async () => {
+    const pair = await backgroundPair();
+    const own = await deviceSessionService.issueBackgroundCredential(pair.device, pair.second);
+    if (!own) throw new Error('Expected own-account credential');
+    expect((await deviceSessionService.removeContext(pair.device, pair.firstContext)).ok).toBe(true);
+    const token = await deviceSessionService.mintFromBackgroundSecret(pair.device, own.secret);
+    expect(token.ok).toBe(true);
+    if (!token.ok) throw new Error('Expected preserved own-account mint');
+    expect(validateAccessToken(token.accessToken).payload?.sub).toBe(pair.second);
+    expect(await sessionIsActive(pair.secondSession)).toBe(true);
+  });
+
+  it('#1549 rolls back context retirement and background invalidation together on write failure', async () => {
+    const pair = await backgroundPair(false);
+    const before = await storedDevice(pair.device);
+    const name = `background_rollback_${randomUUID().replaceAll('-', '')}`;
+    await getDb().execute(sql`CREATE FUNCTION ${sql.identifier(name)}() RETURNS trigger AS $$
+      BEGIN
+        IF OLD.device_id = TG_ARGV[0] THEN RAISE EXCEPTION 'synthetic background rollback'; END IF;
+        RETURN NEW;
+      END;
+    $$ LANGUAGE plpgsql`);
+    try {
+      await getDb().execute(sql`CREATE TRIGGER ${sql.identifier(name)} BEFORE UPDATE OF background_secret_hash
+        ON device_sessions FOR EACH ROW EXECUTE FUNCTION ${sql.identifier(name)}(${sql.raw(`'${pair.device.replaceAll("'", "''")}'`)})`);
+      await expect(deviceSessionService.removeContext(pair.device, pair.firstContext)).rejects.toThrow();
+      const after = await storedDevice(pair.device);
+      expect(after.backgroundSecretHash).toBe(before.backgroundSecretHash);
+      expect(after.revision).toBe(before.revision);
+      expect((await storedContexts(pair.device)).some((row) => row.id === pair.firstContext)).toBe(true);
+      expect(await sessionIsActive(pair.firstSession)).toBe(true);
+    } finally {
+      await getDb().execute(sql`DROP TRIGGER IF EXISTS ${sql.identifier(name)} ON device_sessions`);
+      await getDb().execute(sql`DROP FUNCTION ${sql.identifier(name)}()`);
+    }
+    const minted = await deviceSessionService.mintFromBackgroundSecret(pair.device, pair.credential.secret);
+    expect(minted.ok).toBe(true);
+    if (!minted.ok) throw new Error('Expected retained background proof after rollback');
+    expect(validateAccessToken(minted.accessToken).payload?.act?.sub).toBe(pair.first);
+  });
+
+  it('#1544 mints the stored active context when two live principals operate the same organization', async () => {
+    const shared = await sharedOrganization();
+    const state = await deviceSessionService.getState(shared.device);
+    const token = await deviceSessionService.resolveActiveToken(state);
+    const claims = validateAccessToken(token?.accessToken ?? '').payload;
+    expect(claims?.device_context_id).toBe(shared.viaAlice);
+    expect(claims?.act?.sub).toBe(shared.alice);
+  });
+
+  it('#1544 refuses ambiguous legacy account-only mint and switch without changing active context', async () => {
+    const shared = await sharedOrganization();
+    const state = await deviceSessionService.getState(shared.device);
+    const token = await deviceSessionService.resolveTokenForAccount(state, shared.org);
+    const switched = await deviceSessionService.switchActive(shared.device, shared.org);
+    expect({ minted: token !== null, switched: switched.ok, activeContextId: (await storedDevice(shared.device)).activeContextId })
+      .toEqual({ minted: false, switched: false, activeContextId: shared.viaAlice });
+  });
+
+  it('#1544 keeps the second active operator when the first operator membership is revoked', async () => {
+    const shared = await sharedOrganization();
+    await getDb().delete(accountMembers).where(and(
+      eq(accountMembers.accountId, shared.org), eq(accountMembers.memberUserId, shared.nate),
+    ));
+    // The live minter observes the real revocation before the next state read.
+    expect(await sessionService.getAccessToken(shared.nateOrgSession)).toBeNull();
+    const state = await deviceSessionService.getState(shared.device);
+    const token = await deviceSessionService.resolveActiveToken(state);
+    const claims = validateAccessToken(token?.accessToken ?? '').payload;
+    const contexts = await storedContexts(shared.device);
+    expect({ activeContextId: (await storedDevice(shared.device)).activeContextId,
+      aliceSessionActive: await sessionIsActive(shared.aliceOrgSession),
+      aliceContextSession: contexts.find((row) => row.id === shared.viaAlice)?.sessionId,
+      actor: claims?.act?.sub })
+      .toEqual({ activeContextId: shared.viaAlice, aliceSessionActive: true,
+        aliceContextSession: shared.aliceOrgSession, actor: shared.alice });
+  });
+
+  it('#1544 heals only the revoked active context and preserves the other operator session', async () => {
+    const shared = await sharedOrganization();
+    await deviceSessionService.activateContext(shared.device, shared.viaNate, request());
+    await getDb().delete(accountMembers).where(and(
+      eq(accountMembers.accountId, shared.org), eq(accountMembers.memberUserId, shared.nate),
+    ));
+    // The live minter observes the real revocation before the next state read.
+    expect(await sessionService.getAccessToken(shared.nateOrgSession)).toBeNull();
+    await deviceSessionService.getState(shared.device);
+    expect(await sessionIsActive(shared.aliceOrgSession)).toBe(true);
+    expect((await storedContexts(shared.device)).find((row) => row.id === shared.viaAlice)?.sessionId)
+      .toBe(shared.aliceOrgSession);
+    expect((await storedContexts(shared.device)).some((row) => row.id === shared.viaNate)).toBe(false);
+  });
+
+  it('#1544 refuses stale flat state after a concurrent switch between operators of the same account', async () => {
+    const shared = await sharedOrganization();
+    const oldState = await deviceSessionService.getState(shared.device);
+    await deviceSessionService.activateContext(shared.device, shared.viaNate, request());
+    expect((await deviceSessionService.resolveActiveToken(oldState)) === null).toBe(true);
+  });
+
+  /** Pause only the selected mint's return; its real live validation still runs. */
+  function pauseMint(sessionId: string) {
+    const original = sessionService.getAccessToken.bind(sessionService);
+    let entered!: () => void;
+    let release!: () => void;
+    const reached = new Promise<void>((resolve) => { entered = resolve; });
+    const resume = new Promise<void>((resolve) => { release = resolve; });
+    let paused = false;
+    const spy = jest.spyOn(sessionService, 'getAccessToken').mockImplementation(async (id) => {
+      const token = await original(id);
+      if (id === sessionId && !paused) {
+        paused = true;
+        entered();
+        await resume;
+      }
+      return token;
+    });
+    return { reached, release, restore: () => spy.mockRestore() };
+  }
+
+  it('#1544 refuses an active mint when another context becomes active during its await', async () => {
+    const shared = await sharedOrganization();
+    const state = await deviceSessionService.getState(shared.device);
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveActiveToken(state);
+      await barrier.reached;
+      expect((await deviceSessionService.activateContext(shared.device, shared.viaNate, request())).ok).toBe(true);
+      barrier.release();
+      expect((await pending) === null).toBe(true);
+      expect((await storedDevice(shared.device)).activeContextId).toBe(shared.viaNate);
+      expect(await sessionIsActive(shared.nateOrgSession)).toBe(true);
+      expect(await sessionIsActive(shared.aliceOrgSession)).toBe(true);
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('#1544 refuses an account-only mint if a second operator arrives during its await', async () => {
+    const shared = await sharedOrganization();
+    const directory = await deviceSessionService.getDirectory(shared.device);
+    const alicePrincipal = directory.principals.find((principal) => principal.userId === shared.alice);
+    expect((await deviceSessionService.removePrincipal(shared.device, alicePrincipal?.id ?? '')).ok).toBe(true);
+    const state = await deviceSessionService.getState(shared.device);
+    const barrier = pauseMint(shared.nateOrgSession);
+    try {
+      const pending = deviceSessionService.resolveTokenForAccount(state, shared.org);
+      await barrier.reached;
+      await signIn(shared.device, shared.alice);
+      const refreshed = await deviceSessionService.getDirectory(shared.device);
+      const aliceContext = contextFor(refreshed, shared.alice, shared.org)?.id ?? '';
+      const activated = await deviceSessionService.activateContext(shared.device, aliceContext, request());
+      expect(activated.ok).toBe(true);
+      barrier.release();
+      expect((await pending) === null).toBe(true);
+      expect((await storedDevice(shared.device)).activeContextId).toBe(aliceContext);
+      const session = (await storedContexts(shared.device)).find((context) => context.id === aliceContext)?.sessionId ?? '';
+      expect(await sessionIsActive(session)).toBe(true);
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
 
   it('removing one context leaves another person operating the SAME account untouched', async () => {
     const shared = await sharedOrganization();

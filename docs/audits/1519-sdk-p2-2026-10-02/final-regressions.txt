@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand __tests__/context/coldBoot.test.tsx __tests__/context/browserBridge.test.tsx __tests__/context/useAuthOperations.test.tsx __tests__/hooks/useAuth.test.tsx
+
+Test Suites: 4 passed, 4 total
+Tests:       55 passed, 55 total
+Snapshots:   0 total
+Time:        2.54 s
+Ran all test suites matching __tests__/context/coldBoot.test.tsx|__tests__/context/browserBridge.test.tsx|__tests__/context/useAuthOperations.test.tsx|__tests__/hooks/useAuth.test.tsx.

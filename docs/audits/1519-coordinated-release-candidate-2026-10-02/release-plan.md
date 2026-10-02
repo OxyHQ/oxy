@@ -1,0 +1,24 @@
+# Coordinated release candidate (local, unpublished)
+
+Source observed: `a33c316ad3fb17cb4d9eed5b78b4c3f7d58854a4`. Registry queried directly at registry.npmjs.org on 2026-10-02T20:51:03.877986+00:00; raw responses, URLs and SHA256 are in `registry-summary.json`. SDK recovery/logout and MCP idempotency/principal followups are now composed. Local candidate manifests and lock are committed in b31d1f8d4; no package publication is claimed.
+
+| Package | Actual registry latest = source | Proposed unpublished release | Required contribution |
+| --- | --- | --- | --- |
+| contracts | 4.8.0 | 4.9.0 | Agency/capability bindings, branded subjects, I07 product-access contracts and inference readback additions |
+| protocol | 1.2.1 | 1.2.2, metadata only | No source change; upper bounds required by package rules for its four unbounded peers. Include only if publishing this mandatory metadata repair with the coordinated release |
+| core | 4.1.0 | 4.2.0 | Agency/live tickets, product query, generation record, SessionClient reset and isolated session support |
+| services | 11.0.0 | 11.1.0 | Registered isolated OAuth lifecycle, native helper and verified recovery/logout fixes |
+| mcp | 1.0.0 | 1.1.0 | Internal HTTP/MCP agency and verified idempotency/principal corrections |
+| telemetry | 1.2.0 | unchanged | No source/manifest change or required new export; existing published 1.2.0 suffices |
+
+All proposed versions were absent from fetched registry metadata. These are prospective targets, never versions claimed installed/published in consumer manifests. Additive release proposals preserve legacy method/types; final changes must be checked for any public incompatibility before assigning the versions.
+
+The reviewed version/peer delta is applied locally in b31d1f8d4. Services requires core **^4.2.0** because it calls the new `SessionClient.resetLocalState`; source uses a shared catalog entry and `catalog:` rather than duplicating that floor. Internal `workspace:^` dependencies remain as source workspaces; Bun pack must rewrite them to the actual new contracts/protocol/core versions, and the packed manifest is the reviewable proof. Core/contracts/protocol never import React or Expo through root barrels; mandatory native peers/optional subpaths must retain their current isolation.
+
+Release order: contracts → protocol metadata patch → core → services and mcp. Telemetry is consumed at existing registry 1.2.0. Build/test/pack each release from the same command with Bun; verify ESM/CJS roots, new declarations and isolated browser/consumer imports using those exact tarballs. Update bun.lock alongside any manifest delta and run both layers of check-lockfile-sync. Publish and consumer manifest changes require the later concrete authorization; none is performed here.
+
+Peer inventory exposes preexisting unbounded ranges in protocol/core/services. Proposed ceilings preserve existing floors; wildcard ranges get only a ceiling, avoiding an invented minimum. The ceilings stop future unreviewed families; **an installed version does not prove compatibility of every admitted version**. Registry snapshots and `source-dependency-peer-inventory.json` distinguish observations from support. Expo-family <58, React <20 and RN <0.87 match observed build-family limits; verify the final packed consumer/native build matrix before applying. This proposal performs no native-module/dependency upgrade. Broad ranges inherited from source (notably expo-image >=2) are not newly certified.
+
+Nativewind is a measured candidate constraint: installed 5.0.0-preview.3 does not satisfy the current >=5.0.0 stable floor. Its separate `nativewind-prerelease-candidate.diff` proposes a preview-aware lower comparator plus <6 ceiling, has now been measured locally on the actual preview tarball: TypeScript resolves nativewind/types to its installed types.d.ts, a strict fixture checks className and packed OxyProvider/button declarations, and four source/packed browser scenarios pass. Bun semver accepts preview.3 under the proposed comparator and rejects it under the previous stable floor. The preview-aware comparator is applied in the versioned candidate; the actual preview.3 resolves in its isolated packed consumer. This does not certify other previews or a nativewind style runtime; services references its types only. Do not silently relabel this as a stable 5 release or infer compatibility from installation. @types/react-native is absent locally; its <1 ceiling only excludes a future breaking family and is not evidence for a newly supported types version.
+
+Source followups, versioned manifests, packed export/type resolution and the versioned browser consumer are verified locally. Full CI of the final draft and the separate security decision remain pending. The INACTIVE Forge candidate freezes a different input tree and cannot authorize this release source automatically.

@@ -1,0 +1,63 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [305]
+warn: incorrect peer dependency "react@19.2.0"
+Saved lockfile
+
++ @types/react@19.3.0
++ @types/react-dom@19.3.0
++ @vitejs/plugin-react@4.7.0 (v6.1.1 available)
++ typescript@5.9.3 (v7.0.2 available)
++ vite@7.3.6 (v8.3.2 available)
++ @expo/vector-icons@15.1.1
++ @oxy.so/bloom@6.4.0
++ @oxy.so/contracts@./artifacts/contracts-8d85acc5e787cbdaf3e7aad311f6659d07916337dcff1850d74c6c72195d97d7.tgz
++ @oxy.so/core@./artifacts/core-aae1b0f5a630c68edc73a96ebba756b0687f23936491290bd4a89767a58853bb.tgz
++ @oxy.so/mcp@./artifacts/mcp-803ac140a072b29150c6d30cdeed8ae68237b272a73c45342fa11f514e22b5d9.tgz
++ @oxy.so/protocol@./artifacts/protocol-3ae4da75421be6c09c83aa2286a630beaa86eb01b1821e10d0badf09d5ec7729.tgz
++ @oxy.so/services@./artifacts/services-f97f3cb4140af2f994ad967a31130d636883fc790a67747409c993273bc2e433.tgz
++ @oxy.so/telemetry@./artifacts/telemetry-c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12.tgz
++ @react-native-async-storage/async-storage@2.2.0
++ @react-native-community/netinfo@11.5.2 (v12.0.1 available)
++ @tanstack/query-async-storage-persister@5.104.1
++ @tanstack/query-sync-storage-persister@5.104.1
++ @tanstack/react-query@5.104.1
++ @tanstack/react-query-persist-client@5.104.1
++ expo@56.0.23 (v57.0.26 available)
++ expo-clipboard@56.0.4 (v57.0.2 available)
++ expo-constants@56.0.27 (v57.0.20 available)
++ expo-crypto@56.0.5 (v57.0.3 available)
++ expo-document-picker@56.0.4 (v57.0.3 available)
++ expo-file-system@56.0.11 (v57.0.7 available)
++ expo-font@56.0.7 (v57.0.4 available)
++ expo-haptics@56.0.3 (v57.0.3 available)
++ expo-image@56.0.13 (v57.0.5 available)
++ expo-image-manipulator@56.0.26 (v57.0.20 available)
++ expo-image-picker@56.0.25 (v57.0.20 available)
++ expo-linear-gradient@56.0.4 (v57.0.2 available)
++ expo-notifications@56.0.26 (v57.0.21 available)
++ expo-web-browser@56.0.6 (v57.0.3 available)
++ react@19.2.0 (v19.3.0 available)
++ react-dom@19.2.0
++ react-native@0.85.3 (v0.87.1 available)
++ react-native-css@3.0.7
++ react-native-gesture-handler@2.31.2 (v3.3.0 available)
++ react-native-qrcode-svg@6.3.26
++ react-native-reanimated@4.3.1
++ react-native-safe-area-context@5.7.0 (v5.10.1 available)
++ react-native-svg@15.15.4
++ react-native-web@0.21.2
++ react-native-worklets@0.8.3 (v0.13.0 available)
++ zustand@5.0.15
+
+705 packages installed [3.60s]
+bun install v1.4.2 (744846f84)
+
++ @oxy.so/contracts@./artifacts/contracts-8d85acc5e787cbdaf3e7aad311f6659d07916337dcff1850d74c6c72195d97d7.tgz
++ @oxy.so/core@./artifacts/core-aae1b0f5a630c68edc73a96ebba756b0687f23936491290bd4a89767a58853bb.tgz
++ @oxy.so/mcp@./artifacts/mcp-803ac140a072b29150c6d30cdeed8ae68237b272a73c45342fa11f514e22b5d9.tgz
++ @oxy.so/protocol@./artifacts/protocol-3ae4da75421be6c09c83aa2286a630beaa86eb01b1821e10d0badf09d5ec7729.tgz
++ @oxy.so/services@./artifacts/services-f97f3cb4140af2f994ad967a31130d636883fc790a67747409c993273bc2e433.tgz
++ @oxy.so/telemetry@./artifacts/telemetry-c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12.tgz
+
+7 packages installed [56.00ms]

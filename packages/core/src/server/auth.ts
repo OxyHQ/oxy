@@ -1,5 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { AuthMiddlewareOptions, OxyAuthRefusal, OxyMiddleware } from './middleware';
+import type { AccountActorChain } from '@oxy.so/contracts';
 import { logger } from '../logger';
 import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '../utils/oxyServiceEnvironment';
 
@@ -43,6 +44,12 @@ export interface OxyAuthRequest extends Request {
   sessionId?: string | null;
   serviceApp?: OxyServiceAppContext;
   serviceActingAs?: OxyServiceActingAsContext;
+  /**
+   * Who acted, and as whom, on a USER session — read off the session row by the
+   * Oxy API, never off a header. `null`/absent when the request is not a user
+   * session or the API did not report it. Read it with {@link getOxyActor}.
+   */
+  oxyActor?: AccountActorChain | null;
   /**
    * Why the presented credential was refused, when one was and the request
    * still reached the handler (the optional path). Read it with
@@ -93,6 +100,24 @@ export function getOxyUserId(req: Request): string | null {
     normalizeId(authReq.user?.id) ??
     normalizeId(authReq.user?._id)
   );
+}
+
+/**
+ * Who acted, and as whom, on this user session (issue #1520), or `null` when
+ * the session authority did not report it.
+ *
+ * An audit records `actorAccountId` as the actor and `effectiveAccountId`
+ * (equal to {@link getOxyUserId}) as the account spoken as. A bot acting with
+ * nobody operating it is its own actor; a person acting as an organization or
+ * a bot is the actor of a `delegated` chain. Never substitute the effective
+ * account's owner for either: when this is `null`, record the actor as unknown.
+ */
+export function getOxyActor(req: Request): AccountActorChain | null {
+  const actor = (req as OxyAuthRequest).oxyActor;
+  if (!actor) return null;
+  // Defence in depth: a chain that does not describe the authenticated
+  // subject is not this request's chain.
+  return actor.effectiveAccountId === getOxyUserId(req) ? actor : null;
 }
 
 export function isOxyAuthenticated(req: Request): req is OxyAuthenticatedRequest {

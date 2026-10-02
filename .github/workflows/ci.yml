@@ -643,13 +643,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read # Explicit session authorization: conditional scoped provenance GETs.
     # A backstop over the step caps below: the no-install phase (~2m), the
     # install (30s), the API checks' dependency-closure step (10m cap) and the
     # builds, lint and remaining guards (~3m) at their observed maxima.
-    timeout-minutes: 25
+    timeout-minutes: 45 # Includes bounded inspection wait and streaming OCI verification.
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # Frozen target ancestry must be available for a future scoped policy.
 
       - name: Setup Bun
         id: bun
@@ -814,10 +817,42 @@ jobs:
       # passing path.
       - name: 'Security Audit: fixture tests'
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
-        run: bun scripts/test-check-dependency-audit.mjs
+        run: |
+          bun scripts/test-check-dependency-audit.mjs
+          bun scripts/test-forge-audit-policy.mjs
+      # INACTIVE skips both steps. A future reviewed source policy needs installed
+      # byte inventory and authenticated GETs; this token proves service access,
+      # never a human decision. No patch script or dependency hook runs here.
+      - name: 'Security Audit: read committed policy setup'
+        id: forge-policy
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        env:
+          EXPECTED_AUDIT_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_AUDIT_HEAD"
+          bun -e 'import { readCommittedPolicyStatus } from "./scripts/forge-audit-policy.mjs"; console.log("active=" + (readCommittedPolicyStatus() === "ACTIVE"));' >> "$GITHUB_OUTPUT"
+      - name: 'Security Audit: install scoped policy byte inventory'
+        if: ${{ !cancelled() && steps.forge-policy.outputs.active == 'true' }}
+        run: bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
+      - name: 'Security Audit: authenticate read-only provenance GETs'
+        id: forge-auth
+        if: ${{ !cancelled() && steps.forge-policy.outputs.active == 'true' }}
+        env:
+          FORGE_PROVENANCE_READ_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
+          test -n "$forge_runner_home"
+          printf '%s' "$FORGE_PROVENANCE_READ_TOKEN" | env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth login --hostname github.com --with-token
       - name: 'Security Audit: check'
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: bun scripts/check-dependency-audit.mjs
+      - name: 'Security Audit: remove read-only provenance login'
+        if: ${{ always() && steps.forge-policy.outputs.active == 'true' }}
+        run: |
+          forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth logout --hostname github.com
 
       # Gates the rollout logic that deploy-aws.yml runs against production. Mirrors
       # Mention's "Verify deployment transaction safeguards" step -- the two repos
@@ -863,6 +898,7 @@ jobs:
           node scripts/test-check-kaana-signed-canary.mjs
           node scripts/check-kaana-signed-canary.mjs
           node --test packages/api/scripts/run-kaana-signed-canary.test.mjs
+          node --test packages/api/scripts/check-stripe-webhook-events.test.mjs
           node scripts/test-check-inbox-routing-profile-readback.mjs
           node scripts/check-inbox-routing-profile-readback.mjs
           node scripts/test-check-kaana-catalogue-bootstrap-workflow.mjs
@@ -1075,7 +1111,7 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun scripts/check-openapi-fresh.mjs
 
-  # The platform packages' suites: contracts, db, protocol, core, ship, node,
+  # The platform packages' suites: contracts, db, MCP, protocol, core, ship, node,
   # and federation, on one runner with one install.
   #
   # The suites run in dependency order and each one sees AT LEAST the workspace
@@ -1164,6 +1200,11 @@ jobs:
         id: build-contracts
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bunx turbo run build --filter=@oxy.so/contracts
+      # MCP tests import the built contracts; execute the package's own suite.
+      - name: 'MCP Tests: test'
+        if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/mcp
       - name: 'Protocol Tests: test'
         if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
         run: bun run test

@@ -1,0 +1,37 @@
+{
+  "parentHead": "422ef4c44c1404f0b9f744adecc48607705fc8e6",
+  "testedSourceSha256": {
+    "packages/api/src/scripts/jevMeteringReadback.ts": "67a818582867d4cf1283ed08a52de401de15cae86ceceb83cb254edb888fcb50",
+    "packages/api/src/services/inferenceMeteredUsage.service.ts": "436a38f3e709b1b66188b25e49cdf030ace68bb64f9f40f9d02e617460c9ffdd",
+    "packages/api/scripts/readback-jev-principals.ts": "d47fa4354c1b9d56dcf0c6963622653469bfde7f2ba546b1fd77dc66f9840874",
+    "packages/api/src/services/__tests__/inferenceMeteredUsage.service.test.ts": "b83a4f894d7f7dace6065822fb4e83f2fa86862a9f4041684d155836d6f05e99",
+    "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts": "06017b1d335112a7aadeb101c339303497f0df0c127e5b59a5e86ee9e1b0823a",
+    "scripts/rehearsal/test-integration-migrations-1519.py": "c65aadd351e6b93289d20c3e15ad051620835861ac3b54e48d472a1d0d45d3d7"
+  },
+  "logsSha256": {
+    "api-tests.txt": "12c606281ea427806142b5912179b212fdff89af5e7e484f34d31f2ed30ab262",
+    "owned-pg.txt": "4871107dfbcd555c1f8e793636fbbab15ef1059132257c2058e5b47b85aba679",
+    "schema-0133.txt": "a4746ffdd67fe6f9c68d4e338266d317215cac16b652c0de3c55d9d4ad462786",
+    "schema-0134.txt": "f5741ce8bcf68538dd88c0ed6a54eff61a4cfbc8cc3f519a91aa78f36bdb2df5"
+  },
+  "api": {
+    "suites": 4,
+    "tests": 212,
+    "failures": 0
+  },
+  "database": {
+    "newOwnedPostmasterPid": 2950444,
+    "prefixMigrationRows": 133,
+    "prefixSchemaAvailable": false,
+    "finalMigrationRows": 134,
+    "finalSchemaAvailable": true,
+    "repeatApplyPassed": true,
+    "serverStopped": true
+  },
+  "limits": {
+    "providerActivationAuthorized": false,
+    "productionOrRemoteDatabaseUsed": false,
+    "populatedProductionUpgradeProved": false,
+    "acceptanceComplete": false
+  }
+}

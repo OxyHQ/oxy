@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-02T23:27:02.858858+00:00",
+  "previousActiveHead": "5bf80216e66cdf56b5645fcf09589fb8e4f6a5cf",
+  "previousArmTarget": "da1bca660bf5d246dd329b3a826eccb079b70038",
+  "ciRegression": {
+    "runId": 37076663568,
+    "jobId": 111067995014,
+    "securityAudit": "SUCCESS",
+    "deployScriptTests": "FAILURE",
+    "cause": "Legacy test read real ACTIVE policy for synthetic SHA; resolver correctly failed closed."
+  },
+  "sourceInputs": [
+    {
+      "file": ".github/scripts/test-resolve-queue-image.sh",
+      "sha256": "4e0a0eb2aed245ef17bf79d007fdc3f600918a910a514459fe0cec2d5a2f8098"
+    }
+  ],
+  "records": [
+    {
+      "file": "red-harness.sh",
+      "sha256": "03eec183bcb54ba682f05f1909a2eb504fa69c719d5a0af7af590cf2adf81946"
+    },
+    {
+      "file": "red.log",
+      "sha256": "3126381ec1f74face63d52955785be8d62be86194e9a0da6232f8d75289e5ffc"
+    },
+    {
+      "file": "green-active.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3"
+    },
+    {
+      "file": "green-inactive.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3"
+    },
+    {
+      "file": "dag82.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9"
+    },
+    {
+      "file": "policy123.log",
+      "sha256": "b5301cec2da2ba4115792c31924802f4d94bb8d65be57b6bd7ac0cdfaad22b33"
+    }
+  ],
+  "independentEvidenceReuse": {
+    "sourceHead": "94154019f64051c8e4b7ed88c19c3bffdcd56399",
+    "proofPath": "docs/security/forge-independent/2026-10-03-final-input/proof.json",
+    "proofSha256": "58b5740e466ef1e75c69643f6f86f49b565082ac832a695be27e8a57b2666bf1",
+    "inputTrees": {
+      "packages": "7ced268f4ea98c305e86679f5aba3743f91a583f",
+      "bun.lock": "a229e45e082de388c5b3b4b44ae90006fb331cf5",
+      "package.json": "f118edb6d3184cc88926688b259f144dc7c90799",
+      "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+      "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
+      "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
+      "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
+      "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
+      "scripts/rehearsal/test-forge-final-input-1519.py": "79b380343e662bfcd88213633d38d58fed460141",
+      "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
+    },
+    "allTenInputTreesIdentical": true
+  },
+  "results": {
+    "legacyRed": 14,
+    "legacyGreenWithRealActivePolicy": 14,
+    "legacyGreenWithRealInactivePolicy": 14,
+    "unchangedCommittedDagAssertions": 82,
+    "policyAssertions": 123
+  },
+  "limits": [
+    "Only legacy test fixture isolation changed; no resolver or policy semantics changed.",
+    "Old ARM evidence is historical; a new exact ARM target and authenticated collector are mandatory before ACTIVE.",
+    "No new crypto/package execution claimed; unchanged 10 input trees permit exact reuse of the 941 independent-input proof.",
+    "Authorization and fixed expiry 2026-10-09T22:00:00.000Z are unchanged; no merge, queue, registry or deploy action."
+  ]
+}

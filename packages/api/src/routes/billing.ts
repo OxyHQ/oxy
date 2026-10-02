@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { and, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, lte, or } from 'drizzle-orm';
 import type Stripe from 'stripe';
 import { getStripe } from '../utils/stripeClient';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
@@ -20,6 +20,11 @@ import {
   BALANCE_TOP_UP_METADATA_TYPE,
 } from '../services/stripeAccountBilling.service';
 import {
+  type StripeEventResult,
+  recordStripeEventOutcome,
+  recordStripeEventReceived,
+} from '../services/stripeWebhookEvents.service';
+import {
   type BillingSubscriptionResponse,
   type BillingTransactionResponse,
   toBillingSubscriptionResponse,
@@ -38,14 +43,6 @@ import {
 /** The statuses that count as "the user has a live subscription right now". */
 const LIVE_SUBSCRIPTION_STATUSES = ['active', 'trialing'] as const;
 
-/**
- * How close to a period boundary a `customer.subscription.updated` event must
- * land to be read as a RENEWAL rather than an ordinary edit. Carried across from
- * the Mongo original unchanged; the idempotency index is what actually stops a
- * double grant, this only decides whether to attempt one at all.
- */
-const RENEWAL_GRANT_WINDOW_SECONDS = 300;
-
 const INVALID_REDIRECT_RESPONSE = {
   error: 'INVALID_REDIRECT_URL',
   message: 'successUrl/cancelUrl must be on an allowed domain',
@@ -55,6 +52,51 @@ const INVALID_RETURN_URL_RESPONSE = {
   error: 'INVALID_REDIRECT_URL',
   message: 'returnUrl must be on an allowed domain',
 } as const;
+
+const INVALID_IDEMPOTENCY_KEY_RESPONSE = {
+  error: 'INVALID_IDEMPOTENCY_KEY',
+  message: 'Idempotency-Key must be 1-150 visible ASCII characters',
+} as const;
+
+const IDEMPOTENCY_KEY_REUSED_RESPONSE = {
+  error: 'IDEMPOTENCY_KEY_REUSED',
+  message: 'This Idempotency-Key was already used with different parameters',
+} as const;
+
+/**
+ * Visible ASCII, bounded so the scoped key below stays inside Stripe's 255-char
+ * limit with a 36-char account id in it.
+ */
+const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{1,150}$/;
+
+/**
+ * The Stripe idempotency key for a checkout request, from the caller's
+ * `Idempotency-Key` header.
+ *
+ * A client that timed out does not know whether its checkout was created.
+ * Retrying with the same key makes Stripe return the session it already created
+ * instead of a second one — and a second subscription session is a second
+ * subscription. The key is scoped by checkout kind and account, so one account's
+ * key can never answer with another account's session. Absent header: the
+ * request is not idempotent, as before. Stripe keeps keys for 24 hours.
+ *
+ * Returns `undefined` with no header, `null` for a malformed one.
+ */
+function checkoutIdempotencyKey(
+  req: Request,
+  kind: 'credits' | 'subscription',
+  userId: string
+): string | null | undefined {
+  const raw = req.get('Idempotency-Key');
+  if (raw === undefined) return undefined;
+  if (!IDEMPOTENCY_KEY_PATTERN.test(raw)) return null;
+  return `oxy:checkout:${kind}:${userId}:${raw}`;
+}
+
+/** Stripe's answer to a reused key with different parameters. */
+function isStripeIdempotencyError(error: unknown): boolean {
+  return (error as { type?: unknown } | null)?.type === 'StripeIdempotencyError';
+}
 
 const router = Router();
 
@@ -128,6 +170,9 @@ router.post('/checkout/credits', authMiddleware, validate({ body: checkoutCredit
     const pkg = CREDIT_PACKAGES.find((p) => p.id === packageId);
     if (!pkg) return res.status(400).json({ error: 'Invalid package ID' });
 
+    const idempotencyKey = checkoutIdempotencyKey(req, 'credits', userId);
+    if (idempotencyKey === null) return res.status(400).json(INVALID_IDEMPOTENCY_KEY_RESPONSE);
+
     const email = req.user?.email;
     const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
@@ -146,10 +191,13 @@ router.post('/checkout/credits', authMiddleware, validate({ body: checkoutCredit
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata: { userId, type: 'credit_purchase', packageId: pkg.id, credits: pkg.credits.toString() },
-    });
+    }, idempotencyKey ? { idempotencyKey } : undefined);
 
     res.json({ sessionId: session.id, url: session.url });
   } catch (error) {
+    if (isStripeIdempotencyError(error)) {
+      return res.status(409).json(IDEMPOTENCY_KEY_REUSED_RESPONSE);
+    }
     logger.error('Error creating checkout session:', error);
     res.status(500).json({ error: 'Failed to create checkout session' });
   }
@@ -177,6 +225,9 @@ router.post('/checkout/subscription', authMiddleware, validate({ body: checkoutS
     const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planId);
     if (!plan || !plan.stripePriceId) return res.status(400).json({ error: 'Invalid plan ID' });
 
+    const idempotencyKey = checkoutIdempotencyKey(req, 'subscription', userId);
+    if (idempotencyKey === null) return res.status(400).json(INVALID_IDEMPOTENCY_KEY_RESPONSE);
+
     const email = req.user?.email;
     const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
@@ -188,10 +239,13 @@ router.post('/checkout/subscription', authMiddleware, validate({ body: checkoutS
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata: { userId, planId: plan.id },
-    });
+    }, idempotencyKey ? { idempotencyKey } : undefined);
 
     res.json({ sessionId: session.id, url: session.url });
   } catch (error) {
+    if (isStripeIdempotencyError(error)) {
+      return res.status(409).json(IDEMPOTENCY_KEY_REUSED_RESPONSE);
+    }
     logger.error('Error creating subscription checkout:', error);
     res.status(500).json({ error: 'Failed to create subscription checkout' });
   }
@@ -346,8 +400,13 @@ router.post('/portal', authMiddleware, validate({ body: portalSchema }), async (
 
 /**
  * Stripe webhook receiver. Verifies the `stripe-signature` header against
- * `STRIPE_WEBHOOK_SECRET` and dispatches handled events (subscription
- * created/updated, invoice paid, checkout completed, etc.). No auth.
+ * `STRIPE_WEBHOOK_SECRET`, records the delivery in `billing_stripe_events`, and
+ * dispatches handled events. No auth.
+ *
+ * Every accepted delivery is recorded BEFORE its handler runs and its outcome
+ * after, so a renewal that did not grant, or a mirror that did not move, is a
+ * queryable row rather than a log line. A handler that throws is recorded as
+ * `failed` and answered 500, which is what makes Stripe redeliver it.
  */
 router.post('/webhook', async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'] as string;
@@ -371,40 +430,77 @@ router.post('/webhook', async (req: Request, res: Response) => {
   }
 
   try {
-    switch (event.type) {
-      case 'checkout.session.completed':
-        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
-        break;
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated':
-        await handleSubscriptionUpdate(event.data.object as Stripe.Subscription);
-        break;
-      case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
-        break;
-      case 'payment_intent.succeeded': {
-        // The off-session auto-recharge path creates a PaymentIntent directly,
-        // so no checkout session ever completes for it. A hosted checkout emits
-        // BOTH events; both handlers compose the same idempotency key from the
-        // same intent id, so the second one writes nothing.
-        const result = await handleBalanceTopUpPaymentIntent(
-          event.data.object as Stripe.PaymentIntent
-        );
-        if (result.status === 'ignored' && result.reason !== 'not-a-balance-top-up') {
+    if (!(await recordStripeEventReceived(event))) {
+      // Already reached a terminal outcome. The grant paths are idempotent on
+      // their own, so this only saves a second run; it guards nothing.
+      return res.json({ received: true });
+    }
+
+    const result = await dispatchStripeEvent(event);
+    await recordStripeEventOutcome(event.id, result.outcome, result.detail);
+    res.json({ received: true });
+  } catch (error) {
+    logger.error('Error handling webhook:', error);
+    try {
+      await recordStripeEventOutcome(
+        event.id,
+        'failed',
+        error instanceof Error ? error.message : String(error)
+      );
+    } catch (recordError) {
+      logger.error('Could not record webhook failure', {
+        eventId: event.id,
+        error: recordError instanceof Error ? recordError.message : String(recordError),
+      });
+    }
+    res.status(500).json({ error: 'Webhook handler error' });
+  }
+});
+
+async function dispatchStripeEvent(event: Stripe.Event): Promise<StripeEventResult> {
+  switch (event.type) {
+    case 'checkout.session.completed':
+      await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+      return { outcome: 'processed' };
+    case 'customer.subscription.created':
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted':
+      return syncSubscriptionFromProvider(event.data.object as Stripe.Subscription);
+    case 'invoice.paid':
+      return handleInvoicePaid(await currentInvoiceEvidence(event));
+    case 'invoice.payment_failed':
+      // The subscription's own `past_due`/`unpaid` transition arrives as a
+      // `customer.subscription.updated` and is mirrored there. A failed invoice
+      // is evidence of NO payment, so it grants nothing.
+      return { outcome: 'not_granted', detail: 'invoice payment failed' };
+    case 'charge.refunded':
+      // A refund never grants and never charges. Whether it should claw back
+      // credits already granted for the period is a commercial decision that
+      // has not been made (issue #1524), so it is recorded and nothing else.
+      return { outcome: 'ignored', detail: 'refund recorded; no credit clawback is defined' };
+    case 'payment_intent.succeeded': {
+      // The off-session auto-recharge path creates a PaymentIntent directly,
+      // so no checkout session ever completes for it. A hosted checkout emits
+      // BOTH events; both handlers compose the same idempotency key from the
+      // same intent id, so the second one writes nothing.
+      const result = await handleBalanceTopUpPaymentIntent(
+        event.data.object as Stripe.PaymentIntent
+      );
+      if (result.status === 'ignored') {
+        if (result.reason !== 'not-a-balance-top-up') {
           logger.warn('Balance top-up intent ignored', {
             paymentIntentId: (event.data.object as Stripe.PaymentIntent).id,
             reason: result.reason,
           });
         }
-        break;
+        return { outcome: 'ignored', detail: result.reason };
       }
+      return { outcome: 'processed' };
     }
-    res.json({ received: true });
-  } catch (error) {
-    logger.error('Error handling webhook:', error);
-    res.status(500).json({ error: 'Webhook handler error' });
+    default:
+      return { outcome: 'ignored', detail: `no handler for ${event.type}` };
   }
-});
+}
 
 /**
  * Grant a one-off credit purchase, EXACTLY ONCE per Stripe charge.
@@ -425,7 +521,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
  *   2. **The receipt is written FIRST and the grant is conditional on it.**
  *      `onConflictDoNothing().returning()` yields a row only for the caller that
  *      won the index; a replay gets nothing back and returns without granting.
- *      Same shape `handleSubscriptionUpdate` already uses for renewals.
+ *      Same shape `handleInvoicePaid` uses for renewals.
  *
  * Both live inside ONE transaction, so a crash between the claim and the grant
  * cannot leave a receipt with no credits behind it — which would be worse than
@@ -536,79 +632,284 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   });
 }
 
-async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription) {
-  const customerId = stripeSubscription.customer as string;
-  const db = getDb();
-
+/** The account a Stripe customer belongs to, or `null`. */
+async function accountForStripeCustomer(customerId: string): Promise<string | null> {
   // `user_credits.stripe_customer_id` carries a partial UNIQUE index, so this
   // resolves at most one account — the uniqueness the Mongoose `findOne` assumed
   // without stating.
-  const [account] = await db
+  const [account] = await getDb()
     .select({ userId: userCredits.userId })
     .from(userCredits)
     .where(eq(userCredits.stripeCustomerId, customerId))
     .limit(1);
-  if (!account) return;
+  return account?.userId ?? null;
+}
 
-  const subscriptionItem = stripeSubscription.items.data[0];
+function stripeIdOf(value: string | { id: string } | null | undefined): string | null {
+  if (!value) return null;
+  return typeof value === 'string' ? value : value.id;
+}
+
+/**
+ * Mirror a subscription into `billing_subscriptions` from a FRESH provider read.
+ *
+ * Stripe does not deliver webhooks in order. Mirroring the event payload let an
+ * older `customer.subscription.updated` arriving late overwrite a newer state —
+ * `active` written back over `canceled`, which keeps granting premium to someone
+ * who stopped paying. So the payload is only used for its id: the state is read
+ * from Stripe now, and the row is overwritten only when that read began after the
+ * read the row already holds (`provider_synced_at`). A slow read that started
+ * first can therefore never roll back a later one.
+ *
+ * This GRANTS NOTHING. Credits for a period are granted by `handleInvoicePaid`,
+ * on the evidence of a paid invoice — never by a subscription changing state.
+ */
+async function syncSubscriptionFromProvider(
+  eventSubscription: Stripe.Subscription
+): Promise<StripeEventResult> {
+  // Taken BEFORE the request: whatever Stripe answers is at least as new as this.
+  const readStartedAt = new Date();
+  const subscription = await getStripe().subscriptions.retrieve(eventSubscription.id);
+
+  const customerId = stripeIdOf(subscription.customer);
+  const userId = customerId ? await accountForStripeCustomer(customerId) : null;
+  if (!customerId || !userId) {
+    return { outcome: 'ignored', detail: 'no account for the Stripe customer' };
+  }
+
+  const subscriptionItem = subscription.items.data[0];
   const priceId = subscriptionItem.price.id;
   const plan = SUBSCRIPTION_PLANS.find((p) => p.stripePriceId === priceId);
+  const lifecycle = {
+    status: subscription.status,
+    currentPeriodStart: new Date(subscriptionItem.current_period_start * 1000),
+    currentPeriodEnd: new Date(subscriptionItem.current_period_end * 1000),
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    providerSyncedAt: readStartedAt,
+  };
+  const heldReadIsOlder = or(
+    isNull(billingSubscriptions.providerSyncedAt),
+    lte(billingSubscriptions.providerSyncedAt, readStartedAt)
+  );
+  const db = getDb();
+
   if (!plan) {
     logger.warn('Unrecognized subscription price ID', {
       priceId,
-      subscriptionId: stripeSubscription.id,
+      subscriptionId: subscription.id,
       customerId,
     });
-    return;
+    // An unknown price must not freeze an EXISTING row's lifecycle: a deletion
+    // the mirror never hears about keeps granting premium. Move the lifecycle
+    // only, keep the plan snapshot, and create nothing.
+    const updated = await db
+      .update(billingSubscriptions)
+      .set(lifecycle)
+      .where(and(eq(billingSubscriptions.stripeSubscriptionId, subscription.id), heldReadIsOlder))
+      .returning({ id: billingSubscriptions.id });
+    return updated.length > 0
+      ? { outcome: 'synced', detail: `lifecycle only; unrecognized price ${priceId}` }
+      : { outcome: 'ignored', detail: `unrecognized price ${priceId}` };
   }
 
   // The Mongo upsert keyed on `stripeSubscriptionId`, which is the table's
   // unique key here too — so it is one statement, not a read-then-write.
   const mirror = {
-    userId: account.userId,
+    userId,
     stripeCustomerId: customerId,
-    stripeSubscriptionId: stripeSubscription.id,
+    stripeSubscriptionId: subscription.id,
     stripePriceId: priceId,
-    status: stripeSubscription.status,
-    currentPeriodStart: new Date(subscriptionItem.current_period_start * 1000),
-    currentPeriodEnd: new Date(subscriptionItem.current_period_end * 1000),
-    cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+    ...lifecycle,
     planName: plan.name,
     planCreditsPerMonth: plan.creditsPerMonth,
     planPriceMinorUnits: plan.price,
     planCurrency: plan.currency,
   };
-  await db
+  const written = await db
     .insert(billingSubscriptions)
     .values(mirror)
     .onConflictDoUpdate({
       target: billingSubscriptions.stripeSubscriptionId,
       set: mirror,
-    });
+      setWhere: heldReadIsOlder,
+    })
+    .returning({ id: billingSubscriptions.id });
 
-  // Add credits on subscription renewal
-  if (stripeSubscription.status !== 'active') return;
-  const now = Date.now() / 1000;
-  if (Math.abs(now - subscriptionItem.current_period_start) >= RENEWAL_GRANT_WINDOW_SECONDS) return;
+  return written.length > 0
+    ? { outcome: 'synced' }
+    : { outcome: 'stale', detail: 'the mirror already holds a newer provider read' };
+}
 
-  const periodStart = new Date(subscriptionItem.current_period_start * 1000);
-  await db.transaction(async (tx) => {
+/**
+ * The invoices whose payment opens a new credit period: the first invoice of a
+ * subscription and every renewal. `subscription_update` (a mid-period plan
+ * change, prorated) is deliberately absent — what a change of plan grants is a
+ * commercial rule nobody has decided, and granting a full month on a proration
+ * would be inventing one.
+ */
+const PERIOD_OPENING_BILLING_REASONS: ReadonlySet<string> = new Set([
+  'subscription_create',
+  'subscription_cycle',
+]);
+
+/** Historical events retain their creation-time API shape even after an
+ * endpoint upgrade. Re-read legacy invoices through the configured SDK rather
+ * than guessing modern recurring-line fields from obsolete payloads. A failed
+ * or contradictory provider read throws so Stripe retries the same event.
+ */
+async function currentInvoiceEvidence(event: Stripe.Event): Promise<Stripe.Invoice> {
+  const invoice = event.data.object as Stripe.Invoice;
+  const historical = invoice as Stripe.Invoice & { subscription?: string | { id: string } | null };
+  // Current Stripe line items still have nullable compatibility fields such as
+  // `subscription`. Their presence is not a version discriminator. Modern
+  // parent/pricing fields may themselves be null for non-recurring lines.
+  const legacyLine = (line: Stripe.InvoiceLineItem) =>
+    (line.parent === undefined || line.pricing === undefined)
+    && ('price' in line || 'subscription' in line);
+  const legacyInvoice = invoice.parent === undefined && 'subscription' in historical;
+  if (!legacyInvoice && !invoice.lines.data.some(legacyLine)) return invoice;
+
+  const current = await getStripe().invoices.retrieve(invoice.id);
+  const expectedSubscription = stripeIdOf(historical.subscription)
+    ?? stripeIdOf(invoice.parent?.subscription_details?.subscription);
+  const actualSubscription = stripeIdOf(current.parent?.subscription_details?.subscription);
+  if (current.id !== invoice.id || current.object !== 'invoice'
+    || typeof event.livemode !== 'boolean' || current.livemode !== event.livemode
+    || stripeIdOf(current.customer) !== stripeIdOf(invoice.customer)
+    || actualSubscription !== expectedSubscription) {
+    throw new Error('Historical invoice retrieval returned contradictory identity, mode or attribution');
+  }
+  if (current.parent === undefined || current.lines.data.some(legacyLine)) {
+    throw new Error('Historical invoice retrieval did not return the configured SDK API shape');
+  }
+  return current;
+}
+
+function linePriceId(line: Stripe.InvoiceLineItem): string | null {
+  return stripeIdOf(line.pricing?.price_details?.price);
+}
+
+/**
+ * Grant a subscription period's credits on the evidence of a PAID invoice,
+ * exactly once per period.
+ *
+ * This replaces granting from `customer.subscription.updated` inside a
+ * five-minute window around the period start. That window did not prove a
+ * payment — an active subscription is not a paid invoice — and a first delivery
+ * that arrived late (a webhook outage, a backlog, Stripe's own retry schedule)
+ * fell outside it, so the period was never granted at all.
+ *
+ * The invoice is reconciled before anything is written: it must be `paid`, open
+ * a period (`PERIOD_OPENING_BILLING_REASONS`), carry a line for a plan price this
+ * API sells, be in that plan's currency, and have actually collected money. Any
+ * failure is recorded as `not_granted` with its reason, never guessed past. The
+ * receipt records what the invoice COLLECTED, not the catalogue price, and links
+ * the invoice id; a difference from the catalogue price (a coupon, tax) is kept
+ * in the event's detail for reconciliation.
+ *
+ * The idempotency key is unchanged — `(subscription, period_start, type)` — so a
+ * period granted by the old path before this deploy is recognised as granted and
+ * is not granted again.
+ */
+async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventResult> {
+  const subscriptionId = stripeIdOf(invoice.parent?.subscription_details?.subscription);
+  if (!subscriptionId) {
+    return { outcome: 'ignored', detail: 'invoice is not for a subscription' };
+  }
+  if (invoice.status !== 'paid') {
+    return { outcome: 'not_granted', detail: `invoice status is ${invoice.status ?? 'null'}` };
+  }
+  if (!invoice.billing_reason || !PERIOD_OPENING_BILLING_REASONS.has(invoice.billing_reason)) {
+    return {
+      outcome: 'not_granted',
+      detail: `billing_reason ${invoice.billing_reason ?? 'null'} does not open a credit period`,
+    };
+  }
+
+  const customerId = stripeIdOf(invoice.customer);
+  const userId = customerId ? await accountForStripeCustomer(customerId) : null;
+  if (!customerId || !userId) {
+    return { outcome: 'not_granted', detail: 'no account for the Stripe customer' };
+  }
+
+  if (invoice.amount_paid <= 0) {
+    // Zero-amount trials/discounts await a declared commercial rule.
+    return { outcome: 'not_granted', detail: 'invoice collected no money' };
+  }
+
+  // Stripe embeds only the first page. Inspect every line before accepting a
+  // recurring period; an early known-price line may be a proration.
+  const lines = [...invoice.lines.data];
+  let page = invoice.lines;
+  const seenCursors = new Set<string>();
+  while (page.has_more) {
+    const cursor = page.data.at(-1)?.id;
+    if (!cursor || seenCursors.has(cursor) || seenCursors.size >= 100) {
+      throw new Error('Invoice line pagination made no progress; refusing incomplete evidence');
+    }
+    seenCursors.add(cursor);
+    page = await getStripe().invoices.listLineItems(invoice.id, { limit: 100, starting_after: cursor });
+    lines.push(...page.data);
+  }
+  const candidates = lines.filter((candidate) => {
+    const parent = candidate.parent;
+    const details = parent?.subscription_item_details;
+    return parent?.type === 'subscription_item_details'
+      && details?.subscription === subscriptionId && details.proration === false;
+  });
+  const planLines = candidates.filter((candidate) => {
+    const priceId = linePriceId(candidate);
+    return priceId && SUBSCRIPTION_PLANS.some((entry) => entry.stripePriceId === priceId);
+  });
+  if (planLines.length === 0) {
+    return { outcome: 'not_granted', detail: 'no invoice line for a plan price this API sells' };
+  }
+  // Our checkout sells one recurring item at quantity one. An ambiguous
+  // invoice needs a reviewed mapping, never an arbitrary first line.
+  if (candidates.length !== 1 || planLines.length !== 1) {
+    return { outcome: 'not_granted', detail: 'ambiguous recurring invoice lines or periods' };
+  }
+  const [line] = planLines;
+  const plan = SUBSCRIPTION_PLANS.find((entry) => entry.stripePriceId === linePriceId(line))!;
+  if (line.currency !== invoice.currency || line.quantity !== 1 || line.amount <= 0
+    || !Number.isSafeInteger(line.period.start) || !Number.isSafeInteger(line.period.end)
+    || line.period.start <= 0 || line.period.end <= line.period.start) {
+    return { outcome: 'not_granted', detail: 'recurring line currency, quantity, amount or period is invalid' };
+  }
+  if (invoice.currency !== plan.currency) {
+    return {
+      outcome: 'not_granted',
+      detail: `invoice currency ${invoice.currency} does not match plan currency ${plan.currency}`,
+    };
+  }
+
+
+  const periodStart = new Date(line.period.start * 1000);
+  const amountDetail =
+    invoice.amount_paid === plan.price
+      ? undefined
+      : `amount_paid ${invoice.amount_paid} differs from plan price ${plan.price} ${plan.currency}`;
+  const credits = plan.creditsPerMonth;
+  const planName = plan.name;
+
+  return getDb().transaction(async (tx): Promise<StripeEventResult> => {
     // Same shape as `handleCheckoutCompleted`: the receipt is the idempotency
     // claim, `billing_transactions_subscription_period_key` makes winning it
     // atomic, and the grant is conditional on having won.
     const [receipt] = await tx
       .insert(billingTransactions)
       .values({
-        userId: account.userId,
+        userId,
         stripeCustomerId: customerId,
-        stripeSubscriptionId: stripeSubscription.id,
+        stripeSubscriptionId: subscriptionId,
         stripeSubscriptionPeriodStart: periodStart,
+        stripeInvoiceId: invoice.id,
         type: 'subscription_payment',
-        amountMinorUnits: plan.price,
-        currency: plan.currency,
-        credits: plan.creditsPerMonth,
+        amountMinorUnits: invoice.amount_paid,
+        currency: invoice.currency,
+        credits,
         status: 'completed',
-        description: `${plan.name} subscription credits`,
+        description: `${planName} subscription credits`,
       })
       .onConflictDoNothing({
         // Named rather than left bare: an untargeted DO NOTHING would silently
@@ -627,29 +928,22 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
 
     if (!receipt) {
       logger.info('Skipping duplicate subscription credit grant', {
-        subscriptionId: stripeSubscription.id,
+        subscriptionId,
+        invoiceId: invoice.id,
         periodStart: periodStart.toISOString(),
-        userId: account.userId,
+        userId,
       });
-      return;
+      return { outcome: 'duplicate', detail: 'the period was already granted' };
     }
 
-    // Same reasoning as the one-off path: the receipt suppresses every replay,
-    // so a silently-failed grant would never be retried.
-    if (!(await addCredits(tx, account.userId, plan.creditsPerMonth, 'paid'))) {
-      throw new Error(
-        `Renewal credit grant did not apply for user ${account.userId} ` +
-        `(subscription ${stripeSubscription.id})`
-      );
+    // The receipt suppresses every replay, so a silently-failed grant would
+    // never be retried. Throw: the transaction rolls back, the claim is
+    // released, and Stripe's redelivery tries again.
+    if (!(await addCredits(tx, userId, credits, 'paid'))) {
+      throw new Error(`Renewal credit grant did not apply for user ${userId} (invoice ${invoice.id})`);
     }
+    return { outcome: 'granted', detail: amountDetail };
   });
-}
-
-async function handleSubscriptionDeleted(stripeSubscription: Stripe.Subscription) {
-  await getDb()
-    .update(billingSubscriptions)
-    .set({ status: 'canceled' })
-    .where(eq(billingSubscriptions.stripeSubscriptionId, stripeSubscription.id));
 }
 
 export default router;

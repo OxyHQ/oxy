@@ -148,6 +148,7 @@ const PUBLIC_EMAIL_OPERATIONS = new Set(['POST /email/inbound', 'GET /email/prox
  * voice clients address the Alia product directly; generic inference uses Oxy.
  */
 const EXPECTED_PAYLOAD_OPERATIONS = [
+  { method: 'get', path: '/v1/products/{productId}/access/{subjectAccountId}', requestBody: false },
   { method: 'post', path: '/v1/responses', requestBody: true },
   { method: 'post', path: '/v1/decisions', requestBody: true },
   { method: 'post', path: '/v1/chat/completions', requestBody: true },
@@ -179,7 +180,7 @@ const FORBIDDEN_30_KEYWORDS = {
 /** Vacuity floors. A layer that examines nothing must fail, not pass. */
 const MINIMUM_EXPECTED_PATHS = 12;
 const MINIMUM_EXPECTED_PREFIXES = 4;
-const MINIMUM_PAYLOAD_OPERATIONS = 11;
+const MINIMUM_PAYLOAD_OPERATIONS = 12;
 /**
  * The floor on schema nodes the empty-schema walk must actually visit.
  *

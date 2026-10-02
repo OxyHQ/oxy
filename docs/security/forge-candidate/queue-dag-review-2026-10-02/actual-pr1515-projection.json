@@ -1,0 +1,16 @@
+{
+  "number": 1515,
+  "state": "closed",
+  "merged": true,
+  "merged_at": "2026-10-01T23:51:00Z",
+  "merge_commit_sha": "4b145040afca38be93ad4096241d4c60e12e1c82",
+  "html_url": "https://github.com/OxyHQ/oxy/pull/1515",
+  "head": {
+    "sha": "e237095241b2efeee510770bc428e0d515b0279f",
+    "ref": "fix/jev-release-smoke-20261002"
+  },
+  "base": {
+    "sha": "c807c2b5e48cb1ee108cc9c9b45d13e639eeacaa",
+    "ref": "main"
+  }
+}

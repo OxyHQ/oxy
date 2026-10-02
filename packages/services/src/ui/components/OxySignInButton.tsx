@@ -1,3 +1,4 @@
+import { classifyApplicationSessionLane } from '../oauth/applicationSessionLane';
 import type React from 'react';
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { type ViewStyle, type TextStyle, type StyleProp, Platform } from 'react-native';
@@ -142,6 +143,8 @@ export interface OxySignInButtonProps {
      * ```
      */
     onOAuthResult?: (result: OxyOAuthResult) => void;
+    /** Opt in to the shared SDK native finalizer. Mutually exclusive with onOAuthResult. */
+    nativeOAuthCompletion?: 'sdk';
 }
 
 const ACTION_KEYS: Record<OxySignInButtonAction, string> = {
@@ -188,9 +191,10 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
     showWhenAuthenticated = false,
     oauthRedirectUri,
     onOAuthResult,
+    nativeOAuthCompletion,
 }) => {
     const { t } = useI18n();
-    const { openAccountDialog, oxyServices, clientId, webAuthMode, startWebOAuthSignIn } = useOxy();
+    const { openAccountDialog, oxyServices, clientId, webAuthMode, startWebOAuthSignIn, startNativeOAuthSignIn } = useOxy();
     const { isAuthenticated, isLoading } = useAuthStore(
         useShallow((state) => ({ isAuthenticated: state.isAuthenticated, isLoading: state.isLoading }))
     );
@@ -228,7 +232,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
         if (cached && cached.clientId === clientId && cached.oxyServices === oxyServices) {
             return cached.promise;
         }
-        const promise = oxyServices.apps.getPublic(clientId).catch((error) => {
+        const promise = oxyServices.apps.getPublic(clientId, { cache: false }).catch((error) => {
             // Only clear if this is still the live entry (a later resolve may have
             // replaced it after a clientId/oxyServices change).
             if (appResolutionRef.current?.promise === promise) {
@@ -308,6 +312,14 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
                 return;
             }
 
+            if (nativeOAuthCompletion === 'sdk') {
+                if (onOAuthResult) { notifyNotConfigured(app.name); return; }
+                const result = await startNativeOAuthSignIn({ redirectUri: oauthRedirectUri });
+                if (result.status === 'failed') notifyFailed();
+                if (result.status === 'unsupported') notifyNotConfigured(app.name);
+                return;
+            }
+
             // Native: open the in-app auth session, then hand the handshake to the
             // RP so it can complete the token exchange from its deep-link callback.
             const [pkce, state] = await Promise.all([generatePkcePair(), generateOAuthState()]);
@@ -332,6 +344,8 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
             clientId,
             oauthRedirectUri,
             onOAuthResult,
+            nativeOAuthCompletion,
+            startNativeOAuthSignIn,
             startOfficialSignIn,
             startWebOAuthSignIn,
             shouldPreOpenPopup,
@@ -357,7 +371,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
                 const resolving = resolvePublicApplication();
                 if (!resolving) {
                     closeOAuthPopup(popup);
-                    startOfficialSignIn();
+                    notifyNotConfigured('this app');
                     return;
                 }
                 let app: PublicApplication;
@@ -373,7 +387,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
                     notifyFailed();
                     return;
                 }
-                if (app.type === 'third_party' && !app.isOfficial) {
+                if (classifyApplicationSessionLane(app) === 'oauth') {
                     await startThirdPartyOAuth(app, popup);
                     return;
                 }
@@ -392,6 +406,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
                 );
                 notifyFailed();
             } finally {
+                appResolutionRef.current = null;
                 routingRef.current = false;
             }
         },
@@ -400,6 +415,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
             startOfficialSignIn,
             startThirdPartyOAuth,
             clientId,
+            notifyNotConfigured,
             notifyFailed,
         ],
     );

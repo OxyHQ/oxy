@@ -1,0 +1,247 @@
+{
+  "base": "a33c316ad3fb17cb4d9eed5b78b4c3f7d58854a4",
+  "checkedAtUTC": "2026-10-02T21:00:19.173875+00:00",
+  "toolchain": {
+    "bun": "1.4.2",
+    "node": "v24.21.0",
+    "postgres": "postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)"
+  },
+  "sourceInputs": [
+    {
+      "path": "packages/mcp/src/internalClient.ts",
+      "sha256": "56b78d57a958e371226399c443750d77390438f76cb5fa5fd0dd0cff80cd93f9"
+    },
+    {
+      "path": "packages/mcp/src/internalTransport.ts",
+      "sha256": "afb73aa49e2137fa966fafff8d72fab60cb5b9ac33ac117fc61dac48a58ffaa1"
+    },
+    {
+      "path": "packages/mcp/src/__tests__/internalInvocation.test.ts",
+      "sha256": "d766ace8c57a416f49e8ba93b2ac5cd2ce47135bdf13f3c23cf9351c99da7a80"
+    },
+    {
+      "path": "packages/mcp/scripts/verify-internal-packed.mjs",
+      "sha256": "ee1e5349e07de6ddd3e6d2b29fd3a1cd4f2ee41e074db356b7958ebe9b64c4e4"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/internalMcpParity.db.test.ts",
+      "sha256": "f57a09f76bdc791687487c44b925651150e601d651693e418f33fbcea1d5666b"
+    },
+    {
+      "path": "docs/auth/internal-mcp.md",
+      "sha256": "27e8dbc3fd999e2ae1c0a9ba970bb42fa91a72bbdbd272916b4abcb7d9b27ec8"
+    },
+    {
+      "path": "docs/architecture/i05-adoption-preflight.md",
+      "sha256": "0ea1dc7a2e8fcb19d4170178aa3055df97ffc2084a4d88916f669347162ae9dc"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/README.md",
+      "sha256": "46940a28aa73b688147d1a2ebc6ec8565afc7b9da799909faa5f0c561c1ab2e8"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/red.log",
+      "sha256": "831bf6cc68d8aa52bc979ea0ddcd8eed4ddb242c3d03082602316205976665c7",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-internal-invocation-red.log",
+      "rawSha256": "4a109ecaba4b60cef1c189b0001d8e1cc25cab426db0674db60fbe19c4225832"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/mcp-suite.log",
+      "sha256": "69e4de9e4f7ac873f111ef5b982b77e2391b3df553de907210ef83081560a5bf",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-mcp-suite-final.log",
+      "rawSha256": "69e4de9e4f7ac873f111ef5b982b77e2391b3df553de907210ef83081560a5bf"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/mcp-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-mcp-types.log",
+      "rawSha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/mcp-lint.log",
+      "sha256": "ce54500afaf6056e1607e9aa44ba810d4d0332d140ae09839553a83ac7c8b2ed",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-mcp-lint.log",
+      "rawSha256": "ce54500afaf6056e1607e9aa44ba810d4d0332d140ae09839553a83ac7c8b2ed"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/api-parity.log",
+      "sha256": "80fc011c9e9eb8ecb88eed95e60f0d7b5cbce7c294d68f584d7786c8b87ca69d",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-api-parity-final.log",
+      "rawSha256": "80fc011c9e9eb8ecb88eed95e60f0d7b5cbce7c294d68f584d7786c8b87ca69d"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/api-bootstrap-missing-db-build.log",
+      "sha256": "99fb80ae9619983ae02aa9df4665380bb776c9187f5b0ec4104561ff81864535",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-api-parity.log",
+      "rawSha256": "99fb80ae9619983ae02aa9df4665380bb776c9187f5b0ec4104561ff81864535"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/compatibility-fixture-first.log",
+      "sha256": "45766e9e2432817ddf62daa215fdb945fdf215317be5d5110b7f3dfbfffd8932",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-mcp-suite.log",
+      "rawSha256": "45766e9e2432817ddf62daa215fdb945fdf215317be5d5110b7f3dfbfffd8932"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/packed.log",
+      "sha256": "0a8247b672185b6728dee239860d97ca69ea0f3d418c0fa17f8441acc1575fab",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-packed-final.log",
+      "rawSha256": "0a8247b672185b6728dee239860d97ca69ea0f3d418c0fa17f8441acc1575fab"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/install.log",
+      "sha256": "d473892f047163aa81d593e5cea19996c14e2ccc36a5dd581b2249590ae98877",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-upstream-install.log",
+      "rawSha256": "d473892f047163aa81d593e5cea19996c14e2ccc36a5dd581b2249590ae98877"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/db-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-db-build.log",
+      "rawSha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/core-build-pack.log",
+      "sha256": "fbe0ddd9c252d9aa81a91ebe2a6e79e2f0c56968214e3870ffa250c500e22cc7",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-core-build-pack.log",
+      "rawSha256": "fbe0ddd9c252d9aa81a91ebe2a6e79e2f0c56968214e3870ffa250c500e22cc7"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/mcp-build-pack.log",
+      "sha256": "15923f44a4b0bdbed62081e83bd8750c7648608604ed7d40af8a75f1e27c34fb",
+      "rawPath": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i05-mcp-build-pack.log",
+      "rawSha256": "15923f44a4b0bdbed62081e83bd8750c7648608604ed7d40af8a75f1e27c34fb"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/source-inputs.json",
+      "sha256": "2499de4e1a31b04ef2c2a6e2a80e544bb28717e32594123850358ecb86ce2c1c"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/registry-current.json",
+      "sha256": "1fd3a551fbc6d18fa793f53f8efc64cf105b907ebfc1b7efc7077f212f2f0f4e"
+    },
+    {
+      "path": "docs/audits/1519-i05-internal-invocation-2026-10-02/pg-owner.json",
+      "sha256": "33dd59ffc1d7fe5ff2aece1724582d5af89965ff31658b193323156c4f788aea"
+    }
+  ],
+  "packed": {
+    "fixture": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o",
+    "hashes": {
+      "@oxy.so/contracts": {
+        "version": "4.8.0",
+        "sha256": "1538c83050d7cb114dd17a84b3bda7209e713b7fc6bee2485167fe211400eb89",
+        "tarballPath": "/home/nate/Oxy/oxy/.worktrees/1519-i04-internal-invocation/packages/contracts/oxy.so-contracts-4.8.0.tgz"
+      },
+      "@oxy.so/core": {
+        "version": "4.1.0",
+        "sha256": "feae26bc783823d88de77b5cd45b1704dcf4b6f21cf6289c84cbc287581fc65a",
+        "tarballPath": "/home/nate/Oxy/oxy/.worktrees/1519-i04-internal-invocation/packages/core/oxy.so-core-4.1.0.tgz"
+      },
+      "@oxy.so/mcp": {
+        "version": "1.0.0",
+        "sha256": "7005ac3741db8afbc45b0dbf19933d00be0b6270a9ec8f019824968797636545",
+        "tarballPath": "/home/nate/Oxy/oxy/.worktrees/1519-i04-internal-invocation/packages/mcp/oxy.so-mcp-1.0.0.tgz"
+      },
+      "@oxy.so/protocol": {
+        "version": "1.2.1",
+        "sha256": "e551cfae647e1a34a69afa8538a2751788233babcab579596203502bc0a04919",
+        "tarballPath": "/home/nate/Oxy/oxy/.worktrees/1519-i04-internal-invocation/packages/protocol/oxy.so-protocol-1.2.1.tgz"
+      },
+      "@oxy.so/telemetry": {
+        "version": "1.2.0",
+        "sha256": "c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12",
+        "tarballPath": "/home/nate/Oxy/oxy/.worktrees/1519-i04-internal-invocation/packages/telemetry/oxy.so-telemetry-1.2.0.tgz"
+      }
+    },
+    "published": false
+  },
+  "installed": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/node_modules/@oxy.so/contracts/package.json",
+      "sha256": "46a2d1bad4c4f344a9d552897dcb9e4edf47e174fd554443443f157668b1fdba"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/node_modules/@oxy.so/core/package.json",
+      "sha256": "ab6433eb8f0fe72cb8da759a1276775f2d0132eff5f5c8a62bb014bc6e4f6000"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/node_modules/@oxy.so/mcp/package.json",
+      "sha256": "5232b193b04e8751803f43d5f592367177bb3c89eec163900f07377dd2ba3082"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/node_modules/@oxy.so/mcp/dist/cjs/internalClient.js",
+      "sha256": "bfdcaa552654fd2431e0bb6ac918edc7d109337f95d53383fdfb6ef7ff43a81f"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/node_modules/@oxy.so/mcp/dist/cjs/internalTransport.js",
+      "sha256": "b35ded73f6b3a4fe01e0aa52bb480329e86dd225088b66fc23fa2e256bf557dd"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/node_modules/@oxy.so/mcp/dist/esm/internalClient.js",
+      "sha256": "072c82bcd2ad715da610e2b04c64416050df94e7e91f3a5331ef7ea3884a6559"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/node_modules/@oxy.so/mcp/dist/esm/internalTransport.js",
+      "sha256": "905efc99de4d74c01896ca8ffef5012ba3ed99d2d81e8def0f794939d2010ea2"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/node_modules/@oxy.so/protocol/package.json",
+      "sha256": "c50d1fa96c821e8e32c11205e6ee874b89b461500180ad3989d57ea7befda6ca"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/node_modules/@oxy.so/telemetry/package.json",
+      "sha256": "3382e31cc240d0dedb60eae4c983974e18a87ed7c9eaf2fc97e99e2b28028ec0"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/package.json",
+      "sha256": "3eeed7c67b348bfde990a8b1dc5c59a0d0f045949b7114120b8b439afe2fc000"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/bun.lock",
+      "sha256": "b7863f4076148e0540361822a0a0efc184cf67e991e732d004a6ae898c877be5"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/verify.cjs",
+      "sha256": "8de8d668c963901a8a670ed73ebc84b66202fcb4ac54fd8165844a3e99aa0da1"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/verify.mjs",
+      "sha256": "b3147143e9f89dd7f340169f0257236b5085c3245bf559620bd7c1f21c479d28"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-ef3G7o/evidence.json",
+      "sha256": "d9cb285a9f5525108c4156e17571db8a42c489bf16ae9a4ddcbf499c7bd526ab"
+    }
+  ],
+  "results": {
+    "red": {
+      "failed": 6,
+      "total": 6
+    },
+    "mcp": {
+      "suites": 9,
+      "tests": 49
+    },
+    "apiGenericParity": {
+      "suites": 1,
+      "tests": 1,
+      "productIntegration": false
+    },
+    "typescript": 0,
+    "lint": 0,
+    "packedModes": [
+      "cjs",
+      "esm"
+    ]
+  },
+  "limits": {
+    "simulatedEffectReceipts": true,
+    "centralIntrospectionSynthetic": true,
+    "productMentionReplayProven": false,
+    "published": false,
+    "deployed": false,
+    "consumerManifestsChanged": false
+  }
+}

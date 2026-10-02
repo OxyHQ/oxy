@@ -4,6 +4,7 @@
 - [Bootstrap or retire the native product agents](./native-product-agent-bootstrap.md)
 - [Cut over the exact-ID Kaana request v2](./kaana-request-v2-cutover.md)
 - [Renew the reviewed Kaana routing scores](./kaana-routing-score-renewal.md)
+- [Stripe renewal grants: cutover, missed periods and recovery](./stripe-renewal-grants.md)
 
 Rotation and break-glass procedures for credentials Oxy issues or operates
 through its control surfaces, including customer BYOK keys held only by Kaana.

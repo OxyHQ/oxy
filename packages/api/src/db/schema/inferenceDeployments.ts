@@ -52,6 +52,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -63,6 +64,7 @@ import {
   commercialPermissionSchema,
   INFERENCE_MONEY_SCALE,
   type AvailabilityScope,
+  type ScopedExecutionAudience,
   USAGE_UNITS,
 } from '@oxy.so/contracts';
 import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
@@ -189,6 +191,8 @@ export const inferenceDeployments = pgTable(
   'inference_deployments',
   {
     id: generatedId(),
+    /** Restriction on an otherwise qualified route; never a permission grant. */
+    scopedExecution: jsonb().$type<ScopedExecutionAudience>(),
 
     /**
      * The exact weights this route serves. A deployment ALWAYS pins a revision —

@@ -108,7 +108,19 @@ export interface IssueCodeOptions {
    */
   codeId?: string;
   ttlMs?: number;
+  /**
+   * The handle the row is written through — the pool by default, or an open
+   * transaction. The consent finalizer (`oauthConsent.service.ts`) passes its
+   * transaction so the code and the consent it depends on commit together or
+   * not at all.
+   */
+  db?: OAuthCodeExecutor;
 }
+
+/** The database handle a code is written through — the pool, or an open transaction. */
+export type OAuthCodeExecutor =
+  | ReturnType<typeof getDb>
+  | Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
 
 export interface IssueCodeResult {
   code: string;
@@ -121,7 +133,7 @@ export async function issueAuthCode(options: IssueCodeOptions): Promise<IssueCod
   const codeHash = sha256Hex(rawCode);
   const expiresAt = new Date(Date.now() + ttlMs);
 
-  await getDb()
+  await (options.db ?? getDb())
     .insert(authCodes)
     .values({
       // Omitted when the caller reserved none, so the column's own

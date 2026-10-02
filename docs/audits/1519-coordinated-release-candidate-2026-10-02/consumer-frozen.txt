@@ -1,0 +1,10 @@
+bun install v1.4.2 (744846f84)
+
++ @oxy.so/contracts@./artifacts/oxy.so-contracts-4.9.0.tgz
++ @oxy.so/core@./artifacts/oxy.so-core-4.2.0.tgz
++ @oxy.so/mcp@./artifacts/oxy.so-mcp-1.1.0.tgz
++ @oxy.so/protocol@./artifacts/oxy.so-protocol-1.2.2.tgz
++ @oxy.so/services@./artifacts/oxy.so-services-11.1.0.tgz
++ @oxy.so/telemetry@./artifacts/oxy.so-telemetry-1.2.0.tgz
+
+7 packages installed [57.00ms]

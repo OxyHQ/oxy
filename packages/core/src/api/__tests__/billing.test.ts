@@ -1,6 +1,24 @@
 import { stubbedClient } from './helpers';
 
 describe('oxy.billing', () => {
+  it('queries explicit product rights uncached and parses the access-only response', async () => {
+    const { oxy, request } = stubbedClient('me');
+    const query = { schemaVersion: 1 as const, subjectAccountId: 'me', productId: 'product/one' };
+    const answer = { ...query, evaluatedAt: new Date().toISOString(), capabilities: [], quotas: [], conflicts: [] };
+    request.mockResolvedValue(answer);
+    await expect(oxy.billing.productAccess(query)).resolves.toEqual(answer);
+    expect(request).toHaveBeenLastCalledWith('GET', '/v1/products/product%2Fone/access/me', undefined, { cache: false });
+    request.mockResolvedValue({ ...answer, balance: 10 });
+    await expect(oxy.billing.productAccess(query)).rejects.toThrow();
+  });
+
+  it('rejects invalid rights queries before transport and propagates authority failures', async () => {
+    const { oxy, request } = stubbedClient('me');
+    await expect(oxy.billing.productAccess({ schemaVersion: 1, subjectAccountId: 'me', productId: '' })).rejects.toThrow();
+    expect(request).not.toHaveBeenCalled();
+    request.mockRejectedValue(new Error('Forbidden'));
+    await expect(oxy.billing.productAccess({ schemaVersion: 1, subjectAccountId: 'me', productId: 'product' })).rejects.toThrow('Forbidden');
+  });
   it('defaults every read to the signed-in user', async () => {
     const { oxy, request } = stubbedClient('me');
     request.mockResolvedValue({ plan: 'basic' });

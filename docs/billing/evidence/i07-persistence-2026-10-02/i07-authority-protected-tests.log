@@ -1,0 +1,10 @@
+$ jest --runInBand src/routes/__tests__/productAccess.test.ts src/db/schema/__tests__/protectedColumns.test.ts
+{"level":30,"time":1790960377757,"pid":2994419,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790960378257,"pid":2994419,"hostname":"SuperPC","sessionId":"9c768acc","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790960378258,"pid":2994419,"hostname":"SuperPC","sessionId":"9c768acc","operatorId":"01a0fd8e-a13e-7735-a940-8ffd80f776d9","accountId":"01a0fd8e-a11b-7c9e-a2a5-4e35a0bf414b","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+
+Test Suites: 2 passed, 2 total
+Tests:       26 passed, 26 total
+Snapshots:   0 total
+Time:        1.97 s, estimated 2 s
+Ran all test suites matching src/routes/__tests__/productAccess.test.ts|src/db/schema/__tests__/protectedColumns.test.ts.

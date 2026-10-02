@@ -1,0 +1,103 @@
+{
+  "sourceHead": "5178fab5fc8e984ca722caee3567bfe4c9a1e441",
+  "originalHandoff": "fba06ec469ed2a03e2383133cc0ddaa33ac0d96a",
+  "verifiedAtUTC": "2026-10-02T21:01:56.353767+00:00",
+  "sources": {
+    "packages/services/__tests__/context/browserBridge.test.tsx": "f69ddad850e0f7ed69c8e8da24099385d96712a6928312020237bdff1b5aa38c",
+    "packages/services/__tests__/context/coldBoot.test.tsx": "b2198faf2280eeecdf33674b775bd3582244b10bbdabc15bdc8edbdd812f525a",
+    "packages/services/__tests__/context/useAuthOperations.test.tsx": "12bf27e641a8e220ee8c2d1a1fa6293a25f33dd88c3f31a8d8c9980bbb387c01",
+    "packages/services/__tests__/hooks/useAuth.test.tsx": "b94d906cab60d661651639ab8e553d3651aea74e945f72a6a5e1b3846dbfa4d8",
+    "packages/services/src/ui/boot/runProviderColdBoot.ts": "9664224ed2ddbb0d0a1006f2530682a515229b044844ba752b86d9fe0852b49c",
+    "packages/services/src/ui/context/OxyContext.tsx": "1ce02a2c5fc9d71d131f22b52230b68455dd7b10ff6da4118000799cf3ee6dd5",
+    "packages/services/src/ui/context/hooks/useAuthOperations.ts": "38244d3dd65468ee2385cd82bb71381b3600a8768ad3fe977da821b7063a6e0c",
+    "packages/services/src/ui/hooks/useAuth.ts": "9f3a81a5f67224d89929c546297c577090b3984d40242992b1e433a0c6e79498"
+  },
+  "records": {
+    "biome-current.txt": {
+      "sha256": "43b9da7bdad300b02fd18782ff4735a9dcacd046cb417463e22d0c0e7f824618",
+      "bytes": 43
+    },
+    "browser-combined.txt": {
+      "sha256": "832d3b355c08c03ba88de49dc92983ca0549e021249d31225f7e4ad50f7b88d9",
+      "bytes": 3056
+    },
+    "build-pack-excerpt.txt": {
+      "sha256": "2bc0c89c5a25c0590dc48faf44509e12e9873661a669fc442dd2f1db8c58d7c2",
+      "bytes": 72331
+    },
+    "consumer-frozen-install.txt": {
+      "sha256": "278c0210c6c788f58b155ad793af134050add4128528673e70f9460d008480c1",
+      "bytes": 704
+    },
+    "consumer-install.txt": {
+      "sha256": "f0bb416f2ce618a8f8bebad17608676e5d6e21cba6967a912d2ad11caa6e2cdb",
+      "bytes": 2381
+    },
+    "consumer-package.json": {
+      "sha256": "17ee2d432f1d6087af0dd500deb4f2d9e2f4607a60e65483301214c8df9a76e5",
+      "bytes": 3351
+    },
+    "installed-modules.json": {
+      "sha256": "d22dae7d3be02f195a39204a4e6443903751d41465f7c7dd47af06d919e3a5f7",
+      "bytes": 4802
+    },
+    "nativewind-preview-resolution-final.txt": {
+      "sha256": "7f834ca139f6fbcd9c162c5e6d08ef7b4cf1daa12a1527fcdb2b5fc7acb03a29",
+      "bytes": 409
+    },
+    "nativewind-preview-types.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "owned-servers-stopped.json": {
+      "sha256": "f5ded925fddc9fca8cfde8c6ae709dc71aaf3d2f855a8e57404e3cade32ab4dd",
+      "bytes": 399
+    },
+    "pack-records.json": {
+      "sha256": "d5792c7f4ce629bd81774e2fa1019733e566ccc6a1aa43191499ec3ffc7a48af",
+      "bytes": 2353
+    },
+    "preview-types.tsx.txt": {
+      "sha256": "63dc87b2d0bc2f7e444b8369691b59587af46beb3404c86c6f79cee902166fc1",
+      "bytes": 417
+    },
+    "sdk-focused.txt": {
+      "sha256": "2cf59e6591d36808dadd12091df3638b837047459bb98bb3609ae29295c5f06e",
+      "bytes": 716
+    },
+    "tsconfig.preview.json": {
+      "sha256": "b5cca5c90f31635ee1cff573d958116b63e0618ebeb7c6588086bb2479e185bd",
+      "bytes": 357
+    }
+  },
+  "acceptance": {
+    "sdkFocalSuites": 6,
+    "sdkFocalTests": 95,
+    "scopedBiomeExit": 0,
+    "servicesBuildAndSameCommandPackExit": 0,
+    "sourceAndPackedBrowserScenarios": 4,
+    "browserCookies": 0,
+    "browserPageErrors": 0,
+    "browserDeviceRequests": 0,
+    "isolatedTarballs": 6,
+    "rebuiltThisStep": "services",
+    "installedModulesEqualCurrentBuild": 16,
+    "nativewindVersion": "5.0.0-preview.3",
+    "nativewindTypeResolution": "actual installed nativewind/types -> types.d.ts",
+    "previewAwareRange": ">=5.0.0-preview.3 <6.0.0",
+    "previewRangeSatisfies": true,
+    "oldStableRangeSatisfies": false,
+    "previewTypedConsumerExit": 0,
+    "nativewindRuntimeImported": false,
+    "ownBrowserServersStopped": true
+  },
+  "limits": [
+    "This focused/browser proof covers the current integration source; final handoff full services run predates its last guard, and current 95 tests cover final source.",
+    "Browser scenarios verify OAuth/logout/state mismatch; P2 failure/recovery details are tested in the provider/hooks focal group.",
+    "Services was rebuilt and packed in one command. The build/pack record is a truncated tool excerpt, explicitly not a complete stdout transcript.",
+    "Five other tarballs are previous verified combined builds whose runtime source is unchanged; all six actual SHA256 and 16 distinct installed modules were verified.",
+    "Tarballs retain nominal source versions and are test-only, never published or adopted; release versions remain an unapplied proposal.",
+    "Nativewind measurement is actual type resolution/TS and packed browser consumer on preview.3; no claim for untested previews or style-runtime rewrite.",
+    "MCP followup composition and final versioned artifacts/CI remain pending. No merge, queue, deploy, publishing or real device operation."
+  ]
+}

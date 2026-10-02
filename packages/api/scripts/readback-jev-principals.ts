@@ -21,6 +21,7 @@ import {
   deriveJevMentionWorkloadCredentialId,
   validateJevPrincipalsReadback,
 } from "../src/scripts/jevPrincipalsReadback";
+import { readJevTechnicalMetering } from "../src/scripts/jevMeteringReadback";
 import { resolveBillingAccount } from "../src/services/inferenceLedger.service";
 
 /**
@@ -245,6 +246,10 @@ async function readback(): Promise<boolean> {
           ? await readUsdLedger(tx, aliaBilling.billingAccount.accountId)
           : { balances: [], journals: [] };
 
+      // The same read-only snapshot as identity. Availability is evidence only,
+      // never a reservation and never authority to activate a provider.
+      const technicalMetering = await readJevTechnicalMetering(tx, JEV_ALIA_APPLICATION_ID, 'production');
+
       // ---- Kaana -------------------------------------------------------------
       const kaanaApp = await readApplication(tx, JEV_KAANA_APPLICATION_ID);
       const kaanaCredentials = await tx
@@ -256,7 +261,7 @@ async function readback(): Promise<boolean> {
         transactionReadOnly,
         transactionIsolation,
         observedAt,
-        alia: { applications: aliaApp.applicationRows, owners: aliaApp.owners, bindings: aliaBindings, credentials: aliaCredentials, billing: aliaBilling, balances: aliaLedger.balances, journals: aliaLedger.journals },
+        alia: { technicalMetering, applications: aliaApp.applicationRows, owners: aliaApp.owners, bindings: aliaBindings, credentials: aliaCredentials, billing: aliaBilling, balances: aliaLedger.balances, journals: aliaLedger.journals },
         mention: {
           applications: mentionApp.applicationRows,
           owners: mentionApp.owners,

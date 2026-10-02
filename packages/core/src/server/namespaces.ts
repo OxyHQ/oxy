@@ -4,7 +4,8 @@
  * `server.assets.metadataByIds(...)` sits beside every client method of
  * `oxy.assets`.
  */
-import type { CreateOxyNotificationRequest, AwardReputationInput, ReputationTransaction, ServiceLinkedAccountListResponse } from '@oxy.so/contracts';
+import { capabilityTicketRequestSchema, type ActorRef, type AppCapabilityCatalog, type AutonomyLevel, type CapabilityTicketClaims, type CapabilityTicketRequest, type GrantLimit, type PolicyDecision, type ResourceRef, type CreateOxyNotificationRequest, type AwardReputationInput, type ReputationTransaction, type ServiceLinkedAccountListResponse } from '@oxy.so/contracts';
+import type { RequestOptions } from '../HttpService';
 import type { OxyContext, ServiceLane } from '../client/context';
 import type {
   Notification,
@@ -15,7 +16,7 @@ import type {
 import { AssetsApi } from '../api/assets';
 import { NotificationsApi } from '../api/notifications';
 import { LinkedAccountsApi } from '../api/linkedAccounts';
-import { AgencyApi, type RequesterAssertionGrant, type RequesterAssertionIntrospection } from '../api/agency';
+import { AgencyApi, type CapabilityExecutionAuthorization, type RequesterAssertionGrant, type RequesterAssertionIntrospection } from '../api/agency';
 import { ReputationApi } from '../api/reputation';
 import { ServiceAssetMetadataError, ServiceLinkedDownloadUrlError } from '../OxyServices.errors';
 import { extractErrorStatus } from '../utils/errorUtils';
@@ -218,7 +219,83 @@ export class ServerLinkedAccountsApi extends LinkedAccountsApi {
   }
 }
 
+/** Projection of the existing service-authenticated registry response. */
+export interface ServiceCapabilityCatalog {
+  id: string;
+  appSlug: string;
+  version: string;
+  digest: string;
+  audience: string;
+  catalog: AppCapabilityCatalog;
+}
+
+export interface CapabilityTicketGrant {
+  decision: PolicyDecision;
+  ticket?: string;
+  claims?: CapabilityTicketClaims;
+}
+
+export interface CapabilityTicketIntrospection {
+  active: boolean;
+  claims?: CapabilityTicketClaims;
+  decision?: PolicyDecision;
+  error?: string;
+}
+
+interface ExecutionAuthorizationTerms {
+  ownerAccountId: string;
+  coordinatorApplicationId: string;
+  coordinatorCredentialId: string;
+  actor: ActorRef;
+  resource: ResourceRef;
+  tool: string;
+  limits?: GrantLimit[];
+  expiresAt: string;
+}
+
+export type CreateExecutionAuthorizationInput = ExecutionAuthorizationTerms & (
+  | { kind: 'direct_request'; runId: string; stepId?: string; automationId?: never; maximumAutonomy: Exclude<AutonomyLevel, 'autonomous'> }
+  | { kind: 'automation'; automationId: string; runId?: never; stepId?: never; maximumAutonomy: AutonomyLevel }
+);
+
+function agencyAuthorityOptions(signal?: AbortSignal): RequestOptions {
+  signal?.throwIfAborted();
+  return { cache: false, deduplicate: false, retry: false, skipAuth: true, timeout: 5000, ...(signal ? { signal } : {}) };
+}
+
 export class ServerAgencyApi extends AgencyApi {
+  /** Live registry discovery with this service's existing capability scopes. */
+  async serviceCatalogs(input: { appId?: string; signal?: AbortSignal } = {}): Promise<ServiceCapabilityCatalog[]> {
+    const path = `/capabilities/catalogs${input.appId === undefined ? '' : `?appId=${encodeURIComponent(input.appId)}`}`;
+    const result = await lane(this.ctx).request<{ registrations: ServiceCapabilityCatalog[] }>('GET', path, undefined, agencyAuthorityOptions(input.signal));
+    return result.registrations;
+  }
+
+  /** Existing Oxy execution authority is required; this call creates none. */
+  async issueCapabilityTicket(input: CapabilityTicketRequest, options: { signal?: AbortSignal } = {}): Promise<CapabilityTicketGrant> {
+    return lane(this.ctx).request<CapabilityTicketGrant>('POST', '/capabilities/tickets', capabilityTicketRequestSchema.parse(input), agencyAuthorityOptions(options.signal));
+  }
+
+  /** Receiving app authenticates live introspection using its own service credential. */
+  async introspectCapabilityTicket(ticket: string, options: { signal?: AbortSignal } = {}): Promise<CapabilityTicketIntrospection> {
+    if (ticket.trim() === '') throw new Error('A capability ticket is required');
+    return lane(this.ctx).request<CapabilityTicketIntrospection>('POST', '/capabilities/tickets/introspect', { ticket }, agencyAuthorityOptions(options.signal));
+  }
+
+  /**
+   * Authenticates the existing user-authority route with the requester's bearer.
+   * The service bearer and attribution headers cannot substitute for that user.
+   * The token goes only to this client's configured Oxy authority; never retry.
+   */
+  async createExecutionAuthorization(input: CreateExecutionAuthorizationInput, options: { requesterToken: string; signal?: AbortSignal }): Promise<CapabilityExecutionAuthorization> {
+    if (options.requesterToken === '' || /\s/.test(options.requesterToken)) throw new Error('A requester bearer is required');
+    const result = await this.ctx.request<{ authorization: CapabilityExecutionAuthorization }>('POST', '/capabilities/execution-authorizations', input, {
+      ...agencyAuthorityOptions(options.signal),
+      headers: { Authorization: `Bearer ${options.requesterToken}` },
+    });
+    return result.authorization;
+  }
+
   /**
    * Product backend → Oxy: trade the signed-in requester's access token for a
    * one-use assertion naming `agentId` (ADR 0025), authenticated with this

@@ -6904,6 +6904,9 @@
           },
           "403": {
             "description": "Redirect URI is not registered for this client."
+          },
+          "500": {
+            "description": "The consent or the code could not be stored. Nothing was written — no code was issued and no grant recorded — so retrying is safe.\n"
           }
         },
         "operationId": "postAuthOauthAuthorize"
@@ -9369,7 +9372,7 @@
           "Billing"
         ],
         "summary": "Stripe webhook receiver. Verifies the `stripe-signature` header against",
-        "description": "`STRIPE_WEBHOOK_SECRET` and dispatches handled events (subscription\ncreated/updated, invoice paid, checkout completed, etc.). No auth.",
+        "description": "`STRIPE_WEBHOOK_SECRET`, records the delivery in `billing_stripe_events`, and\ndispatches handled events. No auth.\n\nEvery accepted delivery is recorded BEFORE its handler runs and its outcome\nafter, so a renewal that did not grant, or a mirror that did not move, is a\nqueryable row rather than a log line. A handler that throws is recorded as\n`failed` and answered 500, which is what makes Stripe redeliver it.",
         "parameters": [],
         "responses": {
           "200": {
@@ -33311,6 +33314,27 @@
                     "expiresAt": {
                       "type": "string",
                       "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "description": "Who acted, and as whom, read off the session row (`AccountActorChain` in `@oxy.so/contracts`). `actorAccountId` differs from `effectiveAccountId` exactly when `delegated` is true; a bot acting with nobody operating it is its own actor.\n",
+                      "properties": {
+                        "schemaVersion": {
+                          "type": "integer",
+                          "enum": [
+                            1
+                          ]
+                        },
+                        "effectiveAccountId": {
+                          "type": "string"
+                        },
+                        "actorAccountId": {
+                          "type": "string"
+                        },
+                        "delegated": {
+                          "type": "boolean"
+                        }
+                      }
                     }
                   }
                 }
@@ -36917,109 +36941,73 @@
         ],
         "responses": {
           "200": {
-            "description": "The settled receipt, including the price snapshot the charge was computed from.",
+            "description": "A financial receipt (v1) or an internal technical usage record without a financial charge (v2).",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "data": {
-                      "type": "object",
-                      "properties": {
-                        "schemaVersion": {
-                          "type": "number",
-                          "enum": [
-                            1
-                          ]
-                        },
-                        "receiptId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "requestId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "generationId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "applicationId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "credentialId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "delegatedUserId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "environment": {
-                          "type": "string",
-                          "enum": [
-                            "development",
-                            "staging",
-                            "production"
-                          ]
-                        },
-                        "outcome": {
-                          "type": "string",
-                          "enum": [
-                            "completed",
-                            "partial",
-                            "cancelled",
-                            "failed"
-                          ]
-                        },
-                        "usageSource": {
-                          "type": "string",
-                          "enum": [
-                            "provider_reported",
-                            "oxy_measured",
-                            "estimated"
-                          ]
-                        },
-                        "units": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "unit": {
-                                "type": "string"
-                              },
-                              "quantity": {
-                                "type": "integer",
-                                "minimum": 0
-                              }
-                            },
-                            "required": [
-                              "unit",
-                              "quantity"
-                            ]
-                          }
-                        },
-                        "resolvedModelReference": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "servingProvider": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "priceSnapshot": {
+                      "oneOf": [
+                        {
                           "type": "object",
                           "properties": {
-                            "priceVersionId": {
+                            "schemaVersion": {
+                              "type": "number",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "receiptId": {
                               "type": "string",
                               "minLength": 1
                             },
-                            "currency": {
+                            "requestId": {
                               "type": "string",
-                              "pattern": "^[A-Z]{3}$"
+                              "minLength": 1
                             },
-                            "unitPrices": {
+                            "generationId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "applicationId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "credentialId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "delegatedUserId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "environment": {
+                              "type": "string",
+                              "enum": [
+                                "development",
+                                "staging",
+                                "production"
+                              ]
+                            },
+                            "outcome": {
+                              "type": "string",
+                              "enum": [
+                                "completed",
+                                "partial",
+                                "cancelled",
+                                "failed"
+                              ]
+                            },
+                            "usageSource": {
+                              "type": "string",
+                              "enum": [
+                                "provider_reported",
+                                "oxy_measured",
+                                "estimated"
+                              ]
+                            },
+                            "units": {
                               "type": "array",
                               "items": {
                                 "type": "object",
@@ -37027,65 +37015,326 @@
                                   "unit": {
                                     "type": "string"
                                   },
-                                  "amount": {
-                                    "type": "string"
-                                  },
-                                  "per": {
+                                  "quantity": {
                                     "type": "integer",
-                                    "exclusiveMinimum": 0
-                                  },
-                                  "currency": {
-                                    "type": "string",
-                                    "pattern": "^[A-Z]{3}$"
+                                    "minimum": 0
                                   }
                                 },
                                 "required": [
                                   "unit",
-                                  "amount",
-                                  "per",
-                                  "currency"
+                                  "quantity"
                                 ]
                               }
+                            },
+                            "resolvedModelReference": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "servingProvider": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "priceSnapshot": {
+                              "type": "object",
+                              "properties": {
+                                "priceVersionId": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "pattern": "^[A-Z]{3}$"
+                                },
+                                "unitPrices": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "unit": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "string"
+                                      },
+                                      "per": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0
+                                      },
+                                      "currency": {
+                                        "type": "string",
+                                        "pattern": "^[A-Z]{3}$"
+                                      }
+                                    },
+                                    "required": [
+                                      "unit",
+                                      "amount",
+                                      "per",
+                                      "currency"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "priceVersionId",
+                                "currency",
+                                "unitPrices"
+                              ]
+                            },
+                            "billedAmount": {
+                              "type": "string"
+                            },
+                            "currency": {
+                              "type": "string",
+                              "pattern": "^[A-Z]{3}$"
+                            },
+                            "platformFeeOnly": {
+                              "type": "boolean"
+                            },
+                            "settledAt": {
+                              "type": "string",
+                              "format": "date-time"
                             }
                           },
                           "required": [
-                            "priceVersionId",
+                            "schemaVersion",
+                            "receiptId",
+                            "requestId",
+                            "applicationId",
+                            "credentialId",
+                            "environment",
+                            "outcome",
+                            "usageSource",
+                            "units",
+                            "resolvedModelReference",
+                            "servingProvider",
+                            "priceSnapshot",
+                            "billedAmount",
                             "currency",
-                            "unitPrices"
+                            "platformFeeOnly",
+                            "settledAt"
                           ]
                         },
-                        "billedAmount": {
-                          "type": "string"
-                        },
-                        "currency": {
-                          "type": "string",
-                          "pattern": "^[A-Z]{3}$"
-                        },
-                        "platformFeeOnly": {
-                          "type": "boolean"
-                        },
-                        "settledAt": {
-                          "type": "string",
-                          "format": "date-time"
+                        {
+                          "type": "object",
+                          "properties": {
+                            "schemaVersion": {
+                              "type": "number",
+                              "enum": [
+                                2
+                              ]
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "metered_usage"
+                              ]
+                            },
+                            "meteredUsageId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "requestId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "generationId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "parentRequestId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "applicationId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "credentialId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "delegatedUserId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "environment": {
+                              "type": "string",
+                              "enum": [
+                                "development",
+                                "staging",
+                                "production"
+                              ]
+                            },
+                            "economicTreatment": {
+                              "type": "string",
+                              "enum": [
+                                "internal_metered"
+                              ]
+                            },
+                            "economicPolicyVersion": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "outcome": {
+                              "type": "string",
+                              "enum": [
+                                "completed",
+                                "partial",
+                                "cancelled",
+                                "failed"
+                              ]
+                            },
+                            "usageSource": {
+                              "type": "string",
+                              "enum": [
+                                "provider_reported",
+                                "oxy_measured",
+                                "estimated"
+                              ]
+                            },
+                            "units": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "unit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "input_tokens",
+                                      "cached_input_tokens",
+                                      "output_tokens",
+                                      "reasoning_tokens",
+                                      "requests",
+                                      "images",
+                                      "audio_input_milliseconds",
+                                      "audio_output_milliseconds",
+                                      "video_milliseconds",
+                                      "characters",
+                                      "embeddings",
+                                      "audio_input_tokens",
+                                      "cached_audio_input_tokens",
+                                      "audio_output_tokens",
+                                      "session_milliseconds"
+                                    ]
+                                  },
+                                  "quantity": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "unit",
+                                  "quantity"
+                                ]
+                              }
+                            },
+                            "resolvedModelReference": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
+                              "maxLength": 194
+                            },
+                            "servingProvider": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "tariff": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "status": {
+                                      "type": "string",
+                                      "enum": [
+                                        "quoted"
+                                      ]
+                                    },
+                                    "amount": {
+                                      "type": "string",
+                                      "pattern": "^(?:0|[1-9][0-9]{0,17})(?:\\.[0-9]{1,12})?$"
+                                    },
+                                    "currency": {
+                                      "type": "string",
+                                      "pattern": "^[A-Z]{3}$"
+                                    },
+                                    "priceVersionId": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    }
+                                  },
+                                  "required": [
+                                    "status",
+                                    "amount",
+                                    "currency",
+                                    "priceVersionId"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "status": {
+                                      "type": "string",
+                                      "enum": [
+                                        "unpriced"
+                                      ]
+                                    },
+                                    "priceVersionId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "minLength": 1
+                                    }
+                                  },
+                                  "required": [
+                                    "status",
+                                    "priceVersionId"
+                                  ]
+                                }
+                              ],
+                              "discriminator": {
+                                "propertyName": "status"
+                              }
+                            },
+                            "customerCharge": {
+                              "type": "object",
+                              "properties": {
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "not_charged"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "status"
+                              ]
+                            },
+                            "settledAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "schemaVersion",
+                            "kind",
+                            "meteredUsageId",
+                            "requestId",
+                            "applicationId",
+                            "credentialId",
+                            "environment",
+                            "economicTreatment",
+                            "economicPolicyVersion",
+                            "outcome",
+                            "usageSource",
+                            "units",
+                            "resolvedModelReference",
+                            "servingProvider",
+                            "tariff",
+                            "customerCharge",
+                            "settledAt"
+                          ]
                         }
-                      },
-                      "required": [
-                        "schemaVersion",
-                        "receiptId",
-                        "requestId",
-                        "applicationId",
-                        "credentialId",
-                        "environment",
-                        "outcome",
-                        "usageSource",
-                        "units",
-                        "resolvedModelReference",
-                        "servingProvider",
-                        "priceSnapshot",
-                        "billedAmount",
-                        "currency",
-                        "platformFeeOnly",
-                        "settledAt"
                       ]
                     }
                   },
@@ -39903,6 +40152,270 @@
           {}
         ],
         "operationId": "getV1ModelsPublisherModelDocumentation"
+      }
+    },
+    "/v1/products/{productId}/access/{subjectAccountId}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Read the effective subject's rights for the session's application product.",
+        "description": "Requires an application-bound user:read session, live account:read authority\nand a usable production credential. Subject must equal the current session\nsubject. Missing/inconsistent configuration fails closed. No legacy balances\nare interpreted; reads explicitly registered live production sources only.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "subjectAccountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Access-only result; Cache-Control no-store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "schemaVersion": {
+                          "type": "number",
+                          "enum": [
+                            1
+                          ]
+                        },
+                        "subjectAccountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "productId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160
+                        },
+                        "evaluatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "capabilities": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160
+                              },
+                              "grantIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "grantIds"
+                            ]
+                          }
+                        },
+                        "quotas": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160
+                              },
+                              "unit": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160
+                              },
+                              "included": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "combination": {
+                                "type": "string",
+                                "enum": [
+                                  "maximum",
+                                  "sum",
+                                  "exclusive"
+                                ]
+                              },
+                              "grantIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "unit",
+                              "included",
+                              "combination",
+                              "grantIds"
+                            ]
+                          }
+                        },
+                        "conflicts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160
+                              },
+                              "reason": {
+                                "type": "string",
+                                "enum": [
+                                  "combination_mismatch",
+                                  "unit_mismatch",
+                                  "exclusive_overlap",
+                                  "unsafe_total"
+                                ]
+                              },
+                              "grantIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "reason",
+                              "grantIds"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "schemaVersion",
+                        "subjectAccountId",
+                        "productId",
+                        "evaluatedAt",
+                        "capabilities",
+                        "quotas",
+                        "conflicts"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current session authority unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Required credential, scope or account permission unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Subject or product audience unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Product configuration missing or inconsistent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getV1ProductsProductIdAccessSubjectAccountId"
       }
     },
     "/v1/responses": {

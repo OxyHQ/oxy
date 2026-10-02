@@ -1,0 +1,12 @@
+$ jest --runInBand --runTestsByPath src/capabilities/__tests__/inbox-mcp-postgres.test.ts
+  console.info
+    Inbox fixture disposable database: oxy_test_d747136097335e1f
+
+      at src/capabilities/__tests__/inbox-mcp-postgres.test.ts:62:11
+
+{"level":30,"time":1790975589486,"pid":3143034,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        0.839 s, estimated 1 s
+Ran all test suites within paths "src/capabilities/__tests__/inbox-mcp-postgres.test.ts".

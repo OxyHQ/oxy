@@ -1,3 +1,4 @@
+import { resolveApplicationSessionLane } from '../oauth/applicationSessionLane';
 import { logger as loggerUtil, type OxyServices } from '@oxy.so/core';
 import { runSessionColdBoot, type AuthStateStore, type IdentityBinding, type SessionMode } from '@oxy.so/core/session';
 import type { SessionClient } from '@oxy.so/core/session';
@@ -80,8 +81,14 @@ export interface RunProviderColdBootOptions {
   /** The identity binding required by `sessionMode: 'identity'`. */
   identity?: IdentityBinding;
   sessionClient: SessionClient;
+  /** Provider-owned fresh classifier, also used by explicit action recovery. */
+  resolveSessionLane?: () => Promise<'device' | 'oauth'>;
+  /** Identity pin work may run only after a fresh device classification. */
+  onClassified?: (lane: 'device' | 'oauth') => void | Promise<void>;
+  beforeDeviceBoot?: () => Promise<void>;
+  afterDeviceBoot?: () => Promise<void>;
   syncDeviceCredentialToHost: () => Promise<void>;
-  commitSession: (input: CommitInput, options: { activate: boolean }) => Promise<void>;
+  commitSession: (input: CommitInput, options: { activate: boolean; oauth?: boolean }) => Promise<void>;
   markAuthResolved: () => void;
   setTokenReady: (ready: boolean) => void;
 }
@@ -124,6 +131,11 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
   setTokenReady(false);
 
   try {
+    // Classification precedes every local-secret, shared-credential and identity
+    // probe. Unavailable registry metadata fails closed, including offline boot.
+    const lane = await (opts.resolveSessionLane?.() ?? resolveApplicationSessionLane(oxyServices, clientId));
+    await opts.onClassified?.(lane);
+    if (identityBound && lane !== 'device') return;
     // The redirect transport's RETURN leg. An app reaches it whenever the browser
     // BLOCKED the sign-in popup and `startWebOAuthSignIn` fell back to a
     // full-page redirect (`popup-blocked` / `popup-navigation-failed`), so it is
@@ -136,13 +148,20 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
           oxyServices,
           clientId,
           authRedirectUri,
-          commitSession: (input) => commitSession(input, { activate: true }),
+          commitSession: (input) => commitSession(input, { activate: true, oauth: true }),
         });
     if (oauthCompleted) {
       setTokenReady(true);
       markAuthResolved();
       return;
     }
+
+    if (lane === 'oauth') {
+      setTokenReady(true);
+      return;
+    }
+
+    await opts.beforeDeviceBoot?.();
 
     // Best-effort connectivity probe up front: an EXPLICIT offline verdict skips
     // the two doomed network steps so routing settles immediately instead of
@@ -224,6 +243,7 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
         }
       },
     });
+    await opts.afterDeviceBoot?.();
   } catch (error) {
     if (__DEV__) {
       loggerUtil.error(

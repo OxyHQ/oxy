@@ -82,6 +82,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inspectForgeAuditPolicy } from './forge-audit-policy.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -220,7 +221,15 @@ for (const [packageName, advisories] of Object.entries(payload)) {
 
 // ── 1. Every gated advisory sits in an acknowledged package ────────────────
 const acknowledgedNames = new Set(ACKNOWLEDGED_PACKAGES.map((entry) => entry.package));
-const unacknowledged = gated.filter((entry) => !acknowledgedNames.has(entry.package));
+// A reviewed source policy can target only one advisory. The committed record
+// is INACTIVE; no environment variable, actor name or prototype approval changes it.
+const scopedPolicy = inspectForgeAuditPolicy(payload);
+if (scopedPolicy.configurationInvalid || (scopedPolicy.policyActive && !scopedPolicy.remediated)) {
+  problems.push(`Scoped Forge policy fails closed: ${scopedPolicy.reason}`);
+}
+const unacknowledged = gated.filter((entry) => !acknowledgedNames.has(entry.package)
+  && !(scopedPolicy.remediated && entry.package === 'node-forge'
+    && entry.advisory === 'GHSA-86w9-cpqp-85rv' && entry.severity === 'high'));
 
 for (const entry of unacknowledged) {
   problems.push(

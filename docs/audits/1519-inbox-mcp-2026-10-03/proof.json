@@ -1,0 +1,103 @@
+{
+  "base": "5178fab5fc8e984ca722caee3567bfe4c9a1e441",
+  "executedAtUtc": "2026-10-02T21:12:04.170339+00:00",
+  "runtimeChanged": false,
+  "authorityBoundary": "synthetic resolveMcpResource and introspectMcpAccessToken; real Inbox HTTP MCP/domain/PostgreSQL",
+  "release": "locally built source candidate; not published/adopted",
+  "sourceSha256": {
+    "packages/api/src/capabilities/__tests__/inbox-mcp-postgres.test.ts": "eccb317731d7e96457461e72ae341b79be7148bd8e331f84893c8c7c552c9129",
+    "packages/api/src/capabilities/inbox-mcp-http.ts": "66030bf6e9cb21f385c6813db4b4f6ee86cedda1a65503fb8cb4f09c304b0b89",
+    "packages/api/src/capabilities/inbox.handlers.ts": "5c04da64deaa7aabbd4da8bf07af55266d6b307b33a6ee6d47dae7b12702adfc",
+    "packages/api/src/capabilities/inbox.tools.ts": "d0f98bcca011ab75518d0d9fa52fcd537dadde25382944b0dd0adfdc9b9806c1",
+    "packages/api/src/capabilities/inbox.catalog.ts": "b9c828a35ffe244338f26141699a87b43bb1d33a0970aee4bde2cc257d5fb548",
+    "packages/api/src/services/email.service.ts": "08f03b8169fda1d113721817295e763326e9fdf5a01a5edc87751aa211bc8d2a",
+    "packages/mcp/src/httpTransport.ts": "3474733ca4f98234da8e3224ae81226d4fac7d9fbfa0a5d0746775dc07995102",
+    "packages/mcp/src/catalogAdapter.ts": "af8c2483c130d7c17f4e54ef7753def3fceb3cece007acc79033be63e5d03944",
+    "packages/mcp/src/oauth.ts": "5969369cbbd025d423ec30d9c5663cb6a6998578db86f32a3d39fcb3587e73bf",
+    "docs/auth/internal-mcp.md": "c02747b44cd74070493f6850b6d86edf830c8ecefc0e290e4a37807af2bf9f74",
+    "docs/auth/proposals/internal-mcp-transport.md": "96c38236205ece92af2a96ca948de6d041dab7fba719900c2ec06d60fe1d29e1",
+    "packages/api/jest.globalSetup.ts": "fac28745836e9a52f791a9b317ac0f1aae8677765426a042f1b29629a471f440",
+    "packages/api/jest.globalTeardown.ts": "caa8a39caf6976d35e72afc35b81dcf247fef9b665918ea5e0404b04cf533b68",
+    "packages/api/jest.setupWorkerDatabase.cjs": "21d35ac04747e29d37672767f64a778458553a0c8a9107ef2471b34c4c0efa61",
+    "packages/api/src/db/testDatabase.ts": "9e1d3327bef9d34244ca5926da97ca1b74b71753c7120f9dc815b9e6ea3d7a12"
+  },
+  "logsSha256": {
+    "eslint.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "database-cleanup.txt": "457d7da3e4777da2b911c5ecda710fda22fb40bee3009c7dd4d545b9e8886b0d",
+    "build.txt": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+    "related-tests.txt": "76591cf7ff5c808ea3ff38d06cf95a782de7bb29b73fee33ead02ea4a21a2c8c",
+    "focal-final.txt": "137846f44c7a46c0c5e63d1e640547963279485edb65fc2f10e63679bca87cb2",
+    "source-typescript.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "biome.txt": "fd06ed1906864d862af1b302e14f95710bd4ba5d86680bb0976e34e5bf20f03a",
+    "test-typescript.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "validation": [
+    {
+      "command": "bun run build",
+      "cwd": "packages/api",
+      "exitCode": 0
+    },
+    {
+      "command": "TEST_DATABASE_URL=postgres://oxy@127.0.0.1:5549/postgres bun run test --runInBand --runTestsByPath src/capabilities/__tests__/inbox-mcp-postgres.test.ts src/capabilities/__tests__/inbox-mcp-http.test.ts src/capabilities/__tests__/inbox.handlers.test.ts src/capabilities/__tests__/inbox.contract.test.ts src/capabilities/__tests__/inbox.tools.test.ts src/services/__tests__/mcpConnection.service.test.ts src/services/__tests__/mcpOAuth.service.test.ts src/services/__tests__/emailService.messages.test.ts",
+      "cwd": "packages/api",
+      "exitCode": 0,
+      "suites": 8,
+      "tests": 104,
+      "timing": "before final test-only refinements; see report"
+    },
+    {
+      "command": "TEST_DATABASE_URL=postgres://oxy@127.0.0.1:5549/postgres bun run test --runInBand --runTestsByPath src/capabilities/__tests__/inbox-mcp-postgres.test.ts",
+      "cwd": "packages/api",
+      "exitCode": 0,
+      "suites": 1,
+      "tests": 4
+    },
+    {
+      "command": "bun x tsc --noEmit",
+      "cwd": "packages/api",
+      "exitCode": 0
+    },
+    {
+      "command": "bun x tsc -p tsconfig.inbox-check.json",
+      "cwd": "packages/api",
+      "exitCode": 0,
+      "temporaryConfig": "report.md includes exact JSON"
+    },
+    {
+      "command": "bun x eslint src/capabilities/__tests__/inbox-mcp-postgres.test.ts",
+      "cwd": "packages/api",
+      "exitCode": 0
+    },
+    {
+      "command": "bun x --minimum-release-age=0 @biomejs/biome lint --error-on-warnings packages/api/src/capabilities/__tests__/inbox-mcp-postgres.test.ts",
+      "cwd": ".",
+      "exitCode": 0
+    },
+    {
+      "command": "psql postgres://oxy@127.0.0.1:5549/postgres -Atc \"SELECT count(*) FROM pg_database WHERE datname = 'biome';\"",
+      "exitCode": 0,
+      "result": "0"
+    }
+  ],
+  "builtMcpCjsSha256": {
+    "packages/mcp/dist/cjs/internalTransport.js": "cf51d6aa820371e2d3c7897ccd513c06911b91471713c8b41ca028ba1f40cd33",
+    "packages/mcp/dist/cjs/httpTransport.js": "efb34555ba35cc90ecd240aafd4683a984a60bca9cbb7ee85c3f50a546a22347",
+    "packages/mcp/dist/cjs/catalogAdapter.js": "26e457b14b97a5c310effc79916c68d7ac96e839b255b5fc859859cc1921461a",
+    "packages/mcp/dist/cjs/internalClient.js": "c52d18a52b5c925fb737cbdbc72c44cb24a5dd1050fb74a2f7b949e04284e5dc",
+    "packages/mcp/dist/cjs/serviceRequest.js": "ddd98e030e8df7760691fbdc10da598caf406de26d423894377ac2239270a16e",
+    "packages/mcp/dist/cjs/oauth.js": "8df00573f196d869b24fe55e02a96198fff62d2b0eb847a6b4ee93cc237612de",
+    "packages/mcp/dist/cjs/connections.js": "fc0fc22fc3cec379488a6cee65b63408413e94f02d1d66f23a728e595966f6c9",
+    "packages/mcp/dist/cjs/invocationAdapter.js": "136860fa710ba0a35be146b94a2dad9bcb8fcf80566fb0417f77e6b972554fee",
+    "packages/mcp/dist/cjs/introspection.js": "09714df1fdb6aa3fb3ca1f14234e782a7dcda9bc78f51744446048b31f67e076",
+    "packages/mcp/dist/cjs/http.js": "2b2a3ae90f96612ac8f1a0b3ddf92def41a7350d495bad2168ed721d1475e62b",
+    "packages/mcp/dist/cjs/jsonSchema.js": "e4c92a6d6eee343e77717caffcfdb78c74eb7ddac6a2206004341bce97422de8",
+    "packages/mcp/dist/cjs/index.js": "b98d3e06074ccf40a06f23f6a0259a8bd965ab84a5ca00b3cbe6fd060af15323"
+  },
+  "cleanup": {
+    "server": "existing I06 PostgreSQL 17.11; not stopped",
+    "sanitizedMaintenanceUrl": "postgres://oxy@127.0.0.1:5549/postgres",
+    "database": "biome",
+    "postTeardownDatabaseCount": 0,
+    "owner": "Jest globalSetup/globalTeardown creates and drops only its own worker databases"
+  }
+}

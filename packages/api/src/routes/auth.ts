@@ -30,11 +30,8 @@ import { authSessions } from '../db/schema/authSessions';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { sessions as sessionsTable } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
-import {
-  clearServiceActingAsRevocation,
-  revokeServiceActingAs,
-  SERVICE_ACTING_AS_SCOPE,
-} from '../services/serviceActingAs.service';
+import { revokeServiceActingAs } from '../services/serviceActingAs.service';
+import { decideOAuthConsent, persistOAuthAuthorization } from '../services/oauthConsent.service';
 import {
   intersectScopes,
   isPaymentsScope,
@@ -68,9 +65,10 @@ import sessionService from '../services/session.service';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
 import { resolveProvenDeviceId } from '../services/deviceJoin.service';
 import { formatUserResponse } from '../utils/userTransform';
-import { issueAuthCode, exchangeAuthCode, AUTH_CODE_TTL_MS } from '../services/oauthCode.service';
+import { exchangeAuthCode, AUTH_CODE_TTL_MS } from '../services/oauthCode.service';
 import {
   approvalMintsSession,
+  resolveApprovalOperator,
   claimAuthSession,
   authorizeSessionWithSignedChallenge,
   authorizeSessionWithBearer,
@@ -1140,6 +1138,7 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
   const [authSession] = await getDb()
     .select({
       id: authSessions.id,
+      authorizeCode: authSessions.authorizeCode,
       applicationId: authSessions.applicationId,
       deviceId: authSessions.deviceId,
       expiresAt: authSessions.expiresAt,
@@ -1168,6 +1167,28 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
 
   const authenticatedUserId = authenticatedUser._id.toString();
 
+  // Both bearer OAuth approvals use the same atomic claim and actor binding.
+  if (!approvalMintsSession(authSession)) {
+    const outcome = await authorizeSessionWithBearer({
+      authorizeCode: authSession.authorizeCode || '',
+      authenticatedUserId,
+      authenticatedPublicKey: authenticatedUser.publicKey || undefined,
+      approvingSessionId: req.sessionId,
+      deviceName,
+      deviceFingerprint,
+      req,
+    });
+    if (!outcome.ok) {
+      if (outcome.status === 404) throw new NotFoundError(outcome.message);
+      if (outcome.status === 400) throw new BadRequestError(outcome.message);
+      throw new ForbiddenError(outcome.message);
+    }
+    emitAuthSessionUpdate(sessionToken, { status: 'authorized', userId: authenticatedUserId });
+    sendSuccess(res, { success: true, user: { id: authenticatedUserId,
+      username: authenticatedUser.username, publicKey: authenticatedUser.publicKey } });
+    return;
+  }
+
   // Delegated subject gate: approving an app acting AS another account requires
   // the authenticated identity to hold `account:act_as` over it (the same
   // predicate `POST /accounts/:id/switch` uses). The identity never becomes the
@@ -1193,6 +1214,19 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
   // device session for an OAuth-purpose row.
   let newSessionId: string | undefined;
   if (approvalMintsSession(authSession)) {
+    // An operated bearer keeps its operator on the session it mints, and a
+    // bot's seat is never handed to a device (`resolveApprovalOperator`).
+    // Checked before anything is written, so a refusal leaves the request pending.
+    const operator = await resolveApprovalOperator(req.sessionId, authenticatedUserId);
+    if (!operator.ok) {
+      logger.warn('Session authorize refused: operated seat', {
+        sessionToken: sessionToken.substring(0, 8) + '...',
+        userId: authenticatedUserId,
+        reason: operator.reason,
+      });
+      throw new ForbiddenError('This account cannot approve a sign-in from this session');
+    }
+
     // Resolve the bound Application for the device-name label. The session can't
     // exist without a valid applicationId; fall back to a generic label only if
     // the app was hard-deleted between create and authorize.
@@ -1213,6 +1247,7 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
         // approver's device. A fresh identity prevents createSession from
         // reusing and later invalidating that browser's existing session.
         deviceId: generateDeviceId(),
+        ...(operator.operatedByUserId ? { operatedByUserId: operator.operatedByUserId } : {}),
       }
     );
     newSessionId = newSession.sessionId;
@@ -1395,7 +1430,11 @@ router.post(
 
     // Pull the deviceId from the underlying Session for the response.
     const [approvedSession] = await getDb()
-      .select({ deviceId: sessionsTable.deviceId, deviceName: sessionsTable.deviceName })
+      .select({
+        deviceId: sessionsTable.deviceId,
+        deviceName: sessionsTable.deviceName,
+        operatedByUserId: sessionsTable.operatedByUserId,
+      })
       .from(sessionsTable)
       .where(eq(sessionsTable.sessionId, authSession.authorizedSessionId))
       .limit(1);
@@ -1424,9 +1463,14 @@ router.post(
         // A new session ON the proven device, and the approval's own retired:
         // its tokens carry the claim-only device id, and a refresh keeps the id
         // its token names, so moving the row would not move the session.
+        // The approval's operator travels with it: a join must not turn an
+        // operated session into an unoperated one (`resolveApprovalOperator`).
         const joined = await sessionService.createSession(authSession.authorizedUserId, req, {
           deviceName: approvedSession.deviceName ?? undefined,
           deviceId: provenDeviceId,
+          ...(approvedSession.operatedByUserId
+            ? { operatedByUserId: approvedSession.operatedByUserId }
+            : {}),
         });
         await sessionService.deactivateSession(authSession.authorizedSessionId);
         session = { sessionId: joined.sessionId, deviceId: joined.deviceId };
@@ -1785,6 +1829,7 @@ router.post(
       authenticatedPublicKey: authenticatedUser.publicKey,
       deviceName,
       deviceFingerprint,
+      approvingSessionId: req.sessionId,
       req,
     });
 
@@ -2326,61 +2371,6 @@ async function resolveDeveloperName(
   return display || undefined;
 }
 
-/**
- * Record (or refresh) a user's standing consent for a third-party application —
- * the "Connected apps" entry. Upsert on `(user_id, application_id)`.
- *
- * The scope merge is Mongo's `$addToSet: { scopes: { $each } }`: the granted set
- * is a UNION, and only genuinely new scopes are appended, so an existing grant
- * keeps the order it was written in. `first_granted_at` is deliberately absent
- * from the conflict branch — that is `$setOnInsert`, and re-stamping it would
- * erase when the user first consented.
- *
- * `updated_at` is set explicitly: drizzle's `$onUpdate` fires for `db.update()`,
- * not for the update arm of an upsert, so leaving it out would freeze the
- * column at the value the row was inserted with.
- */
-async function recordAppGrant(
-  userId: string,
-  applicationId: string,
-  requestedScopes: string[]
-): Promise<void> {
-  const now = new Date();
-  await getDb()
-    .insert(appGrants)
-    .values({
-      userId,
-      applicationId,
-      scopes: requestedScopes,
-      firstGrantedAt: now,
-      lastUsedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [appGrants.userId, appGrants.applicationId],
-      set: {
-        lastUsedAt: now,
-        updatedAt: now,
-        scopes: sql`${appGrants.scopes} || (
-          select coalesce(array_agg(distinct incoming), '{}'::text[])
-          from unnest(excluded.scopes) as incoming
-          where not (incoming = any(${appGrants.scopes}))
-        )`,
-      },
-    });
-
-  // Approving `acting-as:offline` is the one signal that undoes a revocation.
-  //
-  // It qualifies because it is consent-required: a request naming it ALWAYS
-  // reaches the consent screen, for a trusted application exactly as for a
-  // third-party one, so arriving here with it means a person read that screen
-  // and approved. Clearing on any successful authorize would instead have made
-  // revocation worthless — a first-party application is auto-approved, so its
-  // next sign-in would silently undo a deliberate refusal.
-  if (requestedScopes.includes(SERVICE_ACTING_AS_SCOPE)) {
-    await clearServiceActingAsRevocation(userId, applicationId);
-  }
-}
-
 const oauthAuthorizeLimiter = rateLimit({
   prefix: 'rl:auth:oauth-authorize:',
   windowMs: 60 * 1000,
@@ -2478,6 +2468,10 @@ const grantsRevokeLimiter = rateLimit({
  *         description: Missing or invalid bearer token.
  *       403:
  *         description: Redirect URI is not registered for this client.
+ *       500:
+ *         description: >
+ *           The consent or the code could not be stored. Nothing was written —
+ *           no code was issued and no grant recorded — so retrying is safe.
  */
 router.post(
   '/oauth/authorize',
@@ -2529,6 +2523,11 @@ router.post(
       throw new ForbiddenError('redirect_uri is not registered for this client');
     }
 
+    const operator = await resolveApprovalOperator(req.sessionId, user._id.toString(), {
+      delegatedOAuth: true,
+    });
+    if (!operator.ok) throw new ForbiddenError('Approving session is unavailable');
+
     const requestedScopes = scope ? scope.split(/\s+/).filter(Boolean) : [];
 
     let oauthDeviceId: string | undefined;
@@ -2544,41 +2543,35 @@ router.post(
       }
     }
 
-    // Mint a single-use opaque code. The service persists a hash, never
-    // the raw value, so leakage of the AuthCode collection would not
-    // allow an attacker to redeem outstanding codes.
-    const { code: rawCode } = await issueAuthCode({
-      userId: user._id.toString(),
-      appId: app.id,
-      redirectUri,
-      codeChallenge,
-      codeChallengeMethod: codeChallenge ? 'S256' : undefined,
-      scopes: requestedScopes,
-      deviceId: oauthDeviceId,
+    // Consent and code commit TOGETHER (`oauthConsent.service.ts`) — the same
+    // decision and the same transaction `finalizeOAuthAuthorization` uses, so
+    // both entries leave identical state for the same request. A grant that
+    // cannot be stored fails the request: handing out a code whose consent was
+    // never recorded would report an authorization the user cannot see, revoke
+    // or rely on. The code is persisted as a hash, never the raw value.
+    // The code can never carry more than the application is registered for —
+    // the same ceiling `finalizeOAuthAuthorization` applies. A scope the
+    // platform never granted the app is dropped here, so neither the code nor
+    // the consent row can hold it, whatever the client asked for.
+    const grantedScopes = intersectScopes(requestedScopes, app.scopes);
+    const decision = decideOAuthConsent({
+      application: app,
+      requestedScopes,
+      grantedScopes,
     });
-
-    // Record (or refresh) the user's consent so a returning user skips the
-    // consent screen while the granted scopes still cover the request — the
-    // standard OAuth returning-user model. TRUSTED apps are auto-approved and
-    // never prompt, so a grant is normally pointless for them and would only
-    // clutter the "Connected apps" management surface.
-    //
-    // EXCEPT when the request names a scope the user had to be asked about. Then
-    // the grant is the whole point: it is what makes the authorization revocable,
-    // and a permission the user granted but cannot find or withdraw is worse than
-    // one they were never asked for. A trusted app therefore records a grant for
-    // exactly the same reason a third-party one does — it was consented to.
-    // Best-effort: a failure here must never block the issued code.
-    const consentScopes = userConsentRequiredScopes(requestedScopes);
-    if (!isTrustedApplication(app) || consentScopes.length > 0) {
-      try {
-        await recordAppGrant(user._id.toString(), app.id, requestedScopes);
-      } catch (error) {
-        logger.warn('[OAuth] Failed to record AppGrant', {
-          err: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
+    const { code: rawCode } = await persistOAuthAuthorization({
+      decision,
+      code: {
+        userId: user._id.toString(),
+        ...(operator.operatedByUserId ? { operatedByUserId: operator.operatedByUserId } : {}),
+        appId: app.id,
+        redirectUri,
+        codeChallenge,
+        codeChallengeMethod: codeChallenge ? 'S256' : undefined,
+        scopes: grantedScopes,
+        deviceId: oauthDeviceId,
+      },
+    });
 
     logger.info('[OAuth] Authorization code issued', {
       clientId: clientId.substring(0, 12) + '...',
@@ -2674,12 +2667,16 @@ router.get(
     }
 
     const requestedScopes = scope ? scope.split(/\s+/).filter(Boolean) : [];
+    // Decided over what `POST /oauth/authorize` will actually grant — the request
+    // narrowed to the application's registered scopes — so the screen never
+    // offers a permission the platform did not give this application.
+    const grantableScopes = intersectScopes(requestedScopes, app.scopes);
     // Scopes over the USER's own data — the follow graph — are never decided on
     // the user's behalf. They are the one thing platform trust does not answer
     // for: the relationships belong to the user, the people on the other end can
     // see them, and being first-party is not a reason to be handed them without
     // being asked. Everything else keeps the "Google with its own apps" model.
-    const mustAsk = userConsentRequiredScopes(requestedScopes);
+    const mustAsk = userConsentRequiredScopes(grantableScopes);
 
     // Each arm builds a `const dto: OauthConsentDecision` and parses it on the
     // way out. Both halves of the guard matter: the annotation makes a missing
@@ -2702,7 +2699,7 @@ router.get(
 
     if (grant) {
       const granted = new Set(grant.scopes ?? []);
-      const covered = requestedScopes.every((s) => granted.has(s));
+      const covered = grantableScopes.every((s) => granted.has(s));
       if (covered) {
         decide({ consentRequired: false, reason: 'granted' });
         return;
@@ -3173,6 +3170,11 @@ router.post(
     const operatedByUserId = exchange.code.operatedByUserId
       ? exchange.code.operatedByUserId.toString()
       : undefined;
+
+    if (operatedByUserId) {
+      const delegation = await verifyDelegatedSubject(operatedByUserId, userId);
+      if (!delegation.ok) throw OAuthError.invalidGrant(INVALID_GRANT_DESCRIPTION);
+    }
 
     const grantedScopes = Array.isArray(exchange.code.scopes) ? exchange.code.scopes : [];
 

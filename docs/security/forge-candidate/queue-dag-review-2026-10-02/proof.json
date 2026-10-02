@@ -1,0 +1,56 @@
+{
+  "capturedAt": "2026-10-02T18:30:37.356298+00:00",
+  "parentHead": "785e4c893d2a374e3e2d090af3b6ddce96c3e897",
+  "testedSource": {
+    "scripts/forge-audit-policy.mjs": "e963131ef166026fa82d6983cad6c6c92131f8e2c38a7fe83958139d092199f6",
+    "scripts/forge-remediation-proof-proposal.mjs": "e6cff87773205bd50e381a9925238180988ed101c09681598d4f103b8658bfa4",
+    "scripts/forge-source-topology.mjs": "9b331851349bcfe4447b654a576ef41f98b976c8b9de25e66cf01e7e100098de",
+    "scripts/forge-policy-test-fixtures.mjs": "0ea7f94f0b920d3243c9acd8c1e0516d3235ffedc9795fecceb6457d916df9be",
+    "scripts/forge-final-image-binding.mjs": "be4cc6862d5c2fd93d2248f527ef748b99e078ab28da4d7beb4f66d0ddf8c695",
+    "scripts/test-forge-audit-policy.mjs": "ab8aceee33e1d46402ff3784a4045d7a9ffe88a0ba76d02f335de14bbfcb5790",
+    "scripts/test-forge-source-topology.mjs": "375fe56469b6a9afc21ea22ca8dd11bd3b9eb56302d284b54ba845764b86ef06",
+    "scripts/test-forge-final-image-binding.mjs": "0032c2a31e3cbbc8554c333a9214a60b017ffe85d0a8293f4f6c92c6120ae3a6",
+    "scripts/test-check-dependency-audit.mjs": "8404a189a60c4201a929335647e762ad13eaa1517e20b9fc493839ac7b6d50f5",
+    "scripts/test-forge-remediation-proof-proposal.mjs": "e729c1e9e8c11dcbca35b11197241904cf3fd0d850c75ed95f822647445577ed"
+  },
+  "records": [
+    {
+      "file": "actual-main-commit.json",
+      "sha256": "51b875706c6381f6108e2be46bbea8031344b0f3d3ff54b80b5a662b98843767"
+    },
+    {
+      "file": "actual-main-ref.json",
+      "sha256": "b610ad822a1d59ca1a228ca2a969e3dacbfde6208ba7c74076e689d18cf6f1be"
+    },
+    {
+      "file": "actual-pr1515-projection.json",
+      "sha256": "fcbd72274cd179fc1dfcd3442d08ad41b65191ce968f0af0246090823e46621a"
+    },
+    {
+      "file": "actual-queue-run-1515.json",
+      "sha256": "0822c3a1dabfa447fc50266aff7bb0c9cfa140693cb51c08d7e05f6d7e37d8c3"
+    },
+    {
+      "file": "audit.txt",
+      "sha256": "fc6f0257552320e4cba58359d8a4293c5172f293271dab51473630ef5f5afc02"
+    },
+    {
+      "file": "final-image.txt",
+      "sha256": "cff384d2c88905e706d9332a1a4897d2b688018054c8947b649b418c6519e1e0"
+    },
+    {
+      "file": "policy.txt",
+      "sha256": "6f6b091359971538124d01e3de4eb627f9816b6627b11ab164ad8d4ebc9ceb89"
+    },
+    {
+      "file": "proposal.txt",
+      "sha256": "d029c2e020cf6fafc5acce840c0a5e116ec25d18cae4e0520dd713f07dacbe77"
+    },
+    {
+      "file": "source-topology.txt",
+      "sha256": "2bd1a686ad75ea2ac03dc22e49fe959c19adad428b08cce9250c5c3b54021533"
+    }
+  ],
+  "policy": "INACTIVE unchanged; no human decision or activation",
+  "limits": "Fixtures structural/synthetic; GitHub GETs authenticate topology metadata only. New target/ARM proof and real final-image companions still required."
+}

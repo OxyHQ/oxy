@@ -37,15 +37,43 @@ test('both actual consumer entry points strictly require the contracts release v
     assert.match(source, /throw new Error\('core resolves another contracts version'\)/);
   }
 });
-test('source manifests carry exactly the fixed release versions', () => {
-  for (const release of RELEASES) {
-    const manifest = JSON.parse(readFileSync(resolve('packages', release.directory, 'package.json'), 'utf8'));
-    assert.equal(`${manifest.name}@${manifest.version}`, `${release.name}@${release.version}`);
-  }
+test('core keeps its contracts workspace dependency for pack-time rewriting', () => {
   const core = JSON.parse(readFileSync(resolve('packages/core/package.json'), 'utf8'));
-  // `workspace:^` is what bun pm pack rewrites to ^4.8.0; validated again on the artifact.
   assert.equal(core.dependencies['@oxy.so/contracts'], 'workspace:^');
 });
+test('prepare accepts only the fixed source release before entering build', () => {
+  const f = fixture();
+  try {
+    const result = f.run('prepare', true);
+    // The actual prepare path reaches a synthetic build executable, which stops
+    // deliberately. This fixture never performs a real build or publication.
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /synthetic build sentinel/);
+    const builds = f.calls().filter(call => call.tool === 'bash');
+    assert.equal(builds.length, 1);
+    assert.deepEqual(builds[0].args, ['-euo', 'pipefail', '-c',
+      'bun run clean && bun run build && bun pm pack --destination ../../release-artifacts']);
+    assert.equal(builds[0].cwd, join(f.root, 'packages/contracts'));
+    assert.equal(f.publishes().length, 0);
+  } finally { cleanup(f); }
+});
+for (const sourceManifest of [
+  { name: '@oxy.so/contracts', version: '4.9.0' },
+  { name: '@oxy.so/contracts', version: '4.7.0' },
+  { name: '@oxy.so/another-package', version: '4.8.0' },
+  { name: '@oxy.so/contracts', version: null },
+]) {
+  test(`prepare refuses ${sourceManifest.name}@${sourceManifest.version} before build or publication`, () => {
+    const f = fixture({ sourceManifest });
+    try {
+      const result = f.run('prepare', true);
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /Source version differs from fixed release/);
+      assert.ok(f.calls().every(call => call.tool === 'git'));
+      assert.equal(f.publishes().length, 0);
+    } finally { cleanup(f); }
+  });
+}
 test('any future paired artifact must pin released contracts and published first-party floors', () => {
   const published = (name, floor) => `${name}@${floor}` !== '@oxy.so/protocol@9.9.9';
   const core = { name: '@oxy.so/core', dependencies: { '@oxy.so/contracts': '^4.8.0', '@oxy.so/protocol': '^1.2.1', zod: '^3.25.64' } };
@@ -95,7 +123,7 @@ test('workflow: only the apply step holds NPM_TOKEN, dry run never does, permiss
 });
 
 /** A repo-shaped temp dir with own and trusted artifacts, fake git/npm/bun/node. */
-function fixture({ tamperTrusted = false, ownDiffers = false, floorContent } = {}) {
+function fixture({ tamperTrusted = false, ownDiffers = false, floorContent, sourceManifest } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'decisions-release-'));
   const bin = join(root, 'bin');
   const own = join(root, 'release-artifacts');
@@ -106,6 +134,9 @@ function fixture({ tamperTrusted = false, ownDiffers = false, floorContent } = {
     for (const dir of ['dist/cjs', 'dist/esm', 'dist/types']) mkdirSync(join(source, 'package', dir), { recursive: true });
     const manifest = { name: release.name, version: release.version, main: 'dist/cjs/index.js', module: 'dist/esm/index.js', types: 'dist/types/index.d.ts' };
     writeFileSync(join(source, 'package/package.json'), JSON.stringify(manifest));
+    const checkout = join(root, 'packages', release.directory);
+    mkdirSync(checkout, { recursive: true });
+    writeFileSync(join(checkout, 'package.json'), JSON.stringify(sourceManifest ?? manifest));
     for (const file of [manifest.main, manifest.module, manifest.types]) writeFileSync(join(source, 'package', file), 'fixture');
     const file = `oxy.so-${release.directory}-${release.version}.tgz`;
     execFileSync('tar', ['-czf', join(trusted, file), '-C', source, 'package']);
@@ -132,6 +163,7 @@ import { basename } from 'node:path';
 const tool=basename(process.argv[1]); const args=process.argv.slice(2);
 appendFileSync(${JSON.stringify(join(root, 'calls.jsonl'))},JSON.stringify({tool,args,cwd:process.cwd(),env:Object.keys(process.env)})+'\\n');
 if(tool==='git') { if(args[0]==='rev-parse') console.log(process.env.EXPECTED_SOURCE_SHA); if(args[0]==='ls-remote') console.log((process.env.FAKE_REMOTE_MAIN||process.env.EXPECTED_SOURCE_SHA)+'\\trefs/heads/main'); }
+if(tool==='bash') { console.error('synthetic build sentinel'); process.exit(91); }
 if(tool==='npm' && args[0]==='whoami') console.log('fixture-publisher');
 if(tool==='npm' && args[0]==='publish') {
  const prepared=JSON.parse(readFileSync('release-artifacts/prepared.json')); const registry=JSON.parse(readFileSync('registry.json'));
@@ -140,7 +172,7 @@ if(tool==='npm' && args[0]==='publish') {
 }
 `);
   chmodSync(tool, 0o755);
-  for (const name of ['git', 'npm', 'bun', 'node']) execFileSync('ln', ['-s', tool, join(bin, name)]);
+  for (const name of ['git', 'npm', 'bun', 'node', 'bash']) execFileSync('ln', ['-s', tool, join(bin, name)]);
   const preload = join(root, 'registry.mjs');
   writeFileSync(preload, `import {readFileSync} from 'node:fs'; globalThis.fetch=async(url)=>{if(String(url).endsWith('.tgz')) return new Response(readFileSync('floor.tgz'),{status:200}); const name=decodeURIComponent(new URL(url).pathname.split('/')[1]); const value=JSON.parse(readFileSync('registry.json'))[name]; return new Response(JSON.stringify({dist:{integrity:value}}),{status:value?200:404});};`);
   const run = (phase, dryRun, extra = {}) => spawnSync(process.execPath, ['--import', preload, script, phase], {

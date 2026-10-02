@@ -441,7 +441,7 @@ export function isFollowScope(scope: string): boolean {
  * `acting-as:offline` is here for a reason the follow family does not share, and
  * it is the reason the whole service-acting-as mechanism WORKS. A trusted
  * application is auto-approved and — by design — records NO grant row
- * (`recordAppGrant` is skipped, see `routes/auth.ts`). Every application that can
+ * (no grant is recorded, see `decideOAuthConsent` in `oauthConsent.service.ts`). Every application that can
  * mint a service token is trusted. So without this entry the verify endpoint
  * would find no row for exactly the applications that can reach it, and offline
  * delegation would be unreachable rather than merely unauthorized. Membership
@@ -457,7 +457,7 @@ export function isFollowScope(scope: string): boolean {
  * the vocabulary. Membership here would buy nothing and cost a lie.
  *
  * It buys nothing because this set only has teeth on the OAuth authorize lane:
- * it forces a consent screen and makes `recordAppGrant` write an `app_grants`
+ * it forces a consent screen and makes `decideOAuthConsent` record an `app_grants`
  * row. `POST /internal/accounts/:id/service-switch` never reads an `app_grants`
  * row for its own scope — it reads the scope off the SERVICE TOKEN, which is
  * minted from a credential, with no user in the request to consent to anything.
