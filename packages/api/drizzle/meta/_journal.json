@@ -918,6 +918,13 @@
       "when": 1790910521023,
       "tag": "0131_billing_stripe_event_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1790942893354,
+      "tag": "0132_inference_metered_usage",
+      "breakpoints": true
     }
   ]
 }
