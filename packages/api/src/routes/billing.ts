@@ -467,7 +467,7 @@ async function dispatchStripeEvent(event: Stripe.Event): Promise<StripeEventResu
     case 'customer.subscription.deleted':
       return syncSubscriptionFromProvider(event.data.object as Stripe.Subscription);
     case 'invoice.paid':
-      return handleInvoicePaid(event.data.object as Stripe.Invoice);
+      return handleInvoicePaid(await currentInvoiceEvidence(event));
     case 'invoice.payment_failed':
       // The subscription's own `past_due`/`unpaid` transition arrives as a
       // `customer.subscription.updated` and is mirrored there. A failed invoice
@@ -751,6 +751,34 @@ const PERIOD_OPENING_BILLING_REASONS: ReadonlySet<string> = new Set([
   'subscription_create',
   'subscription_cycle',
 ]);
+
+/** Historical events retain their creation-time API shape even after an
+ * endpoint upgrade. Re-read legacy invoices through the configured SDK rather
+ * than guessing modern recurring-line fields from obsolete payloads. A failed
+ * or contradictory provider read throws so Stripe retries the same event.
+ */
+async function currentInvoiceEvidence(event: Stripe.Event): Promise<Stripe.Invoice> {
+  const invoice = event.data.object as Stripe.Invoice;
+  const historical = invoice as Stripe.Invoice & { subscription?: string | { id: string } | null };
+  const legacyLines = invoice.lines.data.some((line) => 'price' in line || 'subscription' in line);
+  if (!('subscription' in historical) && !legacyLines) return invoice;
+
+  const current = await getStripe().invoices.retrieve(invoice.id);
+  const expectedSubscription = stripeIdOf(historical.subscription)
+    ?? stripeIdOf(invoice.parent?.subscription_details?.subscription);
+  const actualSubscription = stripeIdOf(current.parent?.subscription_details?.subscription);
+  if (current.id !== invoice.id || current.object !== 'invoice'
+    || typeof event.livemode !== 'boolean' || current.livemode !== event.livemode
+    || stripeIdOf(current.customer) !== stripeIdOf(invoice.customer)
+    || actualSubscription !== expectedSubscription) {
+    throw new Error('Historical invoice retrieval returned contradictory identity, mode or attribution');
+  }
+  if ('subscription' in current
+    || current.lines.data.some((line) => 'price' in line || 'subscription' in line)) {
+    throw new Error('Historical invoice retrieval did not return the configured SDK API shape');
+  }
+  return current;
+}
 
 function linePriceId(line: Stripe.InvoiceLineItem): string | null {
   return stripeIdOf(line.pricing?.price_details?.price);
