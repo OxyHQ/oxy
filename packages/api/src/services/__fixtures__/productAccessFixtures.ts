@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { ProductOffer, ProductSubscriptionSource, ProductOfferSegment } from '@oxy.so/contracts';
-import { getDb } from '../../../config/postgres';
-import { users, applications } from '../../../db/schema';
-import { registerProductAccessConfiguration } from '../../productAccessPersistence.service';
+import { getDb } from '../../config/postgres';
+import { users, applications } from '../../db/schema';
+import { registerProductAccessConfiguration } from '../productAccessPersistence.service';
 export async function accessAccount(kind: 'personal' | 'bot' = 'personal') {
   const [row] = await getDb().insert(users).values({ username: `i07-${randomUUID().slice(0, 8)}`, kind }).returning(); return row.id;
 }

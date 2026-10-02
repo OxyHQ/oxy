@@ -180,7 +180,7 @@ const FORBIDDEN_30_KEYWORDS = {
 /** Vacuity floors. A layer that examines nothing must fail, not pass. */
 const MINIMUM_EXPECTED_PATHS = 12;
 const MINIMUM_EXPECTED_PREFIXES = 4;
-const MINIMUM_PAYLOAD_OPERATIONS = 11;
+const MINIMUM_PAYLOAD_OPERATIONS = 12;
 /**
  * The floor on schema nodes the empty-schema walk must actually visit.
  *

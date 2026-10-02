@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { accountMembers, applicationCredentials, sessions } from '../../db/schema';
 import type { AccessTokenIdentity } from '../../utils/sessionUtils';
-import { productAccessFixture, accessAccount } from '../../services/__tests__/fixtures/productAccessFixtures';
+import { productAccessFixture, accessAccount } from '../../services/__fixtures__/productAccessFixtures';
 import { recordProductAccessPeriod } from '../../services/productAccessPersistence.service';
 import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 let identity: AccessTokenIdentity;

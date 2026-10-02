@@ -1,0 +1,12 @@
+$ jest --runInBand src/services/__tests__/productAccessPersistence.test.ts src/services/__tests__/productAccessClosure.test.ts src/routes/__tests__/productAccess.test.ts
+{"level":30,"time":1790963837783,"pid":3039123,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790963838304,"pid":3039123,"hostname":"SuperPC","sessionId":"07c74065","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790963838304,"pid":3039123,"hostname":"SuperPC","sessionId":"07c74065","operatorId":"01a0fdc3-6d04-71c9-8855-66e0f35ccdff","accountId":"01a0fdc3-6cdd-775d-9f73-af90c98fab24","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":30,"time":1790963838871,"pid":3039123,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790963840265,"pid":3039123,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 3 passed, 3 total
+Tests:       29 passed, 29 total
+Snapshots:   0 total
+Time:        5.532 s
+Ran all test suites matching src/services/__tests__/productAccessPersistence.test.ts|src/services/__tests__/productAccessClosure.test.ts|src/routes/__tests__/productAccess.test.ts.

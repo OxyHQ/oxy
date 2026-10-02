@@ -1,0 +1,23 @@
+{
+  "failedHead": "98e5e96abfa56b9e8237f7e0da826fd539e12f71",
+  "failedRun": 37042468466,
+  "records": [
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-api.txt",
+      "sha256": "2858811d24302a48c879e0c03757ca527829491bbb4696eb1b61ba3795a1b78d"
+    },
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-census.txt",
+      "sha256": "b1c96af662e6eed1e1e457e9a00cc0c9e1459213d564e871eaaf854a05a3b3c6"
+    },
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-openapi.txt",
+      "sha256": "9c73dfcdc933fd7d75222a070ffbd0005d6173fcea5cf4c00f277f2fc7824ba7"
+    },
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-tsc.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "limits": "Focused real PostgreSQL tests and tracked discovery; new full CI pending. No security policy changes."
+}
