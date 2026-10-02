@@ -9372,7 +9372,7 @@
           "Billing"
         ],
         "summary": "Stripe webhook receiver. Verifies the `stripe-signature` header against",
-        "description": "`STRIPE_WEBHOOK_SECRET` and dispatches handled events (subscription\ncreated/updated, invoice paid, checkout completed, etc.). No auth.",
+        "description": "`STRIPE_WEBHOOK_SECRET`, records the delivery in `billing_stripe_events`, and\ndispatches handled events. No auth.\n\nEvery accepted delivery is recorded BEFORE its handler runs and its outcome\nafter, so a renewal that did not grant, or a mirror that did not move, is a\nqueryable row rather than a log line. A handler that throws is recorded as\n`failed` and answered 500, which is what makes Stripe redeliver it.",
         "parameters": [],
         "responses": {
           "200": {
