@@ -831,6 +831,52 @@ describe('background credential', () => {
 });
 
 describe('resolveTokenForAccount / resolveActiveToken', () => {
+  it("mints only the stored active context when two principals can act as the same account", async () => {
+    const device = deviceId();
+    const nate = await account();
+    const alice = await account();
+    const org = await account();
+    await deviceSessionService.addAccount(device, {
+      accountId: org,
+      sessionId: 'sess-nate-org',
+      operatedByUserId: nate,
+    });
+    const stored = await storedDevice(device);
+    const [alicePrincipal] = await getDb()
+      .insert(devicePrincipals)
+      .values({ deviceSessionId: stored.id, userId: alice, authuser: 1 })
+      .returning({ id: devicePrincipals.id });
+    const [aliceContext] = await getDb()
+      .insert(deviceAccountContexts)
+      .values({
+        deviceSessionId: stored.id,
+        principalId: alicePrincipal.id,
+        accountId: org,
+        sessionId: 'sess-alice-org',
+      })
+      .returning({ id: deviceAccountContexts.id });
+    await getDb()
+      .update(deviceSessions)
+      .set({ activeContextId: aliceContext.id, activeAccountId: org })
+      .where(eq(deviceSessions.id, stored.id));
+
+    const state = await deviceSessionService.getState(device);
+    mockGetAccessToken.mockImplementation(async (sessionId: string) => ({
+      accessToken: `jwt:${sessionId}`,
+      expiresAt: new Date('2026-07-07T00:00:00.000Z'),
+    }));
+
+    expect(await deviceSessionService.resolveActiveToken(state)).toEqual({
+      accessToken: 'jwt:sess-alice-org',
+      expiresAt: '2026-07-07T00:00:00.000Z',
+    });
+    expect(mockValidateSessionById).toHaveBeenCalledWith('sess-alice-org', false);
+    expect(mockValidateSessionById).not.toHaveBeenCalledWith('sess-nate-org', false);
+    // A pinned, account-only request carries no principal/context identity and
+    // therefore must fail closed rather than mint either operator's session.
+    expect(await deviceSessionService.resolveTokenForAccount(state, org)).toBeNull();
+  });
+
   it('mints a NON-active member account token after re-validating its session', async () => {
     const device = deviceId();
     const a1 = await account();

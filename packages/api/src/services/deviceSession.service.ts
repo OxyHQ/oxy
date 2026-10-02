@@ -94,6 +94,7 @@ interface DeviceContextRow {
 interface DeviceSessionRow {
   id: string;
   deviceId: string;
+  activeContextId: string | null;
   activeAccountId: string | null;
   secretHash: string | null;
   prevSecretHash: string | null;
@@ -104,9 +105,13 @@ interface DeviceSessionRow {
   revision: number;
   updatedAt: Date;
   accounts: DeviceAccountRow[];
+  contexts: DeviceContextRow[];
 }
 
-export function projectState(doc: DeviceSessionRow): DeviceSessionState {
+type ProjectableDeviceSessionRow = Omit<DeviceSessionRow, 'activeContextId' | 'contexts'> &
+  Partial<Pick<DeviceSessionRow, 'activeContextId' | 'contexts'>>;
+
+export function projectState(doc: ProjectableDeviceSessionRow): DeviceSessionState {
   const accounts: SessionAccount[] = doc.accounts.map((entry) => {
     const account: SessionAccount = {
       accountId: entry.accountId,
@@ -269,6 +274,7 @@ class DeviceSessionService {
     return {
       id: device.id,
       deviceId: device.deviceId,
+      activeContextId: device.activeContextId,
       activeAccountId: device.activeAccountId,
       secretHash: device.secretHash,
       prevSecretHash: device.prevSecretHash,
@@ -279,6 +285,7 @@ class DeviceSessionService {
       revision: device.revision,
       updatedAt: device.updatedAt,
       accounts: projectAccounts(contexts),
+      contexts,
     };
   }
 
@@ -503,7 +510,20 @@ class DeviceSessionService {
     const result = await this.withAuthuserRaceRetry(async () => {
       displacedSessionId = null;
       return getDb().transaction(async (tx) => {
-        const current = await this.ensureDevice(tx, deviceId);
+        await this.ensureDevice(tx, deviceId);
+        // Serialize the compatibility read/replace/insert sequence per device.
+        // The schema intentionally permits two principals to act as the same
+        // account, so its triple-key unique cannot arbitrate two concurrent
+        // account-only registrations for us.
+        await tx
+          .select({ id: deviceSessions.id })
+          .from(deviceSessions)
+          .where(eq(deviceSessions.deviceId, deviceId))
+          .for('update');
+        const current = await this.load(tx, deviceId);
+        if (!current) {
+          throw new Error(`device_sessions row for "${deviceId}" vanished during addAccount`);
+        }
         const contexts = await this.loadContexts(tx, current.id);
         // Keyed on the ACCOUNT, not on the pair, which keeps this path
         // producing the one-entry-per-account set the flat contract promises.
@@ -612,8 +632,11 @@ class DeviceSessionService {
   async switchActive(deviceId: string, accountId: string): Promise<SwitchActiveResult> {
     const db = getDb();
     const current = await this.load(db, deviceId);
-    const target = current?.accounts.find((a) => a.accountId === accountId);
-    if (!current || !target) return { ok: false, reason: 'not_found' };
+    const targets = current?.accounts.filter((a) => a.accountId === accountId) ?? [];
+    // The compatibility route names only an account, not a principal/context.
+    // Refuse an ambiguous switch rather than selecting another operator's row.
+    if (!current || targets.length !== 1) return { ok: false, reason: 'not_found' };
+    const target = targets[0];
 
     // Re-validate the target account's session BEFORE committing the switch.
     // For a managed account this re-checks the operator's act_as membership
@@ -657,8 +680,12 @@ class DeviceSessionService {
    * observing a state change.
    */
   async resolveTokenForAccount(state: DeviceSessionState, accountId: string): Promise<{ accessToken: string; expiresAt: string } | null> {
-    const account = state.accounts.find((a) => a.accountId === accountId);
-    if (!account) return null;
+    const accounts = state.accounts.filter((a) => a.accountId === accountId);
+    // An account-only pinned mint cannot identify which principal is asking.
+    // Preserve the route's indistinguishable miss response instead of minting
+    // whichever operator happened to sort first.
+    if (accounts.length !== 1) return null;
+    const account = accounts[0];
     // Re-validate before minting a token: for a managed-account session this
     // re-checks the operator's act_as membership (ensureManagedSessionAuthorized)
     // and deactivates+rejects a revoked session instead of handing out a token
@@ -672,7 +699,19 @@ class DeviceSessionService {
 
   async resolveActiveToken(state: DeviceSessionState): Promise<{ accessToken: string; expiresAt: string } | null> {
     if (!state.activeAccountId) return null;
-    return this.resolveTokenForAccount(state, state.activeAccountId);
+    const current = await this.load(getDb(), state.deviceId);
+    if (!current?.activeContextId) return null;
+    const context = current.contexts.find(
+      (candidate) => candidate.contextId === current.activeContextId
+    );
+    // Both columns must still describe the same selection while the flat
+    // activeAccountId projection exists. Never fall back to account-only lookup.
+    if (!context?.sessionId || context.accountId !== current.activeAccountId) return null;
+    const validated = await sessionService.validateSessionById(context.sessionId, false);
+    if (!validated) return null;
+    const token = await sessionService.getAccessToken(context.sessionId);
+    if (!token) return null;
+    return { accessToken: token.accessToken, expiresAt: token.expiresAt.toISOString() };
   }
 
   async signout(deviceId: string, target: { accountId: string } | { all: true }): Promise<DeviceSessionState> {
