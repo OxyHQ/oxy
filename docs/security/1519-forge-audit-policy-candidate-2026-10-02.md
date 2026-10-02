@@ -60,8 +60,11 @@ registry push, AWS access or deployment.
 
 Guards reads the committed policy status. Only a future ACTIVE source row would
 install the frozen byte inventory with dependency scripts disabled and create
-an ephemeral `gh` login using the Actions token with `contents: read` and
-`actions: read`. The token permits provenance GETs; it does not prove a human
+an ephemeral `gh` login using the Actions token. Guards retains its existing
+`contents: read` permission today. The additional `actions: read` permission
+needed for private artifact GETs is an unapplied
+[preparation diff](forge-candidate/audit-policy-actions-permission.diff); it is
+not granted by this candidate. The token permits provenance GETs; it does not prove a human
 approval. The login is removed afterwards. INACTIVE skips both setup steps.
 Unavailable installation, ancestry or authentication keeps validation red.
 Injected audit fixture payloads and environment ACK/approval flags cannot activate
@@ -84,7 +87,11 @@ candidate does not claim to solve independent human identity verification.
 
 A realizable later sequence is:
 
-1. Freeze the complete inactive source at an immutable target commit and run the
+1. Separately review and explicitly authorize the unapplied read-only Actions
+   permission preparation. If it is accepted, apply it before freezing the
+   target; that changes the workflow and therefore requires fresh source/ARM
+   evidence. Without this step, inaccessible provenance keeps the gate red.
+   Freeze the complete inactive source at an immutable target commit and run the
    candidate ARM workflow for that commit. Review the job, artifact and exact
    source/file digests. Existing #1528 pins describe an older source and cannot
    authorize this changed validator/workflow.
@@ -103,7 +110,9 @@ A realizable later sequence is:
 
 The source target and later declarative decision commit are deliberately
 separate. This avoids requiring a file to contain the hash of its own commit.
-Nothing in this candidate activates that sequence today.
+Nothing in this candidate activates that sequence today. The pending permission
+preparation is an explicit prerequisite, not an additional path permitted in a
+later declarative activation diff.
 
 ## Evidence limits
 
