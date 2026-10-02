@@ -1,0 +1,9 @@
+{
+  "statementCount": 9,
+  "generatedStatements": 7,
+  "sourceSupplementStatements": 2,
+  "exactStatementMultisetEqual": true,
+  "onlyReordered": "Two unchanged generated ALTER UNIQUE statements before their referring FOREIGN KEY statements",
+  "snapshotManuallyEdited": false,
+  "journalManuallyEdited": false
+}
