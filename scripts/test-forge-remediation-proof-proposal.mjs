@@ -16,7 +16,7 @@ const blob = path => { try { return git('rev-parse', `${SOURCE}:${path}`).toStri
 // Real facts for the recorded run: git objects of the evidence source plus the recorded authenticated API reads.
 const REAL = Object.freeze({
   audit: readFileSync(join(recorded, 'raw-bun-audit.json')), api: readFileSync(join(recorded, 'github-api.json')), zip: readFileSync(join(recorded, 'artifact.zip')),
-  pins: readFileSync(join(repo, PROVENANCE_DIR, 'pins.json')),
+  pins: readFileSync(join(recorded, 'pins.json')), // the historic run owns its pins; live pins.json may move on
   git: { head: SOURCE, clean: true, sourceIsAncestor: true, changedPaths: [], blobsAtSource: Object.fromEntries(TRUSTED_WORKFLOW.executedPaths.map(path => [path, blob(path)])),
     sourceCommitTime: git('show', '-s', '--format=%cI', SOURCE).toString().trim(), patchBytes: git('show', `${SOURCE}:patches/node-forge@1.4.0.patch`),
     lockText: git('show', `${SOURCE}:bun.lock`).toString(), candidateHashes: git('show', `${SOURCE}:docs/security/forge-candidate/candidate-hashes.json`).toString() },
