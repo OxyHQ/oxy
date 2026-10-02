@@ -2,24 +2,15 @@ import { createHash, sign as signBytes } from 'node:crypto';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import {
   appCapabilityCatalogSchema,
+  canonicalCapabilityJson,
   type AppCapabilityCatalog,
 } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { appCapabilityCatalogRegistrations } from '../db/schema/agency';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 
-function canonicalValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalValue);
-  if (typeof value !== 'object' || value === null) return value;
-  const record = value as Record<string, unknown>;
-  const sorted: Record<string, unknown> = {};
-  for (const key of Object.keys(record).sort()) sorted[key] = canonicalValue(record[key]);
-  return sorted;
-}
-
-export function canonicalCatalogJson(catalog: AppCapabilityCatalog): string {
-  return JSON.stringify(canonicalValue(catalog));
-}
+/** Existing API export retained; all adapters use the same pure serializer. */
+export const canonicalCatalogJson = canonicalCapabilityJson;
 
 export function digestCatalog(catalog: AppCapabilityCatalog): string {
   return createHash('sha256').update(canonicalCatalogJson(catalog)).digest('hex');

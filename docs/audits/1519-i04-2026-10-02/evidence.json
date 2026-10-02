@@ -1,0 +1,140 @@
+{
+  "date": "2026-10-02",
+  "status": "candidate-awaiting-review",
+  "baseCommit": "4f11aa410d01b6120aed578f45e175c763317f20",
+  "firstMilestone": "792eae0cc8bb8677380d3e5eab55cb4fad926c71",
+  "environment": {
+    "platform": "Linux local",
+    "bun": "1.4.2",
+    "postgres": "17, isolated local 127.0.0.1:5549; per-test disposable databases"
+  },
+  "packedConsumer": {
+    "hashes": {
+      "@oxy.so/contracts": {
+        "version": "4.8.0",
+        "sha256": "ede0085d911806a1204e2d9215fbbdba961bf232ebb3f7ffbb8574ac6df8c42a"
+      },
+      "@oxy.so/core": {
+        "version": "4.1.0",
+        "sha256": "3e55760f8dd4879bac9cf544c497e669845fcfdf64f06e036aaef9db7ff6a875"
+      },
+      "@oxy.so/mcp": {
+        "version": "1.0.0",
+        "sha256": "4337a78ce90fb5666532d4ad92a46d2796ad26ee00e19ec9b288ad97bfbef99c"
+      },
+      "@oxy.so/protocol": {
+        "version": "1.2.1",
+        "sha256": "8529978f922269198faa664dde8caaa036c2965b1d143536e45a6ef2d2cb2e88"
+      },
+      "@oxy.so/telemetry": {
+        "version": "1.2.0",
+        "sha256": "c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12"
+      }
+    },
+    "fixture": "/home/nate/Oxy/oxy/.worktrees/i04-packed-consumer-nOsZpG",
+    "checkedAtUTC": "2026-10-02T19:01:27.561Z",
+    "modes": [
+      "cjs",
+      "esm"
+    ],
+    "published": false
+  },
+  "logs": [
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-contracts-full-tests-final.txt",
+      "sha256": "7d0fe7064336d412936f9a165d30eb833e736a054e82dd33ac9c70f3b51f7b1d",
+      "commandOrProvenance": "packages/contracts: bun run test --runInBand"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-core-full-tests.txt",
+      "sha256": "58c31462a9c3a80656b59f2bfae7443424514b9fa328c4d19736bf2d21ddaf21",
+      "commandOrProvenance": "packages/core: bun run test --runInBand"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-core-verifier-final.txt",
+      "sha256": "121d04ef01fcd25c934a91dff41af94d0190fbf2528b879aa819c3a7d148c35f",
+      "commandOrProvenance": "packages/core: bun run test --runInBand src/server/__tests__/liveCapabilityTicket.test.ts"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-mcp-final.txt",
+      "sha256": "6ed36dc06636213ce8d931fa4425a3bdb4a8bb6027c64ce78775f3fed6838671",
+      "commandOrProvenance": "packages/mcp: bun run test --runInBand"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-http-authority-pg-tests.txt",
+      "sha256": "42314d1517c486a0ca269d9b587e25578f32285718d45ac4db0e2530c2d5e1c2",
+      "commandOrProvenance": "packages/api: bun run test --runInBand src/services/__tests__/capabilityAuthority.db.test.ts"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-mcp-parity-pg-tests-final.txt",
+      "sha256": "2674ebf1d2397a0631d58356b70543eef25cea7fdd248bfde472b94202c269ba",
+      "commandOrProvenance": "packages/api: bun run test --runInBand src/services/__tests__/internalMcpParity.db.test.ts"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-packed-consumer-final.txt",
+      "sha256": "8beb68a65e1ea104df20647b593eb592294ed0dcad1548ac888390976f261751",
+      "commandOrProvenance": "node packages/mcp/scripts/verify-internal-packed.mjs"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-payload-guard-final.txt",
+      "sha256": "4f477bc59f0629026e021fce9a0ea3c7b944089d8007c845607044bcc7437fc6",
+      "commandOrProvenance": "existing final payload-persistence guard log"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-final-biome.txt",
+      "sha256": "25efa68e241ebb38594ec7fd92fdf87325628380f9b4daad67ba2fad4b7ffd8c",
+      "commandOrProvenance": "existing scoped Biome --error-on-warnings log; predates final verifier/MCP refinements"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-api-typecheck.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "commandOrProvenance": "existing API strict typecheck log; no output"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/i04-api-scripts-typecheck.txt",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "commandOrProvenance": "packages/api: bun run typecheck:scripts"
+    },
+    {
+      "path": "docs/audits/1519-i04-2026-10-02/consumer-pin-tests.txt",
+      "sha256": "7ba5b0c3a50373b624cfa5d3ffa969efcf6652b1edb5a97ba4378fa56076f8d1",
+      "commandOrProvenance": "packages/mcp: bun run test --runInBand src/__tests__/consumerAccountBinding.test.ts (after Noted pin correction)"
+    }
+  ],
+  "sourceSha256": {
+    "packages/api/src/routes/capabilities.ts": "7ddb92010a6722ff711a0c9192b1a93a581f1a855b19d6364fa11a666b17d68e",
+    "packages/api/src/services/__tests__/capabilityAuthority.db.test.ts": "a78999390d80951319fd01df67363c5a7f939e3a300c66a23086a74fb186118e",
+    "packages/api/src/services/__tests__/internalMcpParity.db.test.ts": "a45cbdc0fd1be7cb5d75650b08cd1be4d9942c1cc6f26d39991ddb4bbd60c226",
+    "packages/api/src/services/capabilityAuthority.service.ts": "cb2106be3ba70c14808717f1e4943b3eca6a527711ad7d3c2af8e92ce0f74b30",
+    "packages/api/src/services/capabilityCatalog.service.ts": "382ff1f6d9fe06f4692bc895c030f35e2612f952e78d15b6a8ef2c5640452dce",
+    "packages/contracts/src/__tests__/agency.test.ts": "0915d99c0781bfe09766bc05b403775016fb6ae2e1a00a38facfc8ad05aad699",
+    "packages/contracts/src/__tests__/capabilityBindings.test.ts": "892d91feffa494fd230f3ee04d9d8d40e4f53af873ac7bbc868e7082b2b91085",
+    "packages/contracts/src/__tests__/usernamePolicySingleSource.test.ts": "adf7f1c9a0c7ff52c16b0b5f7738ff3184bce6d9c1f7fc15a4942f6d8ddd4693",
+    "packages/contracts/src/agency.ts": "19dc226537c22985a06c9be594263d0052a1af6cdd22979fa3ef683d29989dea",
+    "packages/contracts/src/capabilityBindings.ts": "3809508d684e25381522c7e3bd911c3943ef0d94f1b9fbc867705f3e25a8b3f8",
+    "packages/contracts/src/index.ts": "bc6dd075f74c8f1f4b594b6ec36b98b22ce71296c1ee2366a91496685501a262",
+    "packages/core/src/server/__tests__/agencyAuthority.test.ts": "b49d338ff4666620289dc41b43a6a934385c64eed34d50c23a546904cda86c29",
+    "packages/core/src/server/__tests__/liveCapabilityTicket.test.ts": "74a112c9eab40e738bab93f091c247ef285c1b9e090f01c4170cfd9e3b291180",
+    "packages/core/src/server/capabilityTicket.ts": "b257d4d5859f4d7ce4354b669376fecf2bfb7590f94a11ecf038364e46bde433",
+    "packages/core/src/server/index.ts": "4ded808edb7dbb18f2e10de9057a6c9b39eb0323c02f1b9d7903f2b3a3f0b161",
+    "packages/core/src/server/liveCapabilityTicket.ts": "b3197dbfe32b53322ef96fecbfe92444582997bdf34515a3066b1ce19ef26a15",
+    "packages/core/src/server/namespaces.ts": "3ea9b4d9e61d05c5030a91d649027f77082ebc8078c00b83cc48ded8885487c7",
+    "packages/core/src/utils/officialOrigins.ts": "5f59673fe472a1fa74d6b5a4ada06cae3c83bacd241cfd31dbf86614a5c90aa6",
+    "packages/mcp/scripts/verify-internal-packed.mjs": "e391cf89614f93a22288ab2ad3c0b5f398c77fe1494115f9d56ad4188997c9fd",
+    "packages/mcp/src/__tests__/consumerAccountBinding.test.ts": "db5888f7934fa2f28b9446f9140a5f7f4232860cdb8b726b77fe7058cf9f0786",
+    "packages/mcp/src/__tests__/internalTransport.test.ts": "1ce080f7ce43e14764ff4ef3dc6942cccb41127f33786f2a1fcf734c78134733",
+    "packages/mcp/src/catalogAdapter.ts": "af8c2483c130d7c17f4e54ef7753def3fceb3cece007acc79033be63e5d03944",
+    "packages/mcp/src/httpTransport.ts": "3474733ca4f98234da8e3224ae81226d4fac7d9fbfa0a5d0746775dc07995102",
+    "packages/mcp/src/index.ts": "9b839a9fca8dc1d320139d4d2642dc1674c6ba5948c945482663c43fc5b2be78",
+    "packages/mcp/src/internalClient.ts": "e099401cf14a6c404ed72ecfc9d0bfa6fc010211d6dba3699aef6594a977e6fc",
+    "packages/mcp/src/internalTransport.ts": "b9fb1d4e22662210648331d4e42aca4389be7b95f854739dd79ea9f23afa5387",
+    "packages/mcp/src/invocationAdapter.ts": "fb76f6138e0753cbaae15a146fd6dc77c30b691fa06e5cf8b7233188b19d59c8"
+  },
+  "scopeNotes": [
+    "Final full core result 172 suites/2116 tests precedes final live verifier refinement; final targeted verifier 1/4 covers that refinement.",
+    "Final MCP 8 suites/35 tests supersedes earlier 8/34. Only consumer fixture pin/title changed in handoff; focal suite 1/3 rerun passed. Runtime source unchanged during handoff.",
+    "One generic PostgreSQL/HTTP parity test shares one domain handler and effect ledger across legacy/internal/external transports. Three reduced consumer policy projections do not execute product code.",
+    "API strict and script checks and scoped Biome are earlier evidence, not a claim that all subsequent source was rechecked by those commands.",
+    "No DDL migration, publishable version bump, package publication, deployment or product adoption. Current tarball numbers are local-test versions, not release candidates suitable for publication."
+  ]
+}
