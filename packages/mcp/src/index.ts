@@ -16,6 +16,12 @@ export type { JsonSchema } from './jsonSchema';
 export { extractBearerToken } from './http';
 export type { AuthorizationHeaders } from './http';
 export { createCatalogMcpHttpService } from './httpTransport';
+export { createInternalCatalogMcpHttpService } from './internalTransport';
+export type { InternalCatalogMcpHttpServiceOptions } from './internalTransport';
+export { createInternalCatalogMcpClient } from './internalClient';
+export type { InternalCatalogMcpClientOptions } from './internalClient';
+export { registerCatalogWithInvocationPrincipal, oauthInvocationContext, createCatalogMcpHttpServiceWithInvocationPrincipal } from './invocationAdapter';
+export type { InvocationContext, InvocationHandlers, InvocationCatalogMcpHttpServiceOptions } from './invocationAdapter';
 export type {
   CatalogMcpHttpLogger,
   CatalogMcpHttpService,

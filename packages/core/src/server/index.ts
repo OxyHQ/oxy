@@ -170,6 +170,8 @@ export type {
 
 // Constant-time secret comparison.
 export { verifySecret } from './verifySecret';
+export { createLiveCapabilityTicketVerifier } from './liveCapabilityTicket';
+export type { LiveCapabilityTicketVerifierOptions } from './liveCapabilityTicket';
 
 // Cross-service user-invalidation signal: oxy-api publishes when identity
 // changes, every consuming backend sweeps its caches instead of waiting out a TTL.

@@ -7,7 +7,6 @@ import {
 import {
   capabilityTicketClaimsSchema,
   type CapabilityTicketClaims,
-  type GrantLimit,
   type PolicyDecision,
 } from '@oxy.so/contracts';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
@@ -72,47 +71,6 @@ function decodeJsonSegment(segment: string): unknown {
   } catch {
     throw new CapabilityTicketError('malformed', 'Capability ticket is not valid base64url JSON');
   }
-}
-
-function valuesAtPath(input: Record<string, unknown>, path: string): unknown[] {
-  let current: unknown[] = [input];
-  for (const segment of path.split('.')) {
-    const next: unknown[] = [];
-    for (const value of current) {
-      const records = Array.isArray(value) ? value : [value];
-      for (const record of records) {
-        if (typeof record !== 'object' || record === null || Array.isArray(record)) continue;
-        if (Object.prototype.hasOwnProperty.call(record, segment)) {
-          next.push((record as Record<string, unknown>)[segment]);
-        }
-      }
-    }
-    if (next.length === 0) return [];
-    current = next;
-  }
-  return current.flatMap((value) => Array.isArray(value) ? value : [value]);
-}
-
-/** Enforces the signed per-action bounds before a domain handler runs. */
-export function inputSatisfiesCapabilityLimits(
-  tool: string,
-  input: Record<string, unknown>,
-  limits: readonly GrantLimit[],
-): boolean {
-  for (const limit of limits) {
-    if (limit.tool !== tool) return false;
-    const actualValues = valuesAtPath(input, limit.key);
-    if (actualValues.length === 0) return false;
-    if (typeof limit.value === 'number') {
-      const maximum = limit.value;
-      if (!actualValues.every((actual) => (
-        typeof actual === 'number' && Number.isFinite(actual) && actual <= maximum
-      ))) return false;
-      continue;
-    }
-    if (!actualValues.every((actual) => actual === limit.value)) return false;
-  }
-  return true;
 }
 
 export function issueCapabilityTicket(
@@ -256,3 +214,5 @@ export function createCapabilityTicketMiddleware(
     }
   };
 }
+
+export { inputSatisfiesCapabilityLimits } from '@oxy.so/contracts';

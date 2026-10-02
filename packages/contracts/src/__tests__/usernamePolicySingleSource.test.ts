@@ -92,6 +92,10 @@ const SUBJECT_WINDOW = 6;
  */
 const ALLOWED: ReadonlyMap<string, string> = new Map([
   [
+    'packages/mcp/src/internalTransport.ts',
+    'Base64url segments in the Capability JWS Authorization header; the nearby handleMcp method name is a transport handler, not a users.username validator or allocator.',
+  ],
+  [
     'packages/telemetry/src/edge.ts',
     'Bounded operational service slugs in anonymous CDN aggregates; these name reporting services and never allocate or validate account usernames.',
   ],
