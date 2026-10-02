@@ -142,3 +142,26 @@ Revert the deploy. The new table and columns are additive and unread by the old
 code. A period granted under the new path keeps its receipt, and the old path's
 `customer.subscription.updated` grant is guarded by the same period key — a
 rollback cannot double-grant either.
+
+
+## Reconciliation review, 2026-10-02
+
+The read-only preflight now checks the SDK's `Stripe.API_VERSION` against the
+endpoint's explicit version, and `livemode` against `OXY_STRIPE_MODE` (default
+`live`). A test key cannot certify a live deployment. An endpoint inheriting
+an unverified account default version fails this check. Setting an explicit
+version or enabling events in Stripe remains a separately authorized action.
+Paths are case-sensitive. Pagination errors cannot certify a partial list.
+
+The invoice handler traverses all embedded/remaining invoice lines before
+selecting a grant. It accepts exactly one non-prorated subscription-item line
+for the invoice subscription, a known price, quantity one, matching currency,
+positive line amount and a valid period. Multiple recurring items/periods require
+an explicit mapping and are recorded without granting. It never compares a
+historical invoice's period to today's subscription period: a late paid invoice
+can legitimately refer to a previous cycle. Pagination failures respond 500 and
+leave the grant retryable.
+
+Stripe describes [line parent and period semantics](https://docs.stripe.com/api/invoice-line-item/object)
+and [webhook endpoint API version and mode](https://docs.stripe.com/api/webhook_endpoints/object).
+No live Stripe inspection was performed during this review.

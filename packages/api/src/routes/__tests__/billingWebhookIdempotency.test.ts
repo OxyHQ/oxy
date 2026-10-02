@@ -37,6 +37,9 @@ import { and, eq } from 'drizzle-orm';
 let nextEvent: unknown = null;
 
 /** Stripe's side of every subscription, as `subscriptions.retrieve` answers it. */
+const invoiceLinePages = new Map<string, Array<{ data: Record<string, unknown>[]; has_more: boolean }>>();
+const invoiceLineCalls: Array<{ id: string; cursor?: string }> = [];
+
 const stripeSubscriptions = new Map<string, Record<string, unknown>>();
 /** When set, the NEXT `subscriptions.retrieve` waits for this before answering. */
 let holdNextRetrieve: Promise<void> | null = null;
@@ -62,6 +65,14 @@ jest.mock('../../utils/stripeClient', () => ({
         if (hold) await hold;
         if (!state) throw Object.assign(new Error(`No such subscription: ${id}`), { type: 'StripeInvalidRequestError' });
         return structuredClone(state);
+      },
+    },
+    invoices: {
+      listLineItems: async (id: string, params: { starting_after?: string }) => {
+        invoiceLineCalls.push({ id, cursor: params.starting_after });
+        const pages = invoiceLinePages.get(id);
+        if (!pages?.length) throw new Error('invoice pagination failed');
+        return structuredClone(pages.shift());
       },
     },
     checkout: {
@@ -172,6 +183,8 @@ afterAll(async () => {
 
 beforeEach(() => {
   failNextGrant = false;
+  invoiceLinePages.clear();
+  invoiceLineCalls.length = 0;
   holdNextRetrieve = null;
   checkoutCreateDelayMs = 0;
   checkoutCreateCalls.length = 0;
@@ -429,10 +442,16 @@ function invoiceEvent(
       subscription_details: { subscription: sub.subscriptionId },
     },
     lines: {
+      has_more: false,
       data: [
         {
           id: `il_${invoiceCounter}`,
           amount: options.amountPaid ?? PRO_PRICE,
+          currency: options.currency ?? 'usd',
+          quantity: 1,
+          parent: { type: 'subscription_item_details', subscription_item_details: {
+            subscription: sub.subscriptionId, subscription_item: 'si_test', proration: false,
+          } },
           period: { start: periodStart, end: periodStart + MONTH },
           pricing: {
             type: 'price_details',
@@ -842,5 +861,66 @@ describe('POST /billing/checkout/subscription — Idempotency-Key', () => {
     const plain = await postCheckout(userId, CHECKOUT_BODY);
     expect(plain).toMatchObject({ status: 200 });
     expect(checkoutCreateCalls.at(-1)?.options).toBeUndefined();
+  });
+});
+
+describe('invoice.paid complete recurring-line reconciliation', () => {
+  it('skips a known-price proration before the genuine recurring line', async () => {
+    const sub = await subscriber();
+    const event = invoiceEvent(sub);
+    const invoice = event.data.object;
+    const regular = invoice.lines.data[0];
+    invoice.lines.data.unshift({ ...regular, id: 'il_proration', period: { start: sub.periodStart + HOUR, end: sub.periodStart + MONTH }, parent: { ...regular.parent, subscription_item_details: { ...regular.parent.subscription_item_details, proration: true } } });
+    expect(await postWebhook(event)).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
+    expect((await receipts(sub.userId, 'subscription_payment'))[0].stripeSubscriptionPeriodStart?.getTime()).toBe(sub.periodStart * 1000);
+  });
+  it('finds the recurring line on the second page', async () => {
+    const sub = await subscriber();
+    const event = invoiceEvent(sub);
+    const invoice = event.data.object;
+    const regular = invoice.lines.data[0];
+    invoice.lines.data = [{ ...regular, id: 'il_extra', parent: { type: 'invoice_item_details' } } as typeof regular];
+    invoice.lines.has_more = true;
+    invoiceLinePages.set(invoice.id, [{ data: [regular], has_more: false }]);
+    expect(await postWebhook(event)).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
+    expect(invoiceLineCalls).toEqual([{ id: invoice.id, cursor: 'il_extra' }]);
+  });
+  it('refuses differing recurring periods hidden beyond the first page', async () => {
+    const sub = await subscriber();
+    const event = invoiceEvent(sub);
+    const invoice = event.data.object;
+    invoice.lines.has_more = true;
+    const regular = invoice.lines.data[0];
+    invoiceLinePages.set(invoice.id, [{ data: [{ ...regular, id: 'il_wrong_period', period: { start: sub.periodStart - MONTH, end: sub.periodStart } }], has_more: false }]);
+    expect(await postWebhook(event)).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(0);
+    expect((await eventRow(event.id)).outcomeDetail).toMatch(/ambiguous/);
+  });
+  it.each(['proration', 'unrelated', 'quantity', 'period', 'line_currency'])('rejects invalid recurring evidence: %s', async (kind) => {
+    const sub = await subscriber();
+    const event = invoiceEvent(sub);
+    const line = event.data.object.lines.data[0];
+    if (kind === 'proration') line.parent.subscription_item_details.proration = true;
+    if (kind === 'unrelated') line.parent.subscription_item_details.subscription = 'sub_other';
+    if (kind === 'quantity') line.quantity = 2;
+    if (kind === 'period') line.period.end = line.period.start;
+    if (kind === 'line_currency') line.currency = 'eur';
+    expect(await postWebhook(event)).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(0);
+    expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(0);
+  });
+  it('pagination failure is retryable and leaves no grant', async () => {
+    const sub = await subscriber();
+    const event = invoiceEvent(sub);
+    const invoice = event.data.object;
+    invoice.lines.has_more = true;
+    expect(await postWebhook(event)).toBe(500);
+    expect(await paidBalance(sub.userId)).toBe(0);
+    expect((await eventRow(event.id)).outcome).toBe('failed');
+    invoiceLinePages.set(invoice.id, [{ data: [], has_more: false }]);
+    expect(await postWebhook(event)).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
   });
 });
