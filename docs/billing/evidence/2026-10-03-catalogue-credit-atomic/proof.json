@@ -1,0 +1,334 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "d85def2067ee92b3abe6ae737070b240fa018434",
+  "checkpointOnly": true,
+  "productionEffects": false,
+  "sources": [
+    {
+      "path": "docs/adr/0033-subscription-credit-and-product-billing.md",
+      "sourceCommit": "d85def206",
+      "sha256": "14c67891ca23aae20ba23bcbb92d73f25456fc39dfb5d0c85c7b0a15c7ace968",
+      "bytes": 4421
+    },
+    {
+      "path": "docs/adr/README.md",
+      "sourceCommit": "d85def206",
+      "sha256": "27d3e3a34e8e70e786468bf6fd05f31b24d72b41974d07aaded1df22969f9b28",
+      "bytes": 11507
+    },
+    {
+      "path": "packages/api/openapi.json",
+      "sourceCommit": "d85def206",
+      "sha256": "ded83c853a5abc890eb780312a9dc3979a55e8e2e3ac65458eb1f2af19156ba5",
+      "bytes": 1484646
+    },
+    {
+      "path": "packages/api/src/controllers/__tests__/subscription.controller.test.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "464f963190fc3f9375ed7e4ff2fb5ee62c414e16c4e99386746920e98a2cce2e",
+      "bytes": 7332
+    },
+    {
+      "path": "packages/api/src/controllers/subscription.controller.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "aa5e142629be9d2c48c00c0be0d14df9f29418638e0e4afb8951b3e1979da050",
+      "bytes": 4672
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "8a23c4a7ff757ef2142242a209ee0b1da22673331d1564fe7ebea3fe2fd79ed3",
+      "bytes": 71661
+    },
+    {
+      "path": "packages/api/src/routes/billing.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "e9baa83cede3ad41b1cd90f1a9f548861155552663a03b8bc52aee46c61023ef",
+      "bytes": 67273
+    },
+    {
+      "path": "packages/api/src/schemas/billing.schemas.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "f8c921d6a28b10a559a11be171a7f415d3938a21f940bf8a5c1279a3aad31bfb",
+      "bytes": 2049
+    },
+    {
+      "path": "packages/api/src/services/__tests__/productBillingCatalogue.test.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "0875296d24433d3611de2893a93f2a05ce7ac2c04cc25af4a333a710f219049e",
+      "bytes": 3933
+    },
+    {
+      "path": "packages/api/src/services/__tests__/subscriptionCreditLedger.test.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "7c9f59522ccc09f658e8ba50426e1bf53944aea5da12626e152289a0881f3cec",
+      "bytes": 17780
+    },
+    {
+      "path": "packages/api/src/services/__tests__/subscriptionCreditLockOrder.test.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "5f613d7931a570edf63543695737f6c698256f9880e837f42905203a82a8cd29",
+      "bytes": 8769
+    },
+    {
+      "path": "packages/api/src/services/applySubscriptionPeriodCredits.service.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "01746f120571ee51a0b1f5281f3e637d79b9a1e726863880f33e849f3b08cff4",
+      "bytes": 4929
+    },
+    {
+      "path": "packages/api/src/services/productAccessPersistence.service.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "85aefdd1e06bf5b7afacc2495976e415fed28f7519936e78be764a43d598e3e1",
+      "bytes": 21030
+    },
+    {
+      "path": "packages/api/src/services/productBillingCatalogue.service.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "90c6e720a6036648274d73fa2e494c7136c3776f26deb993119f681163e1576e",
+      "bytes": 10783
+    },
+    {
+      "path": "packages/api/src/services/productProviderEvidence.service.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "1ab285a4b895994805ee84e03fad679f7f6dc9ffb545b5a2dcf417e9ddf51cc1",
+      "bytes": 7735
+    },
+    {
+      "path": "packages/api/src/services/subscriptionCreditLedger.service.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "31fba5a79d2cbb6fad58880b3255181fb85bd217f6eeb07f6e0782cb1652bb19",
+      "bytes": 13702
+    },
+    {
+      "path": "packages/console/src/hooks/__tests__/billing-subject.test.tsx",
+      "sourceCommit": "d85def206",
+      "sha256": "93db89ab75e678486984a4b99091cc80f6ef39a15c70c18e0b22173202bbb521",
+      "bytes": 4349
+    },
+    {
+      "path": "packages/console/src/hooks/use-billing.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "adb2d6b3b8c9dea23f5050234af9d44e3ceaa261d3f4ff02a2e1b3a19fb69013",
+      "bytes": 8353
+    },
+    {
+      "path": "packages/console/src/routes/_layout/billing/plans.tsx",
+      "sourceCommit": "d85def206",
+      "sha256": "d4163237cbfa6023918d349a9e26b4360462ec57be44cde0fd146a94bbc645ff",
+      "bytes": 15485
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "f47d50560e432ad32f226bfa7b9e826a7d8f8981002f9929760ab7981a795b16",
+      "bytes": 42589
+    },
+    {
+      "path": "packages/contracts/src/products/billing.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "08f8468a86c5592954e9446e848acd2ccb55d839f94409f81019f865c1fdfbd6",
+      "bytes": 2112
+    },
+    {
+      "path": "packages/core/src/api/__tests__/billing.test.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "1ec07cd8ce1c4aad1a389e10eea410b0791fe99cd522b37fd3f939b4d0366c85",
+      "bytes": 5053
+    },
+    {
+      "path": "packages/core/src/api/billing.ts",
+      "sourceCommit": "d85def206",
+      "sha256": "230cb9ac19f5279ab76ede4b17eed3d97adf0ff8411b16b24b7ed7552ac6cbe4",
+      "bytes": 6537
+    },
+    {
+      "path": "scripts/check-openapi-fresh.mjs",
+      "sourceCommit": "d85def206",
+      "sha256": "cbf074d4c23c3383dc9487054541e9c88e4734b8f9ab3acafa93cfff48ece572",
+      "bytes": 31798
+    },
+    {
+      "path": "scripts/rehearsal/test-billing-renewal-1519.py",
+      "sourceCommit": "d85def206",
+      "sha256": "aa04bc46cdc4c0d063b76b1bdd0e1733dd9c597e3ad1ee41308241e0c57be4e7",
+      "bytes": 5183
+    },
+    {
+      "path": "scripts/test-check-openapi-fresh.mjs",
+      "sourceCommit": "d85def206",
+      "sha256": "201025476c3bee2b9664395ec4120dc17281e76ec4b39451411437b0c8337b4a",
+      "bytes": 22012
+    },
+    {
+      "path": "packages/api/package.json",
+      "sourceCommit": "d85def206",
+      "sha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510",
+      "bytes": 5852
+    },
+    {
+      "path": "packages/contracts/package.json",
+      "sourceCommit": "d85def206",
+      "sha256": "fbff525612eab798d50948c8e56590e1434721bd780b6ab48faa8cc96b0e11a2",
+      "bytes": 2388
+    },
+    {
+      "path": "packages/core/package.json",
+      "sourceCommit": "d85def206",
+      "sha256": "cafe284430f4bf30392b90f75e0693fe0491ae31035d8b2a870b05dd4e8bb2e6",
+      "bytes": 6578
+    },
+    {
+      "path": "packages/console/package.json",
+      "sourceCommit": "d85def206",
+      "sha256": "ebf8800040e2c00ca7605acdf16aa990575317c09b7ece9cfb3b9f50ae876e78",
+      "bytes": 2808
+    },
+    {
+      "path": "bun.lock",
+      "sourceCommit": "d85def206",
+      "sha256": "d778e714a4a49a0f814a49513eb7a5ff8c164a217c0ac9989f6a6eb5785c1b06",
+      "bytes": 800911
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/credit-lock-order-red-exact-final-fixture-owned-pg.log",
+      "sha256": "33793188e7819d85b742c348cb8280f2fb29df7882295783d276980edca2adbb",
+      "bytes": 2492,
+      "expectedExitCode": 1
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-lock-order-final-owned-pg.log",
+      "sha256": "531141d8199197da996b1e9453b40753648abb510d9956dee1b863368c2beb87",
+      "bytes": 3049,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/lock-order-red-api.log",
+      "sha256": "7f95ed22d1398eef874940cc5443eb7b23f2322be20e0bb146a7fe9667b79382",
+      "bytes": 5785,
+      "expectedExitCode": 1
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-lock-order-final-api.log",
+      "sha256": "0ced58181c46eab2596bbb6ebeb5506a2a928166016d5eee873a95f2b92d2664",
+      "bytes": 19030,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/credit-lock-order-api-tsc.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/credit-lock-order-scripts-tsc.log",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-console-tsc-final-2.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-console-subject-final.log",
+      "sha256": "b5dce7506739b473ef6d96880a370397edb4ef2389c1e9180d7e6acd46397d20",
+      "bytes": 669,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-core-final-tests.log",
+      "sha256": "a69d26a812e5ffbf166b5fcc25c8ff0919bfbaa5cbc17e9bad2f0a6ad6d6316f",
+      "bytes": 277,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-core-final-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc",
+      "bytes": 570,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-contracts-final-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce",
+      "bytes": 201,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-services-build.log",
+      "sha256": "bcc1b87dc90f5d1807abdaa9d686bfb06016eb713dda1beada7e7789fd4a98ba",
+      "bytes": 1551,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-lock-order-lint-final-2.log",
+      "sha256": "39f4d8fe1255abee2e51cadc52a3613b308d03c4e646cd271c7ed6df407fbab6",
+      "bytes": 44,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-openapi-contract-fixtures-final.log",
+      "sha256": "9f231cbda032379ca4809fe1d9f267f60300f5ddb33c69f8d5bd35e4b33128fb",
+      "bytes": 58,
+      "expectedExitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/catalogue-openapi-fresh-final.log",
+      "sha256": "504f8919dd1016456f280d41831401e6c429c14dcabdaaa312e5eb6f7f6748cd",
+      "bytes": 298,
+      "expectedExitCode": 0
+    }
+  ],
+  "results": {
+    "api": {
+      "suites": 11,
+      "tests": 166,
+      "ownedFreshPostgres": true
+    },
+    "lockOrder": {
+      "identicalFinalFixture": true,
+      "baselineHead": "b2b3ae7ba",
+      "red": {
+        "cases": 4,
+        "sqlState": "40P01"
+      },
+      "green": {
+        "cases": 4
+      }
+    },
+    "console": {
+      "vitestTests": 2,
+      "edgeTests": 2
+    },
+    "core": {
+      "suites": 1,
+      "tests": 9
+    },
+    "apiTypeScript": 0,
+    "scriptsTypeScript": 0,
+    "consoleTypeScript": 0,
+    "biome": {
+      "files": 15,
+      "diagnostics": 0
+    },
+    "openApiFixtures": 32
+  },
+  "limits": [
+    "Remote provider calls are synthetic fixtures; actual Oxy/Clarity/Mercaria catalogue and subscription inventory remains pending.",
+    "Empty production promotion registry; no illustrative trial/coupon credit amounts are activated.",
+    "No production catalogue/backfill, deployment, package publication, or live financial mutation.",
+    "Single fully allocated charge per subscription invoice; ambiguous split payments fail closed.",
+    "Complete remote paid history is adapter input responsibility; two equal paginated reads are not an atomic provider snapshot."
+  ],
+  "verificationNotes": [
+    "Checkpoint b2 ledger/0138 is already handed off separately; this delta changes no migrations.",
+    "An initial new barrier fixture had a recoverable TypeScript object syntax omission; final syntax was corrected before the identical final RED/GREEN runs.",
+    "Earlier failed tests/counts are retained externally; only final source/logs are claimed here.",
+    "Console strict TypeScript caught unknown displayName after the label change; final label checks its type and uses only getNormalizedUserHandle fallback."
+  ],
+  "lockOrderFixtureSha256": "5f613d7931a570edf63543695737f6c698256f9880e837f42905203a82a8cd29"
+}

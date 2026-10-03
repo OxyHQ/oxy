@@ -1,0 +1,129 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/subscriptionCreditLockOrder.test.ts
+{"level":30,"time":1790994495319,"pid":3403442,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/services/__tests__/subscriptionCreditLockOrder.test.ts
+  ● grant-first vs first spend finishes both commits without a FK row-lock cycle
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 4
+
+      Object {
+    -   "sqlStates": Array [],
+    +   "sqlStates": Array [
+    +     "40P01",
+    +   ],
+        "statuses": Array [
+    -     "fulfilled",
+    +     "rejected",
+          "fulfilled",
+        ],
+      }
+
+      91 |     const outcomes = await Promise.allSettled(pending);
+      92 |     const failures = outcomes.flatMap(outcome => outcome.status === 'rejected' ? codes(outcome.reason) : []);
+    > 93 |     expect({ statuses: outcomes.map(outcome => outcome.status), sqlStates: failures }).toEqual({ statuses: ['fulfilled','fulfilled'], sqlStates: [] });
+         |                                                                                        ^
+      94 |     await db.transaction(tx => grantSubscriptionCredits(tx, input));
+      95 |     if (kind === 'spend') expect(await spendSubscriptionTrackedCredits(db, user.id, 100, operationId)).toBe(true);
+      96 |     else expect((await recordCreditRefundSnapshot(db, refund)).removed).toBe(0);
+
+      at src/services/__tests__/subscriptionCreditLockOrder.test.ts:93:88
+      at fulfilled (src/services/__tests__/subscriptionCreditLockOrder.test.ts:5:58)
+
+  ● grant-first vs first refund finishes both commits without a FK row-lock cycle
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 4
+
+      Object {
+    -   "sqlStates": Array [],
+    +   "sqlStates": Array [
+    +     "40P01",
+    +   ],
+        "statuses": Array [
+    -     "fulfilled",
+    +     "rejected",
+          "fulfilled",
+        ],
+      }
+
+      91 |     const outcomes = await Promise.allSettled(pending);
+      92 |     const failures = outcomes.flatMap(outcome => outcome.status === 'rejected' ? codes(outcome.reason) : []);
+    > 93 |     expect({ statuses: outcomes.map(outcome => outcome.status), sqlStates: failures }).toEqual({ statuses: ['fulfilled','fulfilled'], sqlStates: [] });
+         |                                                                                        ^
+      94 |     await db.transaction(tx => grantSubscriptionCredits(tx, input));
+      95 |     if (kind === 'spend') expect(await spendSubscriptionTrackedCredits(db, user.id, 100, operationId)).toBe(true);
+      96 |     else expect((await recordCreditRefundSnapshot(db, refund)).removed).toBe(0);
+
+      at src/services/__tests__/subscriptionCreditLockOrder.test.ts:93:88
+      at fulfilled (src/services/__tests__/subscriptionCreditLockOrder.test.ts:5:58)
+
+  ● spend-first vs grant finishes both commits without a FK row-lock cycle
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 4
+
+      Object {
+    -   "sqlStates": Array [],
+    +   "sqlStates": Array [
+    +     "40P01",
+    +   ],
+        "statuses": Array [
+          "fulfilled",
+    -     "fulfilled",
+    +     "rejected",
+        ],
+      }
+
+      91 |     const outcomes = await Promise.allSettled(pending);
+      92 |     const failures = outcomes.flatMap(outcome => outcome.status === 'rejected' ? codes(outcome.reason) : []);
+    > 93 |     expect({ statuses: outcomes.map(outcome => outcome.status), sqlStates: failures }).toEqual({ statuses: ['fulfilled','fulfilled'], sqlStates: [] });
+         |                                                                                        ^
+      94 |     await db.transaction(tx => grantSubscriptionCredits(tx, input));
+      95 |     if (kind === 'spend') expect(await spendSubscriptionTrackedCredits(db, user.id, 100, operationId)).toBe(true);
+      96 |     else expect((await recordCreditRefundSnapshot(db, refund)).removed).toBe(0);
+
+      at src/services/__tests__/subscriptionCreditLockOrder.test.ts:93:88
+      at fulfilled (src/services/__tests__/subscriptionCreditLockOrder.test.ts:5:58)
+
+  ● refund-first vs grant finishes both commits without a FK row-lock cycle
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 4
+
+      Object {
+    -   "sqlStates": Array [],
+    +   "sqlStates": Array [
+    +     "40P01",
+    +   ],
+        "statuses": Array [
+          "fulfilled",
+    -     "fulfilled",
+    +     "rejected",
+        ],
+      }
+
+      91 |     const outcomes = await Promise.allSettled(pending);
+      92 |     const failures = outcomes.flatMap(outcome => outcome.status === 'rejected' ? codes(outcome.reason) : []);
+    > 93 |     expect({ statuses: outcomes.map(outcome => outcome.status), sqlStates: failures }).toEqual({ statuses: ['fulfilled','fulfilled'], sqlStates: [] });
+         |                                                                                        ^
+      94 |     await db.transaction(tx => grantSubscriptionCredits(tx, input));
+      95 |     if (kind === 'spend') expect(await spendSubscriptionTrackedCredits(db, user.id, 100, operationId)).toBe(true);
+      96 |     else expect((await recordCreditRefundSnapshot(db, refund)).removed).toBe(0);
+
+      at src/services/__tests__/subscriptionCreditLockOrder.test.ts:93:88
+      at fulfilled (src/services/__tests__/subscriptionCreditLockOrder.test.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 4 total
+Snapshots:   0 total
+Time:        4.705 s, estimated 5 s
+Ran all test suites within paths "src/services/__tests__/subscriptionCreditLockOrder.test.ts".
+error: script "test" exited with code 1
