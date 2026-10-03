@@ -106,6 +106,21 @@ def validate_plan(path):
     return plan
 
 
+def bootstrap_router():
+    # Exercise the same exported source loader before the child reads a key or
+    # creates remote objects. No database URL or provider credential is passed.
+    script = ("const {loadBillingRouter}=await import('./" + CHILD + "');"
+              "const router=await loadBillingRouter(process.cwd());"
+              "console.log(JSON.stringify({actualLoader:typeof router,remoteRequests:0,keyRead:false}));")
+    checked = subprocess.run(['bun', '-e', script], cwd=ROOT,
+                             env=scrub() | {'NODE_ENV': 'test', 'LOG_LEVEL': 'silent'},
+                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+    checked.check_returncode()
+    if json.loads(checked.stdout) != {'actualLoader': 'function', 'remoteRequests': 0, 'keyRead': False}:
+        raise ValueError('Router bootstrap did not return the expected offline result')
+    return checked.stdout
+
+
 def execute(path):
     plan = validate_plan(path)
     if run(['git', 'status', '--porcelain', '--untracked-files=all'], cwd=ROOT).strip():
@@ -162,6 +177,7 @@ def execute(path):
                                stderr=subprocess.STDOUT, check=False)
         (owned / 'build.log').write_text(build.stdout)
         build.check_returncode()
+        (owned / 'bootstrap.log').write_text(bootstrap_router())
         migration = subprocess.run(['bun', 'run', 'db:migrate'], cwd=ROOT / 'packages/api', env=env,
                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
         (owned / 'migrate.log').write_text(migration.stdout)
