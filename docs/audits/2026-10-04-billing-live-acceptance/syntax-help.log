@@ -1,0 +1,35 @@
+AST commercial-inventory-ecs.py
+AST merchants-register-coordinator.py
+AST test-commercial-inventory-ecs.py
+AST test-live-acceptance.py
+NODE compare-commercial-inventory.mjs
+NODE merchants-register.mjs
+NODE read-commercial-inventory.mjs
+NODE test-compare-commercial-inventory.mjs
+NODE test-merchants-register.mjs
+usage: commercial-inventory-ecs.py [-h] --definition DEFINITION
+                                   [--plan-sha256 PLAN_SHA256] --plan PLAN
+                                   [--execute] [--output OUTPUT]
+                                   {oxy,clarity,mercaria}
+
+positional arguments:
+  {oxy,clarity,mercaria}
+
+options:
+  -h, --help            show this help message and exit
+  --definition DEFINITION
+  --plan-sha256 PLAN_SHA256
+  --plan PLAN
+  --execute
+  --output OUTPUT
+usage: merchants-register-coordinator.py [-h] [--config CONFIG] --plan PLAN
+                                         [--plan-sha256 PLAN_SHA256]
+                                         [--execute] [--output OUTPUT]
+
+options:
+  -h, --help            show this help message and exit
+  --config CONFIG
+  --plan PLAN
+  --plan-sha256 PLAN_SHA256
+  --execute
+  --output OUTPUT

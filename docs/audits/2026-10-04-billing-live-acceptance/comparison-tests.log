@@ -1,0 +1,15 @@
+✔ post-DDL zero financial rows and two stores/owners imply zero backfill writes (3.527189ms)
+✔ missing target table cannot pass post-DDL comparison (0.440465ms)
+✔ nonzero financial destination cannot be called empty backfill acceptance (0.389451ms)
+✔ legacy missing invoice-column fallback is insufficient after142 (0.48122ms)
+✔ omitted table census denied (0.331866ms)
+✔ changed receipt denied (0.236421ms)
+✔ incomplete ECS cleanup denied (0.398528ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9.975209

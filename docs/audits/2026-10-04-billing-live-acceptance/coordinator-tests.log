@@ -1,0 +1,20 @@
+test_canonical_cleanup_uses_fresh_inspect_then_revoke_receipt (__main__.Coordinator.test_canonical_cleanup_uses_fresh_inspect_then_revoke_receipt) ... ok
+test_cleanup_failure_never_success (__main__.Coordinator.test_cleanup_failure_never_success) ... ok
+test_existing_output_refused (__main__.Coordinator.test_existing_output_refused) ... ok
+test_failure_still_cleans_up (__main__.Coordinator.test_failure_still_cleans_up) ... ok
+test_help_is_successful_without_operation (__main__.Coordinator.test_help_is_successful_without_operation) ... ok
+test_interrupt_still_cleans_up (__main__.Coordinator.test_interrupt_still_cleans_up) ... ok
+test_private_files_and_symlinks (__main__.Coordinator.test_private_files_and_symlinks) ... ok
+test_real_child_interrupt_terminal_before_return (__main__.Coordinator.test_real_child_interrupt_terminal_before_return) ... ok
+test_success_always_cleans_up (__main__.Coordinator.test_success_always_cleans_up) ... ok
+test_unknown_inspect_ack_stops_before_revoke (__main__.Coordinator.test_unknown_inspect_ack_stops_before_revoke) ... ok
+test_all_projected_columns_match_final142 (__main__.Profiles.test_all_projected_columns_match_final142) ... ok
+test_cross_family_and_nonpositive_revision_denied (__main__.Profiles.test_cross_family_and_nonpositive_revision_denied) ... ok
+test_each_family_exact_new_revision (__main__.Profiles.test_each_family_exact_new_revision) ... ok
+test_family_validation_precedes_aws (__main__.Profiles.test_family_validation_precedes_aws) ... ok
+test_old_revision_is_explicit_not_default (__main__.Profiles.test_old_revision_is_explicit_not_default) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.402s
+
+OK

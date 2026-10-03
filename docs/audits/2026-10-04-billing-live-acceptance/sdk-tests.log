@@ -1,0 +1,20 @@
+✔ registry archive, metadata and all53 installed SDK files match (164.147621ms)
+✔ published SDK registers only empty technical namespace and reads it back (25.869266ms)
+✔ existing own development merchant causes no POST (8.147921ms)
+✔ lost registration response reconciles via GET and never repeats POST (22.319578ms)
+✔ 409 registration reconciles via GET and never repeats POST (18.810849ms)
+✔ transport denies foreign URL before native fetch (0.39321ms)
+✔ transport denies second POST before native fetch (0.302401ms)
+✔ transport denies custom registration fields before native fetch (0.122454ms)
+✔ expired operation performs no native fetch (0.174758ms)
+✔ production or foreign merchant is rejected (0.188309ms)
+✔ material verifier mismatch is rejected (0.223332ms)
+✔ transport enforces redirect:error and stream byte bound (0.271578ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 244.66821
