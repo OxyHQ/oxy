@@ -1,0 +1,7 @@
+$ jest --passWithNoTests
+
+Test Suites: 53 passed, 53 total
+Tests:       915 passed, 915 total
+Snapshots:   0 total
+Time:        2.703 s
+Ran all test suites.
