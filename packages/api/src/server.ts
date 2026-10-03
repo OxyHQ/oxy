@@ -187,6 +187,8 @@ import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
 import { createInboxMcpHttpService } from './capabilities/inbox-mcp-http';
+import { handleOxyProfileInternalMcp } from './capabilities/oxy-profile.transport';
+import foregroundProfilesRouter from './routes/foregroundProfiles';
 import { serviceTokenPublicJwks, serviceTokenSigningConfig } from './config/serviceTokenSigning';
 
 // Load environment variables
@@ -224,6 +226,9 @@ app.all(
 app.all(inboxMcpHttpService.mcpPath, (request, response) => {
   void inboxMcpHttpService.handleMcp(request, response);
 });
+
+// The internal Capability transport owns its body, never the external OAuth lane.
+app.all('/_oxy/mcp', rateLimiter, (request, response) => { void handleOxyProfileInternalMcp(request, response); });
 
 // Compress responses (gzip/brotli)
 app.use(compression());
@@ -705,6 +710,7 @@ app.use(mcpOAuthDiscoveryRouter);
 app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
 app.use("/auth", authRateLimiter, authRoutes);
 app.use('/auth/agent', authRateLimiter, agentAuthRoutes);
+app.use('/_oxy/capabilities', foregroundProfilesRouter);
 app.use('/auth/resources', authRateLimiter, resourceIntrospectionRoutes);
 app.use('/v1/products', productAccessRoutes);
 app.use('/v1/products', productCatalogueRoutes);

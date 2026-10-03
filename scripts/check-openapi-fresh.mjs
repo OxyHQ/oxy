@@ -148,6 +148,10 @@ const PUBLIC_EMAIL_OPERATIONS = new Set(['POST /email/inbound', 'GET /email/prox
  * voice clients address the Alia product directly; generic inference uses Oxy.
  */
 const EXPECTED_PAYLOAD_OPERATIONS = [
+  { method: 'post', path: '/capabilities/foreground-execution-authorizations', requestBody: true },
+  // Ranking accepts an empty filter object; signed identity comes from the ticket.
+  { method: 'post', path: '/_oxy/capabilities/profiles/recommendations', requestBody: true, allowsEmptyObject: true },
+  { method: 'get', path: '/_oxy/capabilities/users/me/graph', requestBody: false },
   { method: 'get', path: '/billing/product-subscriptions', requestBody: false },
   { method: 'get', path: '/billing/credit-grants', requestBody: false },
   { method: 'get', path: '/billing/subscriptions', requestBody: false },
@@ -185,7 +189,7 @@ const FORBIDDEN_30_KEYWORDS = {
 /** Vacuity floors. A layer that examines nothing must fail, not pass. */
 const MINIMUM_EXPECTED_PATHS = 12;
 const MINIMUM_EXPECTED_PREFIXES = 4;
-const MINIMUM_PAYLOAD_OPERATIONS = 17;
+const MINIMUM_PAYLOAD_OPERATIONS = 20;
 /**
  * The floor on schema nodes the empty-schema walk must actually visit.
  *
@@ -250,7 +254,8 @@ function isPublicByDesign(path) {
 function credentialledPaths(paths) {
   return Object.keys(paths).filter(
     (path) =>
-      !isPublicByDesign(path) && (path.startsWith('/v1/') || path.startsWith('/inference/')),
+      !isPublicByDesign(path) && (path.startsWith('/v1/') || path.startsWith('/inference/')
+        || path.startsWith('/_oxy/capabilities/') || path === '/capabilities/foreground-execution-authorizations'),
   );
 }
 
@@ -447,7 +452,7 @@ function undescribedPayloads(paths) {
           `${label} publishes no constrained \`application/json\` request body, so a generated ` +
             'client sends an EMPTY body.',
         );
-      } else if (!Array.isArray(schema.required) || schema.required.length === 0) {
+      } else if (!expected.allowsEmptyObject && (!Array.isArray(schema.required) || schema.required.length === 0)) {
         // Every one of the four POSTs has required fields — `model` and `messages`
         // on the compatibility surface, `input` on `/v1/responses`. A body schema
         // with none is the shape a client can satisfy by sending `{}`, which is

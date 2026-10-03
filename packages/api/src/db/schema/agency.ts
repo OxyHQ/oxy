@@ -122,7 +122,10 @@ export const capabilityExecutionAuthorizations = pgTable(
     ownerAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
     coordinatorApplicationId: text().notNull().references(() => applications.id, { onDelete: 'cascade' }),
     coordinatorCredentialId: text().notNull().references(() => applicationCredentials.id, { onDelete: 'cascade' }),
-    actorType: text({ enum: ['alia', 'agent'] }).notNull(),
+    actorType: text({ enum: ['alia', 'agent', 'requester'] }).notNull(),
+    /** Historical approval handle: live session checks deny absent/expired rows. */
+    requesterSessionId: text(),
+    requesterSessionBindingDigest: text(),
     actorAccountId: text().references(() => users.id, { onDelete: 'cascade' }),
     resourceApp: text().notNull(),
     effectiveAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -146,7 +149,14 @@ export const capabilityExecutionAuthorizations = pgTable(
     }).onDelete('restrict'),
     index('capability_execution_requester_method_idx').on(t.requesterAuthMethodId).where(sql`${t.requesterAuthMethodId} is not null`),
     check('capability_execution_authorizations_kind_check', sql`${t.kind} in ('direct_request', 'automation')`),
-    check('capability_execution_authorizations_actor_check', sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} = 'agent' and ${t.actorAccountId} is not null)`),
+    check('capability_execution_authorizations_actor_check', sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} in ('agent', 'requester') and ${t.actorAccountId} is not null)`),
+    check('capability_execution_requester_session_check', sql`
+      (${t.actorType} = 'requester' and ${t.requesterSessionId} is not null and length(${t.requesterSessionId}) > 0
+       and ${t.requesterSessionBindingDigest} is not null
+       and ${t.requesterSessionBindingDigest} ~ '^[a-f0-9]{64}$'
+       and ${t.kind} = 'direct_request' and ${t.maximumAutonomy} = 'read_only'
+       and ${t.actorAccountId} = ${t.requesterAccountId})
+      or (${t.actorType} <> 'requester' and ${t.requesterSessionId} is null and ${t.requesterSessionBindingDigest} is null)`),
     check('capability_execution_authorizations_automation_check', sql`(${t.kind} = 'automation') = (${t.automationId} is not null)`),
     check(
       'capability_execution_authorizations_run_scope_check',

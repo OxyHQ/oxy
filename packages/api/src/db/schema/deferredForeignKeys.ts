@@ -116,6 +116,11 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: capabilityExecutionAuthorizations,
+    column: capabilityExecutionAuthorizations.requesterSessionId,
+    reason: 'Historical foreground approval handle. Session expiry cleanup must not cascade authorization/audit history; issuance and introspection require its live existence and exact binding digest.',
+  },
   { table: billingCreditInvoices, column: billingCreditInvoices.invoiceId, reason: 'Opaque provider invoice, keyed by verified processor account/mode/environment binding; no local provider invoice table.' },
   { table: billingCreditGrants, column: billingCreditGrants.subscriptionId, reason: 'Opaque subscription identity owned by the bound provider, not the local subscription mirror primary key.' },
   { table: billingCreditGrants, column: billingCreditGrants.promotionId, reason: 'Explicit versioned promotion registry identifier, not a database identity.' },

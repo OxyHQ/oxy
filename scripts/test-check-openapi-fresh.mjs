@@ -43,6 +43,8 @@ const failures = [];
  * Other API routes are unnecessary for these focused controls.
  */
 const FIXTURE_ROUTES = {
+  'capabilities.ts': [['post', '/foreground-execution-authorizations']],
+  'foregroundProfiles.ts': [['post', '/profiles/recommendations'], ['get', '/users/me/graph']],
   'billing.ts': [['get', '/product-subscriptions'], ['get', '/credit-grants'], ['get', '/subscriptions'], ['post', '/product-subscriptions/cancel'], ['post', '/subscriptions/cancel']],
   'productAccess.ts': [['get', '/{productId}/access/{subjectAccountId}']],
   'inferenceEdge.ts': [
@@ -68,6 +70,8 @@ const FIXTURE_ROUTES = {
 };
 
 const FIXTURE_MAP = {
+  'capabilities.ts': ['/capabilities'],
+  'foregroundProfiles.ts': ['/_oxy/capabilities'],
   'billing.ts': ['/billing'],
   'productAccess.ts': ['/v1/products'],
   'inferenceEdge.ts': ['/v1'],
@@ -336,6 +340,44 @@ expectVerdict(
   'GET /email/messages publishes no `security` at all',
 );
 
+expectVerdict(
+  'foreground-read-anonymous',
+  createFixture({ securityOverrides: { '/_oxy/capabilities/users/me/graph get': [{}] } }),
+  1,
+  'GET /_oxy/capabilities/users/me/graph offers an EMPTY security requirement',
+);
+expectVerdict(
+  'foreground-ranking-empty-filters',
+  createFixture({ payloadOverrides: { '/_oxy/capabilities/profiles/recommendations post': {
+    requestBody: { required: true, content: { 'application/json': { schema: {
+      type: 'object', additionalProperties: false, properties: { limit: { type: 'integer', minimum: 1 } },
+    } } } },
+  } } }),
+  0,
+  'is fresh',
+);
+
+expectVerdict(
+  'foreground-requester-body-missing',
+  createFixture({ payloadOverrides: { '/capabilities/foreground-execution-authorizations post': { requestBody: null } } }),
+  1,
+  'POST /capabilities/foreground-execution-authorizations publishes no constrained',
+);
+expectVerdict(
+  'foreground-read-body-missing',
+  createFixture({ payloadOverrides: { '/_oxy/capabilities/profiles/recommendations post': { requestBody: null } } }),
+  1,
+  'POST /_oxy/capabilities/profiles/recommendations publishes no constrained',
+);
+expectVerdict(
+  'foreground-graph-selector-body',
+  createFixture({ payloadOverrides: { '/_oxy/capabilities/users/me/graph get': {
+    requestBody: { content: { 'application/json': { schema: { type: 'string' } } } },
+  } } }),
+  1,
+  'GET /_oxy/capabilities/users/me/graph publishes a request body, but this operation takes none',
+);
+
 // POSITIVE CONTROLS FOR THE PAYLOAD LAYER. Each of these is the exact state every
 // `/v1` operation on `main` was in, and layers 1 and 2 are GREEN in all of them:
 // the path is described, by name, and it claims the right credential. Only the
@@ -562,7 +604,7 @@ withMutatedGate(
   'payload-list-shrunk',
   "  { method: 'post', path: '/v1/responses', requestBody: true },\n",
   '',
-  'below the floor of 17',
+  'below the floor of 20',
 );
 
 // The empty-schema walk going INERT, which is the one failure its own findings

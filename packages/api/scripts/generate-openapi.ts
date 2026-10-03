@@ -633,6 +633,7 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'storage.ts': ['/storage'],
   'search.ts': ['/search'],
   'profiles.ts': ['/profiles'],
+  'foregroundProfiles.ts': ['/_oxy/capabilities'],
   'users.ts': ['/users'],
   'userData.ts': ['/users/me/app-data'],
   'sessionDevice.ts': ['/session/device'],

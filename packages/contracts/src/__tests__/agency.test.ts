@@ -5,6 +5,7 @@ import {
     capabilityTicketRequestSchema,
     delegationGrantSchema,
     grantLimitSchema,
+    foregroundExecutionAuthorizationInputSchema,
 } from '../index';
 
 const resource = {
@@ -297,5 +298,37 @@ describe('agency contracts', () => {
             ...catalog,
             externalMcp: { resource: 'https://mcp.mention.earth?account=other' },
         }).success).toBe(false);
+    });
+});
+
+
+describe('present requester contracts', () => {
+    const ticket = {
+        iss: 'https://api.oxy.so', aud: 'oxy-platform-api', sub: 'principal-1',
+        jti: 'read-1', iat: 1000, exp: 1060, runId: 'run-1',
+        executionAuthorization: { kind: 'direct_request', id: 'approval-1' },
+        coordinator: { applicationId: 'mention-app', credentialId: 'wl_presenter' },
+        requesterAccountId: 'principal-1', ownerAccountId: 'organization-1',
+        actor: { type: 'requester', accountId: 'principal-1' },
+        resource: { appId: 'oxy', effectiveAccountId: 'organization-1', resourceType: 'account', resourceId: 'organization-1' },
+        tool: 'readViewerGraph', capabilities: ['user:read'], limits: [], autonomy: 'read_only',
+    };
+    it('separates the present principal from the effective subject without standing authority', () => {
+        expect(capabilityTicketClaimsSchema.parse(ticket).actor).toEqual(ticket.actor);
+        for (const change of [
+            { sub: 'organization-1' }, { requesterAccountId: 'other-principal' },
+            { autonomy: 'execute_on_request' }, { grantId: 'standing-grant' },
+            { executionAuthorization: { kind: 'automation', id: 'approval-1', automationId: 'automation-1' }, automationId: 'automation-1' },
+        ]) expect(capabilityTicketClaimsSchema.safeParse({ ...ticket, ...change }).success).toBe(false);
+    });
+    it('accepts only the explicit catalogue read request and rejects free identity or authority fields', () => {
+        const input = { tool: 'readViewerGraph', expectedCatalog: {
+            registrationId: 'catalog-1', version: '1.0.0', digest: 'a'.repeat(64),
+        }, runId: 'run-1', expiresAt: '2026-10-03T10:00:00.000Z' };
+        expect(foregroundExecutionAuthorizationInputSchema.parse(input)).toEqual(input);
+        for (const change of [ { ownerAccountId: 'other' }, { requesterAccountId: 'other' },
+            { actor: ticket.actor }, { grantId: 'standing' }, { automationId: 'automation' },
+            { tool: 'writeEmail' }, { expectedCatalog: { ...input.expectedCatalog, digest: 'invalid' } },
+        ]) expect(foregroundExecutionAuthorizationInputSchema.safeParse({ ...input, ...change }).success).toBe(false);
     });
 });

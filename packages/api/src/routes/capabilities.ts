@@ -1,10 +1,12 @@
 import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
+import { validateForegroundRequesterBearer } from '../services/foregroundCapabilityRequester.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { Router, type Response } from 'express';
 import { and, asc, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   actorRefSchema,
+  foregroundExecutionAuthorizationInputSchema,
   auditResultSchema,
   autonomyLevelSchema,
   capabilityPackageSchema,
@@ -550,6 +552,123 @@ router.get('/execution-authorizations', authMiddleware, async (request: AuthRequ
     .limit(200);
   response.json({ authorizations });
 });
+
+/**
+ * @openapi
+ * /capabilities/foreground-execution-authorizations:
+ *   post:
+ *     tags: [Capabilities]
+ *     summary: Authorize one present requester read for a verified presenting service
+ *     description: Separate service bearer and requester subjectToken; neither free actor nor subject IDs are accepted. No standing or automation authority is created.
+ *     security: [{ serviceTokenAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             additionalProperties: false
+ *             required: [subjectToken, tool, expectedCatalog, runId, expiresAt]
+ *             properties:
+ *               subjectToken: { type: string, minLength: 1, maxLength: 16384, pattern: '^\\S+$', writeOnly: true }
+ *               tool: { type: string, enum: [recommendProfiles, readViewerGraph] }
+ *               expectedCatalog:
+ *                 type: object
+ *                 additionalProperties: false
+ *                 required: [registrationId, version, digest]
+ *                 properties:
+ *                   registrationId: { type: string, minLength: 1 }
+ *                   version: { type: string, minLength: 1 }
+ *                   digest: { type: string, pattern: '^[a-f0-9]{64}$' }
+ *               runId: { type: string, minLength: 1 }
+ *               stepId: { type: string, minLength: 1 }
+ *               expiresAt: { type: string, format: date-time, description: At most 15 minutes and never beyond the requester session or bearer. }
+ *     responses:
+ *       201:
+ *         description: Read-only direct authorization with actor and subject derived from live requester authority.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [authorization]
+ *               properties:
+ *                 authorization:
+ *                   type: object
+ *                   required: [id, kind, requesterAccountId, ownerAccountId, coordinatorApplicationId, coordinatorCredentialId, actorType, actorAccountId, requesterSessionId, requesterSessionBindingDigest, resourceApp, effectiveAccountId, resourceType, resourceKey, tool, maximumAutonomy, expiresAt]
+ *                   properties:
+ *                     id: { type: string }
+ *                     kind: { type: string, const: direct_request }
+ *                     requesterAccountId: { type: string }
+ *                     ownerAccountId: { type: string }
+ *                     coordinatorApplicationId: { type: string }
+ *                     coordinatorCredentialId: { type: string }
+ *                     actorType: { type: string, const: requester }
+ *                     actorAccountId: { type: string }
+ *                     requesterSessionId: { type: string }
+ *                     requesterSessionBindingDigest: { type: string, pattern: '^[a-f0-9]{64}$' }
+ *                     resourceApp: { type: string, const: oxy }
+ *                     effectiveAccountId: { type: string }
+ *                     resourceType: { type: string, const: account }
+ *                     resourceKey: { type: string }
+ *                     tool: { type: string, enum: [recommendProfiles, readViewerGraph] }
+ *                     maximumAutonomy: { type: string, const: read_only }
+ *                     expiresAt: { type: string, format: date-time }
+ *       400: { description: Invalid input or expiry. }
+ *       401: { description: Service or requester proof missing or no longer current. }
+ *       403: { description: Live presenter or requester authority refused. }
+ *       409: { description: Catalogue pin is not current. }
+ */
+router.post('/foreground-execution-authorizations', serviceAuthMiddleware, asyncHandler(async (request: ServiceAuthRequest, response: Response) => {
+  const presenter = await livePrincipal(request, response, 'capability-tickets:issue', AGENCY_COORDINATE_CAPABILITY);
+  if (!presenter) return;
+  const parsed = foregroundExecutionAuthorizationInputSchema.extend({
+    subjectToken: z.string().min(1).max(16_384).regex(/^\S+$/),
+  }).safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: 'invalid_foreground_execution_authorization' });
+    return;
+  }
+  const input = parsed.data;
+  const requester = await validateForegroundRequesterBearer(input.subjectToken, presenter);
+  if (!requester) {
+    response.status(401).json({ error: 'present_requester_not_authorized' });
+    return;
+  }
+  const registration = await activeCapabilityCatalog('oxy');
+  if (!registration || registration.id !== input.expectedCatalog.registrationId
+    || registration.version !== input.expectedCatalog.version
+    || registration.digest !== input.expectedCatalog.digest) {
+    response.status(409).json({ error: 'foreground_catalog_not_current' });
+    return;
+  }
+  const tool = registration.catalog.tools.find((entry) => entry.name === input.tool);
+  if (!tool || tool.effect !== 'read' || !tool.exposure.includes('internal')
+    || !tool.resourceTypes.includes('account')) {
+    response.status(403).json({ error: 'foreground_read_tool_not_available' });
+    return;
+  }
+  const now = new Date();
+  const expiresAt = new Date(input.expiresAt);
+  if (expiresAt <= now || expiresAt.getTime() - now.getTime() > 15 * 60_000
+    || expiresAt > requester.expiresAt) {
+    response.status(400).json({ error: 'foreground_expiry_out_of_range' });
+    return;
+  }
+  const agentBinding = await readSessionAgentBinding(requester.sessionId, requester.principalAccountId);
+  const [authorization] = await getDb().insert(capabilityExecutionAuthorizations).values({
+    kind: 'direct_request', requesterAccountId: requester.principalAccountId,
+    requesterAuthMethodId: agentBinding?.authMethodId ?? null,
+    requesterSessionId: requester.sessionId, requesterSessionBindingDigest: requester.digest,
+    ownerAccountId: requester.subjectAccountId,
+    coordinatorApplicationId: presenter.applicationId, coordinatorCredentialId: presenter.credentialId,
+    actorType: 'requester', actorAccountId: requester.principalAccountId,
+    resourceApp: 'oxy', effectiveAccountId: requester.subjectAccountId,
+    resourceType: 'account', resourceKey: requester.subjectAccountId,
+    tool: input.tool, runId: input.runId, stepId: input.stepId ?? null,
+    maximumAutonomy: 'read_only', limits: [], expiresAt,
+  }).returning();
+  response.status(201).json({ authorization });
+}));
 
 router.post('/execution-authorizations', authMiddleware, asyncHandler(async (request: AuthRequest, response: Response) => {
   const parsed = executionAuthorizationSchema.safeParse(request.body);
