@@ -1,0 +1,38 @@
+test_complete_execute_uses_real_protocol_and_durable_intent (__main__.ProtocolTests.test_complete_execute_uses_real_protocol_and_durable_intent) ... ERROR
+test_dispatch_census_pagination_bound (__main__.ProtocolTests.test_dispatch_census_pagination_bound) ... ok
+test_duplicate_packet_is_rejected (__main__.ProtocolTests.test_duplicate_packet_is_rejected) ... ok
+test_old_protocol_kind_is_rejected (__main__.ProtocolTests.test_old_protocol_kind_is_rejected) ... ok
+test_real_reader_protocol_round_trip (__main__.ProtocolTests.test_real_reader_protocol_round_trip) ... ok
+test_recovered_wrong_definition_rejected (__main__.ProtocolTests.test_recovered_wrong_definition_rejected) ... ok
+test_tampered_digest_is_rejected (__main__.ProtocolTests.test_tampered_digest_is_rejected) ... ok
+test_unknown_absent_ack_stays_unresolved (__main__.ProtocolTests.test_unknown_absent_ack_stays_unresolved) ... ok
+test_unknown_ack_reconciles_exact_task_and_never_redispatches (__main__.ProtocolTests.test_unknown_ack_reconciles_exact_task_and_never_redispatches) ... ok
+test_unknown_ambiguous_ack_cleans_all_exact_tasks_and_rejects (__main__.ProtocolTests.test_unknown_ambiguous_ack_cleans_all_exact_tasks_and_rejects) ... ok
+test_wrong_nonce_is_rejected (__main__.ProtocolTests.test_wrong_nonce_is_rejected) ... ok
+test_wrong_profile_is_rejected (__main__.ProtocolTests.test_wrong_profile_is_rejected) ... ok
+
+======================================================================
+ERROR: test_complete_execute_uses_real_protocol_and_durable_intent (__main__.ProtocolTests.test_complete_execute_uses_real_protocol_and_durable_intent)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/scripts/agency/test-mention-foreground-preflight.py", line 110, in test_complete_execute_uses_real_protocol_and_durable_intent
+    _, records = self.execute_fake()
+                 ~~~~~~~~~~~~~~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/scripts/agency/test-mention-foreground-preflight.py", line 102, in execute_fake
+    else: launcher.execute(plan, output)
+          ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/scripts/agency/mention-foreground-preflight-ecs.py", line 249, in execute
+    result = collect_result(plan['live']['logGroup'], stream, plan['nonce'])
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/scripts/agency/mention-foreground-preflight-ecs.py", line 153, in collect_result
+    return decode(events, nonce)
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/scripts/agency/mention-foreground-preflight-ecs.py", line 129, in decode
+    require(len(packets) <= first['total'] and len({p['seq'] for p in packets}) == len(packets), 'Ambiguous/duplicate output packets')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/scripts/agency/mention-foreground-preflight-ecs.py", line 42, in require
+    raise RuntimeError(message)
+RuntimeError: Ambiguous/duplicate output packets
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.074s
+
+FAILED (errors=1)

@@ -1,0 +1,33 @@
+[
+  {
+    "command": [
+      "node",
+      "--check",
+      "scripts/agency/read-mention-foreground-preflight.mjs"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "python3",
+      "-B",
+      "-c",
+      "from pathlib import Path; [compile(p.read_text(),str(p),'exec') for p in Path('scripts/agency').glob('*.py')]; print('Python sources compile without writing bytecode')"
+    ],
+    "exitCode": 0,
+    "stdout": "Python sources compile without writing bytecode\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

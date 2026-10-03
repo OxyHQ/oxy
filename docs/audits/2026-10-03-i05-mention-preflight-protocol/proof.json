@@ -1,0 +1,40 @@
+{
+  "sourceHead": "4d24c47088aea65bc65d71297205055f54d6fba6",
+  "sourceSha256": {
+    "scripts/agency/mention-foreground-preflight-ecs.py": "17a740a7a43bb878998385fe1479d9885b80de9bb34a59d7b94de40d3b6f6ee5",
+    "scripts/agency/read-mention-foreground-preflight.mjs": "8328dc238a75a11577d4706d0d4c19a39f08eedcf211a03a0413dab44cf6e2d5",
+    "scripts/agency/test-mention-foreground-preflight.py": "e4d46fc6b8b6eadc66bf9a6cfc5934d39a1ba5d61fa5c3f1899ba60de4e86dbe",
+    "docs/architecture/i05-mention-foreground/README.md": "d771b353052d5026f0f0016e18912673d9a4cf09db37e139a43a0608ccfee117"
+  },
+  "records": {
+    "green.txt": {
+      "sha256": "7f3b61de377063ee05ed8d7cf29e49b431d6fe1d87f1d394d8cf37719a3c7b9c",
+      "bytes": 1489
+    },
+    "initial-mock-pagination-error.txt": {
+      "sha256": "afafdf6dcf129de7e3e5afdd204a47822114b6798ffd858aaeb8f03039e8efa8",
+      "bytes": 3430
+    },
+    "mutant-old-kind-red.txt": {
+      "sha256": "fb3ea1f47b28325dcdec2731a9b5d34a4224e085072032b83313aaf61173a049",
+      "bytes": 6122
+    },
+    "syntax.json": {
+      "sha256": "51421d7c76089f6759e2e57fbc251821e9c282883ffc4dda8a5140fa00735d05",
+      "bytes": 665
+    }
+  },
+  "validation": {
+    "offlineTests": 12,
+    "oldKindMutantFailures": 3,
+    "awsWrites": 0,
+    "postgresConnections": 0,
+    "nodeEncoder": "actual reader encodeInventory imported with actual resolved postgres dependency; import alone creates no client"
+  },
+  "limits": [
+    "AWS calls replaced only at launcher boundary; execute/collection/cleanup otherwise actual code",
+    "Absence after bounded eventual metadata reconciliation is unresolved, not no-task proof",
+    "Initial GREEN attempt failed because synthetic repeated CloudWatch page replayed its events; fixed mock page, preserved initial failure",
+    "No live ECS/IAM/SQL success or CAS application proven"
+  ]
+}
