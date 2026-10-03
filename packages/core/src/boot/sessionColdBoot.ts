@@ -212,6 +212,7 @@ export async function runSessionColdBoot(
   steps.push({
     id: 'warm-token-plant',
     run: async () => {
+      if (identityBinding === null && isNative && await store.isAutomaticIdentitySignInSuppressed?.()) return { kind: 'skip' };
       const persisted = await store.load();
       if (!persisted?.accessToken || !persisted.sessionId || !persisted.userId || !persisted.expiresAt) {
         return { kind: 'skip' };
@@ -488,8 +489,10 @@ export async function runSessionColdBoot(
       id: 'commons-proof-signin',
       enabled: () => isNative && !isOffline(),
       run: async () => {
-        const session = await oxy.auth.signInWithCommonsIdentity({ requestOptions: { retry: false } });
-        if (!session?.accessToken) {
+        if (await store.isAutomaticIdentitySignInSuppressed?.()) return { kind: 'skip' };
+        const epoch = oxy.http.getSessionEpoch();
+        const session = await oxy.auth.signInWithCommonsIdentity({ plantTokens: false, requestOptions: { retry: false } });
+        if (!session?.accessToken || oxy.http.getSessionEpoch() !== epoch || await store.isAutomaticIdentitySignInSuppressed?.()) {
           return { kind: 'skip' };
         }
         // `verifyChallenge` issues a deviceSecret; persist it so the next
@@ -505,6 +508,8 @@ export async function runSessionColdBoot(
             expiresAt: session.expiresAt,
           });
         }
+        if (oxy.http.getSessionEpoch() !== epoch || await store.isAutomaticIdentitySignInSuppressed?.()) return { kind: 'skip' };
+        oxy.session.setAccessToken(session.accessToken);
         return {
           kind: 'session',
           session: {

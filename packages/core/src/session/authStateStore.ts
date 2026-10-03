@@ -85,6 +85,9 @@ export interface AuthStateStore {
    */
   save(state: PersistedAuthState): Promise<boolean>;
   clear(): Promise<void>;
+  /** Durable local intent only: never authority or a mutation of an identity key. */
+  isAutomaticIdentitySignInSuppressed?(): Promise<boolean>;
+  setAutomaticIdentitySignInSuppressed?(suppressed: boolean): Promise<boolean>;
 }
 
 /**
@@ -115,6 +118,7 @@ export interface NativeKeyValueStorage {
  * so upgrading users are not signed out; the next `save()` splits them apart.
  */
 export const AUTH_STATE_STORAGE_KEY = 'oxy.auth.v1';
+export const AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY = 'oxy.auth.automatic-identity-signin-suppressed.v1';
 
 /**
  * Versioned BEST-EFFORT warm-token storage key. Holds the short-lived
@@ -428,8 +432,34 @@ export function createNativeAuthStateStore(storage: NativeKeyValueStorage): Auth
   // Same in-memory mirror as the web store — a locked/failed SecureStore write
   // must not silently lose the session for the app's lifetime.
   let sessionMirror: PersistedAuthState | null | undefined;
+  let suppressedMirror: boolean | undefined;
+  let pending: Promise<void> = Promise.resolve();
+  const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = pending.then(operation);
+    pending = result.then(() => undefined, () => undefined);
+    return result;
+  };
   return {
-    load: async () => {
+    isAutomaticIdentitySignInSuppressed: () => serialize(async () => {
+      if (suppressedMirror !== undefined) return suppressedMirror;
+      try {
+        return (await storage.getItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY)) !== null;
+      } catch {
+        return true; // Unknown storage must not start a new key sign-in.
+      }
+    }),
+    setAutomaticIdentitySignInSuppressed: (suppressed) => serialize(async () => {
+      suppressedMirror = suppressed;
+      try {
+        if (suppressed) await storage.setItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY, '1');
+        else await storage.removeItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY);
+        const actual = await storage.getItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY);
+        const verified = suppressed ? actual === '1' : actual === null;
+        if (!verified) suppressedMirror = true;
+        return verified;
+      } catch { suppressedMirror = true; return false; }
+    }),
+    load: () => serialize(async () => {
       if (sessionMirror !== undefined) {
         return sessionMirror;
       }
@@ -442,8 +472,8 @@ export function createNativeAuthStateStore(storage: NativeKeyValueStorage): Auth
       } catch {
         return null;
       }
-    },
-    save: async (state) => {
+    }),
+    save: (state) => serialize(async () => {
       sessionMirror = state;
       // Durable credential FIRST, then VERIFY. On Android SecureStore an
       // oversize/failed write can resolve WITHOUT throwing, so a read-back is the
@@ -485,8 +515,8 @@ export function createNativeAuthStateStore(storage: NativeKeyValueStorage): Auth
       // Report ONLY the durable-credential landing; the warm-token outcome above
       // is intentionally excluded (it is a best-effort optimization).
       return durablePersisted;
-    },
-    clear: async () => {
+    }),
+    clear: () => serialize(async () => {
       sessionMirror = null;
       try {
         await storage.removeItem(AUTH_STATE_STORAGE_KEY);
@@ -498,6 +528,6 @@ export function createNativeAuthStateStore(storage: NativeKeyValueStorage): Auth
       } catch {
         // Non-fatal.
       }
-    },
+    }),
   };
 }

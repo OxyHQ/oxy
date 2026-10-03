@@ -136,3 +136,29 @@ describe('SessionClient REST', () => {
     expect(host.setTokens).toHaveBeenLastCalledWith('jwt-B');
   });
 });
+
+
+describe('SessionClient explicit full signout callback',()=>{
+  const empty=()=>({...STATE(9),accounts:[],activeAccountId:null});
+  it('awaits the callback after total signout, but not a partial signout',async()=>{
+    let release!:()=>void;
+    const barrier=new Promise<void>(resolve=>{release=resolve;});
+    const onFullExplicitSignOut=jest.fn(()=>barrier);
+    const host=makeHost(jest.fn().mockResolvedValueOnce(SYNC(5)).mockResolvedValueOnce({state:empty(),activeToken:null}));
+    const client=new SessionClient(host,{onFullExplicitSignOut});
+    await client.signOut({accountId:'a2'});
+    expect(onFullExplicitSignOut).not.toHaveBeenCalled();
+    let resolved=false;
+    const full=client.signOut({all:true}).then(()=>{resolved=true;});
+    await new Promise(resolve=>setImmediate(resolve));
+    expect(onFullExplicitSignOut).toHaveBeenCalledTimes(1);
+    expect(resolved).toBe(false);
+    release();await full;client.stop();
+  });
+  it('bootstrap and device/add empty responses never mark an explicit signout',async()=>{
+    const onFullExplicitSignOut=jest.fn(async()=>undefined);
+    const client=new SessionClient(makeHost(jest.fn(async()=>({state:empty(),activeToken:null}))),{onFullExplicitSignOut});
+    await client.bootstrap();await client.addCurrentAccount();
+    expect(onFullExplicitSignOut).not.toHaveBeenCalled();client.stop();
+  });
+});

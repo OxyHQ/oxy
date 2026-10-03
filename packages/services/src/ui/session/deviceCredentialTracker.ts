@@ -31,6 +31,7 @@ function credentialOf(state: { deviceId?: string; deviceSecret?: string } | null
 export function trackDeviceCredential(store: AuthStateStore): CredentialTrackingAuthStateStore {
   let held: HeldDeviceCredential | null | undefined;
   return {
+    ...store,
     load: async () => {
       const state = await store.load();
       held = credentialOf(state);

@@ -249,3 +249,10 @@ An isolated OAuth grant never enters this device lane. A missing device bearer
 uses the existing shared HTTP refresh single-flight, and identity mode continues
 through the existing pinned `SessionClient` and runtime projection. Foreground
 reconciliation does not authorize another subject for an identity holder.
+
+
+### Native explicit sign-out and identity recovery
+
+An explicit removal that leaves no account records a durable local sign-out intent in the native auth store. In ordinary account mode, cold boot and token refresh then skip automatic Commons challenge/verify and warm bearer planting from generic late saves. The marker survives generic saves, clears and process restarts; only a successful explicit sign-in commit releases it. A partial logout with another account remaining does not set it. A current shared device holder may still be adopted and must pass the canonical server mint; the marker does not grant authority to an old shared slot.
+
+Native store operations run in call order so a save already pending cannot land after a later clear. Marker write/read-back failure is reported as a failed durable sign-out, and unknown marker storage blocks automatic key recovery. None of these operations deletes an identity key. Identity mode ignores the account-mode marker and keeps its original pinned-key recovery contract. Third-party OAuth sessions remain isolated from this native recovery policy.

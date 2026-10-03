@@ -230,6 +230,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       // the client's lifetime while still seeing later resolutions.
       () => identityRef.current?.getPinnedAccountId() ?? null,
       () => registeredLaneRef.current.lane === 'device' && (!runtimeRef.current || !hasIsolatedOAuthSession(runtimeRef.current)),
+      async () => {
+        if (identityRef.current || registeredLaneRef.current.lane !== 'device') return;
+        if (await authStore.setAutomaticIdentitySignInSuppressed?.(true) === false) throw new Error('Failed to persist explicit sign-out intent');
+      },
     );
   }
   const { client: sessionClient, host: sessionClientHost } = sessionClientPairRef.current;
@@ -781,8 +785,11 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         onAuthStateChange: onAuthStateChangeRef.current,
         markAuthResolved: markAuthResolvedRef.current,
       });
+      if (options.activate && !isolatedOAuth && !identity && input.userId && runtime.getSnapshot().account?.id === input.userId) {
+        if (await authStore.setAutomaticIdentitySignInSuppressed?.(false) === false) logger('Failed to release explicit sign-out intent after sign-in');
+      }
     },
-    [oxyServices, authStore, runtime, sessionClient, sessionClientHost, syncFromClient, logger, clientId],
+    [oxyServices, authStore, runtime, sessionClient, sessionClientHost, syncFromClient, logger, clientId, identity],
   );
   const commitSessionRef = useRef(commitSession);
   commitSessionRef.current = commitSession;

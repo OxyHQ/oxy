@@ -41,6 +41,7 @@ export function createSessionClient(
   onUnauthenticated?: (origin: SessionStateOrigin) => void,
   getPinnedAccountId?: () => string | null,
   isDeviceSessionAllowed: () => boolean = () => true,
+  onFullExplicitSignOut?: () => Promise<void>,
 ): {
   client: SessionClient;
   host: ReturnType<typeof createSessionClientHost>;
@@ -59,6 +60,7 @@ export function createSessionClient(
   const client = new SessionClient(host, {
     transport,
     onUnauthenticated,
+    onFullExplicitSignOut,
     getPinnedAccountId,
   });
   return { client, host };
