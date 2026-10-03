@@ -14,6 +14,11 @@ settles against the normalized usage report and pinned price version; proving
 that this happened in production requires a live request and ledger readback,
 not this source contract.
 
+This protocol is the `commercial` treatment. A request the server classifies
+as `internal_metered` (a configured product relationship such as Alia →
+Kaana) takes no hold and gets no receipt, and is still metered durably and
+bounded by technical capacity. See [internal-metering.md](./internal-metering.md).
+
 Your own numbers are readable at `/inference/reporting` — balance, usage, spend,
 pending reservations, settled charges, an export, and budgets. See
 [what your account owes and holds](#what-your-account-owes-and-holds).
