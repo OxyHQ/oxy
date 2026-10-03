@@ -1,0 +1,38 @@
+$ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types
+$ rm -rf dist
+$ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+$ tsc -p tsconfig.esm.json && node scripts/mark-esm.mjs
+$ tsc -p tsconfig.types.json
+bun pack v1.4.2 (744846f84)
+
+packed 2.68KB package.json
+packed 3.38KB README.md
+packed 3.88KB dist/cjs/index.js
+packed 20B dist/cjs/package.json
+packed 6.0KB dist/cjs/paging.js
+packed 3.0KB dist/cjs/sql.js
+packed 3.24KB dist/cjs/text.js
+packed 2.29KB dist/esm/index.js
+packed 18B dist/esm/package.json
+packed 5.78KB dist/esm/paging.js
+packed 2.80KB dist/esm/sql.js
+packed 3.10KB dist/esm/text.js
+packed 2.31KB dist/types/index.d.ts
+packed 3.45KB dist/types/paging.d.ts
+packed 2.72KB dist/types/sql.d.ts
+packed 2.65KB dist/types/text.d.ts
+packed 5.62KB src/__tests__/paging.test.ts
+packed 3.14KB src/__tests__/sql.test.ts
+packed 3.1KB src/__tests__/text.test.ts
+packed 2.33KB src/index.ts
+packed 6.0KB src/paging.ts
+packed 2.86KB src/sql.ts
+packed 3.15KB src/text.ts
+
+oxy.so-utils-1.0.1.tgz
+
+Total files: 23
+Shasum: 6d722e4fc0452e1fb23adf9bffd922b846b3c444
+Integrity: sha512-7bZTyXBd5z99D[...]DfyaP3s82gRUA==
+Unpacked size: 73.56KB
+Packed size: 13.85KB
