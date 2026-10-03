@@ -1,3 +1,4 @@
+import { lockLiveAgentKeyForAuthorization } from './agentKeyAuthority.service';
 /**
  * OAuth consent — ONE decision and ONE durable transition for every finalizer.
  *
@@ -72,6 +73,7 @@ import {
 } from './oauthCode.service';
 import {
   clearServiceActingAsRevocation,
+  bumpServiceActingAsEpoch,
   SERVICE_ACTING_AS_SCOPE,
 } from './serviceActingAs.service';
 
@@ -177,6 +179,7 @@ async function recordAppGrant(
     });
 }
 
+
 export interface PersistOAuthAuthorizationInput {
   decision: OAuthConsentDecision;
   /**
@@ -197,6 +200,12 @@ export async function persistOAuthAuthorization(
 ): Promise<IssueCodeResult> {
   const { decision, code } = input;
   return getDb().transaction(async (tx) => {
+    if (code.authMethod) {
+      await lockLiveAgentKeyForAuthorization(tx, code.authMethod, code.operatedByUserId ?? code.userId);
+    }
+    if (decision.recordGrant || decision.clearsActingAsRevocation) {
+      await bumpServiceActingAsEpoch(code.userId, code.appId, tx);
+    }
     if (decision.recordGrant) {
       await recordAppGrant(tx, code.userId, code.appId, decision.grantScopes, new Date());
     }

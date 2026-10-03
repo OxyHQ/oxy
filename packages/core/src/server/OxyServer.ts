@@ -26,6 +26,17 @@
  * Node only.
  */
 import { jwtDecode } from 'jwt-decode';
+import { hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
+
+/** Unverified cache metadata only: an old lifetime forces a new signed mint. */
+function reusableServiceToken(token: string): boolean {
+  try {
+    const claims = jwtDecode<{ iat?: number; exp?: number }>(token);
+    return hasBoundedServiceTokenLifetime(claims) && typeof claims.exp === 'number'
+      && claims.exp > Math.floor(Date.now() / 1000);
+  } catch { return false; }
+}
+
 import { loadNodeCrypto } from '@oxy.so/protocol';
 import { OxyServices, type OxyConfig } from '../OxyServices';
 import type { HttpMethod, ServiceLane } from '../client/context';
@@ -87,6 +98,21 @@ export interface OxyServerConfig extends OxyConfig {
 export const ANONYMOUS_SERVICE_TOKEN_RETRY_MS = 30_000;
 
 /** `POST /auth/service-token`. */
+export interface ActingAsVerificationOptions {
+  /** Only explicit read-only callers may reuse authority; effects always pass false. */
+  cache?: boolean;
+  /** Taken from verified service claims by middleware, never from a user header. */
+  credentialId?: string;
+  ownerAccountId?: string;
+  environment?: string;
+}
+
+interface ActingAsGeneration {
+  epoch: bigint;
+  issued: number;
+  completed: number;
+}
+
 export interface ServiceTokenResponse {
   token: string;
   expiresIn: number;
@@ -127,10 +153,10 @@ const TOKEN_REUSE_MARGIN_MS = 60_000;
 
 /** Bound on remembered `appId:userId` delegation answers. */
 const ACTING_AS_CACHE_MAX = 1000;
-/** A positive grant is reused for 5 minutes — the revocation latency window. */
-const ACTING_AS_GRANT_TTL_MS = 5 * 60 * 1000;
-/** A negative answer (or a failed lookup) is reused for 1 minute. */
-const ACTING_AS_DENIAL_TTL_MS = 60 * 1000;
+/** Explicit read reuse only; effects always perform a fresh lookup. */
+const ACTING_AS_GRANT_TTL_MS = 60_000;
+/** Explicit authoritative read denials last ten seconds; failures are never cached. */
+const ACTING_AS_DENIAL_TTL_MS = 10_000;
 
 export class OxyServer extends OxyServices {
   private readonly serviceTokens = new Map<string, ServiceTokenCacheEntry>();
@@ -138,6 +164,7 @@ export class OxyServer extends OxyServices {
   private serviceApiSecret: string | null = null;
   private readonly actingAs = new Map<string, { result: ServiceActingAsVerification | null; expiresAt: number }>();
   private readonly actingAsPending = new Map<string, Promise<ServiceActingAsVerification | null>>();
+  private readonly actingAsGenerations = new Map<string, ActingAsGeneration>();
   /** Public keys only; never private material. */
   private readonly jwksCache: ServiceTokenJwksCache = { keys: new Map(), expiresAt: 0, lastAttemptAt: 0 };
   /**
@@ -180,7 +207,7 @@ export class OxyServer extends OxyServices {
       },
       jwksCache: this.jwksCache,
       validateSession: (sessionId, options) => this.session.validate(sessionId, options),
-      verifyActingAs: (appId, userId) => this.verifyActingAs(appId, userId),
+      verifyActingAs: (appId, userId, options) => this.verifyActingAs(appId, userId, options),
     });
   }
 
@@ -277,7 +304,7 @@ export class OxyServer extends OxyServices {
         });
         throw new ServiceCredentialMismatchError();
       }
-      if (entry.token && entry.expiresAt > now + TOKEN_REUSE_MARGIN_MS) {
+      if (entry.token && reusableServiceToken(entry.token) && entry.expiresAt > now + TOKEN_REUSE_MARGIN_MS) {
         return entry.token;
       }
       if (entry.pending) {
@@ -344,32 +371,45 @@ export class OxyServer extends OxyServices {
   // ── Delegation and account events ────────────────────────────────────────
 
   /**
-   * Whether service app `appId` holds an active delegation grant to act for
-   * `userId`; the grant's scopes, or `null`. Used by `middleware.auth()` for
-   * `X-Oxy-User-Id`.
-   *
-   * Answers are cached per `appId:userId` (a grant for 5 minutes — the
-   * revocation window; a denial or failed lookup for 1 minute), bounded to the
-   * 1000 most recent pairs, and concurrent lookups of one pair share a single
-   * request.
+   * Resolve authority live by default. Explicit read-only reuse lasts at most
+   * 60s positive / 10s negative, anchored to request start; errors never cache.
+   * Effects do not share an older in-flight read. Durable epoch plus local
+   * completion ordering prevents ABA and late positive replies overwriting a
+   * newer refusal even when app/credential revocation leaves epoch unchanged.
    */
-  async verifyActingAs(appId: string, userId: string): Promise<ServiceActingAsVerification | null> {
-    const cacheKey = `${appId}:${userId}`;
-    const cached = this.actingAs.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      // Refresh recency for the LRU bound.
-      this.actingAs.delete(cacheKey);
-      this.actingAs.set(cacheKey, cached);
-      return cached.result;
+  async verifyActingAs(
+    appId: string, userId: string, options: ActingAsVerificationOptions = {},
+  ): Promise<ServiceActingAsVerification | null> {
+    const pair = JSON.stringify([appId, userId]);
+    const cacheKey = JSON.stringify([appId, userId, options.credentialId, options.ownerAccountId, options.environment]);
+    if (options.cache === true) {
+      const cached = this.actingAs.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        this.actingAs.delete(cacheKey);
+        this.actingAs.set(cacheKey, cached);
+        return cached.result;
+      }
+      const pending = this.actingAsPending.get(cacheKey);
+      if (pending) return pending;
     }
-    const inflight = this.actingAsPending.get(cacheKey);
-    if (inflight) return inflight;
-
-    const lookup = this.lookupActingAs(appId, userId).finally(() => {
-      this.actingAsPending.delete(cacheKey);
-    });
+    let generation = this.actingAsGenerations.get(pair);
+    if (!generation) {
+      generation = { epoch: 0n, issued: 0, completed: 0 };
+      this.actingAsGenerations.set(pair, generation);
+      if (this.actingAsGenerations.size > ACTING_AS_CACHE_MAX) {
+        const oldest = this.actingAsGenerations.keys().next().value;
+        if (oldest !== undefined) this.actingAsGenerations.delete(oldest);
+      }
+    }
+    const serial = ++generation.issued;
+    const startedAt = Date.now();
+    const lookup = this.lookupActingAs(appId, userId, options, pair, cacheKey, generation, serial, startedAt);
+    if (options.cache !== true) return lookup;
     this.actingAsPending.set(cacheKey, lookup);
-    return lookup;
+    try { return await lookup; }
+    finally {
+      if (this.actingAsPending.get(cacheKey) === lookup) this.actingAsPending.delete(cacheKey);
+    }
   }
 
   /**
@@ -457,7 +497,7 @@ export class OxyServer extends OxyServices {
   /** A token obtained by attestation, cached like a credential's (one identity per process). */
   private async workloadServiceToken(): Promise<string> {
     const entry = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
-    if (entry?.token && entry.expiresAt > Date.now() + TOKEN_REUSE_MARGIN_MS) return entry.token;
+    if (entry?.token && reusableServiceToken(entry.token) && entry.expiresAt > Date.now() + TOKEN_REUSE_MARGIN_MS) return entry.token;
     if (entry?.pending) return entry.pending;
 
     const seeded = entry ?? { token: '', expiresAt: 0, secretBuf: Buffer.alloc(0), pending: null, apiKey: WORKLOAD_CACHE_KEY };
@@ -486,42 +526,62 @@ export class OxyServer extends OxyServices {
     }
   }
 
-  private async lookupActingAs(appId: string, userId: string): Promise<ServiceActingAsVerification | null> {
+  private async lookupActingAs(
+    appId: string, userId: string, options: ActingAsVerificationOptions,
+    pair: string, cacheKey: string, generation: ActingAsGeneration, serial: number, startedAt: number,
+  ): Promise<ServiceActingAsVerification | null> {
     try {
-      // The verify endpoint admits only a platform-trusted caller, so this
-      // carries the VERIFIER's own service token. No retry and a short timeout:
-      // it runs inside request-handling middleware, and a retry loop would
-      // multiply the latency of every delegated request. A verifier with no
-      // credential throws here and is refused below — a host that cannot prove
-      // who it is has no business learning who delegated to whom.
       const serviceToken = await this.serviceToken();
       const result = await this.request<ServiceActingAsVerification>(
-        'GET',
-        '/internal/service-acting-as/verify',
-        { appId, userId },
+        'GET', '/internal/service-acting-as/verify',
+        { appId, userId, ...(options.credentialId ? { credentialId: options.credentialId,
+          ownerAccountId: options.ownerAccountId, environment: options.environment } : {}) },
         { cache: false, retry: false, timeout: 5000, headers: { Authorization: `Bearer ${serviceToken}` } },
       );
-      const verified: ServiceActingAsVerification | null = result?.authorized
-        ? { authorized: true, scopes: Array.isArray(result.scopes) ? result.scopes : [] }
-        : null;
-      this.rememberActingAs(`${appId}:${userId}`, verified,
-        verified ? ACTING_AS_GRANT_TTL_MS : ACTING_AS_DENIAL_TTL_MS);
+      // A deadline bounds how long an already old response can authorize. It
+      // is not by itself a measurement of end-to-end revocation latency.
+      if (this.actingAsGenerations.get(pair) !== generation || serial < generation.completed) return null;
+      generation.completed = serial;
+      this.clearActingAsPair(appId, userId);
+      if (Date.now() - startedAt >= 5000) return null;
+      const rawEpoch = result?.epoch;
+      if (typeof rawEpoch !== 'string' || !/^(?:0|[1-9][0-9]{0,18})$/.test(rawEpoch)) return null;
+      const epoch = BigInt(rawEpoch);
+      if (epoch > 9223372036854775807n) return null;
+      if (typeof result.authorized !== 'boolean' || !Array.isArray(result.scopes)
+        || !result.scopes.every((scope) => typeof scope === 'string' && scope.length > 0 && scope.trim() === scope)
+        || new Set(result.scopes).size !== result.scopes.length
+        || (!result.authorized && result.scopes.length !== 0)) return null;
+      const older = epoch < generation.epoch;
+      if (epoch > generation.epoch) generation.epoch = epoch;
+      if (result.authorized && older) return null;
+      const verified: ServiceActingAsVerification | null = result.authorized === true
+        ? { authorized: true, scopes: result.scopes, epoch: rawEpoch } : null;
+      if (options.cache === true) this.rememberActingAs(cacheKey, verified,
+        startedAt + (verified ? ACTING_AS_GRANT_TTL_MS : ACTING_AS_DENIAL_TTL_MS));
       return verified;
     } catch (error) {
-      logger.warn('[oxy.auth] verifyActingAs lookup failed — caching negative result', {
-        component: 'auth',
-        method: 'verifyActingAs',
-        appId,
-        userId,
+      if (this.actingAsGenerations.get(pair) === generation && serial >= generation.completed) {
+        generation.completed = serial;
+        this.clearActingAsPair(appId, userId);
+      }
+      logger.warn('[oxy.auth] verifyActingAs lookup failed — not cached', {
+        component: 'auth', method: 'verifyActingAs', appId, userId,
       }, error);
-      this.rememberActingAs(`${appId}:${userId}`, null, ACTING_AS_DENIAL_TTL_MS);
       return null;
     }
   }
 
-  private rememberActingAs(cacheKey: string, result: ServiceActingAsVerification | null, ttlMs: number): void {
+  private clearActingAsPair(appId: string, userId: string): void {
+    for (const key of this.actingAs.keys()) {
+      const [cachedApp, cachedUser] = JSON.parse(key) as [string, string];
+      if (cachedApp === appId && cachedUser === userId) this.actingAs.delete(key);
+    }
+  }
+
+  private rememberActingAs(cacheKey: string, result: ServiceActingAsVerification | null, expiresAt: number): void {
     this.actingAs.delete(cacheKey);
-    this.actingAs.set(cacheKey, { result, expiresAt: Date.now() + ttlMs });
+    this.actingAs.set(cacheKey, { result, expiresAt });
     if (this.actingAs.size > ACTING_AS_CACHE_MAX) {
       const oldest = this.actingAs.keys().next().value;
       if (oldest !== undefined) this.actingAs.delete(oldest);

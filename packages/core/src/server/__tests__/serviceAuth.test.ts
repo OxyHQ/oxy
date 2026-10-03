@@ -50,7 +50,7 @@ const IMPOSTER_KEY = createSigningKey('service-test-a');
 
 const servicePayload = (claims: ServiceTokenClaims): ServiceTokenClaims => ({
     iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 3600,
+    exp: Math.floor(Date.now() / 1000) + 300,
     type: 'service',
     aud: 'oxy-api',
     iss: 'oxy-auth',
@@ -63,6 +63,14 @@ const servicePayload = (claims: ServiceTokenClaims): ServiceTokenClaims => ({
 
 const signServiceToken = (claims: ServiceTokenClaims, key = SIGNING_KEY): string =>
   signEdDSA(servicePayload(claims), key);
+
+
+const cacheTokens = new Map<string, string>();
+function cacheToken(label: string): string {
+  const existing = cacheTokens.get(label); if (existing) return existing;
+  const token = signServiceToken({ appId: label, appName: label });
+  cacheTokens.set(label, token); return token;
+}
 
 let jwksFetch: jest.SpyInstance;
 
@@ -152,7 +160,7 @@ describe('C3: service-token acting-as enforcement', () => {
     // so we don't take a dep on @types/express in core just for tests.
     await mw(req as unknown as never, res as unknown as never, next as unknown as never);
 
-    expect(verifySpy).toHaveBeenCalledWith('app-1', 'victim-user-id');
+    expect(verifySpy).toHaveBeenCalledWith('app-1', 'victim-user-id', expect.objectContaining({ cache: false, credentialId: 'cred-1', ownerAccountId: 'owner-account-1', environment: 'production' }));
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
     expect(res.body).toMatchObject({
@@ -180,7 +188,7 @@ describe('C3: service-token acting-as enforcement', () => {
     const mw = oxy.middleware.auth();
     await mw(req as unknown as never, res as unknown as never, next as unknown as never);
 
-    expect(verifySpy).toHaveBeenCalledWith('app-1', 'user-1');
+    expect(verifySpy).toHaveBeenCalledWith('app-1', 'user-1', expect.objectContaining({ cache: false, credentialId: 'cred-1' }));
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.headersSent).toBe(false);
     expect(req.userId).toBe('user-1');
@@ -197,8 +205,8 @@ describe('C3: service-token acting-as enforcement', () => {
     });
   });
 
-  it("lets one of Oxy's own applications act for a user without a grant", async () => {
-    const verifySpy = jest.spyOn(oxy, 'verifyActingAs');
+  it("refuses an internal application acting for a user without a grant", async () => {
+    const verifySpy = jest.spyOn(oxy, 'verifyActingAs').mockResolvedValue(null);
     const token = signServiceToken(
       { appId: 'alia', appName: 'Alia', scopes: [], tier: 'internal' },
     );
@@ -208,10 +216,10 @@ describe('C3: service-token acting-as enforcement', () => {
 
     await oxy.middleware.auth()(req as unknown as never, res as unknown as never, next as unknown as never);
 
-    expect(verifySpy).not.toHaveBeenCalled();
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(req.userId).toBe('user-1');
-    expect(req.serviceApp?.tier).toBe('internal');
+    expect(verifySpy).toHaveBeenCalledWith('alia', 'user-1', expect.objectContaining({ cache: false }));
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
+    expect(req.userId).toBeUndefined();
   });
 
   it('still refuses an EXTERNAL application acting for a user without a grant', async () => {
@@ -292,37 +300,37 @@ describe('H1: serviceToken per-credential cache + secret verification', () => {
 
   it('returns a cached token for the same (apiKey, apiSecret) without re-issuing', async () => {
     makeRequestSpy.mockResolvedValueOnce({
-      token: 'token-A',
-      expiresIn: 3600,
+      token: cacheToken('token-A'),
+      expiresIn: 300,
       appName: 'tenant-A',
     });
 
     const t1 = await oxy.serviceToken('key-A', 'secret-A');
     const t2 = await oxy.serviceToken('key-A', 'secret-A');
 
-    expect(t1).toBe('token-A');
-    expect(t2).toBe('token-A');
+    expect(t1).toBe(cacheToken('token-A'));
+    expect(t2).toBe(cacheToken('token-A'));
     expect(makeRequestSpy).toHaveBeenCalledTimes(1);
   });
 
   it('does NOT return tenant A token when called with tenant B credentials (per-credential cache)', async () => {
     makeRequestSpy
-      .mockResolvedValueOnce({ token: 'token-A', expiresIn: 3600, appName: 'tenant-A' })
-      .mockResolvedValueOnce({ token: 'token-B', expiresIn: 3600, appName: 'tenant-B' });
+      .mockResolvedValueOnce({ token: cacheToken('token-A'), expiresIn: 300, appName: 'tenant-A' })
+      .mockResolvedValueOnce({ token: cacheToken('token-B'), expiresIn: 300, appName: 'tenant-B' });
 
     const tokenA = await oxy.serviceToken('key-A', 'secret-A');
     const tokenB = await oxy.serviceToken('key-B', 'secret-B');
 
-    expect(tokenA).toBe('token-A');
-    expect(tokenB).toBe('token-B');
+    expect(tokenA).toBe(cacheToken('token-A'));
+    expect(tokenB).toBe(cacheToken('token-B'));
     expect(tokenA).not.toBe(tokenB);
     expect(makeRequestSpy).toHaveBeenCalledTimes(2);
   });
 
   it('throws ServiceCredentialMismatchError on cache hit with wrong secret (no token returned)', async () => {
     makeRequestSpy.mockResolvedValueOnce({
-      token: 'token-A',
-      expiresIn: 3600,
+      token: cacheToken('token-A'),
+      expiresIn: 300,
       appName: 'tenant-A',
     });
 
@@ -341,8 +349,8 @@ describe('H1: serviceToken per-credential cache + secret verification', () => {
 
   it('throws even when the wrong secret has different length (no length-based bypass)', async () => {
     makeRequestSpy.mockResolvedValueOnce({
-      token: 'token-A',
-      expiresIn: 3600,
+      token: cacheToken('token-A'),
+      expiresIn: 300,
       appName: 'tenant-A',
     });
 
@@ -357,8 +365,8 @@ describe('H1: serviceToken per-credential cache + secret verification', () => {
     makeRequestSpy
       .mockRejectedValueOnce(new Error('invalid service credentials'))
       .mockResolvedValueOnce({
-        token: 'token-A',
-        expiresIn: 3600,
+        token: cacheToken('token-A'),
+        expiresIn: 300,
         appName: 'tenant-A',
       });
 
@@ -368,28 +376,28 @@ describe('H1: serviceToken per-credential cache + secret verification', () => {
 
     const token = await oxy.serviceToken('key-A', 'secret-A');
 
-    expect(token).toBe('token-A');
+    expect(token).toBe(cacheToken('token-A'));
     expect(makeRequestSpy).toHaveBeenCalledTimes(2);
   });
 
   it('refreshes the cached token when it expires (using the correct stored secret)', async () => {
     // First token already past its buffer window.
     makeRequestSpy.mockResolvedValueOnce({
-      token: 'token-stale',
+      token: cacheToken('token-stale'),
       expiresIn: 30, // <60s buffer, so next call must refresh
       appName: 'tenant-A',
     });
     makeRequestSpy.mockResolvedValueOnce({
-      token: 'token-fresh',
-      expiresIn: 3600,
+      token: cacheToken('token-fresh'),
+      expiresIn: 300,
       appName: 'tenant-A',
     });
 
     const t1 = await oxy.serviceToken('key-A', 'secret-A');
     const t2 = await oxy.serviceToken('key-A', 'secret-A');
 
-    expect(t1).toBe('token-stale');
-    expect(t2).toBe('token-fresh');
+    expect(t1).toBe(cacheToken('token-stale'));
+    expect(t2).toBe(cacheToken('token-fresh'));
     expect(makeRequestSpy).toHaveBeenCalledTimes(2);
   });
 });
@@ -415,31 +423,31 @@ describe('invalidateServiceToken: forces a fresh mint after a same-run 401', () 
 
   it('re-mints on the next serviceToken() after invalidation (configured credential)', async () => {
     makeRequestSpy
-      .mockResolvedValueOnce({ token: 'token-first', expiresIn: 3600, appName: 'tenant-A' })
-      .mockResolvedValueOnce({ token: 'token-second', expiresIn: 3600, appName: 'tenant-A' });
+      .mockResolvedValueOnce({ token: cacheToken('token-first'), expiresIn: 300, appName: 'tenant-A' })
+      .mockResolvedValueOnce({ token: cacheToken('token-second'), expiresIn: 300, appName: 'tenant-A' });
 
     oxy.configureServiceAuth('key-A', 'secret-A');
 
     const first = await oxy.serviceToken();
     // Cached — would normally be returned again without re-minting.
     const cached = await oxy.serviceToken();
-    expect(first).toBe('token-first');
-    expect(cached).toBe('token-first');
+    expect(first).toBe(cacheToken('token-first'));
+    expect(cached).toBe(cacheToken('token-first'));
     expect(makeRequestSpy).toHaveBeenCalledTimes(1);
 
     // Simulate a 401: invalidate, then the very next call must mint anew.
     oxy.invalidateServiceToken();
 
     const fresh = await oxy.serviceToken();
-    expect(fresh).toBe('token-second');
+    expect(fresh).toBe(cacheToken('token-second'));
     expect(makeRequestSpy).toHaveBeenCalledTimes(2);
   });
 
   it('clears only the targeted apiKey entry, leaving other tenants cached', async () => {
     makeRequestSpy
-      .mockResolvedValueOnce({ token: 'token-A1', expiresIn: 3600, appName: 'tenant-A' })
-      .mockResolvedValueOnce({ token: 'token-B1', expiresIn: 3600, appName: 'tenant-B' })
-      .mockResolvedValueOnce({ token: 'token-A2', expiresIn: 3600, appName: 'tenant-A' });
+      .mockResolvedValueOnce({ token: cacheToken('token-A1'), expiresIn: 300, appName: 'tenant-A' })
+      .mockResolvedValueOnce({ token: cacheToken('token-B1'), expiresIn: 300, appName: 'tenant-B' })
+      .mockResolvedValueOnce({ token: cacheToken('token-A2'), expiresIn: 300, appName: 'tenant-A' });
 
     await oxy.serviceToken('key-A', 'secret-A');
     await oxy.serviceToken('key-B', 'secret-B');
@@ -450,21 +458,21 @@ describe('invalidateServiceToken: forces a fresh mint after a same-run 401', () 
 
     // Tenant A re-mints...
     const a2 = await oxy.serviceToken('key-A', 'secret-A');
-    expect(a2).toBe('token-A2');
+    expect(a2).toBe(cacheToken('token-A2'));
     expect(makeRequestSpy).toHaveBeenCalledTimes(3);
 
     // ...tenant B is still cached (no extra mint).
     const b1 = await oxy.serviceToken('key-B', 'secret-B');
-    expect(b1).toBe('token-B1');
+    expect(b1).toBe(cacheToken('token-B1'));
     expect(makeRequestSpy).toHaveBeenCalledTimes(3);
   });
 
   it('clears every entry when no key is configured and none is passed', async () => {
     makeRequestSpy
-      .mockResolvedValueOnce({ token: 'token-A1', expiresIn: 3600, appName: 'tenant-A' })
-      .mockResolvedValueOnce({ token: 'token-B1', expiresIn: 3600, appName: 'tenant-B' })
-      .mockResolvedValueOnce({ token: 'token-A2', expiresIn: 3600, appName: 'tenant-A' })
-      .mockResolvedValueOnce({ token: 'token-B2', expiresIn: 3600, appName: 'tenant-B' });
+      .mockResolvedValueOnce({ token: cacheToken('token-A1'), expiresIn: 300, appName: 'tenant-A' })
+      .mockResolvedValueOnce({ token: cacheToken('token-B1'), expiresIn: 300, appName: 'tenant-B' })
+      .mockResolvedValueOnce({ token: cacheToken('token-A2'), expiresIn: 300, appName: 'tenant-A' })
+      .mockResolvedValueOnce({ token: cacheToken('token-B2'), expiresIn: 300, appName: 'tenant-B' });
 
     await oxy.serviceToken('key-A', 'secret-A');
     await oxy.serviceToken('key-B', 'secret-B');
@@ -475,8 +483,8 @@ describe('invalidateServiceToken: forces a fresh mint after a same-run 401', () 
 
     const a2 = await oxy.serviceToken('key-A', 'secret-A');
     const b2 = await oxy.serviceToken('key-B', 'secret-B');
-    expect(a2).toBe('token-A2');
-    expect(b2).toBe('token-B2');
+    expect(a2).toBe(cacheToken('token-A2'));
+    expect(b2).toBe(cacheToken('token-B2'));
     expect(makeRequestSpy).toHaveBeenCalledTimes(4);
   });
 
@@ -710,7 +718,7 @@ describe('requireScope() middleware', () => {
     oxy = new OxyServer({ baseURL: 'http://test.invalid' });
   });
 
-  it("passes one of Oxy's own applications whatever scope is asked for", () => {
+  it("rejects an internal application missing the required application and delegated scopes", () => {
     const req = makeReq();
     req.serviceApp = { appId: 'a', appName: 'svc', credentialId: 'cred-1', scopes: [], tier: 'internal' };
     req.serviceActingAs = { userId: 'u-1', scopes: [] };
@@ -719,7 +727,8 @@ describe('requireScope() middleware', () => {
 
     oxy.middleware.requireScope('files:write')(req as unknown as never, res as unknown as never, next as unknown as never);
 
-    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
   });
 
   it('holds an external application to its scopes', () => {

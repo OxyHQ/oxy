@@ -27,7 +27,7 @@ function token(
     iss: 'oxy-auth',
     aud: 'oxy-api',
     iat: now,
-    exp: now + 3_600,
+    exp: now + 300,
     ...claims,
   };
   const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;

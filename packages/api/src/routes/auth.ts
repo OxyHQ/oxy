@@ -2870,44 +2870,9 @@ router.delete(
 
     const { applicationId } = req.params;
 
-    // Drop the OAuth grant — the next authorize for this app re-prompts consent.
-    //
-    // The `isValidObjectId` guard is gone: it existed only to stop a malformed
-    // id reaching Mongoose and raising a CastError, and it would additionally
-    // have rejected every uuid v7 application id minted after the cutover. Revoke
-    // is idempotent by design — an id that names nothing deletes nothing and
-    // answers `{ revoked: true }`, exactly as an id with no grant already did.
-    await getDb()
-      .delete(appGrants)
-      .where(
-        and(eq(appGrants.userId, user._id.toString()), eq(appGrants.applicationId, applicationId))
-      );
-
-    // Deleting the grant row is not enough, and for a first-party application it
-    // does nothing at all. Offline delegation is AUTOMATIC for trusted
-    // applications, which by design have no grant row to delete — so a user who
-    // clicked "disconnect" would have revoked nothing, silently, on exactly the
-    // applications with the most authority.
-    //
-    // The marker is the revocation for that case. Written here rather than
-    // behind a second endpoint so ONE user action ends both: the user does not
-    // have to know whether what they had was an OAuth grant or an automatic
-    // first-party delegation. See `services/serviceActingAs.service.ts`.
-    //
-    // Written unconditionally, including for an `applicationId` that names no
-    // application — the FK makes that insert fail, which the surrounding
-    // `asyncHandler` would surface as a 500 and turn this endpoint into an
-    // existence oracle. So it is ordered after the delete and guarded by the
-    // same "does this application exist" read the response never reveals.
-    const [revocable] = await getDb()
-      .select({ id: applications.id })
-      .from(applications)
-      .where(eq(applications.id, applicationId))
-      .limit(1);
-
-    if (revocable) {
-      await revokeServiceActingAs(user._id.toString(), applicationId);
-    }
+    // The grant, refusal marker and durable epoch commit together. Unknown
+    // applications remain an idempotent success without an existence oracle.
+    await revokeServiceActingAs(user._id.toString(), applicationId);
 
     sendSuccess(res, { revoked: true });
   })

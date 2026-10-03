@@ -47,7 +47,7 @@ function serviceToken(
     iss: 'oxy-auth',
     aud: 'oxy-api',
     iat: now,
-    exp: now + 3_600,
+    exp: now + 300,
     ...claims,
   };
   const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
@@ -185,7 +185,7 @@ describe('optional auth records why a presented credential was refused', () => {
     {
       name: 'an expired service token',
       jwks: { keys: [primaryJwk] },
-      token: serviceToken(primary.privateKey, primaryJwk.kid, { exp: 1 }),
+      token: serviceToken(primary.privateKey, primaryJwk.kid, { iat: 0, exp: 1 }),
       expected: {
         code: 'TOKEN_EXPIRED',
         stage: 'service-token',
