@@ -1,8 +1,10 @@
 import { OxyServices } from '../../OxyServices';
 import { signInAgentAccount } from '../agentAccount';
-const publicKey = `02${'1'.repeat(64)}`;
+import { deriveSecp256k1PublicKey, normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
+const publicKey = deriveSecp256k1PublicKey('1'.padStart(64, '0'), true);
+const canonicalKey = normalizeSecp256k1PublicKey(publicKey);
 const claims = { version: 1 as const, action: 'agent_signin' as const, audience: 'oxy-api/agent' as const,
-  accountId: 'bot', actorId: 'bot', authMethodId: 'method', publicKey,
+  accountId: 'bot', actorId: 'bot', authMethodId: 'method', publicKey: canonicalKey,
   payloadDigest: 'a'.repeat(64), challenge: 'b'.repeat(64), expiresAt: Date.now() + 60_000 };
 afterEach(() => jest.restoreAllMocks());
 it('uses an injected signer and the ordinary user session endpoint, without passing a private key', async () => {
@@ -12,11 +14,11 @@ it('uses an injected signer and the ordinary user session endpoint, without pass
   const signMessage = jest.fn(async () => 'c'.repeat(128));
   expect(await signInAgentAccount({ client, accountId: 'bot', signer: { publicKey, signMessage } })).toEqual(response);
   expect(JSON.parse(signMessage.mock.calls[0][0] as string)).toMatchObject({ accountId: 'bot', actorId: 'bot', role: 'credential', action: 'agent_signin' });
-  expect(request.mock.calls[1][2]).toEqual(expect.objectContaining({ publicKey, challenge: claims.challenge, signature: 'c'.repeat(128) }));
+  expect(request.mock.calls[1][2]).toEqual(expect.objectContaining({ publicKey: canonicalKey, challenge: claims.challenge, signature: 'c'.repeat(128) }));
 });
-it.each(['accountId', 'action', 'publicKey'] as const)('does not ask the signer to sign a mismatched %s', async (field) => {
+it.each(['accountId', 'actorId', 'action', 'publicKey', 'expiresAt'] as const)('does not ask the signer to sign a mismatched %s', async (field) => {
   const client = new OxyServices({ baseURL: 'https://fixture.invalid' });
-  jest.spyOn(client, 'request').mockResolvedValue({ ...claims, [field]: field === 'action' ? 'agent_enroll' : 'foreign' });
+  jest.spyOn(client, 'request').mockResolvedValue({ ...claims, [field]: field === 'action' ? 'agent_enroll' : field === 'expiresAt' ? 0 : field === 'publicKey' ? deriveSecp256k1PublicKey('2'.padStart(64, '0')) : 'foreign' });
   const signMessage = jest.fn(async () => 'c'.repeat(128));
   await expect(signInAgentAccount({ client, accountId: 'bot', signer: { publicKey, signMessage } })).rejects.toThrow();
   expect(signMessage).not.toHaveBeenCalled();
