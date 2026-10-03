@@ -41,8 +41,8 @@ agent's instance or database is used or stopped.
 HTTP routes and domain persistence run against real PostgreSQL. Authentication,
 rate-limiting and socket boundaries in these existing fixtures are synthetic;
 this does not prove browser interaction, a deployed application or production
-revocation latency. Issue #1521 remains open pending review/integration and the
-parent's final acceptance. I01 and I03 are separate work.
+revocation latency. Issue #1521 remains open pending review/integration and its own
+I02 acceptance criteria. I01 and I03 are separate work.
 
 `proof.json` pins eight source/doc files and seven logs. The initial foundation
 was 24653406; the source commit is rebased onto the approved inactive-Forge
