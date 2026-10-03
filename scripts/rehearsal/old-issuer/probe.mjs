@@ -1,5 +1,6 @@
 /** Real password/session/service authority and SQL over the same final schema. */
 import assert from 'node:assert/strict';
+import {installIoGuard} from './io-guard.mjs';
 import {seedPreserved} from './seed-preserved.mjs';
 import {capabilities} from './capability-probe.mjs';
 import { createRequire } from 'node:module';
@@ -9,6 +10,7 @@ import { resolve } from 'node:path';
 const require = createRequire(resolve('packages/api/package.json'));
 const [mode, manifestPath] = process.argv.slice(2);
 assert(['seed','probe','cold'].includes(mode) && manifestPath && process.argv.length === 4);
+installIoGuard(require,manifestPath+'.'+mode+'.external.json');
 const { connectPostgres, closePostgres, getDb } = require('./src/config/postgres.ts');
 const { users } = require('./src/db/schema/users.ts');
 const { accountMembers } = require('./src/db/schema/accountMembers.ts');
