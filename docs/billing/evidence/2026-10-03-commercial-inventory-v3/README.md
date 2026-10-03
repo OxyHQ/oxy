@@ -1,0 +1,7 @@
+# Inventory v3 preparation
+
+Source `29cb5ee4e` narrowly supports the known Oxy pre-ledger billing transaction schema and pins the live CloudWatch stream prefix. Six source inputs and four logs are hashed in proof.json. Ten owned SQL/actual Node receiver fixtures verify modern projection, exact legacy omission, refusal of any additional missing field, count bounds, no PII projection and enforced read-only snapshot. Six offline AWS suites include eleven registered-task authority/execution negatives, now also a changed log prefix. Biome two files passes. Owned PostgreSQL PID 3453498 was stopped.
+
+Prepared private Oxy/Clarity v3 plans bind unchanged current images and a single DATABASE_URL secret, the reader/launcher hashes and exact executable definition. Oxy prefix is oxy-api; Clarity is clarity-api. No IAM, task role, sidecar, service update or secret value access is added. Preparation made authenticated metadata reads only. Root will review and dispatch the plans; this checkpoint does not claim remote SQL completion.
+
+The original Clarity failure happened before container/SQL startup because its execution role only allows the live logging prefix. It is not a zero-row observation. Full results, financial references and raw packets remain private. The legacy transaction profile explicitly omits the unavailable invoice ID and must not be used to reconstruct a guessed historical grant. Actual inventory/backfill acceptance requires completed projected counts and a comparison report.
