@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "0dcad72d9aac6b5311963fcbbe818c9c35c02561",
+  "capturedAt": "2026-10-03T03:29:50.630272+00:00",
+  "upstreamAcceptedRuntime": "514790b7387d4a2636e0ef1efc3cba09c71654e4",
+  "upstreamProof": "dc14a0258",
+  "sources": [
+    {
+      "path": "packages/api/openapi.json",
+      "sha256": "52e88f6b1a31db10b928ea59e910e43738451dde0b0c31d261cc839906c214da",
+      "upstreamSha256": "f016285e4afeaa63f038fc86559c69bab6d89556397487b02b72cb3c5fd366e7"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts",
+      "sha256": "8bbd283ddf5686f679f5a11fc9df4a033f2d331eeb9b80a979fe52e20ff4aa2f",
+      "upstreamSha256": "8bbd283ddf5686f679f5a11fc9df4a033f2d331eeb9b80a979fe52e20ff4aa2f"
+    },
+    {
+      "path": "packages/api/src/routes/billing.ts",
+      "sha256": "e90bbceadb3ab64c4f4a9407a6bc6ba15b9ebb225813b173154a3c21a1ab40a6",
+      "upstreamSha256": "e90bbceadb3ab64c4f4a9407a6bc6ba15b9ebb225813b173154a3c21a1ab40a6"
+    },
+    {
+      "path": "packages/api/src/schemas/billing.schemas.ts",
+      "sha256": "754928a7cd723aa6b1be3db06dfd8f644e16ebf1089498f735bdae8c59d9a861",
+      "upstreamSha256": "754928a7cd723aa6b1be3db06dfd8f644e16ebf1089498f735bdae8c59d9a861"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/productAccessPersistence.test.ts",
+      "sha256": "c703ed63d3ceb218317b5d6d82d0b244e2d10d3c0fc1def4100c18e9c4761e70",
+      "upstreamSha256": "c703ed63d3ceb218317b5d6d82d0b244e2d10d3c0fc1def4100c18e9c4761e70"
+    },
+    {
+      "path": "packages/api/src/services/productAccessPersistence.service.ts",
+      "sha256": "fa723236747eb487cc7128e5b6f0d41e16f8667a28f937971088c493836ddeec",
+      "upstreamSha256": "fa723236747eb487cc7128e5b6f0d41e16f8667a28f937971088c493836ddeec"
+    },
+    {
+      "path": "packages/api/src/services/productBillingCatalogue.service.ts",
+      "sha256": "55fe06d8d00a25c5faf4135c33c33ae569067b272f61c34551fd2758628075fb",
+      "upstreamSha256": "55fe06d8d00a25c5faf4135c33c33ae569067b272f61c34551fd2758628075fb"
+    },
+    {
+      "path": "packages/api/src/services/productProviderEvidence.service.ts",
+      "sha256": "76a6d9f9a4e99f18a9a4be924069956bd24593682156dd6023c11266e5406087",
+      "upstreamSha256": "76a6d9f9a4e99f18a9a4be924069956bd24593682156dd6023c11266e5406087"
+    },
+    {
+      "path": "packages/console/src/hooks/__tests__/billing-subject.test.tsx",
+      "sha256": "73537d3efcde10f0df6a2a19df08c178cef3c019eb8dce2a87da3c0bc9fd12fc",
+      "upstreamSha256": "73537d3efcde10f0df6a2a19df08c178cef3c019eb8dce2a87da3c0bc9fd12fc"
+    },
+    {
+      "path": "packages/console/src/hooks/use-billing.ts",
+      "sha256": "71293ea24881ccd33c1cea16f2d7e958967b63200c3f5f7ea7b9096b3814a82f",
+      "upstreamSha256": "71293ea24881ccd33c1cea16f2d7e958967b63200c3f5f7ea7b9096b3814a82f"
+    },
+    {
+      "path": "packages/console/src/routes/_layout/billing/plans.tsx",
+      "sha256": "0aef5c8fd04f72a6209de0e96b0f7559b8f0362f63e992cca4b9a276e9d7abb6",
+      "upstreamSha256": "0aef5c8fd04f72a6209de0e96b0f7559b8f0362f63e992cca4b9a276e9d7abb6"
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "72e748ec400fd3cda6ba743f753142a0c6f01cee7990fed9400f2553825bc7b8",
+      "upstreamSha256": "b594fe916f9668945cd9e0f5650b3c4cc3437d43bfc5cbc5cfa7100f2dfe7078"
+    },
+    {
+      "path": "packages/contracts/src/products/billing.ts",
+      "sha256": "30b2a97d143eecaa4f5bfd5984751345b2284ef3c63778f7817f46e1fc5c8ebe",
+      "upstreamSha256": "30b2a97d143eecaa4f5bfd5984751345b2284ef3c63778f7817f46e1fc5c8ebe"
+    },
+    {
+      "path": "packages/core/src/api/__tests__/billing.test.ts",
+      "sha256": "42680220194df8fc9bd80c8943a5209dacfa506301ed568f5ca810eac04d6534",
+      "upstreamSha256": "42680220194df8fc9bd80c8943a5209dacfa506301ed568f5ca810eac04d6534"
+    },
+    {
+      "path": "packages/core/src/api/billing.ts",
+      "sha256": "dccf3f87c329578a24e01a3ceb07785b39bd2959d0a40d3ea2e2ff6fd472ea26",
+      "upstreamSha256": "dccf3f87c329578a24e01a3ceb07785b39bd2959d0a40d3ea2e2ff6fd472ea26"
+    },
+    {
+      "path": "scripts/rehearsal/test-billing-renewal-1519.py",
+      "sha256": "aa04bc46cdc4c0d063b76b1bdd0e1733dd9c597e3ad1ee41308241e0c57be4e7",
+      "upstreamSha256": "aa04bc46cdc4c0d063b76b1bdd0e1733dd9c597e3ad1ee41308241e0c57be4e7"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/p2-billing-composition/p2-composed-contracts-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/p2-billing-composition/p2-composed-core-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/p2-billing-composition/p2-composed-api-ts.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/p2-billing-composition/p2-composed-core-test.log",
+      "sha256": "85fee6b3e8339d4f33020f6debcca6e5e707d775805af73603b88c0c38e41ad1"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/p2-billing-composition/p2-composed-api-corrected.log",
+      "sha256": "11ae7040bebf9a3f8596a645dbeb88a337f3554a18784f05a6b9914d887480fe"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/p2-billing-composition/p2-composed-openapi.log",
+      "sha256": "c5513344d643b5a94fe20bb863dabde4d3c5a3d9302143caada6c3a7c89b8dd3"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/p2-billing-composition/p2-composed-api.log",
+      "sha256": "36a175fd4583ce8ca1159e19092001ec980b87deb1d38ea29e6cf9bac3fa21b3"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/p2-billing-composition/p2-composed-api-stdout.log",
+      "sha256": "041f32b1cd8c64280137c1f0cefc5a26293f68c1e0c63aecc8dcb5b429eb4a3f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/p2-billing-composition/p2-composed-wrong-path-stdout.log",
+      "sha256": "4ffce404119731d8bd3331c8ae00dca05c10375cd7de1517c0cfeceed5180ed9"
+    }
+  ],
+  "results": {
+    "apiSuites": 2,
+    "apiTests": 91,
+    "apiExitCode": 0,
+    "launcher": {
+      "newLocalServerPid": 3454223,
+      "dataDirectory": "/tmp/oxy1519-i09-vbrt1abe/pg1519-d7zdx96n/data",
+      "database": "oxy_rehearsal_1519_93a6359844d4a91f",
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--testSequencer",
+        "/tmp/oxy1519-i09-vbrt1abe/ordered-sequencer.cjs",
+        "--runTestsByPath",
+        "src/services/__tests__/productAccessPersistence.test.ts",
+        "src/routes/__tests__/billingWebhookIdempotency.test.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/oxy1519-i09-vbrt1abe/api/focused.txt",
+      "productionAccess": false
+    },
+    "coreBillingTests": 10,
+    "coreExitCode": 0,
+    "apiTypes": 0,
+    "contractsBuild": 0,
+    "coreBuild": 0,
+    "openapiFresh": true,
+    "paths": 364,
+    "operations": 419
+  },
+  "limits": [
+    "No DDL from this delta; schema139 preserved. P2 runtime files match accepted514, shared contracts barrel/OpenAPI differ only additive composed surfaces.",
+    "Initial attempt supplied wrong billing test directory; invocation failure is retained with actual stdout, corrected full2/91 passed.",
+    "Normal fresh139 owned PostgreSQL17 PID3454223 stopped. No provider/financial requests. Provider-accepted cancellation/local failure tested with fixture tripwire only.",
+    "Readonly inventory v3 scripts composed exactly from29cb/deac; root operational inventory/proof and mapped backfill/adapter remain in progress. Source must not freeze yet.",
+    "No full CI green claimed. Prior head26cf has compatibility-fixture failures already fixed locally; shard2 still pending. Forge Audit is intentionally INACTIVE."
+  ]
+}
