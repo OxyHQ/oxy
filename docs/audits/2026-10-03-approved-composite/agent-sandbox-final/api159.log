@@ -1,0 +1,15 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-x8or0tbs/ordered-sequencer.cjs" --runTestsByPath src/services/__tests__/deviceSession.service.test.ts src/routes/__tests__/sessionDeviceDirectory.test.ts src/routes/__tests__/sessionDevice.test.ts src/routes/__tests__/oauthConsentFinalizers.test.ts src/config/__tests__/billingNamespace.test.ts
+{"level":30,"time":1791004797118,"pid":3522196,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791004797700,"pid":3522196,"hostname":"SuperPC","deviceId":"dev-84b9acf2-4160-483e-800a-9bbf8b004713","accountId":"01a10034-6aea-75ee-996a-56fdf896734e","msg":"deviceSession.getState: dropping revoked managed active account"}
+{"level":30,"time":1791004804229,"pid":3522196,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791004804261,"pid":3522196,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791004804289,"pid":3522196,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791004804312,"pid":3522196,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791004804339,"pid":3522196,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791004804360,"pid":3522196,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 5 passed, 5 total
+Tests:       159 passed, 159 total
+Snapshots:   0 total
+Time:        7.793 s
+Ran all test suites within paths "src/services/__tests__/deviceSession.service.test.ts", "src/routes/__tests__/sessionDeviceDirectory.test.ts", "src/routes/__tests__/sessionDevice.test.ts", "src/routes/__tests__/oauthConsentFinalizers.test.ts", "src/config/__tests__/billingNamespace.test.ts".
