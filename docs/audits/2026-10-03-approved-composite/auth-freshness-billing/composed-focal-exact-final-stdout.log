@@ -1,0 +1,56 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-rqmjhdpy/ordered-sequencer.cjs" --runTestsByPath src/routes/__tests__/nativeRequesterAssertion.routes.test.ts src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/routes/__tests__/serviceTokenCredentials.test.ts src/services/__tests__/approvedActingAsEpochs.test.ts src/routes/__tests__/agentKeyAuth.test.ts src/routes/__tests__/agentKeyGovernance.test.ts src/services/__tests__/agentAutonomousFlow.test.ts src/services/__tests__/mcpAgentKeyProvenance.test.ts src/services/__tests__/creditLedgerLockOrder.test.ts src/services/__tests__/productCatalogueCreditAtomic.test.ts
+{"level":30,"time":1790996946954,"pid":3438533,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1790996947432,"pid":3438533,"hostname":"SuperPC","kid":"dev-ephemeral-63c51241d17d","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1790996947710,"pid":3438533,"hostname":"SuperPC","callerAppId":"01a0ffbc-a1db-7a55-a95d-42fe1dfa5aef","subjectAppId":"01a0ffbc-a1db-7a55-a95d-42fe1dfa5aef","authorized":true,"msg":"[internal] service-acting-as verify"}
+{"level":30,"time":1790996947746,"pid":3438533,"hostname":"SuperPC","callerAppId":"01a0ffbc-a1db-7a55-a95d-42fe1dfa5aef","subjectAppId":"01a0ffbc-a1db-7a55-a95d-42fe1dfa5aef","authorized":true,"msg":"[internal] service-acting-as verify"}
+{"level":30,"time":1790996947763,"pid":3438533,"hostname":"SuperPC","callerAppId":"01a0ffbc-a1db-7a55-a95d-42fe1dfa5aef","subjectAppId":"01a0ffbc-a1db-7a55-a95d-42fe1dfa5aef","authorized":false,"msg":"[internal] service-acting-as verify"}
+{"level":30,"time":1790996947768,"pid":3438533,"hostname":"SuperPC","callerAppId":"01a0ffbc-a1db-7a55-a95d-42fe1dfa5aef","subjectAppId":"01a0ffbc-a1db-7a55-a95d-42fe1dfa5aef","authorized":false,"msg":"[internal] service-acting-as verify"}
+{"measurement":"local_two_process_revoke_commit_to_fresh_denials_ms","value":13.00187299999925,"productionP99":false}
+FAIL src/routes/__tests__/agentKeyAuth.test.ts
+  ● Test suite failed to run
+
+    ENOENT: no such file or directory, open '/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/api/src/routes/__tests__/agentKeyAuth.test.ts'
+
+      at runTestInternal (../../node_modules/.bun/jest-runner@30.5.1/node_modules/jest-runner/build/index.js:129:27)
+
+FAIL src/routes/__tests__/agentKeyGovernance.test.ts
+  ● Test suite failed to run
+
+    ENOENT: no such file or directory, open '/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/api/src/routes/__tests__/agentKeyGovernance.test.ts'
+
+      at runTestInternal (../../node_modules/.bun/jest-runner@30.5.1/node_modules/jest-runner/build/index.js:129:27)
+
+FAIL src/services/__tests__/agentAutonomousFlow.test.ts
+  ● Test suite failed to run
+
+    ENOENT: no such file or directory, open '/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/api/src/services/__tests__/agentAutonomousFlow.test.ts'
+
+      at runTestInternal (../../node_modules/.bun/jest-runner@30.5.1/node_modules/jest-runner/build/index.js:129:27)
+
+FAIL src/services/__tests__/mcpAgentKeyProvenance.test.ts
+  ● Test suite failed to run
+
+    ENOENT: no such file or directory, open '/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/api/src/services/__tests__/mcpAgentKeyProvenance.test.ts'
+
+      at runTestInternal (../../node_modules/.bun/jest-runner@30.5.1/node_modules/jest-runner/build/index.js:129:27)
+
+FAIL src/services/__tests__/creditLedgerLockOrder.test.ts
+  ● Test suite failed to run
+
+    ENOENT: no such file or directory, open '/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/api/src/services/__tests__/creditLedgerLockOrder.test.ts'
+
+      at runTestInternal (../../node_modules/.bun/jest-runner@30.5.1/node_modules/jest-runner/build/index.js:129:27)
+
+FAIL src/services/__tests__/productCatalogueCreditAtomic.test.ts
+  ● Test suite failed to run
+
+    ENOENT: no such file or directory, open '/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/api/src/services/__tests__/productCatalogueCreditAtomic.test.ts'
+
+      at runTestInternal (../../node_modules/.bun/jest-runner@30.5.1/node_modules/jest-runner/build/index.js:129:27)
+
+Test Suites: 6 failed, 4 passed, 10 total
+Tests:       85 passed, 85 total
+Snapshots:   0 total
+Time:        9.534 s
+Ran all test suites within paths "src/routes/__tests__/nativeRequesterAssertion.routes.test.ts", "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts", "src/routes/__tests__/serviceTokenCredentials.test.ts", "src/services/__tests__/approvedActingAsEpochs.test.ts", "src/routes/__tests__/agentKeyAuth.test.ts", "src/routes/__tests__/agentKeyGovernance.test.ts", "src/services/__tests__/agentAutonomousFlow.test.ts", "src/services/__tests__/mcpAgentKeyProvenance.test.ts", "src/services/__tests__/creditLedgerLockOrder.test.ts", "src/services/__tests__/productCatalogueCreditAtomic.test.ts".
+error: script "test" exited with code 1
