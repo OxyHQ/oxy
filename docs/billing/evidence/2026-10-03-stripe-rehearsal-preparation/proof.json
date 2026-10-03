@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "17085f4ff266ad3e8bb1e4903213c602a2bc26af",
+  "sourceSha256": {
+    "scripts/billing/stripe-oxy-sandbox.py": "ec8727fbcb86124241b0e61e5849fd4c5e7f1f09a574dd91ceade0698f5ce617",
+    "scripts/billing/test-stripe-oxy-sandbox.py": "7125be5d47ad62cf414b3b77258930dfab4ebd200bb39273f6e5f7b6107c458c",
+    "packages/api/scripts/stripe-billing-sandbox-rehearsal.ts": "0d80e315f4dae2b225b7b2b224c0fb01ce10f250137c914f684301d7e6d36952",
+    "docs/billing/stripe-sandbox-rehearsal.md": "58700be441a97e59555a0070b54542c0518c7b43b5947d99951055ac3c73f6e6"
+  },
+  "records": {
+    "docs/billing/evidence/2026-10-03-stripe-rehearsal-preparation/offline-plan-tests.log": {
+      "sha256": "717950911df00cb7982265b693ded2574afa650874cf9de84cf2bd77fc548fa7",
+      "bytes": 768,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-rehearsal-preparation/scripts-typecheck.log": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-rehearsal-preparation/scoped-biome.log": {
+      "sha256": "7d732a79fb196f6d1d40a5adaf0c281271e325e8d3169bcf1dc370e21636d6b9",
+      "bytes": 41,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-rehearsal-preparation/plan-preparation.log": {
+      "sha256": "cbe1ecc47299a59234a98a7bd04b2fad7c89f9c960cb9f04ed0d9064c763bf3c",
+      "bytes": 513,
+      "exitCode": 0
+    }
+  },
+  "preparedPlanSha256": "6c5430c1a15ff18ea3fb20530075fc13c56aa3b379b87d5fee6e79c862bb1376",
+  "scope": {
+    "provider": "stripe",
+    "providerAccountId": "acct_1TnXkUQWiCE02OnU",
+    "mode": "test",
+    "environment": "test",
+    "databaseDeclaration": "test:test",
+    "nodeEnvironment": "test",
+    "port": 5594,
+    "currency": "usd",
+    "maximumSyntheticPaidMinorUnits": 50000,
+    "maximumSubscriptions": 4,
+    "providerSignedDelivery": false,
+    "productionDatabase": false,
+    "positivePromotionConfigured": false
+  },
+  "commands": [
+    "PYTHONDONTWRITEBYTECODE=1 python3 scripts/billing/test-stripe-oxy-sandbox.py",
+    "cd packages/api && bun run typecheck:scripts",
+    "bunx @biomejs/biome@1.9.4 lint --error-on-warnings packages/api/scripts/stripe-billing-sandbox-rehearsal.ts",
+    "python3 scripts/billing/stripe-oxy-sandbox.py --prepare"
+  ],
+  "acceptance": {
+    "offlinePlanTests": 6,
+    "scriptsTypecheck": 0,
+    "biomeCheckedFiles": 1,
+    "biomeDiagnostics": 0,
+    "remoteRequestsMade": 0,
+    "databaseCreated": false,
+    "keyRead": false,
+    "realStripeAcceptance": false
+  },
+  "limits": [
+    "No provider/network or database execution in this proof.",
+    "Freeze/reprepare the plan against the final composed source before execution.",
+    "Authenticated Events API data plus local fixture signatures do not establish provider-signed public webhook delivery.",
+    "Positive promotions are not configured or activated.",
+    "Actual remote cleanup, paid/grant/replay/refund/renewal assertions remain unexecuted."
+  ],
+  "preparedPlanPath": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/plan-ca4d562e1312920f0514fd47.json"
+}
