@@ -23,6 +23,7 @@
 import React from 'react';
 import { render, waitFor, act, fireEvent, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppState } from 'react-native';
 import { AUTH_STATE_STORAGE_KEY } from '@oxy.so/core/session';
 import { type User } from '@oxy.so/core';
 
@@ -450,5 +451,131 @@ describe('SDK public recovery regressions', () => {
     await act(async () => { await capturedAuth!.signOut(); });
     expect(stub.session.accessToken).toBeNull();
     expect(capturedAuth?.isAuthenticated).toBe(false);
+  });
+});
+
+
+// These drive the real provider's AppState subscriptions. Only the network-shaped
+// SessionClient and profile service are synthetic; runtime projection is real.
+describe('native foreground device-state reconciliation', () => {
+  const listeners = new Set<(state: string) => void>();
+  beforeEach(() => {
+    mockWebBrowser = false;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    useAuthStore.getState().logout();
+    capturedContext = null;
+    capturedAuth = null;
+    listeners.clear();
+    Object.values(fakeSessionClient).forEach((fn) => (fn as jest.Mock).mockClear());
+    fakeSessionClient.getState.mockReturnValue(null);
+    fakeSessionClient.bootstrap.mockImplementation(async () => undefined);
+    jest.spyOn(KeyManager, 'hasIdentity').mockResolvedValue(false);
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+      listeners.add(listener);
+      return { remove: () => { listeners.delete(listener); } };
+    });
+    AppState.currentState = 'active';
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+    mockWebBrowser = true;
+    fakeSessionClient.getState.mockReturnValue(null);
+    fakeSessionClient.bootstrap.mockImplementation(async () => undefined);
+  });
+
+  async function emit(state: string) {
+    AppState.currentState = state;
+    await act(async () => { for (const listener of listeners) listener(state); });
+  }
+
+  it('projects a sibling account switch on background→active without a manual refresh', async () => {
+    const { stub } = buildStub();
+    stub.users.getMany.mockResolvedValue([
+      { id: USER_ID, username: 'fixture-person' },
+      { id: 'fixture-org', username: 'fixture-org' },
+    ] as never);
+    renderProvider(stub);
+    await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+    // No mount-time reconcile or private mint is added by the resume listener.
+    fakeSessionClient.bootstrap.mockClear();
+    stub.session.setAccessToken('existing-device-token');
+    fakeSessionClient.bootstrap.mockImplementation(async () => {
+      fakeSessionClient.getState.mockReturnValue({
+        deviceId: 'fixture-device', accounts: [
+          { accountId: USER_ID, sessionId: 'fixture-person-session', authuser: 0 },
+          { accountId: 'fixture-org', sessionId: 'fixture-org-session', authuser: 1 },
+        ], activeAccountId: 'fixture-org', revision: 2, updatedAt: Date.now(),
+      } as never);
+    });
+    await emit('background');
+    expect(fakeSessionClient.bootstrap).not.toHaveBeenCalled();
+    await emit('active');
+    await waitFor(() => expect(capturedContext?.user?.id).toBe('fixture-org'));
+    expect(capturedContext?.activeSessionId).toBe('fixture-org-session');
+    expect(fakeSessionClient.bootstrap).toHaveBeenCalledTimes(1);
+    expect(stub.http.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('coalesces repeated foreground events while the authoritative read is pending', async () => {
+    const { stub } = buildStub();
+    renderProvider(stub);
+    await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+    stub.session.setAccessToken('existing-device-token');
+    fakeSessionClient.bootstrap.mockClear();
+    let complete: (() => void) | undefined;
+    fakeSessionClient.bootstrap.mockImplementation(() => new Promise<void>((resolve) => { complete = resolve; }));
+    await emit('inactive');
+    await emit('active');
+    await emit('background');
+    await emit('active');
+    expect(fakeSessionClient.bootstrap).toHaveBeenCalledTimes(1);
+    if (!complete) throw new Error('Expected an authoritative foreground read');
+    await act(async () => { complete(); });
+    await emit('inactive');
+    await emit('active');
+    expect(fakeSessionClient.bootstrap).toHaveBeenCalledTimes(2);
+    await act(async () => { complete?.(); });
+  });
+
+  it('never reads the shared device for a signed-out provider', async () => {
+    const { stub } = buildStub();
+    renderProvider(stub);
+    await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+    fakeSessionClient.bootstrap.mockClear();
+    await emit('background');
+    await emit('active');
+    expect(fakeSessionClient.bootstrap).not.toHaveBeenCalled();
+    expect(stub.http.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('leaves an isolated OAuth grant outside the native device resume lane', async () => {
+    const { stub } = buildStub();
+    renderProvider(stub);
+    await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+    mockOAuthCompletion.mockImplementation(async (context) => {
+      await context.commitSession({ sessionId: 'isolated-native', accessToken: 'isolated-bearer', userId: USER_ID, user: { id: USER_ID, username: 'cbuser' } });
+      return { status: 'signed-in' };
+    });
+    await act(async () => { await capturedContext?.startWebOAuthSignIn({ redirectUri: 'https://external.fixture/callback' }); });
+    fakeSessionClient.bootstrap.mockClear();
+    await emit('background');
+    await emit('active');
+    expect(fakeSessionClient.bootstrap).not.toHaveBeenCalled();
+    expect(stub.http.refreshAccessToken).not.toHaveBeenCalled();
+    expect(stub.session.accessToken).toBe('isolated-bearer');
+  });
+
+  it('removes native listeners on unmount', async () => {
+    const { stub } = buildStub();
+    const view = renderProvider(stub);
+    await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+    stub.session.setAccessToken('existing-device-token');
+    view.unmount();
+    fakeSessionClient.bootstrap.mockClear();
+    await emit('background');
+    await emit('active');
+    expect(fakeSessionClient.bootstrap).not.toHaveBeenCalled();
+    expect(listeners.size).toBe(0);
   });
 });
