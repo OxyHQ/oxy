@@ -10,6 +10,7 @@ import { applicationCredentials } from "../../db/schema/applicationCredentials";
 import { applicationWorkloadIdentities } from "../../db/schema/applicationWorkloadIdentities";
 import { applications } from "../../db/schema/applications";
 import { users } from "../../db/schema/users";
+import { createTestDatabase, dropTestDatabase } from "../../db/testDatabase";
 import { digestCatalog } from "../../services/capabilityCatalog.service";
 import { bindWorkloadIdentity } from "../../services/workloadIdentityBinding.service";
 import {
@@ -28,8 +29,28 @@ import {
 	OXY_PROFILE_REGISTRAR_APPLICATION_ID,
 } from "../seedOxyApplicationsSpecs";
 
-beforeAll(connectPostgres);
-afterAll(closePostgres);
+const originalDatabaseUrl = process.env.DATABASE_URL;
+let ownDatabaseUrl: string | undefined;
+jest.setTimeout(60_000);
+beforeAll(async () => {
+	// The registrar's absence is a global production precondition. Keep that
+	// inventory intact while isolating this suite from other catalog fixtures.
+	ownDatabaseUrl = await createTestDatabase();
+	await connectPostgres();
+});
+afterAll(async () => {
+	try {
+		await closePostgres();
+	} finally {
+		try {
+			if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl);
+		} finally {
+			if (originalDatabaseUrl === undefined)
+				Reflect.deleteProperty(process.env, "DATABASE_URL");
+			else process.env.DATABASE_URL = originalDatabaseUrl;
+		}
+	}
+});
 // These fixed application IDs mirror the reviewed plan; every case owns its rows.
 beforeEach(async () => {
 	await getDb()
