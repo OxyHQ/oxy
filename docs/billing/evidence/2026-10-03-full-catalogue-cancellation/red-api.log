@@ -1,0 +1,176 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/productProviderEvidence.test.ts src/services/__tests__/productAccessPersistence.test.ts src/services/__tests__/subscriptionCreditLedger.test.ts src/services/__tests__/subscriptionCreditLockOrder.test.ts src/services/__tests__/subscriptionPeriodPolicy.test.ts src/services/__tests__/subscriptionPromotionPolicy.test.ts src/services/__tests__/productBillingCatalogue.test.ts src/controllers/__tests__/subscription.controller.test.ts src/db/__tests__/credits.test.ts src/db/schema/__tests__/foreignKeys.test.ts src/routes/__tests__/billingWebhookIdempotency.test.ts
+{"level":30,"time":1790996965176,"pid":3439353,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790996965320,"pid":3439353,"hostname":"SuperPC","msg":"Added 1000 credits to user 01a0ffbc-e73b-7771-9a93-f24993042dc9"}
+{"level":30,"time":1790996965347,"pid":3439353,"hostname":"SuperPC","paymentIntentId":"pi_01a0ffbc-e73b-7771-9a93-f24993042dc9","sessionId":"cs_pi_01a0ffbc-e73b-7771-9a93-f24993042dc9","userId":"01a0ffbc-e73b-7771-9a93-f24993042dc9","msg":"Skipping duplicate credit purchase grant"}
+{"level":30,"time":1790996965369,"pid":3439353,"hostname":"SuperPC","paymentIntentId":"pi_01a0ffbc-e73b-7771-9a93-f24993042dc9","sessionId":"cs_pi_01a0ffbc-e73b-7771-9a93-f24993042dc9","userId":"01a0ffbc-e73b-7771-9a93-f24993042dc9","msg":"Skipping duplicate credit purchase grant"}
+{"level":30,"time":1790996965447,"pid":3439353,"hostname":"SuperPC","msg":"Added 1000 credits to user 01a0ffbc-e804-7645-b49f-da3848b9571b"}
+{"level":30,"time":1790996965458,"pid":3439353,"hostname":"SuperPC","paymentIntentId":"pi_concurrent_01a0ffbc-e804-7645-b49f-da3848b9571b","sessionId":"cs_pi_concurrent_01a0ffbc-e804-7645-b49f-da3848b9571b","userId":"01a0ffbc-e804-7645-b49f-da3848b9571b","msg":"Skipping duplicate credit purchase grant"}
+{"level":30,"time":1790996965466,"pid":3439353,"hostname":"SuperPC","paymentIntentId":"pi_concurrent_01a0ffbc-e804-7645-b49f-da3848b9571b","sessionId":"cs_pi_concurrent_01a0ffbc-e804-7645-b49f-da3848b9571b","userId":"01a0ffbc-e804-7645-b49f-da3848b9571b","msg":"Skipping duplicate credit purchase grant"}
+{"level":30,"time":1790996965496,"pid":3439353,"hostname":"SuperPC","msg":"Added 1000 credits to user 01a0ffbc-e863-72f0-a5ff-d06d421326f3"}
+{"level":30,"time":1790996965517,"pid":3439353,"hostname":"SuperPC","msg":"Added 1000 credits to user 01a0ffbc-e863-72f0-a5ff-d06d421326f3"}
+{"level":40,"time":1790996965538,"pid":3439353,"hostname":"SuperPC","sessionId":"cs_unused","userId":"01a0ffbc-e896-7207-91b3-ec88d76727c7","msg":"Webhook checkout: no payment intent on the session; refusing to grant credits"}
+{"level":30,"time":1790996965675,"pid":3439353,"hostname":"SuperPC","subscriptionId":"sub_1790996965590_2","invoiceId":"in_replay_sub_1790996965590_2","periodStart":"2026-10-03T01:09:25.000Z","userId":"01a0ffbc-e8d6-7496-b8dc-b2556dc83851","msg":"Skipping duplicate subscription credit grant"}
+{"level":30,"time":1790996965680,"pid":3439353,"hostname":"SuperPC","subscriptionId":"sub_1790996965590_2","invoiceId":"in_replay_sub_1790996965590_2","periodStart":"2026-10-03T01:09:25.000Z","userId":"01a0ffbc-e8d6-7496-b8dc-b2556dc83851","msg":"Skipping duplicate subscription credit grant"}
+{"level":50,"time":1790996965774,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"synthetic grant failure","stack":"Error: synthetic grant failure\n    at grantSubscriptionCredits (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts:171:55)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1367:33\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":30,"time":1790996965834,"pid":3439353,"hostname":"SuperPC","subscriptionId":"sub_1790996965815_5","invoiceId":"in_1790996965824_7","periodStart":"2026-10-03T01:09:25.000Z","userId":"01a0ffbc-e9b7-7952-a947-65a814ce596b","msg":"Skipping duplicate subscription credit grant"}
+{"level":30,"time":1790996966147,"pid":3439353,"hostname":"SuperPC","subscriptionId":"sub_1790996966066_13","invoiceId":"in_1790996966124_16","periodStart":"2026-10-03T01:09:26.000Z","userId":"01a0ffbc-eab2-7f3c-b114-d3a840dbac74","msg":"Skipping duplicate subscription credit grant"}
+{"level":40,"time":1790996966669,"pid":3439353,"hostname":"SuperPC","priceId":"price_retired","subscriptionId":"sub_1790996966633_20","customerId":"cus_sub_1790996966633_20","msg":"Unrecognized subscription price ID"}
+{"level":30,"time":1790996967340,"pid":3439353,"hostname":"SuperPC","subscriptionId":"sub_1790996967265_21","invoiceId":"in_1790996967271_20","periodStart":"2026-10-03T01:09:27.000Z","userId":"01a0ffbc-ef61-714a-9830-cd88e833246a","msg":"Skipping duplicate subscription credit grant"}
+{"level":50,"time":1790996967361,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"invoice retrieval timed out","stack":"Error: invoice retrieval timed out\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts:107:17\n    at Generator.next (<anonymous>)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts:70:71\n    at new Promise (<anonymous>)\n    at __awaiter (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts:66:12)\n    at Object.retrieve (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts:103:38)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1161:46\n    at Generator.next (<anonymous>)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:8:71\n    at new Promise (<anonymous>)\n    at __awaiter (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:4:12)\n    at currentInvoiceEvidence (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:950:12)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:843:38\n    at Generator.next (<anonymous>)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:8:71\n    at new Promise (<anonymous>)\n    at __awaiter (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:4:12)\n    at dispatchStripeEvent (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:663:12)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:809:24\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996967413,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Historical invoice retrieval returned contradictory identity, mode or attribution","stack":"Error: Historical invoice retrieval returned contradictory identity, mode or attribution\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1169:11\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996967485,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Historical invoice retrieval returned contradictory identity, mode or attribution","stack":"Error: Historical invoice retrieval returned contradictory identity, mode or attribution\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1169:11\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996967540,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Historical invoice retrieval returned contradictory identity, mode or attribution","stack":"Error: Historical invoice retrieval returned contradictory identity, mode or attribution\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1169:11\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996967593,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Historical invoice retrieval returned contradictory identity, mode or attribution","stack":"Error: Historical invoice retrieval returned contradictory identity, mode or attribution\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1169:11\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996968099,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"invoice pagination failed","stack":"Error: invoice pagination failed\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts:116:35\n    at Generator.next (<anonymous>)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts:70:71\n    at new Promise (<anonymous>)\n    at __awaiter (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts:66:12)\n    at Object.listLineItems (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts:113:80)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1257:39\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996968451,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Period evidence is incomplete or changes a frozen invoice credit assignment","stack":"ConflictError: Period evidence is incomplete or changes a frozen invoice credit assignment\n    at assertFrozenPeriodAssignments (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/subscriptionPeriodPolicy.ts:57:11)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/applySubscriptionPeriodCredits.service.ts:43:32\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/applySubscriptionPeriodCredits.service.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"ConflictError"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996968472,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Exactly one historical paid base invoice is required","stack":"Error: Exactly one historical paid base invoice is required\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/stripeSubscriptionEvidence.service.ts:69:33\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/stripeSubscriptionEvidence.service.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996968494,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Invoice plan, currency, quantity or period is ambiguous","stack":"Error: Invoice plan, currency, quantity or period is ambiguous\n    at planFor (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/stripeSubscriptionEvidence.service.ts:113:142)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/stripeSubscriptionEvidence.service.ts:127:25\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/stripeSubscriptionEvidence.service.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996968749,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Refund invoice payment allocation is ambiguous","stack":"Error: Refund invoice payment allocation is ambiguous\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1672:66\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996969214,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"synthetic grant failure","stack":"Error: synthetic grant failure\n    at grantSubscriptionCredits (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts:171:55)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1367:33\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":50,"time":1790996969283,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Invoice mode differs from authenticated delivery","stack":"Error: Invoice mode differs from authenticated delivery\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1208:49\n    at Generator.next (<anonymous>)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:8:71\n    at new Promise (<anonymous>)\n    at __awaiter (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:4:12)\n    at handleInvoicePaid (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:1004:12)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:843:14\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/routes/billing.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Error handling webhook:"}
+{"level":30,"time":1790996969337,"pid":3439353,"hostname":"SuperPC","subscriptionId":"sub_1790996969164_54","invoiceId":"in_1790996969170_67","periodStart":"2026-10-03T01:09:29.000Z","userId":"01a0ffbc-f6cd-7069-bc28-13cd3619cc93","msg":"Skipping duplicate subscription credit grant"}
+{"level":30,"time":1790996969537,"pid":3439353,"hostname":"SuperPC","subscriptionId":"sub_1790996969417_55","invoiceId":"in_1790996969423_68","periodStart":"2026-09-03T02:09:29.000Z","userId":"01a0ffbc-f7c9-750b-a8a3-caca1f543e8e","msg":"Skipping duplicate subscription credit grant"}
+{"level":40,"time":1790996969919,"pid":3439353,"hostname":"SuperPC","priceId":"price_SYNTHETIC_PRODUCT_ONLY","subscriptionId":"sub_1790996969857_58","customerId":"cus_sub_1790996969857_58","msg":"Unrecognized subscription price ID"}
+{"level":40,"time":1790996969942,"pid":3439353,"hostname":"SuperPC","priceId":"price_SYNTHETIC_PRODUCT_ONLY","subscriptionId":"sub_1790996969857_58","customerId":"cus_sub_1790996969857_58","msg":"Unrecognized subscription price ID"}
+{"level":50,"time":1790996970582,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Product access configuration is unavailable","stack":"ApiError: Product access configuration is unavailable\n    at productAccessNotConfigured (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/productAccessPersistence.service.ts:35:10)\n    at /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/productAccessPersistence.service.ts:71:77\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/src/services/productAccessPersistence.service.ts:5:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"ApiError"},"msg":"Named product cancellation failed"}
+{"level":50,"time":1790996970698,"pid":3439353,"hostname":"SuperPC","err":{"type":"Object","message":"Failed query: update \"access_subscription_sources\" set \"status\" = $1, \"period_start\" = $2, \"period_end\" = $3, \"cancel_at_period_end\" = $4, \"provider_observed_at\" = $5, \"updated_at\" = $6 where \"access_subscription_sources\".\"id\" = $7\nparams: active,2026-10-03T01:09:30.000Z,2026-11-02T01:09:30.000Z,true,2026-10-03T03:09:30.687Z,2026-10-03T03:09:30.695Z,access_source_b80ba2e7bacb2b7a381d883a5a121806992d89923f6aca83714c377bf6d8ae3b","stack":"Error: Failed query: update \"access_subscription_sources\" set \"status\" = $1, \"period_start\" = $2, \"period_end\" = $3, \"cancel_at_period_end\" = $4, \"provider_observed_at\" = $5, \"updated_at\" = $6 where \"access_subscription_sources\".\"id\" = $7\nparams: active,2026-10-03T01:09:30.000Z,2026-11-02T01:09:30.000Z,true,2026-10-03T03:09:30.687Z,2026-10-03T03:09:30.695Z,access_source_b80ba2e7bacb2b7a381d883a5a121806992d89923f6aca83714c377bf6d8ae3b\n    at PostgresJsPreparedQuery.queryWithCache (/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Named product cancellation failed"}
+FAIL src/routes/__tests__/billingWebhookIdempotency.test.ts (6.071 s)
+  ● rejects complete catalogue empty mismatch before either award, then exact configuration retries once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 500
+    Received: 200
+
+      1593 |   await writeFile(path, JSON.stringify(changed), { mode: 0o600 });
+      1594 |   const sub = await subscriber(); const paid = invoiceEvent(sub); makeProductEvidenceLive(paid, sub.subscriptionId);
+    > 1595 |   expect(await postWebhook(paid)).toBe(500);
+           |                                   ^
+      1596 |   expect(await paidBalance(sub.userId)).toBe(0); expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(0);
+      1597 |   expect(await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId))).toHaveLength(0);
+      1598 |   expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(0);
+
+      at src/routes/__tests__/billingWebhookIdempotency.test.ts:1595:35
+      at fulfilled (src/routes/__tests__/billingWebhookIdempotency.test.ts:67:58)
+
+  ● rejects complete catalogue capability mismatch before either award, then exact configuration retries once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 500
+    Received: 200
+
+      1593 |   await writeFile(path, JSON.stringify(changed), { mode: 0o600 });
+      1594 |   const sub = await subscriber(); const paid = invoiceEvent(sub); makeProductEvidenceLive(paid, sub.subscriptionId);
+    > 1595 |   expect(await postWebhook(paid)).toBe(500);
+           |                                   ^
+      1596 |   expect(await paidBalance(sub.userId)).toBe(0); expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(0);
+      1597 |   expect(await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId))).toHaveLength(0);
+      1598 |   expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(0);
+
+      at src/routes/__tests__/billingWebhookIdempotency.test.ts:1595:35
+      at fulfilled (src/routes/__tests__/billingWebhookIdempotency.test.ts:67:58)
+
+  ● rejects complete catalogue quota mismatch before either award, then exact configuration retries once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 500
+    Received: 200
+
+      1593 |   await writeFile(path, JSON.stringify(changed), { mode: 0o600 });
+      1594 |   const sub = await subscriber(); const paid = invoiceEvent(sub); makeProductEvidenceLive(paid, sub.subscriptionId);
+    > 1595 |   expect(await postWebhook(paid)).toBe(500);
+           |                                   ^
+      1596 |   expect(await paidBalance(sub.userId)).toBe(0); expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(0);
+      1597 |   expect(await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId))).toHaveLength(0);
+      1598 |   expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(0);
+
+      at src/routes/__tests__/billingWebhookIdempotency.test.ts:1595:35
+      at fulfilled (src/routes/__tests__/billingWebhookIdempotency.test.ts:67:58)
+
+  ● rejects complete catalogue owner mismatch before either award, then exact configuration retries once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 500
+    Received: 200
+
+      1593 |   await writeFile(path, JSON.stringify(changed), { mode: 0o600 });
+      1594 |   const sub = await subscriber(); const paid = invoiceEvent(sub); makeProductEvidenceLive(paid, sub.subscriptionId);
+    > 1595 |   expect(await postWebhook(paid)).toBe(500);
+           |                                   ^
+      1596 |   expect(await paidBalance(sub.userId)).toBe(0); expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(0);
+      1597 |   expect(await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId))).toHaveLength(0);
+      1598 |   expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(0);
+
+      at src/routes/__tests__/billingWebhookIdempotency.test.ts:1595:35
+      at fulfilled (src/routes/__tests__/billingWebhookIdempotency.test.ts:67:58)
+
+  ● rejects complete catalogue application mismatch before either award, then exact configuration retries once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 500
+    Received: 200
+
+      1593 |   await writeFile(path, JSON.stringify(changed), { mode: 0o600 });
+      1594 |   const sub = await subscriber(); const paid = invoiceEvent(sub); makeProductEvidenceLive(paid, sub.subscriptionId);
+    > 1595 |   expect(await postWebhook(paid)).toBe(500);
+           |                                   ^
+      1596 |   expect(await paidBalance(sub.userId)).toBe(0); expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(0);
+      1597 |   expect(await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId))).toHaveLength(0);
+      1598 |   expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(0);
+
+      at src/routes/__tests__/billingWebhookIdempotency.test.ts:1595:35
+      at fulfilled (src/routes/__tests__/billingWebhookIdempotency.test.ts:67:58)
+
+  ● financial cancellation and fresh lifecycle recover after application transfer without granting transferred access
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 500
+
+      1610 |   await withApp(async base => {
+      1611 |     const response = await fetch(`${base}/billing/product-subscriptions/cancel`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-user': sub.userId }, body: JSON.stringify({ sourceId: source.id }) });
+    > 1612 |     expect(response.status).toBe(200); expect(await response.json()).toEqual({ sourceId: source.id, cancelAtPeriodEnd: true });
+           |                             ^
+      1613 |   });
+      1614 |   expect(subscriptionUpdateCalls).toEqual([sub.subscriptionId]);
+      1615 |   const event = envelope('customer.subscription.updated', { id: sub.subscriptionId, status: 'active' }); event.livemode = true;
+
+      at src/routes/__tests__/billingWebhookIdempotency.test.ts:1612:29
+      at fulfilled (src/routes/__tests__/billingWebhookIdempotency.test.ts:67:58)
+
+  ● confirmed remote cancellation returns pending after SQL failure and webhook recovery changes no grants
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 202
+    Received: 500
+
+      1630 |     await withApp(async base => {
+      1631 |       const response = await fetch(`${base}/billing/product-subscriptions/cancel`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-user': sub.userId }, body: JSON.stringify({ sourceId: source.id }) });
+    > 1632 |       expect(response.status).toBe(202); expect(await response.json()).toEqual({ sourceId: source.id, reconciliationPending: true });
+           |                               ^
+      1633 |     });
+      1634 |     expect(stripeSubscriptions.get(sub.subscriptionId)?.cancel_at_period_end).toBe(true);
+      1635 |     const [local] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, source.id)); expect(local.cancelAtPeriodEnd).toBe(false);
+
+      at src/routes/__tests__/billingWebhookIdempotency.test.ts:1632:31
+      at fulfilled (src/routes/__tests__/billingWebhookIdempotency.test.ts:67:58)
+
+{"level":30,"time":1790996970825,"pid":3439353,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790996973106,"pid":3439353,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790996974516,"pid":3439353,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790996975690,"pid":3439353,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790996976140,"pid":3439353,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790996976896,"pid":3439353,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 1 failed, 10 passed, 11 total
+Tests:       7 failed, 166 passed, 173 total
+Snapshots:   0 total
+Time:        12.489 s, estimated 13 s
+Ran all test suites within paths "src/services/__tests__/productProviderEvidence.test.ts", "src/services/__tests__/productAccessPersistence.test.ts", "src/services/__tests__/subscriptionCreditLedger.test.ts", "src/services/__tests__/subscriptionCreditLockOrder.test.ts", "src/services/__tests__/subscriptionPeriodPolicy.test.ts", "src/services/__tests__/subscriptionPromotionPolicy.test.ts", "src/services/__tests__/productBillingCatalogue.test.ts", "src/controllers/__tests__/subscription.controller.test.ts", "src/db/__tests__/credits.test.ts", "src/db/schema/__tests__/foreignKeys.test.ts", "src/routes/__tests__/billingWebhookIdempotency.test.ts".
+error: script "test" exited with code 1

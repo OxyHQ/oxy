@@ -1,0 +1,2 @@
+$ bun scripts/generate-openapi.ts
+[generate-openapi] wrote /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/api/openapi.json with 359 paths, 414 operations.
