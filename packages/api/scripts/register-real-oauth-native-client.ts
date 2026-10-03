@@ -12,8 +12,10 @@ import { users } from '../src/db/schema/users';
 async function main() {
   const [manifestArgument, lane = 'native'] = process.argv.slice(2);
   assert(manifestArgument && (process.argv.length === 3 || process.argv.length === 4));
-  assert(['native', 'nativeFirst', 'nativeSecond', 'nativeIdentity'].includes(lane));
+  assert(['native', 'nativeFirst', 'nativeSecond', 'nativeIdentity', 'webFirst', 'webSecond'].includes(lane));
   const trusted = lane !== 'native';
+  const webOrigin = lane === 'webFirst' ? 'http://127.0.0.1:17972'
+    : lane === 'webSecond' ? 'http://127.0.0.1:17973' : undefined;
   const manifestPath = resolve(manifestArgument);
   assert(/\/\.integration-evidence\/oauth1519-[a-z0-9_-]+\/manifest\.json$/.test(manifestPath));
   const database = new URL(process.env.DATABASE_URL ?? '');
@@ -37,7 +39,7 @@ async function main() {
   const data = await getDb().execute(sql`SELECT current_setting('data_directory') AS path`);
   assert(data[0]?.path === pgData);
   const clientId = `oxy_dk_${randomBytes(24).toString('hex')}`;
-  const redirectUri = 'astro://oauth/callback';
+  const redirectUri = webOrigin ? `${webOrigin}/` : 'astro://oauth/callback';
   const appId = await getDb().transaction(async (tx) => {
     const [owner] = await tx.select({ email: users.email, kind: users.kind }).from(users)
       .where(eq(users.id, manifest.person.id)).limit(1);
@@ -46,13 +48,14 @@ async function main() {
       name: `I11 disposable ${lane}`, ownerAccountId: manifest.person.id,
       createdByUserId: manifest.person.id, type: trusted ? 'internal' : 'third_party', isOfficial: trusted,
       isInternal: trusted, status: 'active', scopes: ['user:read'], redirectUris: [redirectUri],
+      ...(webOrigin ? { websiteUrl: webOrigin } : {}),
     }).returning({ id: applications.id });
     await tx.insert(applicationCredentials).values({ applicationId: app.id,
       name: 'I11 native fixture', publicKey: clientId, type: 'public',
       environment: 'development', status: 'active' });
     return app.id;
   });
-  manifest.clients[lane] = { appId, clientId, origin: 'astro://oauth', redirectUri };
+  manifest.clients[lane] = { appId, clientId, origin: webOrigin ?? 'astro://oauth', redirectUri };
   const staged = `${manifestPath}.native.tmp`;
   await writeFile(staged, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
   await rename(staged, manifestPath);

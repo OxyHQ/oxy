@@ -44,6 +44,35 @@ required for switch/logout propagation. Registry consumer repetition and native
 OAuth/SSO remain pending. The Android17check fixture only verified provider slot
 storage/signature isolation and is not this acceptance.
 
+WEB04 candidate preparation uses two additional registered trusted applications
+at `http://127.0.0.1:17972` and `http://127.0.0.1:17973`. The reviewed registrar
+accepts only the fixed `webFirst` and `webSecond` lanes, validates the already-owned
+fixture database and its personal owner, and creates public application metadata
+only. It creates no session, device credential or consent. Native clients retain
+their original callback and registrations. The two RPs use this same public
+`OxyProvider`, account dialog, sign-out and fresh `cache.clear()` / `users.me()`
+probe; no application-local session coordination is added.
+
+After registration, start only those two RPs, preserving the running API/IdP,
+database and native Metros:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -u scripts/rehearsal/start-first-party-browser.py /absolute/owned/.integration-evidence/oauth1519-namespace/manifest.json
+```
+
+Root browser sequence: use a fresh Chromium profile with both origins in live
+tabs and reject unexpected remote requests; explicitly sign in at the first RP
+through the real SDK dialog. Verify its fresh API subject and the second holder's
+canonical SDK adoption of that device session. Switch to the fixture organization
+through the second RP's SDK account dialog; bring the first RP to the foreground
+and verify both UI and fresh API subject become the organization. Sign out that
+account and verify the remaining personal principal, then sign out the remaining
+account and verify both holders are signed out and fresh profile reads are denied.
+Record cookies on every participating origin, SQL session/device bindings and
+status-only network observations. Never inject credentials to make holder adoption
+pass; if SDK requires an explicit public button/restore action, record that exact
+behavior and assess it against WEB04. Browser acceptance has not run at preparation.
+
 Preparation failures retained in evidence: CommonJS top-level-await type errors;
 Vite optimizer collision between origins; initial RP bundler missing Expo web
 exports. Corrected configuration reuses the actual IdP's maintained RN-Web
