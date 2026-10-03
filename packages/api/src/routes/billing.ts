@@ -21,6 +21,7 @@ import {
 	accessSubscriptionSources,
 } from "../db/schema/productAccess";
 import { userCredits } from '../db/schema/userCredits';
+import { accessProviderPeriods } from '../db/schema/productProviderEvidence';
 import { type AuthRequest, authMiddleware } from "../middleware/auth";
 import { validate } from '../middleware/validate';
 import {
@@ -77,6 +78,17 @@ import { isAllowedRedirect } from "../utils/redirectAllowlist";
 import { getStripe } from "../utils/stripeClient";
 import {
   getOrCreateUserCredits } from "./credits";
+
+/** Financial lifecycle belongs to the verified source, including an empty bundle. */
+async function assertProductSourceEvidence(source: typeof accessSubscriptionSources.$inferSelect): Promise<void> {
+  const [evidence] = await getDb().select({ id: accessProviderPeriods.id }).from(accessProviderPeriods).where(and(
+    eq(accessProviderPeriods.sourceId, source.id), eq(accessProviderPeriods.provider, source.provider),
+    eq(accessProviderPeriods.providerAccountRef, source.providerAccountRef), eq(accessProviderPeriods.mode, source.mode),
+    eq(accessProviderPeriods.environment, source.environment), eq(accessProviderPeriods.providerSubscriptionId, source.providerSubscriptionId),
+    eq(accessProviderPeriods.payerAccountId, source.payerAccountId), eq(accessProviderPeriods.beneficiaryAccountId, source.beneficiaryAccountId),
+  )).limit(1);
+  if (!evidence) throw new Error('Named subscription has no matching paid-period evidence');
+}
 
 /** The statuses that count as "the user has a live subscription right now". */
 const LIVE_SUBSCRIPTION_STATUSES = ['active', 'trialing'] as const;
@@ -344,17 +356,7 @@ router.post(
 			)
 				return res.status(404)
 					.json({ error: "Named subscription source unavailable" });
-			const [grant] = await getDb()
-				.select({ productId: accessGrants.productId })
-				.from(accessGrants)
-				.innerJoin(
-					accessOfferSegments,
-					eq(accessGrants.sourceSegmentId, accessOfferSegments.id),
-				)
-				.where(eq(accessOfferSegments.subscriptionId, source.id))
-				.limit(1);
-			if (!grant)
-				throw new Error("Named subscription has no registered product grant");
+			await assertProductSourceEvidence(source);
 
 			const observed = new Date();
 			const current = await getStripe().subscriptions.retrieve(
@@ -1067,9 +1069,7 @@ async function syncSubscriptionFromProvider(
   let productState: 'updated' | 'stale' | 'replayed' | undefined;
   for (const source of productSources) {
     if (source.payerAccountId !== userId || mode !== 'live' || environment !== 'production') throw new Error('Product lifecycle payer or binding differs');
-    const [grant] = await getDb().select({ productId: accessGrants.productId }).from(accessGrants).innerJoin(accessOfferSegments,
-      eq(accessGrants.sourceSegmentId, accessOfferSegments.id)).where(eq(accessOfferSegments.subscriptionId, source.id)).limit(1);
-    if (!grant) throw new Error('Product lifecycle source has no registered grant');
+    await assertProductSourceEvidence(source);
     productState = await reconcileProductAccessFinancialState({ sourceId: source.id,
       beneficiaryAccountId: source.beneficiaryAccountId, payerAccountId: source.payerAccountId,
       provider: source.provider, providerSubscriptionId: source.providerSubscriptionId,
