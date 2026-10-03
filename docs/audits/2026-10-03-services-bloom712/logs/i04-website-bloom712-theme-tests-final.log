@@ -1,0 +1,19 @@
+$ bun test scripts/theme-contract.test.ts
+bun test v1.4.2 (744846f84)
+
+scripts/theme-contract.test.ts:
+(pass) Bloom theme contract > publishes every preset name exactly once [0.10ms]
+(pass) Bloom theme contract > groups the same recipes that the website picker renders [0.13ms]
+(pass) Bloom theme contract > offers only free recipes without inventing entitlement state [0.07ms]
+(pass) Bloom theme contract > generates prepaint selectors for exactly the public presets [10.84ms]
+(pass) Bloom theme contract > keeps the website brand presets in Bloom [0.05ms]
+(pass) Bloom theme contract > resolves the paired light and dark roles used by the settings previews [1554.79ms]
+(pass) Bloom theme contract > keeps the color lab role projection on Bloom resolved tokens [3072.96ms]
+(pass) Bloom theme contract > does not add a local palette to the color lab chrome [0.56ms]
+(pass) Bloom theme contract > keeps color lab media on versioned local assets [5.30ms]
+(pass) Bloom theme contract > provisions Chromium before Cloudflare runs the browser-gated build [0.29ms]
+
+ 10 pass
+ 0 fail
+ 1812 expect() calls
+Ran 10 tests across 1 file. [4.66s]

@@ -1,0 +1,189 @@
+{
+  "sourceCommit": "ad8faaec0db5d5a75774e50e1f6359b2022757fd",
+  "base": "f364fe58a41aab6913cf92ec01a9a9c1ea489120",
+  "sources": [
+    {
+      "path": "packages/services/package.json",
+      "sha256": "da64d7c6390840ebbcbd79f37cfe3fd1a2d306b943f513e707e43da29753188e",
+      "bytes": 16744
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "729e9f5fdd43f120ca575397c41fed0881cb09e3f0001354c437790d44f0ba8e",
+      "bytes": 800936
+    }
+  ],
+  "preservedInputs": [
+    {
+      "path": "packages/services/jest.config.js",
+      "sha256": "3dbd1852da7c7d8a320de4ab648c773a7f9204aa7e9330ab2720aa796e6120b6",
+      "bytes": 2384
+    },
+    {
+      "path": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/src/App.tsx",
+      "sha256": "3b50f586cc22cffc8f707a96e9610492131b08ccf7f7df74a29af01756721731",
+      "bytes": 27463
+    },
+    {
+      "path": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/src/styles/theme.generated.css",
+      "sha256": "bff6a44b2847e01902273bd8f2c046b3e4ee429bf60149b6d7c084959eb03c2d",
+      "bytes": 759237
+    },
+    {
+      "path": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/scripts/theme-prepaint.browser.test.ts",
+      "sha256": "735b30544f402ab0aea5d2d66a9805260e08d5d51be99d305188f1e35ee8e083",
+      "bytes": 7307
+    },
+    {
+      "path": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/scripts/theme-contract.test.ts",
+      "sha256": "431e1b9d18c0d722075c516d3cc7f3f64a3de66ec672af74a19f3079f49ed262",
+      "bytes": 7307
+    },
+    {
+      "path": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/scripts/generate-theme-css.ts",
+      "sha256": "3c43e7715177ffad8ec643b4bd69086e5791f28918ab11b1e5527257bb2424e8",
+      "bytes": 7376
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-bloom712-compat-build.log",
+      "sha256": "896301bf3e7ac9f1100ceacef13441f7845f025bde82dd849e7abbb832b9646b",
+      "bytes": 6226
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-bloom712-compat-pack.log",
+      "sha256": "6d1cb4c24a13bd57a3deed13ebb2a172d07c2e7ed7e4f0eea68b10f1f38bf3d6",
+      "bytes": 1286840
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-services-bloom712-build.log",
+      "sha256": "8250e84ea18e0a5479e3c92f023318f20f8d98b9e02ed4b6f5764a2898de0a5b",
+      "bytes": 1697
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-services-bloom712-tests.log",
+      "sha256": "cabb85860f9d5ebc9dd2ca30fe5bef17748ed5b4dc978845567d38e040cd3596",
+      "bytes": 174
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-services-bloom712-pack-build.log",
+      "sha256": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a",
+      "bytes": 1551
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-services-bloom712-pack.log",
+      "sha256": "06129366f7bee8350e8f521536beeca0f246e0a368ba95b610a8f477c1d4511c",
+      "bytes": 157438
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-services-bloom712-final-lock.log",
+      "sha256": "87e23595c61c890b2945846fa20a3601ce3ce1923ed371b1efc6ad5b1234871d",
+      "bytes": 164
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-website-vite-build.log",
+      "sha256": "46f945cb16646404c1cca6189c54f825765887b49881ffad2c888b587a8bbca9",
+      "bytes": 3337
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-website-bloom712-install.log",
+      "sha256": "3d6e5839d08d35261159a4c7d52e18e88a4890af916fb1cd18faabbcb506e781",
+      "bytes": 720
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-website-bloom712-install-final.log",
+      "sha256": "818280830bd31b108dad4ae09c6538c37de56f8e5d9ba9e4483acb2104a89ae8",
+      "bytes": 808
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-website-bloom712-types-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-website-bloom712-theme-tests-final.log",
+      "sha256": "8835eda339e3f727a345bc2baa31727cb7cd53d03cfe8d6f901ed17ad119a176",
+      "bytes": 1134
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-website-bloom712-vite-final.log",
+      "sha256": "215f6aa6be75b1f1957d1afff9b61c53156ac80c64b146de4d11d8339869687c",
+      "bytes": 126284
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/logs/i04-website-bloom712-browser-final.log",
+      "sha256": "3bf197a8cb2e6526cec293344f6b33ac425722d51103b5c1eb92e4086f3b91a1",
+      "bytes": 137
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/inputs/i04-services-bloom712-resolution.json",
+      "sha256": "758abc454c87430f3120661c516061c47713f21c831ed6cf2ec9ee10d6459275",
+      "bytes": 1562
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/inputs/i04-bloom712-services-package-json",
+      "sha256": "db0e42f40f970daba31fcea39ca87c22d9f6eb3dcee63fdad898a7fe83cf9717",
+      "bytes": 8402
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/inputs/i04-bloom712-services-bun-lock",
+      "sha256": "ec24be00668d672bbcfe80b41421e4632dcfe1e27fac023d1d658f43c6e6856f",
+      "bytes": 801143
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/inputs/i04-bloom712-website-package-json",
+      "sha256": "55463674a0d0289074ee80366ecc1ff2e2c154698e97d630e8c567b2a7d0bbb3",
+      "bytes": 8475
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/inputs/i04-bloom712-website-bun-lock",
+      "sha256": "1e2287c2723b42fbc151a190aab698483e9ec3f565002c0b8fc16e816f856125",
+      "bytes": 627678
+    },
+    {
+      "path": "docs/audits/2026-10-03-services-bloom712/inputs/i04-website-bloom621-theme.diff",
+      "sha256": "6a4a9fdc1372aa437a7fa02d138184eba72866d413c7e1f15133149fe4f062af",
+      "bytes": 145958
+    }
+  ],
+  "candidatePacks": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-bloom712-compat-pack/oxy.so-bloom-7.1.2.tgz",
+      "sha256": "04963419eca4ef497c146d2cc1fcc5862b5b9216cfc5d4fb8cfe3b132047c02b",
+      "bytes": 30537701
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-services-bloom712-pack/oxy.so-services-11.1.0.tgz",
+      "sha256": "5b52518029f8f4039be84e02f70ace936ab2dc955f9905b7585c2cb1e9d25d2b",
+      "bytes": 4261391
+    }
+  ],
+  "bloomSource": "fb52fa49007f6325a1d802683417d67b1546940b",
+  "websiteBase": "718a6c404b6b790972d74df602f107ec94d3e805",
+  "published": false,
+  "validation": {
+    "services": {
+      "suites": 113,
+      "tests": 1038,
+      "buildAndTypes": "PASS",
+      "uiMockedInJest": true
+    },
+    "website": {
+      "types": "PASS",
+      "themeTests": 10,
+      "themeAssertions": 1812,
+      "viteBuild": "PASS",
+      "playwrightPrepaintReactRouteRestore": "PASS; zero page errors",
+      "fullPrePostBuild": "not run"
+    },
+    "resolution": "4 importers; 21941 files per importer byte-identical; one shared Bloom copy per consumer"
+  },
+  "limits": [
+    "Services Jest mocks Bloom; actual exported types/build plus website Playwright exercise the installed candidate.",
+    "No Bloom7 Android runtime acceptance; native consumers remain exact published6.2.1.",
+    "Final source restores root catalog6.2.1; captured temporary installation files identify the tested7.1.2 graph.",
+    "Candidate Services pack precedes explanatory package comment only; runtime and peer range match commit.",
+    "Website full prebuild/postbuild SEO/docs gates and rollout are pending."
+  ]
+}

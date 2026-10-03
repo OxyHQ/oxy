@@ -1,0 +1,1015 @@
+vite v8.1.4 building client environment for production...
+[2Ktransforming...[plugin rolldown:vite-resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/protocol/dist/esm/platform/crypto.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin rolldown:vite-resolve] Module "node:async_hooks" has been externalized for browser compatibility, imported by "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/expo-font/build/serverContext.web.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+✓ 16870 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/bloom-preview.html                                                               2.41 kB │ gzip:     0.65 kB
+dist/assets/v4/roboto-vietnamese-400-normal-Bf76hAzZ.woff                             6.08 kB
+dist/assets/v4/roboto-vietnamese-700-normal-kpkdMgbf.woff                             6.10 kB
+dist/assets/v4/roboto-vietnamese-500-normal-BgoYVz-9.woff                             6.13 kB
+dist/assets/v4/avatar-athina-Brd15tWy.jpg                                             6.46 kB
+dist/assets/v4/avatar-joan-CVN4q6Bq.jpg                                               6.49 kB
+dist/assets/v4/roboto-greek-400-normal-D904r64h.woff                                  7.42 kB
+dist/assets/v4/roboto-greek-700-normal-xQsEWSIA.woff                                  7.45 kB
+dist/assets/v4/roboto-greek-500-normal-XBIQOowA.woff                                  7.47 kB
+dist/assets/v4/roboto-vietnamese-400-normal-D2PTxGxD.woff2                            8.36 kB
+dist/index.html                                                                       8.36 kB │ gzip:     2.64 kB
+dist/assets/v4/roboto-vietnamese-700-normal-BEVeWqJt.woff2                            8.41 kB
+dist/assets/v4/roboto-vietnamese-500-normal-B3ncpOoB.woff2                            8.54 kB
+dist/assets/v4/phone-BiPhKU3t.png                                                     8.71 kB
+dist/assets/v4/roboto-symbols-500-normal-DFnofPUt.woff                                8.73 kB
+dist/assets/v4/roboto-symbols-400-normal-C7tGlxgb.woff                                8.75 kB
+dist/assets/v4/roboto-symbols-700-normal-C59U6HqI.woff                                8.77 kB
+dist/assets/v4/roboto-greek-400-normal-ai2Z1K3C.woff2                                 9.55 kB
+dist/assets/v4/roboto-greek-500-normal-C9AnhcmC.woff2                                 9.61 kB
+dist/assets/v4/roboto-greek-700-normal-0aHWxGLu.woff2                                 9.63 kB
+dist/assets/v4/roboto-cyrillic-400-normal-BepgbcUK.woff                              10.20 kB
+dist/assets/v4/roboto-cyrillic-500-normal-C8ZOEKN4.woff                              10.39 kB
+dist/assets/v4/roboto-cyrillic-700-normal-D8g9KsRf.woff                              10.39 kB
+dist/assets/v4/roboto-symbols-400-normal-CB1Ce4Gk.woff2                              10.73 kB
+dist/assets/v4/roboto-symbols-500-normal-B_CZKVJS.woff2                              10.83 kB
+dist/assets/v4/roboto-symbols-700-normal-BiFDindJ.woff2                              10.86 kB
+dist/assets/v4/roboto-cyrillic-400-normal-CBPI_iaY.woff2                             12.10 kB
+dist/assets/v4/roboto-cyrillic-500-normal-CLao9AfR.woff2                             12.35 kB
+dist/assets/v4/roboto-cyrillic-700-normal-C2o7G-SM.woff2                             12.41 kB
+dist/assets/v4/avatar-nate-BwACWFCq.jpg                                              13.27 kB
+dist/assets/v4/roboto-latin-ext-400-normal-CIveymTr.woff                             13.83 kB
+dist/assets/v4/roboto-latin-ext-700-normal-BDePAh3g.woff                             13.83 kB
+dist/assets/v4/roboto-latin-ext-500-normal-C1cK9xmS.woff                             13.91 kB
+dist/assets/v4/roboto-latin-ext-400-normal-C3tdtHj3.woff2                            15.04 kB
+dist/assets/v4/roboto-latin-ext-500-normal-pMCM9Ixg.woff2                            15.16 kB
+dist/assets/v4/roboto-latin-ext-700-normal-DSBUz0N1.woff2                            15.19 kB
+dist/assets/v4/roboto-cyrillic-ext-400-normal-DhDk0Xwi.woff                          15.95 kB
+dist/assets/v4/roboto-cyrillic-ext-500-normal-SCgicl0l.woff                          16.09 kB
+dist/assets/v4/roboto-cyrillic-ext-700-normal-BWOtdzfy.woff                          16.09 kB
+dist/assets/v4/avatar-vecna-l-NtTSw-.png                                             16.69 kB
+dist/assets/v4/roboto-cyrillic-ext-400-normal-qHufge6k.woff2                         17.37 kB
+dist/assets/v4/roboto-cyrillic-ext-500-normal-BWC_xYeb.woff2                         17.59 kB
+dist/assets/v4/roboto-cyrillic-ext-700-normal-DmFxo5wj.woff2                         17.62 kB
+dist/assets/v4/avatar-oxy-ChTp2w1l.jpg                                               17.99 kB
+dist/assets/v4/roboto-math-400-normal-D6sS4O5l.woff                                  18.76 kB
+dist/assets/v4/roboto-math-500-normal-BNGXE_xU.woff                                  18.84 kB
+dist/assets/v4/roboto-math-700-normal-DbhUef31.woff                                  18.89 kB
+dist/assets/v4/roboto-math-400-normal-BEFej5gc.woff2                                 20.08 kB
+dist/assets/v4/roboto-math-500-normal-C4NU9gLX.woff2                                 20.30 kB
+dist/assets/v4/roboto-math-700-normal-B8YqGHVc.woff2                                 20.39 kB
+dist/assets/v4/roboto-latin-400-normal-D27F5sTu.woff                                 21.06 kB
+dist/assets/v4/roboto-latin-500-normal-fsTFPL3E.woff                                 21.16 kB
+dist/assets/v4/roboto-latin-700-normal-YuyVweIx.woff                                 21.21 kB
+dist/assets/v4/roboto-latin-400-normal-BqEyEoaF.woff2                                21.88 kB
+dist/assets/v4/roboto-latin-500-normal-7RbcRiD8.woff2                                22.20 kB
+dist/assets/v4/roboto-latin-700-normal-BZpUvMxY.woff2                                22.24 kB
+dist/assets/v4/sandra-s0C3-Ttm.jpg                                                   28.66 kB
+dist/assets/v4/OxyServicesMaterialCommunityIcons-DVHLYwp4.ttf                        28.85 kB
+dist/assets/v4/post-upsidedown-DTiUV5oV.webp                                         36.38 kB
+dist/assets/v4/post-oxy-CFUwzdXc.jpg                                                 36.92 kB
+dist/assets/v4/JetBrainsMono-Variable-B9CIFXIH.woff2                                 40.40 kB
+dist/assets/v4/torrent-olla-B9mvHBHf.jpg                                             42.89 kB
+dist/assets/v4/OxyServicesIonicons-B1hZ8Dc8.ttf                                      43.00 kB
+dist/assets/v4/slide-4-DSNFt0xP.jpg                                                  46.63 kB
+dist/assets/v4/InterVariable-Dx4kXJAl.woff2                                          48.25 kB
+dist/assets/v4/teresa-pamies-26MCy0Ju.jpg                                            53.38 kB
+dist/assets/v4/industria-BF1uFaoH.jpg                                                54.92 kB
+dist/assets/v4/post-oxy2-CzlTSj4H.jpg                                                58.12 kB
+dist/assets/v4/slide-3-Bp5gr1Be.jpg                                                  59.18 kB
+dist/assets/v4/sant-antoni-CQ2MD0ah.jpg                                              64.24 kB
+dist/assets/v4/post-nate-CiYl2_TQ.jpg                                                65.28 kB
+dist/assets/v4/sky-BnlV55XI.jpg                                                      66.81 kB
+dist/assets/v4/BlomusModernus-Bold-0E_Y-ihB.woff2                                    77.61 kB
+dist/assets/v4/BlomusModernus-Regular-kZR3rHS0.woff2                                 77.64 kB
+dist/assets/v4/gaudi-Bpjw_vC0.jpg                                                    79.10 kB
+dist/assets/v4/slide-2-BAN8I4Iy.jpg                                                  87.90 kB
+dist/assets/v4/slide-1-CPYeLD4l.jpg                                                 102.17 kB
+dist/assets/v4/logo-CyYZ9L_6.png                                                    117.42 kB
+dist/assets/v4/manso-BCEtQk0T.jpeg                                                  142.68 kB
+dist/assets/v4/roger-lluria-DwBrgsOi.jpg                                            156.07 kB
+dist/assets/v4/main-Xhmrmc8Z.css                                                      0.32 kB │ gzip:     0.22 kB
+dist/assets/v4/AstroPage-CUZRLe01.css                                                 3.41 kB │ gzip:     0.87 kB
+dist/assets/v4/bloom-landing-DVYE8yLA.css                                             4.00 kB │ gzip:     1.38 kB
+dist/assets/v4/vendor-carousel-Bdbi0viN.css                                           4.82 kB │ gzip:     1.13 kB
+dist/assets/v4/BrandPage-CQkdX9_5.css                                                14.40 kB │ gzip:     3.28 kB
+dist/assets/v4/DashboardPage-CoGoJILN.css                                            42.27 kB │ gzip:    18.59 kB
+dist/assets/v4/src-BrtdysGE.css                                                     860.73 kB │ gzip:   121.90 kB
+dist/assets/v4/industria-CURRB6k8.js                                                  0.05 kB │ gzip:     0.07 kB
+dist/assets/v4/__vite-browser-external-CQyzrni4.js                                    0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/AccountMembersScreen-6QtFk0zJ.js                                       0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/AccountSettingsScreen-B7Ovc_Fs.js                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/AccountVerificationScreen-Bnk_KnXy.js                                  0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/AppInfoScreen-B9pWwLg1.js                                              0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/AvatarCropScreen-Xo5W3M3k.js                                           0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ChangeAvatarScreen-Db1d_MUg.js                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ConnectedAppsScreen-Da_t-Hik.js                                        0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/CreateAccountScreen-C2M7gbKa.js                                        0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/DeleteAccountScreen-CdfVm2nn.js                                        0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/DomainsScreen-Cka97jOK.js                                              0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/EditProfileFieldScreen-BTspNvDr.js                                     0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/EditProfileScreen-CVNI2mtb.js                                          0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/FileManagementScreen-DZpd6okn.js                                       0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/FollowersListScreen-2UHPQyb9.js                                        0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/FollowingListScreen-CSxnjGuN.js                                        0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/HelpSupportScreen-DE4gT7jK.js                                          0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/HistoryViewScreen-CDRZjFcY.js                                          0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/LanguageSelectorScreen-BrO6qrrV.js                                     0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/LearnMoreUsernamesScreen-BlJH1Jbd.js                                   0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/LegalDocumentsScreen-BX5zdMTv.js                                       0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/LinkCommonsScreen-DodvQkz2.js                                          0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ManageAccountScreen-XdX7sT1B.js                                        0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/NotificationsScreen-nNTH_V5T.js                                        0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/OxyAccountDialogScreen-CoEWMuZB.js                                     0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/PaymentGatewayScreen-BZriO3xU.js                                       0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/PreferencesScreen-DNqDVjhh.js                                          0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/PrivacySettingsScreen-wzS6vmEV.js                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ProfileScreen-Ci1zIIC-.js                                              0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/SearchSettingsScreen-C7DTaian.js                                       0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/SignInAuthenticatorScreen-BDy2qzQV.js                                  0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/SignInPasswordScreen-Bj6yamiO.js                                       0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/TrustAboutScreen-CFltZgJ1.js                                           0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/TrustCenterScreen-DdD5D99J.js                                          0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/TrustFAQScreen-Bs_20BeP.js                                             0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/TrustLeaderboardScreen-CjHFpD5J.js                                     0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/TrustRewardsScreen-Bp5MneTO.js                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/TrustRulesScreen-DpSIcxrk.js                                           0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/UserLinksScreen-Cx-OqRR-.js                                            0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/WelcomeNewUserScreen-DcqgHdlX.js                                       0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ar-CjMEVjpn.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ar-SA-DE2PVx0D.js                                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/bn-RLyz-zc0.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ca-ES-CQGXhd3p.js                                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ca-Sb6pm4pB.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/de-BTEJ_v-R.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/de-DE-CI5R-e4M.js                                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/es-ES-Dv3UNcPZ.js                                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/es-oEYJQBnU.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/fr-BHJ2ratg.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/fr-FR-CunfxZNz.js                                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/hi-Ce7-I3eK.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/id-_wQev-V0.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/it-DVaNK1Ps.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/it-IT-Bfg7tTpt.js                                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ja-BtJVrlhQ.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ja-JP-DxSDEVon.js                                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ko-KR-oJtWKsvb.js                                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/pt-PT-D22P52n8.js                                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/pt-eyhc0bqj.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/ru-CVNooJGn.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/tr-Tf80i1pM.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/zh-CJ_RrSHP.js                                                         0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/zh-CN-BrLa4Dhr.js                                                      0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/NotFoundPage-BiimzBxZ.js                                               0.06 kB │ gzip:     0.08 kB
+dist/assets/v4/AgentScalarChatInterface.vue-GdqQddeP.js                               0.07 kB │ gzip:     0.08 kB
+dist/assets/v4/preset-vars-DwIRN9Bl.js                                                0.07 kB │ gzip:     0.09 kB
+dist/assets/v4/color-presets-89TCIbuu.js                                              0.07 kB │ gzip:     0.09 kB
+dist/assets/v4/design-tokens-B6pGePPv.js                                              0.07 kB │ gzip:     0.09 kB
+dist/assets/v4/empty-module-Dr8zV1-O.js                                               0.07 kB │ gzip:     0.09 kB
+dist/assets/v4/dist-CojNDjK9.js                                                       0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/tailwind-preset-BejuAyM9.js                                            0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/expo-router-4fPnJWIb.js                                                0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/travel-map-earth-globe.svg-v4NRZTxU.js                                 0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-time-clock-circle.svg-C3UKOzYh.js                            0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-time-hour-glass.svg-C2gW32fc.js                              0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-users-multiple.svg-C4yBK1EV.js                               0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-weather-moon.svg-UYqqGdbO.js                                 0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/mail-chat-bubble-square.svg-5PFirIwo.js                                0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/mail-send-email-paper-airplane.svg-CeiOqO3R.js                         0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/mail-send-envelope.svg-BGOzdDJs.js                                     0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/money-cashier-receipt.svg-RcNCZuz8.js                                  0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/money-currency-dollar-pay.svg-CZaTFvPE.js                              0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/money-graph-arrow-increase.svg-CULPFvq2.js                             0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/money-graph-bar-chart-increase.svg-O9bTQNmR.js                         0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/nature-ecology-leaf.svg-DYMO-KaQ.js                                    0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/phone-telephone.svg-B8wU1Nkc.js                                        0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/programming-bug.svg-CcSQkVcp.js                                        0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/programming-cloud.svg-DpCp_m-t.js                                      0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/programming-computer-database-server.svg-D31Oyzeg.js                   0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/programming-computer-database.svg-CtFAmEMt.js                          0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/programming-module-four-layout.svg-qGeh4fNb.js                         0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/programming-module-three.svg-A4I4-p85.js                               0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/programming-module.svg-DfL4g3BS.js                                     0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/programming-script-code.svg-CbSjMcRT.js                                0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/shopping-cart.svg-B3vfAjY8.js                                          0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/shopping-gift-present.svg-DAEZt-2y.js                                  0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/shopping-shipping-box-parcel-package.svg-DFhQ2EKj.js                   0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/tag-new-circle.svg-ZzNHiRba.js                                         0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/image-aspect-ratio-cache-mMebprUh.js                                   0.08 kB │ gzip:     0.10 kB
+dist/assets/v4/interface-signal-square.svg-BuY0fejC.js                                0.08 kB │ gzip:     0.09 kB
+dist/assets/v4/basic-shape-diamond.svg-CIFiFoFr.js                                    0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/basic-shape-hexagon.svg-CF_xEf1x.js                                    0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/basic-shape-primary-circle-ellipse-round.svg-Cl2CcDrR.js               0.09 kB │ gzip:     0.10 kB
+dist/assets/v4/basic-shape-primary-square-rectangle.svg-1yXG9qNj.js                   0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/basic-shape-shield.svg-MY-b-zsu.js                                     0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-desktop-monitor.svg-BcrX0mD3.js                        0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-desktop.svg-B_HeMyQR.js                                0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-laptop.svg-BZOdb-al.js                                 0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-mobile-phone-android-samsung-back.svg-Dqst_i9U.js      0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-mobile-phone-android-samsung.svg-BPHDkQ4p.js           0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-mobile-phone-iphone-x-back.svg-BpENtg6G.js             0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-mobile-phone-iphone-x.svg-DVYSn9bI.js                  0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-mobile-tablet-touch.svg-Dx8lLFHR.js                    0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-mobile-tablet.svg-CFmsG2jg.js                          0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-network-ethernet-cat6.svg-Bq7swL1Y.js                  0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-network-lan-www.svg-C3OlWjm-.js                        0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-network-wifi-connection.svg-DocOGesi.js                0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/computer-device-network-wifi-router.svg-D_YEse7I.js                    0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/ecology-science-erlenmeyer-flask.svg-BgNYb2Ex.js                       0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/image-flash-lightning.svg-CE05kaa1.js                                  0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/image-picture-flower.svg-fM1Ynjl5.js                                   0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-alert-exclamation-diamond.svg-DbHjVxrA.js                    0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-alert-exclamation-triangle-warning.svg-Bux6FryF.js           0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-alert-information-circle.svg-CLx-j3YM.js                     0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-award-crown.svg-B0X3D7oc.js                                  0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-bookmark-tag.svg-CDEHnS3Y.js                                 0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-bookmark.svg-4lM6HaLk.js                                     0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-calendar-date-one.svg-BdKjxtuL.js                            0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-content-book-open-pages.svg-BROzq1kF.js                      0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-content-book-page.svg-CotO2AeO.js                            0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-content-file.svg-mhXc7bIf.js                                 0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-copy-clipboard.svg-B-Ig8ZI7.js                               0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-edit-attachment.svg-CPhF_65C.js                              0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-edit-binocular.svg-CupAsEIg.js                               0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-edit-magic-wand.svg-CpaYyhVs.js                              0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-edit-tool-paint-roller.svg-BrRB5ZlM.js                       0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-edit-tool-pencil.svg-BmZeWt-s.js                             0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-favorite-award.svg-C8le_7A2.js                               0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-favorite-flag.svg-BWG17N9j.js                                0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-favorite-heart.svg-DwNH6Cof.js                               0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-favorite-star.svg-D9vRV83f.js                                0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-favorite-stars-sparkles.svg-DlHT6AOX.js                      0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-hierarchy-flowchart.svg-Dn_-zVNS.js                          0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-home-house.svg-BFQt2MEp.js                                   0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-hyperlink.svg-In1BWKc-.js                                    0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-lighting-brightness.svg-BxzavNJz.js                          0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-lock-closed.svg-Ba-WTs3r.js                                  0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-lock-open-unlock.svg-AXRf7_Uw.js                             0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-login-key.svg-BgTwzMtt.js                                    0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-search.svg-3n4Jyd5w.js                                       0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-setting-cog.svg-DueEbqUY.js                                  0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-share-megaphone-bullhorn.svg-BLrXn19A.js                     0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-share-rocket.svg-5I-Lp0r5.js                                 0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-share-satellite.svg-DPjy32He.js                              0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-share-space-ship.svg-MUgFAlfN.js                             0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/interface-share.svg-Dcwi4xFv.js                                        0.09 kB │ gzip:     0.09 kB
+dist/assets/v4/modal-C0UACgac.js                                                      0.09 kB │ gzip:     0.10 kB
+dist/assets/v4/Card-Djt4SXvT.js                                                       0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Chip-BhzbPZP1.js                                                       0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Tabs-DHDmsOjn.js                                                       0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Badge-DSrUEcXC.js                                                      0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Avatar-BdnxOFL-.js                                                     0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Button-DYjpD87y.js                                                     0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Dialog-CeVAhvLH.js                                                     0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Select-BShvxriW.js                                                     0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Slider-nKNjsm9q.js                                                     0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Switch-DUd1DpSr.js                                                     0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Divider-DapH6rry.js                                                    0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Loading-BT7_9rVn.js                                                    0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Tooltip-CyTtdRZ9.js                                                    0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Checkbox-D78_hKvJ.js                                                   0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Skeleton-hPd5O2IY.js                                                   0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/Accordion-BtpL_8xF.js                                                  0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/TextField-Dt-6IBz_.js                                                  0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/charter-BTgy6wpB.js                                                    0.10 kB │ gzip:     0.11 kB
+dist/assets/v4/mission-CwLp57nJ.js                                                    0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/welcome-thD-KsSJ.js                                                    0.10 kB │ gzip:     0.10 kB
+dist/assets/v4/api-keys-Dhcjrrlf.js                                                   0.10 kB │ gzip:     0.11 kB
+dist/assets/v4/business-fbzl-iu6.js                                                   0.10 kB │ gzip:     0.11 kB
+dist/assets/v4/2fa-setup-Dye8uqyJ.js                                                  0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/influence-jqI55gZi.js                                                  0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/manifesto-TgJfzi2B.js                                                  0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/create-app-CMyzsQtj.js                                                 0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/encryption-BqdwtGc0.js                                                 0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/welcome.es-DwiewAH3.js                                                 0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/03-recovery-DzHEbxLj.js                                                0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/03-first-app-CoAoyaRp.js                                               0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/connection-status-RMwzpGIh.js                                          0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/install-apps-hO-rteSh.js                                               0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/sign-in-flow-DDRg0aY7.js                                               0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/transparency-BxPER7jN.js                                               0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/encryption.es-iXLHOb3b.js                                              0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/manage-labels-CxNlWBQ_.js                                              0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/usage-metrics-CLVSvJX1.js                                              0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/01-what-is-oxy-DLLN5aDt.js                                             0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/delete-account-yoGTxna7.js                                             0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/fedcm-overview-C-4YmCpU.js                                             0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/change-password-vidDWyOB.js                                            0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/compose-message-zPOPwsK1.js                                            0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/02-create-account-BnCCzCJM.js                                          0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/02-key-management-BZDfll5V.js                                          0.11 kB │ gzip:     0.12 kB
+dist/assets/v4/recoveryPhrase-CLf-STrN.js                                             0.11 kB │ gzip:     0.11 kB
+dist/assets/v4/01-identity-basics-B9Q8Pmky.js                                         0.11 kB │ gzip:     0.12 kB
+dist/assets/v4/add-recovery-email-B2dPbi-u.js                                         0.11 kB │ gzip:     0.12 kB
+dist/assets/v4/add-recovery-email.es-Cn4ODSDc.js                                      0.12 kB │ gzip:     0.11 kB
+dist/assets/v4/ccip-BOT-HuuR.js                                                       0.12 kB │ gzip:     0.11 kB
+dist/assets/v4/host-l3LD2SEZ.js                                                       0.13 kB │ gzip:     0.13 kB
+dist/assets/v4/services-C_u9Cb1k.js                                                   0.13 kB │ gzip:     0.13 kB
+dist/assets/v4/expo-router-XuNGEPtg.js                                                0.13 kB │ gzip:     0.12 kB
+dist/assets/v4/connectors-CMp2eCTr.js                                                 0.13 kB │ gzip:     0.13 kB
+dist/assets/v4/interface-content-folder.svg-BHx9-jb5.js                               0.13 kB │ gzip:     0.13 kB
+dist/assets/v4/fill-C4yFbilX.js                                                       0.22 kB │ gzip:     0.17 kB
+dist/assets/v4/cmsSections-qqztKGr6.js                                                0.22 kB │ gzip:     0.13 kB
+dist/assets/v4/surfaces-DZLz9LQo.js                                                   0.22 kB │ gzip:     0.16 kB
+dist/assets/v4/esm-BJMqAqii.js                                                        0.25 kB │ gzip:     0.17 kB
+dist/assets/v4/image-resolver-DKS5Eq0j.js                                             0.25 kB │ gzip:     0.16 kB
+dist/assets/v4/newsroom-theme-CVuEdF7n.js                                             0.28 kB │ gzip:     0.23 kB
+dist/assets/v4/browser-BCZnVvlP.js                                                    0.29 kB │ gzip:     0.17 kB
+dist/assets/v4/hooks-BUhcvF8Y.js                                                      0.35 kB │ gzip:     0.23 kB
+dist/assets/v4/post-oxy2-p-kcwkR0.js                                                  0.37 kB │ gzip:     0.21 kB
+dist/assets/v4/scroll-B2z912ES.js                                                     0.39 kB │ gzip:     0.24 kB
+dist/assets/v4/infra-nodes-CiCYBlc9.js                                                0.40 kB │ gzip:     0.26 kB
+dist/assets/v4/appearance-Dstjwxzj.js                                                 0.40 kB │ gzip:     0.25 kB
+dist/assets/v4/mentionShare-DdwfAJKE.js                                               0.41 kB │ gzip:     0.26 kB
+dist/assets/v4/icon-circle-6pSsGg9j.js                                                0.42 kB │ gzip:     0.24 kB
+dist/assets/v4/aspect-ratio-_UeD0-Wf.js                                               0.42 kB │ gzip:     0.27 kB
+dist/assets/v4/animated-check-D8X3bYFh.js                                             0.43 kB │ gzip:     0.27 kB
+dist/assets/v4/internal-GcDuABMV.js                                                   0.44 kB │ gzip:     0.29 kB
+dist/assets/v4/grid-DiZzw0Z2.js                                                       0.45 kB │ gzip:     0.20 kB
+dist/assets/v4/lib-D-OjrHtX.js                                                        0.46 kB │ gzip:     0.29 kB
+dist/assets/v4/appCardImages-CDJ9udpq.js                                              0.48 kB │ gzip:     0.20 kB
+dist/assets/v4/useWallClockSecond-axGd3Y6k.js                                         0.48 kB │ gzip:     0.31 kB
+dist/assets/v4/brand-assets-B4_7R2Qy.js                                               0.51 kB │ gzip:     0.21 kB
+dist/assets/v4/locale-Dq71_ka-.js                                                     0.55 kB │ gzip:     0.32 kB
+dist/assets/v4/module-ppxTQR4u.js                                                     0.56 kB │ gzip:     0.30 kB
+dist/assets/v4/kbd-BpcRLGqT.js                                                        0.57 kB │ gzip:     0.31 kB
+dist/assets/v4/SiSubstack-J9b9eZs6.js                                                 0.61 kB │ gzip:     0.33 kB
+dist/assets/v4/fonts-Cyv1DxI7.js                                                      0.63 kB │ gzip:     0.40 kB
+dist/assets/v4/progressive-blur-3Wzx_8c2.js                                           0.63 kB │ gzip:     0.40 kB
+dist/assets/v4/StructuredData-BaGR_vnM.js                                             0.64 kB │ gzip:     0.41 kB
+dist/assets/v4/media-inset-border-Cj9QMaXg.js                                         0.64 kB │ gzip:     0.38 kB
+dist/assets/v4/pressable-scale-D5n7BIw5.js                                            0.67 kB │ gzip:     0.37 kB
+dist/assets/v4/teleport-CcKNB5NC.js                                                   0.68 kB │ gzip:     0.24 kB
+dist/assets/v4/src-hY0E4kEw.js                                                        0.69 kB │ gzip:     0.39 kB
+dist/assets/v4/AcademyBreadcrumb-x3ib2rUW.js                                          0.70 kB │ gzip:     0.44 kB
+dist/assets/v4/theme-GbNLCtY4.js                                                      0.70 kB │ gzip:     0.40 kB
+dist/assets/v4/motion-BmdXoDU0.js                                                     0.75 kB │ gzip:     0.42 kB
+dist/assets/v4/useMediaQuery-C5Au9gmI.js                                              0.76 kB │ gzip:     0.46 kB
+dist/assets/v4/portal-ZPHQVmVB.js                                                     0.77 kB │ gzip:     0.41 kB
+dist/assets/v4/badges-DlZCg7hk.js                                                     0.79 kB │ gzip:     0.41 kB
+dist/assets/v4/useAdminAccess-CNWaNYQX.js                                             0.81 kB │ gzip:     0.47 kB
+dist/assets/v4/styles-Dn7rc01O.js                                                     0.83 kB │ gzip:     0.48 kB
+dist/assets/v4/subtle-hover-B7mAtf5c.js                                               0.84 kB │ gzip:     0.48 kB
+dist/assets/v4/theme-toggle-CclvYxku.js                                               0.84 kB │ gzip:     0.44 kB
+dist/assets/v4/agent-avatar-TqfWVC74.js                                               0.86 kB │ gzip:     0.33 kB
+dist/assets/v4/rail-6S_7xsai.js                                                       0.86 kB │ gzip:     0.48 kB
+dist/assets/v4/agent-creator-CjIhdXrn.js                                              0.87 kB │ gzip:     0.41 kB
+dist/assets/v4/ShareWithMention-CQS0DYP2.js                                           0.90 kB │ gzip:     0.57 kB
+dist/assets/v4/UnderlineLink-cyfu4cI_.js                                              0.93 kB │ gzip:     0.56 kB
+dist/assets/v4/shapes-gxYG2xqH.js                                                     0.93 kB │ gzip:     0.34 kB
+dist/assets/v4/tooltip-BXsHSB5L.js                                                    0.93 kB │ gzip:     0.31 kB
+dist/assets/v4/useContentHeadings-CtUYtTsQ.js                                         0.94 kB │ gzip:     0.59 kB
+dist/assets/v4/AstroPage-Ce_ju43U.js                                                  0.94 kB │ gzip:     0.56 kB
+dist/assets/v4/useCopyToClipboard-CycdItMu.js                                         0.96 kB │ gzip:     0.56 kB
+dist/assets/v4/offering-badge-BxBaJxxe.js                                             0.99 kB │ gzip:     0.47 kB
+dist/assets/v4/stat-cards-CnHf0Fyu.js                                                 0.99 kB │ gzip:     0.38 kB
+dist/assets/v4/useSiteHeaderBottom-Cyd8TyRB.js                                        1.00 kB │ gzip:     0.55 kB
+dist/assets/v4/error-boundary-D3OK8LYn.js                                             1.01 kB │ gzip:     0.49 kB
+dist/assets/v4/agent-thinking-BmTU66Ql.js                                             1.01 kB │ gzip:     0.49 kB
+dist/assets/v4/radio-indicator-D15NBnTO.js                                            1.03 kB │ gzip:     0.45 kB
+dist/assets/v4/composition-bar-B3M_YhOW.js                                            1.04 kB │ gzip:     0.50 kB
+dist/assets/v4/layout-BQnfd41Z.js                                                     1.05 kB │ gzip:     0.38 kB
+dist/assets/v4/Slider-BXSwjeRJ.js                                                     1.05 kB │ gzip:     0.65 kB
+dist/assets/v4/important-alerts-card-GsphoOTC.js                                      1.06 kB │ gzip:     0.50 kB
+dist/assets/v4/PillButton-BoLlRWIi.js                                                 1.07 kB │ gzip:     0.64 kB
+dist/assets/v4/schemas-D80ulSjk.js                                                    1.13 kB │ gzip:     0.49 kB
+dist/assets/v4/patient-info-card-BPL5kDsp.js                                          1.17 kB │ gzip:     0.51 kB
+dist/assets/v4/surface-B1o5Lci6.js                                                    1.17 kB │ gzip:     0.59 kB
+dist/assets/v4/PageShell-BFBrbFii.js                                                  1.19 kB │ gzip:     0.68 kB
+dist/assets/v4/announcement-CbsKn-85.js                                               1.19 kB │ gzip:     0.53 kB
+dist/assets/v4/CtaBlock-Dr10ZMxE.js                                                   1.20 kB │ gzip:     0.67 kB
+dist/assets/v4/Badge-BJN1lf-u.js                                                      1.20 kB │ gzip:     0.66 kB
+dist/assets/v4/Loading-RkeqAMj7.js                                                    1.21 kB │ gzip:     0.64 kB
+dist/assets/v4/switch-DoH3fUSY.js                                                     1.22 kB │ gzip:     0.55 kB
+dist/assets/v4/multi-agent-chat-DJQyFFg-.js                                           1.25 kB │ gzip:     0.56 kB
+dist/assets/v4/Button-3jMWgjME.js                                                     1.26 kB │ gzip:     0.64 kB
+dist/assets/v4/rolldown-runtime-DAXXjFlN.js                                           1.26 kB │ gzip:     0.70 kB
+dist/assets/v4/command-CtLea1px.js                                                    1.27 kB │ gzip:     0.57 kB
+dist/assets/v4/pagination-AFVsGL4p.js                                                 1.28 kB │ gzip:     0.51 kB
+dist/assets/v4/agent-limits-card-DdM0WGa5.js                                          1.29 kB │ gzip:     0.57 kB
+dist/assets/v4/label-BUwp22pX.js                                                      1.30 kB │ gzip:     0.60 kB
+dist/assets/v4/ArticleTabsBloom-dw1gAr4X.js                                           1.30 kB │ gzip:     0.76 kB
+dist/assets/v4/expo-router-COqEP2Ux.js                                                1.31 kB │ gzip:     0.68 kB
+dist/assets/v4/connection-dots-DPw7hd5R.js                                            1.32 kB │ gzip:     0.58 kB
+dist/assets/v4/Avatar-Cn4zIVFD.js                                                     1.33 kB │ gzip:     0.73 kB
+dist/assets/v4/sticker-BX1Tw3Yv.js                                                    1.35 kB │ gzip:     0.65 kB
+dist/assets/v4/link-preview-BD_YWaF0.js                                               1.35 kB │ gzip:     0.60 kB
+dist/assets/v4/sparkline-x1k1LRJB.js                                                  1.37 kB │ gzip:     0.62 kB
+dist/assets/v4/PageSection-Dj9-LiEk.js                                                1.37 kB │ gzip:     0.78 kB
+dist/assets/v4/Steps-BPmZVedM.js                                                      1.39 kB │ gzip:     0.75 kB
+dist/assets/v4/notification-center-D1onMQ_s.js                                        1.39 kB │ gzip:     0.53 kB
+dist/assets/v4/AiSection-BSmLOYUh.js                                                  1.40 kB │ gzip:     0.75 kB
+dist/assets/v4/Chip-DEEGaeDf.js                                                       1.41 kB │ gzip:     0.72 kB
+dist/assets/v4/category-bar-BIIDRHwP.js                                               1.43 kB │ gzip:     0.64 kB
+dist/assets/v4/swipe-row-Cu5JtYKK.js                                                  1.44 kB │ gzip:     0.66 kB
+dist/assets/v4/web-search-D9lGI9Er.js                                                 1.45 kB │ gzip:     0.69 kB
+dist/assets/v4/bottom-bar-CHZswD6v.js                                                 1.45 kB │ gzip:     0.64 kB
+dist/assets/v4/zoomable-image-gallery-Cg1er-N-.js                                     1.45 kB │ gzip:     0.74 kB
+dist/assets/v4/zoomable-media-gallery-zNr-cP9z.js                                     1.45 kB │ gzip:     0.73 kB
+dist/assets/v4/MentionIcon-eMLJCoE7.js                                                1.46 kB │ gzip:     0.88 kB
+dist/assets/v4/field-Bn7MZmYF.js                                                      1.46 kB │ gzip:     0.62 kB
+dist/assets/v4/CodeBlock-BFrxUuw9.js                                                  1.46 kB │ gzip:     0.86 kB
+dist/assets/v4/vehicle-picker-BzuyoYvs.js                                             1.47 kB │ gzip:     0.69 kB
+dist/assets/v4/divider-BKzdBWkZ.js                                                    1.47 kB │ gzip:     0.60 kB
+dist/assets/v4/skeleton-JN6Q76XY.js                                                   1.47 kB │ gzip:     0.47 kB
+dist/assets/v4/recent-hires-card-C4XGApAg.js                                          1.47 kB │ gzip:     0.59 kB
+dist/assets/v4/lead-score-DNiAz5rH.js                                                 1.49 kB │ gzip:     0.65 kB
+dist/assets/v4/RollingNumber-uCRatbrO.js                                              1.51 kB │ gzip:     0.80 kB
+dist/assets/v4/WagmiAppProvider-D_53nnHJ.js                                           1.51 kB │ gzip:     0.69 kB
+dist/assets/v4/cover-header-BP7xIW8n.js                                               1.52 kB │ gzip:     0.67 kB
+dist/assets/v4/faircoin-buy-Bhw8AOX7.js                                               1.54 kB │ gzip:     0.75 kB
+dist/assets/v4/route-stops-Gs1uSqas.js                                                1.54 kB │ gzip:     0.68 kB
+dist/assets/v4/questionnaire-DrNIXsrZ.js                                              1.57 kB │ gzip:     0.59 kB
+dist/assets/v4/AiBreadcrumbs-JtJc7F-a.js                                              1.59 kB │ gzip:     0.87 kB
+dist/assets/v4/project-board-Thfqo8ta.js                                              1.59 kB │ gzip:     0.59 kB
+dist/assets/v4/NewsroomRelatedArticles-DtNtQ5hk.js                                    1.61 kB │ gzip:     0.90 kB
+dist/assets/v4/GridDecoration-D8kS-CJT.js                                             1.62 kB │ gzip:     0.65 kB
+dist/assets/v4/NewsroomRouteFallback-DC7ekWYi.js                                      1.63 kB │ gzip:     0.69 kB
+dist/assets/v4/input-group-CQaZIkCT.js                                                1.63 kB │ gzip:     0.70 kB
+dist/assets/v4/loading-BDn35cke.js                                                    1.66 kB │ gzip:     0.67 kB
+dist/assets/v4/alert-dialog-cTEji13r.js                                               1.68 kB │ gzip:     0.66 kB
+dist/assets/v4/sortable-media-jIuM-elQ.js                                             1.69 kB │ gzip:     0.68 kB
+dist/assets/v4/BloomDemoIsolationPage-C28gAINU.js                                     1.71 kB │ gzip:     0.92 kB
+dist/assets/v4/AvailabilityBadge-DQMBuXz2.js                                          1.72 kB │ gzip:     0.90 kB
+dist/assets/v4/input-otp-CDgkRgpH.js                                                  1.73 kB │ gzip:     0.71 kB
+dist/assets/v4/OptionSelect-DslVB2OJ.js                                               1.73 kB │ gzip:     0.95 kB
+dist/assets/v4/screen-B_NP7Pv5.js                                                     1.75 kB │ gzip:     0.74 kB
+dist/assets/v4/Switch-D-jx8s5_.js                                                     1.77 kB │ gzip:     0.83 kB
+dist/assets/v4/TextField-DvUS2PvG.js                                                  1.78 kB │ gzip:     0.90 kB
+dist/assets/v4/Tabs-D3W983vV.js                                                       1.79 kB │ gzip:     0.86 kB
+dist/assets/v4/newsroomSeo-Dc8nOuMe.js                                                1.79 kB │ gzip:     0.80 kB
+dist/assets/v4/Checkbox-C-y4w5nH.js                                                   1.81 kB │ gzip:     0.94 kB
+dist/assets/v4/outline-nav-DqB4t0Z3.js                                                1.82 kB │ gzip:     0.82 kB
+dist/assets/v4/task-list-BjlemvZi.js                                                  1.84 kB │ gzip:     0.85 kB
+dist/assets/v4/accordion-bhorRmGo.js                                                  1.90 kB │ gzip:     0.58 kB
+dist/assets/v4/featureRequest-DHAwqeUm.js                                             1.91 kB │ gzip:     0.88 kB
+dist/assets/v4/activity-feed-Bz-TBtGk.js                                              1.92 kB │ gzip:     0.69 kB
+dist/assets/v4/careers-CeudA06o.js                                                    1.96 kB │ gzip:     1.01 kB
+dist/assets/v4/Dialog-CgYEVCvr.js                                                     2.00 kB │ gzip:     1.02 kB
+dist/assets/v4/Button-B5LZbJTr.js                                                     2.02 kB │ gzip:     0.99 kB
+dist/assets/v4/rows-Cm4BTs8L.js                                                       2.03 kB │ gzip:     0.56 kB
+dist/assets/v4/breadcrumb-D5r0MTSV.js                                                 2.04 kB │ gzip:     0.83 kB
+dist/assets/v4/Skeleton-C44QkuzG.js                                                   2.04 kB │ gzip:     0.95 kB
+dist/assets/v4/Divider-CNftXRvi.js                                                    2.10 kB │ gzip:     0.91 kB
+dist/assets/v4/badge-DDZD7QJy.js                                                      2.16 kB │ gzip:     0.92 kB
+dist/assets/v4/search-C2KtKDaL.js                                                     2.20 kB │ gzip:     0.94 kB
+dist/assets/v4/contact-row-DBVnO6_c.js                                                2.21 kB │ gzip:     0.84 kB
+dist/assets/v4/empty-state-Cc7wxBTz.js                                                2.26 kB │ gzip:     0.98 kB
+dist/assets/v4/Card-BYSP1J_u.js                                                       2.30 kB │ gzip:     1.03 kB
+dist/assets/v4/segmented-control-CXV5WOTl.js                                          2.31 kB │ gzip:     0.74 kB
+dist/assets/v4/Tooltip-Be1XEQsP.js                                                    2.32 kB │ gzip:     1.08 kB
+dist/assets/v4/notification-Dg-LpJyb.js                                               2.32 kB │ gzip:     0.83 kB
+dist/assets/v4/bloom-landing-CYy76c93.js                                              2.33 kB │ gzip:     1.15 kB
+dist/assets/v4/context-menu-YIscfkkr.js                                               2.33 kB │ gzip:     0.83 kB
+dist/assets/v4/taxonomy-DZJT8pXa.js                                                   2.34 kB │ gzip:     0.96 kB
+dist/assets/v4/activity-heatmap-9AmqWT1C.js                                           2.36 kB │ gzip:     1.02 kB
+dist/assets/v4/location-puck-Di58VHhX.js                                              2.37 kB │ gzip:     1.08 kB
+dist/assets/v4/social-button-B9K0bB_a.js                                              2.38 kB │ gzip:     0.99 kB
+dist/assets/v4/frosted-icon-button-Dniv-PHY.js                                        2.40 kB │ gzip:     1.00 kB
+dist/assets/v4/Select-CyPaOrxZ.js                                                     2.41 kB │ gzip:     1.08 kB
+dist/assets/v4/PageHero-CTbfnei4.js                                                   2.44 kB │ gzip:     1.04 kB
+dist/assets/v4/DocsInstall-CmCPt9qH.js                                                2.45 kB │ gzip:     1.20 kB
+dist/assets/v4/file-upload-CkQsYZPY.js                                                2.46 kB │ gzip:     1.04 kB
+dist/assets/v4/order-status-BzQmf4NL.js                                               2.48 kB │ gzip:     0.98 kB
+dist/assets/v4/list-DTX4ms5P.js                                                       2.55 kB │ gzip:     0.93 kB
+dist/assets/v4/IncidentCard-DpY7c7bv.js                                               2.56 kB │ gzip:     1.11 kB
+dist/assets/v4/map-attribution-0XFAlS_u.js                                            2.57 kB │ gzip:     0.95 kB
+dist/assets/v4/textarea-CmuV-XTC.js                                                   2.57 kB │ gzip:     0.95 kB
+dist/assets/v4/toast-CXDHrmYC.js                                                      2.59 kB │ gzip:     0.79 kB
+dist/assets/v4/settings-list-DxCn7-VE.js                                              2.62 kB │ gzip:     0.92 kB
+dist/assets/v4/dropdown-menu-CitYNW8f.js                                              2.66 kB │ gzip:     0.96 kB
+dist/assets/v4/checkbox-CFsUoc-7.js                                                   2.66 kB │ gzip:     0.71 kB
+dist/assets/v4/RecentNewsSection-D9yvfV0n.js                                          2.67 kB │ gzip:     1.24 kB
+dist/assets/v4/CodeSampleTabs-C7GX561_.js                                             2.70 kB │ gzip:     1.41 kB
+dist/assets/v4/wizard-NN0x3Nx2.js                                                     2.72 kB │ gzip:     1.04 kB
+dist/assets/v4/composer-loader-BiMfZuf0.js                                            2.74 kB │ gzip:     1.13 kB
+dist/assets/v4/note-editor-BFjbGFpV.js                                                2.74 kB │ gzip:     1.07 kB
+dist/assets/v4/order-confirmation-BWqS9Z0Z.js                                         2.76 kB │ gzip:     1.12 kB
+dist/assets/v4/MercariaPage-B-3_ze4d.js                                               2.80 kB │ gzip:     1.36 kB
+dist/assets/v4/agent-log-WhaM5E2M.js                                                  2.84 kB │ gzip:     0.95 kB
+dist/assets/v4/carousel-BXTtxjFR.js                                                   2.84 kB │ gzip:     1.03 kB
+dist/assets/v4/content-panel-DlaPsYQJ.js                                              2.84 kB │ gzip:     1.22 kB
+dist/assets/v4/add-recovery-email-BzG6u33H.js                                         2.88 kB │ gzip:     1.28 kB
+dist/assets/v4/change-password-C70BB6gb.js                                            2.95 kB │ gzip:     1.33 kB
+dist/assets/v4/manage-labels-JXVYBBiK.js                                              2.97 kB │ gzip:     1.29 kB
+dist/assets/v4/install-apps-BVgqAEnx.js                                               3.03 kB │ gzip:     1.32 kB
+dist/assets/v4/Accordion-CqOnLmIl.js                                                  3.04 kB │ gzip:     1.30 kB
+dist/assets/v4/api-keys-C3y6O6G_.js                                                   3.07 kB │ gzip:     1.39 kB
+dist/assets/v4/hover-card-BMrXGLo9.js                                                 3.12 kB │ gzip:     1.14 kB
+dist/assets/v4/TableOfContents-BNqP1sqv.js                                            3.12 kB │ gzip:     1.63 kB
+dist/assets/v4/compose-message-DJbw7p8C.js                                            3.13 kB │ gzip:     1.33 kB
+dist/assets/v4/add-recovery-email.es-BnofKds6.js                                      3.14 kB │ gzip:     1.38 kB
+dist/assets/v4/welcome-XNXCZ8U5.js                                                    3.14 kB │ gzip:     1.42 kB
+dist/assets/v4/card-Ce4fcbej.js                                                       3.16 kB │ gzip:     0.99 kB
+dist/assets/v4/tab-bar-B-_RdlZl.js                                                    3.16 kB │ gzip:     1.34 kB
+dist/assets/v4/code-D_02Z1Ln.js                                                       3.18 kB │ gzip:     1.01 kB
+dist/assets/v4/sign-in-flow-Cc6ruVDl.js                                               3.19 kB │ gzip:     1.51 kB
+dist/assets/v4/menubar-BxBTRVK9.js                                                    3.20 kB │ gzip:     1.03 kB
+dist/assets/v4/ai-profile-card-CAyY8BSn.js                                            3.23 kB │ gzip:     1.21 kB
+dist/assets/v4/welcome.es-D33bjJCi.js                                                 3.28 kB │ gzip:     1.51 kB
+dist/assets/v4/tag-field-BNOzwPN9.js                                                  3.30 kB │ gzip:     1.35 kB
+dist/assets/v4/payment-status-DqLXwCF0.js                                             3.31 kB │ gzip:     1.09 kB
+dist/assets/v4/directions-CIwrZ9rM.js                                                 3.32 kB │ gzip:     1.15 kB
+dist/assets/v4/button-group-D8LDqVFw.js                                               3.34 kB │ gzip:     1.17 kB
+dist/assets/v4/item-CODJPy70.js                                                       3.34 kB │ gzip:     1.33 kB
+dist/assets/v4/enterprise-Du8hoAZc.js                                                 3.36 kB │ gzip:     1.44 kB
+dist/assets/v4/03-first-app-Q2-3prvl.js                                               3.36 kB │ gzip:     1.46 kB
+dist/assets/v4/AppCard-DRAu5hq1.js                                                    3.36 kB │ gzip:     1.62 kB
+dist/assets/v4/eviction-CtD2vGS4.js                                                   3.38 kB │ gzip:     1.23 kB
+dist/assets/v4/StatusHistoryPage-ZkKImUoK.js                                          3.41 kB │ gzip:     1.53 kB
+dist/assets/v4/typography-DCBs2h4G.js                                                 3.45 kB │ gzip:     0.74 kB
+dist/assets/v4/place-list-CxTztoZr.js                                                 3.46 kB │ gzip:     1.26 kB
+dist/assets/v4/price-breakdown-DRUF3XEc.js                                            3.47 kB │ gzip:     1.25 kB
+dist/assets/v4/agent-progress-B4Ypfr_N.js                                             3.48 kB │ gzip:     1.25 kB
+dist/assets/v4/phone-input-B6JWIm5V.js                                                3.52 kB │ gzip:     1.06 kB
+dist/assets/v4/FaqSection-DOjci0xn.js                                                 3.53 kB │ gzip:     1.71 kB
+dist/assets/v4/tabs-Csq2jk-L.js                                                       3.54 kB │ gzip:     1.36 kB
+dist/assets/v4/earnings-C_sWaswE.js                                                   3.57 kB │ gzip:     1.10 kB
+dist/assets/v4/usage-metrics-BssHt65f.js                                              3.58 kB │ gzip:     1.52 kB
+dist/assets/v4/address-BBc9gpTo.js                                                    3.58 kB │ gzip:     1.28 kB
+dist/assets/v4/lyrics-C-QB1C4o.js                                                     3.62 kB │ gzip:     1.20 kB
+dist/assets/v4/AIResearchSection-Dqigqh8J.js                                          3.64 kB │ gzip:     1.72 kB
+dist/assets/v4/BrandScope-BCeg9sTi.js                                                 3.64 kB │ gzip:     1.22 kB
+dist/assets/v4/user-hover-card-BKPzCfqT.js                                            3.64 kB │ gzip:     1.55 kB
+dist/assets/v4/delete-account-lvOkfvu_.js                                             3.68 kB │ gzip:     1.54 kB
+dist/assets/v4/NewsroomListControls-CU5GP0Vi.js                                       3.69 kB │ gzip:     1.70 kB
+dist/assets/v4/01-what-is-oxy-DgqWg6YY.js                                             3.70 kB │ gzip:     1.55 kB
+dist/assets/v4/auth-card-Bi0KSrp-.js                                                  3.73 kB │ gzip:     1.40 kB
+dist/assets/v4/02-create-account-hOsq0mA2.js                                          3.79 kB │ gzip:     1.61 kB
+dist/assets/v4/create-app-BEZp7zYy.js                                                 3.82 kB │ gzip:     1.52 kB
+dist/assets/v4/2fa-setup-f6RV4f-w.js                                                  3.82 kB │ gzip:     1.58 kB
+dist/assets/v4/note-card-Cyi5Qltf.js                                                  3.86 kB │ gzip:     1.46 kB
+dist/assets/v4/page-header-keQLWLW6.js                                                3.90 kB │ gzip:     1.43 kB
+dist/assets/v4/table-cyALB4fS.js                                                      3.92 kB │ gzip:     1.05 kB
+dist/assets/v4/fedcm-overview-BjVX5xu1.js                                             3.92 kB │ gzip:     1.72 kB
+dist/assets/v4/proof-of-delivery-C8975yQx.js                                          3.93 kB │ gzip:     1.23 kB
+dist/assets/v4/mission-DMuDP1ZJ.js                                                    3.94 kB │ gzip:     1.57 kB
+dist/assets/v4/contact-card-DS375s8x.js                                               3.98 kB │ gzip:     1.55 kB
+dist/assets/v4/encryption-C7ntnXU-.js                                                 3.98 kB │ gzip:     1.63 kB
+dist/assets/v4/stat-bar-CgVVE4wf.js                                                   4.06 kB │ gzip:     1.30 kB
+dist/assets/v4/queue-panel-DEV18PO1.js                                                4.11 kB │ gzip:     1.24 kB
+dist/assets/v4/map-controls-CixN8-7G.js                                               4.11 kB │ gzip:     1.33 kB
+dist/assets/v4/shipment-request-DAevyKRr.js                                           4.11 kB │ gzip:     1.26 kB
+dist/assets/v4/radio-ZQOrvC-t.js                                                      4.12 kB │ gzip:     1.08 kB
+dist/assets/v4/01-identity-basics-D898ab4V.js                                         4.13 kB │ gzip:     1.71 kB
+dist/assets/v4/overlay-DiWUho3c.js                                                    4.14 kB │ gzip:     1.72 kB
+dist/assets/v4/encryption.es-CyJMX5_x.js                                              4.21 kB │ gzip:     1.73 kB
+dist/assets/v4/media-shelf-tyRtAtLb.js                                                4.31 kB │ gzip:     1.33 kB
+dist/assets/v4/avatar-group-BvsNc3OZ.js                                               4.42 kB │ gzip:     1.83 kB
+dist/assets/v4/avatar-BgV_OROJ.js                                                     4.43 kB │ gzip:     1.78 kB
+dist/assets/v4/vendor-card-Dm_V7b__.js                                                4.46 kB │ gzip:     1.73 kB
+dist/assets/v4/popover-DMmPOIxS.js                                                    4.48 kB │ gzip:     1.21 kB
+dist/assets/v4/media-flight-Cr3rAGED.js                                               4.49 kB │ gzip:     1.37 kB
+dist/assets/v4/carrier-quote-DJdxwbS5.js                                              4.50 kB │ gzip:     1.34 kB
+dist/assets/v4/PhotoCardCarousel-CUgfTQNJ.js                                          4.51 kB │ gzip:     1.95 kB
+dist/assets/v4/delivery-slot-BrOAf7Ka.js                                              4.54 kB │ gzip:     1.41 kB
+dist/assets/v4/stepper-CFZJdgkm.js                                                    4.56 kB │ gzip:     1.04 kB
+dist/assets/v4/place-card-DLYF_xCN.js                                                 4.66 kB │ gzip:     1.67 kB
+dist/assets/v4/pipeline-BmMUinJJ.js                                                   4.70 kB │ gzip:     1.63 kB
+dist/assets/v4/mail-thread-Cp7GqN2i.js                                                4.72 kB │ gzip:     1.31 kB
+dist/assets/v4/rating-KNXrYgGe.js                                                     4.79 kB │ gzip:     1.68 kB
+dist/assets/v4/navigation-banner-CiaYYGCh.js                                          4.83 kB │ gzip:     1.59 kB
+dist/assets/v4/02-key-management-DAQwLL06.js                                          4.85 kB │ gzip:     1.91 kB
+dist/assets/v4/faqItems-BUwXRJfV.js                                                   4.89 kB │ gzip:     2.10 kB
+dist/assets/v4/validate-BYclKLm-.js                                                   4.93 kB │ gzip:     2.17 kB
+dist/assets/v4/text-field-C8Mvk2R0.js                                                 4.94 kB │ gzip:     1.65 kB
+dist/assets/v4/slider-BVRP0sfr.js                                                     4.95 kB │ gzip:     1.09 kB
+dist/assets/v4/menu-item-DQO4UQ1S.js                                                  4.95 kB │ gzip:     1.72 kB
+dist/assets/v4/ModelCard-BlzDNuaU.js                                                  4.97 kB │ gzip:     1.96 kB
+dist/assets/v4/landing-BC4kuMO7.js                                                    5.01 kB │ gzip:     2.01 kB
+dist/assets/v4/bottom-sheet-C5a_foso.js                                               5.01 kB │ gzip:     2.08 kB
+dist/assets/v4/quickstart-tb7cJ8KS.js                                                 5.04 kB │ gzip:     2.05 kB
+dist/assets/v4/place-reviews-BLsHFHeB.js                                              5.08 kB │ gzip:     1.47 kB
+dist/assets/v4/checkout-summary-D5ixJsoN.js                                           5.11 kB │ gzip:     1.77 kB
+dist/assets/v4/EnterprisePage-BSWGyPsn.js                                             5.36 kB │ gzip:     2.23 kB
+dist/assets/v4/InitiativePage-BR0xUpSU.js                                             5.44 kB │ gzip:     2.37 kB
+dist/assets/v4/mail-compose-D0Y7h3mc.js                                               5.46 kB │ gzip:     1.56 kB
+dist/assets/v4/provider-Dm3p8eXs.js                                                   5.70 kB │ gzip:     2.15 kB
+dist/assets/v4/CourseParts-BkAVcQha.js                                                5.75 kB │ gzip:     2.22 kB
+dist/assets/v4/job-board-7xAy1hkP.js                                                  5.79 kB │ gzip:     1.67 kB
+dist/assets/v4/map-marker-DO8SJnfr.js                                                 5.80 kB │ gzip:     1.83 kB
+dist/assets/v4/KeepUpToDateSection-DxU1zFag.js                                        5.87 kB │ gzip:     1.91 kB
+dist/assets/v4/dialog-9UZpwZLF.js                                                     5.88 kB │ gzip:     2.23 kB
+dist/assets/v4/UserFollowersPage-DRJkhZPn.js                                          5.96 kB │ gzip:     2.60 kB
+dist/assets/v4/03-recovery-DonvN9OP.js                                                6.02 kB │ gzip:     2.09 kB
+dist/assets/v4/FaqsPage-DRaR1uRn.js                                                   6.08 kB │ gzip:     2.74 kB
+dist/assets/v4/chip-CzasF1jT.js                                                       6.10 kB │ gzip:     2.14 kB
+dist/assets/v4/select-DBwfpbu0.js                                                     6.13 kB │ gzip:     1.86 kB
+dist/assets/v4/CourseDetailPage-BJvTsDB9.js                                           6.16 kB │ gzip:     2.58 kB
+dist/assets/v4/listing-editor-YvVxiuR8.js                                             6.19 kB │ gzip:     1.72 kB
+dist/assets/v4/AIEnterprisePage-DPKX_HSg.js                                           6.24 kB │ gzip:     2.57 kB
+dist/assets/v4/TeamPage-B1B34n9M.js                                                   6.24 kB │ gzip:     2.51 kB
+dist/assets/v4/LegalPage-rPGkq8Jg.js                                                  6.31 kB │ gzip:     2.62 kB
+dist/assets/v4/payment-method--70uNBsJ.js                                             6.37 kB │ gzip:     1.90 kB
+dist/assets/v4/place-details-CXsg4fkQ.js                                              6.44 kB │ gzip:     1.99 kB
+dist/assets/v4/bloomPreview-B_40UPW9.js                                               6.46 kB │ gzip:     2.90 kB
+dist/assets/v4/media-controls-CSzbmJuR.js                                             6.59 kB │ gzip:     1.81 kB
+dist/assets/v4/mail-list-BczqnjEh.js                                                  6.89 kB │ gzip:     1.80 kB
+dist/assets/v4/booking-DCfzLSXR.js                                                    7.13 kB │ gzip:     1.94 kB
+dist/assets/v4/_components-Bnorx9--.js                                                7.30 kB │ gzip:     2.48 kB
+dist/assets/v4/tenancy-Cu74aPXm.js                                                    7.50 kB │ gzip:     1.94 kB
+dist/assets/v4/faircoin-chrome-CbfbOQAa.js                                            7.64 kB │ gzip:     2.29 kB
+dist/assets/v4/theme-DeBloJ_O.js                                                      7.85 kB │ gzip:     2.37 kB
+dist/assets/v4/cart-panel-tqoj97m_.js                                                 7.86 kB │ gzip:     2.31 kB
+dist/assets/v4/stay-search-C8HizX2a.js                                                8.10 kB │ gzip:     2.32 kB
+dist/assets/v4/calendar-IFTkkItE.js                                                   8.21 kB │ gzip:     1.63 kB
+dist/assets/v4/SettingsPage-CYXbnsGK.js                                               8.38 kB │ gzip:     3.16 kB
+dist/assets/v4/AcademyPage-BFq0-dNR.js                                                8.38 kB │ gzip:     3.34 kB
+dist/assets/v4/agent-chat-UubBIcQq.js                                                 8.40 kB │ gzip:     2.26 kB
+dist/assets/v4/property-insights-lLT6osIs.js                                          8.51 kB │ gzip:     2.17 kB
+dist/assets/v4/estimator-Bu32QIRK.js                                                  8.62 kB │ gzip:     3.75 kB
+dist/assets/v4/BloomComponentsHub-BcZtPwfd.js                                         8.63 kB │ gzip:     3.59 kB
+dist/assets/v4/TNPInstallPage-31NPhj21.js                                             8.78 kB │ gzip:     2.89 kB
+dist/assets/v4/HelpProductBadge-DlEZXMJs.js                                           9.04 kB │ gzip:     3.07 kB
+dist/assets/v4/NewsCard-0TswvAKU.js                                                   9.08 kB │ gzip:     2.63 kB
+dist/assets/v4/music-library-CNoQpPhO.js                                              9.14 kB │ gzip:     2.26 kB
+dist/assets/v4/module-Dzd7zxB0.js                                                     9.14 kB │ gzip:     2.79 kB
+dist/assets/v4/AccountDeletionPage-CnIVulRY.js                                        9.24 kB │ gzip:     3.47 kB
+dist/assets/v4/home-search-BUuwgTaZ.js                                                9.24 kB │ gzip:     2.68 kB
+dist/assets/v4/ChangelogPage-BpQWyKhy.js                                              9.32 kB │ gzip:     3.34 kB
+dist/assets/v4/AITrustPage-D-3_ecnG.js                                                9.35 kB │ gzip:     3.80 kB
+dist/assets/v4/fab-C9GMXf7U.js                                                        9.38 kB │ gzip:     3.33 kB
+dist/assets/v4/listing-card-BaW36-8U.js                                               9.54 kB │ gzip:     3.10 kB
+dist/assets/v4/message-bubble-BD6J4nu6.js                                             9.89 kB │ gzip:     2.67 kB
+dist/assets/v4/settings-modal-sit9TXlj.js                                            10.02 kB │ gzip:     2.43 kB
+dist/assets/v4/chat-indicators-B1frVOMT.js                                           10.14 kB │ gzip:     3.22 kB
+dist/assets/v4/PricingPage-CW4jgb6P.js                                               10.21 kB │ gzip:     3.72 kB
+dist/assets/v4/AppDetailPage-39Fd5EtG.js                                             10.44 kB │ gzip:     4.00 kB
+dist/assets/v4/transparency-ZNJ9zGGP.js                                              10.57 kB │ gzip:     3.83 kB
+dist/assets/v4/NewsroomPage-DPhvaPCe.js                                              10.59 kB │ gzip:     4.31 kB
+dist/assets/v4/DottedMap-84s1YjdT.js                                                 10.61 kB │ gzip:     4.74 kB
+dist/assets/v4/business-Bjp8Z2PS.js                                                  10.68 kB │ gzip:     3.87 kB
+dist/assets/v4/CareerDetailPage-HHfLB_6S.js                                          10.71 kB │ gzip:     4.18 kB
+dist/assets/v4/admonition-CUk7YEek.js                                                10.84 kB │ gzip:     3.58 kB
+dist/assets/v4/ReferralsDashboardPage-QYjcKyuC.js                                    11.02 kB │ gzip:     4.33 kB
+dist/assets/v4/card-form-CARalMXf.js                                                 11.38 kB │ gzip:     1.60 kB
+dist/assets/v4/date-picker-DVUOk6t5.js                                               11.55 kB │ gzip:     2.10 kB
+dist/assets/v4/track-list-CwWKl65W.js                                                11.57 kB │ gzip:     2.54 kB
+dist/assets/v4/media-player-C83RHV04.js                                              11.74 kB │ gzip:     2.49 kB
+dist/assets/v4/CompanyArticlePage-CcPQ-env.js                                        11.83 kB │ gzip:     4.51 kB
+dist/assets/v4/AppsPage-BQszaASj.js                                                  11.88 kB │ gzip:     4.09 kB
+dist/assets/v4/InboxPage-BPORe6_R.js                                                 12.05 kB │ gzip:     4.43 kB
+dist/assets/v4/BlogPage-DVJS5EUj.js                                                  12.44 kB │ gzip:     5.08 kB
+dist/assets/v4/DocsShell-B143rLVH.js                                                 12.80 kB │ gzip:     4.79 kB
+dist/assets/v4/listing-actions-DMocvrfu.js                                           12.94 kB │ gzip:     2.86 kB
+dist/assets/v4/TNPPage-Mb8cxYhK.js                                                   13.01 kB │ gzip:     3.82 kB
+dist/assets/v4/chat-people-CepaxUBj.js                                               13.18 kB │ gzip:     3.01 kB
+dist/assets/v4/sidebar-DW-hdEow.js                                                   13.41 kB │ gzip:     3.43 kB
+dist/assets/v4/FeatureRequestPage-Y_ZIQRTr.js                                        13.56 kB │ gzip:     4.88 kB
+dist/assets/v4/ArticleCommunity-DdazHcRS.js                                          13.67 kB │ gzip:     5.12 kB
+dist/assets/v4/HelpArticlePage-DfrXQoVP.js                                           13.72 kB │ gzip:     4.73 kB
+dist/assets/v4/AIModelsPage-KfMQ-ZSj.js                                              13.84 kB │ gzip:     5.58 kB
+dist/assets/v4/AIInferencePage-BdTtICnv.js                                           14.00 kB │ gzip:     5.36 kB
+dist/assets/v4/LessonPage-DtEltd8i.js                                                14.26 kB │ gzip:     5.83 kB
+dist/assets/v4/NotFoundPage-CHm-_1cv.js                                              14.41 kB │ gzip:     5.38 kB
+dist/assets/v4/creator-studio-rcCYB4Q3.js                                            14.52 kB │ gzip:     3.44 kB
+dist/assets/v4/PhoneMockup-DL3zPBoV.js                                               14.64 kB │ gzip:     4.31 kB
+dist/assets/v4/HelpPage-DLSo27pn.js                                                  14.65 kB │ gzip:     4.62 kB
+dist/assets/v4/listing-details-DmJsup97.js                                           14.68 kB │ gzip:     3.23 kB
+dist/assets/v4/call-ui-DmendCx1.js                                                   14.82 kB │ gzip:     3.59 kB
+dist/assets/v4/ReferralsPage-CkmboFvQ.js                                             15.03 kB │ gzip:     5.33 kB
+dist/assets/v4/data-table-CkXLAb-g.js                                                15.44 kB │ gzip:     4.70 kB
+dist/assets/v4/AIPricingPage-7gW1GOY1.js                                             15.66 kB │ gzip:     5.24 kB
+dist/assets/v4/CodeaPage-DcjPmwrB.js                                                 15.69 kB │ gzip:     3.73 kB
+dist/assets/v4/ContactSalesPage-CtvvvhdH.js                                          15.72 kB │ gzip:     4.72 kB
+dist/assets/v4/DevelopersPage-e2i3oLzq.js                                            15.72 kB │ gzip:     4.90 kB
+dist/assets/v4/CommonsPage-5DbiRNYr.js                                               15.82 kB │ gzip:     5.99 kB
+dist/assets/v4/app-shell-ChVjYr1Z.js                                                 15.90 kB │ gzip:     4.95 kB
+dist/assets/v4/chat-composer-DI70kfin.js                                             16.31 kB │ gzip:     4.09 kB
+dist/assets/v4/LiveBridgeSection-Cg0ndzBM.js                                         16.35 kB │ gzip:     5.44 kB
+dist/assets/v4/AIModelDetailPage-BKgs2FId.js                                         16.89 kB │ gzip:     5.98 kB
+dist/assets/v4/composer-panel-DuiLuLCQ.js                                            17.01 kB │ gzip:     3.04 kB
+dist/assets/v4/stay-filters-DMs0oQ8J.js                                              17.22 kB │ gzip:     3.55 kB
+dist/assets/v4/IDEDemoMockup-BOy3ynlO.js                                             17.25 kB │ gzip:     5.58 kB
+dist/assets/v4/ai-chat-BEctNTcU.js                                                   17.33 kB │ gzip:     4.66 kB
+dist/assets/v4/es-BdnkOsEN.js                                                        17.50 kB │ gzip:     5.71 kB
+dist/assets/v4/DocsPage-DuHWvl6c.js                                                  17.70 kB │ gzip:     6.19 kB
+dist/assets/v4/StatusPage-6VodcHoR.js                                                18.25 kB │ gzip:     6.66 kB
+dist/assets/v4/chat-screen-BfyNqp1y.js                                               18.27 kB │ gzip:     4.82 kB
+dist/assets/v4/OxyOSPage-Dc5vgG3L.js                                                 18.31 kB │ gzip:     4.81 kB
+dist/assets/v4/AIPage-DH0URpvb.js                                                    18.37 kB │ gzip:     6.37 kB
+dist/assets/v4/PartnersPage-B70v9Y-D.js                                              18.92 kB │ gzip:     6.48 kB
+dist/assets/v4/FairCoinBridge-C6Q-yVUK.js                                            18.99 kB │ gzip:     6.20 kB
+dist/assets/v4/DocsPackageSidebar-BBxCI_2V.js                                        19.82 kB │ gzip:     6.80 kB
+dist/assets/v4/UserProfilePage-O_Yf8z9c.js                                           20.06 kB │ gzip:     6.67 kB
+dist/assets/v4/map-contrast-DyzVBDCh.js                                              20.69 kB │ gzip:     8.74 kB
+dist/assets/v4/NewsroomPostPage-KDPv2Ni7.js                                          20.76 kB │ gzip:     7.49 kB
+dist/assets/v4/SustainPage-D5dkuuDJ.js                                               20.86 kB │ gzip:     6.74 kB
+dist/assets/v4/HomiioPage-CXhjMaLL.js                                                20.90 kB │ gzip:     6.76 kB
+dist/assets/v4/manifesto-BBgeGVcM.js                                                 21.31 kB │ gzip:     7.60 kB
+dist/assets/v4/influence-CwcXvD6i.js                                                 21.36 kB │ gzip:     7.42 kB
+dist/assets/v4/SEO-BTUnDJiI.js                                                       21.50 kB │ gzip:     8.09 kB
+dist/assets/v4/secp256k1-BaF3v3im.js                                                 21.50 kB │ gzip:     8.69 kB
+dist/assets/v4/media-header-5G3rOwKi.js                                              22.14 kB │ gzip:     3.76 kB
+dist/assets/v4/FairCoinWallet-BUf8zz_y.js                                            22.65 kB │ gzip:     5.70 kB
+dist/assets/v4/chat-list-oIcaWJCY.js                                                 24.26 kB │ gzip:     6.61 kB
+dist/assets/v4/button-Cmhggb4E.js                                                    25.03 kB │ gzip:     5.04 kB
+dist/assets/v4/AstroPage-MU-tU1cb.js                                                 25.09 kB │ gzip:     7.81 kB
+dist/assets/v4/CompanyPage-ixj6kWMc.js                                               25.13 kB │ gzip:     8.83 kB
+dist/assets/v4/message-media-DgIinIYT.js                                             25.14 kB │ gzip:     4.42 kB
+dist/assets/v4/AcademyShell-CJpsACu-.js                                              26.92 kB │ gzip:     9.77 kB
+dist/assets/v4/utils-BXIlTGb6.js                                                     27.11 kB │ gzip:     8.67 kB
+dist/assets/v4/icons-6Xx0T9jC.js                                                     27.63 kB │ gzip:     2.79 kB
+dist/assets/v4/CareersPage-DglSX6_G.js                                               29.25 kB │ gzip:     9.79 kB
+dist/assets/v4/CodexExtensionPage-B0mDZ0-q.js                                        29.39 kB │ gzip:     8.06 kB
+dist/assets/v4/BrandPage-CIctAu6E.js                                                 30.70 kB │ gzip:     9.89 kB
+dist/assets/v4/hooks-DDk24IeP.js                                                     31.08 kB │ gzip:     8.93 kB
+dist/assets/v4/FairCoinUnwrap-CZGjvUVl.js                                            33.06 kB │ gzip:     9.53 kB
+dist/assets/v4/ArticleBlocks-9EBbKyfp.js                                             33.27 kB │ gzip:    10.83 kB
+dist/assets/v4/FeatureBoardPage-Dnaoq_8y.js                                          34.65 kB │ gzip:    11.52 kB
+dist/assets/v4/charter-D5UfAaZt.js                                                   38.01 kB │ gzip:    12.45 kB
+dist/assets/v4/changelog-loader--yz20WZx.js                                          39.71 kB │ gzip:    12.85 kB
+dist/assets/v4/registry-CUvFAcW2.js                                                  40.02 kB │ gzip:     8.75 kB
+dist/assets/v4/MentionPage-BYc969p9.js                                               40.38 kB │ gzip:    14.81 kB
+dist/assets/v4/vendor-react-BWTXIKMg.js                                              41.82 kB │ gzip:    14.93 kB
+dist/assets/v4/esm-D2I4FEuH.js                                                       41.98 kB │ gzip:    13.09 kB
+dist/assets/v4/media-card-u2ELce2U.js                                                42.46 kB │ gzip:     4.18 kB
+dist/assets/v4/DashboardPage-CMhitU8y.js                                             43.39 kB │ gzip:    16.07 kB
+dist/assets/v4/BloomPage-BPK9ysPv.js                                                 43.50 kB │ gzip:    13.60 kB
+dist/assets/v4/BloomComponentPage-B9tjxOsZ.js                                        46.04 kB │ gzip:    13.23 kB
+dist/assets/v4/BloomColorSystemPage-CX-l_O4e.js                                      48.80 kB │ gzip:    16.29 kB
+dist/assets/v4/BloomDemos-CYlyK7lY.js                                                49.43 kB │ gzip:    18.87 kB
+dist/assets/v4/FairCoinBuy-NLI1f_D7.js                                               50.33 kB │ gzip:    16.63 kB
+dist/assets/v4/chart-cards-BDFCJIKq.js                                               52.13 kB │ gzip:     9.09 kB
+dist/assets/v4/FairCoinLanding-DsesTRG1.js                                           57.16 kB │ gzip:    16.02 kB
+dist/assets/v4/AnimatedTitle-DL-qH4Dq.js                                             79.16 kB │ gzip:    31.36 kB
+dist/assets/v4/PeablePage-Do9lQEA7.js                                                81.54 kB │ gzip:    25.09 kB
+dist/assets/v4/matter-BrWy9y_k.js                                                    83.97 kB │ gzip:    26.26 kB
+dist/assets/v4/vendor-carousel-CwD4NFbE.js                                           85.43 kB │ gzip:    26.59 kB
+dist/assets/v4/catalogPreviews-DBk-hOIF.js                                          106.97 kB │ gzip:    25.72 kB
+dist/assets/v4/vendor-motion-B3YmSgaX.js                                            142.19 kB │ gzip:    46.91 kB
+dist/assets/v4/lib-D5haYIjo.js                                                      153.37 kB │ gzip:    45.57 kB
+dist/assets/v4/main-B8Qt-xOD.js                                                     154.61 kB │ gzip:    53.14 kB
+dist/assets/v4/AdminPage-MRl1dPXZ.js                                                170.93 kB │ gzip:    40.09 kB
+dist/assets/v4/vendor-wallet-DkedIT_J.js                                            198.18 kB │ gzip:    57.54 kB
+dist/assets/v4/esm-VC7v890G.js                                                      200.59 kB │ gzip:    45.69 kB
+dist/assets/v4/i18n-FIaowBWG.js                                                     559.00 kB │ gzip:   191.94 kB
+dist/assets/v4/LiveGlobe-fScOqkMi.js                                                572.78 kB │ gzip:   184.16 kB
+dist/assets/v4/Footer-CucGtBLs.js                                                   574.52 kB │ gzip:    99.54 kB
+dist/assets/v4/DocsIntroPage-BRY-0NdN.js                                            729.91 kB │ gzip:    99.92 kB
+dist/assets/v4/vendor-three-CCAWCwz1.js                                           1,324.49 kB │ gzip:   350.37 kB
+dist/assets/v4/vendor-scalar-CR9cs4y4.js                                          3,844.38 kB │ gzip: 1,154.39 kB
+dist/assets/v4/vendor-oxy-dsY2nXjp.js                                             6,082.13 kB │ gzip: 1,948.75 kB
+
+[33m[EVAL] [0mUse of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+       [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/lottie-web/build/player/lottie.js:14422:33 [38;5;246m][0m
+       [38;5;246m│[0m
+ [38;5;246m14422 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mv[0m[38;5;249ma[0m[38;5;249mr[0m[38;5;249m [0m[38;5;249me[0m[38;5;249mx[0m[38;5;249mp[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249ms[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m_[0m[38;5;249mf[0m[38;5;249mu[0m[38;5;249mn[0m[38;5;249mc[0m[38;5;249mt[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249m'[0m[38;5;249m[[0m[38;5;249mf[0m[38;5;249mu[0m[38;5;249mn[0m[38;5;249mc[0m[38;5;249mt[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249m_[0m[38;5;249me[0m[38;5;249mx[0m[38;5;249mp[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249ms[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m_[0m[38;5;249mf[0m[38;5;249mu[0m[38;5;249mn[0m[38;5;249mc[0m[38;5;249mt[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m+[0m[38;5;249m [0m[38;5;249mv[0m[38;5;249ma[0m[38;5;249ml[0m[38;5;249m [0m[38;5;249m+[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m;[0m[38;5;249ms[0m[38;5;249mc[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249me[0m[38;5;249md[0m[38;5;249m_[0m[38;5;249mb[0m[38;5;249mm[0m[38;5;249m_[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m=[0m[38;5;249m$[0m[38;5;249mb[0m[38;5;249mm[0m[38;5;249m_[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m}[0m[38;5;249m][0m[38;5;249m'[0m[38;5;249m)[0m[38;5;249m[[0m[38;5;249m0[0m[38;5;249m][0m[38;5;249m;[0m[38;5;249m [0m[38;5;249m/[0m[38;5;249m/[0m[38;5;249m [0m[38;5;249me[0m[38;5;249ms[0m[38;5;249ml[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249mt[0m[38;5;249m-[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249ma[0m[38;5;249mb[0m[38;5;249ml[0m[38;5;249me[0m[38;5;249m-[0m[38;5;249ml[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249me[0m[38;5;249m [0m[38;5;249mn[0m[38;5;249mo[0m[38;5;249m-[0m[38;5;249me[0m[38;5;249mv[0m[38;5;249ma[0m[38;5;249ml[0m
+ [38;5;240m      │[0m                                 ──┬─  
+ [38;5;240m      │[0m                                   ╰─── Use of direct `eval` here.
+ [38;5;240m      │[0m 
+ [38;5;240m      │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+[38;5;246m───────╯[0m
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 1500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 21.48s
+
+✨ [36m[vite-plugin-image-optimizer][39m - optimized images successfully: 
+[2mdist[22m/[94massets/v4/avatar-athina-Brd15tWy.jpg[39m                [90m[32m-1%[39m[90m     [39m [2m6.35 kB ⭢  6.31 kB[22m
+[2mdist[22m/[94massets/v4/avatar-joan-CVN4q6Bq.jpg[39m                  [90m[32m0%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 6.35 kB <= optimized: 6.40 kB[22m
+[2mdist[22m/[94massets/v4/avatar-vecna-l-NtTSw-.png[39m                 [90m[32m-20%[39m[90m    [39m [2m20.34 kB ⭢  16.30 kB[22m
+[2mdist[22m/[94massets/v4/avatar-nate-BwACWFCq.jpg[39m                  [90m[32m-11%[39m[90m    [39m [2m14.47 kB ⭢  12.96 kB[22m
+[2mdist[22m/[94massets/v4/avatar-oxy-ChTp2w1l.jpg[39m                   [90m[32m-24%[39m[90m    [39m [2m22.88 kB ⭢  17.58 kB[22m
+[2mdist[22m/[94massets/v4/gaudi-Bpjw_vC0.jpg[39m                        [90m[32m-2%[39m[90m     [39m [2m78.57 kB ⭢  77.25 kB[22m
+[2mdist[22m/[94massets/v4/industria-BF1uFaoH.jpg[39m                    [90m[32m-1%[39m[90m     [39m [2m53.90 kB ⭢  53.64 kB[22m
+[2mdist[22m/[94massets/v4/post-nate-CiYl2_TQ.jpg[39m                    [90m[31m+7%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 63.76 kB <= optimized: 68.66 kB[22m
+[2mdist[22m/[94massets/v4/phone-BiPhKU3t.png[39m                        [90m[31m+18%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 8.51 kB <= optimized: 10.06 kB[22m
+[2mdist[22m/[94massets/v4/post-oxy-CFUwzdXc.jpg[39m                     [90m[31m+7%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 36.06 kB <= optimized: 38.79 kB[22m
+[2mdist[22m/[94massets/v4/manso-BCEtQk0T.jpeg[39m                       [90m[31m+18%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 139.34 kB <= optimized: 165.08 kB[22m
+[2mdist[22m/[94massets/v4/logo-CyYZ9L_6.png[39m                         [90m[31m+3%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 114.67 kB <= optimized: 118.68 kB[22m
+[2mdist[22m/[94massets/v4/post-oxy2-CzlTSj4H.jpg[39m                    [90m[32m-2%[39m[90m     [39m [2m57.37 kB ⭢  56.76 kB[22m
+[2mdist[22m/[94massets/v4/sandra-s0C3-Ttm.jpg[39m                       [90m[32m-27%[39m[90m    [39m [2m37.96 kB ⭢  27.99 kB[22m
+[2mdist[22m/[94massets/v4/sant-antoni-CQ2MD0ah.jpg[39m                  [90m[32m-1%[39m[90m     [39m [2m62.74 kB ⭢  62.74 kB[22m
+[2mdist[22m/[94massets/v4/roger-lluria-DwBrgsOi.jpg[39m                 [90m[31m+4%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 152.41 kB <= optimized: 158.55 kB[22m
+[2mdist[22m/[94massets/v4/slide-1-CPYeLD4l.jpg[39m                      [90m[31m+8%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 99.78 kB <= optimized: 108.25 kB[22m
+[2mdist[22m/[94massets/v4/slide-3-Bp5gr1Be.jpg[39m                      [90m[31m+12%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 57.80 kB <= optimized: 65.26 kB[22m
+[2mdist[22m/[94massets/v4/slide-2-BAN8I4Iy.jpg[39m                      [90m[31m+10%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 85.85 kB <= optimized: 95.09 kB[22m
+[2mdist[22m/[94massets/v4/sky-BnlV55XI.jpg[39m                          [90m[32m-1%[39m[90m     [39m [2m65.74 kB ⭢  65.24 kB[22m
+[2mdist[22m/[94massets/v4/slide-4-DSNFt0xP.jpg[39m                      [90m[31m+15%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 45.54 kB <= optimized: 52.61 kB[22m
+[2mdist[22m/[94massets/v4/torrent-olla-B9mvHBHf.jpg[39m                 [90m[32m0%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 41.89 kB <= optimized: 42.11 kB[22m
+[2mdist[22m/[94massets/v4/teresa-pamies-26MCy0Ju.jpg[39m                [90m[32m0%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 52.13 kB <= optimized: 52.16 kB[22m
+[2mdist[22m/[94massets/v4/post-upsidedown-DTiUV5oV.webp[39m             [90m[32m-10%[39m[90m    [39m [2m39.39 kB ⭢  35.53 kB[22m
+[2mdist[22m/[94mfavicon-faircoin.svg[39m                                [90m[32m-9%[39m[90m     [39m [2m0.21 kB ⭢  0.19 kB[22m
+[2mdist[22m/[94mfavicon.svg[39m                                         [90m[32m-75%[39m[90m    [39m [2m23.48 kB ⭢  6.06 kB[22m
+[2mdist[22m/[94micons/arrow-left.svg[39m                                [90m[32m-6%[39m[90m     [39m [2m0.20 kB ⭢  0.19 kB[22m
+[2mdist[22m/[94micons/arrow-right-top-alt.svg[39m                       [90m[32m-7%[39m[90m     [39m [2m0.19 kB ⭢  0.18 kB[22m
+[2mdist[22m/[94micons/arrow-right.svg[39m                               [90m[32m-7%[39m[90m     [39m [2m0.20 kB ⭢  0.18 kB[22m
+[2mdist[22m/[94micons/arrow-top.svg[39m                                 [90m[32m-7%[39m[90m     [39m [2m0.20 kB ⭢  0.18 kB[22m
+[2mdist[22m/[94micons/check.svg[39m                                     [90m[32m-1%[39m[90m     [39m [2m0.18 kB ⭢  0.18 kB[22m
+[2mdist[22m/[94micons/download.svg[39m                                  [90m[32m-12%[39m[90m    [39m [2m0.22 kB ⭢  0.19 kB[22m
+[2mdist[22m/[94micons/chevron-down.svg[39m                              [90m[32m-1%[39m[90m     [39m [2m0.18 kB ⭢  0.18 kB[22m
+[2mdist[22m/[94mimages/apps/academy.svg[39m                             [90m[32m-29%[39m[90m    [39m [2m1.20 kB ⭢  0.86 kB[22m
+[2mdist[22m/[94micons/minus.svg[39m                                     [90m[32m-1%[39m[90m     [39m [2m0.15 kB ⭢  0.15 kB[22m
+[2mdist[22m/[94micons.svg[39m                                           [90m[32m-100%[39m[90m   [39m [2m4.91 kB ⭢  0.04 kB[22m
+[2mdist[22m/[94mimages/apps/alia-corner.svg[39m                         [90m[32m-47%[39m[90m    [39m [2m2.48 kB ⭢  1.33 kB[22m
+[2mdist[22m/[94mimages/apps/alia-dropdown.svg[39m                       [90m[32m-39%[39m[90m    [39m [2m2.31 kB ⭢  1.42 kB[22m
+[2mdist[22m/[94mimages/apps/alia-mark.svg[39m                           [90m[32m-43%[39m[90m    [39m [2m2.30 kB ⭢  1.31 kB[22m
+[2mdist[22m/[94mimages/apps/allo-corner.svg[39m                         [90m[32m-4%[39m[90m     [39m [2m0.52 kB ⭢  0.50 kB[22m
+[2mdist[22m/[94mimages/apps/api-reference.svg[39m                       [90m[32m-28%[39m[90m    [39m [2m2.28 kB ⭢  1.67 kB[22m
+[2mdist[22m/[94mimages/apps/auth.svg[39m                                [90m[32m-21%[39m[90m    [39m [2m1.86 kB ⭢  1.48 kB[22m
+[2mdist[22m/[94mimages/apps/astro.svg[39m                               [90m[32m-43%[39m[90m    [39m [2m0.81 kB ⭢  0.46 kB[22m
+[2mdist[22m/[94mimages/apps/alia.svg[39m                                [90m[32m-10%[39m[90m    [39m [2m2.41 kB ⭢  2.18 kB[22m
+[2mdist[22m/[94mimages/apps/business.svg[39m                            [90m[32m-32%[39m[90m    [39m [2m1.27 kB ⭢  0.87 kB[22m
+[2mdist[22m/[94mimages/apps/faircoin-corner.svg[39m                     [90m[32m-45%[39m[90m    [39m [2m1.71 kB ⭢  0.95 kB[22m
+[2mdist[22m/[94mimages/apps/developer-platform.svg[39m                  [90m[32m-50%[39m[90m    [39m [2m0.83 kB ⭢  0.42 kB[22m
+[2mdist[22m/[94mimages/apps/console.svg[39m                             [90m[32m-44%[39m[90m    [39m [2m18.84 kB ⭢  10.65 kB[22m
+[2mdist[22m/[94mimages/apps/faircoin-wallet.svg[39m                     [90m[32m-67%[39m[90m    [39m [2m13.65 kB ⭢  4.58 kB[22m
+[2mdist[22m/[94mimages/apps/faircoin.svg[39m                            [90m[32m-41%[39m[90m    [39m [2m1.67 kB ⭢  1.00 kB[22m
+[2mdist[22m/[94mimages/apps/founding-charter.svg[39m                    [90m[32m-30%[39m[90m    [39m [2m1.44 kB ⭢  1.02 kB[22m
+[2mdist[22m/[94mimages/apps/help-center.svg[39m                         [90m[32m-38%[39m[90m    [39m [2m1.45 kB ⭢  0.90 kB[22m
+[2mdist[22m/[94mimages/apps/inbox.svg[39m                               [90m[32m-13%[39m[90m    [39m [2m2.31 kB ⭢  2.02 kB[22m
+[2mdist[22m/[94mimages/apps/initiative.svg[39m                          [90m[32m-51%[39m[90m    [39m [2m1.97 kB ⭢  0.98 kB[22m
+[2mdist[22m/[94mimages/apps/manifesto.svg[39m                           [90m[32m-22%[39m[90m    [39m [2m1.91 kB ⭢  1.49 kB[22m
+[2mdist[22m/[94mimages/apps/mention-corner.svg[39m                      [90m[32m-7%[39m[90m     [39m [2m1.12 kB ⭢  1.05 kB[22m
+[2mdist[22m/[94mimages/apps/mercaria-corner.svg[39m                     [90m[32m-17%[39m[90m    [39m [2m0.56 kB ⭢  0.46 kB[22m
+[2mdist[22m/[94mimages/apps/mention.svg[39m                             [90m[32m-4%[39m[90m     [39m [2m1.03 kB ⭢  0.99 kB[22m
+[2mdist[22m/[94mimages/apps/mercaria.svg[39m                            [90m[32m-45%[39m[90m    [39m [2m0.83 kB ⭢  0.46 kB[22m
+[2mdist[22m/[94mimages/apps/status.svg[39m                              [90m[32m-50%[39m[90m    [39m [2m1.03 kB ⭢  0.52 kB[22m
+[2mdist[22m/[94mimages/apps/oxy-ai.svg[39m                              [90m[32m-50%[39m[90m    [39m [2m19.70 kB ⭢  9.93 kB[22m
+[2mdist[22m/[94mimages/apps/partner-programs.svg[39m                    [90m[32m-24%[39m[90m    [39m [2m2.67 kB ⭢  2.04 kB[22m
+[2mdist[22m/[94mimages/apps/transparency.svg[39m                        [90m[32m-52%[39m[90m    [39m [2m0.82 kB ⭢  0.40 kB[22m
+[2mdist[22m/[94mimages/astro/agent-eyebrow.svg[39m                      [90m[32m-57%[39m[90m    [39m [2m29.67 kB ⭢  12.97 kB[22m
+[2mdist[22m/[94mimages/apps/wholesale.svg[39m                           [90m[32m-21%[39m[90m    [39m [2m5.13 kB ⭢  4.05 kB[22m
+[2mdist[22m/[94mimages/astro/memories-eyebrow.svg[39m                   [90m[32m-36%[39m[90m    [39m [2m1.18 kB ⭢  0.76 kB[22m
+[2mdist[22m/[94mimages/astro/sidechat-eyebrow.svg[39m                   [90m[32m-54%[39m[90m    [39m [2m11.64 kB ⭢  5.45 kB[22m
+[2mdist[22m/[94mimages/badges/google-play.svg[39m                       [90m[32m-66%[39m[90m    [39m [2m15.20 kB ⭢  5.25 kB[22m
+[2mdist[22m/[94mimages/astro/privacy.svg[39m                            [90m[32m-56%[39m[90m    [39m [2m87.82 kB ⭢  39.38 kB[22m
+[2mdist[22m/[94mimages/badges/app-store.svg[39m                         [90m[32m-61%[39m[90m    [39m [2m14.85 kB ⭢  5.88 kB[22m
+[2mdist[22m/[94mimages/astro/cursor-eyebrow.svg[39m                     [90m[32m-43%[39m[90m    [39m [2m3.44 kB ⭢  1.99 kB[22m
+[2mdist[22m/[94mimages/landing/agents-features-icons.svg[39m            [90m[32m-40%[39m[90m    [39m [2m60.21 kB ⭢  36.13 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-02.svg[39m         [90m[32m-53%[39m[90m    [39m [2m1.14 kB ⭢  0.54 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-01.svg[39m         [90m[32m-58%[39m[90m    [39m [2m2.63 kB ⭢  1.13 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-03.svg[39m         [90m[32m-57%[39m[90m    [39m [2m2.41 kB ⭢  1.04 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-04.svg[39m         [90m[32m-55%[39m[90m    [39m [2m3.15 kB ⭢  1.42 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-05.svg[39m         [90m[32m-61%[39m[90m    [39m [2m5.23 kB ⭢  2.08 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-06.svg[39m         [90m[32m-44%[39m[90m    [39m [2m3.89 kB ⭢  2.19 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-07.svg[39m         [90m[32m-48%[39m[90m    [39m [2m5.71 kB ⭢  2.97 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-08.svg[39m         [90m[32m-57%[39m[90m    [39m [2m3.77 kB ⭢  1.64 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-09.svg[39m         [90m[32m-56%[39m[90m    [39m [2m3.75 kB ⭢  1.68 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-11.svg[39m         [90m[32m-54%[39m[90m    [39m [2m1.62 kB ⭢  0.76 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-10.svg[39m         [90m[32m-58%[39m[90m    [39m [2m3.35 kB ⭢  1.42 kB[22m
+[2mdist[22m/[94mimages/landing/browser-frame.svg[39m                    [90m[32m-43%[39m[90m    [39m [2m26.12 kB ⭢  15.06 kB[22m
+[2mdist[22m/[94mimages/landing/agents-security-icons-12.svg[39m         [90m[32m-61%[39m[90m    [39m [2m4.30 kB ⭢  1.70 kB[22m
+[2mdist[22m/[94mimages/landing/model-agnostic-popover.svg[39m           [90m[32m-57%[39m[90m    [39m [2m164.34 kB ⭢  72.17 kB[22m
+[2mdist[22m/[94mlogo-mark.svg[39m                                       [90m[32m-37%[39m[90m    [39m [2m7.46 kB ⭢  4.73 kB[22m
+[2mdist[22m/[94mai/cta-mobile-bg.png[39m                                [90m[32m-64%[39m[90m    [39m [2m134.62 kB ⭢  48.91 kB[22m
+[2mdist[22m/[94mai/feature-otg.png[39m                                  [90m[32m-67%[39m[90m    [39m [2m251.33 kB ⭢  83.15 kB[22m
+[2mdist[22m/[94mai/feature-integrations.png[39m                         [90m[32m-70%[39m[90m    [39m [2m210.31 kB ⭢  65.15 kB[22m
+[2mdist[22m/[94mai/cta-desktop-bg.png[39m                               [90m[32m-26%[39m[90m    [39m [2m88.89 kB ⭢  66.01 kB[22m
+[2mdist[22m/[94mai/research/06.webp[39m                                 [90m[32m-37%[39m[90m    [39m [2m93.74 kB ⭢  59.83 kB[22m
+[2mdist[22m/[94mai/research/oxy-ecosystem.webp[39m                      [90m[32m-9%[39m[90m     [39m [2m57.01 kB ⭢  52.29 kB[22m
+[2mdist[22m/[94mai/research/oxy-human.webp[39m                          [90m[32m-15%[39m[90m    [39m [2m42.88 kB ⭢  36.56 kB[22m
+[2mdist[22m/[94mai/hero-bg.png[39m                                      [90m[31m+136%[39m[90m    [39m [33m[1mskipped[22m[39m [2moriginal: 141.47 kB <= optimized: 334.89 kB[22m
+[2mdist[22m/[94mai/research/oxy-logo.jpg[39m                            [90m[32m-31%[39m[90m    [39m [2m19.75 kB ⭢  13.74 kB[22m
+[2mdist[22m/[94mai/research/oxy-open-ethical.webp[39m                   [90m[32m-3%[39m[90m     [39m [2m32.03 kB ⭢  31.34 kB[22m
+[2mdist[22m/[94mfavicon-faircoin.png[39m                                [90m[32m-69%[39m[90m    [39m [2m18.86 kB ⭢  5.94 kB[22m
+[2mdist[22m/[94mai/research/oxy-open-source.webp[39m                    [90m[32m-14%[39m[90m    [39m [2m81.87 kB ⭢  71.00 kB[22m
+[2mdist[22m/[94mai/shadow-bg.png[39m                                    [90m[31m+9%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 103.81 kB <= optimized: 113.79 kB[22m
+[2mdist[22m/[94mimages/apps/accounts.png[39m                            [90m[32m-81%[39m[90m    [39m [2m24.34 kB ⭢  4.80 kB[22m
+[2mdist[22m/[94mai/research/oxy-ai-models.webp[39m                      [90m[32m-11%[39m[90m    [39m [2m59.35 kB ⭢  52.86 kB[22m
+[2mdist[22m/[94mimages/apps/allo.png[39m                                [90m[32m-77%[39m[90m    [39m [2m34.81 kB ⭢  8.35 kB[22m
+[2mdist[22m/[94mcompany/hero-bg.jpg[39m                                 [90m[32m-8%[39m[90m     [39m [2m266.13 kB ⭢  244.93 kB[22m
+[2mdist[22m/[94mimages/apps/clarity.png[39m                             [90m[32m-70%[39m[90m    [39m [2m5.25 kB ⭢  1.61 kB[22m
+[2mdist[22m/[94mimages/apps/bloom.png[39m                               [90m[32m-76%[39m[90m    [39m [2m11.85 kB ⭢  2.90 kB[22m
+[2mdist[22m/[94mimages/apps/faircoin-explorer.png[39m                   [90m[32m-73%[39m[90m    [39m [2m9.76 kB ⭢  2.69 kB[22m
+[2mdist[22m/[94mimages/apps/commons-app.png[39m                         [90m[32m-76%[39m[90m    [39m [2m28.12 kB ⭢  6.80 kB[22m
+[2mdist[22m/[94mimages/apps/faircoin.jpg[39m                            [90m[32m-23%[39m[90m    [39m [2m14.53 kB ⭢  11.33 kB[22m
+[2mdist[22m/[94mimages/apps/codea.png[39m                               [90m[32m-75%[39m[90m    [39m [2m63.23 kB ⭢  16.08 kB[22m
+[2mdist[22m/[94mimages/404.png[39m                                      [90m[32m-66%[39m[90m    [39m [2m153.22 kB ⭢  53.23 kB[22m
+[2mdist[22m/[94mimages/apps/faircoin-wallet.png[39m                     [90m[32m-75%[39m[90m    [39m [2m34.40 kB ⭢  8.79 kB[22m
+[2mdist[22m/[94mimages/apps/inbox.png[39m                               [90m[32m-78%[39m[90m    [39m [2m22.67 kB ⭢  5.20 kB[22m
+[2mdist[22m/[94mimages/apps/kaana.png[39m                               [90m[32m-58%[39m[90m    [39m [2m49.60 kB ⭢  21.30 kB[22m
+[2mdist[22m/[94mimages/apps/homiio.png[39m                              [90m[32m-10%[39m[90m    [39m [2m21.86 kB ⭢  19.83 kB[22m
+[2mdist[22m/[94mimages/apps/mercaria.png[39m                            [90m[32m-76%[39m[90m    [39m [2m20.38 kB ⭢  4.92 kB[22m
+[2mdist[22m/[94mimages/apps/moovo.png[39m                               [90m[32m-59%[39m[90m    [39m [2m6.49 kB ⭢  2.68 kB[22m
+[2mdist[22m/[94mimages/apps/mention.png[39m                             [90m[32m-65%[39m[90m    [39m [2m267.39 kB ⭢  95.24 kB[22m
+[2mdist[22m/[94mimages/apps/tnp.png[39m                                 [90m[32m-77%[39m[90m    [39m [2m18.08 kB ⭢  4.31 kB[22m
+[2mdist[22m/[94mimages/apps/wholesale.png[39m                           [90m[32m-66%[39m[90m    [39m [2m68.86 kB ⭢  23.74 kB[22m
+[2mdist[22m/[94mimages/apps/oxyos.png[39m                               [90m[32m-73%[39m[90m    [39m [2m85.85 kB ⭢  23.34 kB[22m
+[2mdist[22m/[94mimages/astro/astro-alia-capture.png[39m                 [90m[32m-63%[39m[90m    [39m [2m45.41 kB ⭢  16.92 kB[22m
+[2mdist[22m/[94mimages/astro/astro-newtab-capture.png[39m               [90m[32m-37%[39m[90m    [39m [2m90.82 kB ⭢  57.38 kB[22m
+[2mdist[22m/[94mimages/astro/astro-browser.webp[39m                     [90m[32m-6%[39m[90m     [39m [2m33.24 kB ⭢  31.56 kB[22m
+[2mdist[22m/[94mimages/astro/astro-newtab-window.png[39m                [90m[32m-59%[39m[90m    [39m [2m91.23 kB ⭢  37.52 kB[22m
+[2mdist[22m/[94mimages/apps/peable.png[39m                              [90m[32m-83%[39m[90m    [39m [2m47.15 kB ⭢  8.43 kB[22m
+[2mdist[22m/[94mimages/astro/easy-to-use.png[39m                        [90m[31m+35%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 15.17 kB <= optimized: 20.48 kB[22m
+[2mdist[22m/[94mimages/astro/astro-settings-capture.png[39m             [90m[32m-68%[39m[90m    [39m [2m82.70 kB ⭢  26.55 kB[22m
+[2mdist[22m/[94mimages/astro/cursor.png[39m                             [90m[31m+5%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 34.07 kB <= optimized: 35.92 kB[22m
+[2mdist[22m/[94mai/pro-right.avif[39m                                   [90m[31m+22%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 21.47 kB <= optimized: 26.35 kB[22m
+[2mdist[22m/[94mimages/astro/hero-bg.jpg[39m                            [90m[31m+26%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 31.01 kB <= optimized: 39.25 kB[22m
+[2mdist[22m/[94mimages/astro/icon.png[39m                               [90m[32m-67%[39m[90m    [39m [2m67.31 kB ⭢  22.56 kB[22m
+[2mdist[22m/[94mai/pro-left.avif[39m                                    [90m[31m+14%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 28.63 kB <= optimized: 32.82 kB[22m
+[2mdist[22m/[94mimages/astro/hero-shot.webp[39m                         [90m[32m-14%[39m[90m    [39m [2m27.37 kB ⭢  23.59 kB[22m
+[2mdist[22m/[94mimages/astro/make-it-custom.png[39m                     [90m[31m+666%[39m[90m    [39m [33m[1mskipped[22m[39m [2moriginal: 3.96 kB <= optimized: 30.37 kB[22m
+[2mdist[22m/[94mimages/astro/agent.png[39m                              [90m[31m+148%[39m[90m    [39m [33m[1mskipped[22m[39m [2moriginal: 278.08 kB <= optimized: 691.59 kB[22m
+[2mdist[22m/[94mimages/astro/smart-searches.png[39m                     [90m[31m+28%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 3.55 kB <= optimized: 4.56 kB[22m
+[2mdist[22m/[94mimages/cities/amsterdam.jpg[39m                         [90m[32m-13%[39m[90m    [39m [2m77.95 kB ⭢  68.58 kB[22m
+[2mdist[22m/[94mimages/cities/barcelona.jpg[39m                         [90m[32m-12%[39m[90m    [39m [2m77.49 kB ⭢  68.93 kB[22m
+[2mdist[22m/[94mimages/cities/berlin.jpg[39m                            [90m[32m-11%[39m[90m    [39m [2m72.69 kB ⭢  64.72 kB[22m
+[2mdist[22m/[94mimages/cities/london.jpg[39m                            [90m[32m-12%[39m[90m    [39m [2m94.58 kB ⭢  83.80 kB[22m
+[2mdist[22m/[94mimages/cities/paris.jpg[39m                             [90m[32m-12%[39m[90m    [39m [2m81.77 kB ⭢  72.00 kB[22m
+[2mdist[22m/[94mimages/cities/athens.jpg[39m                            [90m[32m-12%[39m[90m    [39m [2m89.57 kB ⭢  79.67 kB[22m
+[2mdist[22m/[94mimages/commons/crowd-poster.jpg[39m                     [90m[31m+12%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 106.81 kB <= optimized: 119.78 kB[22m
+[2mdist[22m/[94mimages/commons/hero-poster.jpg[39m                      [90m[31m+10%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 75.99 kB <= optimized: 84.20 kB[22m
+[2mdist[22m/[94mimages/dashboard/earth-night.jpg[39m                    [90m[32m-62%[39m[90m    [39m [2m249.30 kB ⭢  95.48 kB[22m
+[2mdist[22m/[94mimages/help-og/account/change-password.png[39m          [90m[31m+72%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 35.61 kB <= optimized: 61.60 kB[22m
+[2mdist[22m/[94mimages/dashboard/stars-milky-way.jpg[39m                [90m[32m-68%[39m[90m    [39m [2m245.56 kB ⭢  80.80 kB[22m
+[2mdist[22m/[94mimages/help-og/account/add-recovery-email.png[39m       [90m[31m+111%[39m[90m    [39m [33m[1mskipped[22m[39m [2moriginal: 34.34 kB <= optimized: 72.59 kB[22m
+[2mdist[22m/[94mimages/faircoin/wallet-hero.jpg[39m                     [90m[31m+9%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 107.00 kB <= optimized: 117.56 kB[22m
+[2mdist[22m/[94mimages/help-og/account/delete-account.png[39m           [90m[31m+73%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 37.45 kB <= optimized: 64.98 kB[22m
+[2mdist[22m/[94mimages/help-og/auth/fedcm-overview.png[39m              [90m[31m+93%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 38.67 kB <= optimized: 74.89 kB[22m
+[2mdist[22m/[94mimages/cities/rome.jpg[39m                              [90m[32m-12%[39m[90m    [39m [2m82.38 kB ⭢  73.30 kB[22m
+[2mdist[22m/[94mimages/astro/memories.png[39m                           [90m[31m+20%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 94.25 kB <= optimized: 113.69 kB[22m
+[2mdist[22m/[94mimages/help-og/console/api-keys.png[39m                 [90m[31m+129%[39m[90m    [39m [33m[1mskipped[22m[39m [2moriginal: 35.17 kB <= optimized: 80.63 kB[22m
+[2mdist[22m/[94mimages/help-og/console/create-app.png[39m               [90m[31m+41%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 40.91 kB <= optimized: 57.88 kB[22m
+[2mdist[22m/[94mimages/help-og/console/usage-metrics.png[39m            [90m[31m+48%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 39.61 kB <= optimized: 58.75 kB[22m
+[2mdist[22m/[94mimages/help-og/es/account/add-recovery-email.png[39m    [90m[31m+70%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 44.97 kB <= optimized: 76.86 kB[22m
+[2mdist[22m/[94mimages/help-og/auth/2fa-setup.png[39m                   [90m[31m+117%[39m[90m    [39m [33m[1mskipped[22m[39m [2moriginal: 36.33 kB <= optimized: 79.05 kB[22m
+[2mdist[22m/[94mimages/help-og/getting-started/install-apps.png[39m     [90m[31m+58%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 42.60 kB <= optimized: 67.72 kB[22m
+[2mdist[22m/[94mimages/help-og/es/inbox/encryption.png[39m              [90m[31m+34%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 39.56 kB <= optimized: 53.29 kB[22m
+[2mdist[22m/[94mimages/help-og/getting-started/welcome.png[39m          [90m[31m+121%[39m[90m    [39m [33m[1mskipped[22m[39m [2moriginal: 37.35 kB <= optimized: 82.80 kB[22m
+[2mdist[22m/[94mimages/help-og/es/getting-started/welcome.png[39m       [90m[31m+123%[39m[90m    [39m [33m[1mskipped[22m[39m [2moriginal: 35.66 kB <= optimized: 79.75 kB[22m
+[2mdist[22m/[94mimages/astro/sidechat.png[39m                           [90m[31m+69%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 185.85 kB <= optimized: 314.32 kB[22m
+[2mdist[22m/[94mimages/hero/emoji-handshake.png[39m                     [90m[32m-70%[39m[90m    [39m [2m17.35 kB ⭢  5.21 kB[22m
+[2mdist[22m/[94mimages/help-og/auth/sign-in-flow.png[39m                [90m[31m+111%[39m[90m    [39m [33m[1mskipped[22m[39m [2moriginal: 37.55 kB <= optimized: 79.30 kB[22m
+[2mdist[22m/[94mimages/help-og/inbox/encryption.png[39m                 [90m[31m+65%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 43.34 kB <= optimized: 71.52 kB[22m
+[2mdist[22m/[94mimages/hero/emoji-globe.png[39m                         [90m[32m-65%[39m[90m    [39m [2m36.34 kB ⭢  13.05 kB[22m
+[2mdist[22m/[94mimages/hero/emoji-seedling.png[39m                      [90m[32m-55%[39m[90m    [39m [2m15.03 kB ⭢  6.86 kB[22m
+[2mdist[22m/[94mimages/hero/hero-2.jpg[39m                              [90m[32m-26%[39m[90m    [39m [2m44.92 kB ⭢  33.41 kB[22m
+[2mdist[22m/[94mimages/help-og/inbox/manage-labels.png[39m              [90m[31m+95%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 36.02 kB <= optimized: 70.29 kB[22m
+[2mdist[22m/[94mimages/hero/hero-1.webp[39m                             [90m[31m+12%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 69.92 kB <= optimized: 78.42 kB[22m
+[2mdist[22m/[94mimages/hero/hero-4.webp[39m                             [90m[31m+10%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 46.58 kB <= optimized: 51.27 kB[22m
+[2mdist[22m/[94mimages/dashboard/earth-day.jpg[39m                      [90m[32m-60%[39m[90m    [39m [2m452.23 kB ⭢  181.54 kB[22m
+[2mdist[22m/[94mimages/hero/hero-5.jpg[39m                              [90m[32m-28%[39m[90m    [39m [2m243.09 kB ⭢  176.38 kB[22m
+[2mdist[22m/[94mimages/hero/hero-3.webp[39m                             [90m[32m-9%[39m[90m     [39m [2m155.46 kB ⭢  142.51 kB[22m
+[2mdist[22m/[94mimages/landing/agents-features-bg.webp[39m              [90m[32m-2%[39m[90m     [39m [2m453.31 kB ⭢  445.69 kB[22m
+[2mdist[22m/[94mimages/help-og/inbox/compose-message.png[39m            [90m[31m+49%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 33.41 kB <= optimized: 49.94 kB[22m
+[2mdist[22m/[94mimages/hero/hero-6.avif[39m                             [90m[32m-50%[39m[90m    [39m [2m24.21 kB ⭢  12.21 kB[22m
+[2mdist[22m/[94mimages/landing/company-band.jpg[39m                     [90m[31m+1%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 225.92 kB <= optimized: 228.22 kB[22m
+[2mdist[22m/[94mimages/landing/agents-model-agnostic.webp[39m           [90m[32m-26%[39m[90m    [39m [2m187.02 kB ⭢  139.94 kB[22m
+[2mdist[22m/[94mimages/landing/commons-night.webp[39m                   [90m[32m-13%[39m[90m    [39m [2m207.03 kB ⭢  181.90 kB[22m
+[2mdist[22m/[94mimages/landing/faircoin-store.png[39m                   [90m[31m+7%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 346.76 kB <= optimized: 372.00 kB[22m
+[2mdist[22m/[94mimages/landing/faircoin-store.avif[39m                  [90m[31m+13%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 16.99 kB <= optimized: 19.36 kB[22m
+[2mdist[22m/[94mimages/landing/4lffisf9oaY443RqgB8sCKLHJc.avif[39m      [90m[32m0%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 35.91 kB <= optimized: 36.19 kB[22m
+[2mdist[22m/[94mimages/landing/hero-panel-14953520-poster.webp[39m      [90m[32m-18%[39m[90m    [39m [2m31.48 kB ⭢  26.01 kB[22m
+[2mdist[22m/[94mimages/landing/hero-bg-800.avif[39m                     [90m[31m+25%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 12.74 kB <= optimized: 16.03 kB[22m
+[2mdist[22m/[94mimages/landing/founder-quote.jpg[39m                    [90m[32m-15%[39m[90m    [39m [2m306.36 kB ⭢  263.41 kB[22m
+[2mdist[22m/[94mimages/landing/hero-photo-03.avif[39m                   [90m[32m0%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 12.50 kB <= optimized: 12.62 kB[22m
+[2mdist[22m/[94mimages/landing/hero-bg-1200.avif[39m                    [90m[31m+26%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 23.33 kB <= optimized: 29.59 kB[22m
+[2mdist[22m/[94mimages/landing/hero-panel-poster.webp[39m               [90m[31m+4%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 117.47 kB <= optimized: 122.79 kB[22m
+[2mdist[22m/[94mimages/landing/hero-photo-01.avif[39m                   [90m[32m0%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 35.91 kB <= optimized: 36.19 kB[22m
+[2mdist[22m/[94mimages/landing/identity-app.webp[39m                    [90m[32m-28%[39m[90m    [39m [2m26.89 kB ⭢  19.48 kB[22m
+[2mdist[22m/[94mimages/landing/hero-photo-02.avif[39m                   [90m[32m-1%[39m[90m     [39m [2m50.00 kB ⭢  49.90 kB[22m
+[2mdist[22m/[94mimages/landing/oxy-logo.jpg[39m                         [90m[32m-31%[39m[90m    [39m [2m19.75 kB ⭢  13.74 kB[22m
+[2mdist[22m/[94mimages/landing/team-banner.jpg[39m                      [90m[31m+13%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 370.30 kB <= optimized: 419.84 kB[22m
+[2mdist[22m/[94mimages/landing/video-thumb-act.webp[39m                 [90m[32m-8%[39m[90m     [39m [2m15.19 kB ⭢  14.03 kB[22m
+[2mdist[22m/[94mimages/landing/hero-photo-04.avif[39m                   [90m[31m+3%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 106.27 kB <= optimized: 109.86 kB[22m
+[2mdist[22m/[94mimages/landing/video-thumb-analyze.webp[39m             [90m[32m-8%[39m[90m     [39m [2m30.81 kB ⭢  28.38 kB[22m
+[2mdist[22m/[94mimages/landing/video-thumb-financial-services.webp[39m  [90m[32m-21%[39m[90m    [39m [2m66.19 kB ⭢  52.68 kB[22m
+[2mdist[22m/[94mimages/nav-bloom-ui.webp[39m                            [90m[32m-16%[39m[90m    [39m [2m73.19 kB ⭢  62.09 kB[22m
+[2mdist[22m/[94mimages/landing/video-thumb-sales-teams.webp[39m         [90m[32m-24%[39m[90m    [39m [2m95.82 kB ⭢  73.75 kB[22m
+[2mdist[22m/[94mimages/mercaria/icon.png[39m                            [90m[32m-76%[39m[90m    [39m [2m20.38 kB ⭢  4.92 kB[22m
+[2mdist[22m/[94mimages/landing/hero-bg.avif[39m                         [90m[32m-3%[39m[90m     [39m [2m72.13 kB ⭢  70.64 kB[22m
+[2mdist[22m/[94mimages/landing/video-thumb-customer-support.webp[39m    [90m[32m-23%[39m[90m    [39m [2m118.60 kB ⭢  91.72 kB[22m
+[2mdist[22m/[94mimages/nav-careers-card.webp[39m                        [90m[32m-6%[39m[90m     [39m [2m31.16 kB ⭢  29.34 kB[22m
+[2mdist[22m/[94mimages/landing/video-thumb-in-house-ops.webp[39m        [90m[32m-25%[39m[90m    [39m [2m92.09 kB ⭢  69.86 kB[22m
+[2mdist[22m/[94mimages/nav-resources-card.jpg[39m                       [90m[31m+17%[39m[90m     [39m [33m[1mskipped[22m[39m [2moriginal: 39.15 kB <= optimized: 45.81 kB[22m
+[2mdist[22m/[94mimages/nav-ecosystem-card.webp[39m                      [90m[32m-41%[39m[90m    [39m [2m28.91 kB ⭢  17.18 kB[22m
+[2mdist[22m/[94mimages/nav-demo-card.jpg[39m                            [90m[32m-49%[39m[90m    [39m [2m218.79 kB ⭢  112.63 kB[22m
+[2mdist[22m/[94mimages/oxyos/control-center.jpg[39m                     [90m[32m-24%[39m[90m    [39m [2m128.75 kB ⭢  98.02 kB[22m
+[2mdist[22m/[94mimages/nav-build-with-us.jpg[39m                        [90m[32m0%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 220.99 kB <= optimized: 221.15 kB[22m
+[2mdist[22m/[94mimages/oxyos/notifications.jpg[39m                      [90m[32m-24%[39m[90m    [39m [2m126.42 kB ⭢  96.83 kB[22m
+[2mdist[22m/[94mimages/oxyos/os-desktop.jpg[39m                         [90m[32m-28%[39m[90m    [39m [2m206.88 kB ⭢  150.22 kB[22m
+[2mdist[22m/[94mimages/oxyos/screenshot-1.png[39m                       [90m[32m-61%[39m[90m    [39m [2m112.74 kB ⭢  44.52 kB[22m
+[2mdist[22m/[94mimages/oxyos/screenshot-4.png[39m                       [90m[32m-64%[39m[90m    [39m [2m120.18 kB ⭢  44.04 kB[22m
+[2mdist[22m/[94mimages/oxyos/screenshot-3.png[39m                       [90m[32m-56%[39m[90m    [39m [2m134.95 kB ⭢  59.66 kB[22m
+[2mdist[22m/[94mimages/screenshots/alia-app.png[39m                     [90m[32m-67%[39m[90m    [39m [2m155.53 kB ⭢  51.93 kB[22m
+[2mdist[22m/[94mimages/screenshots/inbox-app.png[39m                    [90m[31m+3%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 206.70 kB <= optimized: 213.65 kB[22m
+[2mdist[22m/[94mlogo.jpg[39m                                            [90m[32m-21%[39m[90m    [39m [2m14.18 kB ⭢  11.22 kB[22m
+[2mdist[22m/[94mimages/oxyos/screenshot-2.png[39m                       [90m[32m-64%[39m[90m    [39m [2m134.46 kB ⭢  49.69 kB[22m
+[2mdist[22m/[94mimages/landing/value-people.avif[39m                    [90m[32m-37%[39m[90m    [39m [2m67.15 kB ⭢  42.53 kB[22m
+[2mdist[22m/[94mpartners/ton.avif[39m                                   [90m[32m-20%[39m[90m    [39m [2m16.79 kB ⭢  13.58 kB[22m
+[2mdist[22m/[94mimages/screenshots/mention-app.png[39m                  [90m[32m-2%[39m[90m     [39m [2m161.63 kB ⭢  159.58 kB[22m
+[2mdist[22m/[94mpartners/alejandra.avif[39m                             [90m[32m-31%[39m[90m    [39m [2m18.20 kB ⭢  12.68 kB[22m
+[2mdist[22m/[94mpartners/desiree.avif[39m                               [90m[32m-37%[39m[90m    [39m [2m20.87 kB ⭢  13.25 kB[22m
+[2mdist[22m/[94mai/research/faircoin-stage.png[39m                      [90m[32m-6%[39m[90m     [39m [2m568.25 kB ⭢  538.49 kB[22m
+[2mdist[22m/[94mai/research/ai-research-bg.png[39m                      [90m[32m-3%[39m[90m     [39m [2m558.44 kB ⭢  543.10 kB[22m
+[2mdist[22m/[94mog-default.png[39m                                      [90m[32m-2%[39m[90m     [39m [2m145.15 kB ⭢  142.41 kB[22m
+[2mdist[22m/[94mai/research/oxy-ai-models.png[39m                       [90m[31m+3%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 554.85 kB <= optimized: 571.92 kB[22m
+[2mdist[22m/[94mog-faircoin.png[39m                                     [90m[32m-45%[39m[90m    [39m [2m122.84 kB ⭢  67.59 kB[22m
+[2mdist[22m/[94mai/research/mention-people.png[39m                      [90m[32m-10%[39m[90m    [39m [2m665.44 kB ⭢  601.60 kB[22m
+[2mdist[22m/[94mimages/landing/spacex-launch.jpg[39m                    [90m[32m-15%[39m[90m    [39m [2m599.15 kB ⭢  511.05 kB[22m
+[2mdist[22m/[94mimages/landing/partnerships-banner.avif[39m             [90m[32m-3%[39m[90m     [39m [2m72.13 kB ⭢  70.64 kB[22m
+[2mdist[22m/[94mimages/dashboard/moon.jpg[39m                           [90m[32m-52%[39m[90m    [39m [2m1029.17 kB ⭢  500.88 kB[22m
+[2mdist[22m/[94mai/research/oxy-open-design.png[39m                     [90m[31m+2%[39m[90m      [39m [33m[1mskipped[22m[39m [2moriginal: 659.53 kB <= optimized: 677.74 kB[22m
+[2mdist[22m/[94mimages/landing/alia-card.png[39m                        [90m[32m-69%[39m[90m    [39m [2m1454.08 kB ⭢  459.78 kB[22m
+[2mdist[22m/[94mimages/landing/astro-desktop.png[39m                    [90m[32m-68%[39m[90m    [39m [2m1436.92 kB ⭢  464.15 kB[22m
+[2mdist[22m/[94mimages/landing/faircoin-phone.png[39m                   [90m[32m-66%[39m[90m    [39m [2m2005.56 kB ⭢  686.13 kB[22m
+[2mdist[22m/[94mimages/landing/mercaria-card.png[39m                    [90m[32m-63%[39m[90m    [39m [2m1613.16 kB ⭢  608.16 kB[22m
+[2mdist[22m/[94mimages/landing/homiio-phone.png[39m                     [90m[32m-55%[39m[90m    [39m [2m1974.77 kB ⭢  908.14 kB[22m
+[2mdist[22m/[94mimages/landing/inbox-phone.png[39m                      [90m[32m-71%[39m[90m    [39m [2m1931.45 kB ⭢  570.87 kB[22m
+[2mdist[22m/[94mimages/landing/oxyos-laptop.png[39m                     [90m[32m-65%[39m[90m    [39m [2m2014.86 kB ⭢  713.09 kB[22m
+[2mdist[22m/[94mimages/landing/mention-laptop.png[39m                   [90m[32m-69%[39m[90m    [39m [2m1929.68 kB ⭢  600.13 kB[22m
+
+💰 total savings = [32m13628.89kB[39m/[32m27576.34kB[39m ≈ [32m49%[39m
+
+

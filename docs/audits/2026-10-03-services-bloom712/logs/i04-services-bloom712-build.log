@@ -1,0 +1,18 @@
+@oxy.so/services build: $ node scripts/check-icon-font-subsets.mjs
+@oxy.so/services build: Services icon subsets match source usage, package version and recorded hashes.
+@oxy.so/services build: ℹ [commonjs] Cleaning up previous build at lib/commonjs
+@oxy.so/services build: ℹ [commonjs] Compiling 277 files in src with babel
+@oxy.so/services build: ✔ [commonjs] Wrote files to lib/commonjs
+@oxy.so/services build: ℹ [module] Cleaning up previous build at lib/module
+@oxy.so/services build: ℹ [module] Compiling 277 files in src with babel
+@oxy.so/services build: ✔ [module] Wrote files to lib/module
+@oxy.so/services build: ℹ [typescript] Cleaning up previous build at lib/typescript
+@oxy.so/services build: ℹ [typescript] Generating type definitions with tsc
+@oxy.so/services build: ✔ [typescript] Wrote definition files to lib/typescript
+@oxy.so/services build: $ copyfiles -u 1 "src/assets/**/*" lib/commonjs/assets && copyfiles -u 1 "src/assets/**/*" lib/module/assets
+@oxy.so/services build: $ copyfiles -u 1 "src/**/*.d.ts" lib/typescript
+@oxy.so/services build: $ find ./lib/commonjs -name '*.d.js*' -delete && find ./lib/module -name '*.d.js*' -delete
+@oxy.so/services build: $ rm -rf ./lib/commonjs/components/bottomSheetDebugView ./lib/module/components/bottomSheetDebugView ./lib/typescript/components/bottomSheetDebugView || true
+@oxy.so/services build: Exited with code 0
+@oxy.so/services postbuild: [verify-package] ok — @oxy.so/services@11.1.0 packs 2418 files (2084 under lib/), all 33 exports targets resolve, every module declared (251 in lib/commonjs/, 251 in lib/module/), no unsubstituted dependency protocol
+@oxy.so/services postbuild: Exited with code 0

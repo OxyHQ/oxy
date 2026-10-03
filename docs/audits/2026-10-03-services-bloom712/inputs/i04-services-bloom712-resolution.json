@@ -1,0 +1,30 @@
+{
+  "pack": "/home/nate/Oxy/.agent-evidence/i04-bloom712-compat-pack/oxy.so-bloom-7.1.2.tgz",
+  "sha256": "04963419eca4ef497c146d2cc1fcc5862b5b9216cfc5d4fb8cfe3b132047c02b",
+  "resolvers": [
+    {
+      "importer": "/home/nate/Oxy/oxy/.worktrees/1519-services-bloom7-compat-20261003",
+      "resolved": "/home/nate/Oxy/oxy/.worktrees/1519-services-bloom7-compat-20261003/node_modules/.bun/@oxy.so+bloom@+home+nate+Oxy+.agent-evidence+i04-bloom712-compat-pack+oxy.so-bloom-7.1.2.tgz/node_modules/@oxy.so/bloom",
+      "filesCompared": 21941,
+      "version": "7.1.2"
+    },
+    {
+      "importer": "/home/nate/Oxy/oxy/.worktrees/1519-services-bloom7-compat-20261003/node_modules/@oxy.so/services",
+      "resolved": "/home/nate/Oxy/oxy/.worktrees/1519-services-bloom7-compat-20261003/node_modules/.bun/@oxy.so+bloom@+home+nate+Oxy+.agent-evidence+i04-bloom712-compat-pack+oxy.so-bloom-7.1.2.tgz/node_modules/@oxy.so/bloom",
+      "filesCompared": 21941,
+      "version": "7.1.2"
+    },
+    {
+      "importer": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003",
+      "resolved": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/bloom",
+      "filesCompared": 21941,
+      "version": "7.1.2"
+    },
+    {
+      "importer": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/services",
+      "resolved": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/bloom",
+      "filesCompared": 21941,
+      "version": "7.1.2"
+    }
+  ]
+}

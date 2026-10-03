@@ -1,0 +1,32 @@
+vite v8.1.4 building client environment for production...
+[2Ktransforming...[plugin rolldown:vite-resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/protocol/dist/esm/platform/crypto.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin rolldown:vite-resolve] Module "node:async_hooks" has been externalized for browser compatibility, imported by "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/expo-font/build/serverContext.web.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+✓ 16771 modules transformed.
+✗ Build failed in 19.34s
+error during build:
+Build failed with 3 errors:
+
+[31m[rolldown:vite-resolve] [0mplugin `rolldown:vite-resolve` threw an error
+
+Caused by:
+    "./agent-avatar" is not exported under the conditions ["module", "browser", "production", "import"] from package /home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/bloom (see exports field in /home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/bloom/package.json)
+
+[31m[rolldown:vite-resolve] [0mplugin `rolldown:vite-resolve` threw an error
+
+Caused by:
+    "./project-board" is not exported under the conditions ["module", "browser", "production", "import"] from package /home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/bloom (see exports field in /home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/bloom/package.json)
+
+[31m[rolldown:vite-resolve] [0mplugin `rolldown:vite-resolve` threw an error
+
+Caused by:
+    "./multi-agent-chat" is not exported under the conditions ["module", "browser", "production", "import"] from package /home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/bloom (see exports field in /home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/bloom/package.json)
+
+    at aggregateBindingErrorsIntoJsError (file:///home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/rolldown/dist/shared/error-BHRSI0R7.mjs:48:18)
+    at unwrapBindingResult (file:///home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/rolldown/dist/shared/error-BHRSI0R7.mjs:18:128)
+    at #build (file:///home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/rolldown/dist/shared/rolldown-build-CtPvmZgJ.mjs:3276:34)
+    at async buildEnvironment (file:///home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/vite/dist/node/chunks/node.js:33011:66)
+    at async Object.build (file:///home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/vite/dist/node/chunks/node.js:33433:19)
+    at async Object.buildApp (file:///home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/vite/dist/node/chunks/node.js:33430:153)
+    at async CAC.<anonymous> (file:///home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003/node_modules/vite/dist/node/cli.js:776:3) {
+  errors: [Getter/Setter]
+}
