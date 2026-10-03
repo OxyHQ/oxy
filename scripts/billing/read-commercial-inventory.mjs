@@ -4,7 +4,11 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 const require = createRequire(`${process.cwd()}/package.json`);
-const postgres = require('postgres');
+const postgresModule = require('postgres');
+// Node resolves CJS; Bun may return the package's ESM namespace. Both must
+// expose the same installed postgres constructor, never an alternate driver.
+const postgres = typeof postgresModule === 'function' ? postgresModule : postgresModule.default;
+if (typeof postgres !== 'function') throw new Error('Installed postgres export is not callable');
 const MAX_ROWS = 1000;
 const MAX_BYTES = 1024 * 1024;
 const PROJECTIONS = {
