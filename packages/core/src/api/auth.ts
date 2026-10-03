@@ -18,6 +18,11 @@
 import type { User } from '../models/interfaces';
 import type { CommonsDenyReason, DeviceProof, LoginResult } from '@oxy.so/contracts';
 import {
+  agentProofClaimsSchema,
+  agentChallengeRequestSchema,
+  agentVerifyRequestSchema,
+  type AgentProofClaims,
+  type AgentSignature,
   emailSignInLinkResponseSchema,
   emailSignInPendingSchema,
   emailSignInStartResponseSchema,
@@ -1158,6 +1163,25 @@ export class AuthCommonsApi {
 
 }
 
+/** Bot entry uses caller-owned keys and the normal account session lane. */
+export class AuthAgentApi {
+  constructor(private readonly ctx: OxyContext) {}
+
+  async requestChallenge(publicKey: string): Promise<AgentProofClaims> {
+    const body = agentChallengeRequestSchema.parse({ publicKey });
+    const response = await this.ctx.request<unknown>('POST', '/auth/agent/challenge', body,
+      { cache: false, skipAuth: true });
+    return agentProofClaimsSchema.parse(response);
+  }
+
+  async verify(publicKey: string, proof: AgentSignature): Promise<LoginResult> {
+    const body = agentVerifyRequestSchema.parse({ publicKey, ...proof });
+    const response = await this.ctx.request<unknown>('POST', '/auth/agent/verify', body,
+      { cache: false, skipAuth: true });
+    return plantSession(this.ctx, response, 'auth/agent/verify');
+  }
+}
+
 export class AuthApi {
   /** Email sign-in and email confirmation codes. */
   readonly email: AuthEmailApi;
@@ -1169,6 +1193,7 @@ export class AuthApi {
   readonly oauth: AuthOAuthApi;
   /** "Sign in with Oxy" handoff to Commons. */
   readonly commons: AuthCommonsApi;
+  readonly agent: AuthAgentApi;
 
   constructor(private readonly ctx: OxyContext) {
     this.email = new AuthEmailApi(ctx);
@@ -1176,6 +1201,7 @@ export class AuthApi {
     this.totp = new AuthTotpApi(ctx);
     this.oauth = new AuthOAuthApi(ctx);
     this.commons = new AuthCommonsApi(ctx);
+    this.agent = new AuthAgentApi(ctx);
   }
 
   /**

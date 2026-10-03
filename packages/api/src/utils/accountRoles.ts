@@ -156,6 +156,7 @@ export const ACCOUNT_PERMISSIONS = [
   'credentials:create',
   'credentials:rotate',
   'credentials:revoke',
+  'credentials:manage',
   'billing:read',
   'billing:manage',
   'ownership:transfer',
@@ -202,6 +203,7 @@ const ADMIN_PERMISSIONS: readonly AccountPermission[] = [
   'credentials:create',
   'credentials:rotate',
   'credentials:revoke',
+  'credentials:manage',
   'billing:read',
   'inference:invoke',
   'inference:routing:read',
@@ -557,4 +559,14 @@ export function appPermissionsForAccountAccess(access: {
     // The role does not confer it: only a GRANT can put it there.
     return held.has(counterpart) || baseline.has(permission);
   });
+}
+
+
+/** Governance is explicit membership; a runtime key grants only self operation. */
+export const ACCOUNT_GOVERNANCE_PERMISSIONS: ReadonlySet<AccountPermission> = new Set([
+  'account:delete', 'members:invite', 'members:update', 'members:remove',
+  'ownership:transfer', 'credentials:manage',
+]);
+export function autonomousOperationalPermissions(): AccountPermission[] {
+  return ACCOUNT_PERMISSIONS.filter((permission) => !ACCOUNT_GOVERNANCE_PERMISSIONS.has(permission));
 }

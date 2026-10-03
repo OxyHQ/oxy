@@ -1,9 +1,13 @@
 # PROPUESTA — Autenticación autónoma de una cuenta bot como sí misma
 
-> **Estado: PROPUESTA pendiente de aprobación de Nate.** Nada de este documento
-> está implementado ni habilitado. No crea credenciales, no emite tokens a bots
-> y no amplía permisos. Issue: [#1520 (I01)](https://github.com/OxyHQ/oxy/issues/1520),
-> padre [#1519](https://github.com/OxyHQ/oxy/issues/1519). PR: #1530.
+> **Estado: recomendaciones aprobadas; implementación I01 en curso.**
+> Autorización de Nate: [registro del 3 de octubre](../../architecture/1519-approved-completion-2026-10-03/authorization.txt).
+> El esquema 0137 está probado; runtime y aceptación completa siguen pendientes.
+> El gobierno corresponde a responsables actuales owner/admin, que pueden ser
+> personas o bots autenticados; el creador no conserva derechos perpetuos.
+> Issue: [#1520](https://github.com/OxyHQ/oxy/issues/1520), padre [#1519](https://github.com/OxyHQ/oxy/issues/1519).
+> Las secciones de diagnóstico siguientes describen la base histórica indicada.
+
 
 ## Requisito (sin rebajar)
 
