@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import type { Server } from 'node:http';
+import { eq } from 'drizzle-orm';
 import express from 'express';
 import request from 'supertest';
 import type { AppCapabilityCatalog } from '@oxy.so/contracts';
@@ -10,20 +12,23 @@ import {
   capabilityExecutionAuthorizations,
 } from '../../db/schema/agency';
 import { users } from '../../db/schema/users';
+import { sessions } from '../../db/schema/sessions';
 
 const USER_ID = 'settings-user';
 const ORG_ID = 'settings-org';
 
 /** The account a managed session acts as, when a test switches into one. */
 let mockManagedSubject: string | null = null;
+let mockApprovingSessionId: string | undefined;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { user?: { _id: string; id: string }; oxyToken?: { principalUserId: string; subjectAccountId: string } },
+    req: { sessionId?: string; user?: { _id: string; id: string }; oxyToken?: { principalUserId: string; subjectAccountId: string } },
     _res: unknown,
     next: () => void,
   ) => {
     const subject = mockManagedSubject ?? 'settings-user';
+    req.sessionId = mockApprovingSessionId;
     req.user = { _id: subject, id: subject };
     req.oxyToken = { principalUserId: 'settings-user', subjectAccountId: subject };
     next();
@@ -124,11 +129,20 @@ let agentId: string;
 let applicationId: string;
 let credentialId: string;
 let authorizationId: string;
+let server: Server | undefined;
+const managedSessionId = `settings-managed-${randomUUID()}`;
 
 beforeAll(async () => {
   await connectPostgres();
   await getDb().insert(users).values({ id: USER_ID, color: 'teal' });
   await getDb().insert(users).values({ id: ORG_ID, color: 'teal', kind: 'organization' });
+  await getDb().insert(sessions).values({
+    sessionId: managedSessionId, userId: ORG_ID, operatedByUserId: USER_ID,
+    deviceId: `settings-device-${randomUUID()}`, deviceType: 'web', platform: 'web',
+    accessToken: 'fixture-settings-access', refreshToken: 'fixture-settings-refresh',
+    expiresAt: new Date(Date.now() + 60_000), isActive: true,
+  });
+  mockApprovingSessionId = managedSessionId;
   const [agent] = await getDb().insert(users).values({
     color: 'teal',
     kind: 'bot',
@@ -185,14 +199,26 @@ beforeAll(async () => {
     expiresAt: new Date(Date.now() + 60_000),
   }).returning({ id: capabilityExecutionAuthorizations.id });
   authorizationId = authorization.id;
+  server = await new Promise<Server>((resolve) => {
+    const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
+  });
 });
 
 afterAll(async () => {
+  if (server) {
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));
+  }
   await closePostgres();
 });
 
+function http() {
+  if (!server) throw new Error('Settings fixture server was not started');
+  return request(server);
+}
+
 it('serves safe catalogs and manages account policies for Settings', async () => {
-  const available = await request(app).get(`/capabilities/catalogs/available?accountId=${USER_ID}`);
+  const available = await http().get(`/capabilities/catalogs/available?accountId=${USER_ID}`);
   expect(available.status).toBe(200);
   expect(available.body.catalogs).toEqual(expect.arrayContaining([expect.objectContaining({
     appId: appSlug,
@@ -204,7 +230,7 @@ it('serves safe catalogs and manages account policies for Settings', async () =>
   expect(JSON.stringify(available.body)).not.toContain('settings-test-signature');
   expect(JSON.stringify(available.body)).not.toContain(credentialId);
 
-  const written = await request(app).put(`/capabilities/account-policies/${appSlug}`).send({
+  const written = await http().put(`/capabilities/account-policies/${appSlug}`).send({
     accountId: USER_ID,
     maximumAutonomy: 'draft',
     deniedCapabilities: ['resource.read'],
@@ -217,11 +243,11 @@ it('serves safe catalogs and manages account policies for Settings', async () =>
     deniedCapabilities: ['resource.read'],
   });
 
-  const listed = await request(app).get(`/capabilities/account-policies?accountId=${USER_ID}&appId=${appSlug}`);
+  const listed = await http().get(`/capabilities/account-policies?accountId=${USER_ID}&appId=${appSlug}`);
   expect(listed.status).toBe(200);
   expect(listed.body.policies).toHaveLength(1);
 
-  const removed = await request(app).delete(`/capabilities/account-policies/${appSlug}?accountId=${USER_ID}`);
+  const removed = await http().delete(`/capabilities/account-policies/${appSlug}?accountId=${USER_ID}`);
   expect(removed.status).toBe(204);
 });
 
@@ -232,7 +258,7 @@ it('rejects future tools and edits a catalog-bound grant atomically', async () =
     resourceType: 'account',
     resourceId: USER_ID,
   };
-  const futureOverride = await request(app).post('/capabilities/grants').send({
+  const futureOverride = await http().post('/capabilities/grants').send({
     ownerAccountId: USER_ID,
     actorAccountId: agentId,
     resource,
@@ -247,7 +273,7 @@ it('rejects future tools and edits a catalog-bound grant atomically', async () =
   expect(futureOverride.status).toBe(400);
   expect(futureOverride.body).toEqual({ error: 'override_tool_not_available_for_resource' });
 
-  const unboundedAutonomy = await request(app).post('/capabilities/grants').send({
+  const unboundedAutonomy = await http().post('/capabilities/grants').send({
     ownerAccountId: USER_ID,
     actorAccountId: agentId,
     resource,
@@ -262,7 +288,7 @@ it('rejects future tools and edits a catalog-bound grant atomically', async () =
   expect(unboundedAutonomy.status).toBe(400);
   expect(unboundedAutonomy.body).toEqual({ error: 'autonomous_sensitive_tool_limit_required' });
 
-  const created = await request(app).post('/capabilities/grants').send({
+  const created = await http().post('/capabilities/grants').send({
     ownerAccountId: USER_ID,
     actorAccountId: agentId,
     resource,
@@ -277,7 +303,7 @@ it('rejects future tools and edits a catalog-bound grant atomically', async () =
   expect(created.status).toBe(201);
   expect(created.body.grant.catalog).toMatchObject({ version: catalog.version, digest: 'a'.repeat(64) });
 
-  const unsafeUpdate = await request(app).put(`/capabilities/grants/${created.body.grant.id}`).send({
+  const unsafeUpdate = await http().put(`/capabilities/grants/${created.body.grant.id}`).send({
     capabilityPackages: [],
     capabilities: ['finance.execute'],
     toolOverrides: [],
@@ -289,7 +315,7 @@ it('rejects future tools and edits a catalog-bound grant atomically', async () =
   expect(unsafeUpdate.status).toBe(400);
   expect(unsafeUpdate.body).toEqual({ error: 'autonomous_sensitive_tool_limit_required' });
 
-  const updated = await request(app).put(`/capabilities/grants/${created.body.grant.id}`).send({
+  const updated = await http().put(`/capabilities/grants/${created.body.grant.id}`).send({
     capabilityPackages: [],
     capabilities: ['resource.read'],
     toolOverrides: [],
@@ -309,7 +335,7 @@ it('rejects future tools and edits a catalog-bound grant atomically', async () =
 });
 
 it('lists and revokes execution authorizations for Settings', async () => {
-  const unsafeAuthorization = await request(app).post('/capabilities/execution-authorizations').send({
+  const unsafeAuthorization = await http().post('/capabilities/execution-authorizations').send({
     kind: 'automation',
     ownerAccountId: USER_ID,
     coordinatorApplicationId: applicationId,
@@ -330,15 +356,15 @@ it('lists and revokes execution authorizations for Settings', async () => {
   expect(unsafeAuthorization.status).toBe(400);
   expect(unsafeAuthorization.body).toEqual({ error: 'autonomous_sensitive_tool_limit_required' });
 
-  const listed = await request(app).get(`/capabilities/execution-authorizations?ownerAccountId=${USER_ID}`);
+  const listed = await http().get(`/capabilities/execution-authorizations?ownerAccountId=${USER_ID}`);
   expect(listed.status).toBe(200);
   expect(listed.body.authorizations).toEqual(expect.arrayContaining([
     expect.objectContaining({ id: authorizationId, ownerAccountId: USER_ID }),
   ]));
 
-  const revoked = await request(app).delete(`/capabilities/execution-authorizations/${authorizationId}`);
+  const revoked = await http().delete(`/capabilities/execution-authorizations/${authorizationId}`);
   expect(revoked.status).toBe(204);
-  const relisted = await request(app).get(`/capabilities/execution-authorizations?ownerAccountId=${USER_ID}`);
+  const relisted = await http().get(`/capabilities/execution-authorizations?ownerAccountId=${USER_ID}`);
   const authorization = relisted.body.authorizations.find((entry: { id: string }) => entry.id === authorizationId);
   expect(authorization.revokedAt).not.toBeNull();
 });
@@ -348,7 +374,7 @@ it('asks authority of the person operating a managed account, not of the account
   // never its own member. The person behind the session is who operates it.
   mockManagedSubject = ORG_ID;
   try {
-    const created = await request(app).post('/capabilities/execution-authorizations').send({
+    const created = await http().post('/capabilities/execution-authorizations').send({
       kind: 'direct_request',
       ownerAccountId: ORG_ID,
       coordinatorApplicationId: applicationId,
@@ -367,3 +393,45 @@ it('asks authority of the person operating a managed account, not of the account
     mockManagedSubject = null;
   }
 });
+
+
+it.each(['missing', 'expired', 'revoked'] as const)(
+  'returns401 without insertion when the approving session is %s after bearer verification',
+  async (state) => {
+    // Bearer/operator middleware is synthetic here; the second session lookup
+    // and execution-authorization repository are real PostgreSQL. This covers
+    // the race where the earlier authentication snapshot is no longer live.
+    mockManagedSubject = ORG_ID;
+    const sessionId = `settings-denied-${randomUUID()}`;
+    if (state !== 'missing') {
+      await getDb().insert(sessions).values({
+        sessionId, userId: ORG_ID, operatedByUserId: USER_ID,
+        deviceId: `settings-denied-device-${randomUUID()}`, deviceType: 'web', platform: 'web',
+        accessToken: 'fixture-denied-access', refreshToken: 'fixture-denied-refresh',
+        expiresAt: new Date(Date.now() + (state === 'expired' ? -1_000 : 60_000)),
+        isActive: state !== 'revoked',
+      });
+    }
+    mockApprovingSessionId = state === 'missing' ? undefined : sessionId;
+    const runId = `settings-denied-run-${randomUUID()}`;
+    try {
+      const denied = await http().post('/capabilities/execution-authorizations')
+        .timeout({ response: 1_000, deadline: 2_000 }).send({
+          kind: 'direct_request', ownerAccountId: ORG_ID,
+          coordinatorApplicationId: applicationId, coordinatorCredentialId: credentialId,
+          actor: { type: 'alia', ownerAccountId: ORG_ID },
+          resource: { appId: appSlug, effectiveAccountId: ORG_ID, resourceType: 'account', resourceId: ORG_ID },
+          tool: 'readResource', runId, maximumAutonomy: 'read_only', limits: [],
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        });
+      expect(denied.status).toBe(401);
+      expect(denied.body).toMatchObject({ error: 'INVALID_SESSION' });
+      expect(await getDb().select({ id: capabilityExecutionAuthorizations.id })
+        .from(capabilityExecutionAuthorizations)
+        .where(eq(capabilityExecutionAuthorizations.runId, runId))).toEqual([]);
+    } finally {
+      mockManagedSubject = null;
+      mockApprovingSessionId = managedSessionId;
+    }
+  },
+);
