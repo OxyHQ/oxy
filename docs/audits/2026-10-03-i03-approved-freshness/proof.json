@@ -1,0 +1,462 @@
+{
+  "sourceCommit": "94c7b390cbffc0fb6eecc3f293fb3e821c94f60f",
+  "baseCommit": "d6a34e2be0f52f5c95b7fd73030ab00aa7ae9139",
+  "capturedAt": "2026-10-03T02:44:01.651100+00:00",
+  "sourceInputs": [
+    {
+      "path": "docs/SERVICE_TOKENS.md",
+      "sha256": "35cdac01b4649bd4efdf377c5520db8e6b1c2e6acaca2737da3463cf5ce8a36c"
+    },
+    {
+      "path": "packages/api/src/middleware/__tests__/serviceTokenEd25519.test.ts",
+      "sha256": "0069a7266567d16c40a72081f44cc7c9fd44e8c1e6ae7449ae06b632cea39796"
+    },
+    {
+      "path": "packages/api/src/middleware/serviceToken.ts",
+      "sha256": "8f4e87386636fd901326b7a7d56d6e5f485263f4d92676443bdb19b8501e8e5d"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/serviceActingAsVerify.test.ts",
+      "sha256": "fccecec3e3c40b3cff99aae68272dc117f408912ae57d816e564d9c76bb5dba8"
+    },
+    {
+      "path": "packages/api/src/routes/auth.ts",
+      "sha256": "cb11f5e98909ca46db361565b4a57ece2660fff48401cafb13fe8b4a464b2af1"
+    },
+    {
+      "path": "packages/api/src/routes/internal.ts",
+      "sha256": "340bc4a410e4a7e90b571a0c55db329390d3643ac7a394070d198b945f9cf5d6"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/approvedActingAsEpochs.test.ts",
+      "sha256": "e387298681a9dfcfcaf6262b52643ba47d686d8a58840189901ea6cfe8173323"
+    },
+    {
+      "path": "packages/api/src/services/agencyServicePrincipal.service.ts",
+      "sha256": "fe5907ae91388714dcd70bb4761430102a273d09f40ce91b2f720bf0482a79e9"
+    },
+    {
+      "path": "packages/api/src/services/agentKeyAuthority.service.ts",
+      "sha256": "903c04220b9a13218007a7d72c8910ddadf6f6158c1532c35b93f1c49345f790"
+    },
+    {
+      "path": "packages/api/src/services/oauthCode.service.ts",
+      "sha256": "4712bd4f145fb08bd5798108a711012ab2d041814732a37ac60eb5664123db49"
+    },
+    {
+      "path": "packages/api/src/services/oauthConsent.service.ts",
+      "sha256": "8a1f34c775830a65659ea4565b657ed8c3bdcb0a3eec772935521b7d3c6a6aca"
+    },
+    {
+      "path": "packages/api/src/services/serviceActingAs.service.ts",
+      "sha256": "968e6ac0662b093bf2a141578d816e50ec926b2d217f30434f8c8b413498c624"
+    },
+    {
+      "path": "packages/api/src/services/serviceTokenMint.service.ts",
+      "sha256": "52bf84cb73b3a8bfbda329f10b2f86c6db54ebf64e51aa3fbd6bc2c429aea911"
+    },
+    {
+      "path": "packages/core/src/server/OxyServer.ts",
+      "sha256": "23a943cd20d8d92959ce705a2d35e5fa76bb2567d96fc52c2ad19ecc63c5171a"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/actingAsFreshness.test.ts",
+      "sha256": "5206ef1dd66a0935ecf1706863d755137a30c7e8ffe0b7ab8705ed4fec54bb68"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/approvedActingAsFreshness.test.ts",
+      "sha256": "a841fcd448e736f633eec864e9693954cf48c7d408252956bf42b709cc27bb7c"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/approvedServiceTokenLifetime.test.ts",
+      "sha256": "0b18762232b4149823c46f4a9bc95e188a42df7f7f79e18a55e6043048a410cd"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/authRefusalObservability.test.ts",
+      "sha256": "7e0dad0c10337974fa292c62361b5c2578d345cc0384e03a82786bcdf318db49"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/serviceAuth.test.ts",
+      "sha256": "18d5fe6e024a0ec39930a78cc70e3cc303b53bd92cc53ee7b4131be1984b166e"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/serviceTokenAttribution.test.ts",
+      "sha256": "c8ab3b58e80179b47a18816d258dffbc0fa16c1a945631524509277fedd92648"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/serviceTokenJwks.test.ts",
+      "sha256": "bc81c15c8e91e31973c39398405202e0b4ad194e81915993d352c113532f6823"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/serviceTokenWorkloadFallback.test.ts",
+      "sha256": "eec27bd1819a313353685cb700de74a52865c1a3977daf7780b226d6ba5d9ec3"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/verifyActingAs.test.ts",
+      "sha256": "162361f632c83c2ec4aaac0c7dcbec66083dadd17710b349d42cfb3d5d225d6a"
+    },
+    {
+      "path": "packages/core/src/server/index.ts",
+      "sha256": "604ef63c8f4efab602ed41453f0bb27b4c5f57190a5b22ddd3e24f33a9f6f2f2"
+    },
+    {
+      "path": "packages/core/src/server/middleware.ts",
+      "sha256": "b58157cd2c52fe74601e3f278d1be12c82860deb6d75b0ff607f6d01a5b257cb"
+    },
+    {
+      "path": "packages/core/src/server/serviceTokenLifetime.ts",
+      "sha256": "81e54230c0f8d464b889b85255e81d647c37586672099a2a93452c52e2ab1531"
+    },
+    {
+      "path": "scripts/rehearsal/test-approved-api-1519.py",
+      "sha256": "465c4b574dae6e517cdf9e284eb0098b89189f5edf3fa37c18d0d5a32a1ffce4"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-core-red.log",
+      "sha256": "2e3b46f3082844633b7e3e184c1412f5b9d6b4bbb07ed4c36691b132de42ebcd"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-core-exact.log",
+      "sha256": "1ef680dbd74c7782cfb05364b3ecfe1818b66e176a529c486fbc60911ab03aba"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-api-exact.log",
+      "sha256": "1f8e45b722a67d9060af226804231ececae5e6da1786cd4c42ee9c18e40d9bf5"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-core-build-exact.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-api-ts-correct-cwd.log",
+      "sha256": "a3e9e573a8aaeb2bc0d8b13f05d23c423d4ec68a807dd04f5a5f2789e7141d75"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-api-eslint-exact.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-core-lint-exact.log",
+      "sha256": "2defa361cefdb04043feb978f0775d8aab546ef8054c102a507e56a0909e1965"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-core-loaded-dist.json",
+      "sha256": "43de62cd4feeb7de1a2aa6c5cc8c72b7ca674e892e9a34cd90f54a29b4676a6a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-core-regression-first.log",
+      "sha256": "ba59979123d3804e2dda8f432530b800354fa3dc60c4c31807bdcd263af312c1"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-core-full-first.log",
+      "sha256": "2a2a5e087ef9950f6119fe5a623c51f8313444cd16c95f700418fc514ad0d0fa"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-approved-freshness/i03-api-focused.log",
+      "sha256": "497cde766dbf387e8962acef756519985b53a69f6b2c8e586699855a90cd890a"
+    }
+  ],
+  "installedInputs": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/HttpService.js",
+      "sha256": "12140090539d49918faed27193e0e02ed13c6732ff4a529e11f7719c69b968ef"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/OxyServices.errors.js",
+      "sha256": "68880d140567fa3b0958d2b0b7fab2ee0ddcd8bd7bd93fbb52146d51dd8532bb"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/OxyServices.js",
+      "sha256": "491375a654110376f45f78b2245816b12ea2ff1df731ec6873ee67ec6946beec"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/accounts.js",
+      "sha256": "b7c213a0aecf9d6e5c32071a42955987e35305674885d335a497c4a54eccd9a8"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/agency.js",
+      "sha256": "c6c058a67fab41dcc3128097bfe59a9c1c1f7f2fe5c056ffdac4e46f8c5de90a"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/appData.js",
+      "sha256": "87c3d0a6141308e66575bd0301ec0efa89e1f3ae74e1e80f93217263d85ba837"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/apps.js",
+      "sha256": "7520dc11e025689cd2df02025e19804a79708b25e254bc1004619b5da05b1be3"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/assets.js",
+      "sha256": "a37b717e80931e33b100d88340da611e82b6df46419cad1ed31829d7acaff76a"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/auth.js",
+      "sha256": "75ff00a1a1604ab7e752b7f323d896a344be1949c2a84099e586f08dfaaa980c"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/billing.js",
+      "sha256": "d669579a223af8f64d283c7d1ac9a224bc8000012e6293e7cf1e6ff8131350b9"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/civic.js",
+      "sha256": "9f71a7f0aa60ae76cf4290cbcba8e94186e8a0fc37f339e320187510156aef5c"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/contacts.js",
+      "sha256": "b1616f18e798c5eff8aba6cd97bca65ec6e6242a277e32d075a022dbeb90bd65"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/devices.js",
+      "sha256": "4ce79eaff395e76ea00d4dc0858beccc00c52d67768d27678f98667d29cc6df3"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/follows.js",
+      "sha256": "2ee89f62c8e95503a8bbbe53f31209543e620f2e4096e6bcc6c68880dbc05324"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/identity.js",
+      "sha256": "f87900abae1986e18c39f26f8ab21980f714c0781ca4c2bfc09357c60bb9c79c"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/linkedAccounts.js",
+      "sha256": "ac9f843a86256dc31c6648c5677f530e28e63d85413b28ea10efb72474fc807c"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/nodes.js",
+      "sha256": "715a5518929e9a1803a0e67e8e9f0fa9725f808f842af3da3a6cbcd1fdb0cf74"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/notifications.js",
+      "sha256": "34983ddd66c579b2af52b00f65c5834e0947efe871a4bd0d7bd38e8c2dc26f03"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/privacy.js",
+      "sha256": "20c6d928c220113534813caf9016d7128115a20f4bf362c5e90060a0b03357d0"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/reputation.js",
+      "sha256": "1ec6fa6e860cb57b63b3b7b17fdb1a729129f7b067c1669a2f30e88fce8c8f44"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/session.js",
+      "sha256": "f86b001b91f69131457da0514c1c3ae04b6f2aad0d2748bd6340caabff8dc60f"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/store.js",
+      "sha256": "ac1420117d2044244f06b1e281b3dbdaa8497ddbeb95bdf66a166f40a356ddc5"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/topics.js",
+      "sha256": "c1280aa516fd90c40d13f55ca0d8b058f0c8ffd2a1aef54b3f65ad9dd861cbeb"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/users.js",
+      "sha256": "0bf1e40fb7b00d6007f7ddbec74b666af5ca0718c70ed2e2fd4b00cc0f10bc4e"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/civic/payloads.js",
+      "sha256": "45b6129b3b6ff38fdfb76f6a0fe46e9e49749f5b3962dfe012a3af6b559980de"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/logger/index.js",
+      "sha256": "53ab95ce49065ee9a28c759db69e76edd77c0b1c4d9d4efc4add543ccd5a4efe"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/OxyServer.js",
+      "sha256": "51b5c9be1717772d401035680f101dcf2a321e14e1930b001719149cd994568f"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/auth.js",
+      "sha256": "fb63546c80ad47b9ceac8620971b75a70885f8e6f88ebd1cd3c719c835048ead"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/capabilityTicket.js",
+      "sha256": "86215802b2c727b08ff1d9e1699d78861eb4fda495bdce5caeb41f45b8ae78ad"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/cors.js",
+      "sha256": "ba60ad137439511257df0e79dfc1f26f892e8100755db673a9d817bdc6244523"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/index.js",
+      "sha256": "30e6285cda6cc36a947cc54eef02a5700da091ec2a3450b53560c442fd21fd13"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/liveCapabilityTicket.js",
+      "sha256": "83a3c790975a08ad3ea268b32577cd28ce92c4586f553405fab99ef8aadab5fc"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/middleware.js",
+      "sha256": "c9a40b354256e2971906eb11a55dd96a786c537f6f51b390bd838b237edf2c33"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/namespaces.js",
+      "sha256": "17043b553e70e0235ab71ad32086bdf94d2dd65a12205f4b12d4e7899cc13e32"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/rateLimit.js",
+      "sha256": "7078288a6fa4b5de781f2bc918e290c1e7648e46a1cd0501ef01db3d1125ff24"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/requesterAssertion.js",
+      "sha256": "c12ecd1822e971a2d817129bff3b81476f70a6154a7b3f8ecba020ba658a2539"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/safeFetch.js",
+      "sha256": "2779eb87912da6d74aa76ae476d01dacce5baa1d76ddce9c4f44cbaedf727f2a"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/securityHeaders.js",
+      "sha256": "dc6e19bb9551deec8ecb38a08e456ad9d348cfadfeffbdb2d046e86bb53a0bc4"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/serviceTokenLifetime.js",
+      "sha256": "30b28080dd5793cde017c23f12fc549928d5ef96e811b1f46e82191a1d935f9b"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/traffic.js",
+      "sha256": "d1ffe80858d2f129125dd0050574a4e8f141cf40ef03691c5a7b1e50405bec5c"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/trafficNodeHttp.js",
+      "sha256": "2893a1c62ac643250e29a77a0a3e973d2d089200abda7e9b337d49cbc89de028"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/userInvalidation.js",
+      "sha256": "bf85a1cc67d3474cd3a904785623420223b981578d3442af866f9ac434a306ec"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/verifySecret.js",
+      "sha256": "5eac1bfb8826c64c115060eca9e6dee869df20eee7d3d0b76b897c5f63d4925b"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/workloadIdentity.js",
+      "sha256": "a198f470842716dd7136d6bab6332e5105c9c6c6070609c3f21917d5e34f6cf7"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/accountCacheSweep.js",
+      "sha256": "d01814199208c8af7180f94372a8fccaaed9dedcf5f48c3de3e6617ce7c69956"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/activityId.js",
+      "sha256": "04d600313d05397e60f61746e1b591605618c1e62d230b3be894e602466e11a3"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/apiUtils.js",
+      "sha256": "6e5c3b411aeab4acdada7d63a0365398ee8ae3f806c7ced2fc5e3c3a813d2ec7"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/asyncUtils.js",
+      "sha256": "ee1d1b6388a1a412a466c133b4ec5be1626aa9047c1ed0e425d9f7ba700a696e"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/authWebUrl.js",
+      "sha256": "ddaffa40bcda8ceb41517ebce7bbf6daef1ba600c7ae127fcbec956ca9deffe6"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/cache.js",
+      "sha256": "ae6b17c5935648056184334cdabda14335009c6d66dcb7096f80379b9ce3b446"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/cacheKey.js",
+      "sha256": "072de75915966a0e2a75997f7f98f13aa077eb6ec97d427b727113a7371a3f65"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/edgeRegion.js",
+      "sha256": "606ad9d91face55a36983228fe13f7c29db215f2beca5250786251492cefaadc"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/errorUtils.js",
+      "sha256": "3c12e9cbf0588104d9ee00754e9f5b80cac0cefac24c81ff0e289da4318a65ec"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/identityCacheSweep.js",
+      "sha256": "94f269ccf38c61b059716f6e5c3f40af232b5d6fc4306e2575127663bb98d3ec"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/officialOrigins.js",
+      "sha256": "4da931c1973b43cfe0fb1231d79a8b58f6b01c823e520c0f8096843a5bc1c696"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/oxyServiceEnvironment.js",
+      "sha256": "012db6bc762a33a760c47da581c57bb80bfabdf906b3b6bc4ae1a096dfa57225"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/platform.js",
+      "sha256": "1d5826b8c41ef89fdf39532a6bbfbd4a0002eef282f2ff32c953b6bb7b08b354"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/redactUrl.js",
+      "sha256": "2e1effc58543372f1b4cac0f78d4159ee741077b8b6773e966e8abf53d8e1b5a"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/registrableApex.js",
+      "sha256": "961698379483aec11b319d8427ce0ef116c8eb314f7465a4da79d96ff1be52e6"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/requestUtils.js",
+      "sha256": "964724e5b5c0e6009738ef967f99381dcb0aa13fcd186476817bfbb9f530884d"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/slashes.js",
+      "sha256": "55fdcff820ead443c00c3367bd0687f4b4f008d637cee31124da44dd7004e595"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/tokenClaims.js",
+      "sha256": "270ffd9565da8022f0967fa740032743d32e06acf0933406ba07a0ac19ffa77d"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/userIdentity.js",
+      "sha256": "29aa24e965a2431683a0c3376f86708a1eba5046b9ddd99f5d8ddf314eba018e"
+    }
+  ],
+  "resolvedCoreServer": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/index.js",
+  "commands": {
+    "coreBuild": {
+      "cwd": "packages/core",
+      "command": "bun run build",
+      "exitCode": 0
+    },
+    "coreTests": {
+      "cwd": "packages/core",
+      "command": "bun run test --runInBand",
+      "exitCode": 0,
+      "suites": 174,
+      "tests": 2144
+    },
+    "apiTests": {
+      "cwd": ".",
+      "command": "python3 scripts/rehearsal/test-approved-api-1519.py src/services/__tests__/approvedActingAsEpochs.test.ts src/middleware/__tests__/serviceTokenEd25519.test.ts src/routes/__tests__/serviceActingAsVerify.test.ts src/routes/__tests__/oauthConsentFinalizers.test.ts",
+      "exitCode": 0,
+      "suites": 4,
+      "tests": 95
+    },
+    "apiTypes": {
+      "cwd": "packages/api",
+      "command": "bunx tsc --noEmit",
+      "exitCode": 2,
+      "remainingError": "accountEmail.mail.ts105 credentials_manage absent from built contracts purpose union; unchanged baseline d6a, I01 composition/build pending"
+    },
+    "lint": {
+      "apiEslintExitCode": 0,
+      "coreScopedBiomeExitCode": 0
+    }
+  },
+  "measurement": {
+    "localRevokeCommitToTwoFreshDenialsMs": 16.323280000000068,
+    "productionP99": false,
+    "processes": 2,
+    "coreResolutionCwd": "packages/api"
+  },
+  "limits": [
+    "I03 not deployed or closed; receiver adoption and production measurements pending",
+    "Readonly authority uses one coherent repeatable-read snapshot; a lookup that started before a concurrent revoke can finish with its old snapshot within the five-second deadline",
+    "Private local test signing keys only; no remote authority/provider/financial requests",
+    "JWT cap rejects old hour tokens; rolling old/new API issuance can fail until old tasks retire; caller refresh and receiver SDK adoption are separate gates",
+    "Core initial RED six cases was logged before implementation; its original untracked harness was not archived at execution, so this record is diagnostic rather than a frozen source replay proof",
+    "Bot pre-persist race uses exact helper efea; full OAuth code provenance/exchange will come from I01 composition",
+    "Local PostgreSQL17 fresh normal138 migrator, owned PID3416042; server stopped; no production database"
+  ]
+}

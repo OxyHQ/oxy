@@ -1,0 +1,1 @@
+src/services/accountEmail.mail.ts(105,3): error TS2353: Object literal may only specify known properties, and 'credentials_manage' does not exist in type 'Record<"change_password" | "totp" | "link_commons" | "delete_account", string>'.

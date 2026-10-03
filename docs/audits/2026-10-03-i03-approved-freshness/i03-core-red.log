@@ -1,0 +1,139 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/server/__tests__/approvedActingAsFreshness.test.ts
+  console.warn
+    2026-10-03T02:00:53.959Z WARN [oxy.auth] verifyActingAs lookup failed — caching negative result {
+      component: 'auth',
+      method: 'verifyActingAs',
+      appId: 'app',
+      userId: 'user'
+    } Error: unavailable
+        at Object.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/src/server/__tests__/approvedActingAsFreshness.test.ts:46:33)
+        at Promise.finally.completed (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-circus@30.5.1/node_modules/jest-circus/build/jestAdapterInit.js:1834:28)
+        at new Promise (<anonymous>)
+        at callAsyncCircusFn (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-circus@30.5.1/node_modules/jest-circus/build/jestAdapterInit.js:1774:10)
+        at _callCircusTest (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-circus@30.5.1/node_modules/jest-circus/build/jestAdapterInit.js:1167:40)
+        at _runTestInContext (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-circus@30.5.1/node_modules/jest-circus/build/jestAdapterInit.js:1103:3)
+        at runTestWithContext (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-circus@30.5.1/node_modules/jest-circus/build/jestAdapterInit.js:996:5)
+        at _runTestsForDescribeBlockOnce (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-circus@30.5.1/node_modules/jest-circus/build/jestAdapterInit.js:1008:11)
+        at _runTestsForDescribeBlock (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-circus@30.5.1/node_modules/jest-circus/build/jestAdapterInit.js:824:5)
+        at run (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-circus@30.5.1/node_modules/jest-circus/build/jestAdapterInit.js:789:3)
+        at runAndTransformResultsToJestFormat (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-circus@30.5.1/node_modules/jest-circus/build/jestAdapterInit.js:2300:21)
+        at jestAdapter (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-circus@30.5.1/node_modules/jest-circus/build/runner.js:111:19)
+        at runTestInternal (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-runner@30.5.1/node_modules/jest-runner/build/index.js:247:16)
+        at runTest (/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/node_modules/.bun/jest-runner@30.5.1/node_modules/jest-runner/build/index.js:315:7)
+
+      120 |   const line = `${formatPrefix(entry)} ${entry.message}`;
+      121 |   if (entry.level === 'error') console.error(line, ...extras);
+    > 122 |   else if (entry.level === 'warn') console.warn(line, ...extras);
+          |                                            ^
+      123 |   else console.log(line, ...extras);
+      124 | };
+      125 |
+
+      at Object.consoleSink [as sink] (src/logger/index.ts:122:44)
+      at emit (src/logger/index.ts:172:10)
+      at Object.warn (src/logger/index.ts:191:7)
+      at OxyServer.lookupActingAs (src/server/OxyServer.ts:511:14)
+      at Object.<anonymous> (src/server/__tests__/approvedActingAsFreshness.test.ts:47:10)
+
+FAIL src/server/__tests__/approvedActingAsFreshness.test.ts
+  ● default verification revalidates an effect after revocation instead of reusing a positive read
+
+    expect(received).toBeNull()
+
+    Received: {"authorized": true, "scopes": ["user:read"]}
+
+      19 |   request.mockResolvedValueOnce(grant('1')).mockResolvedValueOnce({ authorized: false, scopes: [], epoch: '2' });
+      20 |   expect(await verify(server)).not.toBeNull();
+    > 21 |   expect(await verify(server)).toBeNull();
+         |                                ^
+      22 |   expect(request).toHaveBeenCalledTimes(2);
+      23 | });
+      24 |
+
+      at Object.<anonymous> (src/server/__tests__/approvedActingAsFreshness.test.ts:21:32)
+
+  ● explicit read cache expires positive authority at60seconds, anchored to request start
+
+    expect(received).toBeNull()
+
+    Received: {"authorized": true, "scopes": ["user:read"]}
+
+      29 |   expect(await verify(server, { cache: true })).not.toBeNull();
+      30 |   jest.advanceTimersByTime(60_000);
+    > 31 |   expect(await verify(server, { cache: true })).toBeNull();
+         |                                                 ^
+      32 |   expect(request).toHaveBeenCalledTimes(2);
+      33 | });
+      34 |
+
+      at Object.<anonymous> (src/server/__tests__/approvedActingAsFreshness.test.ts:31:49)
+
+  ● explicit read denial lasts at most10seconds
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+      39 |   expect(await verify(server, { cache: true })).toBeNull();
+      40 |   jest.advanceTimersByTime(10_000);
+    > 41 |   expect(await verify(server, { cache: true })).not.toBeNull();
+         |                                                     ^
+      42 | });
+      43 |
+      44 | it('a verifier failure does not poison immediate recovery with a negative cache', async () => {
+
+      at Object.<anonymous> (src/server/__tests__/approvedActingAsFreshness.test.ts:41:53)
+
+  ● a verifier failure does not poison immediate recovery with a negative cache
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+      46 |   request.mockRejectedValueOnce(new Error('unavailable')).mockResolvedValueOnce(grant('1'));
+      47 |   expect(await verify(server, { cache: true })).toBeNull();
+    > 48 |   expect(await verify(server, { cache: true })).not.toBeNull();
+         |                                                     ^
+      49 |   expect(request).toHaveBeenCalledTimes(2);
+      50 | });
+      51 |
+
+      at Object.<anonymous> (src/server/__tests__/approvedActingAsFreshness.test.ts:48:53)
+
+  ● an older in-flight grant cannot resurrect authority after a newer revoked epoch
+
+    expect(received).toBeNull()
+
+    Received: {"authorized": true, "scopes": ["user:read"]}
+
+      60 |   await Promise.resolve(); await Promise.resolve();
+      61 |   complete(grant('1'));
+    > 62 |   expect(await revoked).toBeNull();
+         |                         ^
+      63 |   expect(await pending).toBeNull();
+      64 | });
+      65 |
+
+      at Object.<anonymous> (src/server/__tests__/approvedActingAsFreshness.test.ts:62:25)
+
+  ● a delayed effect response is denied rather than measured as a revocation guarantee
+
+    expect(received).toBeNull()
+
+    Received: {"authorized": true, "scopes": ["user:read"]}
+
+      73 |   jest.advanceTimersByTime(5_000);
+      74 |   complete(grant('1'));
+    > 75 |   expect(await pending).toBeNull();
+         |                         ^
+      76 | });
+      77 |
+
+      at Object.<anonymous> (src/server/__tests__/approvedActingAsFreshness.test.ts:75:25)
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 6 total
+Snapshots:   0 total
+Time:        1.235 s
+Ran all test suites within paths "src/server/__tests__/approvedActingAsFreshness.test.ts".
+error: script "test" exited with code 1

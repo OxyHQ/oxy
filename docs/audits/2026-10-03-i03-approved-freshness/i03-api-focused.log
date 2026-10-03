@@ -1,0 +1,15 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-0e11678n/ordered-sequencer.cjs" --runTestsByPath src/services/__tests__/approvedActingAsEpochs.test.ts "src/middleware/__tests__/serviceTokenEd25519.test.ts" src/routes/__tests__/serviceActingAsVerify.test.ts src/routes/__tests__/oauthConsentFinalizers.test.ts
+{"level":30,"time":1790995206670,"pid":3416058,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1790995207030,"pid":3416058,"hostname":"SuperPC","kid":"dev-ephemeral-a5fb81637828","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1790995207286,"pid":3416058,"hostname":"SuperPC","callerAppId":"01a0ffa2-136a-770a-a2a8-74294fe3c9f4","subjectAppId":"01a0ffa2-136a-770a-a2a8-74294fe3c9f4","authorized":true,"msg":"[internal] service-acting-as verify"}
+{"level":30,"time":1790995207324,"pid":3416058,"hostname":"SuperPC","callerAppId":"01a0ffa2-136a-770a-a2a8-74294fe3c9f4","subjectAppId":"01a0ffa2-136a-770a-a2a8-74294fe3c9f4","authorized":true,"msg":"[internal] service-acting-as verify"}
+{"level":30,"time":1790995207344,"pid":3416058,"hostname":"SuperPC","callerAppId":"01a0ffa2-136a-770a-a2a8-74294fe3c9f4","subjectAppId":"01a0ffa2-136a-770a-a2a8-74294fe3c9f4","authorized":false,"msg":"[internal] service-acting-as verify"}
+{"level":30,"time":1790995207350,"pid":3416058,"hostname":"SuperPC","callerAppId":"01a0ffa2-136a-770a-a2a8-74294fe3c9f4","subjectAppId":"01a0ffa2-136a-770a-a2a8-74294fe3c9f4","authorized":false,"msg":"[internal] service-acting-as verify"}
+{"measurement":"local_two_process_revoke_commit_to_fresh_denials_ms","value":16.323280000000068,"productionP99":false}
+{"level":40,"time":1790995207470,"pid":3416058,"hostname":"SuperPC","kid":"dev-ephemeral-99c3067f9139","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+
+Test Suites: 4 passed, 4 total
+Tests:       95 passed, 95 total
+Snapshots:   0 total
+Time:        3.609 s
+Ran all test suites within paths "src/services/__tests__/approvedActingAsEpochs.test.ts", "src/middleware/__tests__/serviceTokenEd25519.test.ts", "src/routes/__tests__/serviceActingAsVerify.test.ts", "src/routes/__tests__/oauthConsentFinalizers.test.ts".
