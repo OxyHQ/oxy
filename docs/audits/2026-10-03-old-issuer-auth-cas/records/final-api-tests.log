@@ -1,0 +1,36 @@
+$ jest --runInBand --runTestsByPath src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts
+{"level":30,"time":1791035423864,"pid":3909258,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791035423984,"pid":3909258,"hostname":"SuperPC","sessionId":"685d5f86","msg":"[SessionService] Deactivated session"}
+{"level":50,"time":1791035424050,"pid":3909258,"hostname":"SuperPC","component":"SessionService","method":"deactivateSession","sessionId":"a258e271-e5ee-4fcd-9833-ea7b9947339b","err":{"type":"Object","message":"SESSION_DEACTIVATION_CAS_MISMATCH","stack":"Error: SESSION_DEACTIVATION_CAS_MISMATCH\n    at SessionService.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/packages/api/src/services/session.service.ts:1102:15)\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/packages/api/src/services/session.service.ts:38:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"[SessionService] Failed to deactivate session"}
+{"level":30,"time":1791035424057,"pid":3909258,"hostname":"SuperPC","sessionId":"80cb1f89","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791035424058,"pid":3909258,"hostname":"SuperPC","sessionId":"80cb1f89","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791035424245,"pid":3909258,"hostname":"SuperPC","sessionId":"dd9e413b","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791035424337,"pid":3909258,"hostname":"SuperPC","sessionId":"e9e9c12d","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791035424342,"pid":3909258,"hostname":"SuperPC","sessionId":"6c74dfca","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791035424612,"pid":3909258,"hostname":"SuperPC","sessionId":"c133ddbf","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791035424619,"pid":3909258,"hostname":"SuperPC","sessionId":"fa94c5cf","msg":"[SessionService] Deactivated session"}
+{"level":50,"time":1791035424659,"pid":3909258,"hostname":"SuperPC","component":"SessionService","method":"deactivateSession","sessionId":"cc911641-2511-40e1-a67e-dc52286b0afd","err":{"type":"Object","message":"SESSION_DEACTIVATION_CAS_MISMATCH","stack":"Error: SESSION_DEACTIVATION_CAS_MISMATCH\n    at SessionService.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/packages/api/src/services/session.service.ts:1102:15)\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/packages/api/src/services/session.service.ts:38:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"[SessionService] Failed to deactivate session"}
+PASS src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts
+  ✓ preparation is read-only, bounded and excludes secrets and ordinary/lost rows unless explicitly inventoried (75 ms)
+  ✓ expires exact pending authority, retires agent and cache canonically, retains history and unrelated human authority (80 ms)
+  ✓ canonical xmin mismatch rejects before retirement, existing ordinary callers keep false/true behavior (52 ms)
+  ✓ scope/token rotation or added agent rows cause prewrite CAS rejection (46 ms)
+  ✓ new agent authority after snapshot rejects the target census before any expiry (36 ms)
+  ✓ failure in approval update rolls back preceding code expiry and leaves sessions active (49 ms)
+  ✓ lost confirmation after SQL expiry can resume without reviving/deleting history (54 ms)
+  ✓ loss of quiescence after intent halts before the next effect, recovery remains maintenance-only (45 ms)
+  ✓ explicit accidental-issuance IDs retire only named NULL-provenance session without fabricating a signer (52 ms)
+  ✓ rejects incomplete quiescence: stale (36 ms)
+  ✓ rejects incomplete quiescence: scaling (37 ms)
+  ✓ rejects incomplete quiescence: task (37 ms)
+  ✓ rejects incomplete quiescence: target (39 ms)
+  ✓ rejects incomplete quiescence: probe (35 ms)
+  ✓ rejects incomplete quiescence: namespace (35 ms)
+  ✓ a lost-session approval closes its finalized NULL-provenance authorization code by exact ID (53 ms)
+  ✓ a concurrent session mutation after durable intent fails canonical CAS instead of confirming retirement (43 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       17 passed, 17 total
+Snapshots:   0 total
+Time:        1.279 s, estimated 2 s
+Ran all test suites within paths "src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts".

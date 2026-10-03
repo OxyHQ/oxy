@@ -1,0 +1,101 @@
+$ jest --runInBand --runTestsByPath src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts
+{"level":30,"time":1791034218244,"pid":3894999,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791034218373,"pid":3894999,"hostname":"SuperPC","sessionId":"f5c8a922","msg":"[SessionService] Deactivated session"}
+{"level":50,"time":1791034218424,"pid":3894999,"hostname":"SuperPC","component":"SessionService","method":"deactivateSession","sessionId":"69f8a692-4cc8-461c-9659-dcb4d1263176","err":{"type":"Object","message":"SESSION_DEACTIVATION_CAS_MISMATCH","stack":"Error: SESSION_DEACTIVATION_CAS_MISMATCH\n    at SessionService.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/packages/api/src/services/session.service.ts:1102:15)\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/packages/api/src/services/session.service.ts:38:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"[SessionService] Failed to deactivate session"}
+{"level":30,"time":1791034218431,"pid":3894999,"hostname":"SuperPC","sessionId":"1fc18b5c","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791034218432,"pid":3894999,"hostname":"SuperPC","sessionId":"1fc18b5c","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791034218641,"pid":3894999,"hostname":"SuperPC","sessionId":"576f2524","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791034218730,"pid":3894999,"hostname":"SuperPC","sessionId":"f2d1fd26","msg":"[SessionService] Deactivated session"}
+FAIL src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts
+  ✓ preparation is read-only, bounded and excludes secrets and ordinary/lost rows unless explicitly inventoried (89 ms)
+  ✕ expires exact pending authority, retires agent and cache canonically, retains history and unrelated human authority (54 ms)
+  ✓ canonical xmin mismatch rejects before retirement, existing ordinary callers keep false/true behavior (52 ms)
+  ✓ scope/token rotation or added agent rows cause prewrite CAS rejection (45 ms)
+  ✓ new agent authority after snapshot rejects the target census before any expiry (42 ms)
+  ✕ failure in approval update rolls back preceding code expiry and leaves sessions active (53 ms)
+  ✕ lost confirmation after SQL expiry can resume without reviving/deleting history (64 ms)
+  ✓ loss of quiescence after intent halts before the next effect, recovery remains maintenance-only (47 ms)
+  ✕ explicit accidental-issuance IDs retire only named NULL-provenance session without fabricating a signer (42 ms)
+  ✓ rejects incomplete quiescence: stale (35 ms)
+  ✓ rejects incomplete quiescence: scaling (32 ms)
+  ✓ rejects incomplete quiescence: task (31 ms)
+  ✓ rejects incomplete quiescence: target (35 ms)
+  ✓ rejects incomplete quiescence: probe (37 ms)
+  ✓ rejects incomplete quiescence: namespace (42 ms)
+
+  ● expires exact pending authority, retires agent and cache canonically, retains history and unrelated human authority
+
+    OLD_ISSUER_AUTH_RETIREMENT_REVIEW_REQUIRED
+
+      56 |     && JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+      57 | }
+    > 58 | function fail(): never { throw new Error('OLD_ISSUER_AUTH_RETIREMENT_REVIEW_REQUIRED'); }
+         |                                ^
+      59 | export function validateOldIssuerQuiescence(input: unknown, plan: OldIssuerAuthRetirementPlan): OldIssuerQuiescence {
+      60 |   const receipt = oldIssuerQuiescenceSchema.parse(input);
+      61 |   const age = Date.now() - Date.parse(receipt.observedAt);
+
+      at fail (src/scripts/oldIssuerAuthRetirement.ts:58:32)
+      at src/scripts/oldIssuerAuthRetirement.ts:207:96
+      at fulfilled (src/scripts/oldIssuerAuthRetirement.ts:5:58)
+
+  ● failure in approval update rolls back preceding code expiry and leaves sessions active
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected substring: "fixture rollback"
+    Received message:   "Failed query: update auth_sessions set status = 'expired', expires_at = clock_timestamp()
+            where id = $1 and xmin::text = $2 returning id
+    params: 01a101f5-5835-77d4-98d3-4b31fb3346a2,829"
+
+      152 |   await getDb().execute(sql`create trigger retirement_fixture_failure before update on auth_sessions
+      153 |     for each row execute function retirement_fixture_failure()`);
+    > 154 |   await expect(run(plan)).rejects.toThrow('fixture rollback'); expect(await rowState()).toEqual(before);
+          |                                   ^
+      155 | });
+      156 | it('lost confirmation after SQL expiry can resume without reviving/deleting history', async () => {
+      157 |   const plan = await prepare();
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at Object.toThrow (../../node_modules/.bun/expect@30.5.1/node_modules/expect/build/index.js:2155:20)
+      at src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts:154:35
+      at fulfilled (src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts:5:58)
+
+  ● lost confirmation after SQL expiry can resume without reviving/deleting history
+
+    OLD_ISSUER_AUTH_RETIREMENT_REVIEW_REQUIRED
+
+      56 |     && JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+      57 | }
+    > 58 | function fail(): never { throw new Error('OLD_ISSUER_AUTH_RETIREMENT_REVIEW_REQUIRED'); }
+         |                                ^
+      59 | export function validateOldIssuerQuiescence(input: unknown, plan: OldIssuerAuthRetirementPlan): OldIssuerQuiescence {
+      60 |   const receipt = oldIssuerQuiescenceSchema.parse(input);
+      61 |   const age = Date.now() - Date.parse(receipt.observedAt);
+
+      at fail (src/scripts/oldIssuerAuthRetirement.ts:58:32)
+      at src/scripts/oldIssuerAuthRetirement.ts:207:96
+      at fulfilled (src/scripts/oldIssuerAuthRetirement.ts:5:58)
+
+  ● explicit accidental-issuance IDs retire only named NULL-provenance session without fabricating a signer
+
+    OLD_ISSUER_AUTH_RETIREMENT_REVIEW_REQUIRED
+
+      56 |     && JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+      57 | }
+    > 58 | function fail(): never { throw new Error('OLD_ISSUER_AUTH_RETIREMENT_REVIEW_REQUIRED'); }
+         |                                ^
+      59 | export function validateOldIssuerQuiescence(input: unknown, plan: OldIssuerAuthRetirementPlan): OldIssuerQuiescence {
+      60 |   const receipt = oldIssuerQuiescenceSchema.parse(input);
+      61 |   const age = Date.now() - Date.parse(receipt.observedAt);
+
+      at fail (src/scripts/oldIssuerAuthRetirement.ts:58:32)
+      at src/scripts/oldIssuerAuthRetirement.ts:197:52
+      at fulfilled (src/scripts/oldIssuerAuthRetirement.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 11 passed, 15 total
+Snapshots:   0 total
+Time:        1.451 s
+Ran all test suites within paths "src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts".
+error: script "test" exited with code 1
