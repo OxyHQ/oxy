@@ -7,6 +7,7 @@
   },
   "include": [
     "entry.tsx",
-    "../nativewind-env.d.ts"
+    "../nativewind-env.d.ts",
+    "../styles.d.ts"
   ]
 }
