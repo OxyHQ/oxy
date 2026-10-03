@@ -300,6 +300,16 @@ snapshot within its deadline; a subsequent fresh request sees the committed deny
 The local test records revoke-commit → fresh denials in two independent SDK
 processes. It does not establish production p99 or every receiver's adoption.
 
+`POST /internal/accounts/:id/service-switch` passes the credential, owner and
+environment already verified by the service-token middleware to that same live
+reader before creating or reusing a delegated session. A still-valid signed JWT
+does not preserve permission after credential revocation or removal of
+`acting-as:offline` from its live ceiling; an owner or environment mismatch also
+denies the mint. Existing operator consent and account membership remain separate
+requirements. The HTTP/JWT/PostgreSQL regression covers those four denials and
+the existing successful managed-account mints; it is local acceptance, not a
+measurement of production freshness.
+
 Deploy the common issuer and verifiers, wait for the new API revision to be
 steady with all older API tasks retired, then refresh each verified live caller
 that retains an older hour token. The new SDK discards a cached token whose

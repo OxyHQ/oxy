@@ -523,7 +523,11 @@ router.post(
     // door their revocation closes. `resolveServiceActingAsGrant` checks the
     // revocation FIRST, ahead of anything that could authorize, so a user who
     // said no is refused here whatever the membership below says.
-    const grant = await resolveServiceActingAsGrant(serviceApp.appId, operatorId);
+    const grant = await resolveServiceActingAsGrant(serviceApp.appId, operatorId, {
+      credentialId: serviceApp.credentialId,
+      ownerAccountId: serviceApp.ownerAccountId,
+      environment: serviceApp.environment,
+    });
     if (!grant.authorized) {
       logger.warn('[internal] service-switch refused: no live delegation', {
         callerAppId: serviceApp.appId,

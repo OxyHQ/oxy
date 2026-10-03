@@ -172,7 +172,7 @@ async function seedApp(
   return { appId: app.id, credentialId: credential.id, ownerAccountId, scopes };
 }
 
-function serviceToken(app: SeededApp): string {
+function serviceToken(app: SeededApp, environment: 'production' | 'development' = 'production'): string {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
       type: 'service',
@@ -180,7 +180,7 @@ function serviceToken(app: SeededApp): string {
       appName: 'Alia',
       credentialId: app.credentialId,
       ownerAccountId: app.ownerAccountId,
-      environment: 'production',
+      environment,
       scopes: app.scopes,
       iss: 'oxy-auth',
       aud: 'oxy-api',
@@ -280,6 +280,61 @@ beforeAll(async () => {
 afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await closePostgres();
+});
+
+describe('live credential context before delegated session mint', () => {
+  async function eligibleSwitch() {
+    const app = await seedApp();
+    const bot = await account('bot');
+    const operator = await human();
+    await member(bot, operator, 'admin');
+    await grantOffline(app, operator);
+    return { app, bot, operator, token: serviceToken(app) };
+  }
+
+  it('refuses a previously valid JWT after its credential is revoked, without reusing the session', async () => {
+    const { app, bot, operator, token } = await eligibleSwitch();
+    expect((await serviceSwitch(bot, token, operator)).status).toBe(200);
+    const before = await sessionRowsFor(bot);
+    await getDb().update(applicationCredentials).set({ status: 'revoked' })
+      .where(eq(applicationCredentials.id, app.credentialId));
+
+    const denied = await serviceSwitch(bot, token, operator);
+    expect(denied.status).toBe(403);
+    expect(denied.body.data).toBeUndefined();
+    expect(await sessionRowsFor(bot)).toEqual(before);
+  });
+
+  it('refuses a previously valid JWT after offline authority is removed from its credential ceiling', async () => {
+    const { app, bot, operator, token } = await eligibleSwitch();
+    expect((await serviceSwitch(bot, token, operator)).status).toBe(200);
+    const before = await sessionRowsFor(bot);
+    await getDb().update(applicationCredentials)
+      .set({ scopes: ['user:read', SERVICE_ACCOUNT_SWITCH_SCOPE] })
+      .where(eq(applicationCredentials.id, app.credentialId));
+
+    const denied = await serviceSwitch(bot, token, operator);
+    expect(denied.status).toBe(403);
+    expect(denied.body.data).toBeUndefined();
+    expect(await sessionRowsFor(bot)).toEqual(before);
+  });
+
+  it('refuses a signed owner binding that differs from the application owner before creating a session', async () => {
+    const { app, bot, operator } = await eligibleSwitch();
+    const token = serviceToken({ ...app, ownerAccountId: await human() });
+    const denied = await serviceSwitch(bot, token, operator);
+    expect(denied.status).toBe(403);
+    expect(denied.body.data).toBeUndefined();
+    expect(await sessionRowsFor(bot)).toEqual([]);
+  });
+
+  it('refuses a signed environment binding that differs from the credential before creating a session', async () => {
+    const { app, bot, operator } = await eligibleSwitch();
+    const denied = await serviceSwitch(bot, serviceToken(app, 'development'), operator);
+    expect(denied.status).toBe(403);
+    expect(denied.body.data).toBeUndefined();
+    expect(await sessionRowsFor(bot)).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
