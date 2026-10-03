@@ -47,6 +47,7 @@ import { COMMONS_DENY_REASONS } from '@oxy.so/contracts';
 import { applications } from './applications';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
+import { sessions } from './sessions';
 
 /** The authoritative state machine. Delivery progress is never one of these. */
 export const AUTH_SESSION_STATUSES = [
@@ -171,6 +172,8 @@ export const authSessions = pgTable(
     authorizedUserId: text().references(() => users.id, { onDelete: 'cascade' }),
     /** `sessions.session_id` of the minted session. No constraint — see the ledger. */
     authorizedSessionId: text(),
+    /** OAuth bearer approver, never the result session. Deleting it cancels the approval. */
+    approvedBySessionId: text().references(() => sessions.sessionId, { onDelete: 'cascade' }),
     /** DELIVERY PROGRESS — when the request was pushed to capable installs. */
     pushSentAt: timestamptz(),
     /** DELIVERY PROGRESS — when an approval surface first opened it. Written once. */
@@ -194,6 +197,8 @@ export const authSessions = pgTable(
       'auth_sessions_status_check',
       sql`${t.status} in (${sql.raw(AUTH_SESSION_STATUSES.map((value) => `'${value}'`).join(', '))})`
     ),
+    index('auth_sessions_approved_by_session_idx').on(t.approvedBySessionId).where(sql`${t.approvedBySessionId} is not null`),
+    check('auth_sessions_approved_by_purpose_check', sql`${t.approvedBySessionId} is null or ${t.purpose} = 'oauth_authorization'`),
     check(
       'auth_sessions_purpose_check',
       sql`${t.purpose} in (${sql.raw(AUTH_SESSION_PURPOSES.map((value) => `'${value}'`).join(', '))})`

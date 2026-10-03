@@ -1251,6 +1251,7 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
         // reusing and later invalidating that browser's existing session.
         deviceId: generateDeviceId(),
         ...(operator.operatedByUserId ? { operatedByUserId: operator.operatedByUserId } : {}),
+        ...(operator.authMethod ? { authMethod: operator.authMethod } : {}),
       }
     );
     newSessionId = newSession.sessionId;
@@ -1437,6 +1438,8 @@ router.post(
         deviceId: sessionsTable.deviceId,
         deviceName: sessionsTable.deviceName,
         operatedByUserId: sessionsTable.operatedByUserId,
+        authMethodId: sessionsTable.authMethodId,
+        authMethodOwnerId: sessionsTable.authMethodOwnerId,
       })
       .from(sessionsTable)
       .where(eq(sessionsTable.sessionId, authSession.authorizedSessionId))
@@ -1471,6 +1474,9 @@ router.post(
         const joined = await sessionService.createSession(authSession.authorizedUserId, req, {
           deviceName: approvedSession.deviceName ?? undefined,
           deviceId: provenDeviceId,
+          ...(approvedSession.authMethodId && approvedSession.authMethodOwnerId ? { authMethod: {
+            authMethodId: approvedSession.authMethodId, authMethodOwnerId: approvedSession.authMethodOwnerId,
+          } } : {}),
           ...(approvedSession.operatedByUserId
             ? { operatedByUserId: approvedSession.operatedByUserId }
             : {}),
@@ -2586,6 +2592,7 @@ router.post(
       code: {
         userId: user._id.toString(),
         ...(operator.operatedByUserId ? { operatedByUserId: operator.operatedByUserId } : {}),
+        ...(operator.authMethod ? { authMethod: operator.authMethod } : {}),
         appId: app.id,
         redirectUri,
         codeChallenge,
@@ -3207,6 +3214,9 @@ router.post(
               },
             }),
         ...(operatedByUserId ? { operatedByUserId } : {}),
+        ...(exchange.code.authMethodId && exchange.code.authMethodOwnerId ? { authMethod: {
+          authMethodId: exchange.code.authMethodId, authMethodOwnerId: exchange.code.authMethodOwnerId,
+        } } : {}),
       },
     );
 
