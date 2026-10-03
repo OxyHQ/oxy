@@ -1,0 +1,5 @@
+The authenticated preactivation check of dfff rejected its historical cb31 image run because the collector still expected the generic 14-step workflow. The own ARM run had 27 successful steps. No policy was activated.
+
+Source 72e7a0977 selects the reviewed sequence only for the exact AUTH-only branch, compares every step and conclusion, and binds all 12 bootstrap/archive helpers in both the image collector and the audit gate. Missing, failed, extra and wrong-branch steps fail; omitted or changed helpers fail. The generic workflow retains its existing checks and artifact format.
+
+The 183 proposal and 193 policy assertions use synthetic facts; they do not authorize an image. Restoring the generic sequence causes the new proposal fixture to fail. The source was restored after that mutation. The four fixture/observed records are hashed in proof.json. Independent suite inputs, runtime, bootstrap and workflow bytes remain unchanged; their accepted historical records stay at their original pointers. This executable change requires a new frozen ARM artifact and authenticated full gate. The decision is INACTIVE and productionReady remains false.
