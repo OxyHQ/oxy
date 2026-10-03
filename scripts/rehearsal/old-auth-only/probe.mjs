@@ -108,7 +108,10 @@ try {
  await ok('/session/device/signout',{all:true},session.accessToken);
  for(const secret of holders) assert.equal((await http('/session/device/token',{deviceId,deviceSecret:secret})).status,401);
  record('full device signout withdraws both holder credentials');
- const coldLogin=await ok('/auth/signin/password',{identifier:f.person.username,password:f.password});const coldSession=coldLogin.session??coldLogin;
+ // This fixture now has a key: its canonical reauthentication is signed, not password.
+ const coldChallenge=await ok('/auth/challenge',{publicKey:pub});const coldTimestamp=Date.now();
+ const coldSignature=signer.signMessage(`auth:${pub}:${coldChallenge.challenge}:${coldTimestamp}`,key);
+ const coldLogin=await ok('/auth/verify',{publicKey:pub,challenge:coldChallenge.challenge,timestamp:coldTimestamp,signature:coldSignature});const coldSession=coldLogin.session??coldLogin;
  await ok('/users/me',undefined,coldSession.accessToken);
  assert.equal(await service.deactivateSession(coldSession.sessionId),true);
  assert.equal((await http('/users/me',undefined,coldSession.accessToken)).status,401);record('canonical SQL deactivation observed without restart');
