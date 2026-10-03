@@ -1,0 +1,53 @@
+{
+  "readOnly": true,
+  "isolation": "repeatable read",
+  "observedAt": "2026-10-03 10:41:26.63748+00",
+  "counts": {
+    "applications": {
+      "status": "complete",
+      "count": 0
+    },
+    "application_workload_identities": {
+      "status": "complete",
+      "count": 0
+    },
+    "application_credentials": {
+      "status": "complete",
+      "count": 0
+    },
+    "users": {
+      "status": "complete",
+      "count": 1
+    },
+    "account_closure_fences": {
+      "status": "complete",
+      "count": 0
+    },
+    "app_capability_catalog_registrations": {
+      "status": "complete",
+      "count": 0
+    }
+  },
+  "existingPlatformOwner": {
+    "count": 1,
+    "status": "active",
+    "kind": "organization",
+    "selectedByCanonicalRoot": true
+  },
+  "awsMetadata": {
+    "servicesChecked": 33,
+    "sharedRole": "arn:aws:iam::237343248947:role/oxy-ecs-task",
+    "usingServices": [
+      "tnp-api",
+      "noted",
+      "oxy-api",
+      "homiio-worker",
+      "willo",
+      "mercaria",
+      "tnp-relay",
+      "oxy-asset-variant-worker",
+      "tnp-dns"
+    ]
+  },
+  "decision": "No workload binding or catalog:oxy assignment to the shared role. Prepare canonical internal app and ephemeral administrative service credential instead; no authority write executed."
+}

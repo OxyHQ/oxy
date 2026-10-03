@@ -1,0 +1,54 @@
+{
+  "sourceCommit": "5ba697dd5e213b5239cacd407b6aae427c1a4d51",
+  "sourceSha256": {
+    "scripts/agency/read-oxy-profile-registrar-preflight.mjs": "b80d861e1e4be8ceca099c5c6337d3255a1766f1e837f831791f8546b543c8a9",
+    "scripts/agency/oxy-profile-registrar-preflight-ecs.py": "881cdf42e575e6bf3b0164ea4765ffadfb2277fc647e365293f89e10495375d0",
+    "scripts/agency/test-oxy-profile-registrar-preflight.py": "6e8769f69ffd4cada9502fbe738b4b1a09c7a6b51e1f52058fb387cb33caa673"
+  },
+  "privateInputs": {
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/oxy-registrar-preflight-1041/cleanup.json": {
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058",
+      "bytes": 74
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/oxy-registrar-preflight-1041/dispatch-attempt.json": {
+      "sha256": "489703fdbc104a6efbd40deffe6ef88a89fa14ff1e648d71c67bd904aa602fdc",
+      "bytes": 389
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/oxy-registrar-preflight-1041/definition.json": {
+      "sha256": "011c6f0379afe35523c0c8300ee61b520f83afb2c74744a9aba2ae324a0abd2f",
+      "bytes": 10278
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/oxy-registrar-preflight-1041/receipt.json": {
+      "sha256": "ca9dafaf0297d427ec1e3092b4417fb534172441217928cfc935919300bc09ab",
+      "bytes": 1102
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/oxy-registrar-preflight-1041/registered-readback.json": {
+      "sha256": "09d9750068a826c346ca37dc884113b1e0a468eba5ab5a7a1bcb989eb48782f3",
+      "bytes": 261
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/oxy-registrar-preflight-1041/launch.json": {
+      "sha256": "83c62bb3647a7b6b5f0ab130b08376f4a5f23865ed8483bfd5b9eb11e1a62453",
+      "bytes": 307
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/oxy-registrar-preflight-1041/result.private.json": {
+      "sha256": "cd1cb56e2d43e9b898f4475c59dbe4ae6b7ed7c7e708fcb55f1c23d7a08c0ec3",
+      "bytes": 1277
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/oxy-role-service-reuse.json": {
+      "sha256": "60ce0574a740cdd458ee144a7db1d4ca75081efdeb32d249d1fc8faafe0ebe19",
+      "bytes": 7054
+    }
+  },
+  "records": {
+    "projection.json": {
+      "sha256": "4c8d49a93a4eb6e07e26cd572ea2439ff71c60992341c5f87d657efcbeab10e1",
+      "bytes": 1281
+    }
+  },
+  "limits": [
+    "Operated by root, no re-execution by integration.",
+    "The existing organization root is metadata; no user consent or foreground session is fabricated.",
+    "No app/workload/credential/catalog authority write has occurred.",
+    "Service role reuse is current ECS service/task-definition metadata; it does not claim a complete IAM adversary audit."
+  ]
+}
