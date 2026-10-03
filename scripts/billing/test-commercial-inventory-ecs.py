@@ -17,7 +17,7 @@ class InventoryFixtures(unittest.TestCase):
             'image': '237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:'+'b'*64,
             'executionRoleArn': 'arn:aws:iam::237343248947:role/oxy-ecs-execution', 'cpu': '1024', 'memory': '3072',
             'runtimePlatform': {'cpuArchitecture': 'ARM64', 'operatingSystemFamily': 'LINUX'},
-            'databaseSecret': {'name': 'DATABASE_URL', 'valueFrom': 'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/DATABASE_URL'}, 'logGroup': '/oxy/ecs'}}
+            'databaseSecret': {'name': 'DATABASE_URL', 'valueFrom': 'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/DATABASE_URL'}, 'logGroup': '/oxy/ecs', 'logStreamPrefix': 'clarity-api'}}
         self.definition = module.build_definition(self.plan)
         self.registered = copy.deepcopy(self.definition)
         self.registered.update({'taskDefinitionArn': 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-billing-inventory-oxy:1', 'status': 'ACTIVE', 'taskRoleArn': '', 'placementConstraints': []})
@@ -29,6 +29,7 @@ class InventoryFixtures(unittest.TestCase):
         self.assertEqual(container['workingDirectory'], '/app/packages/api')
         self.assertEqual(container['environment'], [])
         self.assertEqual(container['secrets'], [self.plan['live']['databaseSecret']])
+        self.assertEqual(container['logConfiguration']['options']['awslogs-stream-prefix'], 'clarity-api')
         self.assertNotIn('taskRoleArn', self.definition)
         self.assertNotIn('STRIPE_SECRET_KEY', json.dumps(self.definition))
     def test_authority_and_execution_deltas_reject(self):
@@ -41,7 +42,8 @@ class InventoryFixtures(unittest.TestCase):
             lambda d: d['containerDefinitions'][0].update(secrets=[{'name':'TOKEN','valueFrom':'synthetic'}]),
             lambda d: d['containerDefinitions'][0].update(portMappings=[{'containerPort':3000}]),
             lambda d: d['containerDefinitions'][0].update(environmentFiles=[{'value':'synthetic','type':'s3'}]),
-            lambda d: d['containerDefinitions'][0].update(healthCheck={'command':['side-effect']})]
+            lambda d: d['containerDefinitions'][0].update(healthCheck={'command':['side-effect']}),
+            lambda d: d['containerDefinitions'][0]['logConfiguration']['options'].update({'awslogs-stream-prefix':'unapproved'})]
         for mutate in variations:
             altered = copy.deepcopy(self.registered); mutate(altered)
             with self.assertRaises(RuntimeError): module.verify_registered(altered, self.definition)
