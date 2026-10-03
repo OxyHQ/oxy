@@ -18,6 +18,8 @@
  *  - `utils/logger` — noise.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { deriveSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
@@ -37,6 +39,7 @@ import { accountMembers } from '../../db/schema/accountMembers';
 import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
 import { devicePrincipals } from '../../db/schema/devicePrincipals';
 import { deviceSessions } from '../../db/schema/deviceSessions';
+import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { sessions } from '../../db/schema/sessions';
 import { users } from '../../db/schema/users';
 import { validateAccessToken } from '../../utils/sessionUtils';
@@ -1133,5 +1136,143 @@ describe('electReplacementContext', () => {
 
   it('elects nothing when nothing is left at all', () => {
     expect(electReplacementContext([], [], 'p-nate')).toBeNull();
+  });
+});
+
+
+describe('#1549 serializes binding writers with background issuance', () => {
+  jest.setTimeout(30_000);
+  const tags = new AsyncLocalStorage<string>();
+  async function waitBlocked(application: string, blocker?: string) {
+    for (let attempt = 0; attempt < 500; attempt++) {
+      const rows = await getDb().execute<{ observed: boolean }>(sql`SELECT EXISTS (
+        SELECT 1 FROM pg_stat_activity w WHERE w.application_name = ${application}
+          AND w.wait_event_type = 'Lock' AND cardinality(pg_blocking_pids(w.pid)) > 0
+          AND (${blocker ?? null}::text IS NULL OR EXISTS (SELECT 1 FROM pg_stat_activity b
+            WHERE b.pid = ANY(pg_blocking_pids(w.pid)) AND b.application_name = ${blocker ?? null}))
+      ) AS observed`);
+      if (rows[0]?.observed) return;
+      await new Promise<void>(resolve => setTimeout(resolve, 10));
+    }
+    throw new Error(`No observed SQL lock barrier for ${application}`);
+  }
+  async function pair() {
+    const device = newDeviceId();
+    const bot = await account({ kind: 'bot' });
+    const other = await account();
+    const methods: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const [method] = await getDb().insert(userAuthMethods).values({ userId: bot, type: 'agent_key',
+        methodPublicKey: deriveSecp256k1PublicKey(randomUUID().replaceAll('-', '').padStart(64, '0')),
+        enrollmentMethod: 'governor', label: 'synthetic-device-lock' }).returning();
+      methods.push(method.id);
+    }
+    const first = await sessionService.createSession(bot, request(), { deviceId: device,
+      authMethod: { authMethodId: methods[0], authMethodOwnerId: bot } });
+    await deviceSessionService.addAccount(device, { accountId: bot, sessionId: first.sessionId });
+    const replacement = await sessionService.createSession(bot, request(), { deviceId: device,
+      authMethod: { authMethodId: methods[1], authMethodOwnerId: bot } });
+    const otherSession = await signIn(device, other);
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected holder');
+    return { device, bot, other, first: first.sessionId, replacement: replacement.sessionId, otherSession, holder };
+  }
+  it('replacement paused after its initial read cannot carry concurrent issuance into the new session', async () => {
+    const p = await pair(); const db = getDb(); const nonce = randomUUID().replaceAll('-', '');
+    const issuer = `bg-issue-${nonce}`; const writer = `bg-write-${nonce}`;
+    const key = Number.parseInt(nonce.slice(0, 7), 16); const name = `bg_replace_${nonce}`;
+    const original = db.transaction.bind(db);
+    const spy = jest.spyOn(db, 'transaction').mockImplementation((callback, ...rest) => original(async tx => {
+      const tag = tags.getStore();
+      if (tag) await tx.execute(sql`SELECT set_config('application_name', ${tag}, true), set_config('statement_timeout', '15000', true)`);
+      return callback(tx);
+    }, ...rest));
+    await db.execute(sql.raw(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF current_setting('application_name') = '${writer}' THEN PERFORM pg_advisory_xact_lock(${key});
+        END IF; RETURN OLD; END $$; CREATE TRIGGER ${name} BEFORE DELETE ON device_account_contexts
+        FOR EACH ROW EXECUTE FUNCTION ${name}();`));
+    let issuance: Promise<Awaited<ReturnType<typeof deviceSessionService.issueBackgroundCredential>>> | undefined;
+    let retirement: Promise<unknown> | undefined; let finished = false; let issuerBlocked = false;
+    try {
+      await original(async coordinator => {
+        await coordinator.execute(sql`SELECT pg_advisory_lock(${key})`);
+        try {
+          retirement = tags.run(writer, () => deviceSessionService.addAccount(p.device, { accountId: p.bot, sessionId: p.replacement }));
+          await waitBlocked(writer);
+          issuance = tags.run(issuer, () => deviceSessionService.issueBackgroundCredential(p.device, p.bot));
+          void issuance.then(() => { finished = true; }, () => { finished = true; });
+          for (let attempt = 0; attempt < 500 && !finished; attempt++) {
+            const rows = await db.execute<{ observed: boolean }>(sql`SELECT EXISTS (
+              SELECT 1 FROM pg_stat_activity w JOIN pg_stat_activity b ON b.pid = ANY(pg_blocking_pids(w.pid))
+                WHERE w.application_name = ${issuer} AND b.application_name = ${writer} AND w.wait_event_type = 'Lock'
+            ) AS observed`);
+            if (rows[0]?.observed) { issuerBlocked = true; break; }
+            await new Promise<void>(resolve => setTimeout(resolve, 10));
+          }
+          expect(finished || issuerBlocked).toBe(true);
+        } finally { await coordinator.execute(sql`SELECT pg_advisory_unlock(${key})`); }
+      });
+      if (!issuance || !retirement) throw new Error('Both operations must have started');
+      const credential = await issuance; await retirement;
+      const mint = credential ? await deviceSessionService.mintFromBackgroundSecret(p.device, credential.secret) : null;
+      expect({ hash: (await storedDevice(p.device)).backgroundSecretHash, minted: mint?.ok ?? false })
+        .toEqual({ hash: null, minted: false });
+      expect(await sessionService.getAccessToken(p.replacement)).not.toBeNull();
+      expect(await sessionService.getAccessToken(p.otherSession)).not.toBeNull();
+      expect(await deviceSessionService.getStateBySecret(p.device, p.holder)).not.toBeNull();
+    } finally {
+      await Promise.allSettled([...(issuance ? [issuance] : []), ...(retirement ? [retirement] : [])]);
+      spy.mockRestore(); await db.execute(sql.raw(`DROP TRIGGER ${name} ON device_account_contexts; DROP FUNCTION ${name}();`));
+    }
+  });
+  it.each(['replace', 'signout', 'detach'] as const)('issuance commit before %s invalidates exactly the retired binding', async operation => {
+    const p = await pair(); const db = getDb(); const nonce = randomUUID().replaceAll('-', '');
+    const issuer = `bg-issue-${nonce}`; const writer = `bg-write-${nonce}`;
+    const key = Number.parseInt(nonce.slice(0, 7), 16); const name = `bg_barrier_${nonce}`;
+    const original = db.transaction.bind(db);
+    const spy = jest.spyOn(db, 'transaction').mockImplementation((callback, ...rest) => original(async tx => {
+      const tag = tags.getStore();
+      if (tag) await tx.execute(sql`SELECT set_config('application_name', ${tag}, true), set_config('statement_timeout', '15000', true)`);
+      return callback(tx);
+    }, ...rest));
+    await db.execute(sql.raw(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF current_setting('application_name') = '${issuer}' AND NEW.background_secret_hash IS NOT NULL
+        THEN PERFORM pg_advisory_xact_lock(${key}); END IF; RETURN NEW; END $$;
+      CREATE TRIGGER ${name} AFTER UPDATE OF background_secret_hash ON device_sessions
+        FOR EACH ROW EXECUTE FUNCTION ${name}();`));
+    let issuance: Promise<Awaited<ReturnType<typeof deviceSessionService.issueBackgroundCredential>>> | undefined;
+    let retirement: Promise<unknown> | undefined;
+    try {
+      await original(async coordinator => {
+        await coordinator.execute(sql`SELECT pg_advisory_lock(${key})`);
+        try {
+          issuance = tags.run(issuer, () => deviceSessionService.issueBackgroundCredential(p.device, p.bot));
+          await waitBlocked(issuer);
+          retirement = tags.run(writer, () => operation === 'replace'
+            ? deviceSessionService.addAccount(p.device, { accountId: p.bot, sessionId: p.replacement })
+            : operation === 'signout' ? deviceSessionService.signout(p.device, { accountId: p.bot })
+            : deviceSessionService.detachMigratedAccount(p.device, p.bot, p.first));
+          await waitBlocked(writer, issuer);
+        } finally { await coordinator.execute(sql`SELECT pg_advisory_unlock(${key})`); }
+      });
+      if (!issuance || !retirement) throw new Error('Both controlled operations must have started');
+      const credential = await issuance; await retirement;
+      if (!credential) throw new Error('Issuance committed before retirement');
+      const mint = await deviceSessionService.mintFromBackgroundSecret(p.device, credential.secret);
+      expect({ hash: (await storedDevice(p.device)).backgroundSecretHash, minted: mint.ok })
+        .toEqual({ hash: null, minted: false });
+      expect(await sessionService.getAccessToken(p.otherSession)).not.toBeNull();
+      expect((await storedContexts(p.device)).find(row => row.accountId === p.other)?.sessionId).toBe(p.otherSession);
+      expect(await deviceSessionService.getStateBySecret(p.device, p.holder)).not.toBeNull();
+      if (operation === 'replace') expect(await sessionService.getAccessToken(p.replacement)).not.toBeNull();
+      if (operation === 'detach') expect(await sessionService.getAccessToken(p.first)).not.toBeNull();
+      const otherCredential = await deviceSessionService.issueBackgroundCredential(p.device, p.other);
+      if (!otherCredential) throw new Error('Expected surviving account credential');
+      expect((await deviceSessionService.mintFromBackgroundSecret(p.device, otherCredential.secret)).ok).toBe(true);
+    } finally {
+      await Promise.allSettled([...(issuance ? [issuance] : []), ...(retirement ? [retirement] : [])]);
+      spy.mockRestore();
+      await db.execute(sql.raw(`DROP TRIGGER ${name} ON device_sessions; DROP FUNCTION ${name}();`));
+    }
   });
 });

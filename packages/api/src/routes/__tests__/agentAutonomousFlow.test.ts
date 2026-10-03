@@ -5,6 +5,8 @@ import type { AddressInfo } from 'node:net';
 import { createHash, randomUUID, generateKeyPairSync } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { deriveSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
+import { OxyServices } from '@oxy.so/core';
+import { signInAgentAccount } from '@oxy.so/core/server';
 import { buildAgentProofMessage, type AgentProofClaims } from '@oxy.so/contracts';
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../../middleware/rateLimiter', () => ({ rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next() }));
@@ -242,4 +244,25 @@ it('P2: an autonomous bearer cannot enter the real internal service router', asy
   const f = await fixture();
   const response = await post(`/internal/accounts/${f.bot.id}/service-switch`, {}, f.signedIn.accessToken);
   expect([401, 403]).toContain(response.status);
+});
+
+// The packaged helper talks to the real local API; challenge bytes are never mocked.
+it.each(['compressed', 'uncompressed', 'uppercase'] as const)('SDK agent signer accepts %s encoding of the same point against HTTP and SQL', async encoding => {
+  const privateKey = (++keyCounter).toString(16).padStart(64, '0');
+  const compressed = deriveSecp256k1PublicKey(privateKey, true);
+  const canonical = SignatureService.canonicalizePublicKey(compressed);
+  const publicKey = encoding === 'compressed' ? compressed : encoding === 'uppercase' ? canonical.toUpperCase() : canonical;
+  const [bot] = await getDb().insert(users).values({ kind: 'bot' }).returning();
+  const [method] = await getDb().insert(userAuthMethods).values({ userId: bot.id, type: 'agent_key',
+    methodPublicKey: canonical, label: 'sdk-real-http', enrollmentMethod: 'governor' }).returning();
+  const address = server.address() as AddressInfo;
+  const client = new OxyServices({ baseURL: `http://127.0.0.1:${address.port}` });
+  const signMessage = jest.fn(async (message: string) => SignatureService.signMessage(message, privateKey));
+  const result = await signInAgentAccount({ client, accountId: bot.id, signer: { publicKey, signMessage } });
+  expect(result.user.id).toBe(bot.id);
+  expect(signMessage).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(signMessage.mock.calls[0][0]).publicKey).toBe(canonical);
+  const [row] = await getDb().select().from(sessions).where(eq(sessions.sessionId, result.sessionId));
+  expect({ user: row.userId, method: row.authMethodId, owner: row.authMethodOwnerId }).toEqual({ user: bot.id, method: method.id, owner: bot.id });
+  expect(await sessionService.validateSession(result.accessToken)).not.toBeNull();
 });
