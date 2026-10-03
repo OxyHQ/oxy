@@ -1,0 +1,135 @@
+{
+  "sdkBase": "1e719545f290cfb6308c2648cabc10d311136716",
+  "reviewedContext": "6cacee275ac59ed6715b3199cbf86bba69d12646",
+  "bloomRegistry": "6.2.1",
+  "sources": [
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "5c18200489d4380770be564dcc6fcd60d48fca95",
+      "path": "package.json",
+      "sha256": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "5c18200489d4380770be564dcc6fcd60d48fca95",
+      "path": "bun.lock",
+      "sha256": "f94136743e40fa1fb9539e8076d18b7484c784fdacd1beac25532278085667db"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "5c18200489d4380770be564dcc6fcd60d48fca95",
+      "path": "packages/services/src/ui/context/OxyContext.tsx",
+      "sha256": "04a97a94ce9ec9bcbe455b848daaf9904a31fff05c326d9425177f1a87e17d6d"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "5c18200489d4380770be564dcc6fcd60d48fca95",
+      "path": "packages/test-app-expo/acceptance/entry.tsx",
+      "sha256": "a490512b3e4804386041eb47a79b2a1faf7ea0dd8e85ab326991a702d8cc816a"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "5c18200489d4380770be564dcc6fcd60d48fca95",
+      "path": "packages/test-app-expo/metro.config.js",
+      "sha256": "28975f8508ea17c4935bd0ac9d5e2304dba801623d58a67d77b514c36be86a27"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "5c18200489d4380770be564dcc6fcd60d48fca95",
+      "path": "packages/test-app-expo/app.config.js",
+      "sha256": "5d7da4f9b597fc71a782a5f7197d991c69429e2d6e693079ad649e2be4497e99"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "b14fe4e0b31f97e392cadcd844e30ba05222d7ea",
+      "path": "package.json",
+      "sha256": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "b14fe4e0b31f97e392cadcd844e30ba05222d7ea",
+      "path": "bun.lock",
+      "sha256": "f94136743e40fa1fb9539e8076d18b7484c784fdacd1beac25532278085667db"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "b14fe4e0b31f97e392cadcd844e30ba05222d7ea",
+      "path": "packages/services/src/ui/context/OxyContext.tsx",
+      "sha256": "04a97a94ce9ec9bcbe455b848daaf9904a31fff05c326d9425177f1a87e17d6d"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "b14fe4e0b31f97e392cadcd844e30ba05222d7ea",
+      "path": "packages/test-app-expo/acceptance/entry.tsx",
+      "sha256": "a490512b3e4804386041eb47a79b2a1faf7ea0dd8e85ab326991a702d8cc816a"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "b14fe4e0b31f97e392cadcd844e30ba05222d7ea",
+      "path": "packages/test-app-expo/metro.config.js",
+      "sha256": "28975f8508ea17c4935bd0ac9d5e2304dba801623d58a67d77b514c36be86a27"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "b14fe4e0b31f97e392cadcd844e30ba05222d7ea",
+      "path": "packages/test-app-expo/app.config.js",
+      "sha256": "5d7da4f9b597fc71a782a5f7197d991c69429e2d6e693079ad649e2be4497e99"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/registry621-resume/i04-native-siblings-registry621-installed.json",
+      "sha256": "af29fe8c98d76850554ba8260c822938fee524eb04368c50dd558667dd0255eb"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/registry621-resume/i04-native-registry621-resume-bundles.json",
+      "sha256": "15ed76bb8378bc8beee9f73f3a3643b141c7e6c77fffd1dc9023161ad00d4068"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/registry621-resume/i04-native-resume-registry621-focal.log",
+      "sha256": "1f8b4780baabcd9681364677d0b0c9066c467363e4baab8d1374e5d6f39327cf"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/registry621-resume/i04-native-mention-registry621-build.log",
+      "sha256": "bcc1b87dc90f5d1807abdaa9d686bfb06016eb713dda1beada7e7789fd4a98ba"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/registry621-resume/i04-native-allo-registry621-build.log",
+      "sha256": "bcc1b87dc90f5d1807abdaa9d686bfb06016eb713dda1beada7e7789fd4a98ba"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/registry621-resume/i04-native-mention-registry621-install.log",
+      "sha256": "8b40a759ee3dc33afac035e746755c6a80f01b15c53db3ac5b432fae757df9e4"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/registry621-resume/i04-native-allo-registry621-install.log",
+      "sha256": "048d1df923b9d5bcd2844ba554fc27d7c7def31c6514ce03881d3b426065a1b8"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/registry621-resume/i04-native-mention-registry621-exact-install.log",
+      "sha256": "25f10f6f61d626d2a7ee821af4891b7463d1c4052674f826ffc7fda87b6bd7cd"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/registry621-resume/i04-native-allo-registry621-exact-install.log",
+      "sha256": "d97776467f08feb57192494dd695dfccfaed9cd5c01a9aa54fd9fc09b92a14b8"
+    }
+  ],
+  "limits": [
+    "Preparation only; root operates ADB and records device outcomes separately.",
+    "Oxy SDK remains candidate source, not final registry acceptance.",
+    "Initial caret install resolved 6.4.0; no Metro/runtime test used it. Exact pin replaced it before builds/bundles.",
+    "Both existing APKs preserved; no install, storage clear, key change or identity injection."
+  ]
+}
