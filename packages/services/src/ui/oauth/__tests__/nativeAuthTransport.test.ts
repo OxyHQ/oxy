@@ -19,7 +19,7 @@ it('uses the common exchange and commits a fixed-query callback without device c
   expect(await startNativeOAuthSignIn(context, { redirectUri: uri })).toEqual({ status: 'signed-in' });
   expect(getPublic).toHaveBeenCalledWith('oxy_dk_registered', { cache: false });
   expect(open).toHaveBeenCalledWith('https://auth.oxy.so/authorize', uri, { allowExternalFallback: false });
-  expect(exchange).toHaveBeenCalledWith({ code: 'legitimate', clientId: 'oxy_dk_registered', redirectUri: uri, codeVerifier: 'verifier' });
+  expect(exchange).toHaveBeenCalledWith({ code: 'legitimate', clientId: 'oxy_dk_registered', redirectUri: uri, codeVerifier: 'verifier' }, { plantTokens: false });
   expect(context.commitSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'isolated', userId: 'user', deviceId: undefined, deviceSecret: undefined }));
 });
 it.each([

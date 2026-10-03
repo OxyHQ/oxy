@@ -350,8 +350,8 @@ describe('runSessionColdBoot — device-secret-mint', () => {
     expect(signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
     // The mint lane still dropped the stale secret before falling through.
     expect((await store.load())?.deviceSecret).toBeUndefined();
-    // Shared-key plants tokens itself (via verifyChallenge); the cold boot does not.
-    expect(setTokens).not.toHaveBeenCalled();
+    // The proof does not plant; cold boot commits only after the logout checks.
+    expect(setTokens).toHaveBeenCalledWith(sharedSession.accessToken);
   });
 });
 
@@ -538,7 +538,7 @@ describe('runSessionColdBoot — offline gating (isOffline)', () => {
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
     expect(outcome).toMatchObject({ kind: 'session', via: 'commons-proof-signin' });
-    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({ requestOptions: { retry: false } });
+    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({ plantTokens: false, requestOptions: { retry: false } });
   });
 });
 

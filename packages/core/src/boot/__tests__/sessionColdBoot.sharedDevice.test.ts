@@ -113,6 +113,7 @@ function makeIdentityBinding(): IdentityBinding {
 describe('cold boot — shared-device-adopt', () => {
   test('a fresh install adopts the shared credential and mints a session', async () => {
     const store = createMemoryAuthStateStore();
+    store.isAutomaticIdentitySignInSuppressed = jest.fn(async () => true);
     const slot = makeSharedSlot({ state: 'present', credential: SHARED_CRED });
     const { oxy, mintFromDeviceSecret, setTokens } = makeOxy();
 

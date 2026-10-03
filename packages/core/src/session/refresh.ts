@@ -289,7 +289,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
   const { oxy, store } = deps;
   const identity = deps.identity ?? null;
   // The shared identity is never an identity-bound client's recovery path.
-  const allowCommonsIdentityFallback = identity ? false : (deps.allowCommonsIdentityFallback ?? isNative());
+  const allowCommonsIdentityFallback = identity ? false : (deps.allowCommonsIdentityFallback ?? isNative()) && !(await store.isAutomaticIdentitySignInSuppressed?.());
   const epoch = oxy.http.getSessionEpoch();
   // Resolved per call: a re-established identity session can move the pin, and a
   // replaced/removed local key clears it (in which case arm 1 must NOT mint —
@@ -369,7 +369,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
       // straight back in.
       const session = await oxy.auth.signInWithCommonsIdentity({ plantTokens: false });
       if (session?.accessToken) {
-        if (oxy.http.getSessionEpoch() !== epoch) {
+        if (oxy.http.getSessionEpoch() !== epoch || await store.isAutomaticIdentitySignInSuppressed?.()) {
           return null;
         }
         // Repopulate the fast device-secret lane from the identity re-mint.
@@ -383,7 +383,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
             expiresAt: session.expiresAt,
           });
         }
-        if (oxy.http.getSessionEpoch() !== epoch) {
+        if (oxy.http.getSessionEpoch() !== epoch || await store.isAutomaticIdentitySignInSuppressed?.()) {
           return null;
         }
         oxy.session.setAccessToken(session.accessToken);

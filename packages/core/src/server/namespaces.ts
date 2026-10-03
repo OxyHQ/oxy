@@ -4,7 +4,7 @@
  * `server.assets.metadataByIds(...)` sits beside every client method of
  * `oxy.assets`.
  */
-import { capabilityTicketRequestSchema, type ActorRef, type AppCapabilityCatalog, type AutonomyLevel, type CapabilityTicketClaims, type CapabilityTicketRequest, type GrantLimit, type PolicyDecision, type ResourceRef, type CreateOxyNotificationRequest, type AwardReputationInput, type ReputationTransaction, type ServiceLinkedAccountListResponse } from '@oxy.so/contracts';
+import { capabilityTicketRequestSchema, foregroundExecutionAuthorizationInputSchema, type ForegroundExecutionAuthorizationInput, type ActorRef, type AppCapabilityCatalog, type AutonomyLevel, type CapabilityTicketClaims, type CapabilityTicketRequest, type GrantLimit, type PolicyDecision, type ResourceRef, type CreateOxyNotificationRequest, type AwardReputationInput, type ReputationTransaction, type ServiceLinkedAccountListResponse } from '@oxy.so/contracts';
 import type { RequestOptions } from '../HttpService';
 import type { OxyContext, ServiceLane } from '../client/context';
 import type {
@@ -293,6 +293,26 @@ export class ServerAgencyApi extends AgencyApi {
       ...agencyAuthorityOptions(options.signal),
       headers: { Authorization: `Bearer ${options.requesterToken}` },
     });
+    return result.authorization;
+  }
+
+  /** Revoke a direct approval on its canonical requester-authenticated lane. */
+  async revokeExecutionAuthorization(authorizationId: string, options: { requesterToken: string; signal?: AbortSignal }): Promise<void> {
+    options.signal?.throwIfAborted();
+    if (!authorizationId || authorizationId.length > 255 || /\s/.test(authorizationId)) throw new Error('An execution authorization id is required');
+    if (!options.requesterToken || options.requesterToken.length > 16_384 || /\s/.test(options.requesterToken)) throw new Error('A requester bearer is required');
+    await this.ctx.request<void>('DELETE', `/capabilities/execution-authorizations/${encodeURIComponent(authorizationId)}`,
+      undefined, { ...agencyAuthorityOptions(options.signal), headers: { Authorization: `Bearer ${options.requesterToken}` } });
+  }
+
+  /** Independent service proof plus present requester bearer, sent only to Oxy. */
+  async createForegroundExecutionAuthorization(input: ForegroundExecutionAuthorizationInput, options: { requesterToken: string; signal?: AbortSignal }): Promise<CapabilityExecutionAuthorization> {
+    if (options.requesterToken === '' || options.requesterToken.length > 16_384 || /\s/.test(options.requesterToken)) throw new Error('A requester bearer is required');
+    const result = await lane(this.ctx).request<{ authorization: CapabilityExecutionAuthorization }>(
+      'POST', '/capabilities/foreground-execution-authorizations',
+      { ...foregroundExecutionAuthorizationInputSchema.parse(input), subjectToken: options.requesterToken },
+      agencyAuthorityOptions(options.signal),
+    );
     return result.authorization;
   }
 

@@ -9,10 +9,10 @@
  *
  * Ordering is deliberate and load-bearing:
  *   1. validate `state` BEFORE anything is sent to the token endpoint,
- *   2. exchange the code for a session,
+ *   2. exchange the code for session material without changing the bearer,
  *   3. run `cleanup` (drop the persisted handshake / strip `?code=` from the
  *      URL) BEFORE the commit, so a stale code can never re-enter the exchange,
- *   4. commit the session.
+ *   4. validate and commit the session through the provider's funnel.
  *
  * `cleanup` runs exactly once on EVERY exit path, including a state mismatch
  * and a failed exchange.
@@ -73,7 +73,7 @@ export async function completeOAuthCode(
       clientId: input.clientId,
       redirectUri: input.redirectUri,
       codeVerifier: input.handshake.codeVerifier,
-    });
+    }, { plantTokens: false });
     runCleanup();
     await input.commitSession({
       sessionId: result.sessionId,

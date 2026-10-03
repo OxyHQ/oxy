@@ -41,7 +41,7 @@ describe('completeOAuthCode', () => {
       clientId: 'oxy_dk_test',
       redirectUri: REDIRECT_URI,
       codeVerifier: HANDSHAKE.codeVerifier,
-    });
+    }, { plantTokens: false });
     expect(committed).toEqual([
       {
         sessionId: 'sess-1',

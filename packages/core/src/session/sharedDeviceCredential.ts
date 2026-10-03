@@ -313,6 +313,7 @@ export function createSharedMirroringAuthStateStore(deps: {
   let mirrored: SharedDeviceCredential | null = null;
 
   return {
+    ...local,
     load: () => local.load(),
     clear: () => local.clear(),
     save: async (state) => {

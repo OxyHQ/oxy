@@ -83,7 +83,9 @@ export interface CapabilityExecutionAuthorization {
   ownerAccountId: string;
   coordinatorApplicationId: string;
   coordinatorCredentialId: string;
-  actorType: 'alia' | 'agent';
+  actorType: 'alia' | 'agent' | 'requester';
+  requesterSessionId?: string | null;
+  requesterSessionBindingDigest?: string | null;
   actorAccountId: string | null;
   resourceApp: string;
   effectiveAccountId: string;
