@@ -1,0 +1,31 @@
+packages/api/src/db/testDatabase.ts:192:7 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    190 │   if (!TEST_DATABASE_NAME.test(name)) {
+    191 │     throw new ConfigurationError(
+  > 192 │       `Refusing to drop "${name}": only throwaway databases created by ` +
+        │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 193 │       'createTestDatabase (oxy_test_<16 hex>) may be dropped.'
+        │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    194 │     );
+    195 │   }
+  
+  i Unsafe fix: Use a template literal.
+  
+    190 190 │     if (!TEST_DATABASE_NAME.test(name)) {
+    191 191 │       throw new ConfigurationError(
+    192     │ - ······`Refusing·to·drop·"${name}":·only·throwaway·databases·created·by·`·+
+    193     │ - ······'createTestDatabase·(oxy_test_<16·hex>)·may·be·dropped.'
+        192 │ + ······`Refusing·to·drop·"${name}":·only·throwaway·databases·created·by·createTestDatabase·(oxy_test_<16·hex>)·may·be·dropped.`
+    194 193 │       );
+    195 194 │     }
+  
+
+Checked 17 files in 23ms. No fixes applied.
+Found 1 error.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

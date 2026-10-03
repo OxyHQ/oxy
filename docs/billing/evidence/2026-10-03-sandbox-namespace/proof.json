@@ -102,8 +102,9 @@
     "apiTsc": 0,
     "scriptsTsc": 0,
     "scopedBiome": {
-      "files": 17,
-      "exitCode": 0
+      "validEvidence": false,
+      "originalInvocation": "bunx biome (unrelated biome 0.3.3)",
+      "supersededBy": "docs/billing/evidence/2026-10-03-sandbox-namespace/lint-correction.json"
     },
     "openapi": {
       "paths": 364,
