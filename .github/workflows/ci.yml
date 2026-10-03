@@ -1199,6 +1199,11 @@ jobs:
         id: build-contracts
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bunx turbo run build --filter=@oxy.so/contracts
+      # MCP tests import the built contracts; execute the package's own suite.
+      - name: 'MCP Tests: test'
+        if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/mcp
       - name: 'Protocol Tests: test'
         if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
         run: bun run test
