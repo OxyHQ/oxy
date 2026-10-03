@@ -1,0 +1,182 @@
+{
+  "sourceHead": "9ef57410a13ea4efb05063eda7eb9cf17df85173",
+  "productionExecution": false,
+  "sources": [
+    {
+      "path": "docs/billing/commercial-inventory-readonly.md",
+      "sha256": "167e8cc21b022735ecddbc5789264bb0349adcec6ad3613186d68eb80191098b",
+      "bytes": 6863
+    },
+    {
+      "path": "scripts/billing/commercial-inventory-ecs.py",
+      "sha256": "452dbebb206759e9f8237f8f76c205a41940e8d0eb73738ab8d8530e23f0427c",
+      "bytes": 19076
+    },
+    {
+      "path": "scripts/billing/read-commercial-inventory.mjs",
+      "sha256": "b0990fd01b750aebb6c010ad5312c65cd740629b158452f677a5ed8cedc427f3",
+      "bytes": 8753
+    },
+    {
+      "path": "scripts/billing/test-commercial-inventory-ecs.py",
+      "sha256": "fe10bfcea4855b16fd549f996cd112f9f47405483cda6db933592521c4112cf2",
+      "bytes": 4813
+    },
+    {
+      "path": "scripts/billing/test-commercial-inventory.mjs",
+      "sha256": "98f9b17ff8312039e70b1f0bda090781570f4de6de6a960ada22e3e0a390b403",
+      "bytes": 4629
+    },
+    {
+      "path": "scripts/rehearsal/test-commercial-inventory-1519.py",
+      "sha256": "0b63b4172cd5505e941c7056ce0c8bbe265fa88c4751103572dad35818634a00",
+      "bytes": 4367
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-preparation/inventory-owned-pg-fixtures.log",
+      "sha256": "ee5bc29388ddb84c02f43edbc017734f022bab87578f31527f9fc6cc1b84869e",
+      "bytes": 1779,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-preparation/inventory-launcher-fixtures-final-2.log",
+      "sha256": "c6b9b1f09add0403cc07e90bfdf272129b1ddfa2f8f7675ea8218862f2516371",
+      "bytes": 104,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-preparation/inventory-lint.log",
+      "sha256": "c943f80d97ee27c0306b6fa62ad39ec0e2f32d37d6e2c4c94958bb9b75b08254",
+      "bytes": 42,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-preparation/inventory-owned-sql-receiver.log",
+      "sha256": "3e477448b39f1c3ff847b550c5248fce7e2e1e0c6e1b4b6ad2187a30faaca75a",
+      "bytes": 79,
+      "exitCode": 0
+    }
+  ],
+  "preparedPlans": [
+    {
+      "profile": "oxy",
+      "privatePath": "/home/nate/Oxy/.agent-evidence/integration-1519-20261003/billing-completion/inventory-plan-oxy-20261003-v2.json",
+      "sha256": "dfec1319a0aaa8c03465a7db263f4c2a96ad63d86d1216f1b9fd0493b5f22030",
+      "taskDefinitionSha256": "fb3c983d115c2dfc9109a90747717fcdd6b9cfb7a2a73d78f4e755cca2b04654",
+      "live": {
+        "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:691",
+        "image": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:29502ab56460ed8261b5dd747d93fd36e345f28e633a17c865c34d4fae7b653a",
+        "executionRoleArn": "arn:aws:iam::237343248947:role/oxy-ecs-execution",
+        "cpu": "1024",
+        "memory": "3072",
+        "runtimePlatform": {
+          "cpuArchitecture": "ARM64",
+          "operatingSystemFamily": "LINUX"
+        },
+        "network": {
+          "awsvpcConfiguration": {
+            "subnets": [
+              "subnet-09be52663c9affaea",
+              "subnet-0f338d0c3f0497225"
+            ],
+            "securityGroups": [
+              "sg-0f0ca416eacab578c"
+            ],
+            "assignPublicIp": "DISABLED"
+          }
+        },
+        "logGroup": "/oxy/ecs",
+        "databaseSecret": {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/DATABASE_URL"
+        },
+        "stripeBindingPresent": false
+      }
+    },
+    {
+      "profile": "clarity",
+      "privatePath": "/home/nate/Oxy/.agent-evidence/integration-1519-20261003/billing-completion/inventory-plan-clarity-20261003-v2.json",
+      "sha256": "9847bbf2fa80b5c4b601dd5ad896bf9955bc1e0694236a771c5dec0dfcb8631f",
+      "taskDefinitionSha256": "c731025931aa3ddbcdac2a14654e99714956e027bcb006c6b2ebf62ce245a190",
+      "live": {
+        "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-clarity-api:44",
+        "image": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/clarity@sha256:3e9d5cc075c78344a3cc8998b8cb7a3e86f63114681471354064de92d8b24a5a",
+        "executionRoleArn": "arn:aws:iam::237343248947:role/oxy-clarity-execution",
+        "cpu": "512",
+        "memory": "1024",
+        "runtimePlatform": {
+          "cpuArchitecture": "ARM64",
+          "operatingSystemFamily": "LINUX"
+        },
+        "network": {
+          "awsvpcConfiguration": {
+            "subnets": [
+              "subnet-09be52663c9affaea",
+              "subnet-0f338d0c3f0497225"
+            ],
+            "securityGroups": [
+              "sg-0f0ca416eacab578c"
+            ],
+            "assignPublicIp": "DISABLED"
+          }
+        },
+        "logGroup": "/oxy/ecs",
+        "databaseSecret": {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:ssm:us-west-2:237343248947:parameter/oxy/clarity/DATABASE_URL"
+        },
+        "stripeBindingPresent": false
+      }
+    },
+    {
+      "profile": "mercaria",
+      "privatePath": "/home/nate/Oxy/.agent-evidence/integration-1519-20261003/billing-completion/inventory-plan-mercaria-20261003-v2.json",
+      "sha256": "ab39788052653a756de563b54ee8c64cd26b422c26cd9a5ccdf35c14167740f1",
+      "taskDefinitionSha256": "3d58d9d8861b439290f6f9771ff8cf5c561c9252255474d1bfeb728a0f56cc03",
+      "live": {
+        "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-mercaria:59",
+        "image": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mercaria@sha256:f5a2aed5580b3b3561bdff88a9da7fed5335816ff442052f75b140d177847412",
+        "executionRoleArn": "arn:aws:iam::237343248947:role/oxy-ecs-execution",
+        "cpu": "512",
+        "memory": "1024",
+        "runtimePlatform": {
+          "cpuArchitecture": "ARM64",
+          "operatingSystemFamily": "LINUX"
+        },
+        "network": {
+          "awsvpcConfiguration": {
+            "subnets": [
+              "subnet-09be52663c9affaea",
+              "subnet-0f338d0c3f0497225"
+            ],
+            "securityGroups": [
+              "sg-0f0ca416eacab578c"
+            ],
+            "assignPublicIp": "DISABLED"
+          }
+        },
+        "logGroup": "/oxy/ecs",
+        "databaseSecret": {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mercaria/DATABASE_URL"
+        },
+        "stripeBindingPresent": true
+      }
+    }
+  ],
+  "results": {
+    "sqlReceiverControls": 7,
+    "offlineLauncherTests": 6,
+    "authorityExecutableNegativeVariants": 10,
+    "biomeFiles": 2,
+    "diagnostics": 0
+  },
+  "limits": [
+    "Prepare uses AWS describe/list metadata only. No ECS registration/run task or SQL production read has occurred.",
+    "Owned local PostgreSQL fixture validated reader/receiver. Actual live image dependency resolution is measured only after reviewed execution.",
+    "Plan binds launcher and reader SHA256, exact intended task definition, current task/runtime image/network/secret reference.",
+    "No secret value is retrieved/copied to host, and no Stripe binding is requested for this SQL-only task."
+  ]
+}
