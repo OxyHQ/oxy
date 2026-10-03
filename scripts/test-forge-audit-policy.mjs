@@ -156,7 +156,7 @@ try {
   }
   const group = spawnSync('bun', [join(activeCheckout.root, 'scripts/test-check-dependency-audit.mjs')], { cwd: activeCheckout.root, encoding: 'utf8' });
   assert.equal(group.status, 0, group.stderr); assertions++;
-  assert.match(group.stdout, /All 9 dependency-audit cases passed/); assertions++;
+  assert.match(group.stdout, /All 10 dependency-audit cases passed/); assertions++;
 } finally { activeCheckout.remove(); }
 for (const path of ['scripts/test-forge-source-topology.mjs', 'scripts/test-forge-final-image-binding.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/test-forge-future-dag.mjs']) {
   const result = spawnSync('bun', [join(root, path)], { cwd: root, encoding: 'utf8' });
