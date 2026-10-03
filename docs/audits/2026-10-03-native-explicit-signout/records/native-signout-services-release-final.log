@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand __tests__/context/useAuthOperations.test.tsx src/ui/context/__tests__/commitSessionFlow.test.ts src/ui/context/__tests__/isolatedOAuthSession.test.ts src/ui/session/__tests__/authStore.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       40 passed, 40 total
+Snapshots:   0 total
+Time:        0.907 s, estimated 1 s
+Ran all test suites matching __tests__/context/useAuthOperations.test.tsx|src/ui/context/__tests__/commitSessionFlow.test.ts|src/ui/context/__tests__/isolatedOAuthSession.test.ts|src/ui/session/__tests__/authStore.test.ts.
