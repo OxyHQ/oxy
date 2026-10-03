@@ -1,0 +1,12 @@
+[
+  {
+    "path": "node_modules/@oxy.so/bloom",
+    "files": 20940,
+    "allBytesIdentical": true
+  },
+  {
+    "path": "packages/test-app-expo/node_modules/@oxy.so/bloom",
+    "files": 20940,
+    "allBytesIdentical": true
+  }
+]
