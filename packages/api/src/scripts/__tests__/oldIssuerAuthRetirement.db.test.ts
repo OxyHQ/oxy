@@ -7,6 +7,7 @@ import { authSessions } from "../../db/schema/authSessions";
 import { sessions } from "../../db/schema/sessions";
 import { userAuthMethods } from "../../db/schema/userAuthMethods";
 import { users } from "../../db/schema/users";
+import { createTestDatabase, dropTestDatabase } from "../../db/testDatabase";
 import sessionService from "../../services/session.service";
 import {
 	type OldIssuerAuthRetirementPlan,
@@ -15,8 +16,28 @@ import {
 	validateOldIssuerQuiescence,
 } from "../oldIssuerAuthRetirement";
 
-beforeAll(connectPostgres);
-afterAll(closePostgres);
+const originalDatabaseUrl = process.env.DATABASE_URL;
+let ownDatabaseUrl: string | undefined;
+jest.setTimeout(60_000);
+beforeAll(async () => {
+	// Retirement intentionally inventories global authority. Preserve that
+	// production scope while giving this suite its own fully migrated database.
+	ownDatabaseUrl = await createTestDatabase();
+	await connectPostgres();
+});
+afterAll(async () => {
+	try {
+		await closePostgres();
+	} finally {
+		try {
+			if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl);
+		} finally {
+			if (originalDatabaseUrl === undefined)
+				Reflect.deleteProperty(process.env, "DATABASE_URL");
+			else process.env.DATABASE_URL = originalDatabaseUrl;
+		}
+	}
+});
 const maintenancePlanSha256 = "a".repeat(64);
 const affectedServices = [
 	{
