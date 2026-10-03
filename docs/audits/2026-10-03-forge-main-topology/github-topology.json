@@ -1,0 +1,13 @@
+{
+  "repository": "OxyHQ/oxy",
+  "main": "67c09e853db308d102624a2ffd40db19959344f4",
+  "queue": "cd71a0f773711bb230f64ab77b694fe7841e5bd8",
+  "parents": [
+    "67c09e853db308d102624a2ffd40db19959344f4"
+  ],
+  "retrieval": "gh api authenticated current main ref and exact queue commit",
+  "privateInputHashes": {
+    "main-ref.json": "4b4a3d75a04dfc3f53ebcc0e44d79be33c7052c9683a1dcbd640f410be6ea231",
+    "queue-commit.json": "6ec5441b90e48443b0e3a083d8ba1841f19ee7b05822652f3d2fa6474e0dfebc"
+  }
+}

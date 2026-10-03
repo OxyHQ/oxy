@@ -1,0 +1,81 @@
+{
+  "sourceHead": "6b03be9c8262795a34e6201cac085669054752f2",
+  "baselineFrozenSource": "8c8163755abddd1046ebea65b290634676759112",
+  "inputs": [
+    {
+      "file": "scripts/forge-source-topology.mjs",
+      "gitObject": "31d867406cade204dd37c207e9da3d560640ebfb",
+      "sha256": "ddb3c9483ce4b93469f1041b46db38d039defebfac5128c2109e7fe3b41e776e"
+    },
+    {
+      "file": "scripts/test-forge-source-topology.mjs",
+      "gitObject": "c10453159bf0bb9e15799137c632e125895a3a12",
+      "sha256": "eeaaff04fae71c09c9d636a714643e7073d7a18ba7c7554203438d7033f4f3c0"
+    },
+    {
+      "file": "scripts/test-forge-audit-policy.mjs",
+      "gitObject": "dc9c00e4f0fbea6968e7393bdf47686f2399ae4f",
+      "sha256": "7e254fe2d5c30fd40ff6037fe9292fd18ffc589090c757fdb84805c2a01c795b"
+    }
+  ],
+  "records": [
+    {
+      "file": "test-frozen-red.mjs",
+      "sha256": "eeaaff04fae71c09c9d636a714643e7073d7a18ba7c7554203438d7033f4f3c0"
+    },
+    {
+      "file": "topology-red.log",
+      "sha256": "bd0c44a6498bd87cd77fd03a0fa3fb968fbe912fc69acbc96fe8fd2bdb3165e1",
+      "exitCode": 1
+    },
+    {
+      "file": "topology-green.log",
+      "sha256": "42c3f57beb42c5302d38f534e5148ee96cda6ba6f06dcf2e210ff3e790fac463",
+      "exitCode": 0
+    },
+    {
+      "file": "policy144.log",
+      "sha256": "219be3a507bb54a02f15d53d4d75dad6510f1d4eb3f078eb9de88f62199ea84c",
+      "exitCode": 0
+    },
+    {
+      "file": "dag82.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9",
+      "exitCode": 0
+    },
+    {
+      "file": "resolver14.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3",
+      "exitCode": 0
+    },
+    {
+      "file": "github-topology.json",
+      "sha256": "eb296a8d2942427e9c5efd07dde8560de8bc294bb74fe3881b058c1439bbbff6"
+    }
+  ],
+  "all10InputObjectsUnchanged": {
+    "packages": "4d5e4192ce80e390658175f72f80fdf60751a007",
+    "bun.lock": "b3a19f253e2a9f1944ca373f1866507d8130be17",
+    "package.json": "81684a59a64778423aa390dcd748b771d581c96e",
+    "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+    "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
+    "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
+    "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
+    "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
+    "scripts/rehearsal/test-forge-final-input-1519.py": "f16e16d751bcf074d979e6dc9552182da9150204",
+    "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
+  },
+  "results": {
+    "redExit": 1,
+    "greenTopologyAssertions": 23,
+    "policyAssertions": 144,
+    "dagAssertions": 82,
+    "resolverCases": 14
+  },
+  "limits": [
+    "Fixture metadata is structurally synthetic with authenticated main/queue identifiers; live authentication belongs to collector.",
+    "Source changes only fixed base literal and regression, with no runtime-selectable base or bypass.",
+    "Historical 9dc PR CI SUCCESS and queue cd71 functional SUCCESS do not supersede the failed topology guard.",
+    "Forge INACTIVE; own freeze/ARM/authenticated independent gate and CI required, expiry2026-10-09T22:00Z unchanged."
+  ]
+}
