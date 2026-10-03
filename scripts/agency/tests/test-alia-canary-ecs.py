@@ -182,9 +182,21 @@ class Protocol(unittest.TestCase):
                 'logConfiguration':{'logDriver':'awslogs','options':{'awslogs-group':'/oxy/ecs',
                     'awslogs-region':'us-west-2','awslogs-stream-prefix':'oxy-api'}}}]}
         service = {'taskDefinition':td['arn'],'pendingCount':0,'runningCount':0,'desiredCount':0,
-            'deployments':[{'status':'PRIMARY','rolloutState':'COMPLETED'}],'networkConfiguration':LIVE['network']}
+            'deployments':[{'status':'PRIMARY','rolloutState':'COMPLETED','desiredCount':0,'runningCount':0,'pendingCount':0}],'networkConfiguration':LIVE['network']}
         with patch.object(m, 'aws', side_effect=[{'services':[service]}, td]):
             self.assertEqual(m.recovery_live('oxy-oxy-api:1'), {**LIVE, 'taskDefinition':td['arn'], 'stripeBindingPresent':False})
+        service['deployments']=[{'status':'PRIMARY','rolloutState':'FAILED','desiredCount':0,'runningCount':0,'pendingCount':0},
+            {'status':'ACTIVE','rolloutState':'IN_PROGRESS','desiredCount':0,'runningCount':0,'pendingCount':0}]
+        with patch.object(m, 'aws', side_effect=[{'services':[service]}, td]):
+            self.assertEqual(m.recovery_live('oxy-oxy-api:1')['image'], LIVE['image'])
+        service['deployments'][1]['runningCount']=1
+        with patch.object(m, 'aws', return_value={'services':[service]}):
+            with self.assertRaises(RuntimeError):m.recovery_live('oxy-oxy-api:1')
+        service['deployments'][1]['runningCount']=0
+        service['desiredCount']=service['runningCount']=1
+        with patch.object(m, 'aws', return_value={'services':[service]}):
+            with self.assertRaises(RuntimeError):m.recovery_live('oxy-oxy-api:1')
+        service['desiredCount']=service['runningCount']=0
         service['taskDefinition']='wrong'
         with patch.object(m, 'aws', return_value={'services':[service]}):
             with self.assertRaises(RuntimeError): m.recovery_live('oxy-oxy-api:1')
