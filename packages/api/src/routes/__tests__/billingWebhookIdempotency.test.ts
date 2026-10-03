@@ -29,18 +29,18 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { and, eq } from 'drizzle-orm';
 
-/** The event the stubbed `constructEvent` will return for the next request. */
-let nextEvent: unknown = null;
 
 /** Stripe's side of every subscription, as `subscriptions.retrieve` answers it. */
 const invoiceLinePages = new Map<string, Array<{ data: Record<string, unknown>[]; has_more: boolean }>>();
 const invoiceLineCalls: Array<{ id: string; cursor?: string }> = [];
 const currentInvoices = new Map<string, Record<string, unknown>>();
 const invoiceRetrieveCalls: string[] = [];
+const currentCharges = new Map<string, Record<string, unknown>>();
+const invoicePayments = new Map<string, Record<string, unknown>>();
 let failNextInvoiceRetrieve = false;
 
 const stripeSubscriptions = new Map<string, Record<string, unknown>>();
@@ -55,8 +55,11 @@ let sessionCounter = 0;
 
 jest.mock('../../utils/stripeClient', () => ({
   getStripe: () => ({
+    accounts: { retrieve: async () => ({ id: 'acct_synthetic_billing' }) },
+    charges: { retrieve: async (id: string) => structuredClone(currentCharges.get(id) ?? { id, livemode: false, payment_intent: null }) },
+    invoicePayments: { list: async (params: { invoice?: string; payment?: { payment_intent?: string } }) => ({ has_more: false, data: [...invoicePayments.values()].filter(p => params.invoice ? p.invoice === params.invoice : (p.payment as { payment_intent: string }).payment_intent === params.payment?.payment_intent) }) },
     webhooks: {
-      constructEvent: () => nextEvent,
+      constructEvent: (body: Buffer) => JSON.parse(body.toString()),
     },
     subscriptions: {
       retrieve: async (id: string) => {
@@ -71,6 +74,7 @@ jest.mock('../../utils/stripeClient', () => ({
       },
     },
     invoices: {
+      list: async (params: { subscription: string }) => ({ has_more: false, data: [...currentInvoices.values()].filter(invoice => (invoice.parent as { subscription_details?: { subscription?: string } })?.subscription_details?.subscription === params.subscription && invoice.status === 'paid') }),
       retrieve: async (id: string) => {
         invoiceRetrieveCalls.push(id);
         if (failNextInvoiceRetrieve) {
@@ -135,6 +139,14 @@ jest.mock('../../db/credits', () => {
   };
 });
 
+jest.mock('../../services/subscriptionCreditLedger.service', () => {
+  const actual = jest.requireActual('../../services/subscriptionCreditLedger.service');
+  return { ...actual, grantSubscriptionCredits: (...args: unknown[]) => {
+    if (failNextGrant) { failNextGrant = false; throw new Error('synthetic grant failure'); }
+    return actual.grantSubscriptionCredits(...args);
+  } };
+});
+
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { headers: Record<string, string | undefined>; user?: unknown },
@@ -158,6 +170,8 @@ import { billingStripeEvents } from '../../db/schema/billingStripeEvents';
 import { billingSubscriptions } from '../../db/schema/billingSubscriptions';
 import { billingTransactions } from '../../db/schema/billingTransactions';
 import { userCredits } from '../../db/schema/userCredits';
+import { billingCreditGrants, billingCreditRefundObservations } from '../../db/schema/billingCreditGrants';
+import { deductCredits } from '../../db/credits';
 import { users } from '../../db/schema/users';
 
 const WEBHOOK_SECRET = 'whsec_test_secret';
@@ -185,6 +199,7 @@ async function loadBillingRoutes(): Promise<express.Router> {
 
 beforeAll(async () => {
   process.env.STRIPE_WEBHOOK_SECRET = WEBHOOK_SECRET;
+  process.env.STRIPE_SECRET_KEY = 'sk_test_synthetic_fixture';
   process.env.STRIPE_PRO_PRICE_ID = PRO_PRICE_ID;
   process.env.STRIPE_BUSINESS_PRICE_ID = BUSINESS_PRICE_ID;
   await connectPostgres();
@@ -199,6 +214,8 @@ beforeEach(() => {
   invoiceLinePages.clear();
   invoiceLineCalls.length = 0;
   currentInvoices.clear();
+  currentCharges.clear();
+  invoicePayments.clear();
   invoiceRetrieveCalls.length = 0;
   failNextInvoiceRetrieve = false;
   holdNextRetrieve = null;
@@ -217,6 +234,7 @@ function envelope(type: string, object: unknown, options: { id?: string; created
   return {
     id: options.id ?? `evt_${Date.now()}_${eventCounter}`,
     type,
+    livemode: false,
     created: options.created ?? nowSeconds(),
     data: { object },
   };
@@ -245,12 +263,11 @@ async function withApp<T>(run: (baseUrl: string) => Promise<T>): Promise<T> {
 
 /** POST one already-verified Stripe event at the real webhook route. */
 async function postWebhook(event: unknown): Promise<number> {
-  nextEvent = event;
   return withApp(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/billing/webhook`, {
       method: 'POST',
       headers: { 'stripe-signature': 't=1,v1=stub' },
-      body: '{}',
+      body: JSON.stringify(event),
     });
     return response.status;
   });
@@ -394,10 +411,12 @@ function setStripeSubscription(
 ) {
   stripeSubscriptions.set(subscriptionId, {
     id: subscriptionId,
+    livemode: false,
     customer: customerId,
     status: state.status,
     cancel_at_period_end: state.cancelAtPeriodEnd ?? false,
     items: {
+      has_more: false,
       data: [
         {
           price: { id: state.priceId ?? PRO_PRICE_ID },
@@ -446,8 +465,9 @@ function invoiceEvent(
 ) {
   invoiceCounter += 1;
   const periodStart = options.periodStart ?? sub.periodStart;
-  return envelope(options.type ?? 'invoice.paid', {
+  const event = envelope(options.type ?? 'invoice.paid', {
     id: options.invoiceId ?? `in_${Date.now()}_${invoiceCounter}`,
+    object: 'invoice', livemode: false, status_transitions: { paid_at: nowSeconds() },
     customer: sub.customerId,
     status: options.status ?? 'paid',
     billing_reason: options.billingReason ?? 'subscription_cycle',
@@ -477,6 +497,8 @@ function invoiceEvent(
       ],
     },
   });
+  const object = event.data.object; currentInvoices.set(object.id, object);
+  return event;
 }
 
 describe('invoice.paid — renewal credits on the evidence of payment', () => {
@@ -569,9 +591,8 @@ describe('invoice.paid — renewal credits on the evidence of payment', () => {
   it.each([
     ['a failed payment', { type: 'invoice.payment_failed' as const, status: 'open' }, 'invoice payment failed'],
     ['an invoice that is not paid', { status: 'open' }, 'invoice status is open'],
-    ['a mid-period plan change', { billingReason: 'subscription_update' }, 'billing_reason subscription_update'],
     ['a currency that is not the plan currency', { currency: 'eur' }, 'invoice currency eur'],
-    ['an invoice that collected nothing', { amountPaid: 0 }, 'invoice collected no money'],
+    ['an invoice that collected nothing', { amountPaid: 0 }, 'zero-amount invoice without a declared promotion'],
     ['a price this API does not sell', { priceId: 'price_unknown' }, 'no invoice line'],
   ])('grants nothing for %s, and records why', async (_label, options, reason) => {
     const sub = await subscriber();
@@ -624,7 +645,7 @@ describe('invoice.paid — renewal credits on the evidence of payment', () => {
     expect((await eventRow(event.id)).outcomeDetail).toContain('differs from plan price');
   });
 
-  it('a refund grants nothing, charges nothing, and does not reopen the period', async () => {
+  it('an unassociated charge leaves credits unchanged and cannot reopen the period', async () => {
     const sub = await subscriber();
     const paid = invoiceEvent(sub);
     expect(await postWebhook(paid)).toBe(200);
@@ -645,7 +666,9 @@ describe('invoice.paid — renewal credits on the evidence of payment', () => {
     const business = await subscriber({ priceId: BUSINESS_PRICE_ID });
     // Same account for both: move the business customer onto the pro account.
     await getDb().delete(userCredits).where(eq(userCredits.userId, business.userId));
-    stripeSubscriptions.get(business.subscriptionId)!.customer = pro.customerId;
+    const businessState = stripeSubscriptions.get(business.subscriptionId);
+    if (!businessState) throw new Error('fixture subscription unavailable');
+    businessState.customer = pro.customerId;
     const businessOnPro = { ...business, customerId: pro.customerId };
 
     expect(await postWebhook(invoiceEvent(pro))).toBe(200);
@@ -1043,4 +1066,152 @@ describe('invoice.paid complete recurring-line reconciliation', () => {
     expect(await postWebhook(event)).toBe(200);
     expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
   });
+});
+
+
+function upgradeInvoice(sub: { subscriptionId: string; customerId: string; periodStart: number }, day: number, invoiceId: string) {
+  const event = invoiceEvent(sub, { invoiceId, billingReason: 'subscription_update', amountPaid: 6000 });
+  const original = event.data.object.lines.data[0];
+  const remaining = { start: sub.periodStart + day * 86_400, end: sub.periodStart + MONTH };
+  event.data.object.status_transitions.paid_at = remaining.start;
+  event.data.object.lines.data = [
+    { ...structuredClone(original), id: `${original.id}_old`, amount: -1000, period: remaining,
+      parent: { ...original.parent, subscription_item_details: { ...original.parent.subscription_item_details, proration: true } } },
+    { ...structuredClone(original), id: `${original.id}_new`, amount: 7000, period: remaining,
+      pricing: { ...original.pricing, price_details: { ...original.pricing.price_details, price: BUSINESS_PRICE_ID } },
+      parent: { ...original.parent, subscription_item_details: { ...original.parent.subscription_item_details, proration: true } } },
+  ];
+  currentInvoices.set(event.data.object.id, event.data.object);
+  return event;
+}
+function refundEventFor(paid: ReturnType<typeof invoiceEvent>, amountRefunded: number) {
+  const invoice = paid.data.object; const intentId = `pi_${invoice.id}`; const chargeId = `ch_${invoice.id}`;
+  const charge = { id: chargeId, object: 'charge', livemode: false, payment_intent: intentId, customer: invoice.customer,
+    amount: invoice.amount_paid, currency: invoice.currency, amount_refunded: amountRefunded, paid: true, captured: true };
+  currentCharges.set(chargeId, charge);
+  invoicePayments.set(`ip_${invoice.id}`, { id: `ip_${invoice.id}`, invoice: invoice.id, livemode: false, status: 'paid',
+    amount_paid: invoice.amount_paid, currency: invoice.currency, payment: { type: 'payment_intent', payment_intent: intentId } });
+  return envelope('charge.refunded', structuredClone(charge));
+}
+
+describe('approved P1/P2/P3 through actual webhook transactions', () => {
+  it('upgrades before a late base reserve it, match the opposite delivery order, and never grant a second invoice receipt', async () => {
+    for (const reverse of [false, true]) {
+      const sub = await subscriber(); const base = invoiceEvent(sub);
+      const upgrade = upgradeInvoice(sub, 10, `in_upgrade_${sub.subscriptionId}`);
+      const events = reverse ? [base, upgrade] : [upgrade, base];
+      expect(await postWebhook(events[0])).toBe(200);
+      expect(await paidBalance(sub.userId)).toBe(reverse ? 10_000 : 26_666);
+      expect(await postWebhook(events[1])).toBe(200);
+      expect(await paidBalance(sub.userId)).toBe(36_666);
+      expect(await postWebhook(envelope('invoice.paid', upgrade.data.object))).toBe(200);
+      expect(await paidBalance(sub.userId)).toBe(36_666);
+      expect(await receipts(sub.userId, 'subscription_proration')).toHaveLength(1);
+    }
+  });
+  it('inverted distinct upgrades use canonical cap assignments and base arrives last', async () => {
+    const sub = await subscriber(); const base = invoiceEvent(sub);
+    const a = upgradeInvoice(sub, 1, `in_a_${sub.subscriptionId}`);
+    const b = upgradeInvoice(sub, 2, `in_b_${sub.subscriptionId}`);
+    expect(await postWebhook(b)).toBe(200); expect(await paidBalance(sub.userId)).toBe(1_334);
+    expect(await postWebhook(a)).toBe(200); expect(await postWebhook(base)).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(50_000);
+    const rows = await receipts(sub.userId, 'subscription_proration');
+    expect(rows.map(row => row.credits).sort((x,y) => x-y)).toEqual([1_334, 38_666]);
+  });
+  it('backdated provider evidence that would change a frozen grant refuses before receipts or credits change', async () => {
+    const sub = await subscriber(); invoiceEvent(sub);
+    const b = upgradeInvoice(sub, 2, `in_b_${sub.subscriptionId}`);
+    upgradeInvoice(sub, 3, `in_c_${sub.subscriptionId}`);
+    expect(await postWebhook(b)).toBe(200);
+    const before = await paidBalance(sub.userId); const beforeRows = await receipts(sub.userId, 'subscription_proration');
+    const a = upgradeInvoice(sub, 1, `in_a_${sub.subscriptionId}`);
+    expect(await postWebhook(a)).toBe(500);
+    expect(await paidBalance(sub.userId)).toBe(before);
+    expect(await receipts(sub.userId, 'subscription_proration')).toEqual(beforeRows);
+    expect((await eventRow(a.id)).outcomeDetail).toContain('frozen');
+  });
+  it('missing paid base and mismatched quantities refuse incomplete evidence with no balance changes', async () => {
+    const sub = await subscriber(); const upgrade = upgradeInvoice(sub, 10, `in_upgrade_${sub.subscriptionId}`);
+    expect(await postWebhook(upgrade)).toBe(500); expect(await paidBalance(sub.userId)).toBe(0);
+    invoiceEvent(sub); upgrade.data.object.lines.data[0].quantity = 2;
+    expect(await postWebhook(upgrade)).toBe(500); expect(await paidBalance(sub.userId)).toBe(0);
+    expect(await receipts(sub.userId, 'subscription_proration')).toHaveLength(0);
+  });
+  it('refund clawback touches only unconsumed attributable grants, preserves purchase balance and handles reversed deliveries', async () => {
+    const sub = await subscriber(); const paid = invoiceEvent(sub);
+    await getDb().update(userCredits).set({ creditsPaid: 5000 }).where(eq(userCredits.userId, sub.userId));
+    expect(await postWebhook(paid)).toBe(200); expect(await deductCredits(getDb(), sub.userId, 800)).toBe(true);
+    const partial = refundEventFor(paid, 1000); expect(await postWebhook(partial)).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(10_866);
+    const full = refundEventFor(paid, PRO_PRICE); expect(await postWebhook(full)).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(5000);
+    expect(await postWebhook(partial)).toBe(200); expect(await postWebhook(full)).toBe(200);
+    const [grant] = await getDb().select().from(billingCreditGrants).where(eq(billingCreditGrants.userId, sub.userId));
+    expect(grant).toMatchObject({ granted: 10_000, consumed: 800, clawed: 9200 });
+    expect(await paidBalance(sub.userId)).toBe(5000);
+  });
+  it('refund before first grant stores the cumulative snapshot and awards the same rounded net amount', async () => {
+    const sub = await subscriber(); const paid = invoiceEvent(sub); const refund = refundEventFor(paid, 1000);
+    expect(await postWebhook(refund)).toBe(200); expect(await paidBalance(sub.userId)).toBe(0);
+    expect(await postWebhook(paid)).toBe(200); expect(await paidBalance(sub.userId)).toBe(6666);
+    const [grant] = await getDb().select().from(billingCreditGrants).where(eq(billingCreditGrants.userId, sub.userId));
+    expect(grant).toMatchObject({ granted: 10_000, consumed: 0, clawed: 3334 });
+    expect(await postWebhook(refund)).toBe(200); expect(await paidBalance(sub.userId)).toBe(6666);
+  });
+  it('multiple payment allocations reject rather than debiting an unrelated grant', async () => {
+    const sub = await subscriber(); const paid = invoiceEvent(sub); expect(await postWebhook(paid)).toBe(200);
+    const refund = refundEventFor(paid, PRO_PRICE);
+    const allocation = invoicePayments.get(`ip_${paid.data.object.id}`);
+    if (!allocation) throw new Error('fixture payment missing');
+    invoicePayments.set('ip_other', { ...allocation, id: 'ip_other' });
+    expect(await postWebhook(refund)).toBe(500); expect(await paidBalance(sub.userId)).toBe(10_000);
+    expect(await getDb().select().from(billingCreditRefundObservations).where(eq(billingCreditRefundObservations.userId, sub.userId))).toHaveLength(0);
+  });
+  it('paid downgrade and undeclared zero-amount promotion grant nothing and never claw back a period', async () => {
+    const sub = await subscriber(); const base = invoiceEvent(sub); expect(await postWebhook(base)).toBe(200);
+    expect(await postWebhook(invoiceEvent(sub, { billingReason: 'subscription_update', amountPaid: 0 }))).toBe(200);
+    expect(await postWebhook(invoiceEvent(sub, { amountPaid: 0 }))).toBe(200);
+    expect(await paidBalance(sub.userId)).toBe(10_000); expect(await receipts(sub.userId, 'subscription_promotional_grant')).toHaveLength(0);
+  });
+});
+
+
+it('a new delivery of an old upgrade invoice recognizes the frozen receipt after current renewal and cancellation', async () => {
+  const sub = await subscriber(); invoiceEvent(sub); const upgrade = upgradeInvoice(sub, 10, `in_${sub.subscriptionId}_old`);
+  expect(await postWebhook(upgrade)).toBe(200);
+  setStripeSubscription(sub.subscriptionId, sub.customerId, { periodStart: sub.periodStart + MONTH, status: 'canceled', priceId: BUSINESS_PRICE_ID });
+  expect(await postWebhook(envelope('invoice.paid', upgrade.data.object))).toBe(200);
+  expect(await paidBalance(sub.userId)).toBe(26_666);
+  expect(await receipts(sub.userId, 'subscription_proration')).toHaveLength(1);
+});
+it('a purchased/auto-recharge charge without invoice allocation is ignored rather than retried or clawed back', async () => {
+  const userId = await account();
+  await getDb().update(userCredits).set({ creditsPaid: 5000 }).where(eq(userCredits.userId, userId));
+  const charge = { id: `ch_${userId}`, livemode: false, payment_intent: `pi_${userId}` };
+  currentCharges.set(charge.id, charge);
+  const event = envelope('charge.refunded', charge);
+  expect(await postWebhook(event)).toBe(200); expect((await eventRow(event.id)).outcome).toBe('ignored');
+  expect(await paidBalance(userId)).toBe(5000);
+});
+
+
+it('concurrent new upgrade invoice deliveries serialize real financial writers under the same cap', async () => {
+  const sub = await subscriber(); const base = invoiceEvent(sub);
+  const a = upgradeInvoice(sub, 1, `in_a_${sub.subscriptionId}`); const b = upgradeInvoice(sub, 2, `in_b_${sub.subscriptionId}`);
+  expect(await Promise.all([postWebhook(a), postWebhook(b), postWebhook(base)])).toEqual([200,200,200]);
+  expect(await paidBalance(sub.userId)).toBe(50_000);
+  expect((await receipts(sub.userId, 'subscription_proration')).map(row => row.credits).sort((x,y) => x-y)).toEqual([1334,38666]);
+});
+
+
+it('first late paid upgrade delivery uses its historical base period even after current renewal and cancellation', async () => {
+  const sub = await subscriber(); const base = invoiceEvent(sub);
+  const upgrade = upgradeInvoice(sub, 10, `in_${sub.subscriptionId}_late`);
+  setStripeSubscription(sub.subscriptionId, sub.customerId, { periodStart: sub.periodStart + MONTH, status: 'canceled', priceId: BUSINESS_PRICE_ID });
+  expect(await postWebhook(upgrade)).toBe(200); expect(await paidBalance(sub.userId)).toBe(26_666);
+  expect((await mirrorOf(sub.subscriptionId)).status).toBe('canceled');
+  expect((await mirrorOf(sub.subscriptionId)).currentPeriodStart.getTime()).toBe((sub.periodStart + MONTH) * 1000);
+  expect(await postWebhook(base)).toBe(200); expect(await paidBalance(sub.userId)).toBe(36_666);
+  expect((await mirrorOf(sub.subscriptionId)).status).toBe('canceled');
 });
