@@ -1,0 +1,25 @@
+{
+  "repository": "Moovo",
+  "publicClientId": "oxy_dk_f0348545dad800903773ddd598183e021cc81e01116ba60b",
+  "observedAt": "2026-10-03T17:54:25.607872+00:00",
+  "method": "GET",
+  "authenticated": false,
+  "status": 200,
+  "application": {
+    "id": "6a396f5c2ccd7e7831cb6a31",
+    "name": "Moovo",
+    "type": "first_party",
+    "isOfficial": true,
+    "isInternal": false
+  },
+  "applicationKeys": [
+    "id",
+    "name",
+    "type",
+    "isOfficial",
+    "isInternal",
+    "scopes",
+    "description",
+    "websiteUrl"
+  ]
+}

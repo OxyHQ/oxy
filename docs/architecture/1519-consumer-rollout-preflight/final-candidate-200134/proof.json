@@ -1,0 +1,166 @@
+{
+  "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+  "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-final-200134-packs-20261003",
+  "sourceClean": true,
+  "inputs": [
+    {
+      "path": "package.json",
+      "sha256": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "729e9f5fdd43f120ca575397c41fed0881cb09e3f0001354c437790d44f0ba8e"
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "@oxy.so/contracts",
+      "version": "4.9.0",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-contracts-4.9.0.tgz",
+      "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+      "sourceTree": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+      "sha256": "6b1e6a8da92341871d2832834ad063df1a1e84a46dc367786599fdd26be6e635",
+      "published": false,
+      "buildPackLog": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/contracts-build-pack.log",
+        "sha256": "e6eb914e15b50e08a9445f3e62899183b84c518a12c38508416cdc9df1b801f1"
+      },
+      "fileCount": 198,
+      "contentDigest": "5f45514a3499840978870fa3f6144c4c03ad20cd81dd71ab8a09f618d5af28a0"
+    },
+    {
+      "name": "@oxy.so/protocol",
+      "version": "1.2.2",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-protocol-1.2.2.tgz",
+      "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+      "sourceTree": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+      "sha256": "325b20125f1cf5159c36ca7a75f32c83a4560cf41c55526828b1718595acc843",
+      "published": false,
+      "buildPackLog": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/protocol-build-pack.log",
+        "sha256": "71adf33d6fc8dbfeeba5be0eb113fb972ee75e1f70d7644d250b2e5e46cff7ba"
+      },
+      "fileCount": 145,
+      "contentDigest": "6d19c0f03db48de92b746a87fc6ae056c1f409a6d3f83da14ecc5c323e04d4d4"
+    },
+    {
+      "name": "@oxy.so/telemetry",
+      "version": "1.2.0",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-telemetry-1.2.0.tgz",
+      "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+      "sourceTree": "4a8f21d125797d5560ff18a22f237c5b2aa04f54",
+      "sha256": "c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12",
+      "published": false,
+      "buildPackLog": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/telemetry-build-pack.log",
+        "sha256": "70a9890a5b49ee2ac6fe2b15c0c82dcf0349e0ac7bc365da136b8e5f0f3febcd"
+      },
+      "fileCount": 33,
+      "contentDigest": "81fa6ba13e63e1f2735ee75773c26f74e1216b11b541d959a31bcb9a07e31d53"
+    },
+    {
+      "name": "@oxy.so/utils",
+      "version": "1.0.1",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-utils-1.0.1.tgz",
+      "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+      "sourceTree": "8c1c3ae56dc9a8ab0d7038971631d20f50b42068",
+      "sha256": "d2f7c33c4fe202243c8ea088477b7507062ee5d74c2bc007e92456a492209c67",
+      "published": false,
+      "buildPackLog": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/utils-build-pack.log",
+        "sha256": "932cec814494f1d56669aa6bf1234bcf1d796107e34dd59b7b4fc659a2f6870a"
+      },
+      "fileCount": 23,
+      "contentDigest": "691ec4510cce4d2f2ae16aa7ceb6f8d2b900a9e392fd36621c8c646402d1a01f"
+    },
+    {
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-core-4.2.0.tgz",
+      "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+      "sourceTree": "6f7773216c835ccb0978061fdbf7a614ecae79cd",
+      "sha256": "fa7e67d71f55cc7503af08e4de720ea0b7a7db2d429d80fe04a79d3060c9aaff",
+      "published": false,
+      "buildPackLog": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/core-build-pack.log",
+        "sha256": "ae11f7c9643e960ae341c930812d999f90f6683b26703314ff9bf37f44c25613"
+      },
+      "fileCount": 581,
+      "contentDigest": "c0791a8edb51deab40c11a5e35723efc3d6fe5c6f3d2801f6f747664abe4bb7b"
+    },
+    {
+      "name": "@oxy.so/services",
+      "version": "11.1.0",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-services-11.1.0.tgz",
+      "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+      "sourceTree": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+      "sha256": "b8d232cb04d934ac38c8be303dbbcf9819d444bec8458628c8478cbbf2155c9c",
+      "published": false,
+      "buildPackLog": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/services-build-pack.log",
+        "sha256": "5374817f245e69d96d4e292a324453ef296d928fd2dca87dd55f4f6db7339efe"
+      },
+      "fileCount": 2418,
+      "contentDigest": "7ffcdcfc880dd3be1abd87a075310978475b16056599388423febf1d9671b97b"
+    },
+    {
+      "name": "@oxy.so/mcp",
+      "version": "1.1.0",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-mcp-1.1.0.tgz",
+      "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+      "sourceTree": "828269746b7b3ce63a80d6df0881fa4f8e2c7520",
+      "sha256": "2d60996b3b5b441c5f9b81d98102d0a5929ac44a7c9ab7904d25072b8a626e08",
+      "published": false,
+      "buildPackLog": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/mcp-build-pack.log",
+        "sha256": "8377f9834c419159cbd26b89ecb69f3449606df6e027869b18ccdd06d7c3fb38"
+      },
+      "fileCount": 41,
+      "contentDigest": "14e3ece15e75ef2634626c8479cb5c3afaa407351d1f8f2c5d814cdaceb0e8e3"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/final-candidate-200134/logs/contracts-build-pack.log",
+      "sha256": "e6eb914e15b50e08a9445f3e62899183b84c518a12c38508416cdc9df1b801f1"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/final-candidate-200134/logs/protocol-build-pack.log",
+      "sha256": "71adf33d6fc8dbfeeba5be0eb113fb972ee75e1f70d7644d250b2e5e46cff7ba"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/final-candidate-200134/logs/telemetry-build-pack.log",
+      "sha256": "70a9890a5b49ee2ac6fe2b15c0c82dcf0349e0ac7bc365da136b8e5f0f3febcd"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/final-candidate-200134/logs/utils-build-pack.log",
+      "sha256": "932cec814494f1d56669aa6bf1234bcf1d796107e34dd59b7b4fc659a2f6870a"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/final-candidate-200134/logs/core-build-pack.log",
+      "sha256": "ae11f7c9643e960ae341c930812d999f90f6683b26703314ff9bf37f44c25613"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/final-candidate-200134/logs/services-build-pack.log",
+      "sha256": "5374817f245e69d96d4e292a324453ef296d928fd2dca87dd55f4f6db7339efe"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/final-candidate-200134/logs/mcp-build-pack.log",
+      "sha256": "8377f9834c419159cbd26b89ecb69f3449606df6e027869b18ccdd06d7c3fb38"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/final-candidate-200134/logs/install.log",
+      "sha256": "9c2e3a2e1193bef2d4d966c0d47e578e406154ad16f34b0265a0e4102beb2b65"
+    }
+  ],
+  "published": false,
+  "commands": [
+    "bun install --frozen-lockfile --minimum-release-age=0",
+    "for each in contracts,protocol,telemetry,utils,core,services,mcp: bun run build && bun pm pack"
+  ],
+  "limits": [
+    "Candidate comparison only; no publish or consumer registry adoption",
+    "telemetry1.2.0 already published; utils is a build prerequisite; this receipt does not authorize overwriting versions",
+    "No suite repeated; root reviewed final source tests elsewhere"
+  ]
+}

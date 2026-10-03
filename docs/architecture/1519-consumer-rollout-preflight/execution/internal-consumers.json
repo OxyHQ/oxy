@@ -1,0 +1,72 @@
+[
+  {
+    "package": "oxy-console",
+    "path": "packages/console/package.json",
+    "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+    "manifestSha256": "ebf8800040e2c00ca7605acdf16aa990575317c09b7ece9cfb3b9f50ae876e78",
+    "scripts": {
+      "dev": "vite dev --port 8106",
+      "build": "vite build && bun ../core/scripts/writePagesHeaders.ts dist",
+      "preview": "vite preview",
+      "test": "node --test worker/edge-checks.mjs && vitest run",
+      "lint": "eslint",
+      "format": "prettier",
+      "check": "prettier --write . && eslint --fix"
+    },
+    "boundary": "workspace shipping source; registry acceptance fixture separately, do not replace workspace:* with npm dependencies"
+  },
+  {
+    "package": "accounts",
+    "path": "packages/accounts/package.json",
+    "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+    "manifestSha256": "773a0fc0cad2dbe7fc06ff52815bbb4b9914445a2e86ed0e2ffb90edd95e4a22",
+    "scripts": {
+      "start": "RCT_METRO_PORT=8102 expo start",
+      "build": "node scripts/export-web.js && bun ../core/scripts/writePagesHeaders.ts dist",
+      "web": "RCT_METRO_PORT=8102 expo start --web",
+      "android": "RCT_METRO_PORT=8102 expo run:android",
+      "ios": "RCT_METRO_PORT=8102 expo run:ios",
+      "lint": "expo lint",
+      "test": "node --test worker/edge-checks.mjs && jest --passWithNoTests",
+      "test:watch": "jest --watch",
+      "test:coverage": "jest --coverage",
+      "reset-project": "node ./scripts/reset-project.js",
+      "smoke:csp": "bun run scripts/smoke-csp.ts"
+    },
+    "boundary": "workspace shipping source; registry acceptance fixture separately, do not replace workspace:* with npm dependencies"
+  },
+  {
+    "package": "commons",
+    "path": "packages/commons/package.json",
+    "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+    "manifestSha256": "f08faf32d15dd5999c6b384d4389d768513722453ca72352f0759c373120fc43",
+    "scripts": {
+      "android": "RCT_METRO_PORT=8101 expo run:android",
+      "check:classnames": "node scripts/check-classnames.mjs",
+      "ios": "RCT_METRO_PORT=8101 expo run:ios",
+      "lint": "expo lint",
+      "reset-project": "node ./scripts/reset-project.js",
+      "start": "RCT_METRO_PORT=8101 expo start",
+      "test": "jest --passWithNoTests",
+      "test:coverage": "jest --coverage",
+      "test:watch": "jest --watch"
+    },
+    "boundary": "workspace shipping source; registry acceptance fixture separately, do not replace workspace:* with npm dependencies"
+  },
+  {
+    "package": "test-app",
+    "path": "packages/test-app-expo/package.json",
+    "source": "20013421a4cc07545a7685931db68f4ee55f1773",
+    "manifestSha256": "b9b3771b13924d95cf83c92688c2bab7a17ecb17188f2c62f595023b4833ff9c",
+    "scripts": {
+      "start": "RCT_METRO_PORT=8104 expo start",
+      "start:clear": "expo start --clear",
+      "reset-project": "node ./scripts/reset-project.js",
+      "android": "RCT_METRO_PORT=8104 expo start --android",
+      "ios": "RCT_METRO_PORT=8104 expo start --ios",
+      "web": "RCT_METRO_PORT=8104 expo start --web",
+      "lint": "expo lint"
+    },
+    "boundary": "workspace shipping source; registry acceptance fixture separately, do not replace workspace:* with npm dependencies"
+  }
+]

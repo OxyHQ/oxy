@@ -1,0 +1,3716 @@
+{
+  "schemaVersion": 1,
+  "status": "prepared only; root controls live operations; registry gate pending",
+  "sdkCandidate": "20013421a4cc07545a7685931db68f4ee55f1773",
+  "targetVersions": {
+    "@oxy.so/contracts": "4.9.0",
+    "@oxy.so/core": "4.2.0",
+    "@oxy.so/services": "11.1.0",
+    "@oxy.so/mcp": "1.1.0",
+    "@oxy.so/protocol": "1.2.2",
+    "@oxy.so/telemetry": "1.2.0"
+  },
+  "bloomPolicy": "exact reviewed per-consumer published line; 6.2.1 maintenance or 7.1.2; no broad range change",
+  "consumers": [
+    {
+      "repository": "OxyHQ/Atlas",
+      "worktree": "/home/nate/Oxy/Atlas/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-atlas-final-sdk-20261003",
+      "preparedHead": "b725e9edf6c02eb1f3adebba9bca48a27d092a31",
+      "lot": 1,
+      "bloom": "7.1.2",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Atlas.patch",
+        "sha256": "9e35d67ad1af0530f6b9159996f578bb2598b4facda2ce24c462231e1007a11b",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "444e3020f7aa2e48712afab0aac63046af633d284e03a35077a8cc3e88a918e6",
+            "after": "0d9f6216db39eb15aa4036572e2392af2a39667e2b1a323dbb8854b044c029f2"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "a9fb7ac8d9203160021ce3fa6a39e6b965f139bcbe7d73b453e4145caea2d0d8",
+            "after": "ac90309679d777ab9209f53596d330a6479dddcb615c9e96eb2d2531a8a13f25"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Atlas.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Atlas.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@atlas/frontend",
+          "cwd": "/home/nate/Oxy/Atlas/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "lint": "expo lint"
+          }
+        },
+        {
+          "package": "@atlas/shared-types",
+          "cwd": "/home/nate/Oxy/Atlas/.worktrees/1519-final-sdk-adoption-20261003/packages/shared-types",
+          "scripts": {
+            "build": "tsc -p tsconfig.json"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "d66cfdb810693e0ed3b55a30b7d73ec498ec529a022b4d8ca74128f3e98628ee",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy.yml",
+            "--repo",
+            "OxyHQ/Atlas",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Atlas",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Atlas",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Atlas/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Alia",
+      "worktree": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
+      "branch": "task/1519-alia-final-sdk-pins-20261003",
+      "preparedHead": "ce1baf5c0536bf3b975cc42556d746a60a41c7d8",
+      "lot": 2,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Alia.patch",
+        "sha256": "b3185c65c17956b6b38323ef680b27cb12e2dcdd6158366e144734f773b3f9f2",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "51e9451f597032d95e7c06390e2e7cbc7c998a34410cc787c77d841d4bc706ff",
+            "after": "011be0c23e8eaea15b384a78e629bed11aeb5bed8df8a17dbd27f1c99641bfb0"
+          },
+          {
+            "path": "packages/alia-canvas/package.json",
+            "before": "1c2c5113ef4b76a5ca750e50dfa74e46c46a8cee03c82a20c3859ece0e39be0a",
+            "after": "8d701385a1d719a09a5613363cbea317a5c220533b25c043d90c66cae1fc9dbc"
+          },
+          {
+            "path": "packages/alia-codea/package.json",
+            "before": "bceb51fed2cbd9722ee06dbe152629ea1c9c4de708183368d6c302a33259f9c0",
+            "after": "a2b44edd18415132ac44a17c96bcba0785762b218bb13327fb0cc3346d70c2bb"
+          },
+          {
+            "path": "packages/alia-codea-cli/package.json",
+            "before": "de062233975211e1f876bcd41f832ef1a9d9a64a9040b4e7c086105dc4a0cb6c",
+            "after": "485216ce6333ae4fbea98e149e843d33f5c50742f7ceb1f20dded961b315d166"
+          },
+          {
+            "path": "packages/alia-computer-host/package.json",
+            "before": "8e09959d3e973f0af7b03fae297d98f756cfe23769950d8b4b232beab09e06ae",
+            "after": "f76f6c3dff0f274cc594975a8dc1360aed307951ffe05f829ef3dfcb931b6c27"
+          },
+          {
+            "path": "packages/alia-cowork/package.json",
+            "before": "20e8f5da1154569c9a52b8efaac25fbbf181ce73611d344875dbbc61bb98d1d2",
+            "after": "19ac58f6ed8426694dba64d59b371ad29eab37d22bcae1a6b07a3cfecdf6693d"
+          },
+          {
+            "path": "packages/api/package.json",
+            "before": "ab9d56c8c9e52655e8371432147fa38a8a58458ce9b05d3b0a0ea219ceb31a8a",
+            "after": "770b0ffbc49699d0ac4939d9af6c30ed32a980fad8e194976c3935d37e1b3ef4"
+          },
+          {
+            "path": "packages/app/package.json",
+            "before": "92bb3bd990f8f0fedecd733b70c0ea0e292b1fb4bd07540e5a0df8c0701db63f",
+            "after": "c79d52a1f3350c8bef35e9c9248bd44b73a6d4331e7757ee6a1086fc5afa26df"
+          },
+          {
+            "path": "packages/integrations/package.json",
+            "before": "9534913273665c380d3dc4778aaeeaccf05cfb8e6e157da20e25048cca5b836e",
+            "after": "a1a2e34b1384ab7ea8f0985e32d90dbdd598b3ac8b27797cf374e0792607c804"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Alia.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Alia.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "alia-canvas",
+          "cwd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/alia-canvas",
+          "scripts": {
+            "build": "tsc -b && vite build",
+            "test": "vitest run",
+            "lint": "eslint ."
+          }
+        },
+        {
+          "package": "@alia.onl/sdk",
+          "cwd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/alia-chat",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "alia-codea",
+          "cwd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/alia-codea",
+          "scripts": {
+            "build": "bun run build:webview && bun run build:extension && bun run build:browser",
+            "typecheck": "tsc --noEmit",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "@alia-codea/cli",
+          "cwd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/alia-codea-cli",
+          "scripts": {
+            "build": "tsup src/index.ts --format esm --clean",
+            "typecheck": "tsc --noEmit",
+            "test": "vitest run",
+            "lint": "eslint src"
+          }
+        },
+        {
+          "package": "@alia/computer-host",
+          "cwd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/alia-computer-host",
+          "scripts": {
+            "build": "tsc -p tsconfig.build.json",
+            "typecheck": "tsc --noEmit",
+            "test": "vitest run",
+            "lint": "eslint src"
+          }
+        },
+        {
+          "package": "alia-cowork",
+          "cwd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/alia-cowork",
+          "scripts": {
+            "build": "gulp build",
+            "typecheck": "tsc --noEmit",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "@alia.onl/server",
+          "cwd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/alia-server",
+          "scripts": {
+            "build": "tsup",
+            "typecheck": "tsc --noEmit",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "@alia/api",
+          "cwd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/api",
+          "scripts": {
+            "build": "bun build.ts",
+            "typecheck": "tsc --noEmit",
+            "test": "vitest run",
+            "lint": "eslint src"
+          }
+        },
+        {
+          "package": "@alia/app",
+          "cwd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/app",
+          "scripts": {
+            "build": "bun x expo export --platform web && bun run check:web-bundle",
+            "typecheck": "expo customize tsconfig.json && tsc --noEmit",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "@alia/integrations",
+          "cwd": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/packages/integrations",
+          "scripts": {
+            "build": "tsc",
+            "test": "vitest run"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "cda1d0e2d2463eb920ab2effc6d0ca39e74d270f3a4d44574fdec8357b2c261f",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Alia",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-computer-host.yml",
+          "sha256": "e29e33c5432c6fe9dc3c8a41e2b3a2c875256e6958bebb46e558fd7e9864c058",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-computer-host.yml",
+            "--repo",
+            "OxyHQ/Alia",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "inventory_only_do_not_dispatch"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "8cce916b1ead676a81a446936ee4a54670423fe817735299a64463a72be5da6c",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-frontends.yml",
+            "--repo",
+            "OxyHQ/Alia",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/deploy-integrations.yml",
+          "sha256": "356a26ecb9935b759e7e32a478beb58dc00a08cbcc10987a1eebdf38140badb3",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-integrations.yml",
+            "--repo",
+            "OxyHQ/Alia",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        }
+      ],
+      "pausedDeploymentSemantics": "source_explicit_zero_task_no_rollout_branch",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "alia",
+          "ecrRepository": "oxy/alia",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/api/Dockerfile",
+          "dockerfileSha256": "8bffb1983c8f94c5906c8b6859cf68295b8de21a50a360ea1c2a7ae92e2d3108",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Alia",
+            "--file",
+            "packages/api/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/alia-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        },
+        {
+          "service": "alia-integrations",
+          "ecrRepository": "oxy/alia-integrations",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/integrations/Dockerfile",
+          "dockerfileSha256": "c5d96354f8483bd2f70ae118f9e544f865d44f914627ebc2f20dca6f8d0d6bad",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Alia",
+            "--file",
+            "packages/integrations/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia-integrations:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/alia-integrations-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Alia",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Alia",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Alia/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "standaloneBloomExceptions": [
+        {
+          "manifest": "packages/alia-codea/webview-ui/package.json",
+          "declaredRange": "^6.3.0",
+          "observedVersion": "6.3.0",
+          "imports": [
+            "BloomThemeProvider",
+            "design-tokens/theme.css"
+          ],
+          "usesOxyServices": false,
+          "candidateBuildExit": 0,
+          "action": "Preserve standalone manifest; recheck resolution/build after final lock. No affected auth dialog is imported here."
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Mention",
+      "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
+      "branch": "task/1519-mention-final-sdk-pins-20261003",
+      "preparedHead": "2765e797f13b0287e8441f6c943116e6dcd6cab5",
+      "lot": 1,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Mention.patch",
+        "sha256": "f181a0869e3cdfcc68a718eeef114b6b1426c6926bdbabfe4932883a2e53e9a9",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "bb102754ea1a917fcce695b8bacdc597279cb4fb6e7e6559eeab28df795ad79e",
+            "after": "eb7a07cd3e9f84c8da76b2e6566de43fbe10ac3aed686f65100f0270de876ef5"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "0c5d78b2665f2046a6043c30985a4778f75d07ab38dfce93205ac0c644e18e80",
+            "after": "e46d3ae9b515f12f22f3f9fa30e8486e2dbed72d951ab64cfb15b106d9db3c78"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "afe0672209c85a118499bdd7df3bbbc6018a6d4a07f96113d56d7c9c70e9c36f",
+            "after": "da186e0565f456a7a5e37c1215dd09536b7a82a18f64e4e2d6d45d806de5f416"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Mention.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Mention.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@mention/backend",
+          "cwd": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/backend",
+          "scripts": {
+            "build": "tsc",
+            "test": "node ../../node_modules/vitest/vitest.mjs run",
+            "lint": "tsc --noEmit"
+          }
+        },
+        {
+          "package": "@mention/e2e",
+          "cwd": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/e2e",
+          "scripts": {
+            "test": "playwright test",
+            "lint": "tsc --noEmit && bun run test:identity-evidence"
+          }
+        },
+        {
+          "package": "@mention/frontend",
+          "cwd": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/frontend",
+          "scripts": {
+            "build": "expo export --platform web --output-dir dist && node ./scripts/web-font-preload.mjs dist",
+            "typecheck": "node ./scripts/typecheck.mjs",
+            "test": "node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand",
+            "lint": "expo lint"
+          }
+        },
+        {
+          "package": "@mention/mcp",
+          "cwd": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/mcp",
+          "scripts": {
+            "build": "tsc",
+            "typecheck": "tsc --noEmit",
+            "test": "bun test",
+            "lint": "tsc --noEmit"
+          }
+        },
+        {
+          "package": "@mention/shared-types",
+          "cwd": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003/packages/shared-types",
+          "scripts": {
+            "build": "tsc",
+            "test": "bun test",
+            "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "30af4f12a0bba70751570ad09add509e6366ebb9fe70dfb2f0176a1d6347f7de",
+          "manualDispatch": false,
+          "operatorCommand": null,
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-backend-config.yml",
+          "sha256": "6c715b9a4001411d405617a339bf55b2eb9c1a09a9969f506ed040c3f8e4768a",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-backend-config.yml",
+            "--repo",
+            "OxyHQ/Mention",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [
+            "reason"
+          ],
+          "role": "inventory_only_do_not_dispatch"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "bc00ccbdd0c2d62eb520b971fc128f30df2c12d4cb89c13b3aa664c51fc6ef66",
+          "manualDispatch": false,
+          "operatorCommand": null,
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/deploy-mcp-aws.yml",
+          "sha256": "d099c52cb352174ca74f849534b4add797372819fa4a219d28d54851c9cc94a0",
+          "manualDispatch": false,
+          "operatorCommand": null,
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        }
+      ],
+      "pausedDeploymentSemantics": "requires_operator_review_before_paused_deploy",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "mention",
+          "ecrRepository": "oxy/mention",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "03fd7ec3c3b5d436fd0e1c5d9471850992d3f32d045b849d98b8bfcb8034a2f8",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Mention",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mention:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/mention-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        },
+        {
+          "service": "mention-mcp",
+          "ecrRepository": "oxy/mention-mcp",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/mcp/Dockerfile",
+          "dockerfileSha256": "e7fc9a82e29aa54b3b4cb15ffeede58772f4b829874a3961f4593182b2587eae",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Mention",
+            "--file",
+            "packages/mcp/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mention-mcp:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/mention-mcp-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Mention",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Mention",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Mention/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "worktree": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003",
+      "branch": "task/1519-mercaria-final-sdk-pins-20261003",
+      "preparedHead": "813755a7333f02ff169b6ceba5bab72d4dd27f81",
+      "lot": 2,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Mercaria.patch",
+        "sha256": "8b85d3bdc4ea78c043c98892c6175bbaf90b6e073bf01c67abe18c47d43ba393",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "88f187375b06caabce6437815556fdb0ad73bf4cf2f5abea30c5a69f626beca8",
+            "after": "f4baa12c8eb65b7a48f62477608815e68f3d74884002236eb1f85a30d5401a7f"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "b2a7c6388bd546452d178cfacd71af0e529724c2b9ac05d6f211f213b7896166",
+            "after": "4e8d18ac094a03a30b4c2914d7dd7931a4b02da85bac3fbf87432afe5918690d"
+          },
+          {
+            "path": "packages/dashboard/package.json",
+            "before": "e8973c9127fb0d6f7588448997131dcc4852e2826f907ccb9a4d23c5b7065a73",
+            "after": "7db026beefbab274149935dcce7272fbae1f62450a64547770cd3f950847c9c2"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "41137fae6b644949e3a1da69172e9e679ac6d007c5d7d162b58348f159c64554",
+            "after": "7ad0e83ebfba0d909e5eba0250104eee819903fac06550031cc8fac3e9ac17eb"
+          },
+          {
+            "path": "packages/pos/package.json",
+            "before": "e97cec6b380c59148e36f58cf538e9e970c8c3d3bedcebe02f9fb64ad134f3d1",
+            "after": "72445e084ae6ed991d9572a1b5792e164c358d38cf4c84d59bd984b0b3426ffc"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Mercaria.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Mercaria.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@mercaria/backend",
+          "cwd": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/packages/backend",
+          "scripts": {
+            "build": "bun build.ts",
+            "typecheck": "tsc --noEmit",
+            "test": "vitest run",
+            "lint": "eslint src scripts build.ts"
+          }
+        },
+        {
+          "package": "@mercaria/dashboard",
+          "cwd": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/packages/dashboard",
+          "scripts": {
+            "build": "bun x expo export --platform web",
+            "typecheck": "bun ../../scripts/generate-router-types.mjs && tsc --noEmit",
+            "test": "vitest run",
+            "lint": "eslint ."
+          }
+        },
+        {
+          "package": "@mercaria/frontend",
+          "cwd": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/packages/frontend",
+          "scripts": {
+            "build": "bun x expo export --platform web",
+            "typecheck": "bun ../../scripts/generate-router-types.mjs && tsc --noEmit",
+            "test": "vitest run",
+            "lint": "eslint ."
+          }
+        },
+        {
+          "package": "@mercaria/pos",
+          "cwd": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/packages/pos",
+          "scripts": {
+            "build": "bun x expo export --platform web",
+            "typecheck": "bun ../../scripts/generate-router-types.mjs && tsc --noEmit",
+            "test": "vitest run",
+            "lint": "eslint ."
+          }
+        },
+        {
+          "package": "@mercaria.co/sdk",
+          "cwd": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/packages/sdk",
+          "scripts": {
+            "build": "node scripts/build.mjs",
+            "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+            "test": "vitest run",
+            "lint": "eslint src test scripts"
+          }
+        },
+        {
+          "package": "@mercaria/shared-types",
+          "cwd": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/packages/shared-types",
+          "scripts": {
+            "build": "tsc",
+            "test": "echo \"No tests specified\" && exit 0",
+            "lint": "echo \"No lint configured for shared-types\" && exit 0"
+          }
+        },
+        {
+          "package": "@mercaria/ui",
+          "cwd": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/packages/ui",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "test": "echo \"No tests specified\" && exit 0",
+            "lint": "echo \"No lint configured for ui\" && exit 0"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "ff1d7a79f3cee6ffcd35f25d732bfe89d1690636628888f4fb94ca2118ce3d61",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Mercaria",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare.yml",
+          "sha256": "a9f3a399f618f561aad467920662f2aeab969cec6205c23de68f71a0808fb4cc",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-cloudflare.yml",
+            "--repo",
+            "OxyHQ/Mercaria",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/deploy-dashboard.yml",
+          "sha256": "51d2ee4a1ce99cbe7f2e52348f3036d7e386292082c5a72d79dc9d8db70996cd",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-dashboard.yml",
+            "--repo",
+            "OxyHQ/Mercaria",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/deploy-pos.yml",
+          "sha256": "4c5940e544fbaa4712466b02aabe8d1c51e96e38144f3688666df188e8c4c3eb",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-pos.yml",
+            "--repo",
+            "OxyHQ/Mercaria",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/publish-sdk.yml",
+          "sha256": "cdf1cbe9edfc927558ac07a0ef2113cc5abba28ec866cc4c63f94b39c5efe7dc",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "publish-sdk.yml",
+            "--repo",
+            "OxyHQ/Mercaria",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "inventory_only_do_not_dispatch"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "mercaria",
+          "ecrRepository": "oxy/mercaria",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "Dockerfile",
+          "dockerfileSha256": "5f93c981c46906d9e5cf117566fa173058f15e08023dceea7a2c2fa9c8f6cac2",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Mercaria",
+            "--file",
+            "Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mercaria:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/mercaria-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Mercaria",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Mercaria",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Mercaria/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "worktree": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-clarity-final-sdk-20261003",
+      "preparedHead": "250f035b2d45e7513b03c72e320bb86585f7837d",
+      "lot": 2,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Clarity.patch",
+        "sha256": "e3f6ac69dfa02e12e3b2cea6b1fcb9b8a78915610c0bcd8d15ecde431cbdcf6d",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "fb807fd60997e957690a5b59a58f468643c15ccf565b527fdc48d040ecdb900c",
+            "after": "d7700d7e871e9157bdd7ea95ec852a6f7f4a77d39652b7fa00f785f5006188a3"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "2bab136c6c711d04552a04657ea8fedb82d0aa0fefd4327b062528259e7352cc",
+            "after": "169288d52186a8ddf42e488b190d80e725b18cbb8476bcde0bd2db684f49c331"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "c8ded388ddde880060f1d3ab1b31c6e9f2ec2064588ef1055b3ce7570169b0ed",
+            "after": "a24074461e270ea8a95a4b55e49771e7d5a88f42c408a80239711feadb310850"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Clarity.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Clarity.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@clarity/backend",
+          "cwd": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003/packages/backend",
+          "scripts": {
+            "build": "bun build.ts",
+            "test": "vitest run",
+            "lint": "eslint src"
+          }
+        },
+        {
+          "package": "@clarity/frontend",
+          "cwd": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend",
+          "scripts": {
+            "build": "bun x setup-skia-web public && bun x expo export --platform web",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "@clarity.surf/sdk",
+          "cwd": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003/packages/sdk",
+          "scripts": {
+            "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && cp cjs-package.json dist/cjs/package.json",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "@clarity/shared-types",
+          "cwd": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003/packages/shared-types",
+          "scripts": {
+            "build": "tsc",
+            "test": "echo \"No tests specified\" && exit 0"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "76507ae52f6ffaaff871e01801dc58f17c4d3fb1e0ec4b2703e518db84939c33",
+          "manualDispatch": false,
+          "operatorCommand": null,
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "f82c0dc1e232a5277ac19dddf60db800d994f33742a293fed364aca0b7ee7824",
+          "manualDispatch": false,
+          "operatorCommand": null,
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "clarity-api",
+          "ecrRepository": "oxy/clarity",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "217e119146ee838972eb738b2950c891fa5bb7d389228bcf7b8fbb7132d8a051",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Clarity",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/clarity:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/clarity-api-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        },
+        {
+          "service": "clarity-worker",
+          "ecrRepository": "oxy/clarity",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "217e119146ee838972eb738b2950c891fa5bb7d389228bcf7b8fbb7132d8a051",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Clarity",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/clarity:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/clarity-worker-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Clarity",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Clarity",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Clarity/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Allo",
+      "worktree": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-allo-final-sdk-20261003",
+      "preparedHead": "5a76eed3270433b883ff6b5a6325ce0a47815a43",
+      "lot": 1,
+      "bloom": "7.1.2",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Allo.patch",
+        "sha256": "92553e28689c59af21867d161d096c2d05091f6458a5c1aa22af2e72c01de513",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "45218a5abd5bb7c1edafe64ad01d30bcb7c0f484c60cc3bab4bad87fbe12db9a",
+            "after": "e87be1546922e96df67c6bc1691ed963b7a044ff4e1c0948fa7b39d034eecbe0"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "5e49fab17eb01fc0dcfbc5b80f1cf05e2657bc102c1e02f681ab5e6e6aa34c69",
+            "after": "6710abb77ae199637d5fe12368d9511021d4a098eee7f46b8a07d5c51baccdfd"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "747bbd8b14b2da2f9bd00ba1d1a3ac0bf0c672625e4113368ffdee03dde1ab81",
+            "after": "980f07936de6ecd259fffc4bf096487823fbc4eace66bf8d4ada1a471267505a"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Allo.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Allo.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@allo/backend",
+          "cwd": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003/packages/backend",
+          "scripts": {
+            "build": "tsc",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "@allo/core",
+          "cwd": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003/packages/core",
+          "scripts": {
+            "build": "tsc -p tsconfig.json",
+            "typecheck": "tsc -p tsconfig.test.json --noEmit",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "@allo/frontend",
+          "cwd": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend",
+          "scripts": {
+            "build": "expo export --platform web --output-dir dist",
+            "test": "jest --watchAll=false",
+            "lint": "expo lint"
+          }
+        },
+        {
+          "package": "@allo/react",
+          "cwd": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003/packages/react",
+          "scripts": {
+            "build": "tsc -p tsconfig.json",
+            "typecheck": "tsc -p tsconfig.test.json --noEmit",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "@allo/shared-types",
+          "cwd": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003/packages/shared-types",
+          "scripts": {
+            "build": "tsc -p tsconfig.json",
+            "typecheck": "tsc -p tsconfig.test.json --noEmit",
+            "test": "vitest run"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "5ecff31e47c9730626523fc45a33b6e43d741c6baf682a355b4134fe40380b8a",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Allo",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "32ce63eb5220af3bca16915255c75969708d3257d1f807cdf13c9beb767ebce7",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-frontends.yml",
+            "--repo",
+            "OxyHQ/Allo",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "source_explicit_zero_task_no_rollout_branch",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "allo",
+          "ecrRepository": "oxy/allo",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "fc38746c57a018f566a8c45633fffe55393421c67bf7db468564305bebde5a68",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Allo",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/allo:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/allo-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Allo",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Allo",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Allo/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Noted",
+      "worktree": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-noted-final-sdk-20261003",
+      "preparedHead": "dedc9eeeb7f024498c353a3459b10842831112e4",
+      "lot": 1,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Noted.patch",
+        "sha256": "5fea5fa4338f30e9b1dd3226cc70debabd28946f56e0592c4daa74f3cbc2b831",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "90f2ad71face17b2d2231f5d3ae42c8bdbebfc505f8f798348f8cacf37b92a37",
+            "after": "b0a61aef83949562cbbdea12456844d211a2350ced2b1d866f03cd72ba5c0487"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "e7e1a35d9a307911c973e56085e606742a3f6395efd2933099d7654212887435",
+            "after": "04df1907ba44253a6d57b43ab96e1da2b61f6e2c2e18e66639da1a9c7880e701"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "2154e43b0af9ccc5f61933d248f85253cc6f404c1b21ecd228b15f0af5583a29",
+            "after": "74d25b02f6c8fc079f284f754622c4bf4e73b971694ecb30c91025c7d02c4b2e"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Noted.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Noted.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@noted/backend",
+          "cwd": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/packages/backend",
+          "scripts": {
+            "build": "bun build.ts",
+            "test": "vitest run",
+            "lint": "eslint src"
+          }
+        },
+        {
+          "package": "@noted/frontend",
+          "cwd": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend",
+          "scripts": {
+            "build": "bun x expo export --platform web",
+            "test": "vitest run"
+          }
+        },
+        {
+          "package": "@noted/shared-types",
+          "cwd": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/packages/shared-types",
+          "scripts": {
+            "build": "tsc -p tsconfig.json"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "7a43adfc946065bf8b8e94f3184cd6fe344e96d08be0877297aaa7ba644b2ca9",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Noted",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare.yml",
+          "sha256": "6843f7465809c5278703555f6ec54a81f2160d1308b72858fefd288f8f9fd7c4",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-cloudflare.yml",
+            "--repo",
+            "OxyHQ/Noted",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "noted",
+          "ecrRepository": "oxy/noted",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "Dockerfile",
+          "dockerfileSha256": "c5c723d339f66ff22ff166bb085a3d8e235b43aac1d3bf61f8dc4f615e342757",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Noted",
+            "--file",
+            "Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/noted:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/noted-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Noted",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Noted",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Noted/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Homiio",
+      "worktree": "/home/nate/Oxy/Homiio/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-homiio-final-sdk-20261003",
+      "preparedHead": "a7860c11e681f75697dac4705986bad471f88217",
+      "lot": 1,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Homiio.patch",
+        "sha256": "9df7004b37092e62be8416470585ad1ed4516d5743ef40ebc000dd0cc0214969",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "76280a0f955a44b1985f7f5864c2a90303cd8e93ff38d9211922f05851722082",
+            "after": "05c70c5ef08d1a0f01a88d7b3709f1847826d2ca70a304e9f238a3c64572b4a6"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "ec73d90eee6697f2ca0bb53f8b99af342a38c0ba2129d6add00da899fae25e34",
+            "after": "8c8cce98addacacc7564fb3f15cb1958966a90d24b6f74630a4c9b0720f03e13"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "829e0001c0a58c13d6083bfbf6c4deff52ef327c31d33e5feb938fc5ae824e08",
+            "after": "a4367cc8ccb106e9da083d75b533e69d0ac2504e742348a57d82737113c9f364"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Homiio.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Homiio.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@homiio/backend",
+          "cwd": "/home/nate/Oxy/Homiio/.worktrees/1519-final-sdk-adoption-20261003/packages/backend",
+          "scripts": {
+            "build": "tsc -p tsconfig.build.json",
+            "typecheck": "tsc --noEmit",
+            "test": "cd ../listing-providers && bun run build && cd ../backend && NODE_OPTIONS='--max-old-space-size=6144' jest",
+            "lint": "eslint . --ext .ts"
+          }
+        },
+        {
+          "package": "@homiio/frontend",
+          "cwd": "/home/nate/Oxy/Homiio/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend",
+          "scripts": {
+            "build": "expo export --platform web --output-dir dist",
+            "typecheck": "tsc --noEmit",
+            "test": "jest --ci",
+            "lint": "expo lint"
+          }
+        },
+        {
+          "package": "@homiio/listing-providers",
+          "cwd": "/home/nate/Oxy/Homiio/.worktrees/1519-final-sdk-adoption-20261003/packages/listing-providers",
+          "scripts": {
+            "build": "bunx tsc",
+            "test": "cd ../backend && bun run test -- --testPathPattern=\"listing|provider|ingest|proxy|browser|strategy|blueground|fixture|klein|idealista|fotocasa|habitaclia|price|contact|classifieds|registry|realtor|realestate|bayut\"",
+            "lint": "eslint src --ext .ts"
+          }
+        },
+        {
+          "package": "@homiio/shared-types",
+          "cwd": "/home/nate/Oxy/Homiio/.worktrees/1519-final-sdk-adoption-20261003/packages/shared-types",
+          "scripts": {
+            "build": "bunx tsc",
+            "test": "echo \"No tests specified\" && exit 0",
+            "lint": "eslint src --ext .ts"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "58726ff5df5319415b95ab07d51da3072b427a8f5e06e10b77630158e9e03a5d",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Homiio",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "abf5b71a4322106151608405784b23193466fe9bb9388a2bc2228026993713f4",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-frontends.yml",
+            "--repo",
+            "OxyHQ/Homiio",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "source_explicit_zero_task_no_rollout_branch",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "homiio",
+          "ecrRepository": "oxy/homiio",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "5e2dbd0194e858f3efcb6791f3ae2941e5422146f1195a79c2eaca4955986473",
+          "target": "api",
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Homiio",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--target",
+            "api",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/homiio:<merged-full-SHA>-api",
+            "--metadata-file",
+            "<private-evidence>/homiio-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        },
+        {
+          "service": "homiio-worker",
+          "ecrRepository": "oxy/homiio",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "5e2dbd0194e858f3efcb6791f3ae2941e5422146f1195a79c2eaca4955986473",
+          "target": "worker",
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Homiio",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--target",
+            "worker",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/homiio:<merged-full-SHA>-worker",
+            "--metadata-file",
+            "<private-evidence>/homiio-worker-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Homiio",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Homiio",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Homiio/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/website",
+      "worktree": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-website-final-sdk-20261003",
+      "preparedHead": "2dc4a9013a3bc532697b31e0093c175b52b297b4",
+      "lot": 1,
+      "bloom": "7.1.2",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/website.patch",
+        "sha256": "adacb3a3e04b236292bf131621fa8b33a3da59b27be67132fcc07839551444f6",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "c72b11e49a0abd28e94f97a8f9e3e75c19497d273b0617cee3c90b48f2cb0c15",
+            "after": "5c762b24c46f967621180b23f71b10b7e25582e2f00853d0714434ba4a4aee38"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/website.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/website.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "3d4ba3f3edf6f90bda6513a90faa87e65fe555e05341229d446790465f909544",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/website",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "932f5f256dee52f9ad1de5e68279e2b89c53db7d5ab1460e7d69f40ad47ae0fc",
+          "manualDispatch": false,
+          "operatorCommand": null,
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "website-api",
+          "ecrRepository": "oxy/website-api",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "Dockerfile",
+          "dockerfileSha256": "ed6b14b0f98eb41e4d8cd26f840b585f1d36b8b77b1eafd360fbea18a5528a5d",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/website",
+            "--file",
+            "Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/website-api:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/website-api-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/website",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/website",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/website/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Peable",
+      "worktree": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003",
+      "branch": "task/1519-pay-bloom621-compat-20261003",
+      "preparedHead": "11b9f19730ed64863ee1fac5bc3c3b4b7d691386",
+      "lot": 2,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Peable.patch",
+        "sha256": "6973c193d3ab9a4abeaa000964f00d7c2de9eed451270a77cd8286eb1b51c18e",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "a454ae956dfcbd4075a7f659606b7742d24c83a14d9e38ae6101665fbc2e36be",
+            "after": "7e74951f5bb578adcde3347d629bd0c4701ca000f61dec66fedb0daff62e5faf"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "4b52c7a725f49e34cb623f7a9d0c3d4f0287b553291dc13dc469880ef9042435",
+            "after": "f644f57fcaab3c1af02c5f87b0a6a5ded72e645031873e31d0cb18f1f5629ba6"
+          },
+          {
+            "path": "packages/checkout/package.json",
+            "before": "01939e5b54d180f88a03d7f8d0fe50bac3a708fcf8de63d8c3029d4666c5bca7",
+            "after": "e997b12708b22b9190677dde511f61bd2fb6c56a2804b222dd960068ff0b664c"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "600efb7623abb51057acaa372067944f216323a6519e4773c87969ec3afd1e14",
+            "after": "5640e01a84c07532379848c489a694816b3b8b9379f400d5680e80a395ea0ba0"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Peable.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Peable.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@peable.to/backend",
+          "cwd": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003/packages/backend",
+          "scripts": {
+            "build": "tsc",
+            "typecheck": "tsc --noEmit",
+            "test": "bun test src",
+            "lint": "tsc --noEmit"
+          }
+        },
+        {
+          "package": "@peable.to/checkout",
+          "cwd": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003/packages/checkout",
+          "scripts": {
+            "build": "vite build && bun run build:edge",
+            "typecheck": "tsc --noEmit",
+            "test": "bun test src"
+          }
+        },
+        {
+          "package": "@peable.to/frontend",
+          "cwd": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003/packages/frontend",
+          "scripts": {
+            "build": "expo export --platform web && bun run build:edge",
+            "typecheck": "tsc --noEmit",
+            "test": "bun test src",
+            "lint": "expo lint"
+          }
+        },
+        {
+          "package": "@peable.to/pay",
+          "cwd": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003/packages/pay",
+          "scripts": {
+            "build": "bun run build:cjs && bun run build:esm && bun run build:types",
+            "typecheck": "tsc --noEmit",
+            "test": "bun test",
+            "lint": "tsc --noEmit"
+          }
+        },
+        {
+          "package": "@peable.to/sdk",
+          "cwd": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003/packages/sdk",
+          "scripts": {
+            "build": "bun run build:cjs && bun run build:esm && bun run build:types",
+            "typecheck": "tsc --noEmit",
+            "test": "bun test",
+            "lint": "tsc --noEmit"
+          }
+        },
+        {
+          "package": "@peable.to/shared-types",
+          "cwd": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003/packages/shared-types",
+          "scripts": {
+            "build": "bun run build:cjs && bun run build:esm && bun run build:types",
+            "typecheck": "tsc --noEmit",
+            "test": "bun test",
+            "lint": "tsc --noEmit"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "65cb8c800f9c216582ac6ca9658fd7bd920fe7ecd34174aa59ba5bbbc8fe804b",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Peable",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero",
+          "normalServingOnlyInputs": {
+            "sync_secrets": "false",
+            "migration_phase": "pre-post"
+          }
+        },
+        {
+          "path": ".github/workflows/deploy-checkout.yml",
+          "sha256": "128bf02b74a81daefedbfbc87a6ded9c7e38f6c2f051ce32bd071ceeea603497",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-checkout.yml",
+            "--repo",
+            "OxyHQ/Peable",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/deploy-frontend.yml",
+          "sha256": "911d592edb7cfa5330687f5b4b4669f18d93843f3a605b7be2e5b6a0b8f3829f",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-frontend.yml",
+            "--repo",
+            "OxyHQ/Peable",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "peable",
+          "ecrRepository": "oxy/peable",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "ce92f2eb1e5859dcbc9b8117c0b2cb3b63d7bbad79421f0c9af3f79cc05ce58d",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Peable",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/peable:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/peable-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Peable",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Peable",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Peable/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "worktree": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "preparedHead": "e5f62c750837f9e6a0b2d73655628a4c53df2bc7",
+      "lot": 1,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/tnp.patch",
+        "sha256": "7888ca6de148cf5604116fa4e954c8629c2ca24ef988810f6d8d47ee36d0f707",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "8560f262a99a27620b0cd4d4ab1df2d4256ba94825e5d42346f8bdf41a2122ce",
+            "after": "72b77317a1aba52ad8060703b09918bd645ab4ae789040546f258589a827c9f3"
+          },
+          {
+            "path": "apps/api/package.json",
+            "before": "47e9336ad074feb0a319adf997ce5a77c4fcc4a7e4a4937c0afe550b13f112ea",
+            "after": "721766d7b66f1bd51aebcf000bb6eedc5227fda190ba0d10d775ef1573f7dd93"
+          },
+          {
+            "path": "apps/dns-server/package.json",
+            "before": "c065b776931850ce031e3657f56a755ace95fb68ef970cc5df1055481bdb9579",
+            "after": "450a5259de645d9a50ca066d280279d9ce6e58f63efee11f01220961cf249362"
+          },
+          {
+            "path": "apps/relay/package.json",
+            "before": "ad9473702176fb4b03682a8206322383f988566c40dfe9323038135009033cfd",
+            "after": "da6444b7634e5133a121e81f1d4b826ef419cfc28130e2c2e0886dd5c6056966"
+          },
+          {
+            "path": "apps/web/package.json",
+            "before": "2cacd71060803551cb6ddf74dd8d1e006f5cbd7200b632442c3374c4b27c122d",
+            "after": "59f5b433785ead1fa12881e5826fa188b0f151a4701107ea94d737a130b069a8"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/tnp.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/tnp.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@tnp/client",
+          "cwd": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003/packages/client",
+          "scripts": {
+            "build": "bun build src/cli.ts --compile --outfile dist/tnp",
+            "typecheck": "tsc --noEmit",
+            "test": "bun test"
+          }
+        },
+        {
+          "package": "@tnp/crypto",
+          "cwd": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003/packages/crypto",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "test": "bun test"
+          }
+        },
+        {
+          "package": "@tnp/namespace",
+          "cwd": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003/packages/namespace",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "test": "bun test"
+          }
+        },
+        {
+          "package": "@tnp/protocol",
+          "cwd": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003/packages/protocol",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "test": "bun test"
+          }
+        },
+        {
+          "package": "@tnp/shared-types",
+          "cwd": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003/packages/shared-types",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "test": "bun test"
+          }
+        },
+        {
+          "package": "@tnp/api",
+          "cwd": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003/apps/api",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "test": "bun test src"
+          }
+        },
+        {
+          "package": "@tnp/dns-server",
+          "cwd": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003/apps/dns-server",
+          "scripts": {
+            "typecheck": "tsc --noEmit"
+          }
+        },
+        {
+          "package": "@tnp/relay",
+          "cwd": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003/apps/relay",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "test": "bun test"
+          }
+        },
+        {
+          "package": "@tnp/web",
+          "cwd": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003/apps/web",
+          "scripts": {
+            "build": "vite build && bun run build:edge",
+            "typecheck": "tsc -b",
+            "test": "bun test"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "deb6c65f6499c0b631dc061a13a125ecd8b6ade82f282dd08f3c7eea4dca5218",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/tnp",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "image_publisher_only_api_and_dns"
+        },
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "6004e0742fea8415ac7015d0d21e964178b8d58454c42338617dffbb034c166c",
+          "manualDispatch": false,
+          "operatorCommand": null,
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "tnp-api",
+          "ecrRepository": "oxy/tnp-api",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "Dockerfile.api",
+          "dockerfileSha256": "b43478d6f2a876f95b04c9ef1607eb7db8511af9b6847567b39aea7dfa05fc66",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/tnp",
+            "--file",
+            "Dockerfile.api",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/tnp-api:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/tnp-api-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        },
+        {
+          "service": "tnp-dns",
+          "ecrRepository": "oxy/tnp-dns",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "Dockerfile.dns",
+          "dockerfileSha256": "b5806c71d473a31e41729050e874e82c1b94125d9749c2a2f85a6ae4de2217e5",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/tnp",
+            "--file",
+            "Dockerfile.dns",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/tnp-dns:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/tnp-dns-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/tnp",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/tnp",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/tnp/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Willo",
+      "worktree": "/home/nate/Oxy/Willo/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "preparedHead": "1daf3501191ffb82bc4c4b3de3199eebe2bcedd9",
+      "lot": 1,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Willo.patch",
+        "sha256": "af521d772883f08b84e0de1f00c7404ffa2521c199df64be5b71e542650238f7",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "c8b8d08fbf070802d09b304cc8192fb1679fb3e30105adfd3bbdf76f62326670",
+            "after": "9fb3f62ed085fec0221f698d26e2c588affc0866fb149b0cb2335731aa5d430d"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "d83b008dbb2bd2e48cb746df395a45209b5c005d55d360aee5089650ff7411bc",
+            "after": "c1a9509ac0d2c1afabdeefc84c41ab4f49b3b1d3ddab53763a882f8cd636c9d1"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "f8fa256e733147072b0e5326c1bfc9df943feb44d38809ea90f64489884a0b7a",
+            "after": "c066eb67f1d56ac425c951e9d243d43aabb4029b73008f5158379d6599865424"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Willo.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Willo.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@willo.sh/backend",
+          "cwd": "/home/nate/Oxy/Willo/.worktrees/1519-final-sdk-adoption-20261003/packages/backend",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "test": "bun test src"
+          }
+        },
+        {
+          "package": "@willo.sh/frontend",
+          "cwd": "/home/nate/Oxy/Willo/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend",
+          "scripts": {
+            "typecheck": "tsc --noEmit"
+          }
+        },
+        {
+          "package": "@willo.sh/ui",
+          "cwd": "/home/nate/Oxy/Willo/.worktrees/1519-final-sdk-adoption-20261003/packages/ui",
+          "scripts": {
+            "typecheck": "tsc --noEmit"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "55c247451df5719b6301ed6f64de0807c97a71e904894e8dc9d38f82148f200f",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Willo",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-frontend.yml",
+          "sha256": "65b8b43302d754e5dedf45a2337ea0610ccf0636a660e457b27f73f2d9facb4d",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-frontend.yml",
+            "--repo",
+            "OxyHQ/Willo",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "willo",
+          "ecrRepository": "oxy/willo",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "1dd056ad6fa46518be5e32fcb64cf83f9cb2d7d3702d0a43955a0db20d5a9f5b",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Willo",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/willo:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/willo-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Willo",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Willo",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Willo/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/GoWay",
+      "worktree": "/home/nate/Oxy/GoWay/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "preparedHead": "2f0cd7a4acbe4d37d76c219a20700bef4f41d8f8",
+      "lot": 3,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/GoWay.patch",
+        "sha256": "d8e5c764eadb525701c465857f378991ccb316ada9741e0eca0ba6657f62eb8a",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "63207de17206bf4eb9025e546d05dbcde90dedb7966db361e3c36c2a1e3aef1f",
+            "after": "cb03265e6c865e03ca4c64edebfa1d860742b517b4eacc5fbb900d14d4e7068b"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "f326b19a71b7cad3725ea39bb51989033be1a7d8438529833add9ea092fdbc3b",
+            "after": "dadef3cd2fcc2bd68e5d71e80b3499370d1d9b435db5ef7b4eb00cb136f8d235"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "5fff9da11c225b4fbc792d54777fea7bec6817c49a59fdbaf2c35a7d872eb304",
+            "after": "2a9f7619f02a3ec90cbc8eebc6ccc1bb3ffdb8066f887ae00885352d850adc2e"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/GoWay.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/GoWay.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@goway/backend",
+          "cwd": "/home/nate/Oxy/GoWay/.worktrees/1519-final-sdk-adoption-20261003/packages/backend",
+          "scripts": {
+            "build": "tsc -p tsconfig.json",
+            "typecheck": "tsc -b tsconfig.json && tsc -p tsconfig.tools.json",
+            "test": "bun test",
+            "lint": "eslint ."
+          }
+        },
+        {
+          "package": "@goway/frontend",
+          "cwd": "/home/nate/Oxy/GoWay/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "test": "bun test",
+            "lint": "expo lint"
+          }
+        },
+        {
+          "package": "@goway.to/sdk",
+          "cwd": "/home/nate/Oxy/GoWay/.worktrees/1519-final-sdk-adoption-20261003/packages/sdk",
+          "scripts": {
+            "build": "node scripts/build.mjs",
+            "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+            "test": "vitest run",
+            "lint": "eslint src test scripts"
+          }
+        },
+        {
+          "package": "@goway/shared-types",
+          "cwd": "/home/nate/Oxy/GoWay/.worktrees/1519-final-sdk-adoption-20261003/packages/shared-types",
+          "scripts": {
+            "build": "tsc -p tsconfig.json"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "496739defe1221b8297b48a5dd437b06e9dca36f17b8bf59ad37ed3ca4f77cb3",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/GoWay",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-frontend.yml",
+          "sha256": "c440ee82e33ea240d3c950429b36b3302d950fbb59dc88787d7a7796f3340f15",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-frontend.yml",
+            "--repo",
+            "OxyHQ/GoWay",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/publish-sdk.yml",
+          "sha256": "40ccd223b71d2517fbe2a7695ad6c9df8be54a4e11e38dea8d6dee6be4ee828d",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "publish-sdk.yml",
+            "--repo",
+            "OxyHQ/GoWay",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [
+            "tag"
+          ],
+          "role": "inventory_only_do_not_dispatch"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "goway",
+          "ecrRepository": "oxy/goway",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "dd68b79d9dbe8745f4e9f043c9c066ac59ac7bc8a1454716daf1d9250fe9fe8d",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/GoWay",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/goway:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/goway-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/GoWay",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/GoWay",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/GoWay/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Moovo",
+      "worktree": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "preparedHead": "37c16ebbce76eba12ff2c00e37d2b633536961a1",
+      "lot": 1,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Moovo.patch",
+        "sha256": "48a35e7636fd8b45dd9309b6084177386ae2c9ce20410dff2ddbfc0698fbf83f",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "8fd03cc5f551b90e5ae5326878e9e925289c68a881771999e156bd0554fa8882",
+            "after": "3cb4883888957f63b9a1057b6c5de40dd94b74ede50cf935c123bf7becb41931"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "a87298c29f099e2d5da559f862559637cadb010a88648ad9d394f7fcb0ed1e99",
+            "after": "cc52f40eeb7c2ad51a77d20d731b131b893fee7551b604561236c4c903560a37"
+          },
+          {
+            "path": "packages/courier-app/package.json",
+            "before": "6b6c3f7963f4327a2b0f06b3c4e39d20900cb5dea20ce902285e8f94537ca71e",
+            "after": "76553d0109a8a351bf94da1881e5195be64f0f20512e31882446a5c952d7ba32"
+          },
+          {
+            "path": "packages/fleet-dashboard/package.json",
+            "before": "c90fee4d91dc4bc1f0816bdbd2f1f4e8e29e24d02b3558e38613983c44a74dba",
+            "after": "a47d9a4c70a5e68ae32db800902e7e234ffd5fc3e4e46f4e14d69942d2fc90b1"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "e74f8acf9566c207db04c45c55fb233a0691f9dd7da003102239bf00177687b6",
+            "after": "e49b959e7962e5b4b1b0431ed80ed425c5b2fa8cfa158481e436da40db83c5e3"
+          },
+          {
+            "path": "packages/tracker-app/package.json",
+            "before": "57a90066f65c4acc8d42d925f984183d7d94f38cbd61fef9e6e16230662e599b",
+            "after": "4c91fc9ee80b5ea403d85f2ce8a1ea7d8cabdb5b4272fc81661a6c02c8d41b37"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Moovo.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Moovo.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@moovo/backend",
+          "cwd": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003/packages/backend",
+          "scripts": {
+            "build": "bun build.ts",
+            "typecheck": "tsc --noEmit",
+            "test": "vitest run",
+            "lint": "eslint src"
+          }
+        },
+        {
+          "package": "@moovo/courier-app",
+          "cwd": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003/packages/courier-app",
+          "scripts": {
+            "build": "bun x expo export --platform web && bun run build:edge"
+          }
+        },
+        {
+          "package": "@moovo/fleet-dashboard",
+          "cwd": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003/packages/fleet-dashboard",
+          "scripts": {
+            "build": "bun x expo export --platform web && bun run build:edge"
+          }
+        },
+        {
+          "package": "@moovo/frontend",
+          "cwd": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend",
+          "scripts": {
+            "build": "bun x expo export --platform web && bun run build:edge"
+          }
+        },
+        {
+          "package": "@moovo/shared-types",
+          "cwd": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003/packages/shared-types",
+          "scripts": {
+            "build": "tsc",
+            "test": "echo \"No tests specified\" && exit 0",
+            "lint": "echo \"No lint configured for shared-types\" && exit 0"
+          }
+        },
+        {
+          "package": "@moovo/tracker-app",
+          "cwd": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003/packages/tracker-app",
+          "scripts": {
+            "build": "bun x expo export --platform web && bun run build:edge"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "2ac1208f690f0db6a51438acd2096f64b1034af22d0c04323f6436544d116177",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Moovo",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare-go.yml",
+          "sha256": "3fe61208994d8718fbd00de6ff24dc452964dff73e51d1ce852540b24dbcd6ac",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-cloudflare-go.yml",
+            "--repo",
+            "OxyHQ/Moovo",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare-hub.yml",
+          "sha256": "dbc3f97dce9efe98b731343c1a6029d850556332a2a59af273e9389fbf70f46b",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-cloudflare-hub.yml",
+            "--repo",
+            "OxyHQ/Moovo",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare-tracker.yml",
+          "sha256": "ec60e1e4a934883a0cb57ff05c9701a15bcd73904d89211826bac92e83f5fbf3",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-cloudflare-tracker.yml",
+            "--repo",
+            "OxyHQ/Moovo",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare.yml",
+          "sha256": "6ac6e01e5c2bb62f4af4078c1a65f328a3abf6d63e71a1b464e9ec0c3079639a",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-cloudflare.yml",
+            "--repo",
+            "OxyHQ/Moovo",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "moovo",
+          "ecrRepository": "oxy/moovo",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "Dockerfile",
+          "dockerfileSha256": "7b207fcc60e7804b0e1e8460dd8692e1d56e6a05e2e8193eae61c95c3e7dd9fc",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Moovo",
+            "--file",
+            "Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/moovo:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/moovo-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Moovo",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Moovo",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Moovo/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "worktree": "/home/nate/Oxy/Nilo/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "preparedHead": "195400b8cd4681684d4bbce4fae8a3dd8003b2e7",
+      "lot": 1,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Nilo.patch",
+        "sha256": "55249e879fb70caff6ff8dbdcf653ceff74069c091b0f8ccf82eecb4eeb1ec4c",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "2170f90bbe5ba6eb81accd4756032ff7fe7ba7cac108ae1f3bbcc51ba421e2c6",
+            "after": "5894ead2556a66778aab69028c1e7a038b4551745f4197d6a3f6445f791770e5"
+          },
+          {
+            "path": "apps/api/package.json",
+            "before": "a4627ce2b4c9a4597668873d988a96522ed7841c62ebd3c871629f41f45e7d8f",
+            "after": "5873237d234fae2ecd58366e779e2f42404187cfdf546bae1691a5b7744f8493"
+          },
+          {
+            "path": "apps/app/package.json",
+            "before": "4f04fbcecdaac9338e240346d14b03e16c79c8bbd5ec84c08be740d6ee4ef8cd",
+            "after": "abda1349dccc567a9cb83f83c6551a5f8cc11974350d9baf0eda975f8d0aabcd"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Nilo.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Nilo.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@nilo/api",
+          "cwd": "/home/nate/Oxy/Nilo/.worktrees/1519-final-sdk-adoption-20261003/apps/api",
+          "scripts": {
+            "build": "bun build.ts",
+            "test": "vitest run",
+            "lint": "eslint src"
+          }
+        },
+        {
+          "package": "@nilo/app",
+          "cwd": "/home/nate/Oxy/Nilo/.worktrees/1519-final-sdk-adoption-20261003/apps/app",
+          "scripts": {
+            "build": "bun run validate:api-origin && bun x setup-skia-web public && bun x expo export --platform web"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "4333a74beff859f69c66cafe2dca214ed78a3eeae5defbbf63ae654e273db9b1",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Nilo",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "0f8be3952ce4c6def57abe4e41b8a0fdf47fe99f78cfb242c333139dd3388b60",
+          "manualDispatch": false,
+          "operatorCommand": null,
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "nilo",
+          "ecrRepository": "oxy/nilo",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "apps/api/Dockerfile",
+          "dockerfileSha256": "0ac7938817baf22c3231330970c55feaaabc98d49db722fccfa36274db82f4db",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Nilo",
+            "--file",
+            "apps/api/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/nilo:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/nilo-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Nilo",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Nilo",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Nilo/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "preparedHead": "988ad19a3ad363c2cdfee47789cc8daaada1902b",
+      "lot": 1,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/CrowdSource.patch",
+        "sha256": "b5a35fd62f9d4900fb52cc245d4e3e2eadf5be468c05acb4982dca27781cff0b",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "ce3a1032ca3b720f5576815ca9429c70579cf335d16534e668c3a55d3420750a",
+            "after": "75cbaed8a6a21618f7ccc8264320aad184af8f73b3e31da1218ae0159956252a"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "910cb094c8a5684f42d131480035964281fa01bcabf5f775b88f0d12e7ade44d",
+            "after": "bedf96b48d3ffac87862cfa94ad612b5ab619d0fe01e41909ad60fc089955242"
+          },
+          {
+            "path": "packages/console/package.json",
+            "before": "cd34ac694344ee2ac27a76746397ee68a4b849a3ee7a9956d8e7bebe2d27a8cb",
+            "after": "ac8353dce1eb36d524d8e7ab70af8fe043f97b69650a90c6eb2b00e9cd389c66"
+          },
+          {
+            "path": "packages/reviewer/package.json",
+            "before": "a6ded1262f620128cd1763b8f1b9fca50548927faee721ac52d9ba14679d09cc",
+            "after": "b0e4d8fcb52d9bc92b048d63583e8200c898eb08a912c0f423d4bbd1db10a5bd"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/CrowdSource.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/CrowdSource.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@crowdsource/backend",
+          "cwd": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003/packages/backend",
+          "scripts": {
+            "build": "tsc",
+            "test": "node ../../node_modules/vitest/vitest.mjs run",
+            "lint": "tsc --noEmit && tsc -p tsconfig.test.json"
+          }
+        },
+        {
+          "package": "@crowdsource/console",
+          "cwd": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003/packages/console",
+          "scripts": {
+            "build": "expo export --platform web --output-dir dist",
+            "typecheck": "tsc --noEmit",
+            "test": "node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand",
+            "lint": "expo lint"
+          }
+        },
+        {
+          "package": "@crowdsource.you/contracts",
+          "cwd": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003/packages/contracts",
+          "scripts": {
+            "build": "tsc && tsc -p tsconfig.esm.json && bun ../../scripts/write-esm-marker.mjs",
+            "test": "node ../../node_modules/vitest/vitest.mjs run",
+            "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters && tsc -p tsconfig.test.json"
+          }
+        },
+        {
+          "package": "@crowdsource.you/core",
+          "cwd": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003/packages/core",
+          "scripts": {
+            "build": "tsc && tsc -p tsconfig.esm.json && bun ../../scripts/write-esm-marker.mjs",
+            "test": "bun run test:unit && bun run test:express && bun run test:testing && bun run test:outbox && bun run test:invariants && bun run test:table-type",
+            "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters && tsc -p tsconfig.test.json"
+          }
+        },
+        {
+          "package": "@crowdsource/reviewer",
+          "cwd": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003/packages/reviewer",
+          "scripts": {
+            "build": "expo export --platform web --output-dir dist",
+            "typecheck": "tsc --noEmit",
+            "test": "node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand",
+            "lint": "expo lint"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "466794ea4bab8ce062cb9f8382d600f3c3781c72d2f4f18d0559061a14dc5113",
+          "manualDispatch": false,
+          "operatorCommand": null,
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "19668ff6d182c53ba6917abd7d35d21ee494d49fe08d9f04482caccc0248c088",
+          "manualDispatch": false,
+          "operatorCommand": null,
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "source_explicit_zero_task_no_rollout_branch",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "crowdsource",
+          "ecrRepository": "oxy/crowdsource",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "03ee825714d7245a4a0eddf5b346fcb2d9c571c96b9f0490375c3267f033cfa4",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/CrowdSource",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/crowdsource:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/crowdsource-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/CrowdSource",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/CrowdSource",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/CrowdSource/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
+      "repository": "OxyHQ/Syra",
+      "worktree": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "preparedHead": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "lot": 1,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Syra.patch",
+        "sha256": "866bd0007087d4bbfaf740c868aee527a1b65dad392fd62a4d0c5c912ec07327",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "fef519ec23d0179e721d449a284c30d6b9de6f8109d657f370778a0e87011a67",
+            "after": "bf19b3cca5d5bd502d83beff5ca995491adb2a0bcb5eb2533e133f715cc7d1f4"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "6129e99ef7e7300c30053fe9eccb5009a338b7c621e8fd1a1a06ad1e0e9b5d67",
+            "after": "5a4636d3349e28e904369947ba9eb06d5a01dde179b376b0b3b90f44f0157f6c"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "735923de4207ef0978895048e1f3c907c96197198ec5d241dde149974a76b76d",
+            "after": "7612868354a226f65369f0807435916ce1faeb2b4dcb20e683bcec1ab9f8db69"
+          },
+          {
+            "path": "packages/sdk/package.json",
+            "before": "814e7df6c59890a157d21e9175ee3750d96b079520015e2dc738fb3d1b67319a",
+            "after": "c7ce1556050a715a2c67fd3bd4f5fe703b04d47426cd3fe05fb41ac5c16a70da"
+          },
+          {
+            "path": "packages/studio/package.json",
+            "before": "51253e18a4cc34b7a3a04088bdfd4b1ff3d39fbb605840a73bb6c0c1097707ff",
+            "after": "b0484ea510e66ef3a38fc6dc9c1c49317b30eb74da4a63ee2bb2cb3f289bde25"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Syra.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Syra.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@syra/backend",
+          "cwd": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003/packages/backend",
+          "scripts": {
+            "build": "tsc -p tsconfig.build.json",
+            "typecheck": "tsc --noEmit",
+            "test": "rm -rf dist && bun test src"
+          }
+        },
+        {
+          "package": "@syra/frontend",
+          "cwd": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend",
+          "scripts": {
+            "build": "expo export --platform web --source-maps --output-dir dist && bun ./scripts/remove-css-preloads.mjs && bun ../../scripts/write-web-bundle-inventory.mjs dist .expo/web-bundle-inventory.json",
+            "typecheck": "tsc --noEmit",
+            "test": "jest --watchAll=false",
+            "lint": "expo lint"
+          }
+        },
+        {
+          "package": "@syra.fm/sdk",
+          "cwd": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003/packages/sdk",
+          "scripts": {
+            "build": "bob build",
+            "typecheck": "tsc --noEmit -p tsconfig.build.json",
+            "test": "bun test src"
+          }
+        },
+        {
+          "package": "@syra/shared-types",
+          "cwd": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003/packages/shared-types",
+          "scripts": {
+            "build": "tsc -b tsconfig.build.json && node scripts/mark-browser-module.mjs",
+            "typecheck": "tsc --noEmit",
+            "test": "bun test src"
+          }
+        },
+        {
+          "package": "@syra/studio",
+          "cwd": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003/packages/studio",
+          "scripts": {
+            "build": "expo export --platform web --output-dir dist && bun ./scripts/remove-css-preloads.mjs",
+            "typecheck": "tsc --noEmit",
+            "test": "jest --watchAll=false",
+            "lint": "expo lint"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "1bf9f5442bf0b4bcd28c8fffada50bf765a4db295edf0fb946f7f8ab99ea2c8a",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Syra",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "abe084b9feef33b107ab45763ec8a2deb53f802c05f55fd3a13725d7908d0dc9",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-frontends.yml",
+            "--repo",
+            "OxyHQ/Syra",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/deploy-studio.yml",
+          "sha256": "76f55b8370f972a1ee5063fec07cb3e77c271edaef9b7abc095113f1f5664420",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-studio.yml",
+            "--repo",
+            "OxyHQ/Syra",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "source_explicit_zero_task_no_rollout_branch",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "syra",
+          "ecrRepository": "oxy/syra",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "f018fd35b839fdb1e840ca1f0c2a679e80b47d5a209d9997d5e182652717a23f",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Syra",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/syra:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/syra-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Syra",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Syra",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Syra/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    }
+  ],
+  "imageBuildLimit": "Recipes are prepared, never executed. Root chooses existing reviewed publisher or equivalent image-only operator build; no combined workflow is assumed safe while paused. Never move latest. Exact CI/source/registry/runtime descriptor checks precede activation."
+}

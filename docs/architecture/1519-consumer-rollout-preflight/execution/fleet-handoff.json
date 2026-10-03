@@ -1,0 +1,338 @@
+{
+  "sourcePath": "/home/nate/Oxy/.agent-evidence/coverage-i03-fleet-reconciliation-20261003/fleet33-review.json",
+  "sourceSha256": "aba23fbd48c8d92dbbc312ac2416a97e24507390d756ace143fe87b744443d5b",
+  "snapshotOnly": true,
+  "services": [
+    {
+      "service": "crowdsource",
+      "repo": "CrowdSource",
+      "taskDefinition": "oxy-crowdsource:82",
+      "desired": 1,
+      "running": 1,
+      "lane": "Oxy optional service/session receiver, tenant effects; app account-event caller",
+      "proposedAction": "pause-update",
+      "restoreGate": "Account-events requires service JWT and recipient-app isolation, no nominal scope. Verify actual mint/recipient binding before restore; no implicit scope expansion"
+    },
+    {
+      "service": "move",
+      "repo": "Move",
+      "taskDefinition": "oxy-move:9",
+      "desired": 1,
+      "running": 1,
+      "lane": "Background service-token + user-header delegation to Mention imports batch/undo/lookup; app media/federation separate",
+      "proposedAction": "hold-jobs",
+      "restoreGate": "No offline consent grant exists; preserve queued intentions, readmit only with a legitimate delegated flow or explicit visible denial; no new consent invented"
+    },
+    {
+      "service": "gwj-mcp",
+      "repo": "GlobalWorldJournal/GWJ",
+      "taskDefinition": "gwj-mcp:1",
+      "desired": 1,
+      "running": 1,
+      "lane": "Own backend JWT MCP authority; no Oxy source dependency in inspected graph",
+      "proposedAction": "keep-independent",
+      "restoreGate": "Root actual image overlay matches75backend+34MCP source files to authenticated e94c tree; own JWT/MCP secret graph, no Oxy dependency. No installed dependency/base supply-chain claim"
+    },
+    {
+      "service": "mention",
+      "repo": "Mention",
+      "taskDefinition": "oxy-mention:484",
+      "desired": 2,
+      "running": 2,
+      "lane": "Oxy session/service receiver; foreground recommendations/privacy migrate to live requester Capability; Move import delegation separate",
+      "proposedAction": "pause-update",
+      "restoreGate": "Current TD484 source is newer than old a163 inspection; reconcile accepted consumer source and all effect routes; no app-only fallback for private ranking"
+    },
+    {
+      "service": "mention-mcp",
+      "repo": "Mention",
+      "taskDefinition": "oxy-mention-mcp:292",
+      "desired": 1,
+      "running": 1,
+      "lane": "Connected OAuth MCP and own domain permissions; app bearer for authority lookup",
+      "proposedAction": "pause-update",
+      "restoreGate": "Keep connection principal, audit and OAuth revocation checks; empty offline grant count is not a blocker for this lane"
+    },
+    {
+      "service": "alia-integrations",
+      "repo": "Alia",
+      "taskDefinition": "oxy-alia-integrations:77",
+      "desired": 1,
+      "running": 1,
+      "lane": "Gateway-secret and namespaced user-header internal protocol into Alia integrations",
+      "proposedAction": "pause-caller",
+      "restoreGate": "Different protocol from Oxy acting-as; pause producer during main Alia cutover and require exact protocol smoke before restoring"
+    },
+    {
+      "service": "allo",
+      "repo": "Allo",
+      "taskDefinition": "oxy-allo:114",
+      "desired": 2,
+      "running": 2,
+      "lane": "Oxy human/session/socket receiver; app ecosystem activity caller",
+      "proposedAction": "pause-update",
+      "restoreGate": "Activity requires service JWT and trusted active app, no nominal scope. Live b75a uses attested workload-or-pair guard; TD114 has no pair. Empty binding falls back to nonprivileged app user:read; rebase candidate old795 guard before final, no scope expansion"
+    },
+    {
+      "service": "tnp-api",
+      "repo": "tnp",
+      "taskDefinition": "oxy-tnp-api:7",
+      "desired": 1,
+      "running": 1,
+      "lane": "Oxy human-token receiver with domain/record SQL effects and telemetry caller",
+      "proposedAction": "pause-update",
+      "restoreGate": "Own SDK receiver adoption required despite earlier documentary payments milestone"
+    },
+    {
+      "service": "relay",
+      "repo": "Kaana",
+      "taskDefinition": "oxy-relay:16",
+      "desired": 2,
+      "running": 2,
+      "lane": "Legacy Go signed Ed25519 edge-envelope inference provider receiver, not Oxy JWT",
+      "proposedAction": "pause-provider",
+      "restoreGate": "Conservative admission stop for provider effects until binding/config restore checked; do not assume unused because Kaana also runs"
+    },
+    {
+      "service": "allo-matrix",
+      "repo": "oxy-infra",
+      "taskDefinition": "oxy-allo-matrix:1",
+      "desired": 1,
+      "running": 1,
+      "lane": "MAS OAuth RP + independent Synapse/Matrix session authority",
+      "proposedAction": "keep-protocol",
+      "restoreGate": "OAuth/token/userinfo smoke against new Oxy; Matrix session revocation is independent, outside core5-second acting-as guarantee"
+    },
+    {
+      "service": "clarity-api",
+      "repo": "Clarity",
+      "taskDefinition": "oxy-clarity-api:44",
+      "desired": 1,
+      "running": 1,
+      "lane": "Oxy effect receiver; user-header proxies to Alia plus service search app lanes",
+      "proposedAction": "pause-update",
+      "restoreGate": "Clarity Backend app/workload lacks offline and no human grant exists; restore foreground only on supported requester assertion and review other delegated proxies separately"
+    },
+    {
+      "service": "noted",
+      "repo": "Noted",
+      "taskDefinition": "oxy-noted:37",
+      "desired": 1,
+      "running": 1,
+      "lane": "OAuth MCP introspection + app-token authority lookup singleton; own requester/resource checks",
+      "proposedAction": "pause-update",
+      "restoreGate": "Final raw/deadline/status fixes reviewed locally; registry lock and real receiver smoke still needed"
+    },
+    {
+      "service": "moovo",
+      "repo": "Moovo",
+      "taskDefinition": "oxy-moovo:8",
+      "desired": 1,
+      "running": 1,
+      "lane": "Oxy service/session receiver; Telegram secret protocol separate",
+      "proposedAction": "pause-update",
+      "restoreGate": "Do not treat Telegram user header as Oxy offline authority; preserve domain checks and verify effective scope for any app effects"
+    },
+    {
+      "service": "clarity-worker",
+      "repo": "Clarity",
+      "taskDefinition": "oxy-clarity-worker:33",
+      "desired": 1,
+      "running": 1,
+      "lane": "Background search/index/provider jobs and same Alia delegated client source as API",
+      "proposedAction": "pause-jobs",
+      "restoreGate": "Drain in-flight and preserve queued jobs; do not restore delegated proxy jobs without exact authority/foreground compatibility"
+    },
+    {
+      "service": "kaana",
+      "repo": "Kaana",
+      "taskDefinition": "oxy-kaana:84",
+      "desired": 1,
+      "running": 1,
+      "lane": "Signed Oxy origin inference + provider credential custody; Oxy app-only BYOK validation caller",
+      "proposedAction": "keep-protocol",
+      "restoreGate": "Revalidate signed-origin binding and inference:byok:validate ceiling; no local Oxy JWT tier bypass claim. Keep available for isolated I09 canary only after binding check"
+    },
+    {
+      "service": "oxy-api",
+      "repo": "oxy",
+      "taskDefinition": "oxy-oxy-api:692",
+      "desired": 2,
+      "running": 2,
+      "lane": "Central issuer/verifier, grants/epochs/effects/ledger/feeds",
+      "proposedAction": "backend-maintenance",
+      "restoreGate": "Maintenance source locally verified45guard/9shellmock plus normal suite; review/finalfreeze pending. Exact count0 readiness then canonical migrations/newworker/newAPI; no old bootstrap automatic rollback"
+    },
+    {
+      "service": "homiio-worker",
+      "repo": "Homiio",
+      "taskDefinition": "oxy-homiio-worker:189",
+      "desired": 1,
+      "running": 1,
+      "lane": "Worker activity publisher and application/service callers; same app authority family",
+      "proposedAction": "pause-jobs",
+      "restoreGate": "Verify worker entry graph and one publisher credential/task; app credential caches are not one cache per service instance"
+    },
+    {
+      "service": "alia",
+      "repo": "Alia",
+      "taskDefinition": "oxy-alia:448",
+      "desired": 2,
+      "running": 2,
+      "lane": "Oxy human/delegation receiver and application-only inference workload caller",
+      "proposedAction": "pause-update",
+      "restoreGate": "Named oxy-alia-task ceiling +offline DONE; existing one-human grant unchanged. Consumer cleanup-result P2 Alia662 blocks rollout until resolved; new credential canary needs canonical helper/independent verifier"
+    },
+    {
+      "service": "goway-routing",
+      "repo": "Valhalla",
+      "taskDefinition": "oxy-goway-routing:1",
+      "desired": 1,
+      "running": 1,
+      "lane": "Private routing compute, TCP8002 from shared tasks SG only; no Oxy JWT receiver",
+      "proposedAction": "keep-private",
+      "restoreGate": "No public IP/LB/CIDR ingress; not proof only GoWay calls it, not CI filesystem source attestation. GoWay caller paused independently"
+    },
+    {
+      "service": "kaana-publisher",
+      "repo": "Kaana",
+      "taskDefinition": "oxy-kaana-publisher:88",
+      "desired": 1,
+      "running": 1,
+      "lane": "Outbound provider inventory publisher, same accepted Kaana image",
+      "proposedAction": "keep-protocol",
+      "restoreGate": "Review actual publisher entrypoint/config; not an Oxy effect JWT receiver merely because same image serves Kaana"
+    },
+    {
+      "service": "relay-publisher",
+      "repo": "Kaana",
+      "taskDefinition": "oxy-relay-publisher:3",
+      "desired": 1,
+      "running": 1,
+      "lane": "Outbound legacy provider inventory S3 publisher",
+      "proposedAction": "pause-provider",
+      "restoreGate": "Conservative pause paired legacy relay; restore exact publisher binding/config, no Oxy grants invented"
+    },
+    {
+      "service": "willo",
+      "repo": "Willo",
+      "taskDefinition": "oxy-willo:3",
+      "desired": 1,
+      "running": 1,
+      "lane": "Oxy homes SQL/session/socket receiver and own home membership",
+      "proposedAction": "pause-update",
+      "restoreGate": "Candidate boundary tests accepted; published core/lock/CI and live member/service denies needed"
+    },
+    {
+      "service": "peable",
+      "repo": "Peable",
+      "taskDefinition": "oxy-peable:7",
+      "desired": 1,
+      "running": 1,
+      "lane": "Oxy identity middleware + merchant/ownership payments domain; Stripe platform bindings separate",
+      "proposedAction": "pause-update",
+      "restoreGate": "Final Oxy SDK adoption needed; no live payment cohort until credential/namespace/merchant prerequisites. Sandbox parity accepted, not pending globally"
+    },
+    {
+      "service": "syra",
+      "repo": "Syra",
+      "taskDefinition": "oxy-syra:108",
+      "desired": 2,
+      "running": 2,
+      "lane": "Oxy session/socket receiver + app notification producer",
+      "proposedAction": "pause-update",
+      "restoreGate": "Notification POST requires notifications:write but live app ceiling user:read and workload[] do not cover it. This403 is already issuer67c09 baseline, not a strict regression. Notifier claims suppression before failed/log, retry retention unproved. Preserve baseline visible denial; no unrelated new scope/feature fix or global restore blocker"
+    },
+    {
+      "service": "mercaria",
+      "repo": "Mercaria",
+      "taskDefinition": "oxy-mercaria:59",
+      "desired": 1,
+      "running": 1,
+      "lane": "Oxy MCP authority + app catalogue, optional Peable payment cohort",
+      "proposedAction": "pause-update",
+      "restoreGate": "Payments scopes/ephemeral credential CAS prepared, not live; keep cohort inactive until exact operator plan/readback. Existing MCP consent separate"
+    },
+    {
+      "service": "website-api",
+      "repo": "website",
+      "taskDefinition": "oxy-website-api:10",
+      "desired": 2,
+      "running": 2,
+      "lane": "Oxy human/service receiver + catalogue/introspection/Clarity app clients and MCP own admin checks",
+      "proposedAction": "pause-update",
+      "restoreGate": "Live workload catalogue/search/user ceiling present; revalidate precise endpoint/resource policy, final core/MCP adoption before restore"
+    },
+    {
+      "service": "tnp-relay",
+      "repo": "tnp",
+      "taskDefinition": "oxy-tnp-relay:1",
+      "desired": 0,
+      "running": 0,
+      "lane": "No running tasks; historical tunnel/telemetry graph not source-bound live",
+      "proposedAction": "keep-zero",
+      "restoreGate": "Preserve desired0; source/runtime classification pending if ever activated"
+    },
+    {
+      "service": "nilo",
+      "repo": "Nilo",
+      "taskDefinition": "oxy-nilo:24",
+      "desired": 2,
+      "running": 2,
+      "lane": "Oxy receiver from old core3/contracts3/services8 major line",
+      "proposedAction": "pause-update",
+      "restoreGate": "Existing active production public client/noexpiry verified18:03; GH public variable configured18:10. Candidate backend/frontend checked; final registry locks/CI and major-migration smoke remain required"
+    },
+    {
+      "service": "gwj-backend",
+      "repo": "GlobalWorldJournal/GWJ",
+      "taskDefinition": "gwj-backend:2",
+      "desired": 1,
+      "running": 1,
+      "lane": "Own bcrypt/password + jsonwebtoken authority, own product API",
+      "proposedAction": "keep-independent",
+      "restoreGate": "Same109-file actual-image/authenticated-source binding as GWJ MCP; own JWT backend API, no Oxy imports in inspected entry graph"
+    },
+    {
+      "service": "goway",
+      "repo": "GoWay",
+      "taskDefinition": "oxy-goway:2",
+      "desired": 1,
+      "running": 1,
+      "lane": "Oxy places/session/socket receiver, caller to private routing compute",
+      "proposedAction": "pause-update",
+      "restoreGate": "App absent in fresh17:57 inventory; canonical first_party/user:read seed fed6 accepted locally66+4PG, no live write. Final image seed dryrun/owner/absence check and registry receiver adoption required; no user grants"
+    },
+    {
+      "service": "oxy-asset-variant-worker",
+      "repo": "oxy",
+      "taskDefinition": "oxy-oxy-asset-variant-worker:204",
+      "desired": 4,
+      "running": 4,
+      "lane": "BullMQ rendition effect worker and telemetry caller; canonical rollout before API",
+      "proposedAction": "worker-watcher",
+      "restoreGate": "Keep0 with scaling suspended; root watcher restores captured live count4 and rollback:false in one update only after preDDL success + exact new image/config + all oldSTOPPED.10source closure unchanged; transitive/startup gate still required"
+    },
+    {
+      "service": "homiio",
+      "repo": "Homiio",
+      "taskDefinition": "oxy-homiio:184",
+      "desired": 2,
+      "running": 2,
+      "lane": "Oxy human receiver; inference app credential + requester assertion to Alia; raw authenticated linked requests",
+      "proposedAction": "pause-update",
+      "restoreGate": "No user-header offline delegation in inspected Sindi source; exact requester assertion lane/resource scopes maintained; final registry/lock/lifecycle smoke required"
+    },
+    {
+      "service": "tnp-dns",
+      "repo": "tnp",
+      "taskDefinition": "oxy-tnp-dns:5",
+      "desired": 1,
+      "running": 1,
+      "lane": "DNS protocol receiver; public TNP API reads and Oxy telemetry caller",
+      "proposedAction": "keep-protocol",
+      "restoreGate": "No Oxy JWT receiver in DNS graph; require telemetry caller credentials/scopes and failure behavior checked, preserve DNS service independently"
+    }
+  ],
+  "limits": "Historical configuration/count references only: root fresh quiescence receipt defines captured counts and suspended scaling state. No live mutations here."
+}

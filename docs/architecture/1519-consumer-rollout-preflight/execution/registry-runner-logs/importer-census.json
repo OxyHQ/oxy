@@ -1,0 +1,627 @@
+[
+  {
+    "repository": "OxyHQ/Atlas",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/bloom": "7.1.2",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "path": "packages/alia-canvas/package.json",
+    "deps": {
+      "@oxy.so/telemetry": "^1.2.0",
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "path": "packages/alia-codea-cli/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "path": "packages/alia-codea/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "path": "packages/alia-codea/webview-ui/package.json",
+    "deps": {
+      "@oxy.so/bloom": "^6.3.0"
+    },
+    "covered": false
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "path": "packages/alia-computer-host/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "path": "packages/alia-cowork/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "path": "packages/api/package.json",
+    "deps": {
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/mcp": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-mcp-1.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "path": "packages/app/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "path": "packages/integrations/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Mention",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/contracts": "catalog:",
+      "@oxy.so/core": "catalog:",
+      "@oxy.so/mcp": "catalog:",
+      "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-protocol-1.2.2.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Mention",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/bloom": "catalog:",
+      "@oxy.so/contracts": "catalog:",
+      "@oxy.so/core": "catalog:",
+      "@oxy.so/services": "catalog:",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Mention",
+    "path": "packages/mcp/package.json",
+    "deps": {
+      "@oxy.so/contracts": "catalog:",
+      "@oxy.so/core": "catalog:",
+      "@oxy.so/mcp": "catalog:"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Mention",
+    "path": "packages/shared-types/package.json",
+    "deps": {
+      "@oxy.so/contracts": "catalog:"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Mercaria",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/core": "^3.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Mercaria",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/contracts": "^4.3.0",
+      "@oxy.so/core": "^3.2.0",
+      "@oxy.so/mcp": "^1.0.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Mercaria",
+    "path": "packages/dashboard/package.json",
+    "deps": {
+      "@oxy.so/bloom": "^6.3.0",
+      "@oxy.so/core": "^3.2.0",
+      "@oxy.so/services": "^10.0.0",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Mercaria",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/bloom": "^6.3.0",
+      "@oxy.so/core": "^3.2.0",
+      "@oxy.so/services": "^10.0.0",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Mercaria",
+    "path": "packages/pos/package.json",
+    "deps": {
+      "@oxy.so/bloom": "^6.3.0",
+      "@oxy.so/core": "^3.2.0",
+      "@oxy.so/services": "^10.0.0",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Clarity",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-contracts-4.9.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Clarity",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Clarity",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/telemetry": "^1.2.0",
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Allo",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/bloom": "7.1.2",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Allo",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Allo",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/bloom": "7.1.2",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Noted",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Noted",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/mcp": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-mcp-1.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Noted",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Homiio",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/bloom": "6.2.1"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Homiio",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Homiio",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/telemetry": "1.2.0",
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/website",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/bloom": "7.1.2",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/mcp": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-mcp-1.1.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-services-bloom712-pack/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Peable",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/core": "^4.0.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Peable",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/core": "^4.0.0",
+      "@oxy.so/contracts": "^4.4.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Peable",
+    "path": "packages/checkout/package.json",
+    "deps": {
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Peable",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/contracts": "^4.4.0",
+      "@oxy.so/core": "^4.0.0",
+      "@oxy.so/services": "^11.0.0",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Peable",
+    "path": "packages/pay/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/tnp",
+    "path": "apps/api/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/tnp",
+    "path": "apps/dns-server/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/tnp",
+    "path": "apps/relay/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/tnp",
+    "path": "apps/web/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Willo",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Willo",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Willo",
+    "path": "packages/ui/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/GoWay",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/GoWay",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Moovo",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Moovo",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Moovo",
+    "path": "packages/courier-app/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Moovo",
+    "path": "packages/fleet-dashboard/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Moovo",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Moovo",
+    "path": "packages/tracker-app/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Nilo",
+    "path": "apps/api/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Nilo",
+    "path": "apps/app/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Nilo",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/CrowdSource",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/CrowdSource",
+    "path": "packages/console/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/CrowdSource",
+    "path": "packages/reviewer/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Syra",
+    "path": "package.json",
+    "deps": {
+      "@oxy.so/telemetry": "^1.2.0"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Syra",
+    "path": "packages/backend/package.json",
+    "deps": {
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Syra",
+    "path": "packages/frontend/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Syra",
+    "path": "packages/sdk/package.json",
+    "deps": {
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  },
+  {
+    "repository": "OxyHQ/Syra",
+    "path": "packages/studio/package.json",
+    "deps": {
+      "@oxy.so/bloom": "6.2.1",
+      "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+      "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+    },
+    "covered": true
+  }
+]

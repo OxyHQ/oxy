@@ -1,0 +1,399 @@
+{
+  "observedAt": "2026-10-03T18:27:20.278181+00:00",
+  "scope": "Three priority consumers plus seven additional receivers; candidate source and public configuration inventory",
+  "targetVersions": {
+    "@oxy.so/contracts": "4.9.0",
+    "@oxy.so/core": "4.2.0",
+    "@oxy.so/services": "11.1.0",
+    "@oxy.so/mcp": "1.1.0",
+    "@oxy.so/protocol": "1.2.2",
+    "@oxy.so/telemetry": "1.2.0",
+    "@oxy.so/bloom": "6.2.1"
+  },
+  "oxyReleaseVerified": false,
+  "consumers": [
+    {
+      "repository": "OxyHQ/Willo",
+      "worktree": "/home/nate/Oxy/Willo/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "candidateSource": "1daf3501191ffb82bc4c4b3de3199eebe2bcedd9",
+      "mainObserved": "6d059d7e133c4d3d6c22a008b16f51b0e78fbc96",
+      "sourceWorkflowInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "55c247451df5719b6301ed6f64de0807c97a71e904894e8dc9d38f82148f200f"
+        },
+        {
+          "path": ".github/workflows/deploy-frontend.yml",
+          "sha256": "65b8b43302d754e5dedf45a2337ea0610ccf0636a660e457b27f73f2d9facb4d"
+        }
+      ],
+      "publicClientReadbacks": [
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Willo-EXPO_PUBLIC_OXY_CLIENT_ID.json",
+          "sha256": "1d187a2d4c7113eca9daa4efd3fdcd10664fac16285d2778bd54959519dc5f9c"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Willo-VITE_OXY_CLIENT_ID.json",
+          "sha256": "c80235712f42625c9aecac4d477957b9e84436321bc6a88a015b654275d0d0f8"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Willo-public-metadata.json",
+          "sha256": "69269910747c225a36fda9e4ab956430e6b9240f980b8f6092c2d1ca99177116"
+        }
+      ],
+      "finalRegistryLockCommitted": false,
+      "deploymentPerformedByThisPreparation": false
+    },
+    {
+      "repository": "OxyHQ/GoWay",
+      "worktree": "/home/nate/Oxy/GoWay/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "candidateSource": "2f0cd7a4acbe4d37d76c219a20700bef4f41d8f8",
+      "mainObserved": "c696e80d420212d3c899963681c421d5cf3b56d0",
+      "sourceWorkflowInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "496739defe1221b8297b48a5dd437b06e9dca36f17b8bf59ad37ed3ca4f77cb3"
+        },
+        {
+          "path": ".github/workflows/deploy-frontend.yml",
+          "sha256": "c440ee82e33ea240d3c950429b36b3302d950fbb59dc88787d7a7796f3340f15"
+        },
+        {
+          "path": ".github/workflows/publish-sdk.yml",
+          "sha256": "40ccd223b71d2517fbe2a7695ad6c9df8be54a4e11e38dea8d6dee6be4ee828d"
+        }
+      ],
+      "publicClientReadbacks": [
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/GoWay-EXPO_PUBLIC_OXY_CLIENT_ID.json",
+          "sha256": "72fd8be12b5ae10119ba0adbb7edbad9e678f7a98ea4120450590fa885d36496"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/GoWay-VITE_OXY_CLIENT_ID.json",
+          "sha256": "f92a279c65061b4195897dad629d78fb2cce79c2c9dafa927c7d685140634de5"
+        }
+      ],
+      "finalRegistryLockCommitted": false,
+      "deploymentPerformedByThisPreparation": false
+    },
+    {
+      "repository": "OxyHQ/Moovo",
+      "worktree": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "candidateSource": "37c16ebbce76eba12ff2c00e37d2b633536961a1",
+      "mainObserved": "dde4ab8bce332e2e971866483530f8f6754c2f94",
+      "sourceWorkflowInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "2ac1208f690f0db6a51438acd2096f64b1034af22d0c04323f6436544d116177"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare-go.yml",
+          "sha256": "3fe61208994d8718fbd00de6ff24dc452964dff73e51d1ce852540b24dbcd6ac"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare-hub.yml",
+          "sha256": "dbc3f97dce9efe98b731343c1a6029d850556332a2a59af273e9389fbf70f46b"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare-tracker.yml",
+          "sha256": "ec60e1e4a934883a0cb57ff05c9701a15bcd73904d89211826bac92e83f5fbf3"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare.yml",
+          "sha256": "6ac6e01e5c2bb62f4af4078c1a65f328a3abf6d63e71a1b464e9ec0c3079639a"
+        }
+      ],
+      "publicClientReadbacks": [
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Moovo-EXPO_PUBLIC_OXY_CLIENT_ID.json",
+          "sha256": "5d65f64ba426fc8dfefb50bd71bc1febbda0d6543b86b705b69798355d01ab7f"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Moovo-VITE_OXY_CLIENT_ID.json",
+          "sha256": "7da91681add0cd94b2c9d83ecc7082cfa9fae8b1cd5b54bdeb7f12a89f0c0284"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Moovo-public-metadata.json",
+          "sha256": "4e4f586983dd31241fd979679cf9910760fb3bf4247f720a9f6378297de2b589"
+        }
+      ],
+      "finalRegistryLockCommitted": false,
+      "deploymentPerformedByThisPreparation": false
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "worktree": "/home/nate/Oxy/Nilo/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "candidateSource": "195400b8cd4681684d4bbce4fae8a3dd8003b2e7",
+      "mainObserved": "a8d903d0da2a8c8fd409bf97998424273c372f85",
+      "sourceWorkflowInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "4333a74beff859f69c66cafe2dca214ed78a3eeae5defbbf63ae654e273db9b1"
+        },
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "0f8be3952ce4c6def57abe4e41b8a0fdf47fe99f78cfb242c333139dd3388b60"
+        }
+      ],
+      "publicClientReadbacks": [
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Nilo-EXPO_PUBLIC_OXY_CLIENT_ID.json",
+          "sha256": "37684bde2388d6c56f347c0da643454500a3f24542702ed2fc60da578e8be1f9"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Nilo-VITE_OXY_CLIENT_ID.json",
+          "sha256": "e2bdc90dff4cff6b8e017691977fca67d531d9ae1eb8fc05d396ec6998628d70"
+        }
+      ],
+      "finalRegistryLockCommitted": false,
+      "deploymentPerformedByThisPreparation": false
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "candidateSource": "988ad19a3ad363c2cdfee47789cc8daaada1902b",
+      "mainObserved": "63b9f49eeab8b96ce1ac4cfec1f5b6768f3f4ae7",
+      "sourceWorkflowInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "466794ea4bab8ce062cb9f8382d600f3c3781c72d2f4f18d0559061a14dc5113"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "19668ff6d182c53ba6917abd7d35d21ee494d49fe08d9f04482caccc0248c088"
+        }
+      ],
+      "publicClientReadbacks": [
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/CrowdSource-EXPO_PUBLIC_OXY_CLIENT_ID.json",
+          "sha256": "b46d42f7603be4fed10da358a642fec77919e3a779e4b73771fa4c4c9b6e8966"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/CrowdSource-VITE_OXY_CLIENT_ID.json",
+          "sha256": "0c555b5f8d99a86710dccd8a76766bdea37701b741425e8833bf292325530f62"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/CrowdSource-public-metadata.json",
+          "sha256": "d16c3e39c258c08c1b480b42ce89ba570591e38dc16f04ab2b1e272547beee9e"
+        }
+      ],
+      "finalRegistryLockCommitted": false,
+      "deploymentPerformedByThisPreparation": false
+    },
+    {
+      "repository": "OxyHQ/Syra",
+      "worktree": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "candidateSource": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "mainObserved": "7804e1f1c1be89edf802e92ef41c81a4fb91eeae",
+      "sourceWorkflowInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "1bf9f5442bf0b4bcd28c8fffada50bf765a4db295edf0fb946f7f8ab99ea2c8a"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "abe084b9feef33b107ab45763ec8a2deb53f802c05f55fd3a13725d7908d0dc9"
+        },
+        {
+          "path": ".github/workflows/deploy-studio.yml",
+          "sha256": "76f55b8370f972a1ee5063fec07cb3e77c271edaef9b7abc095113f1f5664420"
+        }
+      ],
+      "publicClientReadbacks": [
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Syra-EXPO_PUBLIC_OXY_CLIENT_ID.json",
+          "sha256": "a8fff3e5b2eeb106ad4cbe1b2338058ee8decd846387537b203786a17adde4ce"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Syra-VITE_OXY_CLIENT_ID.json",
+          "sha256": "8585e5e835f26a83f4d12c6b6b8345b398ba04348225419176f3b2cc1159c15c"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Syra-public-metadata.json",
+          "sha256": "16c5400cda9499c452b2bc3643ef81727f841f7f9aee35d974f5a7eb0a202e1a"
+        }
+      ],
+      "finalRegistryLockCommitted": false,
+      "deploymentPerformedByThisPreparation": false
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "worktree": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-final-sdk-adoption-20261003",
+      "candidateSource": "e5f62c750837f9e6a0b2d73655628a4c53df2bc7",
+      "mainObserved": "8ee271e576ce618ba7511c44ddabcd170b4dd1fe",
+      "sourceWorkflowInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "deb6c65f6499c0b631dc061a13a125ecd8b6ade82f282dd08f3c7eea4dca5218"
+        },
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "6004e0742fea8415ac7015d0d21e964178b8d58454c42338617dffbb034c166c"
+        }
+      ],
+      "publicClientReadbacks": [
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/tnp-EXPO_PUBLIC_OXY_CLIENT_ID.json",
+          "sha256": "6b7b3d39dbc94024663d839bf949032234a9b9a74cf786097e495bb05633e869"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/tnp-VITE_OXY_CLIENT_ID.json",
+          "sha256": "114eefe4dc5a1fab8aed7a380a3aebc471d68b68d126321f59cc9684860ef304"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/tnp-public-metadata.json",
+          "sha256": "4e3e29282817d6f1cbc2cfd91307d93708b7e79173c87523efa9a9df23ebcfb4"
+        }
+      ],
+      "finalRegistryLockCommitted": false,
+      "deploymentPerformedByThisPreparation": false
+    },
+    {
+      "repository": "OxyHQ/Alia",
+      "worktree": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
+      "branch": "task/1519-alia-final-sdk-pins-20261003",
+      "candidateSource": "a4c04dc61bc70bdf7270221f1a2a7f9489a561d7",
+      "mainObserved": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+      "sourceWorkflowInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "cda1d0e2d2463eb920ab2effc6d0ca39e74d270f3a4d44574fdec8357b2c261f"
+        },
+        {
+          "path": ".github/workflows/deploy-computer-host.yml",
+          "sha256": "e29e33c5432c6fe9dc3c8a41e2b3a2c875256e6958bebb46e558fd7e9864c058"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "8cce916b1ead676a81a446936ee4a54670423fe817735299a64463a72be5da6c"
+        },
+        {
+          "path": ".github/workflows/deploy-integrations.yml",
+          "sha256": "356a26ecb9935b759e7e32a478beb58dc00a08cbcc10987a1eebdf38140badb3"
+        }
+      ],
+      "publicClientReadbacks": [
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Alia-EXPO_PUBLIC_OXY_CLIENT_ID-current.json",
+          "sha256": "f95388d8fd4960d5e7a343f5a1a52dcbf77cbecbd60d54c6c29c2bef52924ad9"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Alia-fallback-metadata.json",
+          "sha256": "fa0a4610c762f73fc742da7079a966b0bfb9260d7a9f7d5177b2782d21b0d0ef"
+        }
+      ],
+      "finalRegistryLockCommitted": false,
+      "deploymentPerformedByThisPreparation": false
+    },
+    {
+      "repository": "OxyHQ/Mention",
+      "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
+      "branch": "task/1519-mention-final-sdk-pins-20261003",
+      "candidateSource": "2765e797f13b0287e8441f6c943116e6dcd6cab5",
+      "mainObserved": "80b03fb2d11d36f89ee608f05d4c5375f1ff0f8b",
+      "sourceWorkflowInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "30af4f12a0bba70751570ad09add509e6366ebb9fe70dfb2f0176a1d6347f7de"
+        },
+        {
+          "path": ".github/workflows/deploy-backend-config.yml",
+          "sha256": "6c715b9a4001411d405617a339bf55b2eb9c1a09a9969f506ed040c3f8e4768a"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "bc00ccbdd0c2d62eb520b971fc128f30df2c12d4cb89c13b3aa664c51fc6ef66"
+        },
+        {
+          "path": ".github/workflows/deploy-mcp-aws.yml",
+          "sha256": "d099c52cb352174ca74f849534b4add797372819fa4a219d28d54851c9cc94a0"
+        }
+      ],
+      "publicClientReadbacks": [
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Mention-EXPO_PUBLIC_OXY_CLIENT_ID-current.json",
+          "sha256": "c5a034c80c982e801a0413aa482fc0c11055d4c746ab0fdfd6e5e75876dd00f0"
+        }
+      ],
+      "finalRegistryLockCommitted": false,
+      "deploymentPerformedByThisPreparation": false
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "worktree": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-adoption-20261003",
+      "branch": "task/1519-mercaria-final-adoption-20261003",
+      "candidateSource": "9aff49fc43a9e1e4197909d8a129f84e40c75400",
+      "mainObserved": "9e546e66b36b8050bfe07a37f53ee436444688cf",
+      "sourceWorkflowInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "ff1d7a79f3cee6ffcd35f25d732bfe89d1690636628888f4fb94ca2118ce3d61"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare.yml",
+          "sha256": "a9f3a399f618f561aad467920662f2aeab969cec6205c23de68f71a0808fb4cc"
+        },
+        {
+          "path": ".github/workflows/deploy-coverage.yml",
+          "sha256": "8d24b5cf4126430b4cb900080f185351b6c0a85e4e9872c15dee20330f5d5eae"
+        },
+        {
+          "path": ".github/workflows/deploy-dashboard.yml",
+          "sha256": "51d2ee4a1ce99cbe7f2e52348f3036d7e386292082c5a72d79dc9d8db70996cd"
+        },
+        {
+          "path": ".github/workflows/deploy-pos.yml",
+          "sha256": "4c5940e544fbaa4712466b02aabe8d1c51e96e38144f3688666df188e8c4c3eb"
+        },
+        {
+          "path": ".github/workflows/publish-sdk.yml",
+          "sha256": "cdf1cbe9edfc927558ac07a0ef2113cc5abba28ec866cc4c63f94b39c5efe7dc"
+        }
+      ],
+      "publicClientReadbacks": [
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Mercaria-EXPO_PUBLIC_OXY_CLIENT_ID-current.json",
+          "sha256": "fb8a8bbbabe71c58259f1fe251a9ba73a4d5dceea9b8b6a7fffd9933bd1cb337"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Mercaria-EXPO_PUBLIC_OXY_CLIENT_ID_DASHBOARD-current.json",
+          "sha256": "9cc3546dfdbc72b8a45806ca400db7b7ea5e7c71b329845b60c29091db748de0"
+        },
+        {
+          "path": "docs/architecture/1519-consumer-rollout-preflight/public-readbacks/Mercaria-EXPO_PUBLIC_OXY_CLIENT_ID_POS-current.json",
+          "sha256": "fb2bc64db253317a85a3e13694a60dfffee58a16e4bee5dfc54792549ab22d7a"
+        }
+      ],
+      "finalRegistryLockCommitted": false,
+      "deploymentPerformedByThisPreparation": false
+    }
+  ],
+  "releaseGates": [
+    "Root confirms final SDK registry metadata and artifact integrity, not version numbers alone",
+    "Compare current main and preserve intervening product changes before merge",
+    "Replace candidate file references with registry versions; install --minimum-release-age=0; commit manifest and lock together",
+    "Verify installed tarball bytes, then package tests/types/build and exact-head CI",
+    "Root coordinates canonical workflow pause/merge/dispatch and exact immutable deployment receipts",
+    "Registered client ID readiness is not authority-grant or user-session acceptance"
+  ],
+  "knownConfiguration": {
+    "Nilo": "Public variable configured and independently checked; source workflow forwards it; no deploy",
+    "GoWay": "No registry application at fresh inventory; reviewed seed not yet executed; no public variable",
+    "Alia": "Variable absent but source fallback is a registered active public client; GET metadata 200",
+    "Mention": "Public repository variable metadata 200",
+    "Mercaria": "App/POS/dashboard public repository variables metadata 200"
+  },
+  "limits": [
+    "Workflow hashes are source census, not validation of every deploy gate",
+    "Historical candidate Oxy1b505 installed in these WTs predates final P2",
+    "No live mutation except separately recorded Nilo public variable",
+    "TNP publishing workflow does not deploy API/DNS ECS services; root must coordinate existing rollout mechanism"
+  ]
+}

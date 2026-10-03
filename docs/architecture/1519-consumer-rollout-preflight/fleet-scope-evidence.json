@@ -1,0 +1,142 @@
+{
+  "kind": "read-only source classification; no live request/mutation in this checkpoint",
+  "authority": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/authority-inventory-1807/result.private.json",
+    "sha256": "242671c09e591bcad4a35ee5dd318a7c4b2eb2e00d78aa92a25836e873457565",
+    "observedAt": "2026-10-03T17:57:54Z"
+  },
+  "sources": [
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "commit": "67c09e853db308d102624a2ffd40db19959344f4",
+      "path": "packages/api/src/routes/notifications.routes.ts",
+      "sha256": "854016ff98a7da792ae9f637a19453138ca2313f833a0927136d0cf1fbe1145f"
+    },
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "commit": "67c09e853db308d102624a2ffd40db19959344f4",
+      "path": "packages/api/src/utils/applicationScopes.ts",
+      "sha256": "dec2ccf4ea52c3c2161b7a9d7bfcf07e462b3b2fb9c3173f35682598616c9d7f"
+    },
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "commit": "67c09e853db308d102624a2ffd40db19959344f4",
+      "path": "packages/api/src/routes/internal.ts",
+      "sha256": "bf54a9892ef1120460f2acda7f8474d405cfa8cf1ec891e795ff8030d272975b"
+    },
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "commit": "67c09e853db308d102624a2ffd40db19959344f4",
+      "path": "packages/api/src/routes/accountEvents.ts",
+      "sha256": "4923e2891a7a48a9988a1eb4e249f251bea6dd020a4ba39bbd8d66b75a2b866d"
+    },
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "commit": "67c09e853db308d102624a2ffd40db19959344f4",
+      "path": "packages/api/src/services/serviceActingAs.service.ts",
+      "sha256": "275457cd85114a849852c3263716ed637ab8e1f169065a3064f583ee4dd57da9"
+    },
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "commit": "fac621324d0721e9121ca9d3c96a25ff71c97326",
+      "path": "packages/api/src/routes/notifications.routes.ts",
+      "sha256": "854016ff98a7da792ae9f637a19453138ca2313f833a0927136d0cf1fbe1145f"
+    },
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "commit": "fac621324d0721e9121ca9d3c96a25ff71c97326",
+      "path": "packages/api/src/utils/applicationScopes.ts",
+      "sha256": "979a688c172494371ca9be3f73a74113a919f86b60e00bf47510ce321529d9d8"
+    },
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "commit": "fac621324d0721e9121ca9d3c96a25ff71c97326",
+      "path": "packages/api/src/routes/internal.ts",
+      "sha256": "855956d305dde12d027d572ff7d4c427e920e3557c5e58dcde0c1174e8ae958c"
+    },
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "commit": "fac621324d0721e9121ca9d3c96a25ff71c97326",
+      "path": "packages/api/src/routes/accountEvents.ts",
+      "sha256": "4923e2891a7a48a9988a1eb4e249f251bea6dd020a4ba39bbd8d66b75a2b866d"
+    },
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "commit": "fac621324d0721e9121ca9d3c96a25ff71c97326",
+      "path": "packages/api/src/services/serviceActingAs.service.ts",
+      "sha256": "968e6ac0662b093bf2a141578d816e50ec926b2d217f30434f8c8b413498c624"
+    },
+    {
+      "repository": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "ce5fe3afbd8f679562263e5a7c27a4e7f3795ff9",
+      "path": "packages/backend/src/ecosystemActivity.ts",
+      "sha256": "4d224fe91b93473c7931cf1570760bc4ea831933d3b4e109989ca88ff2d2a0c0"
+    },
+    {
+      "repository": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "ce5fe3afbd8f679562263e5a7c27a4e7f3795ff9",
+      "path": "packages/backend/src/config/oxyService.ts",
+      "sha256": "2f7011c708c4ea3f4906ede96695bcc0ef1806887e31ab264751743fa12f8bfb"
+    },
+    {
+      "repository": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "ce5fe3afbd8f679562263e5a7c27a4e7f3795ff9",
+      "path": "packages/backend/src/oxy.ts",
+      "sha256": "3fd9bf1a9392deb0f675097a40f2d6c0e699576059f479637825c8ca6f0c4e05"
+    },
+    {
+      "repository": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "988ad19a3ad363c2cdfee47789cc8daaada1902b",
+      "path": "packages/backend/src/ecosystemActivity.ts",
+      "sha256": "ce9f3695a0b84e556975f08c0c90a939443e78732feb6591aff1ea38107075c4"
+    },
+    {
+      "repository": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "988ad19a3ad363c2cdfee47789cc8daaada1902b",
+      "path": "packages/backend/src/modules/accountErasure/oxyAccountEvents.ts",
+      "sha256": "cddca0da7b0cf8b7da9c66b691bf6bb7e326866536f063102107c45bb50bfe98"
+    },
+    {
+      "repository": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "988ad19a3ad363c2cdfee47789cc8daaada1902b",
+      "path": "packages/backend/src/modules/accountErasure/accountEventReconciliation.ts",
+      "sha256": "6dbe61582a8526cbc28fcaa54b9a41088c3476a1d697e267e11a208a29c7c89b"
+    },
+    {
+      "repository": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "path": "packages/backend/src/services/platformActivity.ts",
+      "sha256": "f2342a49aa1495c34d610f27dd02bcf3405bba93e49487ab5cdd34bc475645e0"
+    },
+    {
+      "repository": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "path": "packages/backend/src/services/notifications/oxyServiceToken.ts",
+      "sha256": "b70f065aaf121f72b087b68c6814d7696eeb5867a527a880dcb77e96e0c98673"
+    },
+    {
+      "repository": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "path": "packages/backend/src/services/notifications/notifier.ts",
+      "sha256": "b899dff263dead1262eeb4b064bbeaa85b4f554f45b87fcc2a9468c024d13c89"
+    },
+    {
+      "repository": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "path": "packages/backend/src/services/notifications/triggers/episodePublished.ts",
+      "sha256": "d3247e93fea93679f666b5ac1ae4310672cdfd2232b3eff974fc3ff03faa1284"
+    },
+    {
+      "repository": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "250f035b2d45e7513b03c72e320bb86585f7837d",
+      "path": "packages/backend/src/lib/clarity-agent-manifest.ts",
+      "sha256": "993d5a5d42f3f8707da75db8e9e917d9c390e8a8e1475e824ba90580550aa816"
+    },
+    {
+      "repository": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003",
+      "commit": "250f035b2d45e7513b03c72e320bb86585f7837d",
+      "path": "packages/backend/src/lib/alia-agent-client.ts",
+      "sha256": "08ae789e266768abd2cc1b2fd57f37794b2d2cfcb077a6d697225a10db52c8c1"
+    }
+  ]
+}

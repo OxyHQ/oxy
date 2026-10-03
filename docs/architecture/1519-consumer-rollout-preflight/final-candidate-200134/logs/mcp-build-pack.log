@@ -1,0 +1,55 @@
+$ bun run build:cjs && bun run build:esm && bun run build:types
+$ tsc -p tsconfig.cjs.json
+$ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+$ tsc -p tsconfig.types.json
+bun pack v1.4.2 (744846f84)
+
+packed 1.57KB package.json
+packed 31.48KB LICENSE
+packed 129.57KB dist/cjs/.tsbuildinfo
+packed 4.21KB dist/cjs/catalogAdapter.js
+packed 2.13KB dist/cjs/connections.js
+packed 0.64KB dist/cjs/http.js
+packed 13.49KB dist/cjs/httpTransport.js
+packed 5.36KB dist/cjs/index.js
+packed 3.29KB dist/cjs/internalClient.js
+packed 7.75KB dist/cjs/internalTransport.js
+packed 2.57KB dist/cjs/introspection.js
+packed 1.89KB dist/cjs/invocationAdapter.js
+packed 0.72KB dist/cjs/jsonSchema.js
+packed 11.27KB dist/cjs/oauth.js
+packed 3.45KB dist/cjs/serviceRequest.js
+packed 129.96KB dist/esm/.tsbuildinfo
+packed 3.92KB dist/esm/catalogAdapter.js
+packed 1.87KB dist/esm/connections.js
+packed 0.52KB dist/esm/http.js
+packed 13.0KB dist/esm/httpTransport.js
+packed 1.1KB dist/esm/index.js
+packed 3.12KB dist/esm/internalClient.js
+packed 7.42KB dist/esm/internalTransport.js
+packed 2.41KB dist/esm/introspection.js
+packed 1.56KB dist/esm/invocationAdapter.js
+packed 0.55KB dist/esm/jsonSchema.js
+packed 10.48KB dist/esm/oauth.js
+packed 3.18KB dist/esm/serviceRequest.js
+packed 131.1KB dist/types/.tsbuildinfo
+packed 2.46KB dist/types/catalogAdapter.d.ts
+packed 1.52KB dist/types/connections.d.ts
+packed 267B dist/types/http.d.ts
+packed 3.0KB dist/types/httpTransport.d.ts
+packed 2.18KB dist/types/index.d.ts
+packed 5.57KB dist/types/internalClient.d.ts
+packed 1.65KB dist/types/internalTransport.d.ts
+packed 1.1KB dist/types/introspection.d.ts
+packed 1.83KB dist/types/invocationAdapter.d.ts
+packed 454B dist/types/jsonSchema.d.ts
+packed 4.78KB dist/types/oauth.d.ts
+packed 1.35KB dist/types/serviceRequest.d.ts
+
+oxy.so-mcp-1.1.0.tgz
+
+Total files: 41
+Shasum: 673719079d0799f08c450287fa7839f83858b359
+Integrity: sha512-vhkEoSPfE9/3R[...]3yjLNsH+jZl9A==
+Unpacked size: 0.56MB
+Packed size: 138.88KB

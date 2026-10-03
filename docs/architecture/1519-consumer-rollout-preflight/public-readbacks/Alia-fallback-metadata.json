@@ -1,0 +1,15 @@
+{
+  "observedAt": "2026-10-03T18:26:18.508290+00:00",
+  "repository": "Alia",
+  "source": "packages/app/app/_layout.tsx",
+  "publicClientId": "oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3",
+  "httpStatus": 200,
+  "application": {
+    "id": "6a2f851751b784a86fd0e934",
+    "name": "Alia",
+    "type": "internal",
+    "isOfficial": true,
+    "isInternal": true
+  },
+  "variableAbsentUsesRegisteredFallback": true
+}

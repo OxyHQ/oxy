@@ -1,0 +1,95 @@
+--- a/package.json
++++ b/package.json
+@@ -43,11 +43,11 @@
+     "node": ">=18.0.0"
+   },
+   "dependencies": {
+-    "@oxy.so/telemetry": "^1.2.0"
++    "@oxy.so/telemetry": "1.2.0"
+   },
+   "overrides": {
+     "@oxy.so/bloom": "6.2.1",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
++    "@oxy.so/core": "4.2.0",
+     "react": "19.2.3",
+     "react-dom": "19.2.3",
+     "react-native": "0.86.0",
+@@ -56,8 +56,8 @@
+     "tailwindcss": "4.2.2",
+     "lightningcss": "1.30.1",
+     "lightningcss-linux-x64-gnu": "1.30.1",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+-    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+-    "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-protocol-1.2.2.tgz"
++    "@oxy.so/services": "11.1.0",
++    "@oxy.so/contracts": "4.9.0",
++    "@oxy.so/protocol": "1.2.2"
+   }
+ }
+--- a/packages/backend/package.json
++++ b/packages/backend/package.json
+@@ -21,7 +21,7 @@
+     "clean": "rm -rf dist"
+   },
+   "dependencies": {
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
++    "@oxy.so/core": "4.2.0",
+     "@aws-sdk/client-s3": "^3.1087.0",
+     "@aws-sdk/s3-request-presigner": "^3.1087.0",
+     "@crowdsource.you/contracts": "1.1.0",
+--- a/packages/frontend/package.json
++++ b/packages/frontend/package.json
+@@ -41,9 +41,9 @@
+     "@livekit/react-native": "^2.11.1",
+     "@oxy.so/bloom": "6.2.1",
+     "@oxy.so/app-preset": "^2.2.1",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
++    "@oxy.so/core": "4.2.0",
+     "@oxy.so/expo-splash": "^1.0.0",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
++    "@oxy.so/services": "11.1.0",
+     "@react-native-async-storage/async-storage": "2.2.0",
+     "@react-native-community/netinfo": "12.0.1",
+     "@react-native/js-polyfills": "^0.81.1",
+--- a/packages/sdk/package.json
++++ b/packages/sdk/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "@syra.fm/sdk",
+   "version": "0.16.2",
+-  "description": "Syra SDK \u2014 headless, isomorphic catalog client (Node/React-free, public reads + 30s previews) that also ships the Syra live-rooms engine (audio rooms over LiveKit) on React Native and web.",
++  "description": "Syra SDK — headless, isomorphic catalog client (Node/React-free, public reads + 30s previews) that also ships the Syra live-rooms engine (audio rooms over LiveKit) on React Native and web.",
+   "source": "src/index.ts",
+   "main": "lib/commonjs/index.js",
+   "module": "lib/module/index.js",
+@@ -166,7 +166,7 @@
+     "react-native": "^0.85.3",
+     "react-native-reanimated": "^4.3.1",
+     "react-native-safe-area-context": "^5.7.0",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
++    "@oxy.so/services": "11.1.0",
+     "livekit-client": "^2.20.0",
+     "@livekit/react-native": "^2.11.1",
+     "expo-audio": "~56.0.12",
+--- a/packages/studio/package.json
++++ b/packages/studio/package.json
+@@ -2,7 +2,7 @@
+   "name": "@syra/studio",
+   "main": "expo-router/entry",
+   "version": "1.0.0",
+-  "description": "Syra Studio \u2014 manage podcast shows, upload episodes, generated RSS feed",
++  "description": "Syra Studio — manage podcast shows, upload episodes, generated RSS feed",
+   "scripts": {
+     "start": "RCT_METRO_PORT=8121 expo start --reset-cache --clear",
+     "dev": "RCT_METRO_PORT=8121 expo start --reset-cache --clear",
+@@ -30,8 +30,8 @@
+     "@gorhom/bottom-sheet": "^5.2.6",
+     "@livekit/react-native": "^2.11.1",
+     "@oxy.so/bloom": "6.2.1",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/services": "11.1.0",
+     "@react-native-async-storage/async-storage": "2.2.0",
+     "@shopify/flash-list": "2.0.2",
+     "@syra.fm/sdk": "workspace:*",

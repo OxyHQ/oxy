@@ -1,0 +1,16 @@
+{
+  "repository": "Mercaria",
+  "variable": "EXPO_PUBLIC_OXY_CLIENT_ID",
+  "observedAt": "2026-10-03T18:25:47.567449+00:00",
+  "readExit": 0,
+  "publicValue": "oxy_dk_1905cacf3c7360332239235f440a9f6b2af1573308dc23d0",
+  "updatedAt": "2026-08-01T19:18:14Z",
+  "metadata": {
+    "id": "6a37d0cc5d4b5f15482a9340",
+    "name": "Mercaria",
+    "type": "first_party",
+    "isOfficial": true,
+    "isInternal": false
+  },
+  "httpStatus": 200
+}
