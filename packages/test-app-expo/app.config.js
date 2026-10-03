@@ -12,7 +12,7 @@ module.exports = () => {
     ...base,
     name: sibling.name,
     slug: `oxy-1519-native-${variant}`,
-    scheme: 'astro',
+    scheme: undefined,
     android: { ...base.android, package: sibling.package },
     plugins: base.plugins.map((plugin) => Array.isArray(plugin) && plugin[0] === '@oxy.so/app-preset'
       ? [plugin[0], { keychainGroup: false, android: { usesCleartextTraffic: true } }]
