@@ -37,6 +37,9 @@ import {
 import { INTERNAL_COST_CENTERS } from '../internalCostCenterSpecs';
 import { computeSeedApplicationPlan } from '../seedOxyApplicationsPlan';
 import {
+  OXY_PROFILE_REGISTRAR_APPLICATION_ID,
+  OXY_PROFILE_REGISTRAR_SPEC,
+  requiresPublicSeedCredential,
   ALIA_APPLICATION_SCOPES,
   ALIA_APPLICATION_ID,
   ALIA_OWNER_ACCOUNT_USERNAME,
@@ -83,6 +86,16 @@ function seededPrincipal(spec: SeedAppSpec): CatalogueApplicationPrincipal {
 }
 
 describe('the canonical official-application registry', () => {
+  it('pins the Oxy profile registrar with no OAuth public client or workload authority', () => {
+    expect(OXY_PROFILE_REGISTRAR_SPEC).toMatchObject({ id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
+      type: 'internal', redirectUris: [], scopes: ['catalogs:write'],
+      capabilities: [catalogApplicationCapability('oxy')], publicClient: false });
+    expect(requiresPublicSeedCredential(OXY_PROFILE_REGISTRAR_SPEC)).toBe(false);
+    expect(SEED_APPS.filter(spec => !requiresPublicSeedCredential(spec))).toEqual([OXY_PROFILE_REGISTRAR_SPEC]);
+    expect(SEED_APPS.filter(spec => spec !== OXY_PROFILE_REGISTRAR_SPEC).every(requiresPublicSeedCredential)).toBe(true);
+    expect(seedApplicationLookupIdentity(OXY_PROFILE_REGISTRAR_SPEC, PLATFORM_OWNER_ID)).toEqual({ kind: 'id', id: OXY_PROFILE_REGISTRAR_APPLICATION_ID });
+  });
+
   it('registers Nilo by exact identity with only public user-read authority', () => {
     const nilo = specNamed('Nilo');
     expect(nilo).toMatchObject({
@@ -382,15 +395,15 @@ describe('the canonical official-application registry', () => {
       expect(APPLICATION_CAPABILITIES).toContain(AGENCY_COORDINATE_CAPABILITY);
     });
 
-    it('is the ONLY seeded application that may coordinate or issue tickets', () => {
-      // Coordination is Alia's role, not a first-party perk. A catalog-owning
-      // app (Mention, Mercaria, Inbox, …) executes tickets; it never mints them.
+    it('limits coordination to Alia and the explicitly approved Mention foreground pilot', () => {
+      // Coordination is not inherited from first-party trust. Mention's I05
+      // foreground pilot is the explicit additional holder, with live requester approval.
       const coordinators = SEED_APPS.filter(
         (spec) =>
           (spec.capabilities ?? []).includes(AGENCY_COORDINATE_CAPABILITY) ||
           (spec.scopes ?? []).includes('capability-tickets:issue')
       ).map((spec) => spec.name);
-      expect(coordinators).toEqual(['Alia']);
+      expect(coordinators).toEqual(['Mention', 'Alia']);
     });
   });
 
@@ -488,7 +501,7 @@ describe('the canonical official-application registry', () => {
       expect(MENTION_APPLICATION_ID).toBe('6a2f851751b784a86fd0e916');
     });
 
-    it('can register, reauthorize and audit its catalog, and reach Clarity, without coordinator authority', () => {
+    it('preserves Mention authority and adds only explicit foreground coordination', () => {
       expect(specNamed('Mention').scopes).toEqual([
         'user:read',
         'files:read',
@@ -501,11 +514,14 @@ describe('the canonical official-application registry', () => {
         'clarity:search',
         'clarity:index',
         'clarity:sites:manage',
+        'capability-tickets:issue',
       ]);
       expect(specNamed('Mention').capabilities).toEqual([
         catalogApplicationCapability('mention'),
+        AGENCY_COORDINATE_CAPABILITY,
       ]);
-      expect(specNamed('Mention').scopes).not.toContain('capability-tickets:issue');
+      expect(specNamed('Mention').scopes).not.toContain('acting-as:offline');
+      expect(specNamed('Mention').capabilities).not.toContain(catalogApplicationCapability('oxy'));
     });
   });
 
