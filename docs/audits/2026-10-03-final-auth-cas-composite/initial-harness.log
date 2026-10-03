@@ -1,0 +1,45 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /tmp/oxy-old-auth-retirement-27q57499/pg1519-q8uh0cir/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /tmp/oxy-old-auth-retirement-27q57499/pg1519-q8uh0cir/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"command": ["bun", "--no-env-file", "run", "db:migrate"], "exitCode": 0, "log": "/tmp/oxy-old-auth-retirement-27q57499/pg1519-q8uh0cir/migration-fresh.txt"}
+{"command": ["bun", "--no-env-file", "run", "db:migrate"], "exitCode": 0, "log": "/tmp/oxy-old-auth-retirement-27q57499/pg1519-q8uh0cir/migration-repeat.txt"}
+{"newLocalServerPid": 3937935, "dataDirectory": "/tmp/oxy-old-auth-retirement-27q57499/pg1519-q8uh0cir/data", "database": "oxy_rehearsal_1519_52c9e78809b3dd8b", "command": ["bun", "--no-env-file", "run", "test", "--runInBand", "--runTestsByPath", "src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts"], "exitCode": 0, "log": "/tmp/oxy-old-auth-retirement-27q57499/pg1519-q8uh0cir/auth-retirement-api.txt", "productionAccess": false}
+{"compiledNodeExitCode": 1, "log": "/tmp/oxy-old-auth-retirement-27q57499/pg1519-q8uh0cir/compiled-node.txt", "environmentKeys": ["DATABASE_URL", "NODE_ENV", "OXY_API_URL"]}
+waiting for server to shut down.... done
+server stopped
+
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/scripts/rehearsal/test-old-issuer-auth-retirement.py", line 114, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/scripts/rehearsal/test-old-issuer-auth-retirement.py", line 107, in main
+    node_result.check_returncode()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/subprocess.py", line 508, in check_returncode
+    raise CalledProcessError(self.returncode, self.args, self.stdout,
+                             self.stderr)
+subprocess.CalledProcessError: Command '['/home/nate/.nvm/versions/node/v24.21.0/bin/node', '/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/scripts/auth/tests/old-issuer-auth-compiled.mjs']' returned non-zero exit status 1.
