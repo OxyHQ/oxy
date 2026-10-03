@@ -69,7 +69,7 @@ jobs:
       - name: Read and classify matching existing identity events
         run: python3 .github/scripts/read-external-identity-api-logs.py
       - name: Retain only sanitized complete readback
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: identity-api-log-readback-${{ github.run_id }}
           path: identity-api-log-readback/report.json
