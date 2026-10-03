@@ -1,0 +1,15 @@
+{
+  "base": "4b145040afca38be93ad4096241d4c60e12e1c82",
+  "packages": {
+    "packages/api/openapi.json": "c1dda19cd76dec3c5bb282de9449fedcda0d52681068b6f4a328987df6934de9",
+    "packages/api/src/routes/__tests__/serviceTokenCredentials.test.ts": "6447c23019b859c7878e3e360dba46907941ed7f99f9f58effbe7ac8afbf077a",
+    "packages/api/src/routes/auth.ts": "b6efaf6af04bfde19233444da25b55056e8014d6ae7414e9f5cc7979babd8528",
+    "packages/api/src/services/__tests__/workloadIdentity.db.test.ts": "4051197143d8d202417d94de241abffcec401f1d44e3a296ee519537c8f869bb",
+    "packages/api/src/services/serviceTokenMint.service.ts": "72e8365318d75403909e5ce683c7fbd09909268512e1e066c9c2dbf9bc5ff1d2"
+  },
+  "root": {
+    "package.json": "bc2aac184dd2f80e25ce69ab52843ce9a29da7a11a04b5677bf0a6bc3a9ae889",
+    "bun.lock": "864b175c3684fa10fb62769363a2128faeede5fb8f766ec34e232d853f9e206d",
+    "Dockerfile": "10d9955e2707296de35febb7e0083911e75184360ff99e154cc676ba2f9545f9"
+  }
+}

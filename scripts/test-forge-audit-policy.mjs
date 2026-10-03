@@ -15,7 +15,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const proofBytes = readFileSync(join(root, EVIDENCE_PATH));
 const proof = JSON.parse(proofBytes);
 const records = Object.fromEntries(proof.records.map(row => [row.file, readFileSync(join(root, dirname(EVIDENCE_PATH), row.file))]));
-const audit = JSON.parse(readFileSync(join(root, 'docs/security/forge-candidate/provenance/run-36951283961/raw-bun-audit.json')));
+const audit = JSON.parse(readFileSync(join(root, 'docs/security/forge-candidate/current-raw-bun-audit.json')));
 const source = 'a'.repeat(40), head = 'b'.repeat(40);
 const paths = ['.github/workflows/ci.yml', 'scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs', 'scripts/test-forge-audit-policy.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs', 'scripts/forge-source-topology.mjs', 'scripts/test-forge-source-topology.mjs', 'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs', 'scripts/forge-final-image-collector.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/forge-final-image-test-fixture.mjs', 'scripts/test-forge-final-image-live-clock.mjs', 'scripts/forge-policy-record.mjs', 'scripts/test-forge-future-dag.mjs', 'scripts/check-published-forge-image.mjs', 'scripts/verify-forge-oci-artifact.py', 'scripts/test-verify-forge-oci-artifact.py', ...TRUSTED_WORKFLOW.executedPaths];
 let assertions = 0;
@@ -138,7 +138,7 @@ for (const [name, decision, expectedStatus, invalid] of [
     const module = await import(pathToFileURL(join(repository.root, 'scripts/forge-audit-policy.mjs')).href);
     if (invalid) { assert.throws(() => module.readCommittedPolicyStatus(), /Invalid|expired|Missing/); assertions++; }
     else { assert.equal(module.readCommittedPolicyStatus(), expectedStatus); assertions++; }
-    const env = { ...process.env, DEPENDENCY_AUDIT_INPUT: join(root, 'docs/security/forge-candidate/provenance/run-36951283961/raw-bun-audit.json'),
+    const env = { ...process.env, DEPENDENCY_AUDIT_INPUT: join(root, 'docs/security/forge-candidate/current-raw-bun-audit.json'),
       FORGE_ACK: '1', FORGE_APPROVED: '1', FORGE_AUDIT_POLICY_ACTIVE: '1', DEPENDENCY_AUDIT_SKIP_FORGE: '1' };
     const gate = spawnSync('bun', [join(repository.root, 'scripts/check-dependency-audit.mjs')], { cwd: repository.root, encoding: 'utf8', env });
     assert.equal(gate.status, 1, name + ': fixtures cannot authorize the real gate'); assertions++;

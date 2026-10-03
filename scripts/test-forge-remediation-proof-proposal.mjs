@@ -15,7 +15,7 @@ const git = (...args) => execFileSync('git', ['-C', repo, ...args], { maxBuffer:
 const blob = path => { try { return git('rev-parse', `${SOURCE}:${path}`).toString().trim(); } catch { return null; } };
 // Real facts for the recorded run: git objects of the evidence source plus the recorded authenticated API reads.
 const REAL = Object.freeze({
-  audit: readFileSync(join(recorded, 'raw-bun-audit.json')), api: readFileSync(join(recorded, 'github-api.json')), zip: readFileSync(join(recorded, 'artifact.zip')),
+  audit: readFileSync(join(repo, 'docs/security/forge-candidate/current-raw-bun-audit.json')), api: readFileSync(join(recorded, 'github-api.json')), zip: readFileSync(join(recorded, 'artifact.zip')),
   pins: readFileSync(join(recorded, 'pins.json')), // the historic run owns its pins; live pins.json may move on
   git: { head: SOURCE, clean: true, sourceIsAncestor: true, changedPaths: [], blobsAtSource: Object.fromEntries(TRUSTED_WORKFLOW.executedPaths.map(path => [path, blob(path)])),
     sourceCommitTime: git('show', '-s', '--format=%cI', SOURCE).toString().trim(), patchBytes: git('show', `${SOURCE}:patches/node-forge@1.4.0.patch`),

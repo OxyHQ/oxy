@@ -126,7 +126,7 @@ export const TRUSTED_BASELINE = freeze({
   advisory: ADVISORY, advisoryUrl: `https://github.com/advisories/${ADVISORY}`, severity: 'high',
   auditVulnerableVersions: '<=1.4.0', ghsaVulnerableRange: '<= 1.4.0', package: 'node-forge', version: '1.4.0',
   // Whole `bun audit --json` output, canonicalised: any new advisory anywhere changes it.
-  rawAuditSha256: 'e407bcc87d75d1c06554f47a66a14899153c0591fc139ba750c469abc66e9a24',
+  rawAuditSha256: '8c6c938a06ddc218daed240793a26d4a0ed55f504b3edbc54cb415468bb0b6b8',
   patchSha256: '6c8b35a750038ddae3b2973dd81cad4826fa31744053c878cd8959338edcd776',
   files: {
     'lib/rsa.js': '425543a09d94457a66d098c490540b2759806dc61236ad3d38610c18d88f1b81',

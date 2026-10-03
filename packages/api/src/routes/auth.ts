@@ -3528,7 +3528,8 @@ const serviceTokenLimiter = rateLimit({
   prefix: 'rl:auth:service-token:',
   windowMs: 5 * 60 * 1000,
   // Per credential: every task of one service, a deploy's replacements and a
-  // readiness gate each mint once an hour, so ten would still break a deploy.
+  // readiness gate share this bucket. TTL300 requires measured cohort/headroom;
+  // preserve 30 while rollout validates rolling overlap and retries.
   max: process.env.NODE_ENV === 'development' ? 100 : 30,
   keyGenerator: serviceTokenMintRateLimitKey,
 });
@@ -3555,7 +3556,7 @@ const serviceTokenAddressLimiter = rateLimit({
  *     description: >
  *       Internal service-to-service authentication endpoint.
  *       Exchange ApplicationCredential credentials (apiKey = publicKey,
- *       apiSecret = plaintext secret) for a short-lived service JWT (1 hour).
+ *       apiSecret = plaintext secret) for a short-lived service JWT (5 minutes).
  *       Requires a usable credential of type `service` on an active
  *       application: either `active`, or `deprecated` but still within its
  *       rotation grace window (a credential rotated within the last 7 days keeps
@@ -3779,7 +3780,7 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
 /**
  * The workload mint gets its own budget, and it has to be a fleet-sized one.
  *
- * The credential limiter above is 10 per 5 minutes because an api key and
+ * The credential limiter above is 30 per 5 minutes because an api key and
  * secret are GUESSABLE: a wide budget there is a brute-force budget. Nothing
  * about the workload path is guessable. The challenge hands out a nonce that
  * expires in 60 seconds and authorises nothing, and the exchange only mints if
@@ -3796,8 +3797,9 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
  * challenge (429)` — from a handful of hand-run checks, with most of the fleet
  * not yet migrated.
  *
- * 600 per 5 minutes is two a second sustained, which is far more than the
- * estate can need — a token lasts an hour — and far less than a useful flood.
+ * 600 per 5 minutes is two a second sustained. It covers the estate only
+ * when its measured mint/challenge cadence fits the shared bucket.
+ * TTL300 requires an explicit cohort/retry budget; do not infer capacity from TTL.
  * The nonce store is the thing being protected here, and it is a Redis key with
  * a 60-second TTL.
  */
