@@ -1,0 +1,16 @@
+packages/api/scripts/real-oauth-browser-api.ts(22,7): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(34,1): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(37,18): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(40,20): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(43,24): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(46,1): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(47,1): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(48,1): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(57,17): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(64,3): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(70,1): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(76,29): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(76,42): error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean '../src/server.js'?
+packages/api/scripts/real-oauth-browser-api.ts(77,1): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(78,1): error TS1309: The current file is a CommonJS module and cannot use 'await' at the top level.
+packages/api/scripts/real-oauth-browser-api.ts(87,36): error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean '../src/utils/socket.js'?

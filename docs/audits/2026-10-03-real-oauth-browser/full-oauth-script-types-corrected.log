@@ -1,0 +1,3 @@
+packages/api/scripts/real-oauth-browser-api.ts(78,42): error TS2339: Property 'listen' does not exist on type 'typeof import("/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/api/src/server")'.
+packages/api/scripts/real-oauth-browser-api.ts(90,14): error TS2339: Property 'listening' does not exist on type 'typeof import("/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/api/src/server")'.
+packages/api/scripts/real-oauth-browser-api.ts(90,66): error TS2339: Property 'close' does not exist on type 'typeof import("/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/api/src/server")'.

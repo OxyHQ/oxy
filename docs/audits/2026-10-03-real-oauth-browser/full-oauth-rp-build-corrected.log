@@ -1,0 +1,146 @@
+rolldown-vite v7.3.1 building client environment for production...
+[2Ktransforming...[plugin rolldown:vite-resolve] Module "node:async_hooks" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/node_modules/.bun/expo-font@57.0.3/node_modules/expo-font/build/serverContext.web.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin rolldown:vite-resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/protocol/dist/esm/platform/crypto.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+✓ 2455 modules transformed.
+
+(!) outDir /home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/browser-build is not inside project root and will not be emptied.
+Use --emptyOutDir to override.
+
+rendering chunks...
+[plugin builtin:vite-reporter] 
+(!) __vite-browser-external is dynamically imported by /home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/protocol/dist/esm/platform/crypto.js but also statically imported by /home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/node_modules/.bun/expo-font@57.0.3/node_modules/expo-font/build/serverContext.web.js, dynamic import will not move module into another chunk.
+
+computing gzip size...
+.integration-evidence/browser-build/index.html                                                 0.22 kB │ gzip:   0.19 kB
+.integration-evidence/browser-build/assets/unmatched-C2XkAHgU.png                              4.75 kB
+.integration-evidence/browser-build/assets/arrow_down-NdGCEnxo.png                             9.45 kB
+.integration-evidence/browser-build/assets/OxyServicesMaterialCommunityIcons-DVHLYwp4.ttf     28.85 kB
+.integration-evidence/browser-build/assets/JetBrainsMono-Variable-B9CIFXIH.woff2              40.40 kB
+.integration-evidence/browser-build/assets/OxyServicesIonicons-B1hZ8Dc8.ttf                   43.00 kB
+.integration-evidence/browser-build/assets/slide-4-DSNFt0xP.jpg                               46.63 kB
+.integration-evidence/browser-build/assets/InterVariable-Dx4kXJAl.woff2                       48.25 kB
+.integration-evidence/browser-build/assets/slide-3-Bp5gr1Be.jpg                               59.18 kB
+.integration-evidence/browser-build/assets/BlomusModernus-Bold-0E_Y-ihB.woff2                 77.61 kB
+.integration-evidence/browser-build/assets/BlomusModernus-Regular-kZR3rHS0.woff2              77.64 kB
+.integration-evidence/browser-build/assets/slide-2-BAN8I4Iy.jpg                               87.90 kB
+.integration-evidence/browser-build/assets/slide-1-CPYeLD4l.jpg                              102.17 kB
+.integration-evidence/browser-build/assets/__vite-browser-external-ClSVgB_C.js                 0.05 kB │ gzip:   0.07 kB
+.integration-evidence/browser-build/assets/trustTierLabels-a1rCYrMN.js                         0.12 kB │ gzip:   0.12 kB
+.integration-evidence/browser-build/assets/Ionicons-C1pab3h0.js                                0.15 kB │ gzip:   0.14 kB
+.integration-evidence/browser-build/assets/LinkCommonsScreen-D53QOQKa.js                       0.19 kB │ gzip:   0.17 kB
+.integration-evidence/browser-build/assets/SignInAuthenticatorScreen-CnfYKJ8a.js               0.19 kB │ gzip:   0.17 kB
+.integration-evidence/browser-build/assets/FollowersListScreen-CA2GueZD.js                     0.20 kB │ gzip:   0.18 kB
+.integration-evidence/browser-build/assets/FollowingListScreen-CXciCdYp.js                     0.20 kB │ gzip:   0.18 kB
+.integration-evidence/browser-build/assets/DeleteAccountScreen-vo2Ak5am.js                     0.23 kB │ gzip:   0.19 kB
+.integration-evidence/browser-build/assets/SignInPasswordScreen-s5rBJ8ds.js                    0.24 kB │ gzip:   0.20 kB
+.integration-evidence/browser-build/assets/AccountSecurityPanelScreen-C_nYb0oU.js              0.27 kB │ gzip:   0.22 kB
+.integration-evidence/browser-build/assets/version-D8-p_RBf.js                                 0.33 kB │ gzip:   0.23 kB
+.integration-evidence/browser-build/assets/useReduceMotion-CmMu9V3C.js                         0.40 kB │ gzip:   0.30 kB
+.integration-evidence/browser-build/assets/SettingsIcon-Bfz-H4hm.js                            0.49 kB │ gzip:   0.35 kB
+.integration-evidence/browser-build/assets/useSettingToggle-B70gbaaI.js                        0.68 kB │ gzip:   0.44 kB
+.integration-evidence/browser-build/assets/colorUtils-omxxE4z_.js                              0.77 kB │ gzip:   0.24 kB
+.integration-evidence/browser-build/assets/UserLinksScreen-MP98LxmU.js                         0.83 kB │ gzip:   0.49 kB
+.integration-evidence/browser-build/assets/plural-CWYe3cpk.js                                  0.86 kB │ gzip:   0.51 kB
+.integration-evidence/browser-build/assets/ProfileSummaryCard-Bp1mRjtm.js                      1.01 kB │ gzip:   0.57 kB
+.integration-evidence/browser-build/assets/message-helpers-6BPlsYLP.js                         1.15 kB │ gzip:   0.58 kB
+.integration-evidence/browser-build/assets/AvatarCameraBadge-B853yv9X.js                       1.15 kB │ gzip:   0.70 kB
+.integration-evidence/browser-build/assets/RiSparklingLine-Bri7yjzW.js                         1.20 kB │ gzip:   0.64 kB
+.integration-evidence/browser-build/assets/TrustFAQScreen-CVjvzI1E.js                          1.49 kB │ gzip:   0.77 kB
+.integration-evidence/browser-build/assets/build-CrDq-fki.js                                   1.51 kB │ gzip:   0.77 kB
+.integration-evidence/browser-build/assets/RiShieldCheckLine-BU7_Scx4.js                       1.62 kB │ gzip:   0.90 kB
+.integration-evidence/browser-build/assets/TrustRulesScreen-Bm218KBL.js                        1.92 kB │ gzip:   0.99 kB
+.integration-evidence/browser-build/assets/SearchSettingsScreen-DXxKaGHd.js                    2.10 kB │ gzip:   0.92 kB
+.integration-evidence/browser-build/assets/Haptics-BAMycQS0.js                                 2.41 kB │ gzip:   1.09 kB
+.integration-evidence/browser-build/assets/HelpSupportScreen-BagrhZk1.js                       2.41 kB │ gzip:   0.87 kB
+.integration-evidence/browser-build/assets/ConnectedAppsScreen-DLkZVvCf.js                     2.63 kB │ gzip:   1.31 kB
+.integration-evidence/browser-build/assets/NotificationsScreen-jmhbh1HQ.js                     2.85 kB │ gzip:   1.05 kB
+.integration-evidence/browser-build/assets/module-rRp7KBja.js                                  2.90 kB │ gzip:   1.22 kB
+.integration-evidence/browser-build/assets/EditProfileScreen-DQnQJphh.js                       3.07 kB │ gzip:   1.14 kB
+.integration-evidence/browser-build/assets/LanguageSelectorScreen-CiSC3EqF.js                  3.07 kB │ gzip:   1.43 kB
+.integration-evidence/browser-build/assets/SettingsList-BjUPmE4G.js                            3.14 kB │ gzip:   1.36 kB
+.integration-evidence/browser-build/assets/PreferencesScreen-BfLFTIHS.js                       3.15 kB │ gzip:   1.31 kB
+.integration-evidence/browser-build/assets/HistoryViewScreen-zjobtJjP.js                       3.38 kB │ gzip:   1.31 kB
+.integration-evidence/browser-build/assets/LearnMoreUsernamesScreen-BU9Mm6hW.js                3.64 kB │ gzip:   1.58 kB
+.integration-evidence/browser-build/assets/TrustAboutScreen-Cmasbsf5.js                        3.65 kB │ gzip:   1.56 kB
+.integration-evidence/browser-build/assets/Card-BbqTzzOI.js                                    3.80 kB │ gzip:   1.65 kB
+.integration-evidence/browser-build/assets/DomainsScreen--G_fIlKr.js                           3.82 kB │ gzip:   1.44 kB
+.integration-evidence/browser-build/assets/TrustCenterScreen-kPqIt0eS.js                       3.90 kB │ gzip:   1.57 kB
+.integration-evidence/browser-build/assets/LegalDocumentsScreen-B6fL4TwF.js                    3.92 kB │ gzip:   1.29 kB
+.integration-evidence/browser-build/assets/TrustLeaderboardScreen-BhLBVUxb.js                  3.95 kB │ gzip:   1.68 kB
+.integration-evidence/browser-build/assets/ChangeAvatarScreen-5Z4SIf_D.js                      4.21 kB │ gzip:   1.74 kB
+.integration-evidence/browser-build/assets/AccountSettingsScreen-BCJWz7L4.js                   5.39 kB │ gzip:   2.19 kB
+.integration-evidence/browser-build/assets/AccountVerificationScreen-WKoRPr1k.js               6.52 kB │ gzip:   2.69 kB
+.integration-evidence/browser-build/assets/ImagePicker-BwsFJX8y.js                             6.81 kB │ gzip:   2.60 kB
+.integration-evidence/browser-build/assets/CreateAccountScreen-PbgLAWGK.js                     6.92 kB │ gzip:   2.63 kB
+.integration-evidence/browser-build/assets/WelcomeNewUserScreen-B9YJIxX6.js                    7.96 kB │ gzip:   2.84 kB
+.integration-evidence/browser-build/assets/Chip-qN5r-ws-.js                                    8.00 kB │ gzip:   3.42 kB
+.integration-evidence/browser-build/assets/WebBrowser-CO9_8SfH.js                              8.11 kB │ gzip:   3.18 kB
+.integration-evidence/browser-build/assets/ProfileScreen-DtJ2mv49.js                           8.12 kB │ gzip:   2.87 kB
+.integration-evidence/browser-build/assets/src-CRQx4Yk7.js                                     8.15 kB │ gzip:   3.04 kB
+.integration-evidence/browser-build/assets/module-iX0vRLNw.js                                  8.85 kB │ gzip:   2.63 kB
+.integration-evidence/browser-build/assets/TrustRewardsScreen-CFY7VYcm.js                      9.00 kB │ gzip:   2.78 kB
+.integration-evidence/browser-build/assets/AccountMembersScreen-O8khdvsN.js                    9.36 kB │ gzip:   2.84 kB
+.integration-evidence/browser-build/assets/AppInfoScreen-eptgEGdA.js                           9.85 kB │ gzip:   3.49 kB
+.integration-evidence/browser-build/assets/PrivacySettingsScreen-YPjvJ9SH.js                  10.51 kB │ gzip:   2.70 kB
+.integration-evidence/browser-build/assets/UserListScreen-DOy-90fY.js                         11.54 kB │ gzip:   4.55 kB
+.integration-evidence/browser-build/assets/zh-CN-DZ4leBXt.js                                  11.86 kB │ gzip:   4.99 kB
+.integration-evidence/browser-build/assets/it-IT-yWhEPHf5.js                                  12.61 kB │ gzip:   4.63 kB
+.integration-evidence/browser-build/assets/ca-ES-BFej1iYY.js                                  12.92 kB │ gzip:   4.70 kB
+.integration-evidence/browser-build/assets/pt-PT-BMRB4MV8.js                                  13.03 kB │ gzip:   4.67 kB
+.integration-evidence/browser-build/assets/de-DE-BA4b4FyP.js                                  13.39 kB │ gzip:   4.89 kB
+.integration-evidence/browser-build/assets/fr-FR-DKon_f8s.js                                  13.72 kB │ gzip:   4.88 kB
+.integration-evidence/browser-build/assets/ko-KR-fgWiKIb-.js                                  13.83 kB │ gzip:   4.92 kB
+.integration-evidence/browser-build/assets/ja-JP-De29lRdE.js                                  15.92 kB │ gzip:   5.11 kB
+.integration-evidence/browser-build/assets/ar-SA-mO8GGXQZ.js                                  16.09 kB │ gzip:   5.17 kB
+.integration-evidence/browser-build/assets/ManageAccountScreen-DcRW_LTH.js                    18.55 kB │ gzip:   5.44 kB
+.integration-evidence/browser-build/assets/AvatarCropScreen-DcrhG0ye.js                       19.81 kB │ gzip:   6.45 kB
+.integration-evidence/browser-build/assets/validationUtils-CblVnFp7.js                        21.14 kB │ gzip:   6.14 kB
+.integration-evidence/browser-build/assets/PaymentGatewayScreen-CyP82Uts.js                   24.02 kB │ gzip:   5.87 kB
+.integration-evidence/browser-build/assets/recoveryPhrase-JW2g40Np.js                         24.57 kB │ gzip:  11.20 kB
+.integration-evidence/browser-build/assets/EditProfileFieldScreen-CVksFm0G.js                 25.44 kB │ gzip:   8.48 kB
+.integration-evidence/browser-build/assets/OxyAccountDialogScreen-DXt0Io4A.js                 35.67 kB │ gzip:  11.77 kB
+.integration-evidence/browser-build/assets/internal-COkmcURq.js                               39.77 kB │ gzip:  13.47 kB
+.integration-evidence/browser-build/assets/esm-CPw4e5Ot.js                                    42.18 kB │ gzip:  13.15 kB
+.integration-evidence/browser-build/assets/zh-B1hj3PfM.js                                     56.74 kB │ gzip:  23.94 kB
+.integration-evidence/browser-build/assets/id-CIBw8c42.js                                     59.79 kB │ gzip:  22.12 kB
+.integration-evidence/browser-build/assets/tr-Dbn7xD1I.js                                     61.71 kB │ gzip:  23.47 kB
+.integration-evidence/browser-build/assets/it-UHItyJw9.js                                     63.86 kB │ gzip:  23.35 kB
+.integration-evidence/browser-build/assets/pt-DWH-2enl.js                                     64.00 kB │ gzip:  23.55 kB
+.integration-evidence/browser-build/assets/de-DcZvYCbb.js                                     64.13 kB │ gzip:  23.77 kB
+.integration-evidence/browser-build/assets/ca-DDuTQE4M.js                                     64.25 kB │ gzip:  23.76 kB
+.integration-evidence/browser-build/assets/es-D2zaoMvV.js                                     64.45 kB │ gzip:  23.73 kB
+.integration-evidence/browser-build/assets/es-ES-3ZgTfyeJ.js                                  65.38 kB │ gzip:  20.74 kB
+.integration-evidence/browser-build/assets/fr-DCmNXMNF.js                                     66.34 kB │ gzip:  24.28 kB
+.integration-evidence/browser-build/assets/ja-Cg5NlaCa.js                                     68.06 kB │ gzip:  25.31 kB
+.integration-evidence/browser-build/assets/FileManagementScreen-BxBB58Jt.js                   82.84 kB │ gzip:  25.28 kB
+.integration-evidence/browser-build/assets/ar-wBbt30Fv.js                                     84.90 kB │ gzip:  26.93 kB
+.integration-evidence/browser-build/assets/ru-BBYLmOBz.js                                     91.51 kB │ gzip:  28.57 kB
+.integration-evidence/browser-build/assets/hi-Cw9pi7VH.js                                    102.10 kB │ gzip:  27.03 kB
+.integration-evidence/browser-build/assets/bn-D4RZ_Kph.js                                    104.25 kB │ gzip:  26.63 kB
+.integration-evidence/browser-build/assets/index-Cr68wOCq.js                               3,871.61 kB │ gzip: 904.63 kB
+[33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/uuid/index.web.ts:6:10 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m6 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249m"[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m([0m[38;5;249m"[0m[38;5;249mn[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249me[0m[38;5;249m:[0m[38;5;249mc[0m[38;5;249mr[0m[38;5;249my[0m[38;5;249mp[0m[38;5;249mt[0m[38;5;249mo[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m.[0m[38;5;249mr[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249md[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249mU[0m[38;5;249mU[0m[38;5;249mI[0m[38;5;249mD[0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m;[0m
+ [38;5;240m  │[0m               ──┬─  
+ [38;5;240m  │[0m                 ╰─── Use of direct `eval` here.
+ [38;5;240m  │[0m 
+ [38;5;240m  │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+[38;5;246m───╯[0m
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/.bun/expo@57.0.21/node_modules/expo/src/async-require/fetchThenEvalJs.ts:20:11 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m20 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249mb[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249my[0m[38;5;249m)[0m[38;5;249m;[0m
+ [38;5;240m   │[0m                 ──┬─  
+ [38;5;240m   │[0m                   ╰─── Use of direct `eval` here.
+ [38;5;240m   │[0m 
+ [38;5;240m   │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+[38;5;246m────╯[0m
+
+✓ built in 1.83s
