@@ -108,8 +108,9 @@ will not create a blanket exemption for new session references.
 
 ## One Oxy catalogue and existing domain handlers
 
-Add recommendProfiles and readViewerGraph as read-only operations to Oxy's
-canonical catalogue, alongside its existing Inbox entries. The same catalogue
+Add recommendProfiles and readViewerGraph to one new canonical Oxy catalogue
+(appId oxy, audience oxy-platform-api, account-root resource). The existing
+Inbox catalogue (appId inbox, audience oxy-inbox-api) stays separate and unchanged. This Oxy catalogue
 feeds shared internal MCP registration. Use exact registered id/version/digest,
 audience and account-root resource. Recommendations derive private clientId from
 the verified coordinator application; supplied clientId never selects another
@@ -148,3 +149,15 @@ SDK release version/range review, not slipped into already published contracts.
 Registration/deployment order must upgrade receiver+shared decoder before opting
 in callers. Current candidate packs are explicit SHA-pinned test artifacts;
 registry publication, actual registration and pilot rollout remain separate.
+
+## Existing workload attribution stays canonical
+
+The initial suspicion about wl_ handles and credential FKs was incomplete:
+`workloadAttributionIdentity.service.ts` already materializes an inert
+`application_credentials` row at binding creation and before workload mint. Its
+ID is the signed handle, type=workload, no key/secret/scopes, and the row has its
+existing binding FK. The execution/catalog credential FKs therefore stay intact;
+this extension adds no polymorphic provenance, backfill or artificial credential.
+The SQL/HTTP acceptance will mint a real fixture workload through that service
+and persist both catalog registration and execution approval using its handle.
+Live authorization still reads the workload binding, never inert row scopes.
