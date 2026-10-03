@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "base": "20013421a4cc07545a7685931db68f4ee55f1773",
+  "sources": [
+    {
+      "path": "scripts/auth/mercaria-billing-authority-ecs.py",
+      "sha256": "0bc2652f1212007d3a109202029d6f14d6fd80b73809710c0f09f5372dfe451a"
+    },
+    {
+      "path": "scripts/auth/mercaria-billing-authority.mjs",
+      "sha256": "3e83ebd68be54c5db78886762b6b526fb9946e6557dda1c46d51b8866519f0f5"
+    },
+    {
+      "path": "scripts/auth/test-mercaria-billing-authority-ecs.py",
+      "sha256": "1d52c413dfacd5f54ecf0ed4a47ba6ec277f1cf8b1f895a905b9aa649a752fd5"
+    },
+    {
+      "path": "scripts/auth/test-mercaria-billing-authority.mjs",
+      "sha256": "67b0c85e6c387fe4a20c9c1346339de3ebae1d77b2cb02df1cfdf78bbe420fed"
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/README.md",
+      "sha256": "30d4e9cd8867e34c315c99f385f3b8973dec71ecced6a2ce6b2616911d1350d8"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/logs/build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/logs/launcher-tests.log",
+      "sha256": "8d792d81c28f14e81434cb2a175feb8a800363e60faf05e9aa008104cb37a9c2",
+      "bytes": 111
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/logs/runner-pg.log",
+      "sha256": "ae57ad0a5bc8b1e4503f8733a3e6efc7dbb5c392ae12a63f74e260768c731bbb",
+      "bytes": 516
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/logs/runner-pg-fixture-error.log",
+      "sha256": "6b192a281556cb6bd2b14f2bb131d6e5eefec32c58a79d20c59458deb39fbbf8",
+      "bytes": 19252
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/logs/runner-pg-teardown-error.log",
+      "sha256": "8e1604fea746e628a9c154a57dedf76856ee43acfad14c15b3a1b4a5c2c5ef51",
+      "bytes": 1910
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/logs/fixture-recovery.log",
+      "sha256": "2e28bfce59c1b485c5f7fe099d7b2c7692eeff64677b4d9c30d92de04d42d450",
+      "bytes": 96
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/logs/database-census.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/logs/pg-stop.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d",
+      "bytes": 56
+    }
+  ],
+  "preservedInputs": [
+    {
+      "path": "scripts/billing/commercial-inventory-ecs.py",
+      "sha256": "8bff2b39d443914c9ce9281c740705d544821e22b92ec3095cf5c889e1e9564b",
+      "bytes": 19431
+    },
+    {
+      "path": "packages/api/src/services/mercariaBillingAuthority.service.ts",
+      "sha256": "aee073957ceed5abc1a7a2afb54448ac67aaf9eb3d66ea33554b7e2d7ef978c5",
+      "bytes": 6600
+    },
+    {
+      "path": "packages/api/dist/services/mercariaBillingAuthority.service.js",
+      "sha256": "c2171f7fa92204634055fdfe878355fa771860e2b332915c188c17863faaf0b8",
+      "bytes": 8620
+    },
+    {
+      "path": "packages/api/dist/config/postgres.js",
+      "sha256": "d71c6f13be5ef0c6c9aa9d7b9878a1488dd5a85523755243aaf0972b6480cea2",
+      "bytes": 9080
+    }
+  ],
+  "validation": {
+    "launcherOffline": 12,
+    "compiledNodeRealSql": 4,
+    "apiBuildExit": 0,
+    "awsExecuted": false,
+    "liveDatabaseAccess": false,
+    "productionEffects": false,
+    "fixtureErrorsPreserved": 2,
+    "ownedDatabaseTeardownVerified": true,
+    "ownedPgStopped": true
+  }
+}
