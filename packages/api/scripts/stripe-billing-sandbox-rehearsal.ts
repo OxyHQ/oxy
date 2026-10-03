@@ -192,6 +192,17 @@ export async function receiverFailureDiagnostic(response: Response) {
 	return { receiverStatus: response.status, receiverCode };
 }
 
+export async function assertAcceptedWebhookDelivery(
+	response: Response,
+): Promise<void> {
+	if (response.status !== 200) {
+		throw Object.assign(
+			new Error("Owned event receiver refused"),
+			await receiverFailureDiagnostic(response),
+		);
+	}
+}
+
 export function assertSandboxCouponName(name: string): string {
 	assert.ok(
 		name.length > 0 && name.length <= 40,
@@ -498,7 +509,7 @@ async function main() {
 				"content-type": "application/json",
 			},
 		});
-		assert.equal(response.status, 200, `Real handler refused ${event.type}`);
+		await assertAcceptedWebhookDelivery(response);
 		check("local delivery of authenticated test event", {
 			eventId: event.id,
 			type: event.type,

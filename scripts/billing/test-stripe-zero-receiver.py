@@ -22,7 +22,7 @@ PORT = 5597
 
 def clean_env():
     return {k: v for k, v in os.environ.items()
-            if not k.startswith('PG') and k not in ('DATABASE_URL', 'TEST_DATABASE_URL')}
+            if k in ('PATH','HOME','LANG','LC_ALL','TMPDIR')} | {'BUN_OPTIONS':'--no-env-file'}
 
 
 def run(args, **kwargs):
@@ -75,7 +75,7 @@ def main():
         env = clean_env() | {'DATABASE_URL': f'postgresql://oxy@127.0.0.1:{PORT}/{db}',
                             'NODE_ENV': 'test'}
         for stage in ('fresh', 'repeat'):
-            migration = subprocess.run(['bun', 'run', 'db:migrate'], cwd=ROOT / 'packages/api', env=env,
+            migration = subprocess.run(['bun', '--no-env-file', 'run', 'db:migrate'], cwd=ROOT / 'packages/api', env=env,
                                        text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
             migration_log = owned / f'migrate-{stage}.txt'
             migration_log.write_text(migration.stdout)
@@ -90,7 +90,7 @@ def main():
             'DATABASE_URL': f'postgresql://oxy@127.0.0.1:{PORT}/{sandbox}',
             'NODE_ENV':'test', 'BILLING_PROCESSOR_ENVIRONMENT':'test', 'LOG_LEVEL':'silent',
             'STRIPE_SECRET_KEY':'sk_test_offline_fixture','STRIPE_WEBHOOK_SECRET':'whsec_offline_fixture'}
-        migration = subprocess.run(['bun','run','db:migrate'],cwd=ROOT/'packages/api',env=fixture_env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        migration = subprocess.run(['bun','--no-env-file','run','db:migrate'],cwd=ROOT/'packages/api',env=fixture_env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         (owned/'sandbox-migration.log').write_text(migration.stdout);migration.check_returncode()
         command = ['bun','--no-env-file','scripts/billing/test-stripe-zero-receiver.mjs',os.sys.argv[1]]
         result = subprocess.run(command,cwd=ROOT,env=fixture_env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)

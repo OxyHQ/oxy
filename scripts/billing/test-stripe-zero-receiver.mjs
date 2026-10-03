@@ -22,7 +22,7 @@ const {sql}=require('drizzle-orm'),express=require('express');
 const source=async(p)=>import(pathToFileURL(join(api,'src',p+'.ts')).href);
 const pg=await source('config/postgres');const schema=await source('db/schema/users');const credits=await source('db/schema/userCredits');
 const catalogueModule=await source('services/productBillingCatalogue.service');
-const {loadBillingRouter}=await import(pathToFileURL(join(api,'scripts/stripe-billing-sandbox-rehearsal.ts')).href);
+const {loadBillingRouter,assertAcceptedWebhookDelivery,rehearsalErrorDiagnostic}=await import(pathToFileURL(join(api,'scripts/stripe-billing-sandbox-rehearsal.ts')).href);
 const directory=await mkdtemp(join(tmpdir(),'oxy-zero-receiver-'));
 process.env.BILLING_PRODUCT_CATALOGUE_FILE=join(directory,'catalogue.json');
 const broken=JSON.parse(await readFile(join(owned,'catalogue.private.json'),'utf8'));
@@ -50,11 +50,13 @@ try{
  const signature=()=>{const t=Math.floor(Date.now()/1000);return `t=${t},v1=${createHmac('sha256',process.env.STRIPE_WEBHOOK_SECRET).update(`${t}.${captured}`).digest('hex')}`;};
  const send=()=>fetch(`http://127.0.0.1:${server.address().port}/billing/webhook`,{method:'POST',body:captured,headers:{'content-type':'application/json','stripe-signature':signature()},signal:AbortSignal.timeout(10000)});
  await writeFile(process.env.BILLING_PRODUCT_CATALOGUE_FILE,JSON.stringify(broken));
- const red=await send();assert.equal(red.status,500);assert.deepEqual(await red.json(),{error:'Webhook handler error'});
+ const red=await send();assert.equal(red.status,500);assert.deepEqual(await red.clone().json(),{error:'Webhook handler error'});
+ let rejected;try{await assertAcceptedWebhookDelivery(red);}catch(error){rejected=rehearsalErrorDiagnostic(error,'fixture');}
+ assert.equal(rejected?.receiverStatus,500);assert.equal(rejected?.receiverCode,'webhook_handler_failed');
  const [failure]=await db.execute(sql`select outcome,outcome_detail from billing_stripe_events where stripe_event_id=${event.id}`);
  assert.equal(failure.outcome,'failed');assert.match(failure.outcome_detail,/amountMinorUnits/);
  await writeFile(process.env.BILLING_PRODUCT_CATALOGUE_FILE,JSON.stringify(corrected));
- const green=await send();assert.equal(green.status,200);assert.deepEqual(await green.json(),{received:true});
+ const green=await send();await assertAcceptedWebhookDelivery(green);assert.equal(green.status,200);assert.deepEqual(await green.json(),{received:true});
  const replay=await send();assert.equal(replay.status,200);
  const [receipt]=await db.execute(sql`select outcome,attempts from billing_stripe_events where stripe_event_id=${event.id}`);
  assert.equal(receipt.outcome,'not_granted');assert.equal(receipt.attempts,3);
@@ -62,7 +64,7 @@ try{
  const [counts]=await db.execute(sql`select (select count(*) from billing_credit_grants) as credits, (select count(*) from access_grants) as access, (select count(*) from billing_transactions) as transactions`);
  assert.equal(Number(counts.credits),0);assert.equal(Number(counts.access),0);assert.equal(Number(counts.transactions),0);
  assert.equal(rejectedExternalRequests,0);
- console.log(JSON.stringify({sameAuthenticatedOwnEvent:true,sameInvoiceCustomerBinding:true,sameFixturePayerBinding:true,realRawBodyRoute:true,invalidPaidCatalogueStatus:500,validNoPaidMappingStatus:200,replayStatus:200,receiptAttempts:3,outcome:'not_granted',creditGrants:0,accessGrants:0,balance:0,providerRequests:0,providerMutations:0,providerSignedDelivery:false}));
+ console.log(JSON.stringify({sameAuthenticatedOwnEvent:true,sameInvoiceCustomerBinding:true,sameFixturePayerBinding:true,realRawBodyRoute:true,actualRunnerDeliveryDiagnostic:true,receiverFailureStatus:500,receiverFailureCode:"webhook_handler_failed",invalidPaidCatalogueStatus:500,validNoPaidMappingStatus:200,replayStatus:200,receiptAttempts:3,outcome:'not_granted',creditGrants:0,accessGrants:0,balance:0,providerRequests:0,providerMutations:0,providerSignedDelivery:false}));
 }finally{
  if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await pg.closePostgres();globalThis.fetch=realFetch;await rm(directory,{recursive:true,force:true});
 }
