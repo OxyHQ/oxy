@@ -4,7 +4,7 @@
 - Date: 2026-10-03.
 - Decided by: Nate's approval of the documented architecture recommendations:
   «te apruebo todo, y sobre tus preguntas, deberia estar todo explicado en la issue pienso yo...».
-- Authority: [session record](../audits/1519-approved-completion-2026-10-03/authorization.txt).
+- Authority: [session record](../architecture/1519-approved-completion-2026-10-03/authorization.txt).
 
 ## Decision
 
