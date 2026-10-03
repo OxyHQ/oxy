@@ -68,6 +68,10 @@ class FrozenPlanTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'nonce'):
             self.validate(plan)
 
+    def test_same_router_loader_bootstraps_without_credentials(self):
+        self.assertEqual(json.loads(RUNNER.bootstrap_router()),
+                         {'actualLoader': 'function', 'remoteRequests': 0, 'keyRead': False})
+
     def test_credential_environment_is_not_forwarded(self):
         previous = RUNNER.os.environ.copy()
         try:
