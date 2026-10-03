@@ -1,0 +1,160 @@
+✖ compiled runner prepare/apply/rollback preserves unrelated rows and rejects replay (1545.765704ms)
+✖ foreign target, extra payload and hash mismatch refuse without any row mutation (0.641305ms)
+✖ CAS detects same-scopes timestamp-preserving ABA across separate Node processes (0.130528ms)
+✖ closure fence rejects prepare before any authority change (0.038782ms)
+✖ /home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-billing-authority.mjs (4.254459ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 0
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1970.943022
+
+✖ failing tests:
+
+test at scripts/auth/test-mercaria-billing-authority.mjs:86:1
+✖ compiled runner prepare/apply/rollback preserves unrelated rows and rejects replay (1545.765704ms)
+  Error: Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default), ($9, $10, default, $11, default, default, default, $12, $13, $14, $15, default, default, default, default, default, default, default)
+  params: 01a061cd-39a9-7bd6-ba31-70ef7590c953,6a37d0cc5d4b5f15482a9340,synthetic-cas-only,cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active,01a10347-b13b-7042-82ec-840528bb32cb,6a37d0cc5d4b5f15482a9340,synthetic-untouched,public,production,{"user:read"},active
+      at PostgresJsPreparedQuery.queryWithCache (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/drizzle-orm@0.45.2/node_modules/drizzle-orm/pg-core/session.cjs:66:15)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-billing-authority.mjs:70:3)
+      at async TestHook.run (node:internal/test_runner/test:1409:7) {
+    query: 'insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default), ($9, $10, default, $11, default, default, default, $12, $13, $14, $15, default, default, default, default, default, default, default)',
+    params: [ '01a061cd-39a9-7bd6-ba31-70ef7590c953', '6a37d0cc5d4b5f15482a9340', 'synthetic-cas-only', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'service', 'production', '{"user:read","catalogs:write","capabilities:read","capability-audit:write"}', 'active', '01a10347-b13b-7042-82ec-840528bb32cb', '6a37d0cc5d4b5f15482a9340', 'synthetic-untouched', 'public', 'production', '{"user:read"}', 'active' ],
+    cause: Error [PostgresError]: null value in column "name" of relation "application_credentials" violates not-null constraint
+        at ErrorResponse (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+        at handle (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+        at Socket.data (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+        at Socket.emit (node:events:514:28)
+        at addChunk (node:internal/streams/readable:568:12)
+        at readableAddChunkPushByteMode (node:internal/streams/readable:519:3)
+        at Readable.push (node:internal/streams/readable:399:5)
+        at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+      severity_local: 'ERROR',
+      severity: 'ERROR',
+      code: '23502',
+      detail: 'Failing row contains (01a061cd-39a9-7bd6-ba31-70ef7590c953, 6a37d0cc5d4b5f15482a9340, null, synthetic-cas-only, cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc, service, production, {user:read,catalogs:write,capabilities:read,capability-audit:wri..., active, null, null, null, null, 2026-10-03 22:39:52.508+03, 2026-10-03 22:39:52.508+03, null, null, null).',
+      schema_name: 'public',
+      table_name: 'application_credentials',
+      column_name: 'name',
+      file: 'execMain.c',
+      line: '2022',
+      routine: 'ExecConstraints'
+    }
+  }
+
+test at scripts/auth/test-mercaria-billing-authority.mjs:103:1
+✖ foreign target, extra payload and hash mismatch refuse without any row mutation (0.641305ms)
+  Error: Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default), ($9, $10, default, $11, default, default, default, $12, $13, $14, $15, default, default, default, default, default, default, default)
+  params: 01a061cd-39a9-7bd6-ba31-70ef7590c953,6a37d0cc5d4b5f15482a9340,synthetic-cas-only,cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active,01a10347-b13b-7042-82ec-840528bb32cb,6a37d0cc5d4b5f15482a9340,synthetic-untouched,public,production,{"user:read"},active
+      at PostgresJsPreparedQuery.queryWithCache (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/drizzle-orm@0.45.2/node_modules/drizzle-orm/pg-core/session.cjs:66:15)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-billing-authority.mjs:70:3)
+      at async TestHook.run (node:internal/test_runner/test:1409:7) {
+    query: 'insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default), ($9, $10, default, $11, default, default, default, $12, $13, $14, $15, default, default, default, default, default, default, default)',
+    params: [ '01a061cd-39a9-7bd6-ba31-70ef7590c953', '6a37d0cc5d4b5f15482a9340', 'synthetic-cas-only', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'service', 'production', '{"user:read","catalogs:write","capabilities:read","capability-audit:write"}', 'active', '01a10347-b13b-7042-82ec-840528bb32cb', '6a37d0cc5d4b5f15482a9340', 'synthetic-untouched', 'public', 'production', '{"user:read"}', 'active' ],
+    cause: Error [PostgresError]: null value in column "name" of relation "application_credentials" violates not-null constraint
+        at ErrorResponse (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+        at handle (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+        at Socket.data (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+        at Socket.emit (node:events:514:28)
+        at addChunk (node:internal/streams/readable:568:12)
+        at readableAddChunkPushByteMode (node:internal/streams/readable:519:3)
+        at Readable.push (node:internal/streams/readable:399:5)
+        at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+      severity_local: 'ERROR',
+      severity: 'ERROR',
+      code: '23502',
+      detail: 'Failing row contains (01a061cd-39a9-7bd6-ba31-70ef7590c953, 6a37d0cc5d4b5f15482a9340, null, synthetic-cas-only, cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc, service, production, {user:read,catalogs:write,capabilities:read,capability-audit:wri..., active, null, null, null, null, 2026-10-03 22:39:52.508+03, 2026-10-03 22:39:52.508+03, null, null, null).',
+      schema_name: 'public',
+      table_name: 'application_credentials',
+      column_name: 'name',
+      file: 'execMain.c',
+      line: '2022',
+      routine: 'ExecConstraints'
+    }
+  }
+
+test at scripts/auth/test-mercaria-billing-authority.mjs:110:1
+✖ CAS detects same-scopes timestamp-preserving ABA across separate Node processes (0.130528ms)
+  Error: Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default), ($9, $10, default, $11, default, default, default, $12, $13, $14, $15, default, default, default, default, default, default, default)
+  params: 01a061cd-39a9-7bd6-ba31-70ef7590c953,6a37d0cc5d4b5f15482a9340,synthetic-cas-only,cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active,01a10347-b13b-7042-82ec-840528bb32cb,6a37d0cc5d4b5f15482a9340,synthetic-untouched,public,production,{"user:read"},active
+      at PostgresJsPreparedQuery.queryWithCache (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/drizzle-orm@0.45.2/node_modules/drizzle-orm/pg-core/session.cjs:66:15)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-billing-authority.mjs:70:3)
+      at async TestHook.run (node:internal/test_runner/test:1409:7) {
+    query: 'insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default), ($9, $10, default, $11, default, default, default, $12, $13, $14, $15, default, default, default, default, default, default, default)',
+    params: [ '01a061cd-39a9-7bd6-ba31-70ef7590c953', '6a37d0cc5d4b5f15482a9340', 'synthetic-cas-only', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'service', 'production', '{"user:read","catalogs:write","capabilities:read","capability-audit:write"}', 'active', '01a10347-b13b-7042-82ec-840528bb32cb', '6a37d0cc5d4b5f15482a9340', 'synthetic-untouched', 'public', 'production', '{"user:read"}', 'active' ],
+    cause: Error [PostgresError]: null value in column "name" of relation "application_credentials" violates not-null constraint
+        at ErrorResponse (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+        at handle (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+        at Socket.data (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+        at Socket.emit (node:events:514:28)
+        at addChunk (node:internal/streams/readable:568:12)
+        at readableAddChunkPushByteMode (node:internal/streams/readable:519:3)
+        at Readable.push (node:internal/streams/readable:399:5)
+        at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+      severity_local: 'ERROR',
+      severity: 'ERROR',
+      code: '23502',
+      detail: 'Failing row contains (01a061cd-39a9-7bd6-ba31-70ef7590c953, 6a37d0cc5d4b5f15482a9340, null, synthetic-cas-only, cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc, service, production, {user:read,catalogs:write,capabilities:read,capability-audit:wri..., active, null, null, null, null, 2026-10-03 22:39:52.508+03, 2026-10-03 22:39:52.508+03, null, null, null).',
+      schema_name: 'public',
+      table_name: 'application_credentials',
+      column_name: 'name',
+      file: 'execMain.c',
+      line: '2022',
+      routine: 'ExecConstraints'
+    }
+  }
+
+test at scripts/auth/test-mercaria-billing-authority.mjs:117:1
+✖ closure fence rejects prepare before any authority change (0.038782ms)
+  Error: Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default), ($9, $10, default, $11, default, default, default, $12, $13, $14, $15, default, default, default, default, default, default, default)
+  params: 01a061cd-39a9-7bd6-ba31-70ef7590c953,6a37d0cc5d4b5f15482a9340,synthetic-cas-only,cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active,01a10347-b13b-7042-82ec-840528bb32cb,6a37d0cc5d4b5f15482a9340,synthetic-untouched,public,production,{"user:read"},active
+      at PostgresJsPreparedQuery.queryWithCache (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/drizzle-orm@0.45.2/node_modules/drizzle-orm/pg-core/session.cjs:66:15)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-billing-authority.mjs:70:3)
+      at async TestHook.run (node:internal/test_runner/test:1409:7) {
+    query: 'insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default), ($9, $10, default, $11, default, default, default, $12, $13, $14, $15, default, default, default, default, default, default, default)',
+    params: [ '01a061cd-39a9-7bd6-ba31-70ef7590c953', '6a37d0cc5d4b5f15482a9340', 'synthetic-cas-only', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'service', 'production', '{"user:read","catalogs:write","capabilities:read","capability-audit:write"}', 'active', '01a10347-b13b-7042-82ec-840528bb32cb', '6a37d0cc5d4b5f15482a9340', 'synthetic-untouched', 'public', 'production', '{"user:read"}', 'active' ],
+    cause: Error [PostgresError]: null value in column "name" of relation "application_credentials" violates not-null constraint
+        at ErrorResponse (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+        at handle (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+        at Socket.data (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+        at Socket.emit (node:events:514:28)
+        at addChunk (node:internal/streams/readable:568:12)
+        at readableAddChunkPushByteMode (node:internal/streams/readable:519:3)
+        at Readable.push (node:internal/streams/readable:399:5)
+        at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+      severity_local: 'ERROR',
+      severity: 'ERROR',
+      code: '23502',
+      detail: 'Failing row contains (01a061cd-39a9-7bd6-ba31-70ef7590c953, 6a37d0cc5d4b5f15482a9340, null, synthetic-cas-only, cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc, service, production, {user:read,catalogs:write,capabilities:read,capability-audit:wri..., active, null, null, null, null, 2026-10-03 22:39:52.508+03, 2026-10-03 22:39:52.508+03, null, null, null).',
+      schema_name: 'public',
+      table_name: 'application_credentials',
+      column_name: 'name',
+      file: 'execMain.c',
+      line: '2022',
+      routine: 'ExecConstraints'
+    }
+  }
+
+test at scripts/auth/test-mercaria-billing-authority.mjs:76:1
+✖ /home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-billing-authority.mjs (4.254459ms)
+  TypeError: Invalid URL
+      at new URL (node:internal/url:895:25)
+      at /home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/packages/api/dist/db/testDatabase.js:191:22
+      at Generator.next (<anonymous>)
+      at /home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/packages/api/dist/db/testDatabase.js:27:71
+      at new Promise (<anonymous>)
+      at __awaiter (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/packages/api/dist/db/testDatabase.js:23:12)
+      at dropTestDatabase (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/packages/api/dist/db/testDatabase.js:190:12)
+      at TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-billing-authority.mjs:79:11)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestHook.run (node:internal/test_runner/test:1409:7) {
+    code: 'ERR_INVALID_URL',
+    input: 'undefined'
+  }

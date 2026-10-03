@@ -1,0 +1,53 @@
+FFFF
+======================================================================
+FAIL: test_sigterm_after_ack (__main__.Signals.test_sigterm_after_ack)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-authority-signals.py", line 83, in test_sigterm_after_ack
+    def test_sigterm_after_ack(self):self.run_phase('ack')
+                                     ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-authority-signals.py", line 62, in run_phase
+    self.assertEqual(process.returncode,1,(stdout,stderr))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: -15 != 1 : ('', '')
+
+======================================================================
+FAIL: test_sigterm_cleanup_stop_failure_still_deregisters (__main__.Signals.test_sigterm_cleanup_stop_failure_still_deregisters)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-authority-signals.py", line 85, in test_sigterm_cleanup_stop_failure_still_deregisters
+    def test_sigterm_cleanup_stop_failure_still_deregisters(self):self.run_phase('stop-fails')
+                                                                  ~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-authority-signals.py", line 62, in run_phase
+    self.assertEqual(process.returncode,1,(stdout,stderr))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: -15 != 1 : ('', '')
+
+======================================================================
+FAIL: test_sigterm_unknown_run_ack_retains_identity_without_redispatch (__main__.Signals.test_sigterm_unknown_run_ack_retains_identity_without_redispatch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-authority-signals.py", line 86, in test_sigterm_unknown_run_ack_retains_identity_without_redispatch
+    def test_sigterm_unknown_run_ack_retains_identity_without_redispatch(self):self.run_phase('unknown')
+                                                                               ~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-authority-signals.py", line 62, in run_phase
+    self.assertEqual(process.returncode,1,(stdout,stderr))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: -15 != 1 : ('', '')
+
+======================================================================
+FAIL: test_sigterm_waiting_for_receipt (__main__.Signals.test_sigterm_waiting_for_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-authority-signals.py", line 84, in test_sigterm_waiting_for_receipt
+    def test_sigterm_waiting_for_receipt(self):self.run_phase('receipt')
+                                               ~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-authority-signals.py", line 62, in run_phase
+    self.assertEqual(process.returncode,1,(stdout,stderr))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: -15 != 1 : ('', '')
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.199s
+
+FAILED (failures=4)
