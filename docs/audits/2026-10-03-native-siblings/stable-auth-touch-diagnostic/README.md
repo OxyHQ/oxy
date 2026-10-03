@@ -1,0 +1,11 @@
+# Stable AUTH frame: next isolated touch control
+
+Source e04691beb, same diagnostic worktree and published Bloom6.2.1, Metro17976/session75937. APK's own debug host is already127.0.0.1:17976. Root alone operates ADB. Source and bundle are frozen after TypeScript and the actual Android bundle pass. No auth provider, credential read, HTTP or identity operation. Sibling sources/Metros remain untouched.
+
+The previous reduced fixture passed twice for the link and once for native, without a visible IME even after focusing OTP. Root's receipt and18 inputs remain private and hashed. That result does not repair or contradict the real AUTH touch RED.
+
+This control follows the source of Oxy SurfaceScreen/OxyAccountDialogScreen/OxySignInPanel: SurfaceProvider and surfaces.present, stable AccountDialog#0# frame key, responsive bottom/center placement, header largeTitle:true, width420/ratio0.9, body gutter20/top4/bottom20, header logo box56/title48/description18, gap24 form, Field/InputOtp6, Continue size lg/fullWidth, footer gap4 and LinkButton sm secondary with padding10/marginTop12. The actual SDK sign-in step is local state and does not change its surface frame key. The former diagnostic instead morphed otp-step-0→1 and added lower diagnostic controls.
+
+No measured wrapper or lower diagnostic controls remain inside the form. The logo is a56dp placeholder and identifier requests are a local state transition; copy text and asynchronous network timing are not a full replay of AUTH. No claim of exact product or complete pixel equivalence. On close, public layout/event records are shown in the underlying screen. Capture returns false. A native control replaces only the alternative link; it adds no second row. Event capture can be disabled independently before opening to check whether responder instrumentation changes behavior.
+
+Root sequence: open, focus the prefilled synthetic identifier to reproduce prior input focus, tap Continue, verify the code frame and visible/hidden keyboard, tap Use your password instead. PASS visibly changes to Enter your password. Close X and inspect exact-diagnostics for layout/capture/password-in/out/press. Repeat with capture off if PASS, then native control if FAIL. Do not inject any auth state. Preserve every observation before a runtime fix.

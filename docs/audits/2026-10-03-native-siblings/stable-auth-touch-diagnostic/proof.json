@@ -1,0 +1,49 @@
+{
+  "sourceHead": "e04691beb084fe170d9bc0c55e7d3e6491109568",
+  "sourceRoot": "/home/nate/Oxy/oxy/.worktrees/1519-native-link-touch-20261003",
+  "sourceSha256": {
+    "package.json": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1",
+    "bun.lock": "f94136743e40fa1fb9539e8076d18b7484c784fdacd1beac25532278085667db",
+    "packages/test-app-expo/acceptance/entry.tsx": "c117a463a99dbac870a41aada672b8a2763f7ef25d41701c164156e1a9351fd4",
+    "packages/test-app-expo/acceptance/tsconfig.json": "e9b6c9210bb6d46be2b3731f18a3a29a68925d8df1f67e67e9427e7b503df70f",
+    "packages/test-app-expo/index.js": "a523cfe3eebb1525b177b4f2d861d57ec65285d0850e2372531107c046ef1332",
+    "packages/test-app-expo/metro.config.js": "28975f8508ea17c4935bd0ac9d5e2304dba801623d58a67d77b514c36be86a27",
+    "packages/test-app-expo/babel.config.js": "f0846b3cbee62fb0aa6b68030e2317854c65d9ec21e96de03e5506c43256546a",
+    "packages/test-app-expo/package.json": "857608e3e19311b7997ab59cbee6dc132b3a778f28c28f1232b2a45ba5b3a985"
+  },
+  "previousReducedDevicePass": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-otp-touch-1300/observation.json",
+    "sha256": "76a66da783c66fb1a2bb8d88348a8edadbd52ceb8faabedd36508bb768911eac",
+    "bytes": 3031,
+    "limit": "No visible IME; not AUTH fixed"
+  },
+  "registryBytesPreservedFrom": "../otp-touch-diagnostic/i04-native-link-touch-installed-bundle.json",
+  "records": {
+    "docs/audits/2026-10-03-native-siblings/stable-auth-touch-diagnostic/i04-native-stable-auth-touch-ts.log": {
+      "sha256": "96535808a01a57d01a595443e44ee1c7ed23170599e2b170d3a7c37301743bdf",
+      "bytes": 989
+    },
+    "docs/audits/2026-10-03-native-siblings/stable-auth-touch-diagnostic/i04-native-stable-auth-touch-bundle.json": {
+      "sha256": "abf79a2f6cf60c7e3cc95c8ae2c954526ad60b8a3bdbae39f17ba25d4d2f237d",
+      "bytes": 463
+    },
+    "docs/audits/2026-10-03-native-siblings/stable-auth-touch-diagnostic/i04-native-stable-auth-touch-ts-final.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "docs/audits/2026-10-03-native-siblings/stable-auth-touch-diagnostic/README.md": {
+      "sha256": "e01164bc921dec33dbc3380e3cb866711a3e11a2c69bfefa64c7fc905eb5bb75",
+      "bytes": 2303
+    }
+  },
+  "metro": {
+    "port": 17976,
+    "sessionId": 75937
+  },
+  "bundle": {
+    "sha256": "1482ce2e9954c9f0179a1791fab47449fec5fc8db2318de7c6a34df53eb33a08",
+    "bytes": 11580035
+  },
+  "deviceOutcome": "not yet run",
+  "productRuntimeChanges": false
+}

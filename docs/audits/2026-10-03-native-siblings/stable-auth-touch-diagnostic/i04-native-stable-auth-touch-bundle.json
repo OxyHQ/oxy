@@ -1,0 +1,6 @@
+{
+  "path": "/home/nate/Oxy/.agent-evidence/i04-native-stable-auth-touch.bundle.js",
+  "bytes": 11580035,
+  "sha256": "1482ce2e9954c9f0179a1791fab47449fec5fc8db2318de7c6a34df53eb33a08",
+  "url": "http://127.0.0.1:17976/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=.%2Facceptance%2Froutes&transform.reactCompiler=true&unstable_transformProfile=hermes-stable"
+}
