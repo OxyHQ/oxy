@@ -39,3 +39,18 @@ owned fixture host. A separate APK was signed with that fixture's disposable
 allowlists or original APK. Both artifacts are hashed. The signer is a public
 local test fixture, not a production key. Root alone installs/operates the AVD.
 The debug APK loads JS from Metro; successful compilation is not a device run.
+
+## Executed device failure and consumer dependency correction
+
+Root installed the compatible test-signed APK. The emulator defaulted to
+10.0.2.2:8081 for Metro; root set only the owned app's `debug_http_host` preference
+to127.0.0.1:8081. The next real runtime failure was an unlinked
+react-native-keyboard-controller, before sign-in. The playground had not declared
+that native dependency. Source1bb2a8bd4 adds its catalog dependency/exclusion and
+expo-secure-store for native SDK storage; no SDK runtime or UI was bypassed.
+Gradle447 tasks, native autolinking, strictTypeScript and scopedESLint pass.
+
+`native-peers-followup.json` pins the new APK outside Gradle's mutable output
+folder. The earlier APK hashes remain historical, independently verified by root
+before installation; rebuilding replaced their original output paths. Device
+acceptance of the corrected APK remains pending root's operation.

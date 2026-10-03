@@ -1,0 +1,57 @@
+{
+  "sourceCommit": "1bb2a8bd417a7e90cdff3adf5be4b5a7fb9c8025",
+  "sources": [
+    {
+      "path": "bun.lock",
+      "sha256": "b03e9262914b01b0584c241494ee112fcb154f13a9c4cec20531dc1ff28bd928",
+      "bytes": 801217
+    },
+    {
+      "path": "packages/test-app-expo/package.json",
+      "sha256": "857608e3e19311b7997ab59cbee6dc132b3a778f28c28f1232b2a45ba5b3a985",
+      "bytes": 2870
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/peers-install.log",
+      "sha256": "15ac82793f66ed659d8642efeba46c39b323e6b00c5b27887d7dc686e370dd24",
+      "bytes": 175
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/peers-prebuild.log",
+      "sha256": "bbcd4e3c899124688db88b2fdda3f9012e31d95a0d082fe04eac96f6adb2ac62",
+      "bytes": 402
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/peers-gradle.log",
+      "sha256": "d02309c27f9cbacb812c21291e0bb2469299f05b12e9035960db4dbe012ce2fd",
+      "bytes": 96001
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/peers-types-final.log",
+      "sha256": "ed57eaba74545d232f7a935dd4978c8d5e152db1ebc1e8714e0f3c4086d59d7b",
+      "bytes": 124
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/peers-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  ],
+  "artifact": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-native-peers-linked-20261003.apk",
+    "sha256": "02d764e2fe92ac4bb2ff8e230f87994d6823a48d8d5052d42346ff814acb8c66",
+    "bytes": 88342738
+  },
+  "certificateSha256": "0114ce567a3be9b87dcbb0ef1083bba5f6e38ebf6733b29df93be1acfd7fbb55",
+  "reproduction": "Root installed first APK; after fixing owned debug_http_host setting, native UI reports keyboard-controller not linked before auth",
+  "scope": "Consumer direct native dependencies and exclusion only; no SDK runtime change",
+  "priorBuildArtifactHashes": [
+    "233cc39af64dbf6d693a4425ea28f0f384912d528a9c05e25d5ede9368c55407",
+    "26b38441e206103abb21ffb0c59d6d292b98a5ebc3d2abb443e05190c676dfc1"
+  ],
+  "priorArtifacts": "Root verified before install; mutable Gradle output directory replaced by rebuild. Prior proof remains historical. New APK retained outside that directory.",
+  "devicePass": false,
+  "pending": "Root update-install and real native UI/auth acceptance"
+}

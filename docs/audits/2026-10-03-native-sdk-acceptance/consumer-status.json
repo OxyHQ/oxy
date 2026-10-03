@@ -1,0 +1,48 @@
+{
+  "recordedAt": "2026-10-03",
+  "tnp": {
+    "pr": "https://github.com/OxyHQ/tnp/pull/76",
+    "source": "f56fb24",
+    "mergedMain": "8ee271e576ce618ba7511c44ddabcd170b4dd1fe",
+    "mainCI": {
+      "runId": 37112903494,
+      "status": "completed",
+      "conclusion": "success",
+      "verifiedBy": "authenticated gh run view"
+    },
+    "runtimeChanged": false,
+    "classification": "planned, no payment adapter or SDK installed",
+    "deployment": "Pages paused for merge then restored by root; no frontend dispatch"
+  },
+  "homiio": {
+    "pr": "https://github.com/OxyHQ/Homiio/pull/598",
+    "source": "b94053ae",
+    "head": "1e5517fbfe67ec27f8726c78904805710f903b87",
+    "ci": 37111678538,
+    "ciConclusion": "success",
+    "peableSdk": "0.2.2 published registry",
+    "scope": "canonical webhook verification seam; no mounted payment ingress",
+    "pending": [
+      "final Oxy SDK adoption where applicable",
+      "root merge/deployment coordination"
+    ],
+    "paymentsClassification": "planned"
+  },
+  "mercaria": {
+    "prSources": [
+      1043,
+      1044
+    ],
+    "compositionSource": "6aa30b76",
+    "proof": "9aff49fc",
+    "rootReviewed": true,
+    "peableSdk": "0.2.2 published registry",
+    "pending": [
+      "final published Oxy SDK install",
+      "final composed validation/CI",
+      "root merge/rollout",
+      "reviewed authority and provider cohort operations"
+    ],
+    "cohortActive": false
+  }
+}
