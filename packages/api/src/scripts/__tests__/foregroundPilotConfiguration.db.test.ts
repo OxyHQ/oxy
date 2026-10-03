@@ -1,6 +1,6 @@
 /** Configuration integrity uses real SQL and the canonical workload-attribution writer. No AWS/HTTP dispatch. */
 import { randomBytes } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { oxyProfileCapabilityCatalog } from "../../capabilities/oxy-profile.catalog";
 import { closePostgres, connectPostgres, getDb } from "../../config/postgres";
 import { accountClosureFences } from "../../db/schema/accountClosureFences";
@@ -30,6 +30,18 @@ import {
 
 beforeAll(connectPostgres);
 afterAll(closePostgres);
+// These fixed application IDs mirror the reviewed plan; every case owns its rows.
+beforeEach(async () => {
+	await getDb()
+		.delete(applications)
+		.where(
+			inArray(applications.id, [
+				MENTION_APPLICATION_ID,
+				OXY_PROFILE_REGISTRAR_APPLICATION_ID,
+			]),
+		);
+	await getDb().delete(users).where(eq(users.username, "oxy"));
+});
 const originalScopes = [
 	"user:read",
 	"catalogs:write",
@@ -488,3 +500,132 @@ it("applies only the reviewed delta, rejects drift/fences, rolls back partial SQ
 		),
 	).toEqual(plan.expectedCredentials);
 });
+
+async function baselineFixture(
+	backendAlreadyHasScope: boolean,
+	applicationAlreadyHasGrants: boolean,
+) {
+	const [owner] = await getDb()
+		.insert(users)
+		.values({ username: "oxy", kind: "organization" })
+		.returning();
+	await getDb()
+		.insert(applications)
+		.values({
+			id: MENTION_APPLICATION_ID,
+			name: "Synthetic baseline Mention",
+			ownerAccountId: owner.id,
+			type: "first_party",
+			status: "active",
+			isOfficial: true,
+			isInternal: false,
+			scopes: applicationAlreadyHasGrants
+				? [...originalScopes, "capability-tickets:issue"]
+				: originalScopes,
+			capabilities: applicationAlreadyHasGrants
+				? ["catalog:mention", "agency:coordinate"]
+				: ["catalog:mention"],
+		});
+	const prior = process.env.NODE_ENV;
+	try {
+		process.env.NODE_ENV = "production";
+		for (const subject of [MENTION_BACKEND_ROLE, MENTION_MCP_ROLE])
+			await bindWorkloadIdentity({
+				applicationId: MENTION_APPLICATION_ID,
+				provider: "aws-iam",
+				subject,
+				scopes:
+					subject === MENTION_BACKEND_ROLE && backendAlreadyHasScope
+						? [...originalScopes, "capability-tickets:issue"]
+						: originalScopes,
+				actor: {
+					isPlatformStaff: true,
+					describedAs: "synthetic baseline fixture",
+				},
+			});
+	} finally {
+		if (prior === undefined) Reflect.deleteProperty(process.env, "NODE_ENV");
+		else process.env.NODE_ENV = prior;
+	}
+	const input = await snapshots(owner.id);
+	return prepareForegroundPilotPlan(input.mention, input.registrar);
+}
+
+it("rejects a new service credential in the complete census before any authority write", async () => {
+	const plan = await baselineFixture(false, false);
+	await getDb()
+		.insert(applicationCredentials)
+		.values({
+			applicationId: MENTION_APPLICATION_ID,
+			name: "Synthetic explicit-scope service",
+			type: "service",
+			environment: "production",
+			status: "active",
+			publicKey: "oxy_dk_synthetic_census",
+			secretHash: "0".repeat(64),
+			scopes: ["capability-tickets:issue"],
+		});
+	const before = await snapshots(plan.expectedApplication.owner_account_id);
+	await expect(applyForegroundPilotConfiguration(plan)).rejects.toThrow(
+		"canonical attribution identity changed",
+	);
+	expect(
+		(await snapshots(plan.expectedApplication.owner_account_id)).mention.tables,
+	).toEqual(before.mention.tables);
+	expect(
+		await getDb()
+			.select({ id: applications.id })
+			.from(applications)
+			.where(eq(applications.id, OXY_PROFILE_REGISTRAR_APPLICATION_ID)),
+	).toEqual([]);
+});
+
+it.each([false, true])(
+	"restores a baseline with preexisting application grants and backend scope present=%s",
+	async (backendAlreadyHasScope) => {
+		const plan = await baselineFixture(backendAlreadyHasScope, true);
+		await applyForegroundPilotConfiguration(plan);
+		const credential = await createEphemeralRegistrarCredential(plan);
+		await retireEphemeralRegistrarCredentials(plan);
+		await expect(rollbackForegroundPilotConfiguration(plan)).resolves.toEqual({
+			restoredMention: true,
+			registrarRetainedSuspended: true,
+		});
+		const restored = await snapshots(plan.expectedApplication.owner_account_id);
+		expect(
+			restored.mention.tables.applications.rows.map(
+				({ row_revision: _revision, ...row }) => row,
+			),
+		).toEqual([
+			(({ row_revision: _revision, ...row }) => row)(plan.expectedApplication),
+		]);
+		expect(
+			restored.mention.tables.application_workload_identities.rows
+				.sort((a, b) => (a.id < b.id ? -1 : 1))
+				.map(({ row_revision: _revision, ...row }) => row),
+		).toEqual(
+			plan.expectedWorkloads.map(({ row_revision: _revision, ...row }) => row),
+		);
+		expect(
+			(
+				await getDb()
+					.select({ status: applications.status })
+					.from(applications)
+					.where(eq(applications.id, OXY_PROFILE_REGISTRAR_APPLICATION_ID))
+			)[0].status,
+		).toBe("suspended");
+		expect(
+			(
+				await getDb()
+					.select({ status: applicationCredentials.status })
+					.from(applicationCredentials)
+					.where(eq(applicationCredentials.id, credential.id))
+			)[0].status,
+		).toBe("revoked");
+		await rollbackForegroundPilotConfiguration(plan);
+		expect(
+			(await snapshots(plan.expectedApplication.owner_account_id)).mention
+				.tables,
+		).toEqual(restored.mention.tables);
+	},
+);
