@@ -1,0 +1,7 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [1]
+
++ @oxy.so/bloom@6.2.1
+
+1 package installed [196.00ms]
