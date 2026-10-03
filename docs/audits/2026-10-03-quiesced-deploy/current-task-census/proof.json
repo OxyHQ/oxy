@@ -1,0 +1,99 @@
+{
+  "sourceHead": "d2c1315c77e9f36ec3b50c10ced0ed106b9f2d53",
+  "baseline": "19539733931a0219b4f817b8aa64fd5826bfc00b",
+  "recordedAtUTC": "2026-10-03T19:30:35.533777+00:00",
+  "reviewComment": "https://github.com/OxyHQ/oxy/pull/1557#issuecomment-5972612531",
+  "inputs": [
+    {
+      "file": ".github/scripts/guard-quiesced-deploy.mjs",
+      "sha256": "83f0c0129e07cef65f433e2439a307ee683d447cb7533c2d0c2b0c51b760cc92",
+      "gitObject": "435a9a56086ec71d7bfdfcb326a7ebfb05b86b04"
+    },
+    {
+      "file": "scripts/test-quiesced-deploy.mjs",
+      "sha256": "2f9556bdfbeceaf5806dfd3c4953fbb59bafcd9e4b3847b1a6ffd8251a2ea996",
+      "gitObject": "a49943eff13cc1046707cb30fa280b91bb8ed62e"
+    },
+    {
+      "file": "scripts/test-quiesced-deploy-shell.mjs",
+      "sha256": "5a9d6882ffb0a715c032911a74cbd81c573e7e898327bc01f57db6a811d7df8b",
+      "gitObject": "c1e0b68ac1cb47eef75d946834b426e29081adf0"
+    },
+    {
+      "file": ".github/scripts/deploy-ecs-image.sh",
+      "sha256": "c01562c7cda939d284b792889262430fe8762e6b51f557609d40ec86f732e1a9",
+      "gitObject": "faf5860b44b2c22ba52c522ce663d80eda9e48c5"
+    }
+  ],
+  "records": [
+    {
+      "file": "test-frozen-final.mjs",
+      "sha256": "2f9556bdfbeceaf5806dfd3c4953fbb59bafcd9e4b3847b1a6ffd8251a2ea996"
+    },
+    {
+      "file": "red-final.log",
+      "sha256": "3286c7fa1c9332bdebc22b4d1fb2eb8b4e603f493fb1287b05af7abe6b1aca7e"
+    },
+    {
+      "file": "green-final.log",
+      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca"
+    },
+    {
+      "file": "shell-final.log",
+      "sha256": "44ef42ef01cd322870a3bf2ea4a556b2c5088b3dc067d829f59864a7707b3fb9"
+    },
+    {
+      "file": "biome.log",
+      "sha256": "94cf74da15f5f347365d8f075e8b8810699bf75fbd5792ea2824107d092a192d"
+    },
+    {
+      "file": "test-frozen-red.mjs",
+      "sha256": "50ee20ebd09afdfc33a3e1a984bc691d7c3c71722477dd277e22edd8a1ca8169"
+    },
+    {
+      "file": "red.log",
+      "sha256": "8d49db484cdf23918c443955c0d1d59c159e1d4a9cd68a0e83f91ff4f6c0b786"
+    },
+    {
+      "file": "green.log",
+      "sha256": "93115bee54bd8be88b91f64cd5da3e7668731ccf125060e245d4742e0f9be0d3"
+    },
+    {
+      "file": "shell.log",
+      "sha256": "0cd828f45546d361f5c01ff556e8d02f7f4bc742a5068eebe0de99d7f7485b21"
+    },
+    {
+      "file": "guard-historical-195397.mjs",
+      "sha256": "b7794b8232b1ab121360cca551fdcd218489ab93d48be222afbc84750aae1ca8"
+    }
+  ],
+  "RED": {
+    "exitCode": 1,
+    "fixtureBytesIdenticalToGREEN": true,
+    "failure": "Missing expected exception: desiredSTOPPED old task omitted from plan has lastStatusSTOPPING but baseline preflight admits it",
+    "controlSource": "guard-historical-195397.mjs"
+  },
+  "GREEN": {
+    "guardChecks": 61,
+    "guardExitCode": 0,
+    "canonicalShellChecks": 10,
+    "canonicalShellExitCode": 0,
+    "biomeInputs": 3,
+    "biomeExitCode": 0
+  },
+  "coverage": [
+    "Both current RUNNING and STOPPED desired status lists queried; bounded complete describe census unioned with captured plan tasks.",
+    "Exact response task identities and no failures/missing/pagination/read errors required; all census tasks lastStatusSTOPPED before preDDL.",
+    "Stopped historical revisions allowed; foreign nonSTOPPED denied.",
+    "Recovery tracks omitted baseline tasks in addition to attempted new revision and confirms whole census/tracked tasks STOPPED.",
+    "Real canonical shell with mock AWS admits baseline drained state and denies omitted oldSTOPPING before any registration/migration/update event.",
+    "Error output does not assert stopped when shutdown/readback is not confirmed."
+  ],
+  "limits": [
+    "AWS responses are synthetic; no live AWS reads or writes.",
+    "No product API/SDK/DDL change; deployment guard and its two tests only.",
+    "Read/update remain separate AWS operations; root serializes operations and revalidates exact plan; this is not atomic AWS CAS.",
+    "Initial narrower frozen regression and54-check/shell9 iterations retained as historical; final identical fixture RED\u219261CHECKS is current.",
+    "New final freeze/ARM/authenticated gate/CI required; no reuse of ACTIVE or ARM195397 as current provenance."
+  ]
+}
