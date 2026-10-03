@@ -59,3 +59,20 @@ Correction: the initial peer followup TypeScript6 log failed because the harness
 config omitted existing styles.d.ts (the earlier rootTypeScript5.9 run passed).
 The config now includes that existing declaration; corrected packageTypeScript6
 run exits0. Both logs remain in the proof. This changes only harness types.
+
+## Root-operated candidate third-party device run
+
+Root observed the corrected APK on owned emulator-5580: cold boot resolved
+signed out; IdP cancellation remained signed out with the exact typed result
+`failed:native-callback-invalid`; both SDK button/hook completed actual OAuth;
+provider user and SDK profile matched; logout removed authentication and the next
+profile call was denied; process restart stayed signed out as expected for the
+memory-only isolated grant. Root observed zero browser cookies. No sibling SSO
+claim follows from this run. Final registry installation/repeat remains pending.
+
+`third-party-device-observation.json` carries only the operator's whitelisted
+observations and private evidence hashes. Raw browser/network/XML evidence is
+not copied into the repository; it may include callback/authentication material.
+The observed Metro bundle hash binds the executed JS separately from the APK.
+The initial load/link errors and an earlier coordinate-based tap that logged out
+are retained in root's private evidence and not counted as successful sign-in.

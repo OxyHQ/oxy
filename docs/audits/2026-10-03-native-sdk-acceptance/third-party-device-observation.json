@@ -1,0 +1,236 @@
+{
+  "recordedAt": "2026-10-03T09:49:59.486154+00:00",
+  "apkSha256": "02d764e2fe92ac4bb2ff8e230f87994d6823a48d8d5052d42346ff814acb8c66",
+  "sdkCandidateSource": "1e719545f290cfb6308c2648cabc10d311136716",
+  "emulator": "emulator-5580",
+  "avd": "Oxy1519Root20261003",
+  "package": "so.oxy.acceptance1519",
+  "observations": {
+    "freshAuthResolvedSignedOut": true,
+    "idpCancelReturnsSignedOut": "operation failed:native-callback-invalid; no successful-session claim",
+    "realOAuthViaSdkButtonAndHook": true,
+    "providerAndSdkProfileMatch": true,
+    "logoutSignedOutAndProfileDenied": true,
+    "processRestartSignedOutMemoryOnlyIsolatedGrant": true,
+    "browserCookiesObserved": 0
+  },
+  "limits": [
+    "Candidate workspace SDK; final registry repeat pending",
+    "Third-party isolated, not native sibling SSO",
+    "Initial Metro host and native peer linking failed, preserved",
+    "One tap used prior UI coordinates and triggered logout; preserved in operator-note.json"
+  ],
+  "metroBundle": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/metro-current.js",
+    "sha256": "4d7ea04384b052032b896f1a0c292e4aaf8d1cb279c9b97e2539f65b46921f34",
+    "bytes": 21500896
+  },
+  "operator": "root; read-only evidence consolidation by i04_handoff",
+  "rawBrowserEvidencePublished": false,
+  "privateEvidence": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/00.json",
+      "sha256": "c4c5b7f0202c75150b5c3f18c8e11e0073d375f1325023dfc68ada96aaebd5a0",
+      "bytes": 211,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/01.json",
+      "sha256": "96e25f7344abd47a92111bbe3bab3edd4a66d256bc58fba1ec06ef1c29533470",
+      "bytes": 213,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/02.json",
+      "sha256": "b970c8b31df9b73bfa52cba41a0a77ec58d7dd4ec874bf392aec0e6957abd17c",
+      "bytes": 213,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/03.json",
+      "sha256": "d207b0b7c9fb3a66d90040ee85881bf1fc090a33f344efec21182c452e06cf20",
+      "bytes": 472,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/04.json",
+      "sha256": "1c3cb775bc4b615f31a1acfdbb2602a198a398df880f90afc3550af92d7bdcb8",
+      "bytes": 308,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/chrome-driver.mjs",
+      "sha256": "020c7716b60b0cded40490ccfaf861c3cdcc8988370ff31c1d9b24b0fd7c0954",
+      "bytes": 4113,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/debug-host.json",
+      "sha256": "00c7faab88d297354b2cb031538d6cf3a4f0f453ffbc3cbef8641af919552cd1",
+      "bytes": 180,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/debug-preferences-before.xml",
+      "sha256": "abcfc78cb842ef1576d64638a243764fb45f868ad3dd2935d6a4ad45b9b7b5c7",
+      "bytes": 70,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/launch-linked.json",
+      "sha256": "83eb6acdf7077e01f09f0abf97a6f342899e75d0ffbfb94a16d0a1cb7713ba99",
+      "bytes": 307,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/metro-current.js",
+      "sha256": "4d7ea04384b052032b896f1a0c292e4aaf8d1cb279c9b97e2539f65b46921f34",
+      "bytes": 21500896,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/native-cancel.png",
+      "sha256": "de7dd697ff0e7bce8ccbdb4bc8aa7340038f440cfa7ccded970d7e81206ec215",
+      "bytes": 136616,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/native-session-after-login.jsonl",
+      "sha256": "a53c53f63aaf40c35c286fed6111ee43e0e1b62844cc5870afdf70188c7dc28d",
+      "bytes": 216,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/network-chrome.jsonl",
+      "sha256": "d3d96bfd52fb9f325ba9657ef758c396f9bc09e8cc1ea2d70e79b3f6a8f272cf",
+      "bytes": 6092,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/operator-note.json",
+      "sha256": "12f55bfdd12aef4d8c6abbdcdb22789e4396bce213c2fb4b211ab0c70fbd9773",
+      "bytes": 348,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/process-restart.json",
+      "sha256": "5668d2f49a304853aa7613c413ca691f180c125054c6e420214367e1872e1851",
+      "bytes": 455,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/stop-before-linked.json",
+      "sha256": "8c15359898242b767f3a020defb9fc1b8e6ca0838d59e7c6f083affd3e417cfd",
+      "bytes": 226,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/third-party-observation.json",
+      "sha256": "dee893b106e83485f06dbdd222d4325db44166f12e5079e82adc01c423bc5187",
+      "bytes": 1218,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/transcript-chrome.log",
+      "sha256": "10d5b11cce749f2906931a04ce243e2d839c7c1ff5d9ba98dfd0224644f51b7e",
+      "bytes": 3256,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-afterhost.xml",
+      "sha256": "f011844900522d1a285664df018c7935e4ddf137211abafc1ad37dfe111e2151",
+      "bytes": 5747,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-chromeready.xml",
+      "sha256": "fe6909e878751c39054b49ff22b809cb164e5a55961ea64147591d144ac73af0",
+      "bytes": 11215,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-deniedprofile.xml",
+      "sha256": "a4b8b1b64ec694b5428ccb9b90a6bae73fd79202fb4a64a94364a24f41910979",
+      "bytes": 21227,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-devmenu.xml",
+      "sha256": "c9fc753e5938ba664794ec3ff74c5d9caceff37926c5a2fc86c33ea97a454aaa",
+      "bytes": 4468,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-initial.xml",
+      "sha256": "eec1952c1bf4be3dcf4188dacc9818646a6d79de5e2965b67323071f040c0502",
+      "bytes": 16247,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-linked.xml",
+      "sha256": "d4c1e52fa48d8075373575ee871b3fee6265caaeb8a3e1037dffd0d7ed9d142a",
+      "bytes": 21217,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-nativecancel.xml",
+      "sha256": "fe6909e878751c39054b49ff22b809cb164e5a55961ea64147591d144ac73af0",
+      "bytes": 11215,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-nativeearlylogout.xml",
+      "sha256": "f6dfe05d365753728efe3f71efd4cd0f9abd26b644c34ba15cc34c70ab4afa4a",
+      "bytes": 21223,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-nativelogin.xml",
+      "sha256": "23ed05689e7027ab7cf527bd1e5aaa93eac0d6cd6584c7d8252a5266d78cd639",
+      "bytes": 15207,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-nativeoauth.xml",
+      "sha256": "6e066591f804bfdd2f18f0ab42f6d2d76a316357d64202f00caf8a039c97033a",
+      "bytes": 8866,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-nativeprofile.xml",
+      "sha256": "fbd933908261320e975a6c1fca433ecd044000a6a49b0d18cc4cfb7ec3e9ced2",
+      "bytes": 15221,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-nativerestart.xml",
+      "sha256": "d4c1e52fa48d8075373575ee871b3fee6265caaeb8a3e1037dffd0d7ed9d142a",
+      "bytes": 21217,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-nativesecondlogin.xml",
+      "sha256": "c6a21c607189fe688867e05f0418f0b35b843da75c91534afe537c4f010e1b26",
+      "bytes": 15186,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui-readloggedout.xml",
+      "sha256": "f6dfe05d365753728efe3f71efd4cd0f9abd26b644c34ba15cc34c70ab4afa4a",
+      "bytes": 21223,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/ui.py",
+      "sha256": "2c3472cd08d1191f27342d36d4a8b0443c887130434654c72d3edad5ac68bc2a",
+      "bytes": 1228,
+      "private": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-sdk-0934/update-linked.json",
+      "sha256": "d435efa251c803cef916401cb8fa6c0322d3a959f4f34363afba71cdd85f765d",
+      "bytes": 397,
+      "private": true
+    }
+  ]
+}
