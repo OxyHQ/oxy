@@ -82,7 +82,7 @@ def main():
             result.check_returncode()
         logged(['bun', '--no-env-file', 'run', 'db:migrate'], 'migration-fresh.txt')
         before = sql('SELECT count(*) FROM drizzle.__drizzle_migrations', db)
-        assert int(before) == 141
+        assert int(before) == 142
         logged(['bun', '--no-env-file', 'run', 'db:migrate'], 'migration-repeat.txt')
         assert sql('SELECT count(*) FROM drizzle.__drizzle_migrations', db) == before
         command = ['bun', '--no-env-file', 'run', 'test', '--runInBand', '--runTestsByPath',

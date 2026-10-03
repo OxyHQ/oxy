@@ -41,6 +41,7 @@ import { accountMembers } from '../../db/schema/accountMembers';
 import { appCapabilityCatalogRegistrations, capabilityExecutionAuthorizations } from '../../db/schema/agency';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 import capabilitiesRouter from '../../routes/capabilities';
+import { errorHandler } from '../../middleware/errorHandler';
 import authRouter from '../../routes/auth';
 import foregroundProfilesRouter from '../../routes/foregroundProfiles';
 import { oxyProfileCapabilityCatalog } from '../../capabilities/oxy-profile.catalog';
@@ -66,6 +67,7 @@ app.use(express.json());
 app.use('/capabilities', capabilitiesRouter);
 app.use('/auth', authRouter);
 app.use('/_oxy/capabilities', foregroundProfilesRouter);
+app.use(errorHandler);
 
 async function presenter() {
   const [owner] = await getDb().insert(users).values({}).returning();
@@ -95,9 +97,9 @@ async function requester(p: Awaited<ReturnType<typeof presenter>>, appBound = fa
   });
   return { user, session };
 }
-async function register(token: string) {
+async function register(token: string, catalog = oxyProfileCapabilityCatalog()) {
   const res = await request(app).post('/capabilities/catalogs/register').auth(token, { type: 'bearer' })
-    .send({ catalog: oxyProfileCapabilityCatalog() });
+    .send({ catalog });
   expect(res.status).toBe(201);
   return { registrationId: res.body.registration.id, version: res.body.registration.version, digest: res.body.registration.digest };
 }
@@ -301,4 +303,55 @@ it('rechecks the signed ticket expiry after the audit wait, independently of a l
   jest.spyOn(Date, 'now').mockReturnValue(issued.claims.exp * 1000);
   resume();
   expect((await pending).status).toBe(403);
+});
+
+
+it.each(['explicit-B', 'omitted'] as const)('retains the approved catalogue pin across legitimate catalogue replacement: %s', async (variant) => {
+  const p = await presenter(); const r = await requester(p); const issuedA = await issue(p, r.session.accessToken);
+  const current = oxyProfileCapabilityCatalog();
+  const catalogB = { ...current, version: '1.0.1', tools: current.tools.map(tool => ({ ...tool, description: `${tool.description} Fixture revised B.` })) };
+  const pinB = await register(registrar.token, catalogB);
+  const stale = await request(app).post('/capabilities/tickets').auth(p.token, { type: 'bearer' })
+    .send({ executionAuthorizationId: issuedA.authorization.id, ...(variant === 'explicit-B' ? { expectedCatalog: pinB } : {}) });
+  expect(stale.status).toBe(403);
+  expect(stale.body).not.toHaveProperty('ticket');
+  const createdB = await request(app).post('/capabilities/foreground-execution-authorizations').auth(p.token, { type: 'bearer' })
+    .send({ ...issuedA.input, runId: randomUUID(), expectedCatalog: pinB, subjectToken: r.session.accessToken });
+  expect(createdB.status).toBe(201);
+  const validB = await request(app).post('/capabilities/tickets').auth(p.token, { type: 'bearer' })
+    .send({ executionAuthorizationId: createdB.body.authorization.id, expectedCatalog: pinB });
+  expect(validB.status).toBe(201);
+  expect(validB.body.claims.catalog).toEqual(pinB);
+});
+
+it.each(['logout', 'expiry'] as const)('answers a bounded HTTP refusal when %s happens after initial live validation', async (change) => {
+  const p = await presenter(); const r = await requester(p); const issued = await issue(p, r.session.accessToken);
+  const original = sessionService.validateSessionById.bind(sessionService);
+  let reached!: () => void; let release!: () => void;
+  const entered = new Promise<void>(resolve => { reached = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  jest.spyOn(sessionService, 'validateSessionById').mockImplementationOnce(async (...args) => {
+    const value = await original(...args); reached(); await gate; return value;
+  });
+  const pending = request(app).post('/capabilities/tickets').auth(p.token, { type: 'bearer' })
+    .send({ executionAuthorizationId: issued.authorization.id, expectedCatalog: issued.pin })
+    .timeout({ response: 1500, deadline: 2000 }).then(response => response);
+  await entered;
+  try {
+    await getDb().update(sessions).set(change === 'logout' ? { isActive: false } : { expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(sessions.sessionId, r.session.sessionId));
+  } finally { release(); }
+  const refused = await pending;
+  expect([401, 403]).toContain(refused.status);
+  expect(refused.body).not.toHaveProperty('ticket');
+});
+
+it('does not disguise unexpected requester validation errors as a session denial or leave HTTP pending', async () => {
+  const p = await presenter(); const r = await requester(p); const issued = await issue(p, r.session.accessToken);
+  jest.spyOn(sessionService, 'validateSessionById').mockRejectedValueOnce(new Error('synthetic SQL unavailable'));
+  const response = await request(app).post('/capabilities/tickets').auth(p.token, { type: 'bearer' })
+    .send({ executionAuthorizationId: issued.authorization.id, expectedCatalog: issued.pin })
+    .timeout({ response: 1500, deadline: 2000 });
+  expect(response.status).toBe(500);
+  expect(response.body).not.toHaveProperty('ticket');
 });

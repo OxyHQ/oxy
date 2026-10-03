@@ -246,6 +246,11 @@ export async function evaluateCapabilityAuthority(
 
   const registration = await activeCapabilityCatalog(authorization.resourceApp);
   if (!registration) return denied('catalog_not_registered');
+  if (authorization.actorType === 'requester' && (
+    authorization.requesterCatalogRegistrationId !== registration.id
+    || authorization.requesterCatalogVersion !== registration.version
+    || authorization.requesterCatalogDigest !== registration.digest
+  )) return denied('foreground_approved_catalog_no_longer_current');
   if (request.expectedCatalog && (
     request.expectedCatalog.registrationId !== registration.id
     || request.expectedCatalog.version !== registration.version
@@ -362,7 +367,9 @@ export async function evaluateCapabilityAuthority(
     ...(automationId ? { automationId } : {}),
     executionAuthorization,
     coordinator: request.coordinator,
-    ...(request.expectedCatalog ? { catalog: request.expectedCatalog } : {}),
+    ...(authorization.actorType === 'requester'
+      ? { catalog: { registrationId: registration.id, version: registration.version, digest: registration.digest } }
+      : request.expectedCatalog ? { catalog: request.expectedCatalog } : {}),
     ...(grantParts ? { grantId: grantParts.grant.id } : {}),
     requesterAccountId: authorization.requesterAccountId,
     ownerAccountId: authorization.ownerAccountId,
