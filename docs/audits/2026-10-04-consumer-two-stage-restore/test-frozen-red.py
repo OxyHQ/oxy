@@ -42,7 +42,7 @@ def baseline():
         'serviceConfigSha256':'0'*64,'serviceConfigExceptDeploymentSha256':'1'*64,'targetGroups':[],'targets':{},
         'deploymentConfiguration':{'deploymentCircuitBreaker':{'enable':True,'rollback':True,'resetOnHealthyTask':True,
             'thresholdConfiguration':{'type':'BOUNDED_PERCENT','value':50}},'maximumPercent':200,'minimumHealthyPercent':100,'bakeTimeInMinutes':0},
-        'deployments':[{'id':'final-deployment','status':'PRIMARY','rolloutState':'COMPLETED','definition':TD,'desired':1,'running':1,'pending':0}],
+        'deployments':[{'status':'PRIMARY','rolloutState':'COMPLETED','definition':TD,'desired':1,'running':1,'pending':0}],
         'scaler':{'ResourceId':'service/oxy-cluster/homiio','MinCapacity':1,'MaxCapacity':3,'RoleARN':'fixture-role',
             'SuspendedState':{k:False for k in f.FLAGS}}}
 
@@ -87,113 +87,6 @@ class ConsumerTests(unittest.TestCase):
         install=writes[0][1];restore=writes[1][1]
         self.assertEqual(install[install.index('--desired-count')+1],'0');self.assertEqual(install[install.index('--task-definition')+1],NEW)
         self.assertEqual(restore[restore.index('--desired-count')+1],'1');self.assertNotIn('--task-definition',restore)
-
-    def zero_row(self,p):
-        row=active(p)
-        row.update(desired=0,running=0,pending=0)
-        row['deployments'][0].update(desired=0,running=0,pending=0)
-        row['tasks']=[task(status='STOPPED',desired='STOPPED',definition=TD)]
-        return row
-
-    def test_zero_barrier_rejects_unretired_or_stopping_before_admission(self):
-        for mode in ('old-deployment','in-progress','old-stopping','new-stopping','target-draining','running'):
-            p=plan();row=self.zero_row(p)
-            if mode=='old-deployment':row['deployments'].append({**row['deployments'][0],'id':'old','definition':TD,'status':'ACTIVE'})
-            elif mode=='in-progress':row['deployments'][0]['rolloutState']='IN_PROGRESS'
-            elif mode=='old-stopping':row['tasks'][0]['lastStatus']='STOPPING'
-            elif mode=='new-stopping':row['tasks']=[task(status='STOPPING',desired='STOPPED')]
-            elif mode=='target-draining':row['targets']={'fixture': [{'TargetHealth':{'State':'draining'}}]}
-            else:row['running']=1
-            with self.subTest(mode=mode),tempfile.TemporaryDirectory()as base,patch.object(f,'service_row',return_value=row),patch.object(c.time,'monotonic',side_effect=[0,901]),patch.object(f,'write_once')as write:
-                with self.assertRaisesRegex(RuntimeError,'retirement incomplete'):c.zero_retired(p,NEW,Path(base),set())
-                write.assert_not_called()
-
-    def test_zero_barrier_drift_failed_missing_deployment_id_denied(self):
-        for mode in ('serviceTD','foreign-deployment','failed','scaler','configuration','desired','missing-id','changed-id'):
-            p=plan();row=self.zero_row(p);expected=None
-            if mode=='serviceTD':row['definition']=TD
-            elif mode=='foreign-deployment':row['deployments'][0]['definition']=NEW.rsplit(':',1)[0]+':11'
-            elif mode=='failed':row['deployments'][0]['rolloutState']='FAILED'
-            elif mode=='scaler':row['scaler']['SuspendedState']={k:False for k in f.FLAGS}
-            elif mode=='configuration':row['deploymentConfiguration']['maximumPercent']=300
-            elif mode=='desired':row['desired']=1
-            elif mode=='missing-id':row['deployments'][0].pop('id')
-            else:expected='different-final-id'
-            with self.subTest(mode=mode),tempfile.TemporaryDirectory()as base,patch.object(f,'service_row',return_value=row),patch.object(f,'write_once')as write:
-                with self.assertRaises(RuntimeError):c.zero_retired(p,NEW,Path(base),set(),expected)
-                write.assert_not_called()
-
-    def test_zero_barrier_records_task_stop_before_count_restore(self):
-        p=plan();row=self.zero_row(p)
-        with tempfile.TemporaryDirectory()as base,patch.object(f,'service_row',return_value=row):
-            d=Path(base);remembered=set();self.assertEqual(c.zero_retired(p,NEW,d,remembered),'final-deployment')
-            self.assertEqual(remembered,{row['tasks'][0]['arn']});record=json.loads(next(d.glob('retired-*.json')).read_text())
-            self.assertTrue(record['allStopped']);self.assertTrue(next(d.glob('task-stopped-ref-*.json')).is_file())
-
-    def test_monitor_rejects_old_task_before_steady_not_wait_until_success(self):
-        p=plan();row=active(p);row['deployments'][0]['rolloutState']='IN_PROGRESS';row['tasks'].append(task(2,'STOPPING','STOPPED',TD))
-        with tempfile.TemporaryDirectory()as base,patch.object(f,'service_row',return_value=row),patch.object(c.time,'sleep')as pause:
-            with self.assertRaisesRegex(RuntimeError,'Retired consumer task alive'):c.monitor(p,NEW,Path(base),set(),'final-deployment')
-            pause.assert_not_called()
-
-    def test_monitor_rejects_foreign_or_changed_deployment_immediately(self):
-        p=plan()
-        for mode in ('extra-old','id-change'):
-            row=active(p)
-            if mode=='extra-old':row['deployments'].append({**row['deployments'][0],'definition':TD,'status':'ACTIVE'})
-            else:row['deployments'][0]['id']='foreign-id'
-            with self.subTest(mode=mode),tempfile.TemporaryDirectory()as base,patch.object(f,'service_row',return_value=row):
-                with self.assertRaises(RuntimeError):c.monitor(p,NEW,Path(base),set(),'final-deployment')
-
-    def test_expired_task_accepts_only_hash_bound_prior_exact_stopped(self):
-        p=plan();row=self.zero_row(p);arn=row['tasks'][0]['arn']
-        with tempfile.TemporaryDirectory()as base:
-            d=Path(base);remembered=set();c.remember_tasks(row,p,NEW,d,remembered)
-            row['tasks']=[]
-            response={'tasks':[],'failures':[{'arn':arn,'reason':'MISSING','detail':'fixture ECS retention'}]}
-            with patch.object(f,'aws',return_value=response):
-                values=c.checked_attempts(p,NEW,d,remembered,row);self.assertEqual(values[0]['lastStatus'],'STOPPED')
-            stopped=d/('task-stopped-'+arn.rsplit('/',1)[1]+'.json');stopped.write_text('{}')
-            with patch.object(f,'aws',return_value=response):
-                with self.assertRaisesRegex(RuntimeError,'bytes changed'):c.checked_attempts(p,NEW,d,remembered,row)
-
-    def test_missing_unproven_running_stopping_or_wrong_task_not_accepted(self):
-        for status in ('RUNNING','STOPPING'):
-            p=plan();row=active(p);row['tasks'][0]['lastStatus']=status;arn=row['tasks'][0]['arn']
-            with self.subTest(status=status),tempfile.TemporaryDirectory()as base:
-                d=Path(base);remembered=set();c.remember_tasks(row,p,NEW,d,remembered);row['tasks']=[]
-                with patch.object(f,'aws',return_value={'tasks':[],'failures':[{'arn':arn,'reason':'MISSING'}]}):
-                    with self.assertRaisesRegex(RuntimeError,'prior durable STOPPED'):c.checked_attempts(p,NEW,d,remembered,row)
-        p=plan();row=self.zero_row(p)
-        with tempfile.TemporaryDirectory()as base:
-            d=Path(base);remembered=set();c.remember_tasks(row,p,NEW,d,remembered);arn=next(iter(remembered));row['tasks']=[]
-            for failure in ({'arn':arn,'reason':'ACCESS_DENIED'},{'arn':TASK+'9'*32,'reason':'MISSING'}):
-                with patch.object(f,'aws',return_value={'tasks':[],'failures':[failure]}):
-                    with self.assertRaises(RuntimeError):c.checked_attempts(p,NEW,d,remembered,row)
-
-    def test_tombstone_proof_wrong_plan_group_td_or_state_denied(self):
-        for mode in ('plan','group','td','state'):
-            p=plan();row=self.zero_row(p);arn=row['tasks'][0]['arn']
-            with self.subTest(mode=mode),tempfile.TemporaryDirectory()as base:
-                d=Path(base);remembered=set();c.remember_tasks(row,p,NEW,d,remembered);row['tasks']=[]
-                reference=next(d.glob('task-stopped-ref-*.json'));record_path=Path(json.loads(reference.read_text())['path']);record=json.loads(record_path.read_text())
-                if mode=='plan':record['planCanonicalSha256']='wrong'
-                elif mode=='group':record['task']['group']='service:foreign'
-                elif mode=='td':record['task']['definition']=NEW.rsplit(':',1)[0]+':11'
-                else:record['task']['lastStatus']='STOPPING'
-                record_path.write_text(json.dumps(record));reference.write_text(json.dumps(c.ref(record_path)))
-                with patch.object(f,'aws',return_value={'tasks':[],'failures':[{'arn':arn,'reason':'MISSING'}]}):
-                    with self.assertRaisesRegex(RuntimeError,'proof identity|proof binding'):c.checked_attempts(p,NEW,d,remembered,row)
-
-    def test_count_restore_ack_unknown_does_not_hold_retry_or_monitor(self):
-        p=plan();labels=[]
-        def write(d,label,*args):
-            labels.append(label)
-            if label=='promote':f.private_json(d/'promote-ack-unknown.json',{'unknown':True});raise RuntimeError('ACK unknown')
-        with tempfile.TemporaryDirectory()as base,patch.object(c,'validate'),patch.object(c,'assert_zero'),patch.object(f,'service_row'),patch.object(c,'register',return_value=NEW),patch.object(c,'zero_retired',return_value='final-deployment'),patch.object(f,'write_once',side_effect=write),patch.object(c,'monitor')as monitor,patch.object(c,'hold_failed')as hold:
-            with self.assertRaisesRegex(RuntimeError,'ACK unknown'):c.promote(p,Path(base)/'promote')
-            self.assertEqual(labels,['install-zero','promote']);monitor.assert_not_called();hold.assert_not_called()
-            self.assertTrue(json.loads((Path(base)/'promote/completion.json').read_text())['updateAcknowledgementUnknown'])
 
     def test_only_selected_image_changes_sidecar_roles_commands_preserved(self):
         original=raw();body=c.render(original,[],'actual-backend',IMAGE+'c'*64)
@@ -253,20 +146,19 @@ class ConsumerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'changed configuration'):c.register(p,Path(base))
             self.assertTrue((Path(base)/'register-ack.json').is_file());self.assertFalse((Path(base)/'registered.json').exists())
 
-    def test_promote_installs_zero_then_restores_count_and_no_auto_rollback(self):
+    def test_promote_updates_td_count_and_no_auto_rollback_in_one_call(self):
         p=plan()
         with tempfile.TemporaryDirectory()as base,patch.object(c,'validate'),patch.object(c,'assert_zero'),patch.object(f,'service_row'),\
-            patch.object(c,'register',return_value=NEW),patch.object(c,'zero_retired',return_value='final-deployment'),patch.object(c,'monitor',return_value=active(p)),patch.object(c,'run_smoke',side_effect=lambda p,d:f.private_json(d/'smoke-result.json',{'exitCode':0})),patch.object(f,'write_once')as write:
-            c.promote(p,Path(base)/'promote');self.assertEqual(write.call_count,2);args=write.call_args_list[0].args[2]
-            self.assertEqual(args[args.index('--task-definition')+1],NEW);self.assertEqual(args[args.index('--desired-count')+1],'0')
-            restore=write.call_args_list[1].args[2];self.assertNotIn('--task-definition',restore);self.assertEqual(restore[-1],'1')
+            patch.object(c,'register',return_value=NEW),patch.object(c,'monitor',return_value=active(p)),patch.object(c,'run_smoke',side_effect=lambda p,d:f.private_json(d/'smoke-result.json',{'exitCode':0})),patch.object(f,'write_once')as write:
+            c.promote(p,Path(base)/'promote');args=write.call_args.args[2]
+            self.assertEqual(args[args.index('--task-definition')+1],NEW);self.assertEqual(args[args.index('--desired-count')+1],'1')
             config=json.loads(args[args.index('--deployment-configuration')+1]);self.assertFalse(config['deploymentCircuitBreaker']['rollback'])
             self.assertTrue(config['deploymentCircuitBreaker']['resetOnHealthyTask']);self.assertEqual(config['maximumPercent'],200)
 
     def test_smoke_failure_attempts_hold_not_old_rollback(self):
         p=plan()
         with tempfile.TemporaryDirectory()as base,patch.object(c,'validate'),patch.object(c,'assert_zero'),patch.object(f,'service_row'),\
-            patch.object(c,'register',return_value=NEW),patch.object(c,'zero_retired',return_value='final-deployment'),patch.object(c,'monitor',return_value=active(p)),patch.object(c,'run_smoke',side_effect=RuntimeError('failed')),\
+            patch.object(c,'register',return_value=NEW),patch.object(c,'monitor',return_value=active(p)),patch.object(c,'run_smoke',side_effect=RuntimeError('failed')),\
             patch.object(f,'write_once'),patch.object(c,'hold_failed')as hold:
             d=Path(base)/'promote'
             with self.assertRaises(RuntimeError):c.promote(p,d)
@@ -294,8 +186,8 @@ class ConsumerTests(unittest.TestCase):
 
     def test_hold_missing_attempt_is_not_safe(self):
         p=plan();row=active(p)
-        with tempfile.TemporaryDirectory()as base,patch.object(f,'service_row',return_value=row),patch.object(f,'write_once'),patch.object(f,'aws',return_value={'tasks':[],'failures':[]}):
-            with self.assertRaisesRegex(RuntimeError,'census differs'):c.hold_failed(p,NEW,Path(base),{TASK+'2'*32})
+        with tempfile.TemporaryDirectory()as base,patch.object(f,'service_row',return_value=row),patch.object(f,'write_once'),patch.object(f,'describe_tasks',side_effect=RuntimeError('Task readback missing')):
+            with self.assertRaisesRegex(RuntimeError,'readback missing'):c.hold_failed(p,NEW,Path(base),set())
             self.assertFalse((Path(base)/'held.json').exists())
 
     def test_monitor_wrong_running_digest_denied(self):

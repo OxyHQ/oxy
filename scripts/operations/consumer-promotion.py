@@ -258,25 +258,84 @@ def assert_service_config(row,plan,new_arn):
 def remember_tasks(row,plan,new_arn,directory,remembered):
     for task in row['tasks']:
         f.require(task['definition']in (plan['baseline']['definition'],new_arn) or task['lastStatus']=='STOPPED','Unexpected live consumer TD')
-        if (task['definition']==new_arn or task['lastStatus']!='STOPPED') and task['arn']not in remembered:
+        if task['definition']not in (plan['baseline']['definition'],new_arn):continue
+        if task['arn']not in remembered:
             f.private_json(directory/('task-'+task['arn'].rsplit('/',1)[1]+'.json'),task);remembered.add(task['arn'])
+        if task['lastStatus']==task['desiredStatus']=='STOPPED':
+            key=task['arn'].rsplit('/',1)[1];record=directory/('task-stopped-'+key+'.json')
+            if not record.exists():
+                f.private_json(record,{'planCanonicalSha256':f.digest(plan),'service':row['service'],'task':task})
+                f.private_json(directory/('task-stopped-ref-'+key+'.json'),ref(record))
 
 
-def monitor(plan,arn,directory,remembered):
+def checked_attempts(plan,arn,directory,remembered,current):
+    f.require(len(remembered)<=4000 and all(isinstance(value,str) and re.fullmatch(f.TASK_ARN,value)for value in remembered),'Attempted task IDs outside bound/cluster')
+    rows={t['arn']:t for t in current['tasks']};absent=sorted(remembered-set(rows))
+    for index in range(0,len(absent),100):
+        batch=absent[index:index+100];response=f.aws('ecs','describe-tasks','--cluster',f.CLUSTER,'--tasks',*batch)
+        values=response.get('tasks',[]);failures=response.get('failures',[])
+        f.require(isinstance(values,list) and isinstance(failures,list),'Attempted task read incomplete')
+        actual=[t.get('taskArn')for t in values];missing=[t.get('arn')for t in failures]
+        f.require(len(set(actual+missing))==len(batch) and set(actual+missing)==set(batch),'Attempted task census differs')
+        for value in values:
+            f.require(value.get('group')=='service:'+plan['config']['service'] and value.get('taskDefinitionArn')in (plan['baseline']['definition'],arn),'Attempted task identity differs')
+            rows[value['taskArn']]={'arn':value['taskArn'],'group':value['group'],'definition':value['taskDefinitionArn'],
+                'lastStatus':value['lastStatus'],'desiredStatus':value['desiredStatus'],'containers':[]}
+        for failure in failures:
+            f.require(set(failure)<= {'arn','reason','detail'} and failure.get('reason')=='MISSING','Attempted task read failed; no tombstone permission')
+            # Exact plan remains unmodified; proof checks the two allowed TDs.
+            key=failure['arn'].rsplit('/',1)[1];reference=directory/('task-stopped-ref-'+key+'.json')
+            f.require(reference.is_file(),'Missing task lacks prior durable STOPPED proof')
+            binding=json.loads(reference.read_text())
+            f.require(binding.get('path')==str((directory/('task-stopped-'+key+'.json')).resolve()),'Stopped proof path differs')
+            record=read_ref(binding);task=record.get('task',{})
+            f.require(record.get('planCanonicalSha256')==f.digest(plan) and record.get('service')==plan['config']['service']
+                and task.get('arn')==failure['arn'] and task.get('group')=='service:'+plan['config']['service']
+                and task.get('definition')in (plan['baseline']['definition'],arn)
+                and task.get('lastStatus')==task.get('desiredStatus')=='STOPPED','Stopped proof identity/state differs')
+            rows[failure['arn']]=task
+    return [rows[key]for key in sorted(remembered)]
+
+
+def zero_retired(plan,arn,directory,remembered,deployment_id=None):
+    deadline=time.monotonic()+900
+    while True:
+        row=f.service_row(plan['config']['service']);assert_service_config(row,plan,arn);remember_tasks(row,plan,arn,directory,remembered)
+        f.require(row['desired']==0,'Zero-stage admission changed')
+        f.require(row['deployments'] and all(d['definition']in (plan['baseline']['definition'],arn) and d['rolloutState']!='FAILED'for d in row['deployments']),'Zero-stage foreign/failed deployment')
+        checked=checked_attempts(plan,arn,directory,remembered,row)
+        ready=len(row['deployments'])==1 and row['deployments'][0]['definition']==arn and row['deployments'][0]['status']=='PRIMARY' and row['deployments'][0]['rolloutState']=='COMPLETED'
+        if ready:
+            dep=row['deployments'][0];f.require(isinstance(dep.get('id'),str) and dep['id'],'Final deployment ID missing')
+            if deployment_id is not None:f.require(dep['id']==deployment_id,'Final deployment changed before restore')
+            ready=row['running']==row['pending']==0 and dep['desired']==dep['running']==dep['pending']==0 and not any(row['targets'].values())
+            ready=ready and all(t['lastStatus']==t['desiredStatus']=='STOPPED'for t in checked) and all(t['lastStatus']==t['desiredStatus']=='STOPPED'for t in row['tasks'])
+        if ready:
+            f.private_json(directory/('retired-'+str(time.monotonic_ns())+'.json'),{'planCanonicalSha256':f.digest(plan),'service':row,'allAttemptedTasks':checked,'deploymentId':dep['id'],'allStopped':True})
+            return dep['id']
+        f.require(time.monotonic()<deadline,'Zero-stage retirement incomplete; no admission');time.sleep(5)
+
+
+def monitor(plan,arn,directory,remembered,deployment_id=None):
     deadline=time.monotonic()+900;service=plan['config']['service'];count=plan['baseline']['desired']
     while True:
         row=f.service_row(service);assert_service_config(row,plan,arn);remember_tasks(row,plan,arn,directory,remembered)
-        primary=[d for d in row['deployments']if d['status']=='PRIMARY']
-        f.require(len(primary)==1 and primary[0]['definition']==arn and primary[0]['rolloutState']!='FAILED','Consumer rollout failed')
+        primary=row['deployments']
+        f.require(len(primary)==1 and primary[0]['status']=='PRIMARY' and primary[0]['definition']==arn and primary[0]['rolloutState']!='FAILED','Consumer sole final deployment changed/failed')
+        if deployment_id is not None:f.require(primary[0].get('id')==deployment_id,'Consumer deployment ID changed')
         f.require(row['desired']==count,'Captured restore count changed')
+        f.require(all(t['definition']==arn or t['lastStatus']==t['desiredStatus']=='STOPPED'for t in row['tasks']),'Retired consumer task alive after restore')
+        checked=checked_attempts(plan,arn,directory,remembered,row)
+        f.require(all(t['definition']==arn or t['lastStatus']==t['desiredStatus']=='STOPPED'for t in checked),'Retired attempted task alive after restore')
+        f.require(all(t['lastStatus']=='STOPPED' or t['arn']in {v['arn']for v in row['tasks']}for t in checked),'Attempted live task omitted from fresh census')
         if row['running']==count and row['pending']==0 and primary[0]['rolloutState']=='COMPLETED':
             active=[t for t in row['tasks']if t['lastStatus']!='STOPPED']
-            f.require(len(active)==count and all(t['definition']==arn and t['lastStatus']=='RUNNING' for t in active),'Rollout task census incomplete')
+            f.require(len(active)==count and all(t['definition']==arn and t['lastStatus']==t['desiredStatus']=='RUNNING' for t in active),'Rollout task census incomplete')
             for task in active:
                 containers=[c for c in task['containers']if c['name']==plan['config']['container']]
                 f.require(len(containers)==1 and containers[0]['digest']=='sha256:'+plan['identity']['manifestSha256'],'Running image digest differs')
             for targets in row['targets'].values():
-                f.require(targets and all(t.get('TargetHealth',{}).get('State')=='healthy'for t in targets),'Target smoke prerequisite unhealthy')
+                f.require(len(targets)==count and all(t.get('TargetHealth',{}).get('State')=='healthy'for t in targets),'Target smoke prerequisite unhealthy')
             return row
         f.require(time.monotonic()<deadline,'Consumer rollout timeout');time.sleep(5)
 
@@ -320,7 +379,7 @@ def hold_failed(plan,arn,directory,remembered):
     deadline=time.monotonic()+900
     while True:
         row=f.service_row(plan['config']['service']);assert_hold_service_config(row,plan,arn);remember_tasks(row,plan,arn,directory,remembered)
-        checked=f.describe_tasks(sorted(remembered),row['service'])
+        checked=checked_attempts(plan,arn,directory,remembered,row)
         if row['desired']==row['running']==row['pending']==0 and row['deployments'] and all(
             d['desired']==d['running']==d['pending']==0 for d in row['deployments']) and not any(row['targets'].values()) and all(
             t['lastStatus']=='STOPPED' and t['desiredStatus']=='STOPPED'for t in checked) and all(t['lastStatus']=='STOPPED'for t in row['tasks']):
@@ -338,10 +397,18 @@ def promote(plan,directory):
         # enabling any business tasks. Registration itself never starts them.
         validate(plan,True);assert_zero(f.service_row(plan['config']['service']),old)
         args=['ecs','update-service','--cluster',f.CLUSTER,'--service',old['service'],'--task-definition',arn,
-              '--desired-count',str(old['desired']),'--deployment-configuration',json.dumps(expected_config(old),separators=(',',':'))]
-        f.write_once(directory,'promote',args,{'definition':old['definition'],'desired':0},{'definition':arn,'desired':old['desired']})
-        updated=True;monitor(plan,arn,directory,remembered);run_smoke(plan,directory)
-        row=monitor(plan,arn,directory,remembered)
+              '--desired-count','0','--deployment-configuration',json.dumps(expected_config(old),separators=(',',':'))]
+        f.write_once(directory,'install-zero',args,{'definition':old['definition'],'desired':0},{'definition':arn,'desired':0})
+        updated=True
+        deployment_id=zero_retired(plan,arn,directory,remembered)
+        validate(plan,True)
+        zero_retired(plan,arn,directory,remembered,deployment_id)
+        # ECS can start the old active deployment when new TD and positive
+        # count are combined. The old deployment must retire at zero first.
+        args=['ecs','update-service','--cluster',f.CLUSTER,'--service',old['service'],'--desired-count',str(old['desired'])]
+        f.write_once(directory,'promote',args,{'definition':arn,'desired':0},{'definition':arn,'desired':old['desired']})
+        monitor(plan,arn,directory,remembered,deployment_id);run_smoke(plan,directory)
+        row=monitor(plan,arn,directory,remembered,deployment_id)
         f.private_json(directory/'promoted.json',{'kind':'consumer-promotion-receipt-v1','planCanonicalSha256':f.digest(plan),
             'newTaskDefinition':arn,'service':row,'smokeResult':ref(directory/'smoke-result.json'),
             'allAttemptedTasks':sorted(remembered),'ownSmokePassed':True,'scalerRestored':False})
@@ -359,7 +426,7 @@ def promote(plan,directory):
             'noAutomaticRetry':True,'noOldImageRollback':True,'scalerRestored':False,'requiresReview':not success,
             'registrationMayExist':(directory/'register-intent.json').exists(),
             'registrationReadbackConfirmed':(directory/'registered.json').exists(),
-            'updateAcknowledgementUnknown':(directory/'promote-ack-unknown.json').exists()})
+            'updateAcknowledgementUnknown':any(directory.glob('*ack-unknown.json'))})
 
 
 def hold_reviewed(plan,registered,directory):
@@ -390,7 +457,8 @@ def restore_scaler(plan,promotion,directory):
     f.require(current['desired']==current['running']==plan['baseline']['desired'] and current['pending']==0
         and len(current['deployments'])==1 and current['deployments'][0]['rolloutState']=='COMPLETED','Service not stable before scaler restore')
     directory=f.outside(directory);directory.mkdir(parents=True,exist_ok=False);os.chmod(directory,0o700)
-    monitor(plan,arn,directory,set())
+    f.require(current['deployments'][0].get('id')==receipt['service']['deployments'][0].get('id'),'Own promoted deployment changed before scaler restore')
+    monitor(plan,arn,directory,set(),receipt['service']['deployments'][0]['id'])
     old=plan['baseline']['scaler']
     if old:
         f.write_once(directory,'restore-scaler',['application-autoscaling','register-scalable-target','--service-namespace','ecs',
