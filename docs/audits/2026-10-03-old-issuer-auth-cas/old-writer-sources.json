@@ -1,0 +1,67 @@
+{
+  "oldSource": "67c09e853db308d102624a2ffd40db19959344f4",
+  "comparisonSource": "afa635177e3af08a615231a273028dfaf27ec9d5",
+  "claim": "Source byte comparison only; no scheduler was executed and no production compatibility demonstrated.",
+  "paths": {
+    "packages/api/src/server.ts": {
+      "oldSha256": "d99bb1c4f31dab7a7fcf4cd49bd0365948e65eebef9f54a9434396f3f02c7269",
+      "comparisonSha256": "1f1601f64549228b0024fe4c3b33b300dfa6a353d19e431e4efc7f3e9e4ed66a",
+      "identical": false
+    },
+    "packages/api/src/services/stripeAccountBilling.service.ts": {
+      "oldSha256": "13fad470571033b87615fabcac2beda4f5c780d1e54506d0d72b29e31cea9d8d",
+      "comparisonSha256": "28c513af473812ad96427d1dd7cd7a4501168a99132eaf90100279e6ca0d2763",
+      "identical": false
+    },
+    "packages/api/src/services/accountBilling.service.ts": {
+      "oldSha256": "1805e06e6e725badde3717ddd5929fc6491432a718c2cfdc4fe00a231814f9a3",
+      "comparisonSha256": "1805e06e6e725badde3717ddd5929fc6491432a718c2cfdc4fe00a231814f9a3",
+      "identical": true
+    },
+    "packages/api/src/services/inferenceLedger.service.ts": {
+      "oldSha256": "0ae0da51e773d21858941057ed79b67521b586546a8d29eb6f80da32b18491ed",
+      "comparisonSha256": "0ae0da51e773d21858941057ed79b67521b586546a8d29eb6f80da32b18491ed",
+      "identical": true
+    },
+    "packages/api/src/services/billingReconciliation.service.ts": {
+      "oldSha256": "5cfb6a03bd9f58bbbf09acdf62acb2e733224a41bdbf50b8891724a915fcc7fa",
+      "comparisonSha256": "5cfb6a03bd9f58bbbf09acdf62acb2e733224a41bdbf50b8891724a915fcc7fa",
+      "identical": true
+    },
+    "packages/api/src/db/expiry.ts": {
+      "oldSha256": "ad6d4d767cda311660abc35896a9f3c26cf38f0cb8c0c9f8dbfff873a0fc6306",
+      "comparisonSha256": "ad6d4d767cda311660abc35896a9f3c26cf38f0cb8c0c9f8dbfff873a0fc6306",
+      "identical": true
+    },
+    "packages/api/src/db/credits.ts": {
+      "oldSha256": "71f1e790558613f97d13e58e80ce0adbbe51baef827eb07ff3aeb63d27a40686",
+      "comparisonSha256": "1525c45659b82680822dc2962a95cb795fdcb30c91dca637485cf5c69a464934",
+      "identical": false
+    },
+    "packages/api/src/routes/billing.ts": {
+      "oldSha256": "2dca77756ff751265946a71bd8244cc2b108d3a87c11d7f7ea92b59f9bdeb4ad",
+      "comparisonSha256": "52dca1754fb0a139b3c127154834ad4a4c3db22ae2337bbfcd74d29386667422",
+      "identical": false
+    },
+    "packages/api/src/db/subscriptionStatus.ts": {
+      "oldSha256": "375dfcd2b4aad2c7009175d430512d54b038194f2dacb5cb9d5c5015ed048452",
+      "comparisonSha256": "375dfcd2b4aad2c7009175d430512d54b038194f2dacb5cb9d5c5015ed048452",
+      "identical": true
+    },
+    "packages/api/src/queue/backgroundJobs.ts": {
+      "oldSha256": "7795c855e9bb56b0b947ea9d648c2f1ec7bc7e123c256bd469060706bd50dc3c",
+      "comparisonSha256": "7795c855e9bb56b0b947ea9d648c2f1ec7bc7e123c256bd469060706bd50dc3c",
+      "identical": true
+    },
+    "packages/api/src/cron/snooze.cron.ts": {
+      "oldSha256": "03b9b09874c3a8fa8027cfc4e42051e94a34ae34200bf06cd0fa5a2d3b62c07a",
+      "comparisonSha256": "03b9b09874c3a8fa8027cfc4e42051e94a34ae34200bf06cd0fa5a2d3b62c07a",
+      "identical": true
+    },
+    "packages/api/src/queue/subscriptionExpiry.queue.ts": {
+      "oldSha256": "9103e68d7dc1b0ef692625d482eb3676ac9e27a51ad62b2cc2984a545095db6a",
+      "comparisonSha256": "9103e68d7dc1b0ef692625d482eb3676ac9e27a51ad62b2cc2984a545095db6a",
+      "identical": true
+    }
+  }
+}
