@@ -1,0 +1,324 @@
+{
+  "recordedAt": "2026-10-03 04:40:16.222312+00",
+  "integrationSourceHead": "97411716d0a9cdd31fe832a916a23ef0d210c97c",
+  "authorityResultRawSha256": "3dd579b73c3bdaeda950095353e5898b25d595b7ba2da55621abc26470367286",
+  "authorityResultCanonicalDigestFromRoot": "956affbd4a8586759d62a4f064bb1c842f9a8da77cb839cbeaef85742c4419d6",
+  "authoritySubset": [
+    {
+      "application": "Mention",
+      "applicationId": "6a2f851751b784a86fd0e916",
+      "status": "active",
+      "scopes": [
+        "user:read",
+        "files:write",
+        "federation:write",
+        "files:read",
+        "signals:write",
+        "catalogs:write",
+        "capabilities:read",
+        "capability-audit:write",
+        "clarity:search",
+        "clarity:index",
+        "clarity:sites:manage"
+      ],
+      "workloadBindings": [
+        {
+          "provider": "aws-iam",
+          "subject": "arn:aws:iam::237343248947:role/oxy-mention-task",
+          "scopes": [
+            "catalogs:write",
+            "clarity:index",
+            "clarity:search",
+            "clarity:sites:manage",
+            "federation:write",
+            "files:read",
+            "files:write",
+            "signals:write",
+            "user:read",
+            "capabilities:read",
+            "capability-audit:write"
+          ],
+          "expires_at": null
+        },
+        {
+          "provider": "aws-iam",
+          "subject": "arn:aws:iam::237343248947:role/oxy-mention-mcp-task",
+          "scopes": [
+            "catalogs:write",
+            "clarity:index",
+            "clarity:search",
+            "clarity:sites:manage",
+            "federation:write",
+            "files:read",
+            "files:write",
+            "signals:write",
+            "user:read",
+            "capabilities:read",
+            "capability-audit:write"
+          ],
+          "expires_at": null
+        }
+      ],
+      "grants": []
+    },
+    {
+      "application": "Homiio",
+      "applicationId": "6a2f851751b784a86fd0e922",
+      "status": "active",
+      "scopes": [
+        "user:read",
+        "inference:invoke",
+        "acting-as:offline"
+      ],
+      "workloadBindings": [
+        {
+          "provider": "aws-iam",
+          "subject": "arn:aws:iam::237343248947:role/oxy-homiio-task",
+          "scopes": [
+            "acting-as:offline",
+            "inference:invoke"
+          ],
+          "expires_at": null
+        }
+      ],
+      "grants": []
+    },
+    {
+      "application": "Alia",
+      "applicationId": "6a2f851751b784a86fd0e934",
+      "status": "active",
+      "scopes": [
+        "user:read",
+        "inference:invoke",
+        "inference:models:read",
+        "inference:usage:read",
+        "inference:routing:read",
+        "acting-as:offline",
+        "accounts:act-as-session",
+        "capabilities:read",
+        "capability-tickets:issue",
+        "clarity:search",
+        "clarity:index"
+      ],
+      "workloadBindings": [
+        {
+          "provider": "aws-iam",
+          "subject": "arn:aws:iam::237343248947:role/oxy-alia-task",
+          "scopes": [
+            "capabilities:read",
+            "inference:invoke",
+            "user:read",
+            "capability-tickets:issue"
+          ],
+          "expires_at": null
+        },
+        {
+          "provider": "aws-iam",
+          "subject": "arn:aws:iam::237343248947:role/oxy-alia-integrations-task",
+          "scopes": [],
+          "expires_at": null
+        }
+      ],
+      "grants": [
+        {
+          "scopes": [
+            "acting-as:offline",
+            "inference:invoke"
+          ],
+          "subjectSha256": "b39aafeddc807e80c47f013f717448b88c9d87b32188e902831655b01d988ccc"
+        }
+      ]
+    },
+    {
+      "application": "Noted",
+      "applicationId": "6a37b3e71ddfd195b65681d2",
+      "status": "active",
+      "scopes": [
+        "user:read",
+        "catalogs:write",
+        "capabilities:read",
+        "capability-audit:write",
+        "capability-events:publish"
+      ],
+      "workloadBindings": [],
+      "grants": []
+    },
+    {
+      "application": "Mercaria",
+      "applicationId": "6a37d0cc5d4b5f15482a9340",
+      "status": "active",
+      "scopes": [
+        "user:read",
+        "catalogs:write",
+        "capabilities:read",
+        "capability-audit:write"
+      ],
+      "workloadBindings": [],
+      "grants": []
+    }
+  ],
+  "epochsStatus": "missing",
+  "sources": [
+    {
+      "repo": "Alia",
+      "head": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+      "path": "packages/api/src/lib/inference/oxy-inference-credential.ts",
+      "sha256": "d2c0b0c949afd49cffd0442c0c8b1798c64bef483bab2941492d646ccea836d7"
+    },
+    {
+      "repo": "Alia",
+      "head": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+      "path": "packages/api/src/lib/inference/oxy-inference.ts",
+      "sha256": "27423243bd2b0ed86c76677e91b68a5559e67f2f0d20d8c63bf06fbb3c4e1217"
+    },
+    {
+      "repo": "Alia",
+      "head": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+      "path": "packages/api/src/lib/oxy-service-client.ts",
+      "sha256": "6fd9df9dfd17a39a84869478158d2b5f5314abf02c735165a0212ebef143d3b9"
+    },
+    {
+      "repo": "Alia",
+      "head": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+      "path": "packages/api/src/middleware/auth.ts",
+      "sha256": "2711ad24ed9cf82a05a52c2552aeb614761094fac5db6e478122a76822034bae"
+    },
+    {
+      "repo": "AliaIntegrations",
+      "head": "c91a00f78aeb6afd304ed9c50308a3e492862a90",
+      "path": "packages/integrations/src/index.ts",
+      "sha256": "bc2c692eca0eaadeafbdd0fb70715ae7799addd9072c6861ed9c36dc38728466"
+    },
+    {
+      "repo": "AliaIntegrations",
+      "head": "c91a00f78aeb6afd304ed9c50308a3e492862a90",
+      "path": "packages/integrations/src/shared/api-client.ts",
+      "sha256": "18c394e18deed9b3eb201408b0f6c6800a43e04042dae5217367d40271d9eb27"
+    },
+    {
+      "repo": "Mention",
+      "head": "a1632fe8a5dee8a6886d595d9cd5fef3e0e9fcf3",
+      "path": "packages/backend/src/services/OxyRankingClient.ts",
+      "sha256": "d4140b105fa4acfa9ee3598d3076f24e712dc618524ce3ff76ff1a09e0a4af47"
+    },
+    {
+      "repo": "Mention",
+      "head": "a1632fe8a5dee8a6886d595d9cd5fef3e0e9fcf3",
+      "path": "packages/backend/src/utils/oxyHelpers.ts",
+      "sha256": "24aac4b102bfb75fa62f1db9ccf43dfb597e64e3ffd6694c3ea64bf7d56c484e"
+    },
+    {
+      "repo": "Mention",
+      "head": "a1632fe8a5dee8a6886d595d9cd5fef3e0e9fcf3",
+      "path": "packages/backend/src/routes/imports.ts",
+      "sha256": "a9a4108d84e4826a242a6dbab46c7e4a9ab92d882df5a6633c9c9ca5d428e426"
+    },
+    {
+      "repo": "Mention",
+      "head": "a1632fe8a5dee8a6886d595d9cd5fef3e0e9fcf3",
+      "path": "packages/backend/src/capabilities/capabilityAuthority.service.ts",
+      "sha256": "7f8f0e2e769234a1f94e700f19b2848570f59e3f70783afbe2c24b25a66a7c72"
+    },
+    {
+      "repo": "Homiio",
+      "head": "64d458c542fcb0980c28c0c338dd2d600def0dae",
+      "path": "packages/backend/services/aliaChatService.ts",
+      "sha256": "282449f6c83af3dd559a28f33f74ebbd899294ed4ab244a0ebc311021a399df4"
+    },
+    {
+      "repo": "Homiio",
+      "head": "64d458c542fcb0980c28c0c338dd2d600def0dae",
+      "path": "packages/backend/services/oxy.ts",
+      "sha256": "5119a9c3aee99c9920ccc247b79626573120bd22108c05e818c2dbabab03d270"
+    },
+    {
+      "repo": "Homiio",
+      "head": "64d458c542fcb0980c28c0c338dd2d600def0dae",
+      "path": "packages/backend/services/oxyInferenceService.ts",
+      "sha256": "a3304baf7181bb2cd0c08fc3544a7c18690f51da0749238c80dc754b2e46917a"
+    },
+    {
+      "repo": "Noted",
+      "head": "806e9cae040a7d9446557e7ce9eda64069116056",
+      "path": "packages/backend/src/capabilities/oxy-service-client.ts",
+      "sha256": "c03e08dbfcef03486d2b3c97bda1c876fec79a380085bd5c4bf2c57cb8181e59"
+    },
+    {
+      "repo": "Noted",
+      "head": "806e9cae040a7d9446557e7ce9eda64069116056",
+      "path": "packages/backend/src/capabilities/noted-mcp-http.ts",
+      "sha256": "c3ebb7f69fe4bf56d472a85c35bd788493e8c5caf175d63ef2b4dc49d6d3d0cc"
+    },
+    {
+      "repo": "Mercaria",
+      "head": "9e546e66b36b8050bfe07a37f53ee436444688cf",
+      "path": "packages/backend/src/capabilities/oxy-service-client.ts",
+      "sha256": "6abe15f87020a00a0f96547710399ceea644fdad235886f901efada1d6365020"
+    },
+    {
+      "repo": "Mercaria",
+      "head": "9e546e66b36b8050bfe07a37f53ee436444688cf",
+      "path": "packages/backend/src/capabilities/mercaria-mcp-http.ts",
+      "sha256": "80c9b9e6a3758db410c6099594de96a9a2bb214463cdc88d7ef3ed4d9de03bde"
+    }
+  ],
+  "liveSourceAssociations": [
+    {
+      "runId": 36848390019,
+      "headSha": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+      "jobId": 110323958094,
+      "jobName": "deploy",
+      "runConclusion": "success",
+      "jobConclusion": "success",
+      "logSha256": "05b64e2da8b8a69c2994792817c5d24e50c392d3f5988ea771746f63c69479fb",
+      "matchedDigest": "731bf6c6b7d23feb9ae278aa3cf191848c2b0b942c6afadb4f53b3449820ceba",
+      "matchedLines": [
+        "2026-10-01T10:20:37.2408874Z #36 exporting manifest sha256:731bf6c6b7d23feb9ae278aa3cf191848c2b0b942c6afadb4f53b3449820ceba done",
+        "2026-10-01T10:20:47.2704384Z Built 2927daa376cb37e25f3d021d880efc48e650ce7f -> index sha256:621c2f5e5a1ed2cac7a71b9399356c93501666ddf98d3e34fa13f690d4625a09 -> linux/arm64 sha256:731bf6c6b7d23feb9ae278aa3cf191848c2b0b942c6afadb4f53b3449820ceba",
+        "2026-10-01T10:20:49.2569554Z   IMAGE_URI: 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia@sha256:731bf6c6b7d23feb9ae278aa3cf191848c2b0b942c6afadb4f53b3449820ceba",
+        "2026-10-01T10:22:15.8149229Z Deploying immutable image 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia@sha256:731bf6c6b7d23feb9ae278aa3cf191848c2b0b942c6afadb4f53b3449820ceba with task definition arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia:448"
+      ]
+    },
+    {
+      "runId": 36809464882,
+      "headSha": "c91a00f78aeb6afd304ed9c50308a3e492862a90",
+      "jobId": 110201054176,
+      "runConclusion": "success",
+      "jobConclusion": "success",
+      "logSha256": "98f259fd75a27cbdeed3568d3a3e02ee25c1b062bd99ccedd80ee572c47e7c20",
+      "matchedDigest": "6db38b56b81d449abe3a5fa4ffd7989a35e25ccc8d23eb49e21b16cbaca3515a",
+      "matchedLines": [
+        "2026-10-01T03:14:32.0747928Z #47 exporting manifest sha256:6db38b56b81d449abe3a5fa4ffd7989a35e25ccc8d23eb49e21b16cbaca3515a done",
+        "2026-10-01T03:14:50.5020632Z Built c91a00f78aeb6afd304ed9c50308a3e492862a90 -> index sha256:f0894517e00d494bec2c2fe01d85a075b8accdc3fa6410599207ea79f3a0d263 -> linux/arm64 sha256:6db38b56b81d449abe3a5fa4ffd7989a35e25ccc8d23eb49e21b16cbaca3515a",
+        "2026-10-01T03:14:50.5283730Z   IMAGE_URI: 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia-integrations@sha256:6db38b56b81d449abe3a5fa4ffd7989a35e25ccc8d23eb49e21b16cbaca3515a",
+        "2026-10-01T03:16:17.9534370Z Deploying immutable image 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia-integrations@sha256:6db38b56b81d449abe3a5fa4ffd7989a35e25ccc8d23eb49e21b16cbaca3515a with task definition arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-integrations:77"
+      ]
+    }
+  ],
+  "ociConfigReadback": [
+    {
+      "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-integrations:77",
+      "image": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia-integrations@sha256:6db38b56b81d449abe3a5fa4ffd7989a35e25ccc8d23eb49e21b16cbaca3515a",
+      "configDigest": "sha256:3d62c0968e1d7a64c737abf627e706372488e35befd137d52fec7c238b8753f0",
+      "authenticatedRegistryConfigDigestVerified": true,
+      "sourceLabels": {},
+      "architecture": "arm64",
+      "created": "2026-10-01T03:14:01.714204477Z"
+    },
+    {
+      "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia:448",
+      "image": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia@sha256:731bf6c6b7d23feb9ae278aa3cf191848c2b0b942c6afadb4f53b3449820ceba",
+      "configDigest": "sha256:ef1509ba8c7c375f0ef8b5eb354217e46c8a3c42daa6fd90331dfe1a342e0d14",
+      "authenticatedRegistryConfigDigestVerified": true,
+      "sourceLabels": {},
+      "architecture": "arm64",
+      "created": "2026-10-01T10:20:10.74331928Z"
+    }
+  ],
+  "limits": [
+    "Metadata snapshot not current authorization verdict. No user grants, scopes, credentials or IAM changed.",
+    "Alia source binding uses authenticated deployment log exact image digest and task definition, not timestamps, missing ECR tags or local HEAD.",
+    "Mention/Homiio/Noted/Mercaria source tags are metadata associations, not extracted filesystem/source attestation.",
+    "Subset only: remaining fleet foreground/offline callers and receiver adoption must still be inventoried before strict promotion."
+  ]
+}
