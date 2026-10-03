@@ -1425,7 +1425,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - if: ${{ steps.scope.outputs.run == 'true' }}
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
       - name: Install dependencies
         if: ${{ steps.scope.outputs.run == 'true' }}
         run: bun install --frozen-lockfile --minimum-release-age=0
