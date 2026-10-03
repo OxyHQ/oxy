@@ -1,0 +1,7 @@
+$ jest --runInBand src/services/__tests__/mercariaEphemeralCredential.db.test.ts
+{"level":30,"time":1791015019795,"pid":3642303,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        1.555 s
+Ran all test suites matching src/services/__tests__/mercariaEphemeralCredential.db.test.ts.
