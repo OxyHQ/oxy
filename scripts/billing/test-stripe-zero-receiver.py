@@ -86,7 +86,7 @@ def main():
         sql(f'CREATE DATABASE "{sandbox}"')
         assert sql("SELECT count(*) FROM pg_tables WHERE schemaname='public'", sandbox) == '0'
         sql(f'ALTER DATABASE "{sandbox}" SET oxy.billing_namespace TO \'test:test\'')
-        fixture_env = {k:v for k,v in clean_env().items() if k in ('PATH','HOME','LANG','LC_ALL','TMPDIR')} | {
+        fixture_env = clean_env() | {
             'DATABASE_URL': f'postgresql://oxy@127.0.0.1:{PORT}/{sandbox}',
             'NODE_ENV':'test', 'BILLING_PROCESSOR_ENVIRONMENT':'test', 'LOG_LEVEL':'silent',
             'STRIPE_SECRET_KEY':'sk_test_offline_fixture','STRIPE_WEBHOOK_SECRET':'whsec_offline_fixture'}
