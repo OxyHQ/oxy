@@ -1,0 +1,84 @@
+{
+  "fixtureSource": "eb5fa9e95",
+  "mutatorSource": "dfe92e6d7",
+  "apk": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-native-identity-recovery-20261003.apk",
+    "sha256": "5b5b04eb6f65d45c1f2f73e5efca8ff14c500db9c2b8ca06fd0cc437cf33127c",
+    "bytes": 122831815
+  },
+  "bundle": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-native-identity-broker-read-bundle-20261003.js",
+    "sha256": "a59f00bc99fd95849d21740e300278ebbc6246e5ae423a9db067ac0ebc891a1e",
+    "bytes": 25914065
+  },
+  "privateInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/observer-before.txt",
+      "sha256": "7a1d90631ab48b9923190879b5ee7c3cab3eebe0eec54ffda541244bac484b6c",
+      "bytes": 1085
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/observer-after-broker.txt",
+      "sha256": "dfb74439a564c02ba44132cf9f2b7f9220bddb578c2b47d45442f3d1d5e58a13",
+      "bytes": 1085
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/ui-owner-after-broker.xml",
+      "sha256": "0c4b9c335f6a89a471caf131fed96b2ed51eb4edd78e02592e78c2ea13b6b9ae",
+      "bytes": 16732
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/ui-attempt2-owner-result.xml",
+      "sha256": "0c4b9c335f6a89a471caf131fed96b2ed51eb4edd78e02592e78c2ea13b6b9ae",
+      "bytes": 16732
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/ui-attempt2-sibling-profile-result.xml",
+      "sha256": "c39914ab430cbcb1df5295ef8a8fd2daaa9b0c9f4312df303c99dcda7e2e5a49",
+      "bytes": 16767
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/cas-attempt/receipt.json",
+      "sha256": "7a0f5d231329415f9df38d97878e35acd4918403a6ec85ba8fa03bfc3625bd74",
+      "bytes": 929
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/cas-attempt/rollback-complete.json",
+      "sha256": "1a65189685e3551cedf74b8cf096d608a1c2cb82c1f0e52aee1978cd1b43e938",
+      "bytes": 979
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/cas-attempt2/receipt.json",
+      "sha256": "54b54b2e20ae61d0c4c6f71a5146dc2eb44d7856a31367943297750ded2a3943",
+      "bytes": 1055
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/cas-attempt2/applied.json",
+      "sha256": "7f2c4cd9c704c956ac22514aa3fdf00781f76aa4403a4c2c24f9aee19b661249",
+      "bytes": 358
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/cas-attempt2/post-read-files.json",
+      "sha256": "56eb9e270eda3c6781f8be3b80e6971be892b7643614641514e54b4597d4488a",
+      "bytes": 493
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/cas-attempt2/observer-after.txt",
+      "sha256": "0e79c6635205a7e5d00d732a04716160701f3419d8e665b1888ec51ecd21f9ad",
+      "bytes": 1085
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/cas-attempt2/heal-log-private.txt",
+      "sha256": "7713d9059d14c53e9ad6d819def6739abc83d3fd2749ea5bbbcb982c1d7f62b1",
+      "bytes": 6837
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/identity-recovery-device/observations.json",
+      "sha256": "b533fa6efe8b6fc1ba9f48684cd1eef8c207cd50e20aed7f3e0acd1f37656177",
+      "bytes": 5046
+    }
+  ],
+  "acceptance": "real file recovery and identity preservation under owned fixture; registry repeat pending"
+}
