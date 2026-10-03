@@ -1,0 +1,89 @@
+{
+  "kind": "consumer-promotion-offline-proof-v1",
+  "capturedAt": "2026-10-03T20:50:15.496446+00:00",
+  "sourceHead": "e3fa1ab4f977e706bb05048d386e28b7c377d449",
+  "sourceInputs": [
+    {
+      "path": "scripts/operations/consumer-promotion.py",
+      "sha256": "8163956973f2bd520b9ae8a6eb0aeb392049100db8ae66afd8c5bfbd0512e785"
+    },
+    {
+      "path": "scripts/operations/tests/test-consumer-promotion.py",
+      "sha256": "51523e6d519b54dde0a20e8322af7d9086c70b37d85680b9f662fa2d57aaa861"
+    },
+    {
+      "path": "scripts/operations/fleet-quiescence.py",
+      "sha256": "56fbe998fc58f2fc473f0622e5b06693f88b75942020f25001bf409d24852959"
+    },
+    {
+      "path": "scripts/operations/tests/test-fleet-quiescence.py",
+      "sha256": "ba9833a1965f3b2126475fae6a6988c943cff0f0df889ba99ddb59850a78b615"
+    },
+    {
+      "path": "docs/audits/2026-10-03-consumer-promotion/README.md",
+      "sha256": "d643cc235b7bec239679fd117a5313ba376211f047f5d8d7aa8eec4c8e551595"
+    },
+    {
+      "path": "docs/audits/2026-10-03-consumer-promotion/service-gates.md",
+      "sha256": "9d8cb4fe2ddc32a5d99a49e3576eeecd670c301c74512ff2f73e6931c735bcde"
+    },
+    {
+      "path": "docs/audits/2026-10-03-consumer-promotion/source-inputs.json",
+      "sha256": "dbc30ef5984bccd9e8217a52b6bdb76a754b7c20c2c880004fc1ddce55bb661d"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-consumer-promotion/offline-tests.log",
+      "sha256": "de081f1d0d59a1f36b48c3b6deee985085cadcc7088c4fd3b35351f748e038de",
+      "bytes": 3361
+    },
+    {
+      "path": "docs/audits/2026-10-03-consumer-promotion/help.log",
+      "sha256": "8662c26e3a5bc336474db95aa2cee68710ce29d9fb6e4a49be59a62f68540e01",
+      "bytes": 665
+    }
+  ],
+  "historicalPrivateInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-readonly-helper-rehearsal-2020/snapshot.json",
+      "sha256": "7791cb9f7260f8bcfc8170106254112c5100cb958a667a78101486155adbcf5d",
+      "bytes": 250255,
+      "scope": "historical root readonly fleet compatibility; not completed quiescence or this consumer promotion"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-readonly-helper-rehearsal-2020/receipt.json",
+      "sha256": "c429ab5f16596fce33bd1d13f09b532c6d8326e14b0ac1ab1c7e2cc534d3607c",
+      "bytes": 10832,
+      "scope": "historical root readonly fleet compatibility; not completed quiescence or this consumer promotion"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-readonly-helper-rehearsal-2020/root-review.json",
+      "sha256": "c9d73ba1e371e64ae314faf605f3805615edd082fc0a96c58d851ef2e220019c",
+      "bytes": 531,
+      "scope": "historical root readonly fleet compatibility; not completed quiescence or this consumer promotion"
+    }
+  ],
+  "results": {
+    "offlineTests": 23,
+    "exitCode": 0,
+    "helpExitCode": 0,
+    "pythonSyntaxFiles": 2,
+    "recipeRepositories": 17,
+    "imageRecipes": 21,
+    "allowedServicePromotions": 20,
+    "sourceMapRepositories": 16,
+    "sourceMapFileInputs": 161,
+    "liveAwsReadsByAuthor": 0,
+    "liveAwsWritesByAuthor": 0
+  },
+  "limitations": [
+    "Synthetic GitHub/ECR/AWS/receipts; real executable AWS stub sends JSON only through stdin; real failing smoke subprocess. No live IAM, image publishing, migration, authority or service smoke acceptance.",
+    "Source mapping inspects candidates; final merged heads/images and actual pending DB journal require root source-bound receipts. Historical post file inventory is not a pending migration claim.",
+    "Explicit bootstrap-managed only TNP/website; readiness smoke must prove completed bootstrap before scaler restoration.",
+    "Clarity worker process and unauthorized-delegation denial gate still needs actual receipts; no consent grant or external job fabricated. Move/relay/relay-publisher and TNP DNS are not restored.",
+    "Operational recovery needs root reconciliation after unknown ACK/SIGKILL. No automatic retry, old-image fallback or scaler restoration.",
+    "One fixture import omitted sys in first test of plan-byte gate; fixed before frozen source. This was fixture setup failure, not product RED.",
+    "External helper only, no frozen Oxy runtime/policy/image modification."
+  ]
+}

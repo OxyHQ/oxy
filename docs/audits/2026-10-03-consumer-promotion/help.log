@@ -1,0 +1,18 @@
+usage: consumer-promotion.py [-h] [--config CONFIG] --plan PLAN
+                             [--output OUTPUT]
+                             [--plan-file-sha256 PLAN_FILE_SHA256] [--promote]
+                             [--restore-scalers]
+                             [--promotion-receipt PROMOTION_RECEIPT] [--hold]
+                             [--registered-receipt REGISTERED_RECEIPT]
+
+options:
+  -h, --help            show this help message and exit
+  --config CONFIG
+  --plan PLAN
+  --output OUTPUT
+  --plan-file-sha256 PLAN_FILE_SHA256
+  --promote
+  --restore-scalers
+  --promotion-receipt PROMOTION_RECEIPT
+  --hold
+  --registered-receipt REGISTERED_RECEIPT
