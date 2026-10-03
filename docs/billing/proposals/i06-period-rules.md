@@ -1,6 +1,12 @@
-# PROPOSAL — subscription period rules (issue #1524, I06)
+# Subscription period rules (issue #1524, I06) — original proposal
 
-> **Status: PROPOSAL, pending Nate's decision. Not approved policy. Nothing
+**Current status, 2026-10-03:** Nate approved the documented recommendations in
+#1519; [ADR 0033](../../adr/0033-subscription-credit-and-product-billing.md) binds
+the implemented integer grant/FIFO/P1/P2/P3 semantics and their evidence limits.
+The promotion registry remains empty: illustrative amounts below are not live
+offers. The text below preserves the original proposal and its initial state.
+
+> **Historical status: PROPOSAL, pending Nate's decision. Not approved policy. Nothing
 > here is implemented.** PR #1529 deliberately records these three cases
 > without granting or clawing back anything (`not_granted` / `ignored` in
 > `billing_stripe_events`). This file proposes what each case SHOULD do, with
