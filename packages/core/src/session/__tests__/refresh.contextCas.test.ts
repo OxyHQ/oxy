@@ -61,6 +61,19 @@ describe('device refresh uses full native context CAS after a normal SDK switch'
     expect(await createNativeAuthStateStore(storage).load()).toEqual(selectedB);
     expect(sharedPublish).not.toHaveBeenCalled();
   });
+  it('a replacement queued after the retained-state read still wins the native CAS', async () => {
+    const {storage, store, oxy} = fixture(); await store.save(prior);
+    const entered = deferred<void>(); const release = deferred<DeviceTokenMintResponse>();
+    const readReached = deferred<void>(); const continueRead = deferred<void>(); let reads = 0;
+    const guarded = {...store, load: async () => {const snapshot = await store.load(); if (++reads === 2) {readReached.resolve(); await continueRead.promise;} return snapshot;}};
+    global.fetch = jest.fn(async () => {entered.resolve(); return new Response(JSON.stringify({data: await release.promise}), {status: 200, headers: {'content-type': 'application/json'}});}) as typeof fetch;
+    const pending = refreshDeviceSecretArm({oxy, store: guarded}); await entered.promise;
+    oxy.http.endSession(); release.resolve(response); await readReached.promise;
+    const selectedB = {...prior, sessionId: 'session-b', userId: 'org-b', accessToken: tokenB};
+    oxy.session.setAccessToken(tokenB); await store.save(selectedB); continueRead.resolve();
+    expect(await pending).toEqual({status: 'session-ended'}); expect(oxy.session.accessToken).toBe(tokenB);
+    expect(await createNativeAuthStateStore(storage).load()).toEqual(selectedB);
+  });
   it('token-null teardown retains only valid credential rotation without restoring a bearer', async () => {
     const {storage, store, oxy} = fixture(); await store.save(prior);
     const entered = deferred<void>(); const release = deferred<DeviceTokenMintResponse>();
