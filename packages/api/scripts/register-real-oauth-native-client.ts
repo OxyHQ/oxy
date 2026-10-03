@@ -101,16 +101,14 @@ async function main() {
 				...(webOrigin ? { websiteUrl: webOrigin } : {}),
 			})
 			.returning({ id: applications.id });
-		await tx
-			.insert(applicationCredentials)
-			.values({
-				applicationId: app.id,
-				name: "I11 native fixture",
-				publicKey: clientId,
-				type: "public",
-				environment: "development",
-				status: "active",
-			});
+		await tx.insert(applicationCredentials).values({
+			applicationId: app.id,
+			name: "I11 native fixture",
+			publicKey: clientId,
+			type: "public",
+			environment: "development",
+			status: "active",
+		});
 		return app.id;
 	});
 	manifest.clients[lane] = {
