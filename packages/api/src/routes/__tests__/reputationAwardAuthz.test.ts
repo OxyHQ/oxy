@@ -101,6 +101,7 @@ let server: http.Server;
 function award(payload: unknown, tokenType: 'service' | 'user'): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = JSON.stringify(payload);
+  const issuedAt = Math.floor(Date.now() / 1_000);
   const token = tokenType === 'service'
     ? signServiceTokenEd25519({
         type: 'service',
@@ -112,7 +113,8 @@ function award(payload: unknown, tokenType: 'service' | 'user'): Promise<JsonRes
         scopes: [],
         iss: 'oxy-auth',
         aud: 'oxy-api',
-        exp: Math.floor(Date.now() / 1_000) + 300,
+        iat: issuedAt,
+        exp: issuedAt + 300,
       })
     : jwt.sign({ type: 'access' }, ACCESS_TOKEN_SECRET);
   return new Promise((resolve, reject) => {

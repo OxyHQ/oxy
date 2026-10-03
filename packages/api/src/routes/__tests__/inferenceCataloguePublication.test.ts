@@ -164,6 +164,7 @@ async function seed(): Promise<void> {
     })
     .returning({ id: applicationCredentials.id });
 
+  const internalTokenIssuedAt = Math.floor(Date.now() / 1_000);
   internalToken = signServiceTokenEd25519({
       type: 'service',
       appId: internalApplication.id,
@@ -174,7 +175,8 @@ async function seed(): Promise<void> {
       scopes: ['inference:invoke'],
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 3_600,
+      iat: internalTokenIssuedAt,
+      exp: internalTokenIssuedAt + 300,
     });
 
   const [attestedApplication] = await db
@@ -213,6 +215,7 @@ async function seed(): Promise<void> {
     subject: attestedSubject,
   });
 
+  const attestedInternalTokenIssuedAt = Math.floor(Date.now() / 1_000);
   attestedInternalToken = signServiceTokenEd25519({
       type: 'service',
       appId: attestedApplication.id,
@@ -225,7 +228,8 @@ async function seed(): Promise<void> {
       scopes: ['inference:invoke'],
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 3_600,
+      iat: attestedInternalTokenIssuedAt,
+      exp: attestedInternalTokenIssuedAt + 300,
     });
 
   await db.insert(inferencePublishers).values({ slug: publisherSlug, displayName: `Pub ${tag}` });

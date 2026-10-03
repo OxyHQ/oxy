@@ -362,6 +362,7 @@ async function customer(fund?: string): Promise<Caller> {
 
 /** A service JWT as `POST /auth/service-token` mints one; the edge re-reads the row. */
 function serviceToken(caller: Caller, scopes: string[] = ['inference:invoke']): string {
+  const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
     type: 'service',
     appId: caller.applicationId,
@@ -372,7 +373,8 @@ function serviceToken(caller: Caller, scopes: string[] = ['inference:invoke']): 
     scopes,
     iss: 'oxy-auth',
     aud: 'oxy-api',
-    exp: Math.floor(Date.now() / 1_000) + 3_600,
+    iat: issuedAt,
+    exp: issuedAt + 300,
   });
 }
 

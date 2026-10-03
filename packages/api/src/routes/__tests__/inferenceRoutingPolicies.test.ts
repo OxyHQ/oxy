@@ -200,6 +200,7 @@ function serviceToken(input: {
   ownerAccountId: string;
   scopes: readonly string[];
 }): string {
+  const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
       type: 'service',
       appId: input.appId,
@@ -210,7 +211,8 @@ function serviceToken(input: {
       scopes: [...input.scopes],
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 3_600,
+      iat: issuedAt,
+      exp: issuedAt + 300,
     });
 }
 
@@ -349,6 +351,7 @@ describe('the two lanes are dispatched, and neither is optional', () => {
     // A token signed with the wrong key is not a service principal. It must
     // fall through to `authMiddleware`, which here establishes the owner — so a
     // 200 proves the fall-through happened, and a 401/403 would prove it did not.
+    const genuineIssuedAt = Math.floor(Date.now() / 1_000);
     const genuine = signServiceTokenEd25519({
         type: 'service',
         appId: tenant.applicationId,
@@ -359,7 +362,8 @@ describe('the two lanes are dispatched, and neither is optional', () => {
         scopes: [READ_SCOPE, WRITE_SCOPE],
         iss: 'oxy-auth',
         aud: 'oxy-api',
-        exp: Math.floor(Date.now() / 1_000) + 3_600,
+        iat: genuineIssuedAt,
+        exp: genuineIssuedAt + 300,
       });
     // Same header and claims, a signature no Oxy key produced.
     const forged = `${genuine.split('.').slice(0, 2).join('.')}.${Buffer.alloc(64, 1).toString('base64url')}`;

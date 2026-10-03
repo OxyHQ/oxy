@@ -40,7 +40,6 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { readLiveAgentKey, type AgentKeyBinding } from './agentKeyAuthority.service';
 import { authCodes } from '../db/schema/authCodes';
-import type { AgentKeyBinding } from './agentKeyAuthority.service';
 import type { SelectedRow } from '@oxy.so/db';
 
 export const AUTH_CODE_TTL_MS = 60 * 1000;
@@ -78,8 +77,6 @@ export function canonicalizeOAuthRedirectUri(redirectUri: string): string {
 }
 
 export interface IssueCodeOptions {
-  /** Live autonomous signer provenance, checked in the consent transaction. */
-  authMethod?: AgentKeyBinding;
   /** The SUBJECT of the grant — the account the code authorizes access to. */
   userId: string;
   /**

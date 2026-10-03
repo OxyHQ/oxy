@@ -191,6 +191,7 @@ const serviceCredentialByApplication = new Map<string, { id: string; environment
 function serviceToken(input: { appId: string; ownerAccountId: string; scopes: string[] }): string {
   const credential = serviceCredentialByApplication.get(input.appId);
   if (!credential) throw new Error('serviceToken requires an application fixture credential');
+  const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
       type: 'service',
       appId: input.appId,
@@ -201,7 +202,8 @@ function serviceToken(input: { appId: string; ownerAccountId: string; scopes: st
       scopes: input.scopes,
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 3_600,
+      iat: issuedAt,
+      exp: issuedAt + 300,
     });
 }
 
@@ -863,6 +865,7 @@ describe('Kaana credential validation principal', () => {
     handle: string;
     scopes: string[];
   }): string {
+    const issuedAt = Math.floor(Date.now() / 1_000);
     return signServiceTokenEd25519({
         type: 'service',
         appId: input.appId,
@@ -874,7 +877,8 @@ describe('Kaana credential validation principal', () => {
         scopes: input.scopes,
         iss: 'oxy-auth',
         aud: 'oxy-api',
-        exp: Math.floor(Date.now() / 1_000) + 3_600,
+        iat: issuedAt,
+        exp: issuedAt + 300,
       });
   }
 

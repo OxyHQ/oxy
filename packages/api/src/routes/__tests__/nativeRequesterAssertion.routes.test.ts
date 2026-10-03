@@ -126,6 +126,7 @@ async function seedPrincipal(input: {
 }
 
 function serviceToken(principal: Principal): string {
+  const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
       type: 'service',
       appId: principal.appId,
@@ -136,7 +137,8 @@ function serviceToken(principal: Principal): string {
       scopes: principal.scopes,
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 3_600,
+      iat: issuedAt,
+      exp: issuedAt + 300,
     });
 }
 
