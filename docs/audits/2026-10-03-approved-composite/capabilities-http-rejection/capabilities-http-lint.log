@@ -1,0 +1,6 @@
+
+/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/api/src/routes/capabilities.ts
+  285:9  warning  'userId' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (0 errors, 1 warning)
+
