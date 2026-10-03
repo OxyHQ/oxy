@@ -1,0 +1,121 @@
+{
+  "time": "2026-10-03T13:17:28.132906+00:00",
+  "source": "5c18200489d4380770be564dcc6fcd60d48fca95",
+  "runtimeChanged": false,
+  "control": "Same native Mention APK and frozen Metro17967/source. Warning overlay parent [26,2081][1054,2348] covers password center541,2084, while visible warning starts2146. Two center taps fail. Top541,2040 passes. Reopened code frame, center failed again. Dismissed visible LogBox X, verified warning absent and exact unchanged link bounds[303,2032][779,2137], then same center541,2084 passes Enter your password.",
+  "limitations": [
+    "UI automator XML omitted IME, screenshot proves visible keyboard; earlier no-IME conclusions based only XML are invalid.",
+    "One UI idle capture failed and no stale XML was used.",
+    "This diagnoses dev overlay interception; no native logout/restart acceptance or product fix claimed."
+  ],
+  "records": {
+    "after-center.log": {
+      "sha256": "2c517b4880d6234bbe2b6e60a06440ad5fe9d0420de46bb9325971397a6bd282",
+      "bytes": 3481
+    },
+    "after-top.log": {
+      "sha256": "4ec7ed098bb7434b9afe28b37a64e6dfd9da0629e55172c5dcaeae86f047123a",
+      "bytes": 2060
+    },
+    "after-top.png": {
+      "sha256": "729ec4e2e1f68e3ffc0908d3f34e5b038a965962a0acd3eee2ff4be630ae813f",
+      "bytes": 213838
+    },
+    "center-warning-failed.log": {
+      "sha256": "2c517b4880d6234bbe2b6e60a06440ad5fe9d0420de46bb9325971397a6bd282",
+      "bytes": 3481
+    },
+    "center-without-warning.log": {
+      "sha256": "57f729818ec02e2bc331b465409a2c6155ff043454a4216b89ccaa0c89b4b4c5",
+      "bytes": 1672
+    },
+    "center-without-warning.png": {
+      "sha256": "f8073311133ffa48c9e457420804b1284dff7d19311cc8105a411b849677d2ce",
+      "bytes": 209977
+    },
+    "code-before.png": {
+      "sha256": "c387024d0981f5afb91a0cbf0dd3289658467e498ce80223bd9f7ec80a93192e",
+      "bytes": 260800
+    },
+    "code-warning-center.log": {
+      "sha256": "123cb57d3bb7fb95413a1473edc9eb0ee4c9de8e549fa64c73336dd2a0cab96c",
+      "bytes": 3556
+    },
+    "code-warning.log": {
+      "sha256": "2c517b4880d6234bbe2b6e60a06440ad5fe9d0420de46bb9325971397a6bd282",
+      "bytes": 3481
+    },
+    "focus.log": {
+      "sha256": "627fd38b64a8897376716d697ac43479230807c7726fe022cac3c68b192820de",
+      "bytes": 2687
+    },
+    "ui-after-center.xml": {
+      "sha256": "057ec2fb47afb3ca36012e1b9799dc2ce81a992dc2516ad6fa490a53cc9bf66f",
+      "bytes": 34182
+    },
+    "ui-after-top.xml": {
+      "sha256": "92dd7e0037ee0d9b3b7547d541872e306017b5a85aac2ecc6b6471978d64cdf0",
+      "bytes": 32037
+    },
+    "ui-center-warning-failed.xml": {
+      "sha256": "057ec2fb47afb3ca36012e1b9799dc2ce81a992dc2516ad6fa490a53cc9bf66f",
+      "bytes": 34182
+    },
+    "ui-center-without-warning.xml": {
+      "sha256": "ce3da5bdb74c1941469e8cc3c3baf967b695295c2418feaf2ad6938c7e2883d1",
+      "bytes": 28053
+    },
+    "ui-code-center-retry.xml": {
+      "sha256": "057ec2fb47afb3ca36012e1b9799dc2ce81a992dc2516ad6fa490a53cc9bf66f",
+      "bytes": 34182
+    },
+    "ui-code-warning-center.xml": {
+      "sha256": "057ec2fb47afb3ca36012e1b9799dc2ce81a992dc2516ad6fa490a53cc9bf66f",
+      "bytes": 34182
+    },
+    "ui-code-warning.xml": {
+      "sha256": "057ec2fb47afb3ca36012e1b9799dc2ce81a992dc2516ad6fa490a53cc9bf66f",
+      "bytes": 34182
+    },
+    "ui-focus.xml": {
+      "sha256": "15ac7579b68c85d64e92bce3cf98966bdfed6ce6eabf1cb2ef214f859009c4a0",
+      "bytes": 35768
+    },
+    "ui-fresh.py": {
+      "sha256": "688e237230420bfcdf4e8c6913060f22cd0ad6ec4cb7d45dde56d85637dd7144",
+      "bytes": 1415
+    },
+    "ui-identifier.xml": {
+      "sha256": "15ac7579b68c85d64e92bce3cf98966bdfed6ce6eabf1cb2ef214f859009c4a0",
+      "bytes": 35768
+    },
+    "ui-initial.xml": {
+      "sha256": "dbc88f3a9f8336fb72af43caa620cbdae9c8ddd6c0469ee44b5bc270c1fddf71",
+      "bytes": 17529
+    },
+    "ui-password-backlink.xml": {
+      "sha256": "92dd7e0037ee0d9b3b7547d541872e306017b5a85aac2ecc6b6471978d64cdf0",
+      "bytes": 32037
+    },
+    "ui-signedout.xml": {
+      "sha256": "378504b80caeb235e91bb2207566a5b2163530e54af39f311922df7426efc3f9",
+      "bytes": 23571
+    },
+    "ui-signout.xml": {
+      "sha256": "dbc88f3a9f8336fb72af43caa620cbdae9c8ddd6c0469ee44b5bc270c1fddf71",
+      "bytes": 17529
+    },
+    "ui-submitted.xml": {
+      "sha256": "342bd425d823becf23c018ab8b4740925c0de8126e10503cb678687471b663c1",
+      "bytes": 35769
+    },
+    "ui-warning-dismissed.xml": {
+      "sha256": "86b9a45da65ad7091a8028066a9d690f14f380317157dabd0164dee168561ff4",
+      "bytes": 30198
+    },
+    "warning-dismissed.log": {
+      "sha256": "a457475e0fbcac17e74cd9f1217cdc6cfe0a46a20154cd29fd8b01f52f8da933",
+      "bytes": 3093
+    }
+  }
+}
