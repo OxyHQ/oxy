@@ -2,7 +2,7 @@
  * Only AWS attestation and Redis nonce transport are isolated in this fixture.
  */
 import { createServer, type Server } from 'node:http';
-import { generateKeyPairSync, randomUUID } from 'node:crypto';
+import { createHash, generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import express, { type Request } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -354,4 +354,52 @@ it('does not disguise unexpected requester validation errors as a session denial
     .timeout({ response: 1500, deadline: 2000 });
   expect(response.status).toBe(500);
   expect(response.body).not.toHaveProperty('ticket');
+});
+
+
+it('retains catalogue discovery and requester invocation after retiring its ephemeral registrar credential', async () => {
+  const publicKey = `oxy_dk_${randomBytes(24).toString('hex')}`;
+  const secret = randomBytes(32).toString('hex');
+  const [ephemeral] = await getDb().insert(applicationCredentials).values({
+    name: 'synthetic ephemeral catalogue registrar', applicationId: registrar.application.id,
+    type: 'service', environment: 'production', publicKey,
+    secretHash: createHash('sha256').update(secret).digest('hex'),
+    scopes: ['catalogs:write'], status: 'active', expiresAt: new Date(Date.now() + 5 * 60_000),
+  }).returning();
+  try {
+    const minted = await request(app).post('/auth/service-token').send({ apiKey: publicKey, apiSecret: secret });
+    expect(minted.status).toBe(200);
+    const token: string = minted.body.data.token;
+    const verified = verifyServiceToken(token);
+    if (!verified.ok) throw new Error('Expected canonical Ed25519 service token');
+    expect(verified.payload.scopes).toEqual(['catalogs:write']);
+    expect(JSON.stringify(ephemeral)).not.toContain(secret);
+    const pin = await register(token);
+    const p = await presenter(); const r = await requester(p);
+    const created = await request(app).post('/capabilities/foreground-execution-authorizations')
+      .auth(p.token, { type: 'bearer' }).send({ subjectToken: r.session.accessToken,
+        expectedCatalog: pin, tool: 'readViewerGraph', runId: randomUUID(),
+        expiresAt: new Date(Date.now() + 60_000).toISOString() });
+    expect(created.status).toBe(201);
+    await getDb().update(applicationCredentials).set({ status: 'revoked' })
+      .where(eq(applicationCredentials.id, ephemeral.id));
+    const available = await request(app).get('/capabilities/catalogs/available')
+      .query({ accountId: r.user.id }).auth(r.session.accessToken, { type: 'bearer' });
+    expect(available.status).toBe(200);
+    expect(available.body.catalogs).toContainEqual(expect.objectContaining({ id: pin.registrationId, digest: pin.digest }));
+    const issued = await request(app).post('/capabilities/tickets').auth(p.token, { type: 'bearer' })
+      .send({ executionAuthorizationId: created.body.authorization.id });
+    expect(issued.status).toBe(201);
+    expect((await read(issued.body.ticket)).status).toBe(200);
+    const refused = await request(app).post('/capabilities/catalogs/register').auth(token, { type: 'bearer' })
+      .send({ catalog: oxyProfileCapabilityCatalog() });
+    expect([401, 403]).toContain(refused.status);
+    expect((await request(app).post('/auth/service-token').send({ apiKey: publicKey, apiSecret: secret })).status).toBe(401);
+    const [retained] = await getDb().select().from(appCapabilityCatalogRegistrations)
+      .where(eq(appCapabilityCatalogRegistrations.id, pin.registrationId));
+    expect(retained).toMatchObject({ active: true, registeredByCredentialId: ephemeral.id });
+  } finally {
+    await getDb().update(applicationCredentials).set({ status: 'revoked' })
+      .where(eq(applicationCredentials.id, ephemeral.id));
+  }
 });
