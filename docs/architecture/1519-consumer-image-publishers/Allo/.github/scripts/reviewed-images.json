@@ -1,0 +1,17 @@
+{
+  "repository": "OxyHQ/Allo",
+  "recipes": [
+    {
+      "name": "allo",
+      "services": [
+        "allo"
+      ],
+      "ecrRepository": "oxy/allo",
+      "dockerfile": "packages/backend/Dockerfile",
+      "dockerfileSha256": "fc38746c57a018f566a8c45633fffe55393421c67bf7db468564305bebde5a68",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": "allo"
+    }
+  ]
+}

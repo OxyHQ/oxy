@@ -1,0 +1,29 @@
+{
+  "repository": "OxyHQ/Alia",
+  "recipes": [
+    {
+      "name": "alia",
+      "services": [
+        "alia"
+      ],
+      "ecrRepository": "oxy/alia",
+      "dockerfile": "packages/api/Dockerfile",
+      "dockerfileSha256": "8bffb1983c8f94c5906c8b6859cf68295b8de21a50a360ea1c2a7ae92e2d3108",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": null
+    },
+    {
+      "name": "alia-integrations",
+      "services": [
+        "alia-integrations"
+      ],
+      "ecrRepository": "oxy/alia-integrations",
+      "dockerfile": "packages/integrations/Dockerfile",
+      "dockerfileSha256": "c5d96354f8483bd2f70ae118f9e544f865d44f914627ebc2f20dca6f8d0d6bad",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": null
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "repository": "OxyHQ/website",
+  "recipes": [
+    {
+      "name": "website-api",
+      "services": [
+        "website-api"
+      ],
+      "ecrRepository": "oxy/website-api",
+      "dockerfile": "Dockerfile",
+      "dockerfileSha256": "ed6b14b0f98eb41e4d8cd26f840b585f1d36b8b77b1eafd360fbea18a5528a5d",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": "website-api"
+    }
+  ]
+}

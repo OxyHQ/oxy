@@ -1,0 +1,17 @@
+{
+  "repository": "OxyHQ/Noted",
+  "recipes": [
+    {
+      "name": "noted",
+      "services": [
+        "noted"
+      ],
+      "ecrRepository": "oxy/noted",
+      "dockerfile": "Dockerfile",
+      "dockerfileSha256": "c5c723d339f66ff22ff166bb085a3d8e235b43aac1d3bf61f8dc4f615e342757",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": "noted-backend"
+    }
+  ]
+}

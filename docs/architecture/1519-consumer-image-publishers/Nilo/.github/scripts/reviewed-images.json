@@ -1,0 +1,17 @@
+{
+  "repository": "OxyHQ/Nilo",
+  "recipes": [
+    {
+      "name": "nilo",
+      "services": [
+        "nilo"
+      ],
+      "ecrRepository": "oxy/nilo",
+      "dockerfile": "apps/api/Dockerfile",
+      "dockerfileSha256": "0ac7938817baf22c3231330970c55feaaabc98d49db722fccfa36274db82f4db",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": "nilo-api"
+    }
+  ]
+}

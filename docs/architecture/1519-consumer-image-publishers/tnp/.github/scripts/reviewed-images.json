@@ -1,0 +1,17 @@
+{
+  "repository": "OxyHQ/tnp",
+  "recipes": [
+    {
+      "name": "tnp-api",
+      "services": [
+        "tnp-api"
+      ],
+      "ecrRepository": "oxy/tnp-api",
+      "dockerfile": "Dockerfile.api",
+      "dockerfileSha256": "b43478d6f2a876f95b04c9ef1607eb7db8511af9b6847567b39aea7dfa05fc66",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": "tnp-api"
+    }
+  ]
+}

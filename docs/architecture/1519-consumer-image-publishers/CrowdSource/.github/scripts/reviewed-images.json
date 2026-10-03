@@ -1,0 +1,17 @@
+{
+  "repository": "OxyHQ/CrowdSource",
+  "recipes": [
+    {
+      "name": "crowdsource",
+      "services": [
+        "crowdsource"
+      ],
+      "ecrRepository": "oxy/crowdsource",
+      "dockerfile": "packages/backend/Dockerfile",
+      "dockerfileSha256": "03ee825714d7245a4a0eddf5b346fcb2d9c571c96b9f0490375c3267f033cfa4",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": "crowdsource-backend"
+    }
+  ]
+}

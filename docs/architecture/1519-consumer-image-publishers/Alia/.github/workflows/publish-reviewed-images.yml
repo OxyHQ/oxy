@@ -1,0 +1,140 @@
+name: Publish reviewed ARM images only
+'on':
+  workflow_dispatch:
+    inputs:
+      expected_source_sha:
+        description: Exact reviewed full SHA currently on main
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: reviewed-image-publication-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  alia:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'OxyHQ/Alia'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      AWS_REGION: us-west-2
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
+    steps:
+      - name: Checkout immutable source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Guard reviewed main source
+        id: guard
+        run: python3 -B .github/scripts/publish-reviewed-image.py guard --recipe alia
+      - name: Authenticate existing publisher role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: us-west-2
+          role-session-name: image-only-${{ github.run_id }}
+          allowed-account-ids: '237343248947'
+      - name: Refuse existing source tag
+        run: python3 -B .github/scripts/publish-reviewed-image.py vacancy --recipe alia
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd
+        with:
+          mask-password: true
+      - name: Setup native ARM builder
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+      - name: Build and publish exact source image
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: .
+          file: packages/api/Dockerfile
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          sbom: false
+          tags: 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia:${{ github.sha }}
+          labels: |-
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/OxyHQ/Alia
+            io.oxy.source.tree=${{ steps.guard.outputs.source_tree }}
+            io.oxy.dockerfile.sha256=8bffb1983c8f94c5906c8b6859cf68295b8de21a50a360ea1c2a7ae92e2d3108
+      - name: Verify authenticated ECR bytes
+        id: verify
+        env:
+          BUILD_METADATA: ${{ steps.build.outputs.metadata }}
+        run: python3 -B .github/scripts/publish-reviewed-image.py verify --recipe alia
+      - name: Retain source image proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: reviewed-image-alia-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.verify.outputs.proof_path }}
+          if-no-files-found: error
+          retention-days: 14
+  alia-integrations:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'OxyHQ/Alia'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      AWS_REGION: us-west-2
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
+    steps:
+      - name: Checkout immutable source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Guard reviewed main source
+        id: guard
+        run: python3 -B .github/scripts/publish-reviewed-image.py guard --recipe alia-integrations
+      - name: Authenticate existing publisher role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: us-west-2
+          role-session-name: image-only-${{ github.run_id }}
+          allowed-account-ids: '237343248947'
+      - name: Refuse existing source tag
+        run: python3 -B .github/scripts/publish-reviewed-image.py vacancy --recipe alia-integrations
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd
+        with:
+          mask-password: true
+      - name: Setup native ARM builder
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+      - name: Build and publish exact source image
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: .
+          file: packages/integrations/Dockerfile
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          sbom: false
+          tags: 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/alia-integrations:${{ github.sha }}
+          labels: |-
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/OxyHQ/Alia
+            io.oxy.source.tree=${{ steps.guard.outputs.source_tree }}
+            io.oxy.dockerfile.sha256=c5d96354f8483bd2f70ae118f9e544f865d44f914627ebc2f20dca6f8d0d6bad
+      - name: Verify authenticated ECR bytes
+        id: verify
+        env:
+          BUILD_METADATA: ${{ steps.build.outputs.metadata }}
+        run: python3 -B .github/scripts/publish-reviewed-image.py verify --recipe alia-integrations
+      - name: Retain source image proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: reviewed-image-alia-integrations-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.verify.outputs.proof_path }}
+          if-no-files-found: error
+          retention-days: 14

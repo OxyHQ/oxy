@@ -1,0 +1,17 @@
+{
+  "repository": "OxyHQ/Moovo",
+  "recipes": [
+    {
+      "name": "moovo",
+      "services": [
+        "moovo"
+      ],
+      "ecrRepository": "oxy/moovo",
+      "dockerfile": "Dockerfile",
+      "dockerfileSha256": "7b207fcc60e7804b0e1e8460dd8692e1d56e6a05e2e8193eae61c95c3e7dd9fc",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": "moovo-backend"
+    }
+  ]
+}

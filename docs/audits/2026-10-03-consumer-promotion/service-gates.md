@@ -102,7 +102,7 @@ from positive customer authorization: no synthetic customer/grant is created.
 | 3 | goway | GET `/ready`; `GOWAY_API_URL="$ORIGIN" bun --no-env-file scripts/check-routing.mjs` retains the Barcelona→Madrid actual-road assertion, not a straight line. Canonical app/seed and auth receiver checks precede admission |
 
 For either worker, select the exact fresh task ARN/digest from the helper's
-`observed-tasks.json`; obtain its log group/prefix/container from its verified TD,
+`task-<task-ARN>.json and promoted.json `allAttemptedTasks``; obtain its log group/prefix/container from its verified TD,
 then use read-only `aws logs get-log-events --log-group-name <exact> --log-stream-name
 <prefix>/<container>/<task-id> --start-time <task-start-ms> --start-from-head`.
 Do not accept an old task's startup line or a liveness sample from the API.

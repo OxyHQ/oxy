@@ -1,0 +1,17 @@
+{
+  "repository": "OxyHQ/Willo",
+  "recipes": [
+    {
+      "name": "willo",
+      "services": [
+        "willo"
+      ],
+      "ecrRepository": "oxy/willo",
+      "dockerfile": "packages/backend/Dockerfile",
+      "dockerfileSha256": "1dd056ad6fa46518be5e32fcb64cf83f9cb2d7d3702d0a43955a0db20d5a9f5b",
+      "target": null,
+      "tagSuffix": "",
+      "cacheScope": "willo-backend"
+    }
+  ]
+}

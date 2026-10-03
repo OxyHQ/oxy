@@ -1,0 +1,224 @@
+# Typecheck and test every workspace.
+#
+# Before this existed, nothing in CI ran either — `AGENTS.md` claimed a
+# `packages/client` typecheck gate that did not exist, and `apps/api`,
+# `apps/relay` and `apps/dns-server` had no typecheck script at all. That is how
+# `apps/dns-server` came to build a `TnpConfig` with 5 of its 18 required fields
+# and ship (docs/architecture/audit-2026-08-06.md, finding B1).
+#
+# Both root scripts fan out with `bun run --filter '*'`, which exits non-zero if
+# any workspace fails — verified by mutation-testing a type error into
+# `apps/relay` and a failing assertion into `packages/protocol`, and confirming
+# each turned the whole run red.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to a pull request supersedes the run still testing the old head,
+# so that run is cancelled. Nothing else is ever cancelled or queued: a push to
+# main gets a group of its own through the run id, since a shared group would
+# still let a newer pending run replace an older pending one even with
+# cancel-in-progress off.
+# Cancelling a main run would also cancel publish_aws_images, which needs it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      # --cpu / --os fetch the platform-gated optional dependencies
+      # (@opentui/core native binaries) that packages/client imports.
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --cpu='*' --os='*'
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      # AGENTS.md is prepended to EVERY agent session, so its bytes are paid on
+      # every task forever, and it grows by accretion — one reasonable paragraph
+      # at a time, invisible per-commit. Nothing breaks when it grows, which is
+      # why a gate rather than a convention. Reads the tracked file listing only.
+      - name: Guard the AGENTS.md budget
+        run: bun run validate:agents-md
+
+      # TNP Network must never depend on the optional services layer
+      # (docs/architecture/services.md §2). Checked on parsed imports, with its
+      # own mutation self-test.
+      - name: Guard the services-layer import boundary
+        run: bun run validate:boundaries
+
+      - name: Test
+        run: bun run test
+
+  # Constraints, locks and ON CONFLICT are server behaviour, so these tests run
+  # against a real PostgreSQL. Each test file migrates its own database from
+  # empty and drops it afterwards (apps/api/test-db/harness.ts). The command
+  # fails when TEST_DATABASE_URL is missing rather than skipping.
+  database:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: tnp
+          POSTGRES_PASSWORD: tnp
+          POSTGRES_DB: tnp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tnp"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --cpu='*' --os='*'
+
+      - name: Test against PostgreSQL
+        env:
+          TEST_DATABASE_URL: postgres://tnp:tnp@127.0.0.1:5432/postgres
+        run: bun run test:db
+
+  # Both AWS images consume the monorepo workspace graph. A missing manifest or
+  # source COPY is invisible to TypeScript and unit tests, so both Dockerfiles
+  # are built before either can be published. Relay is deliberately absent: its
+  # security blockers are recorded in docs/architecture/relays.md.
+  docker:
+    name: AWS images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the API image
+        run: docker build -f Dockerfile.api -t tnp-api:ci .
+
+      - name: Build the DNS image
+        run: docker build -f Dockerfile.dns -t tnp-dns:ci .
+
+      - name: Start it against a throwaway PostgreSQL and check it answers
+        run: |
+          set -euo pipefail
+          docker network create tnp-ci
+          docker run -d --name pg --network tnp-ci \
+            -e POSTGRES_USER=tnp -e POSTGRES_PASSWORD=tnp -e POSTGRES_DB=tnp postgres:17
+
+          for i in $(seq 1 30); do
+            docker exec pg pg_isready -U tnp >/dev/null 2>&1 && break
+            [ "$i" -eq 30 ] && { echo "::error::Postgres never became ready"; exit 1; }
+            sleep 1
+          done
+
+          # The image runs its own migrations at startup, so this also proves the
+          # migration files in drizzle/ actually apply to an empty database —
+          # a schema that only exists in TypeScript would pass every unit test.
+          docker run -d --name api --network tnp-ci -p 8080:8080 \
+            -e DATABASE_URL=postgres://tnp:tnp@pg:5432/tnp \
+            -e TNP_PARKING_IP=203.0.113.10 \
+            tnp-api:ci
+
+          # A container that starts and then dies looks identical to one that is
+          # still booting, so poll for a real answer rather than sleeping.
+          for i in $(seq 1 30); do
+            if curl -fsS -m 3 http://127.0.0.1:8080/health >/dev/null 2>&1; then
+              echo "API answered after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "::error::API did not answer /health within 30s"
+              docker logs api
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # Liveness alone proves the process is up. Readiness proves the image
+          # reaches its database: /health/ready runs `select 1` and answers 503
+          # when it cannot, so a 200 here is the pool, not the event loop.
+          for i in $(seq 1 30); do
+            code=$(curl -sS -m 5 -o /tmp/ready.json -w '%{http_code}' http://127.0.0.1:8080/health/ready || true)
+            if [ "$code" = "200" ]; then
+              echo "API ready after ${i}s: $(cat /tmp/ready.json)"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "::error::API never reported ready (last status: ${code})"
+              docker logs api
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # The namespace policy has to hold in the built image, not only in the
+          # test suite: a reserved TLD must not appear in the table clients cache.
+          tlds=$(curl -fsS -m 5 http://127.0.0.1:8080/dns/tlds)
+          echo "policy table: $tlds"
+          if printf '%s' "$tlds" | grep -qE '"(com|app|net|org|dev)"'; then
+            echo "::error::A reserved TLD is being published to clients"
+            exit 1
+          fi
+          # And the seed ran, so an empty table cannot pass the check above by
+          # containing nothing at all.
+          if ! printf '%s' "$tlds" | grep -q '"ox"'; then
+            echo "::error::The policy table is missing .ox — the seed did not run"
+            docker logs api
+            exit 1
+          fi
+
+          # The image above started with no TNP_SERVICES_* flag, no provider
+          # account and no Namecheap variable. The network answered, and the
+          # services layer must report itself off and unpurchasable.
+          status=$(curl -fsS -m 5 http://127.0.0.1:8080/services/status)
+          echo "services: $status"
+          if ! printf '%s' "$status" | grep -q '"catalog":false'; then
+            echo "::error::The services catalog is on without being enabled"
+            exit 1
+          fi
+          if ! printf '%s' "$status" | grep -q '"purchasable":false'; then
+            echo "::error::Something is purchasable without an approved payment mechanism"
+            exit 1
+          fi
+
+          # Without TNP_SERVICES_WORKER the worker must refuse to run rather
+          # than start polling providers.
+          worker=$(docker run --rm --network tnp-ci \
+            -e DATABASE_URL=postgres://tnp:tnp@pg:5432/tnp \
+            tnp-api:ci bun apps/api/src/workers/commerce.ts)
+          echo "worker: $worker"
+          if ! printf '%s' "$worker" | grep -q '"event":"worker.disabled"'; then
+            echo "::error::The services worker did not stay disabled with every flag off"
+            exit 1
+          fi
+
+  # Publish only after EVERY gate passes, on a push to main. The reusable workflow
+  # only writes immutable API/DNS images; it cannot roll out or scale ECS.
+  publish_aws_images:
+    needs: [verify, database, docker]
+    if: >-
+      ${{ vars.OXY_1519_ROLLOUT_HOLD != 'true' && (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    uses: ./.github/workflows/deploy-aws.yml
+    permissions:
+      id-token: write
+      contents: read

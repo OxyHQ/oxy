@@ -1,0 +1,434 @@
+# GoWay CI.
+#
+# Every job here is a PRECONDITION of the deploy, not a parallel opinion about
+# it. `deploy-aws.yml` is called from THIS file (see the `deploy` job at the
+# bottom) rather than triggering on its own `push`, because a deploy workflow
+# with its own `on: push` has no dependency on CI at all: the two start in
+# parallel on the same commit, a build-and-push is faster than a test suite, and
+# the deploy always wins. Measured on OxyHQ/oxy — a merge deployed to production
+# while that same commit's tests were still `in_progress`. Every pull request
+# genuinely feels protected; the only unprotected path is the one that starts
+# after the merge button.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # PULL REQUESTS CANCEL; MAIN NEVER DOES, and the second half is a deploy
+  # invariant rather than a CI preference. The `deploy` job below is `needs:` the
+  # test jobs, so cancelling a main run cancels the deploy with it — and two
+  # merges landing inside one CI runtime would mean the FIRST one never deployed
+  # at all, with nothing red anywhere. That is self-healing right up until the
+  # cancelling commit's own CI fails, or it is the last merge for a while.
+  #
+  # An EXPRESSION, and the two ways of getting it wrong are NOT symmetric. A
+  # mistype that evaluates falsy disables cancelling everywhere: slower pull
+  # request CI, main still protected — safe. A mistype in the BRANCH NAME
+  # (`refs/heads/mian`) evaluates TRUE on main and silently restores the defect.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # The PostGIS image, pinned on BOTH versions and identical to
+  # docker-compose.postgres.yml. CI and a developer's machine must not be able
+  # to disagree about the version under test: a floating PostGIS minor is a
+  # floating set of function VOLATILITIES, and a generated `geography` column
+  # needs `ST_MakePoint` to stay IMMUTABLE.
+  POSTGIS_IMAGE: postgis/postgis:17-3.5
+  # The service container publishes 5432 on the runner; `docker-compose` maps
+  # 5440 locally. The URL is stated here once so the test jobs cannot drift.
+  DATABASE_URL: postgres://goway:goway@127.0.0.1:5432/goway_test
+
+jobs:
+  quality:
+    name: Build, typecheck and lint
+    runs-on: ubuntu-latest
+    # Generous on purpose. A suite consuming most of its budget on a GOOD run
+    # has no headroom, so ordinary runner contention flips it to a timeout —
+    # which GitHub reports as `cancelled`, indistinguishable from a supersession
+    # without doing arithmetic on the job's own timestamps.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          # NOT a literal version. `packageManager: "bun@x.y.z"` in package.json
+          # is the same string the Dockerfile's `FROM oven/bun:<ver>` and
+          # check-lockfile-sync.mjs read, so CI, the image and the lockfile gate
+          # cannot disagree about which bun wrote bun.lock.
+          bun-version-file: package.json
+      - name: Install exact dependency graph
+        # --ignore-scripts because the root postinstall builds shared-types and
+        # the SDK; both are built explicitly below, in dependency order.
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Verify Oxy dependency health
+        run: bun run doctor:oxy
+      - name: Build shared contracts
+        # Every other package imports @goway/shared-types by NAME, which resolves
+        # to its built dist/. A warm local tree hides this; a clean checkout does
+        # not.
+        run: bun run build:shared-types
+
+      - name: Build the SDK
+        # BEFORE typecheck, not after. packages/frontend imports @goway.to/sdk by
+        # NAME, which resolves through the workspace link to packages/sdk/dist —
+        # a gitignored build artifact. On a developer's machine the root
+        # postinstall has already produced it, so the dependency is invisible;
+        # in CI `--ignore-scripts` means nothing has, and typecheck fails with
+        # TS2307 on every importing file. Ordering matters here: the SDK bundles
+        # @goway/shared-types, so it must build after it.
+        run: bun run build:sdk
+
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Lint
+        run: bun run lint
+
+      - name: Validate the map style documents
+        # A broken MapLibre style document fails SILENTLY — a wrong
+        # `source-layer` renders nothing, a fontstack the glyph server does not
+        # serve renders no text, a moved layer id breaks an overlay's
+        # `beforeId` — and none of those crash, log, or fail a render. Nothing
+        # above this line can see any of it: the style is data, not code, so
+        # typecheck and lint both pass straight over a map that has stopped
+        # drawing roads.
+        #
+        # This step validates `public/map/goway-{light,dark}.json` against the
+        # real MapLibre style spec, asserts every source-layer and text-font
+        # exists, asserts the documented layer-id contract, asserts light and
+        # dark stay in step, and fails if the committed JSON has drifted from
+        # `packages/frontend/lib/map/style/`. Offline on purpose: `--online`
+        # additionally re-reads OpenFreeMap's TileJSON, which is a third-party
+        # endpoint and has no business deciding whether a pull request is green.
+        run: bun run --cwd packages/frontend map:style:check
+
+      - name: Validate the generated glyphs and sprite
+        # The style document names `/map/fonts/{fontstack}/{range}.pbf` and
+        # `/map/sprites/goway`, and both are GENERATED, COMMITTED artefacts.
+        # Drift between the generator and the committed bytes is the same class
+        # of silent failure the style check exists for, one layer down: a
+        # fontstack renamed in `schema.ts` without a regeneration is a 404 on
+        # every glyph range, which renders a map with no labels at all and logs
+        # nothing a CI job can see.
+        #
+        # Both scripts are deterministic by construction, so `--check` is a
+        # byte comparison and not an approximation.
+        #
+        # The glyph check also asserts COMPLETENESS, which is the other silent
+        # failure: the Worker chooses between a committed range and the upstream
+        # Noto proxy on whether the asset EXISTS, so a range file that exists and
+        # is short is not a partial answer — it is the whole answer, and the
+        # fallback can never fire for it. Every published range is measured
+        # against `scripts/mapgen/fixtures/fallback/coverage.json` and the build
+        # fails on one with a hole in it.
+        run: |
+          bun run --cwd packages/frontend map:glyphs:check
+          bun run --cwd packages/frontend map:sprite:check
+
+      - name: Validate the brand assets
+        # `public/brand/*.svg` is GoWay's logo as files — the favicon, and the
+        # copy a partner embedding `/frame` will put in their own page. The app
+        # itself never loads them: it draws the logo from
+        # `components/brand/artwork.ts`, which means the files and the product
+        # are two copies of one drawing and nothing but this step notices when
+        # they stop matching. The failure is silent and slow — the mark on the
+        # website quietly stops being the mark in the app, and somebody spots it
+        # a release later with the two side by side.
+        #
+        # A byte comparison of the whole document, so a changed viewBox, colour
+        # or label fails it as surely as changed geometry does.
+        run: bun run --cwd packages/frontend brand:check
+
+      - name: Test the frontend's pure modules
+        # These suites EXISTED before this step did and nothing ran them —
+        # `bun run test` covered the backend and the SDK only, so
+        # `components/map/__tests__/nanCoordinates.test.ts` (the net under the
+        # crash that once replaced goway.to with its error boundary) was dead
+        # weight in the repository for as long as it had been there.
+        #
+        # Everything here is a pure module: coordinate validation, the embed
+        # parameter parser, and the map Worker's routing. No renderer, no
+        # native module, no Expo runtime — so it needs none of the setup a
+        # component test would, and it takes well under a second.
+        #
+        # `worker/index.js` is the one that could not be checked any other way.
+        # `tsc` does not read it, `expo export` does not bundle it, and its
+        # first execution would otherwise be in production.
+        run: bun run test:frontend
+
+      # The SDK is checked HERE rather than in the `test` job because it needs
+      # no database — it is a headless client tested against an injected fake
+      # `fetch`. `smoke` is the step that matters most: it packs a real tarball
+      # and imports it under Node ESM, Node CJS, Bun, a browser bundle and a
+      # react-native bundle. A published SDK whose `exports` targets do not
+      # exist is a failure no typecheck can see, and the ecosystem has shipped
+      # exactly that before (@oxyhq/services@30.0.0, `lib/` empty, 26 of 33
+      # exports targets pointing at nothing — `npm publish <tarball>` runs zero
+      # lifecycle scripts, so nothing was there to catch it).
+      - name: Test the SDK
+        run: bun run test:sdk
+
+      - name: Smoke-test the published SDK tarball
+        # The build already ran above; this packs what it produced.
+        run: bun run smoke:sdk
+
+  gates:
+    name: Repository gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - name: Install exact dependency graph
+        # check-migration-phases.mjs imports `readMigrationPhases` from
+        # `@oxy.so/db/migrate` rather than carrying a second copy of the marker
+        # regex, so it needs node_modules. That import is the point: a gate and a
+        # migrator with separate copies of the rule eventually disagree, and the
+        # disagreement surfaces as a migration that passes CI and refuses to
+        # apply.
+        run: bun install --frozen-lockfile --ignore-scripts
+      # Each gate's own fixture tests run BEFORE the gate itself, and that order
+      # is the point. GoWay has zero migrations today, so both migration gates
+      # scan an empty folder on this tree and cannot tell a clean result from a
+      # traversal that stopped working. The fixture runs are what prove they can
+      # fail at all; without them the two steps below would be decoration.
+      - name: Prove the migration gates can fail
+        run: bun run test:gates
+      - name: Verify AGENTS.md byte budget
+        run: bun run validate:agents-md
+      - name: Verify migration deploy phases and parameters
+        run: bun run check:migrations
+
+      # A workspace member missing from the backend Dockerfile only fails
+      # inside a container build — the most expensive place to learn it,
+      # and one no developer machine exercises. packages/sdk was absent for
+      # five merges and stayed invisible because the deploy job never got
+      # as far as the image build.
+      - name: Verify the Dockerfile copies every workspace manifest
+        run: bun run check:dockerfile
+
+  lockfile:
+    name: Lockfile sync
+    runs-on: ubuntu-latest
+    # Its own job, and it CANNOT be folded into `quality`. The gate needs a plain
+    # `bun install` to see what the lockfile would become, and `quality` installs
+    # with `--frozen-lockfile`; the two cannot share a checkout. (Nor can
+    # `--frozen-lockfile` be the gate: measured on bun, it exits 0 on a workspace
+    # version bumped without regenerating the lockfile.) The install per fixture
+    # is why the budget is larger than the work looks.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - name: Prove the lockfile gate can fail
+        run: bun run test:gates:lockfile
+      - name: Verify bun.lock was committed with its manifest change
+        run: bun run check:lockfile
+
+  test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    # x86 REQUIRED, and not a preference. ARM runners (`ubuntu-*-arm`) have no
+    # service containers at all, and `postgis/postgis` publishes no arm64 image —
+    # either one alone makes the `services:` block below impossible.
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        # The SAME tag docker-compose.postgres.yml pins. `env.POSTGIS_IMAGE`
+        # cannot be used here — GitHub does not evaluate `env` in a `services`
+        # image — so the string is repeated and the `image-pin` step below
+        # asserts the two still match rather than trusting a comment to keep
+        # them in step.
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: goway
+          POSTGRES_PASSWORD: goway
+          POSTGRES_DB: goway_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U goway -d goway_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - name: Assert the service container and docker-compose pin the same image
+        # A comment saying "keep these in sync" is not a gate. This compares the
+        # tag this job actually started against the one a developer runs, and
+        # fails if they diverge — the divergence being a PostGIS version whose
+        # function volatilities differ from the ones the migrations were
+        # generated against.
+        run: |
+          set -euo pipefail
+          compose_image=$(grep -oE 'postgis/postgis:[0-9]+-[0-9.]+' docker-compose.postgres.yml | head -1)
+          workflow_image=$(grep -oE 'postgis/postgis:[0-9]+-[0-9.]+' .github/workflows/ci.yml | sort -u)
+          echo "compose:  $compose_image"
+          echo "workflow: $workflow_image"
+          test -n "$compose_image"
+          test "$(printf '%s\n' "$workflow_image" | wc -l)" = "1"
+          test "$compose_image" = "$workflow_image"
+      - name: Install exact dependency graph
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Build shared contracts
+        run: bun run build:shared-types
+      - name: Apply migrations
+        # The migrator, not `drizzle-kit migrate` — the same code path production
+        # runs, including the PostGIS `CREATE EXTENSION` precondition. It is what
+        # proves the image, the extension registry and the migrations agree; the
+        # extension is NOT seeded into a database the image did not create.
+        #
+        # `--target-database` is required on every run, dry runs included: pointed
+        # at the wrong database a migrator finds an empty ledger, applies the whole
+        # journal, logs `Applied N` and exits 0.
+        run: bun run db:migrate --target-database=goway_test
+      - name: Verify PostGIS is installed
+        # A positive control for the step above. With zero migrations to apply,
+        # `runMigrations` short-circuits before `ensureExtensions` — so a green
+        # migrate step is not yet evidence the extension exists, and this reads
+        # it back from the catalogue instead of inferring it.
+        run: |
+          set -euo pipefail
+          PGPASSWORD=goway psql -h 127.0.0.1 -p 5432 -U goway -d goway_test \
+            -v ON_ERROR_STOP=1 -tAc "CREATE EXTENSION IF NOT EXISTS postgis;"
+          version=$(PGPASSWORD=goway psql -h 127.0.0.1 -p 5432 -U goway -d goway_test \
+            -v ON_ERROR_STOP=1 -tAc "SELECT postgis_lib_version();")
+          echo "PostGIS $version"
+          case "$version" in 3.5.*) ;; *) echo "::error::expected PostGIS 3.5.x, got $version"; exit 1 ;; esac
+      - name: Run the backend test suite
+        run: bun run test:backend
+
+  # THE one status check `main` should require. Everything above reports here.
+  #
+  # Requiring the test jobs by NAME in branch protection cannot work: a required
+  # check that never reports blocks the pull request forever, so every required
+  # name would have to be a job that runs on every pull request for all time —
+  # and the list would live in a repository setting nothing in this tree can see,
+  # so a job added later would be required by nothing with no signal in the diff.
+  #
+  # `if: always()` is what makes this reachable when something above it failed,
+  # was cancelled or skipped. Without it this job inherits their skip and — as a
+  # required check reporting `skipped` — is never satisfied.
+  ci-complete:
+    name: CI complete
+    needs: [quality, gates, lockfile, test]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every CI job to have passed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          # Gate on job NAMES, never on counts. "No checks reported" and
+          # "everything passed" are the same `fail=0 pending=0` to a counter, and
+          # a GraphQL 503 during a forge outage reads identically to both.
+          #
+          # Every name is listed here AND in `needs:` above. A job missing from
+          # NEEDS_JSON fails: unknown is not good news.
+          expected="quality gates lockfile test"
+          verdict=0
+          for job in $expected; do
+            result=$(printf '%s' "$NEEDS_JSON" | jq -r --arg j "$job" '.[$j].result // "MISSING"')
+            printf '%-12s %s\n' "$job" "$result"
+            # `cancelled` fails. A cancelled job verified nothing, and
+            # cancellation is common precisely when several pushes race — the
+            # moment this gate matters most. `skipped` fails too: no job above
+            # declares a job-level `if:`, so a skip means somebody disarmed one.
+            if [ "$result" != "success" ]; then verdict=1; fi
+          done
+          # Coverage floor: the `needs` context must hold exactly the jobs named
+          # above. A job added to `needs:` but not to `expected` would otherwise
+          # be silently unchecked.
+          actual=$(printf '%s' "$NEEDS_JSON" | jq -r 'keys | join(" ")')
+          wanted=$(printf '%s\n' $expected | sort | tr '\n' ' ' | sed 's/ $//')
+          if [ "$actual" != "$wanted" ]; then
+            echo "::error::needs holds [$actual] but this gate checks [$wanted]; every job must be in both."
+            verdict=1
+          fi
+          exit $verdict
+
+  # The deploy, as a JOB of this workflow rather than a workflow with its own
+  # trigger. `needs:` is what makes it impossible for the rollout to start before
+  # the suites that gate it have finished.
+  #
+  # `secrets: inherit` because the called workflow assumes an OIDC role and syncs
+  # the runtime secret allowlist to SSM; it declares its own `permissions`.
+  # No `timeout-minutes` here: GitHub does not accept it on a job that calls a
+  # reusable workflow. The budget lives on the called workflow's own job.
+  deploy:
+    name: Deploy
+    needs: [quality, gates, lockfile, test]
+    # GATED ON A REPOSITORY VARIABLE, because the AWS side does not exist yet.
+    #
+    # `deploy-aws.yml` assumes an IAM role `oxy-goway-github-deploy`, an ECR
+    # repository `oxy/goway` and an ECS service, none of which are provisioned.
+    # It therefore failed on the FIRST step — the OIDC credential exchange — on
+    # every one of the first five merges to main, and nobody noticed: the job
+    # runs on `push`, after the merge button, so a green pull request tells you
+    # nothing about it.
+    #
+    # The two obvious fixes are both wrong. Deleting the job loses the wiring
+    # that took a `startup_failure` to get right. `continue-on-error` makes it
+    # green while it fails, which is how a deploy becomes invisible — the exact
+    # defect this file's header argues against for `on: push` deploys.
+    #
+    # A variable is neither: unset, the job is SKIPPED, which is honest about a
+    # deploy that genuinely cannot run, and main stops being red for a reason
+    # unrelated to any diff. Set `AWS_DEPLOY_ENABLED` to `true` once
+    # `terraform-uswest2/app-goway.tf` and `iam-goway-deploy.tf` are applied,
+    # and the job arms itself with no workflow edit. `vars` is used rather than
+    # `secrets` deliberately: the `secrets` context is not available in a
+    # job-level `if`, and this is configuration, not a credential.
+    if: >-
+      ${{ vars.OXY_1519_ROLLOUT_HOLD != 'true' && (github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && vars.AWS_DEPLOY_ENABLED == 'true') }}
+    # A called workflow cannot ELEVATE permissions beyond what the caller grants,
+    # and the workflow-level grant above is `contents: read`. deploy-aws.yml
+    # declares `id-token: write` for the AWS OIDC exchange, so without this job
+    # scope the whole workflow fails VALIDATION — `startup_failure`, with no jobs
+    # and no log, which reads on the pull request as GoWay's CI simply being
+    # absent while the third-party checks go green.
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/deploy-aws.yml
+    secrets: inherit
+
+  # The web app, deployed the same way and for the same reason: a workflow with
+  # its own `push` trigger would race these jobs and win. It is NOT `needs:` the
+  # backend deploy above — the two are independent today, because the exported
+  # bundle runs on the fixture transport in
+  # `packages/frontend/lib/goway/client.ts` and makes no call to `api.goway.to`
+  # at all. Coupling them would mean a red backend rollout leaves `goway.to`
+  # serving a stale build for no reason.
+  #
+  # `contents: read` only: deploy-frontend.yml talks to Cloudflare with an API
+  # token from `secrets`, not to AWS over OIDC, so it needs no `id-token`.
+  deploy-frontend:
+    name: Deploy frontend
+    needs: [quality, gates, lockfile, test]
+    if: >-
+      ${{ vars.OXY_1519_ROLLOUT_HOLD != 'true' && (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-frontend.yml
+    secrets: inherit
