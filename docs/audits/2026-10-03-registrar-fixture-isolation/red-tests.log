@@ -1,0 +1,71 @@
+$ jest --runInBand --testSequencer "/home/nate/Oxy/.agent-evidence/coverage-registrar-fixture-isolation-20261003/ordered-sequencer.cjs" --runTestsByPath src/services/__tests__/foregroundCapabilities.db.test.ts src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts
+{"level":30,"time":1791054966499,"pid":4187029,"hostname":"SuperPC","binaryPath":"/usr/bin/ffmpeg","msg":"[VariantService] Using system ffmpeg"}
+{"level":30,"time":1791054966503,"pid":4187029,"hostname":"SuperPC","binaryPath":"/usr/bin/ffprobe","msg":"[VariantService] Using system ffprobe"}
+{"level":30,"time":1791054966503,"pid":4187029,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","msg":"[VariantService] Resolved FFmpeg path"}
+{"level":30,"time":1791054966503,"pid":4187029,"hostname":"SuperPC","ffprobePath":"/usr/bin/ffprobe","msg":"[VariantService] Resolved FFprobe path"}
+{"level":30,"time":1791054966503,"pid":4187029,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","ffprobePath":"/usr/bin/ffprobe","ffmpegExists":true,"ffprobeExists":true,"msg":"FFmpeg/FFprobe paths initialized"}
+{"level":30,"time":1791054967294,"pid":4187029,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791054967320,"pid":4187029,"hostname":"SuperPC","kid":"dev-ephemeral-33bf5fb5250e","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1791054968274,"pid":4187029,"hostname":"SuperPC","sessionId":"91b91ca9","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791054968962,"pid":4187029,"hostname":"SuperPC","sessionId":"937dcd5d","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791054969172,"pid":4187029,"hostname":"SuperPC","sessionId":"3e03a69d","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791054969776,"pid":4187029,"hostname":"SuperPC","applicationId":"01a10331-f20c-7afc-83f5-43d70d9de1b1","appName":"Foreground 4355507d-0bed-4de8-b7c4-f220f9424876","provider":"aws-iam","attestationId":"wl_456aa1c8e048da11e079becc","attribution":"unchanged","scopes":["user:read","capability-tickets:issue","capabilities:read","catalogs:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791054970742,"pid":4187029,"hostname":"SuperPC","sessionId":"9e591b5b","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791054970742,"pid":4187029,"hostname":"SuperPC","sessionId":"9e591b5b","operatorId":"01a10331-fe7d-7d5c-bc0a-1144a8ef9606","accountId":"01a10331-fe87-780d-bb4d-ff422fc84f1b","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":50,"time":1791054971794,"pid":4187029,"hostname":"SuperPC","path":"/tickets","method":"POST","err":{"type":"Object","message":"synthetic SQL unavailable","stack":"Error: synthetic SQL unavailable\n    at /home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts:351:75\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts:38:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Unexpected error in route handler"}
+{"level":30,"time":1791054971819,"pid":4187029,"hostname":"SuperPC","credentialId":"01a10332-0394-7c37-a682-7a39108fb42f","applicationId":"01a10331-f20c-7afc-83f5-43d70d9de1b1","appName":"Foreground 4355507d-0bed-4de8-b7c4-f220f9424876","expiresIn":300,"msg":"[ServiceToken] Service token issued"}
+PASS src/services/__tests__/foregroundCapabilities.db.test.ts (8.44 s)
+{"level":40,"time":1791054972017,"pid":4187029,"hostname":"SuperPC","apiKey":"[redacted]","msg":"[ServiceToken] Invalid apiKey attempt"}
+{"level":30,"time":1791054972221,"pid":4187029,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts
+  ● applies only the reviewed delta, rejects drift/fences, rolls back partial SQL, and retains audited ephemeral history
+
+    I05 registrar no longer absent
+
+      428 | 				sql`${applications.id} = ${OXY_PROFILE_REGISTRAR_APPLICATION_ID} OR ${applications.capabilities} @> ARRAY['catalog:oxy']::text[]`,
+      429 | 			);
+    > 430 | 		if (registrars.length) throw new Error("I05 registrar no longer absent");
+          | 		                             ^
+      431 | 		const sharedBindings = await tx
+      432 | 			.select({ id: applicationWorkloadIdentities.id })
+      433 | 			.from(applicationWorkloadIdentities)
+
+      at src/scripts/foregroundPilotConfiguration.ts:430:32
+      at fulfilled (src/scripts/foregroundPilotConfiguration.ts:5:58)
+
+  ● restores a baseline with preexisting application grants and backend scope present=false
+
+    I05 registrar no longer absent
+
+      428 | 				sql`${applications.id} = ${OXY_PROFILE_REGISTRAR_APPLICATION_ID} OR ${applications.capabilities} @> ARRAY['catalog:oxy']::text[]`,
+      429 | 			);
+    > 430 | 		if (registrars.length) throw new Error("I05 registrar no longer absent");
+          | 		                             ^
+      431 | 		const sharedBindings = await tx
+      432 | 			.select({ id: applicationWorkloadIdentities.id })
+      433 | 			.from(applicationWorkloadIdentities)
+
+      at src/scripts/foregroundPilotConfiguration.ts:430:32
+      at fulfilled (src/scripts/foregroundPilotConfiguration.ts:5:58)
+
+  ● restores a baseline with preexisting application grants and backend scope present=true
+
+    I05 registrar no longer absent
+
+      428 | 				sql`${applications.id} = ${OXY_PROFILE_REGISTRAR_APPLICATION_ID} OR ${applications.capabilities} @> ARRAY['catalog:oxy']::text[]`,
+      429 | 			);
+    > 430 | 		if (registrars.length) throw new Error("I05 registrar no longer absent");
+          | 		                             ^
+      431 | 		const sharedBindings = await tx
+      432 | 			.select({ id: applicationWorkloadIdentities.id })
+      433 | 			.from(applicationWorkloadIdentities)
+
+      at src/scripts/foregroundPilotConfiguration.ts:430:32
+      at fulfilled (src/scripts/foregroundPilotConfiguration.ts:5:58)
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       3 failed, 23 passed, 26 total
+Snapshots:   0 total
+Time:        9.02 s
+Ran all test suites within paths "src/services/__tests__/foregroundCapabilities.db.test.ts", "src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts".
+error: script "test" exited with code 1

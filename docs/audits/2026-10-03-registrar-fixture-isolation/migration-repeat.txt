@@ -1,0 +1,2 @@
+$ bun run src/db/migrate.ts --phase=all
+{"level":30,"time":1791055026357,"pid":4187808,"hostname":"SuperPC","msg":"No migrations to apply (phase=all, journal entries=142)"}

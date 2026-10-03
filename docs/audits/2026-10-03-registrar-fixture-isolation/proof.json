@@ -1,0 +1,131 @@
+{
+  "sourceHead": "8a646ebd90639f61bf36c3ffd0aaaec21586ae52",
+  "recordedAtUTC": "2026-10-03T19:19:40.273762+00:00",
+  "baseline": "20013421a4cc07545a7685931db68f4ee55f1773",
+  "ciFailure": {
+    "run": 37146494447,
+    "job": 111271455309,
+    "failures": 3,
+    "passing": 1354,
+    "failedSuite": "foregroundPilotConfiguration.db.test.ts"
+  },
+  "reproduction": {
+    "sameImmutableRunnerAndSequencer": true,
+    "orderedSuites": [
+      "foregroundCapabilities.db.test.ts",
+      "foregroundPilotConfiguration.db.test.ts"
+    ],
+    "RED": {
+      "suitesPassing": 1,
+      "suitesFailing": 1,
+      "testsPassing": 23,
+      "testsFailing": 3,
+      "error": "I05 registrar no longer absent"
+    },
+    "GREEN": {
+      "suitesPassing": 2,
+      "testsPassing": 26,
+      "exitCode": 0
+    },
+    "compiledNodeControls": 3,
+    "migrationCountFreshAndRepeat": 142,
+    "productionAccess": false
+  },
+  "inputs": [
+    {
+      "file": "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts",
+      "sha256": "a7b7e50ff18fd34669b2219b2838e3907ea2f2e8de6cfcdca522b97f8566817f",
+      "gitObject": "e15bdc23a6d2955198b7874bc3995f2d48687964"
+    },
+    {
+      "file": "packages/api/src/scripts/foregroundPilotConfiguration.ts",
+      "sha256": "42ac6c78d5cdd1fc5454cb5d2da835aa9f2d140c280021e75727ff313a1d03ba",
+      "gitObject": "b7c221d4ff512e1a9691466aab475339a55e2328"
+    },
+    {
+      "file": "packages/api/src/db/testDatabase.ts",
+      "sha256": "bbf0dc820ed53d601e26b05f5c9e2f458e69ff75f1363c7d044d0c0edcad35d1",
+      "gitObject": "d95a608135cf88860880ebaeb2ac6cf69b1e9629"
+    },
+    {
+      "file": "packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts",
+      "sha256": "8424ef0b5a1ab3fbd9577c7b02cedc7d4f2bcf9bb9febf25ccb85b71bda2b3a6",
+      "gitObject": "17d36641b744e017bb767dc111dc43a48c2ecf8d"
+    },
+    {
+      "file": "packages/api/src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts",
+      "sha256": "de6fedcad0e9873aea3b6b0f4c9f1d3f7be69188066aa0eed2a741ca52356c21",
+      "gitObject": "c51ee1596e191d83d342a9fce13052d9f4d3814c"
+    }
+  ],
+  "records": [
+    {
+      "file": "fixture-red.ts",
+      "sha256": "e89910d779f184daa95b9e19a1bdcba053d5b99d97862062f740104c3f04d5f8"
+    },
+    {
+      "file": "run.py",
+      "sha256": "7794ffa186befed8933efd22bb087e0b12928f83b812673bab099e509e597b7c"
+    },
+    {
+      "file": "ordered-sequencer.cjs",
+      "sha256": "b5b6117f9ad43cad35eb0391f1bc5dd56ae0693d73e294d402120daac4f56549"
+    },
+    {
+      "file": "red-launcher.log",
+      "sha256": "748b675726f5f083a73a275e947c05ac764175172f8aef5303c0876743f5e486"
+    },
+    {
+      "file": "red-tests.log",
+      "sha256": "5c6d48e6e5ce0c81144e19fc786d4e44af05bac9bfd64678e595a5e76d341a95"
+    },
+    {
+      "file": "green-launcher.log",
+      "sha256": "bcc8294302a2e84cbca827b2edad47d1b3cc664c71aad6510c59a4e14b3e8904"
+    },
+    {
+      "file": "green-tests.log",
+      "sha256": "35fcff15aaee2f25ac4c93322f6ef67ac3bd307af745be8b722765e9f50d1a43"
+    },
+    {
+      "file": "compiled-node.log",
+      "sha256": "c9f482c461c048a69e9c7cc7b7acabb63012bda52ad081d109084cd07b0e4977"
+    },
+    {
+      "file": "migration-fresh.txt",
+      "sha256": "747544a24b29e1a3350dc46c5b6afdf317ee59ab5dcf022952670f0e130a37f5"
+    },
+    {
+      "file": "migration-repeat.txt",
+      "sha256": "6a8512dd4f297d100bb406427c25af6ef0445ab8fc29cc68bea618ee85ffb8e5"
+    },
+    {
+      "file": "biome.log",
+      "sha256": "2b26fa3a48252b11eee60e99cba79f7c846f66a9fdb58aed18d68a2b108fa01c"
+    }
+  ],
+  "ownedPostgres": [
+    {
+      "phase": "red",
+      "pid": 4186959,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/fx1/oxy-i05-configuration-_rojukw5/pg1519-1db5pt5s/data",
+      "pidAbsent": true,
+      "postmasterAbsent": true,
+      "testExitCode": 1
+    },
+    {
+      "phase": "green",
+      "pid": 4187728,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/fx1/oxy-i05-configuration-0u54ycvv/pg1519-s8v18om_/data",
+      "pidAbsent": true,
+      "postmasterAbsent": true,
+      "testExitCode": 0
+    }
+  ],
+  "limits": [
+    "Global production inventory and all assertions unchanged; fixture owns its normally migrated test database.",
+    "Real SQL/JWT/HTTP capability suite runs before configuration in one worker; original contaminated worker database is not filtered or cleared.",
+    "CI200134 and ARM200134 remain historical; final complete CI and new image/policy gate required.",
+    "No repeated package builds or Android acceptance attributed to this fixture-only change."
+  ]
+}
