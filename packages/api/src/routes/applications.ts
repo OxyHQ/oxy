@@ -639,7 +639,8 @@ async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess
 
   const accountAccess = await accountService.resolveEffectiveAccess(
     operatorId,
-    application.ownerAccountId
+    application.ownerAccountId,
+    req.sessionId
   );
   if (!accountAccess) {
     throw new ForbiddenError('You do not have access to this application');
@@ -697,7 +698,7 @@ router.get(
     >();
 
     if (ownerAccountIdFilter !== undefined) {
-      const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountIdFilter);
+      const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountIdFilter, req.sessionId);
       if (!access) {
         throw new ForbiddenError('You do not have access to this account');
       }
@@ -787,7 +788,7 @@ router.post(
     // which is what switching into it is for.
     const ownerAccountId = body.ownerAccountId ?? subjectId;
 
-    const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountId);
+    const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountId, req.sessionId);
     if (!access) {
       throw new ForbiddenError('You do not have access to the owning account');
     }

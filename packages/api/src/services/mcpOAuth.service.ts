@@ -17,7 +17,7 @@ import type {
   McpOAuthConsentResponse,
   PublicApplicationResponse,
 } from '@oxy.so/contracts';
-import { getDb, type DatabaseOrTransaction } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import {
   mcpOauthAccessTokens,
@@ -31,6 +31,7 @@ import {
 import { applications } from '../db/schema/applications';
 import { users } from '../db/schema/users';
 import accountService from './account.service';
+import { readLiveAgentKey, lockLiveAgentKeyForAuthorization, type AgentKeyBinding } from './agentKeyAuthority.service';
 import { listActiveCapabilityCatalogs } from './capabilityCatalog.service';
 import {
   resolveMcpConnectionState,
@@ -202,9 +203,40 @@ function assertScopesAllowed(requested: readonly string[], descriptor: McpResour
   }
 }
 
-export async function grantAccountAuthorityHolds(grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'>): Promise<boolean> {
+export async function grantAccountAuthorityHolds(grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'>
+  & Partial<Pick<McpOauthGrantRow, 'authMethodId'>>): Promise<boolean> {
+  if (grant.authMethodId) {
+    if (!await readLiveAgentKey({ authMethodId: grant.authMethodId, authMethodOwnerId: grant.principalUserId })) return false;
+    if (grant.principalUserId === grant.effectiveAccountId) return true;
+  } else {
+    const [actor] = await getDb().select({ kind: users.kind }).from(users).where(eq(users.id, grant.principalUserId));
+    if (!actor || actor.kind === 'bot') return false;
+  }
   const access = await accountService.resolveEffectiveAccess(grant.principalUserId, grant.effectiveAccountId);
   return access?.permissions.includes('account:act_as') ?? false;
+}
+
+/** Serialize approval with agent revocation; another key always creates a new grant. */
+export async function reusableMcpGrant(tx: Transaction, input: {
+  principalUserId: string; effectiveAccountId: string; clientRecordId: string; resource: string;
+  authMethod?: AgentKeyBinding;
+}, now: Date): Promise<McpOauthGrantRow | undefined> {
+  if (input.authMethod) await lockLiveAgentKeyForAuthorization(tx, input.authMethod, input.principalUserId);
+  else {
+    const [actor] = await tx.select({ kind: users.kind }).from(users).where(eq(users.id, input.principalUserId));
+    if (!actor || actor.kind === 'bot') throw new McpOAuthError('access_denied', 'Agent proof is required', 403);
+  }
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`mcp-grant:${input.principalUserId}:${input.effectiveAccountId}:${input.clientRecordId}:${input.resource}`}, 0))`);
+  const [existing] = await tx.select().from(mcpOauthGrants).where(and(
+    eq(mcpOauthGrants.principalUserId, input.principalUserId), eq(mcpOauthGrants.effectiveAccountId, input.effectiveAccountId),
+    eq(mcpOauthGrants.clientRecordId, input.clientRecordId), eq(mcpOauthGrants.resource, input.resource), isNull(mcpOauthGrants.revokedAt),
+  )).limit(1);
+  if (existing && existing.authMethodId !== (input.authMethod?.authMethodId ?? null)) {
+    await tx.update(mcpOauthGrants).set({ revokedAt: now, updatedAt: now }).where(eq(mcpOauthGrants.id, existing.id));
+    await revokeMcpConnectionMemberships(tx, existing.id, now);
+    return undefined;
+  }
+  return existing;
 }
 
 const currentAccountAuthority = grantAccountAuthorityHolds;
@@ -262,6 +294,7 @@ export async function registerMcpClient(input: {
 }
 
 export async function mcpConsentRequired(input: {
+  authMethod?: AgentKeyBinding;
   principalUserId: string;
   effectiveAccountId: string;
   client: McpOauthClientRow;
@@ -270,7 +303,7 @@ export async function mcpConsentRequired(input: {
 }): Promise<boolean> {
   assertScopesAllowed(input.scopes, input.descriptor);
   const [grant] = await getDb()
-    .select({ scopes: mcpOauthGrants.scopes })
+    .select({ scopes: mcpOauthGrants.scopes, authMethodId: mcpOauthGrants.authMethodId })
     .from(mcpOauthGrants)
     .where(and(
       eq(mcpOauthGrants.principalUserId, input.principalUserId),
@@ -280,12 +313,13 @@ export async function mcpConsentRequired(input: {
       isNull(mcpOauthGrants.revokedAt),
     ))
     .limit(1);
-  if (!grant) return true;
+  if (!grant || grant.authMethodId !== (input.authMethod?.authMethodId ?? null)) return true;
   const granted = new Set(grant.scopes);
   return input.scopes.some((scope) => !granted.has(scope));
 }
 
 export async function mcpConsentDetails(input: {
+  authMethod?: AgentKeyBinding;
   principalUserId: string;
   effectiveAccountId: string;
   client: McpOauthClientRow;
@@ -296,6 +330,7 @@ export async function mcpConsentDetails(input: {
   if (!await currentAccountAuthority({
     principalUserId: input.principalUserId,
     effectiveAccountId: input.effectiveAccountId,
+    authMethodId: input.authMethod?.authMethodId,
   })) {
     throw new McpOAuthError('access_denied', 'The approving user can no longer operate this account', 403);
   }
@@ -354,6 +389,7 @@ export async function mcpConsentDetails(input: {
 }
 
 export async function authorizeMcpConnection(input: {
+  authMethod?: AgentKeyBinding;
   principalUserId: string;
   effectiveAccountId: string;
   client: McpOauthClientRow;
@@ -369,6 +405,7 @@ export async function authorizeMcpConnection(input: {
   if (!await currentAccountAuthority({
     principalUserId: input.principalUserId,
     effectiveAccountId: input.effectiveAccountId,
+    authMethodId: input.authMethod?.authMethodId,
   })) {
     throw new McpOAuthError('access_denied', 'The approving user can no longer operate this account', 403);
   }
@@ -377,22 +414,9 @@ export async function authorizeMcpConnection(input: {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + MCP_AUTHORIZATION_CODE_TTL_SECONDS * 1_000);
   await getDb().transaction(async (tx) => {
-    await tx.execute(
-      // Serializes two approvals for the same connection without widening the
-      // lock to any other client/account/resource tuple.
-      sql`select pg_advisory_xact_lock(hashtextextended(${`mcp-grant:${input.principalUserId}:${input.effectiveAccountId}:${input.client.id}:${input.descriptor.resource}`}, 0))`,
-    );
-    const [existing] = await tx
-      .select()
-      .from(mcpOauthGrants)
-      .where(and(
-        eq(mcpOauthGrants.principalUserId, input.principalUserId),
-        eq(mcpOauthGrants.effectiveAccountId, input.effectiveAccountId),
-        eq(mcpOauthGrants.clientRecordId, input.client.id),
-        eq(mcpOauthGrants.resource, input.descriptor.resource),
-        isNull(mcpOauthGrants.revokedAt),
-      ))
-      .limit(1);
+    const existing = await reusableMcpGrant(tx, { principalUserId: input.principalUserId,
+      effectiveAccountId: input.effectiveAccountId, clientRecordId: input.client.id,
+      resource: input.descriptor.resource, authMethod: input.authMethod }, now);
     const scopes = normalizeMcpScopes([...(existing?.scopes ?? []), ...input.scopes]);
     const grant = existing
       ? (await tx.update(mcpOauthGrants).set({
@@ -404,6 +428,7 @@ export async function authorizeMcpConnection(input: {
         }).where(eq(mcpOauthGrants.id, existing.id)).returning())[0]
       : (await tx.insert(mcpOauthGrants).values({
           principalUserId: input.principalUserId,
+          authMethodId: input.authMethod?.authMethodId ?? null,
           effectiveAccountId: input.effectiveAccountId,
           clientRecordId: input.client.id,
           appSlug: input.descriptor.appSlug,

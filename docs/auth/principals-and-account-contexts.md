@@ -23,11 +23,11 @@ and never follows the account switcher.
 
 ### Principal
 
-A human who has authenticated onto one device or browser profile.
-
-Never an organization, project, channel or bot. `authuser` — the Google-style
-signed-in-human slot number — belongs to the principal: adding an organization
-never consumes one.
+An authenticated account that owns the proof for a device context: a personal
+account, or an autonomous bot with a live `agent_key` ([ADR 0032](../adr/0032-autonomous-account-agent-keys.md)).
+Organizations, projects and channels remain effective subjects, not independent
+sign-in principals. `authuser` names a principal slot; adding a delegated
+organization never consumes one. A bot key is not a Commons identity root.
 
 ### Account
 
@@ -72,11 +72,13 @@ each with its own predicate in `@oxy.so/contracts`:
 | May someone act as it on their own authority? | yes, recorded with that person as actor | `isDelegatedActAsEligibleKind` |
 | Who is the actor when nobody operates it? | the bot itself — never its owner | `accountKindActorNature` → `'agent'` |
 
-A bot is still not a **principal**: principals are humans on a device. What a
-bot acting unoperated authenticates with is an open decision recorded on
-#1520 — until it is made, a bot acts through a delegated session (actor = the
-person) or through the agent runtime's execution authorization (ADR 0018,
-actor = the bot).
+A bot with a live registered agent key authenticates as its own principal with
+an ordinary session. Its key provenance follows it into delegated organization
+contexts and OAuth AppBound sessions. A bare bot id proves no authority; a
+revoked key, archived bot or closure fence denies validation. Current owner/admin
+government remains separate from self operational permissions. See
+[ADR 0032](../adr/0032-autonomous-account-agent-keys.md) for enrollment, recovery,
+rotation and persistent MCP/automation provenance.
 
 ## Who acted: the actor chain
 

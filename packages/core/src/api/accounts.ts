@@ -18,7 +18,7 @@
  * so a switch propagates through reload and cross-domain exactly like a login.
  */
 import { agentKeyOperationSchema, executeAgentKeyOperationSchema, agentKeyOperationChallengeSchema,
-  agentKeyOperationResultSchema, type AgentKeyOperation, type AgentKeyOperationProof } from '@oxy.so/contracts';
+  agentKeyOperationResultSchema, agentKeyListResponseSchema, type AgentKeyOperation, type AgentKeyOperationProof } from '@oxy.so/contracts';
 import type { User } from '../models/interfaces';
 import type { AccountCategoryId, AccountKind, ChildAccountKind } from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../models/session';
@@ -418,6 +418,9 @@ export class AccountMembersApi {
 /** Current account governors and autonomous rotation use action-bound proofs. */
 export class AccountAgentKeysApi {
   constructor(private readonly ctx: OxyContext) {}
+  async list(accountId: string) {
+    return agentKeyListResponseSchema.parse(await this.ctx.request<unknown>('GET', `/accounts/${enc(accountId)}/agent-keys`, undefined, { cache: false }));
+  }
   async requestChallenge(accountId: string, operation: AgentKeyOperation) {
     const response = await this.ctx.request<unknown>('POST', `/accounts/${enc(accountId)}/agent-keys/challenge`,
       agentKeyOperationSchema.parse(operation), { cache: false });

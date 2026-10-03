@@ -110,11 +110,12 @@ router.post(
 
       const session = await sessionService.validateSession(token).catch(() => null);
       const identity = session?.token;
-      if (!identity?.applicationId) return response.json(inactive());
+      if (!session || !identity?.applicationId) return response.json(inactive());
       const operatorId = identity.principalUserId;
       const access = await accountService.resolveEffectiveAccess(
         operatorId,
-        identity.subjectAccountId
+        identity.subjectAccountId,
+        session.session.sessionId
       );
       return response.json({
         active: true,

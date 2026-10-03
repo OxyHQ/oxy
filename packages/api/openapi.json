@@ -944,6 +944,516 @@
         "operationId": "deleteAccountsId"
       }
     },
+    "/accounts/{id}/agent-keys": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List public runtime-key metadata for the autonomous account or its current governors.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/agentKeys.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/agentKeys.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getAccountsIdAgentKeys"
+      }
+    },
+    "/accounts/{id}/agent-keys/challenge": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Request a single-use, action- and payload-bound credential-governance challenge.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/agentKeys.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/agentKeys.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "enroll"
+                        ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 130
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "publicKey",
+                      "label"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "recover"
+                        ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 130
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "publicKey",
+                      "label"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "rotate"
+                        ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 130
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "retireCurrent": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "publicKey",
+                      "label"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "revoke"
+                        ]
+                      },
+                      "methodId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "methodId"
+                    ]
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "operation"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postAccountsIdAgentKeysChallenge"
+      }
+    },
+    "/accounts/{id}/agent-keys/execute": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Apply enrollment, rotation, revocation or recovery atomically with fresh proof.",
+        "description": "Current owner/admin governance is rechecked; autonomous rotation proves old and new keys.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/agentKeys.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "enroll"
+                            ]
+                          },
+                          "publicKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 130
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "publicKey",
+                          "label"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "recover"
+                            ]
+                          },
+                          "publicKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 130
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "publicKey",
+                          "label"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "rotate"
+                            ]
+                          },
+                          "publicKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 130
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "retireCurrent": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "publicKey",
+                          "label"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "revoke"
+                            ]
+                          },
+                          "methodId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "methodId"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  },
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "timestamp": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "keySignature": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]+$",
+                        "maxLength": 160
+                      },
+                      "governorSignature": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]+$",
+                        "maxLength": 160
+                      },
+                      "reauth": {
+                        "type": "object",
+                        "properties": {
+                          "password": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "emailCode": {
+                            "type": "object",
+                            "properties": {
+                              "verificationId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "code": {
+                                "type": "string",
+                                "pattern": "^\\d{6}$"
+                              }
+                            },
+                            "required": [
+                              "verificationId",
+                              "code"
+                            ]
+                          },
+                          "totpCode": {
+                            "type": "string",
+                            "minLength": 6,
+                            "maxLength": 16
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "challenge",
+                      "timestamp"
+                    ]
+                  }
+                },
+                "required": [
+                  "operation",
+                  "proof"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAccountsIdAgentKeysExecute"
+      }
+    },
     "/accounts/{id}/audit": {
       "get": {
         "tags": [
@@ -1471,6 +1981,7 @@
                         "credentials:create",
                         "credentials:rotate",
                         "credentials:revoke",
+                        "credentials:manage",
                         "billing:read",
                         "billing:manage",
                         "ownership:transfer",
@@ -1482,7 +1993,7 @@
                         "inference:usage:read"
                       ]
                     },
-                    "maxItems": 29
+                    "maxItems": 30
                   },
                   "permissionRevokes": {
                     "type": "array",
@@ -1509,6 +2020,7 @@
                         "credentials:create",
                         "credentials:rotate",
                         "credentials:revoke",
+                        "credentials:manage",
                         "billing:read",
                         "billing:manage",
                         "ownership:transfer",
@@ -1520,7 +2032,7 @@
                         "inference:usage:read"
                       ]
                     },
-                    "maxItems": 29
+                    "maxItems": 30
                   }
                 }
               }
@@ -6449,6 +6961,160 @@
           }
         ],
         "operationId": "patchAssetsIdVisibility"
+      }
+    },
+    "/auth/agent/challenge": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "Request a single-use autonomous sign-in challenge, bound to account, key and purpose.",
+        "description": "Unknown, revoked, archived or closing accounts cannot receive a challenge.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/agentAuth.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 130
+                  }
+                },
+                "required": [
+                  "publicKey"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAuthAgentChallenge"
+      }
+    },
+    "/auth/agent/verify": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "Verify an autonomous key proof and return an ordinary account session and device state.",
+        "description": "Proof consumption and session creation are atomic; replay and invalid signatures fail closed.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/agentAuth.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challenge": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "signature": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]+$",
+                    "maxLength": 160
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "publicKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 130
+                  }
+                },
+                "required": [
+                  "challenge",
+                  "signature",
+                  "timestamp",
+                  "publicKey"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAuthAgentVerify"
       }
     },
     "/auth/challenge": {
