@@ -1,0 +1,8 @@
+...
+----------------------------------------------------------------------
+Ran 3 tests in 1.703s
+
+OK
+{"case": "normal", "groupSignal": false, "ownedPgPid": 3642627, "pgStopped": true, "childBeforePgStop": true, "dotenvAndInheritedCredentialsAbsent": true}
+{"case": "SIGINT", "groupSignal": true, "ownedPgPid": 3642676, "pgStopped": true, "childBeforePgStop": true, "dotenvAndInheritedCredentialsAbsent": true}
+{"case": "SIGTERM", "groupSignal": false, "ownedPgPid": 3642735, "pgStopped": true, "childBeforePgStop": true, "dotenvAndInheritedCredentialsAbsent": true}

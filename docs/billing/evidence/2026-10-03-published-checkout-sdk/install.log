@@ -1,0 +1,8 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [11]
+Saved lockfile
+
++ @peable.to/sdk@0.2.2
+
+12 packages installed [856.00ms]

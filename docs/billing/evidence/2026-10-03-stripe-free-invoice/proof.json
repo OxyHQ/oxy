@@ -1,0 +1,111 @@
+{
+  "sourceHead": "1df1ec171601334ee0fdcea68bc69707e63cc7dc",
+  "sourceSha256": {
+    "packages/api/scripts/stripe-billing-sandbox-rehearsal.ts": "d2b13f2641849b74ff9a45041fe88bb7a296771dcbfe6f9fe69c11c8d6a96bbe",
+    "scripts/billing/stripe-oxy-sandbox.py": "193df0c7ab8b90e5c347e3a057404fc9550cf66cd06aa7a7003ef8da86664608",
+    "scripts/billing/test-stripe-oxy-sandbox.py": "b86832ca02fd288b023512a3656cd6524d96da26611c39255043968c1d9f9644",
+    "scripts/billing/test-stripe-zero-receiver.mjs": "2a21390132533e68b474fee058dde463dac8b2a74573863c2ca4770b06fde0c9",
+    "scripts/billing/test-stripe-zero-receiver.py": "d67c4646b864c73d42c7df035610137b2ce2ae47c7a487b3bb8b7700017e630c",
+    "packages/api/src/routes/billing.ts": "52dca1754fb0a139b3c127154834ad4a4c3db22ae2337bbfcd74d29386667422",
+    "packages/api/src/services/productBillingCatalogue.service.ts": "f4cb683f668f8877866369e7bb9d7a1d71a8767b0f0a9ee0a4312ae2e20a4b69"
+  },
+  "records": {
+    "docs/billing/evidence/2026-10-03-stripe-free-invoice/results.projection.json": {
+      "sha256": "d5b0d8b2c5ffb0a8313af4e2c26f9d75e3da6e7c21eb5f4b6c3e3111a334a590",
+      "bytes": 1595,
+      "exitCode": 1
+    },
+    "docs/billing/evidence/2026-10-03-stripe-free-invoice/local-receiver.log": {
+      "sha256": "7686ee7042fc1d0f6a2f0ccb341a145f6665bba2bb7679bf5fa0bd0a634b4411",
+      "bytes": 2147,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-free-invoice/plan-tests.log": {
+      "sha256": "589debefe043ce145d8322b6dbcd34dbee834acd375d21e48fbde25093471f7e",
+      "bytes": 1749,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-free-invoice/scripts-ts.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-free-invoice/biome.log": {
+      "sha256": "fccbba1da35e39ef217935089a5877ff9da111fc45e2faa0e5e032eda934d1be",
+      "bytes": 42,
+      "exitCode": 0
+    }
+  },
+  "privateInputs": {
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/bdde5de2a20e8573023c158d/manifest.private.json": {
+      "sha256": "4e3b751ea014d2c2ff83e6c1c136512c9127bcc2d71af7cc2577c8386333a007",
+      "bytes": 3085
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/bdde5de2a20e8573023c158d/runner.json": {
+      "sha256": "c90491f189ab5881e8995e71bb19aa6d6f2b6f818b720110343a594fa4e212f4",
+      "bytes": 337
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/bdde5de2a20e8573023c158d/owner.json": {
+      "sha256": "5d9b92bd5ab784b7c28fc5f9eb946e46ac376c2db0fd0d0e7d43f95dfdf8e3c6",
+      "bytes": 300
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/bdde5de2a20e8573023c158d/catalogue.private.json": {
+      "sha256": "59e8e8959bc4c338f4fc19df58f08600ed4640045405eba0db0e10261767324e",
+      "bytes": 2620
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/bdde5de2a20e8573023c158d/zero-event.private.json": {
+      "sha256": "d01993809b554d58372ba177ad721d8a3ac10402295146ed60445a952c6d4463",
+      "bytes": 4152
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/bdde5de2a20e8573023c158d/zero-readback.private.json": {
+      "sha256": "0200824bcb821e4ae195d5e9afff65262219b7b4ff54d264dde7367be8b82218",
+      "bytes": 175
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/bdde5de2a20e8573023c158d/child.private.log": {
+      "sha256": "e261f3484f7c3c419ee0d1a32293b45caee023f18daecd31d7860a8d93bd3912",
+      "bytes": 270
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/bdde5de2a20e8573023c158d/plan.json": {
+      "sha256": "9518ef4b3d412f1c8d4d32bd9e0a1311213f25455957a5b02cbdf540736f6b41",
+      "bytes": 269201
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/execution-bdde5de2a20e8573023c158d.private.log": {
+      "sha256": "f92658b620ec0f40b0fbebe5f234b303426e94f77bf6cd0cca78dfbe93167a9f",
+      "bytes": 691
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/execution-bdde5de2a20e8573023c158d-continued.private.log": {
+      "sha256": "0000353204195920b8dce8c9639d75027710894f478a19d346273ed42df6813f",
+      "bytes": 1588
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/read-own-zero-event.mjs": {
+      "sha256": "b12ebf04173ff05a90d57094cd88c02b414260ad8d4598bbe7c54dbe621e3a92",
+      "bytes": 2786
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/zero-readback-bdde.private.log": {
+      "sha256": "1ee260a6c8014e5f301aa90c8c86bf04ad9aebd5978e37d0d73e84406cf61420",
+      "bytes": 117
+    },
+    "/tmp/integration-stripe-zero-receiver-local.log": {
+      "sha256": "a34fd0c87ab28e1e30a105eb2d4cb553afcbe7ea8823ef478489684b33e649c8",
+      "bytes": 4561
+    }
+  },
+  "results": {
+    "planTests": 12,
+    "scriptsTypeScriptExit": 0,
+    "scopedBiomeExit": 0,
+    "ownedPgPid": 3628349,
+    "ownedPgStopped": true,
+    "providerMutationsAfterOriginalAttempt": 0
+  },
+  "limits": [
+    "The original zero-price rehearsal failed at its HTTP assertion; it is not retroactively called a successful runner execution.",
+    "A read-only GET recovered its actual paid-zero invoice event; only locally generated signatures deliver it to the actual receiver.",
+    "The local reproduction creates a new physically marked sandbox database and reinstates the same original fixture payer ID and customer mapping. It does not modify provider state.",
+    "Invalid catalogue reproduces500; removing the free price from the paid catalogue yields200/replay200 and no grants/balance/transactions. The paid-positive schema and product runtime remain unchanged.",
+    "The original free price plus coupon is not a discounted paid-price parity test.",
+    "The clean-check pre-effect rejection from an import-created __pycache__ is preserved separately; root approved removing that one cache and continuing the identical frozen plan before any owned PG/provider effect.",
+    "The first local fixture failed after its expected500 due solely to wrong SQL column name; the corrected fixture log is separate.",
+    "No further Stripe object creation is needed or asserted by the local recovery."
+  ]
+}
