@@ -1,0 +1,20 @@
+[
+  {
+    "variant": "mention",
+    "port": 17967,
+    "url": "http://127.0.0.1:17967/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable",
+    "status": 200,
+    "path": "/home/nate/Oxy/.agent-evidence/i04-native-mention-registry621-resume.bundle.js",
+    "bytes": 18427976,
+    "sha256": "6adefef9b4788367644a51c179f8124346dd6939d2116d500b271c3c4a460378"
+  },
+  {
+    "variant": "allo",
+    "port": 17968,
+    "url": "http://127.0.0.1:17968/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable",
+    "status": 200,
+    "path": "/home/nate/Oxy/.agent-evidence/i04-native-allo-registry621-resume.bundle.js",
+    "bytes": 18427945,
+    "sha256": "fa827148d7b0de403a720de55a843375a65a056ee747e7c3511f1e459964441f"
+  }
+]

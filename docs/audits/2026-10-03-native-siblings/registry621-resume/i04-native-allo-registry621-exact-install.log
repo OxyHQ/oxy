@@ -1,0 +1,8 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [1]
+Saved lockfile
+
++ @oxy.so/bloom@6.2.1 (v7.1.1 available)
+
+1 package installed [187.00ms]
