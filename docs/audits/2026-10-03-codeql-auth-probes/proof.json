@@ -1,0 +1,66 @@
+{
+  "sourceHead": "ea87ebcd464dbca7182d9f40fc6178d2d82953ea",
+  "baseHead": "78fe42ce4617c70da77a3fd5e648cc0f1fb6179a",
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/middleware/__tests__/authIdentity.test.ts",
+      "sha256": "a7c74c63dd34617e279a904fce41a09635a75df4630bfa06c0280d3f238a9f5e"
+    },
+    {
+      "path": "scripts/rehearsal/test-service-switch-live-1519.py",
+      "sha256": "3bd82e176eccf786b1c4c55968c946742f10dcac1c71f3f0b69a294a5fdae28a"
+    },
+    {
+      "path": "packages/api/src/utils/ipKey.ts",
+      "sha256": "728db8174ee30c8b6e7c478c9ce5596235a7d58f0b178bdf77234c33c93fe429"
+    }
+  ],
+  "records": [
+    {
+      "file": "focused.log",
+      "sha256": "d587e2d6d96aca076e9fcecaaaf81e954accbaf170912f725d9f50c9a9a14f6c"
+    },
+    {
+      "file": "launcher.log",
+      "sha256": "6f5d221e99002e5c759dea8e3f9a53c04107efce7e174fcbabb130a3dabb1451"
+    },
+    {
+      "file": "eslint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "migration-fresh.log",
+      "sha256": "d9896a49112b49142da4899cf9babe42b24d5882d771bf05b58c8df1c6c581ed"
+    },
+    {
+      "file": "migration-repeat.log",
+      "sha256": "bb8c3dee4eab4ac10f2aab62ad9051c0521e9558a37de320c1e25e71389cc3e4"
+    },
+    {
+      "file": "annotations.json",
+      "sha256": "02301000c7509ac651753d41a850b5c35a5241ebb19519e92cd66947df2c1efe"
+    }
+  ],
+  "results": {
+    "suites": 2,
+    "tests": 45,
+    "realRateLimiter": "express-rate-limit8.7.0 MemoryStore",
+    "maxRequestsPerFixtureWindow": 100,
+    "limiterTests": "simple and optional:100HTTP200 then101stHTTP429/no identity DTO",
+    "ESLintExit": 0,
+    "postgres": {
+      "pid": 3637767,
+      "port": 5587,
+      "database": "oxy_rehearsal_1519_f53fda7e6dbfd0c0",
+      "normalFreshMigrations": 140,
+      "repeat": "PASS",
+      "stopped": true
+    }
+  },
+  "limits": [
+    "Only test fixture/launcher changed. No suppression, query exclusion or auth runtime changes.",
+    "CodeQL alerts568/569 are open on current main67c09; local HTTP evidence does not substitute a new CodeQL analysis on this candidate.",
+    "Rate limiter uses hashedIpKey, no raw IP persisted. Counters use own local MemoryStore.",
+    "No production sessions/credentials/grants or external requests."
+  ]
+}
