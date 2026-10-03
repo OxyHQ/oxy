@@ -1,0 +1,51 @@
+{
+  "schemaSource": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+  "variantSource": "7c72ca18d18b268d471ff5fa313c9df22282048e",
+  "derivedFrom": "67c09e853db308d102624a2ffd40db19959344f4",
+  "directory": "/home/runner/work/_temp/auth-only-bootstrap/rollback-k3j37f1t",
+  "productionAccess": false,
+  "bootstrapNodeEnv": "production",
+  "imageMode": true,
+  "imageConfigId": "sha256:c588d51a9db71853c56e8d1a35b21eaf24cabb46d333dea9f0839fd4ab6e5864",
+  "fixtureInputSha256": {
+    "scripts/rehearsal/old-auth-only/archive-proof.py": "b4fd005baff4e0aa582877706f44747d6272e4e34461831b31d52c6e28c2b91c",
+    "scripts/rehearsal/old-auth-only/host.mjs": "6156eeb972d3fe3c83be46a53357b8ca632dc01019348cdae15e017e7e63d4c9",
+    "scripts/rehearsal/old-auth-only/image-bootstrap.py": "22236499d90f0f17c84820c974c2610a850b8ea443af090df7b21eb0e946d853",
+    "scripts/rehearsal/old-auth-only/io-guard.mjs": "9d10edfb35c98df77fcfb99437fe8739678b4726b77f8bee9248e348fc910cc3",
+    "scripts/rehearsal/old-auth-only/probe.mjs": "8cc07db5650ecd4e327185c150c79c7b1b5bab923c9fa8b94027792375835468",
+    "scripts/rehearsal/old-auth-only/run.py": "7252605b080f7a933529df32207e7ef6290d0e8b04fb99124f284c4a75a0939f",
+    "scripts/rehearsal/old-auth-only/seed-preserved.mjs": "44e00ecd17933520ab009548f2d7fed885aad17742958d0a3f5c56a140d6a891",
+    "scripts/rehearsal/old-auth-only/seed.mjs": "d3b38dbeed664453db24ee6f91707a09ee61ff94b5ac06ac44386578b42e94e0",
+    "scripts/rehearsal/old-auth-only/test-archive-proof.py": "3e6d14098732ac871b87377a86d8f4c7d54b41423e7ed34fe203390b71bb6c37",
+    "scripts/rehearsal/old-auth-only/test-image-bootstrap.py": "e6089b7a6dbd1e9e7c3f4981658f3006b8c03dbeaeb2a690ec42eaed4be7f7b6"
+  },
+  "postgresPid": 8317,
+  "postgresData": "/home/runner/work/_temp/auth-only-bootstrap/rollback-k3j37f1t/pg",
+  "database": "oxy_rollback_46ca7312b895d769",
+  "port": 5602,
+  "redis": {
+    "pid": 8328,
+    "port": 5603,
+    "persistence": false
+  },
+  "migrate-fresh.log": {
+    "exitCode": 1,
+    "sha256": "9c1e966e1cc3c5893e779bb067654182a17f6915b1cbfd96c40f2cd4b2d2712f"
+  },
+  "containerCleanup": [],
+  "processCleanup": [
+    {
+      "pid": 8337,
+      "exitCode": 1,
+      "stopped": true
+    },
+    {
+      "pid": 8328,
+      "exitCode": 0,
+      "stopped": true
+    }
+  ],
+  "databaseAbsent": true,
+  "postgresStopped": true,
+  "cleanupErrors": []
+}

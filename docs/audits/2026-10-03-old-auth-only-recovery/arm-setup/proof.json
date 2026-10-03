@@ -1,0 +1,174 @@
+{
+  "sourceHead": "e3bf35cc3839740823e2f794f541474e1850a8f2",
+  "sources": [
+    {
+      "path": ".github/workflows/forge-candidate-image-proof.yml",
+      "bytes": 13418,
+      "sha256": "61a097006426f2d2c4c48dee489b4ffef8f4e5e89b01150ea12ad46d8062cd83"
+    },
+    {
+      "path": "scripts/forge-audit-policy.mjs",
+      "bytes": 15740,
+      "sha256": "15e4e7379098414d2bcbe1c8597a03394e1bc58cd345740a9dcead8211fac1b0"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/archive-proof.py",
+      "bytes": 7447,
+      "sha256": "b4fd005baff4e0aa582877706f44747d6272e4e34461831b31d52c6e28c2b91c"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/diagnostics.py",
+      "bytes": 1011,
+      "sha256": "749f8f10571084c638b9f2b5a7339a6c7f45ff072611bc6ee558f5542ae4f9db"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/host.mjs",
+      "bytes": 2209,
+      "sha256": "6156eeb972d3fe3c83be46a53357b8ca632dc01019348cdae15e017e7e63d4c9"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/image-bootstrap.py",
+      "bytes": 4848,
+      "sha256": "22236499d90f0f17c84820c974c2610a850b8ea443af090df7b21eb0e946d853"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/io-guard.mjs",
+      "bytes": 1225,
+      "sha256": "9d10edfb35c98df77fcfb99437fe8739678b4726b77f8bee9248e348fc910cc3"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/probe.mjs",
+      "bytes": 12432,
+      "sha256": "8cc07db5650ecd4e327185c150c79c7b1b5bab923c9fa8b94027792375835468"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/run.py",
+      "bytes": 15932,
+      "sha256": "0e0c327bc3b77199956beaece175cf87486ffeb7357828d5a83cd55f0e6a9182"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/seed-preserved.mjs",
+      "bytes": 3312,
+      "sha256": "44e00ecd17933520ab009548f2d7fed885aad17742958d0a3f5c56a140d6a891"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/seed.mjs",
+      "bytes": 5331,
+      "sha256": "d3b38dbeed664453db24ee6f91707a09ee61ff94b5ac06ac44386578b42e94e0"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/test-archive-proof.py",
+      "bytes": 5643,
+      "sha256": "3e6d14098732ac871b87377a86d8f4c7d54b41423e7ed34fe203390b71bb6c37"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/test-diagnostics.py",
+      "bytes": 1708,
+      "sha256": "35cc2a474fc02c2eef75d33c757c1298d608a1e493db8384936ae878e0f9dc78"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/test-image-bootstrap.py",
+      "bytes": 5543,
+      "sha256": "e6089b7a6dbd1e9e7c3f4981658f3006b8c03dbeaeb2a690ec42eaed4be7f7b6"
+    },
+    {
+      "path": "scripts/rehearsal/test-forge-final-input-1519.py",
+      "bytes": 5245,
+      "sha256": "b738de05bcb0a4cd6959e2a974efb50536c92d77bf04cc5ba8c4c863bb7e3628"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/arm-setup-diagnostics.log",
+      "bytes": 105,
+      "sha256": "83166b089fbcb82fac63f22522fa6ae99bb5e46368cd35d756277fd463dd6346"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/arm-setup-image-fixtures.log",
+      "bytes": 107,
+      "sha256": "d9d734ee1c2de67b748aeef1c4126433aa438ad8375ca953916f12b1df11414d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/arm-setup-archive-fixtures.log",
+      "bytes": 117,
+      "sha256": "92f33dbe830c1260c382f6ed1abc0b484089b08767e8010459c169f7995afaad"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/arm-setup-local-control.log",
+      "bytes": 182,
+      "sha256": "14daedc8bc1464d20c4bd1587631c6b645e8cd0e0bc4c0d02a46f09d31677fe6"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/auth-only-policy-fixtures.log",
+      "bytes": 1106,
+      "sha256": "baff46c8108ef5dc67199a385f21f9e69f26aa4a6f89ad2babada03f562cdbaf"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/auth-only-oxy34-owned.log",
+      "bytes": 1687,
+      "sha256": "2913feccf98372ebca2c1d0790268c81bbb6be294467ff2a77ac489b2bf13080"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/failed-arm-receipt.json",
+      "bytes": 2356,
+      "sha256": "e0d49b000d29f9f2265340fd12094ab1b04f242643450eb98677a6627f410144"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/local-production-receipt.json",
+      "bytes": 11395,
+      "sha256": "bf9cdcb2562441067d4efb199a188b95b531e79c244d3355dec5770ea159cbb8"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/local-http-sql-probe.log",
+      "bytes": 1231,
+      "sha256": "4317777577c1e11ee3cb9cd12b11313cbe35419925e39f70ef86a34fadeb25c3"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/local-migrate-fresh.log",
+      "bytes": 40,
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/local-migrate-repeat.log",
+      "bytes": 40,
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2"
+    }
+  ],
+  "checks": {
+    "diagnostics": 7,
+    "imageConstruction": 9,
+    "archiveBinding": 18,
+    "policyAssertions": 144,
+    "ownedOxySuites": 3,
+    "ownedOxyTests": 34,
+    "expoPublicChecks": 14,
+    "installedKnownKeyChecks": 321,
+    "localCompiledProductionCheckpoints": 14,
+    "localNonemptyTablesPreserved": 14
+  },
+  "localControlHarnessRanInWipNowCommitted": true,
+  "localControlRecordedHead": "7c72ca18d18b268d471ff5fa313c9df22282048e",
+  "requiredExtensionsObservedLocally": {
+    "postgis": "3.5.2",
+    "pg_trgm": "1.6"
+  },
+  "failedArm": {
+    "runId": "37138539283",
+    "phase": "migrate-fresh",
+    "exitCode": 1,
+    "rawPrivateLogSha256": "9c1e966e1cc3c5893e779bb067654182a17f6915b1cbfd96c40f2cd4b2d2712f",
+    "rawErrorAvailable": false,
+    "containersStarted": 0,
+    "databaseAbsent": true,
+    "postgresStopped": true
+  },
+  "postmasterPidsAbsent": [
+    4082047,
+    4083575
+  ],
+  "redisPidAbsent": 4082060,
+  "armBootstrapVerified": false,
+  "securityApproved": false,
+  "productionReady": false,
+  "noNewProductionAccess": true
+}
