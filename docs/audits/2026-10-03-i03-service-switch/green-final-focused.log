@@ -1,0 +1,42 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/internalServiceAccountSwitch.test.ts
+PASS src/routes/__tests__/internalServiceAccountSwitch.test.ts
+  live credential context before delegated session mint
+    ✓ refuses a previously valid JWT after its credential is revoked, without reusing the session (90 ms)
+    ✓ refuses a previously valid JWT after offline authority is removed from its credential ceiling (74 ms)
+    ✓ refuses a signed owner binding that differs from the application owner before creating a session (42 ms)
+    ✓ refuses a signed environment binding that differs from the credential before creating a session (38 ms)
+  router gates
+    ✓ refuses a request with no Authorization header (401) (10 ms)
+    ✓ refuses a USER session token (403) — this is not a user-facing surface (19 ms)
+    ✓ refuses a THIRD-PARTY caller holding the scope and a valid token (403) (33 ms)
+  the service-account-switch scope
+    ✓ refuses a TRUSTED app whose token does not carry it (403) (26 ms)
+    ✓ is NOT satisfied by acting-as:offline, whose authority is strictly smaller (22 ms)
+  the operator header
+    ✓ refuses a request that names no operator (400) (17 ms)
+    ✓ refuses an operator with membership but WITHOUT account:act_as (403) (38 ms)
+    ✓ refuses an operator with no relationship to the account at all (403) (34 ms)
+    ✓ refuses a trusted app with no explicit operator grant (403) (29 ms)
+    ✓ refuses an operator the app grant was revoked by (403) (62 ms)
+  the target account
+    ✓ refuses a PERSONAL account even to an operator holding act_as (403) (40 ms)
+    ✓ refuses a CHANNEL account even to an operator holding act_as (403) (37 ms)
+    ✓ answers 404 for an account that does not exist (25 ms)
+    ✓ answers 404 for an ARCHIVED account the operator can act as (31 ms)
+    ✓ STILL mints for a BOT — the switcher narrowing must not close this lane (45 ms)
+    ✓ mints for an ORGANIZATION and a PROJECT too, not only a bot (84 ms)
+  a successful mint
+    ✓ mints a session whose SUBJECT is the account and whose ACTOR is the human (46 ms)
+    ✓ mints an UNBOUND bearer — no `azp`, no `scope`, full authority over the account (49 ms)
+    ✓ returns the account as the session user, never the operator (46 ms)
+  device attribution
+    ✓ reuses ONE device and ONE session across repeated mints for the same (app, account) (69 ms)
+    ✓ derives that device from (account, app), so it is stable and per-application (46 ms)
+    ✓ gives two APPLICATIONS acting as one account two different devices (90 ms)
+    ✓ gives two OPERATORS of one account two different sessions on the same device (82 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       27 passed, 27 total
+Snapshots:   0 total
+Time:        1.723 s, estimated 2 s
+Ran all test suites within paths "src/routes/__tests__/internalServiceAccountSwitch.test.ts".
