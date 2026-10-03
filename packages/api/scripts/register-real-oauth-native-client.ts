@@ -12,7 +12,7 @@ import { users } from '../src/db/schema/users';
 async function main() {
   const [manifestArgument, lane = 'native'] = process.argv.slice(2);
   assert(manifestArgument && (process.argv.length === 3 || process.argv.length === 4));
-  assert(['native', 'nativeFirst', 'nativeSecond'].includes(lane));
+  assert(['native', 'nativeFirst', 'nativeSecond', 'nativeIdentity'].includes(lane));
   const trusted = lane !== 'native';
   const manifestPath = resolve(manifestArgument);
   assert(/\/\.integration-evidence\/oauth1519-[a-z0-9_-]+\/manifest\.json$/.test(manifestPath));
