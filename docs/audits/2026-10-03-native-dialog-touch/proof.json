@@ -1,0 +1,23 @@
+{
+  "status": "preparation, not device acceptance",
+  "package": "so.oxy.acceptance1519",
+  "reuseApk": "02d764e2fe92ac4bb2ff8e230f87994d6823a48d8d5052d42346ff814acb8c66",
+  "metro": 17970,
+  "bloomVersion": "6.2.0",
+  "source": {
+    "path": "packages/test-app-expo/acceptance/entry.tsx",
+    "sha256": "77683e72ed232958d790d48c3dba5e6bdfdf9ca4232f77be3cab9544dbcb5549"
+  },
+  "bundle": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-native-dialog-touch-bundle-20261003.js",
+    "sha256": "1108c3aa17e3576a0cda3f6578bbb3e8812e4b8a91d3fa64fec8a9883bb2266c",
+    "bytes": 21493642
+  },
+  "limits": [
+    "No auth provider, no network/identity/session actions",
+    "Root alone changes owned debug host and uses emulator5580",
+    "Real Dialog/LinkButton/native Pressable/KeyboardProvider",
+    "Morph toggle is diagnostic only, not a product workaround",
+    "TS and scoped ESLint exit0; bundleHTTP200 after building workspace dependencies"
+  ]
+}

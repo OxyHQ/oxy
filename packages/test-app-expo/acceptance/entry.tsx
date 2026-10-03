@@ -1,68 +1,58 @@
 import '../global.css';
 import { registerRootComponent } from 'expo';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
-import { OxyProvider, OxySignInButton, useAuth, useOxy } from '@oxy.so/services';
-import { useState } from 'react';
-import { Button, ScrollView, Text, View } from 'react-native';
+import { Dialog, useDialogControl, useDialogFrame } from '@oxy.so/bloom/dialog';
+import { LinkButton } from '@oxy.so/bloom/button';
+import { useRef, useState } from 'react';
+import { Button, Pressable, Text, TextInput, View } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-
-const clientId = process.env.EXPO_PUBLIC_OXY_CLIENT_ID;
-const redirectUri = 'astro://oauth/callback';
-const apiUrl = 'http://127.0.0.1:17960';
-const authorizeUrl = 'http://127.0.0.1:17961/authorize';
-if (!clientId) throw new Error('Native acceptance requires its registered fixture client ID');
-
-function AcceptanceScreen() {
-  const auth = useAuth();
-  const { startNativeOAuthSignIn, oxyServices } = useOxy();
-  const [operation, setOperation] = useState('idle');
-  const [profileId, setProfileId] = useState('none');
-  async function signIn() {
-    setOperation('sign-in-pending');
-    const result = await startNativeOAuthSignIn({ redirectUri });
-    setOperation('reason' in result ? `${result.status}:${result.reason}` : result.status);
-  }
-  async function signOut() {
-    try { await auth.signOut(); setOperation('signed-out'); setProfileId('none'); }
-    catch { setOperation('sign-out-failed'); }
-  }
-  async function readProfile() {
-    try { const user = await oxyServices.users.me(); setProfileId(user.id); setOperation('profile-read'); }
-    catch { setProfileId('none'); setOperation('profile-denied'); }
-  }
-  return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: 24, gap: 18 }}>
-        <Text accessibilityRole="header" style={{ fontSize: 22 }}>Oxy native acceptance</Text>
-        <Text testID="acceptance-resolved">resolved:{String(auth.isAuthResolved)}</Text>
-        <Text testID="acceptance-authenticated">authenticated:{String(auth.isAuthenticated)}</Text>
-        <Text testID="acceptance-private-ready">private-ready:{String(auth.canUsePrivateApi)}</Text>
-        <Text testID="acceptance-user">user:{auth.user?.id ?? 'none'}</Text>
-        <Text testID="acceptance-profile">profile:{profileId}</Text>
-        <Text testID="acceptance-operation">operation:{operation}</Text>
-        <Text testID="acceptance-error">provider-error:{String(Boolean(auth.error))}</Text>
-        <OxySignInButton nativeOAuthCompletion="sdk" oauthRedirectUri={redirectUri} />
-        <Button title="Sign in through SDK hook" onPress={signIn} />
-        <Button title="Read profile through SDK" onPress={readProfile} />
-        <Button title="Sign out through SDK" onPress={signOut} />
-      </ScrollView>
-    </SafeAreaView>
-  );
+function Content({ morph }: { morph: boolean }) {
+  const [step, setStep] = useState(0);
+  const [nativeCount, setNativeCount] = useState(0);
+  const [bloomCount, setBloomCount] = useState(0);
+  const [geometry, setGeometry] = useState('unread');
+  const [bounds, setBounds] = useState('unread');
+  const nativeRef = useRef<View>(null);
+  useDialogFrame({ key: `touch-${step}`, morph });
+  const layout = (event: LayoutChangeEvent) => {
+    const { x, y, width, height } = event.nativeEvent.layout;
+    setGeometry([x, y, width, height].map(Math.round).join(','));
+  };
+  return <View onLayout={layout} style={{ padding: 20, gap: 18 }}>
+    <Text style={{ fontSize: 28 }}>Owned dialog touch probe</Text>
+    <Text>step:{step} morph:{String(morph)}</Text>
+    <Text testID="touch-counters">native:{nativeCount} bloom:{bloomCount}</Text>
+    <Text>content-layout:{geometry}</Text><Text>native-window:{bounds}</Text>
+    <TextInput testID="touch-input" placeholder="Synthetic text only" style={{ borderWidth: 1, padding: 12 }} />
+    {step === 0 ? <Button title="Show taller frame" onPress={() => setStep(1)} /> : <>
+      <Text style={{ fontSize: 48 }}>Second frame</Text>
+      <Text>Only local counters. No authentication, HTTP requests, identity or credentials.</Text>
+      <View style={{ height: 180 }}><Text>Measured spacer</Text></View>
+      <Pressable ref={nativeRef} testID="touch-native" accessibilityRole="button" onPress={() => setNativeCount(n => n + 1)} style={{ padding: 18, backgroundColor: '#cceeff' }}><Text>Native press counter</Text></Pressable>
+      <LinkButton testID="touch-bloom" onPress={() => setBloomCount(n => n + 1)}>Bloom press counter</LinkButton>
+      <Button title="Measure native button" onPress={() => nativeRef.current?.measureInWindow((x, y, w, h) => setBounds([x, y, w, h].map(Math.round).join(',')))} />
+    </>}
+  </View>;
 }
-function NativeAcceptance() {
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <BloomThemeProvider mode="light">
-          <OxyProvider clientId={clientId} baseURL={apiUrl} authorizeBaseUrl={authorizeUrl}
-            authWebUrl="http://127.0.0.1:17961" authRedirectUri={redirectUri}
-            storageKeyPrefix="oxy1519-native-acceptance">
-            <View style={{ flex: 1 }}><AcceptanceScreen /></View>
-          </OxyProvider>
-        </BloomThemeProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
-  );
+function Probe() {
+  const control = useDialogControl();
+  const [morph, setMorph] = useState(true);
+  const [closed, setClosed] = useState(0);
+  return <SafeAreaView style={{ flex: 1, padding: 24, gap: 18 }}>
+    <Text style={{ fontSize: 24 }}>Isolated native touch diagnostic</Text>
+    <Text>installed-bloom:6.2.0 closed:{closed}</Text>
+    <Text>No auth provider or network operations.</Text>
+    <Button title={`Morph ${morph ? 'enabled' : 'disabled'} (diagnostic)`} onPress={() => setMorph(!morph)} />
+    <Button title="Open probe dialog" onPress={() => control.open()} />
+    <Dialog control={control} placement="bottom" header={{ title: '' }} dismissOnBackdrop={false} morph={morph} maxWidth={420} contentPadding={0} onClose={() => setClosed(n => n + 1)}>
+      <Content morph={morph} />
+    </Dialog>
+  </SafeAreaView>;
 }
-registerRootComponent(NativeAcceptance);
+function App() {
+  return <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider><KeyboardProvider><BloomThemeProvider mode="light"><Probe /></BloomThemeProvider></KeyboardProvider></SafeAreaProvider></GestureHandlerRootView>;
+}
+registerRootComponent(App);
