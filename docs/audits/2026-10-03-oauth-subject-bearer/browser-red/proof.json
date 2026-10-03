@@ -1,0 +1,42 @@
+{
+  "fixtureSourceHeadBeforeFix": "c23ae87d8e6f7a392363d002f6a78e1ac75a70c4",
+  "probeCommit": "68fa30b7292a93c18c630aa7f83b8ba85ed03386",
+  "runtimeBeforeFix": "no 18b4e095b on host at observation",
+  "observations": {
+    "initialUi": "fixture person",
+    "rejectedOutcome": "Consent: failed",
+    "retainedUi": "fixture person",
+    "cookies": 0
+  },
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/browser-red/driver-mismatch-red.mjs",
+      "sha256": "578b44d97b43d1fae2fca452374d4b1f660237a656272f2053f7a71c097c6c96",
+      "originalPrivateSha256": "578b44d97b43d1fae2fca452374d4b1f660237a656272f2053f7a71c097c6c96",
+      "sanitization": "query values removed from observed URLs; driver is unchanged"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/browser-red/transcript-mismatch-red.txt",
+      "sha256": "f4e21c231d45f08d3a50068485f811078d78123751d9947e1ac88a9998003199",
+      "originalPrivateSha256": "f4e21c231d45f08d3a50068485f811078d78123751d9947e1ac88a9998003199",
+      "sanitization": "query values removed from observed URLs; driver is unchanged"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/browser-red/network-mismatch-red.jsonl",
+      "sha256": "b193ef42443de0a93322b1a970795d7d892b05783cb4fd7ea24b790b38dc1c0c",
+      "originalPrivateSha256": "81782a2bc389b553606cb3ad2c03508e42d8f71a8b4db0bc63548c475c4b6b6f",
+      "sanitization": "query values removed from observed URLs; driver is unchanged"
+    }
+  ],
+  "limits": [
+    "Actual owned API/PG/IdP and Chromium with OxyProvider; no OAuth server response mocks.",
+    "Previous UI-only subject mismatch observation was insufficient: this fresh users.me() demonstrates wrong bearer.",
+    "Driver contains private-machine paths and requires fixture manifest and operator actions; no credentials are recorded.",
+    "GREEN after fix is separately recorded in ../browser-green/proof.json."
+  ],
+  "observedApiSubjectsInOrder": [
+    "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+    "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+    "01a100f9-45fa-7422-93b5-69855a040250"
+  ]
+}

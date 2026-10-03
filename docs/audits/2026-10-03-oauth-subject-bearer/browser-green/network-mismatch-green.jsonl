@@ -1,0 +1,60 @@
+{"at": "2026-10-03T10:15:23.623Z", "method": "GET", "path": "/auth/oauth/client/oxy_dk_669366a5641957de151c258f467b91906642fb0f2be06720", "status": 200}
+{"at": "2026-10-03T10:15:33.175Z", "method": "GET", "path": "/auth/oauth/client/oxy_dk_669366a5641957de151c258f467b91906642fb0f2be06720", "status": 200}
+{"at": "2026-10-03T10:15:36.722Z", "method": "GET", "path": "/auth/oauth/client/oxy_dk_669366a5641957de151c258f467b91906642fb0f2be06720", "status": 200}
+{"at": "2026-10-03T10:15:36.736Z", "method": "GET", "path": "/auth/oauth/client/oxy_dk_689718edc2bedbe68e4f4e4517cc7c852ed3a260051fb6b0", "status": 200}
+{"at": "2026-10-03T10:15:36.777Z", "method": "POST", "path": "/auth/session/create", "status": 200}
+{"at": "2026-10-03T10:15:39.788Z", "method": "GET", "path": "/auth/session/status/[redacted]", "status": 200}
+{"at": "2026-10-03T10:15:42.798Z", "method": "GET", "path": "/auth/session/status/[redacted]", "status": 200}
+{"at": "2026-10-03T10:15:45.807Z", "method": "GET", "path": "/auth/session/status/[redacted]", "status": 200}
+{"at": "2026-10-03T10:15:49.148Z", "method": "POST", "path": "/auth/signin/email/start", "status": 200}
+{"at": "2026-10-03T10:15:51.176Z", "method": "POST", "path": "/auth/signin/email/collect", "status": 200}
+{"at": "2026-10-03T10:15:53.187Z", "method": "POST", "path": "/auth/signin/email/collect", "status": 200}
+{"at": "2026-10-03T10:15:55.198Z", "method": "POST", "path": "/auth/signin/email/collect", "status": 200}
+{"at": "2026-10-03T10:15:57.209Z", "method": "POST", "path": "/auth/signin/email/collect", "status": 200}
+{"at": "2026-10-03T10:15:59.218Z", "method": "POST", "path": "/auth/signin/email/collect", "status": 200}
+{"at": "2026-10-03T10:16:01.229Z", "method": "POST", "path": "/auth/signin/email/collect", "status": 200}
+{"at": "2026-10-03T10:16:03.240Z", "method": "POST", "path": "/auth/signin/email/collect", "status": 200}
+{"at": "2026-10-03T10:16:05.253Z", "method": "POST", "path": "/auth/signin/email/collect", "status": 200}
+{"at": "2026-10-03T10:16:05.925Z", "method": "POST", "path": "/auth/signin/password", "status": 200, "request": {}, "response": {"sessionId": {"sha256": "59f59b4dad7b69c19689daa23c441ee1edeb1c44ada034f52df6d436ef447393", "length": 36}, "deviceId": {"sha256": "15ea14310e2393c3a899578c75d7f57f09f090e8ab6b604551f4a4bd37bd08bc", "length": 32}, "accessToken": {"sha256": "47739a2acc45a3a76eff4c747e8899c5bade55b1766a52504da4e3e19c773d1a", "length": 808}, "deviceSecret": {"sha256": "dca0750ce6e67e3de7078689aed94d5978320a652fea67a239a702a73aa448d8", "length": 43}}}
+{"at": "2026-10-03T10:16:05.966Z", "method": "POST", "path": "/session/device/add", "status": 200, "request": {}, "response": {"data.state.deviceId": {"sha256": "15ea14310e2393c3a899578c75d7f57f09f090e8ab6b604551f4a4bd37bd08bc", "length": 32}, "data.state.accounts.0.sessionId": {"sha256": "59f59b4dad7b69c19689daa23c441ee1edeb1c44ada034f52df6d436ef447393", "length": 36}, "data.state.accounts.1.sessionId": {"sha256": "e21bee30ab49f1d2c2b1ce718bb69146f4d838c7d9d33d398616e67cc4dae47f", "length": 36}}}
+{"at": "2026-10-03T10:16:05.977Z", "method": "GET", "path": "/session/device/directory", "status": 200}
+{"at": "2026-10-03T10:16:05.992Z", "method": "POST", "path": "/session/device/switch", "status": 200, "request": {}, "response": {"data.state.deviceId": {"sha256": "15ea14310e2393c3a899578c75d7f57f09f090e8ab6b604551f4a4bd37bd08bc", "length": 32}, "data.state.accounts.0.sessionId": {"sha256": "59f59b4dad7b69c19689daa23c441ee1edeb1c44ada034f52df6d436ef447393", "length": 36}, "data.state.accounts.1.sessionId": {"sha256": "e21bee30ab49f1d2c2b1ce718bb69146f4d838c7d9d33d398616e67cc4dae47f", "length": 36}}}
+{"at": "2026-10-03T10:16:05.993Z", "method": "POST", "path": "/session/device/token", "status": 401, "request": {"deviceId": {"sha256": "15ea14310e2393c3a899578c75d7f57f09f090e8ab6b604551f4a4bd37bd08bc", "length": 32}, "deviceSecret": {"sha256": "dca0750ce6e67e3de7078689aed94d5978320a652fea67a239a702a73aa448d8", "length": 43}}, "response": {}, "error": {"message": "no_active_session"}}
+{"at": "2026-10-03T10:16:06.008Z", "method": "GET", "path": "/session/device/state", "status": 200}
+{"at": "2026-10-03T10:16:06.008Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:06.014Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:06.027Z", "method": "GET", "path": "/session/device/directory", "status": 200}
+{"at": "2026-10-03T10:16:06.042Z", "method": "GET", "path": "/accounts", "status": 200}
+{"at": "2026-10-03T10:16:06.057Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:06.058Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:06.696Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:06.720Z", "method": "GET", "path": "/users/me", "status": 200}
+{"at": "2026-10-03T10:16:06.748Z", "method": "GET", "path": "/auth/oauth/client/oxy_dk_669366a5641957de151c258f467b91906642fb0f2be06720", "status": 200}
+{"at": "2026-10-03T10:16:13.435Z", "method": "GET", "path": "/auth/oauth/consent", "status": 200}
+{"at": "2026-10-03T10:16:13.453Z", "method": "POST", "path": "/auth/oauth/authorize", "status": 200}
+{"at": "2026-10-03T10:16:13.524Z", "method": "POST", "path": "/auth/oauth/token", "status": 200}
+{"at": "2026-10-03T10:16:13.535Z", "method": "GET", "path": "/users/me", "status": 200}
+{"at": "2026-10-03T10:16:39.797Z", "method": "GET", "path": "/users/me", "status": 200}
+{"at": "2026-10-03T10:16:39.856Z", "method": "GET", "path": "/auth/oauth/client/oxy_dk_669366a5641957de151c258f467b91906642fb0f2be06720", "status": 200}
+{"at": "2026-10-03T10:16:42.937Z", "method": "GET", "path": "/auth/oauth/client/oxy_dk_689718edc2bedbe68e4f4e4517cc7c852ed3a260051fb6b0", "status": 200}
+{"at": "2026-10-03T10:16:42.937Z", "method": "GET", "path": "/auth/oauth/client/oxy_dk_669366a5641957de151c258f467b91906642fb0f2be06720", "status": 200}
+{"at": "2026-10-03T10:16:43.455Z", "method": "POST", "path": "/session/device/token", "status": 200, "request": {"deviceId": {"sha256": "15ea14310e2393c3a899578c75d7f57f09f090e8ab6b604551f4a4bd37bd08bc", "length": 32}, "deviceSecret": {"sha256": "dca0750ce6e67e3de7078689aed94d5978320a652fea67a239a702a73aa448d8", "length": 43}}, "response": {"data.accessToken": {"sha256": "47739a2acc45a3a76eff4c747e8899c5bade55b1766a52504da4e3e19c773d1a", "length": 808}, "data.nextDeviceSecret": {"sha256": "dca0750ce6e67e3de7078689aed94d5978320a652fea67a239a702a73aa448d8", "length": 43}, "data.state.deviceId": {"sha256": "15ea14310e2393c3a899578c75d7f57f09f090e8ab6b604551f4a4bd37bd08bc", "length": 32}, "data.state.accounts.0.sessionId": {"sha256": "59f59b4dad7b69c19689daa23c441ee1edeb1c44ada034f52df6d436ef447393", "length": 36}, "data.state.accounts.1.sessionId": {"sha256": "e21bee30ab49f1d2c2b1ce718bb69146f4d838c7d9d33d398616e67cc4dae47f", "length": 36}}}
+{"at": "2026-10-03T10:16:43.472Z", "method": "GET", "path": "/users/me", "status": 200}
+{"at": "2026-10-03T10:16:43.480Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:43.487Z", "method": "GET", "path": "/session/device/state", "status": 200}
+{"at": "2026-10-03T10:16:43.490Z", "method": "GET", "path": "/accounts", "status": 200}
+{"at": "2026-10-03T10:16:43.495Z", "method": "GET", "path": "/session/device/directory", "status": 200}
+{"at": "2026-10-03T10:16:43.521Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:43.521Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:45.190Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:50.349Z", "method": "POST", "path": "/session/device/activate", "status": 200}
+{"at": "2026-10-03T10:16:50.362Z", "method": "GET", "path": "/session/device/state", "status": 200}
+{"at": "2026-10-03T10:16:50.393Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:50.401Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:50.412Z", "method": "GET", "path": "/accounts", "status": 200}
+{"at": "2026-10-03T10:16:50.417Z", "method": "GET", "path": "/session/device/directory", "status": 200}
+{"at": "2026-10-03T10:16:50.450Z", "method": "GET", "path": "/auth/oauth/consent", "status": 200}
+{"at": "2026-10-03T10:16:50.452Z", "method": "POST", "path": "/users/by-ids", "status": 200}
+{"at": "2026-10-03T10:16:50.478Z", "method": "POST", "path": "/auth/oauth/authorize", "status": 200}
+{"at": "2026-10-03T10:16:51.046Z", "method": "POST", "path": "/auth/oauth/token", "status": 200}
+{"at": "2026-10-03T10:17:01.996Z", "method": "GET", "path": "/users/me", "status": 200}

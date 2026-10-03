@@ -1,0 +1,56 @@
+{
+  "hostSourceHead": "8672e914453a13dd5a2f926754c21c85722cd8d5",
+  "fixedRuntimeCommit": "18b4e095b699e9298d4e12f8268183ab83936855",
+  "rootAccepted": true,
+  "observedApiSubjectsInOrder": [
+    "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+    "01a100f9-45f0-70b1-9a52-a35bbad8c3b7"
+  ],
+  "result": "initial A API, rejected B consent/UI A, subsequent API A; cookies0",
+  "sourceInputs": [
+    {
+      "path": "packages/core/src/api/auth.ts",
+      "sha256": "c6278f5a69ee731755760189be516d5126be590bec119640ed016792452d5a8f"
+    },
+    {
+      "path": "packages/services/src/ui/oauth/completeOAuthCode.ts",
+      "sha256": "e39403688732c63681edcfd6762f6a6a0861aa0552e7650104a9ea80523a873b"
+    },
+    {
+      "path": "scripts/rehearsal/real-oauth-browser/main.tsx",
+      "sha256": "6d549c62bf84b9cbb11cfef58a9366a5334be1503f926a8ffebc0731feb44246"
+    }
+  ],
+  "hostBuiltInputs": [
+    {
+      "path": "packages/core/dist/esm/api/auth.js",
+      "sha256": "c63826c8248402bd0c2dbce3c25e0193b243996086a8b952512d9af9c50ae370"
+    },
+    {
+      "path": "packages/services/lib/module/ui/oauth/completeOAuthCode.js",
+      "sha256": "1801010eb5c1a4f1725c6db6ce25828dae5d635d52627a626f23c58e09f25856"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/browser-green/driver-mismatch-green.mjs",
+      "sha256": "9d0b867538da736527b4ed5f56120c84e7f7c08ba6671cfbc53ca171115a1efd",
+      "originalPrivateSha256": "9d0b867538da736527b4ed5f56120c84e7f7c08ba6671cfbc53ca171115a1efd"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/browser-green/transcript-mismatch-green.txt",
+      "sha256": "73657f3babb4af9ff00e53e434c2784d54307ad6e2942679cf98bcdeeee86d37",
+      "originalPrivateSha256": "73657f3babb4af9ff00e53e434c2784d54307ad6e2942679cf98bcdeeee86d37"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/browser-green/network-mismatch-green.jsonl",
+      "sha256": "5bae792515a08bf6c0bd374a92e0c88785459ca06a2d01e3e28a08924227eae1",
+      "originalPrivateSha256": "2fa8ec97d3ef7dce5e4c5f35cab1e2bd309aeae8e04e7585a45a68d09b6f23d0"
+    }
+  ],
+  "limits": [
+    "Actual owned API/PG/IdP/Chromium and candidate SDK, not registry or production acceptance.",
+    "Subject rejected before bearer commit; UI-only previous observation was insufficient and remains historical.",
+    "No claim of deleting the server session minted by a rejected exchange, or of first-party SSO/propagation."
+  ]
+}
