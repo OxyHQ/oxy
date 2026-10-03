@@ -24,7 +24,7 @@ import React from 'react';
 import { render, waitFor, act, fireEvent, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppState } from 'react-native';
-import { AUTH_STATE_STORAGE_KEY } from '@oxy.so/core/session';
+import { AUTH_STATE_STORAGE_KEY, createNativeAuthStateStore } from '@oxy.so/core/session';
 import { type User } from '@oxy.so/core';
 
 let mockWebBrowser = true;
@@ -33,6 +33,10 @@ const mockOAuthCompletion = jest.fn();
 jest.mock('../../src/ui/oauth/browserAuthTransport', () => {
   const actual = jest.requireActual('../../src/ui/oauth/browserAuthTransport');
   return { ...actual, startWebOAuthSignIn: (...args: unknown[]) => mockOAuthCompletion(...args) };
+});
+jest.mock('../../src/ui/session/sharedDeviceCredentialStore', () => {
+  const actual = jest.requireActual('../../src/ui/session/sharedDeviceCredentialStore');
+  return {...actual, createPlatformSharedDeviceCredentialStore: jest.fn(() => null)};
 });
 const redirectToAuthorize = jest.fn();
 jest.mock('../../src/ui/components/oauthNavigation', () => ({
@@ -69,6 +73,7 @@ jest.mock('../../src/ui/session', () => {
   const actual = jest.requireActual('../../src/ui/session');
   return {
     ...actual,
+    createPlatformAuthStateStore: jest.fn((...args: unknown[]) => actual.createPlatformAuthStateStore(...args)),
     createSessionClient: jest.fn(() => ({
       client: fakeSessionClient,
       host: fakeSessionClientHost,
@@ -366,6 +371,9 @@ describe('SDK public recovery regressions', () => {
     renderProvider(stub);
     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
     mockWebBrowser = false;
+    jest.requireMock('../../src/ui/session').createPlatformAuthStateStore.mockImplementation(
+      (...args: unknown[]) => jest.requireActual('../../src/ui/session').createPlatformAuthStateStore(...args));
+    jest.requireMock('../../src/ui/session/sharedDeviceCredentialStore').createPlatformSharedDeviceCredentialStore.mockReturnValue(null);
     const hasIdentity = jest.spyOn(KeyManager, 'hasIdentity').mockResolvedValue(false);
     const getPublicKey = jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(null);
     await act(async () => { await capturedAuth!.signIn().catch(() => undefined); });
@@ -514,7 +522,7 @@ describe('native foreground device-state reconciliation', () => {
     await waitFor(() => expect(capturedContext?.user?.id).toBe('fixture-org'));
     expect(capturedContext?.activeSessionId).toBe('fixture-org-session');
     expect(fakeSessionClient.bootstrap).toHaveBeenCalledTimes(1);
-    expect(stub.http.refreshAccessToken).not.toHaveBeenCalled();
+    expect(stub.http.refreshAccessToken).toHaveBeenCalledWith('preflight');
   });
 
   it('coalesces repeated foreground events while the authoritative read is pending', async () => {
@@ -552,7 +560,7 @@ describe('native foreground device-state reconciliation', () => {
     expect(fakeSessionClient.bootstrap).toHaveBeenCalledTimes(1);
   });
 
-  it('never reads the shared device for a signed-out provider', async () => {
+  it('checks canonical shared recovery on native resume without bootstrapping an absent session', async () => {
     const { stub } = buildStub();
     renderProvider(stub);
     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
@@ -560,7 +568,7 @@ describe('native foreground device-state reconciliation', () => {
     await emit('background');
     await emit('active');
     expect(fakeSessionClient.bootstrap).not.toHaveBeenCalled();
-    expect(stub.http.refreshAccessToken).not.toHaveBeenCalled();
+    expect(stub.http.refreshAccessToken).toHaveBeenCalledWith('preflight');
   });
 
   it('leaves an isolated OAuth grant outside the native device resume lane', async () => {
@@ -578,6 +586,60 @@ describe('native foreground device-state reconciliation', () => {
     expect(fakeSessionClient.bootstrap).not.toHaveBeenCalled();
     expect(stub.http.refreshAccessToken).not.toHaveBeenCalled();
     expect(stub.session.accessToken).toBe('isolated-bearer');
+  });
+
+  async function sharedRecoveryFixture() {
+    const values = new Map<string, string>();
+    const kv = {getItem: async (key: string) => values.get(key) ?? null, setItem: async (key: string, value: string) => {values.set(key, value);}, removeItem: async (key: string) => {values.delete(key);}};
+    const store = createNativeAuthStateStore(kv);
+    const prior = {sessionId: 'old-native-session', userId: USER_ID, deviceId: 'old-native-device', deviceSecret: 'old-native-holder'};
+    await store.save(prior);
+    jest.requireMock('../../src/ui/session').createPlatformAuthStateStore.mockReturnValue(store);
+    let published = false;
+    const slot = {read: async () => published ? {state: 'present', credential: {deviceId: 'new-native-device', deviceSecret: 'new-native-holder'}} : {state: 'absent'}, publish: async () => true, clear: jest.fn()};
+    jest.requireMock('../../src/ui/session/sharedDeviceCredentialStore').createPlatformSharedDeviceCredentialStore.mockReturnValue(slot);
+    const {stub} = buildStub();
+    stub.devices.mintToken.mockImplementation(async (device: string) => {
+      if (device === prior.deviceId) throw Object.assign(new Error('invalid_device_secret'), {status: 401});
+      return {accessToken: 'shared-new-token', nextDeviceSecret: 'new-native-holder', expiresAt: new Date(Date.now() + 300_000).toISOString(), state: {deviceId: 'new-native-device', accounts: [{accountId: USER_ID, sessionId: 'new-native-session', authuser: 0}], activeAccountId: USER_ID, revision: 1, updatedAt: Date.now()}};
+    });
+    stub.http.refreshAccessToken.mockImplementation(async reason => {
+      const calls = stub.http.setAuthRefreshHandler.mock.calls;
+      const handler = calls[calls.length - 1]?.[0];
+      return handler ? handler(reason) : null;
+    });
+    stub.users.getMany.mockResolvedValue([{id: USER_ID, username: 'fixture-person'}] as never);
+    const view = renderProvider(stub);
+    await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+    expect(capturedContext?.isAuthenticated).toBe(false);
+    fakeSessionClient.bootstrap.mockImplementation(async () => {
+      fakeSessionClient.getState.mockReturnValue({deviceId: 'new-native-device', accounts: [{accountId: USER_ID, sessionId: 'new-native-session', authuser: 0}], activeAccountId: USER_ID, revision: 1, updatedAt: Date.now()} as never);
+    });
+    return {store, kv, prior, stub, view, publish: () => {published = true;}};
+  }
+
+  it('a native resume adopts a newly proved shared re-login through the installed canonical handler', async () => {
+    const f = await sharedRecoveryFixture(); f.publish();
+    await emit('background'); await emit('active');
+    await waitFor(() => expect(capturedContext?.isAuthenticated).toBe(true));
+    expect(capturedContext?.user?.id).toBe(USER_ID);
+    expect(await f.store.load()).toMatchObject({deviceId: 'new-native-device', sessionId: 'new-native-session'});
+    expect(f.stub.auth.signInWithCommonsIdentity).not.toHaveBeenCalled();
+  });
+
+  it('unmounting during a shared mint prevents storage and token commits', async () => {
+    const f = await sharedRecoveryFixture(); f.publish();
+    let finish: ((value: unknown) => void) | undefined;
+    f.stub.devices.mintToken.mockImplementation(async (device: string) => {
+      if (device === f.prior.deviceId) throw Object.assign(new Error('invalid_device_secret'), {status: 401});
+      return new Promise(resolve => {finish = resolve;});
+    });
+    await emit('background'); await emit('active');
+    await waitFor(() => expect(finish).toBeDefined());
+    f.view.unmount();
+    await act(async () => {finish?.({accessToken: 'late-token', nextDeviceSecret: 'new-native-holder', expiresAt: new Date(Date.now() + 300_000).toISOString(), state: {deviceId: 'new-native-device', accounts: [{accountId: USER_ID, sessionId: 'late-session', authuser: 0}], activeAccountId: USER_ID, revision: 1, updatedAt: Date.now()}});});
+    expect(await createNativeAuthStateStore(f.kv).load()).toEqual(f.prior);
+    expect(f.stub.session.accessToken).toBeNull();
   });
 
   it('removes native listeners on unmount', async () => {

@@ -132,6 +132,7 @@ export {
 export type {
     PersistedAuthState,
     AuthStateStore,
+    AuthStateWriteGuard,
     NativeKeyValueStorage,
 } from './authStateStore';
 
