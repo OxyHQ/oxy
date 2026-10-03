@@ -1,0 +1,52 @@
+{
+  "recordedAt": "2026-10-03T11:59:00.413476+00:00",
+  "canonicalMaintenanceHead": "a35ef1b2f7daeeb5f13e7a77e648289cac6be20d",
+  "canonicalTree": "425a497f353e62712ef471d94ac2f9def1fb755c",
+  "reviewedHead": "2e5a5d9e85b38f7aac177225bd9a03c399585c55",
+  "ci": 37120459494,
+  "mainForwardPort": "fb52fa49007f6325a1d802683417d67b1546940b",
+  "publication": "6.2.1 maintenance-6",
+  "latestPreserved": "7.1.1",
+  "freshBuildPackPublishSameInvocation": true,
+  "registryDownloadByteEqual": true,
+  "initialReadbackUnavailable": true,
+  "republishAttempts": 0,
+  "records": {
+    "before.json": {
+      "bytes": 215,
+      "sha256": "7ca6f4aef3924543f04fd56c58e63706ef1720cc16fb76e1e16f5af018183d5e"
+    },
+    "build.log": {
+      "bytes": 5928,
+      "sha256": "a9742d9bfe9febb7caf1df7e14bfdb7bb6699ace4ff8f2783b17a0ab80adb96c"
+    },
+    "candidate-comparison.json": {
+      "bytes": 131,
+      "sha256": "1fb1193f4df96d88f6be7617624f111fa900c71cec7abf2f581709065ede39c9"
+    },
+    "oxy-so-bloom-6.2.1.tgz": {
+      "bytes": 19928269,
+      "sha256": "edf4cfe3d8597e4bf86f997bceacf332f7fce4a8f92c541b3cd375decbce3a0a"
+    },
+    "pack.log": {
+      "bytes": 1223611,
+      "sha256": "8c2e10637d9b318be8278936ba6b65cb0e6377fc592f3fbe010e4e9b45acd5bf"
+    },
+    "publish-intent.json": {
+      "bytes": 408,
+      "sha256": "2d75e025db7eb41a2126e50828b04c92709253e2bc478ca31ad7e4b2f01dbb92"
+    },
+    "publish.log": {
+      "bytes": 1223615,
+      "sha256": "3abc9f8b3153f47d9293622a564fecddd79c9341eaf892b35e3cd454459ead0c"
+    },
+    "registry-readback.json": {
+      "bytes": 1084,
+      "sha256": "99183d8e79c00e9ba27babe03d6b8715d6eb2c908ea03b2edd9dd9047dbecb3a"
+    },
+    "status-pending.json": {
+      "bytes": 291,
+      "sha256": "04b30d6a5ebfb297102b421c42e764b907efff753a09e6910ad4c4715ca39e11"
+    }
+  }
+}
