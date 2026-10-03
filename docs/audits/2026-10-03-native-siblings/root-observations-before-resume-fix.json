@@ -1,0 +1,196 @@
+{
+  "at": "2026-10-03T10:33:18.595732+00:00",
+  "sdkCandidate": "1e719545f290cfb6308c2648cabc10d311136716",
+  "records": [
+    {
+      "file": "ui-password-result.xml",
+      "sha256": "e1c3f11a6da9bf9772c3963efaecca6063e1ff32b578edca364d709dcb96e40e",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "profile:none",
+        "operation:dialog-requested",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-mention-profile-result.xml",
+      "sha256": "2c22b638cdbcb29cee761c14f41f00de6b48dbfe231e1826f75df68f2bf592dd",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "profile:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "operation:profile-read",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-allo-resolved.xml",
+      "sha256": "8608e18efc94dd9626907749aa59608c230bec3105d0e23482b767b905d73c10",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "profile:none",
+        "operation:idle",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-allo-profile-then-switch.xml",
+      "sha256": "739dd5067186601a61375279e7d63e9b0fb2fe6b2be1c76be75398dcdd9f2f67",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "profile:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "operation:profile-read",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-allo-org-profile.xml",
+      "sha256": "1b6657a15c2dca7262ad613930676fd46293df37a5d47d81d8c014ed753d22f7",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45fa-7422-93b5-69855a040250",
+        "profile:01a100f9-45fa-7422-93b5-69855a040250",
+        "operation:profile-read",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-mention-returned.xml",
+      "sha256": "2c22b638cdbcb29cee761c14f41f00de6b48dbfe231e1826f75df68f2bf592dd",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "profile:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "operation:profile-read",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-mention-after-alloswitch.xml",
+      "sha256": "2c22b638cdbcb29cee761c14f41f00de6b48dbfe231e1826f75df68f2bf592dd",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "profile:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "operation:profile-read",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-mention-refreshed.xml",
+      "sha256": "3ae98b3fb7c4a428dca5133d052345ae86b653c501790d6336383c5610c9abdc",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45fa-7422-93b5-69855a040250",
+        "profile:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "operation:refreshed",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-mention-org-before-signout.xml",
+      "sha256": "06a4669bc12262f902b95e093ee5e5499cbe05308970070e90f3f2f14e804e22",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45fa-7422-93b5-69855a040250",
+        "profile:01a100f9-45fa-7422-93b5-69855a040250",
+        "operation:profile-read",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-mention-signed-out.xml",
+      "sha256": "ca98ea64a3954215e68fb5cf727f7fb2b516fc7509588288ce0754964d849306",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+        "profile:none",
+        "operation:signed-out",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-allo-after-mention-logout.xml",
+      "sha256": "1b6657a15c2dca7262ad613930676fd46293df37a5d47d81d8c014ed753d22f7",
+      "states": [
+        "resolved:true",
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a100f9-45fa-7422-93b5-69855a040250",
+        "profile:01a100f9-45fa-7422-93b5-69855a040250",
+        "operation:profile-read",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-mention-empty.xml",
+      "sha256": "a80e492c6ed08988a2961b1d2c69983d12c6f85a77fa7c4f80dac6ddd6363b12",
+      "states": [
+        "resolved:true",
+        "authenticated:false",
+        "private-ready:false",
+        "user:none",
+        "profile:none",
+        "operation:signed-out",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-allo-after-final-signout.xml",
+      "sha256": "df65ea3a438482931879e37cc75c5c329e8ab20be140c40cf59fb324714289ad",
+      "states": [
+        "resolved:true",
+        "authenticated:false",
+        "private-ready:false",
+        "user:none",
+        "profile:01a100f9-45fa-7422-93b5-69855a040250",
+        "operation:profile-read",
+        "provider-error:false"
+      ]
+    },
+    {
+      "file": "ui-allo-denied-result.xml",
+      "sha256": "037184f8c5bd74243e8b5f062c384d080fb2553637f5e77c2a42323b4557f808",
+      "states": [
+        "resolved:true",
+        "authenticated:false",
+        "private-ready:false",
+        "user:none",
+        "profile:none",
+        "operation:profile-denied",
+        "provider-error:false"
+      ]
+    }
+  ],
+  "limits": [
+    "Password UI completed by real keyboard Tab/Enter because touch links did not respond; touch defect remains",
+    "No native foreground switch propagation until manual SDKrefresh; source fix pending",
+    "Profile label is previous explicit read until ReadProfile clicked",
+    "Logout of org falls back remainingperson; finalperson logout automatically clearsAllo and laterprofile denied",
+    "Debug double-R reloads avoided using350ms character input; old uiautomator helper allowed staleXML, later fresh helper verifies successfuldump+unique paths",
+    "FinalregistrySDK repetition still required"
+  ]
+}

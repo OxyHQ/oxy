@@ -1,0 +1,25 @@
+{
+  "operator": "root only",
+  "privateObservation": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-0955/observations-before-resume-fix.json",
+  "privateObservationSha256": "b52929e86c08d553ec9bf1a79a7d420d708de5ebc97b0a867a5d9bdca73d240c",
+  "sourceCommit": "db3deb613",
+  "proofCommit": "86828d2f0",
+  "sdkCandidate": "1e719545f290cfb6308c2648cabc10d311136716",
+  "verifiedXmlRecords": 14,
+  "acceptedScope": [
+    "Real native SDK password sign-in using keyboard Tab/Enter",
+    "Mention profile equals fixture person",
+    "Allo cold boot adopts same person through SDK IPC",
+    "Allo switches to org and reads matching SDK profile",
+    "Mention manual SDK refresh reads active org",
+    "Account-scoped org logout falls back to remaining person",
+    "Final person logout clears sibling; subsequent private profile denied"
+  ],
+  "openFindings": [
+    "Touch hit testing remains broken; keyboard success is not touch success",
+    "Foreground resume does not automatically adopt active switch; coverage owns fix",
+    "Back/explicit-close lifecycle reproduced upstream Bloom258",
+    "Final published SDK repetition pending"
+  ],
+  "noDeviceOperationsByThisAgent": true
+}

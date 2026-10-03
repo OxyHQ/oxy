@@ -24,3 +24,7 @@ Callback correction db3deb613 removes the sibling scheme and authRedirectUri.
 The rebuilt manifests contain no astro handler, leaving the isolated third-party
 app as its only fixture owner. New APKs/bundles are pinned in no-callback-proof.json;
 prior variants remain historical and must not be installed. No allowlist changed.
+
+## Root-operated candidate observations
+
+Root completed native password sign-in using real keyboard Tab/Enter, SDK profile, Allo shared adoption and org switch, manual Mention refresh, scoped logout fallback and final sibling logout/private denial. Fourteen private XML hashes were independently checked against the whitelisted [observation](root-observations-before-resume-fix.json). This does not close native acceptance: touch failed, active-switch foreground refresh needed manual SDK refresh, and final registry SDK repetition remains. Bloom258 handles the separate dismissal lifecycle defect. No device operation was performed by this proof author.
