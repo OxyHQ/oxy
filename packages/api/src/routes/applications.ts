@@ -1,3 +1,4 @@
+import { revokeApplicationCredential } from '../services/applicationCredentialRevocation.service';
 import { generateCredentialMaterial } from '../utils/credentialMaterial';
 import express from 'express';
 import crypto from 'crypto';
@@ -1409,44 +1410,8 @@ router.delete(
 
     const actorUserId = requireUserId(req);
 
-    // One statement, and its RESULT decides the outcome: a credential that does
-    // not belong to this application updates no row and is a 404. The audit row
-    // rides the same transaction — a revocation nobody can date is the one this
-    // trail exists to answer.
-    const credential = await getDb().transaction(async (tx) => {
-      const [row] = await tx
-        .update(applicationCredentials)
-        .set({ status: 'revoked' })
-        .where(
-          and(
-            eq(applicationCredentials.id, req.params.credId),
-            eq(applicationCredentials.applicationId, application.id),
-            // Revoking a workload row would revoke nothing — an attested caller's
-            // liveness is its binding's, re-read on every call — while leaving a
-            // row that reads as revoked and an operator who believes a service was
-            // cut off. Deleting the binding is how that is actually done.
-            excludeWorkloadRows()
-          )
-        )
-        .returning({
-          id: applicationCredentials.id,
-          environment: applicationCredentials.environment,
-          type: applicationCredentials.type,
-        });
-      if (!row) {
-        throw new NotFoundError('Credential not found');
-      }
-
-      await recordCredentialLifecycleEvent(tx, {
-        applicationId: application.id,
-        credentialId: row.id,
-        eventType: 'revoked',
-        actorUserId,
-        environment: row.environment,
-        metadata: { type: row.type },
-      });
-
-      return row;
+    const credential = await revokeApplicationCredential(application.id, req.params.credId, {
+      kind: 'customer', userId: actorUserId,
     });
 
     logger.info('Application credential revoked', {
