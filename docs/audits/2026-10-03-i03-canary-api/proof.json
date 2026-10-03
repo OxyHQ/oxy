@@ -1,0 +1,138 @@
+{
+  "kind": "i03-bounded-canary-api-local-proof",
+  "sourceHead": "fa5113ac9cab820111c8805090511879574381db",
+  "baseHead": "ebb69bac0487fc13f1102fdb78a3f3a81973ffb5",
+  "sourceInputs": [
+    {
+      "path": "docs/inference/observability.md",
+      "sha256": "480e5d39ef93735ac668fad2fda78edcaa5908d59c15ec31c8224c3a6330a3d2"
+    },
+    {
+      "path": "packages/api/src/db/schema/applicationCredentialAuditEvents.ts",
+      "sha256": "7e0fad3a5aa05a085342eab9f307c1e190f5530b094510b38334098627531c55"
+    },
+    {
+      "path": "packages/api/src/routes/applications.ts",
+      "sha256": "a0531f51b3793536720d6d3a242e80729e9d44efc57e7661c1c69ac5f2fbe0f6"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/aliaRevocationCanary.db.test.ts",
+      "sha256": "ed076db33f41912be38d11cb0b329e2b2d3fd6c32b1b5a46ab8d50fd7b738043"
+    },
+    {
+      "path": "packages/api/src/services/aliaRevocationCanary.service.ts",
+      "sha256": "11649e498c6c9cda82b4b94f25cfe26668586ed45abf2cbfa4b87b8fb2bf2175"
+    },
+    {
+      "path": "packages/api/src/services/applicationCredentialAudit.service.ts",
+      "sha256": "880db9dc51caba7cbc3fcf4c04429c7474d31f92c2df3cacf1c159e9d253cc32"
+    },
+    {
+      "path": "packages/api/src/services/applicationCredentialRevocation.service.ts",
+      "sha256": "ceff282607b58635cad7c819cafd3c2bcb610d09c2cceec4914ed3999679a3c1"
+    },
+    {
+      "path": "scripts/agency/tests/alia-canary-compiled.mjs",
+      "sha256": "e54d7ad1ee0a0265e3e72891f3d5f615777d206da6e165535ca62866851ad088"
+    },
+    {
+      "path": "scripts/rehearsal/test-alia-revocation-canary.py",
+      "sha256": "d13827a1a0bbe415050bb3d016899548427ef1cbaf4a45c0ed0bf1bfd87a5163"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/canary-api-compiled-final.log",
+      "bytes": 2761,
+      "sha256": "169bf1fa2abfbdf0c3446ad99ace4091764411017c28729574db4f8bc4f43566"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/canary-api-build-freeze.log",
+      "bytes": 4358,
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/canary-api-scoped-biome-final.log",
+      "bytes": 42,
+      "sha256": "b66fd572b5b42c62f2f5dff77b7e4ae0484966be06b14f9a2f0286eb0ec94123"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/canary-api-scripts-ts-final.log",
+      "bytes": 31,
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/api-focused.txt",
+      "bytes": 804,
+      "sha256": "91f5fbf7f5216a8c2601a93afb96751ce32c3a562f33c06f51c212822c9a5b8c"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/compiled-migrate-fresh.log",
+      "bytes": 8875,
+      "sha256": "50b0d33d571586e6e21b0a4a3baa7ff4ea9c5f0ad9bc8f76b061e13af7a56255"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/compiled-migrate-repeat.log",
+      "bytes": 173,
+      "sha256": "ca0b06798a5a1101f82adad87a5444fb6073ef72abdb3ab58e193a10871f0e65"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/compiled-node.log",
+      "bytes": 292,
+      "sha256": "3030eea4b55dcb493ce9fdc71fb5241f93a700b3db8675f5ef7529faa003607a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/local-cleanup.json",
+      "bytes": 168,
+      "sha256": "90e90cf3ffb49cb94b68f1d1ecf349b6a09d3fd53dea75ac452ea97948dd908b"
+    }
+  ],
+  "compiledInputs": [
+    {
+      "path": "packages/api/dist/services/aliaRevocationCanary.service.js",
+      "sha256": "363cba14df14761139aea3f21ffd7a60eb1394f386380e9de24eeee0f150e098"
+    },
+    {
+      "path": "packages/api/dist/services/applicationCredentialRevocation.service.js",
+      "sha256": "6dcb62483c3206888483111ad95952176945360f3fdd301f20ae202ca3bd47a4"
+    },
+    {
+      "path": "packages/api/dist/services/applicationCredentialAudit.service.js",
+      "sha256": "13f6c78be7031244712771e4801f0dce393fcf25da95381635fbee28f6c907e5"
+    },
+    {
+      "path": "packages/api/dist/routes/applications.js",
+      "sha256": "d172a12be1d3a7a4df705480ea185ded601c469bf00e40536dfbd33a6aae650d"
+    },
+    {
+      "path": "packages/api/dist/db/schema/applicationCredentialAuditEvents.js",
+      "sha256": "41a4cbcff6eb1576839813ef89bd36741ff152e6e3c40cce10e7fdd858682631"
+    }
+  ],
+  "results": {
+    "packageOwnJestSuites": 3,
+    "packageOwnJestTests": 58,
+    "newCanarySqlTests": 10,
+    "compiledNodeChecks": 5,
+    "apiBuildExit": 0,
+    "scriptsTypecheckExit": 0,
+    "scopedBiomeFiles": 3,
+    "scopedBiomeExit": 0,
+    "normalMigrationFreshAndRepeat": true,
+    "ownedPostgresPidsAbsent": [
+      4161879
+    ],
+    "providerRequests": 0,
+    "liveRevocationMeasured": false,
+    "productionReady": false
+  },
+  "limitations": [
+    "SQL fixtures create synthetic authority in their newly created local database; they do not create production consent.",
+    "Compiled Node runs the actual API modules with NODE_ENV=production and only the owned local DATABASE_URL plus scrubbed process environment.",
+    "The canonical customer DELETE filters, permission middleware, workload exclusion and transaction audit remain unchanged.",
+    "The internal operational service trusts the reviewed AWS operator launcher; an ARN string is not independent authentication.",
+    "The final test run followed the build sequentially. An earlier concurrent build removed dependency dist files and failed two legacy suites; this was setup interference, retained externally, not a product RED.",
+    "This source checkpoint excludes the uncommitted external parent/receiver helpers and does not claim live two-process latency or AWS execution.",
+    "Cleanup recovery uses only the durable plan and exact immutable creation audit/row; no raw secret is retained."
+  ]
+}
