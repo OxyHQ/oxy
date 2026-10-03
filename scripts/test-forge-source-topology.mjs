@@ -48,6 +48,27 @@ try {
     ]) { const x = structuredClone(facts); mutate(x); assert.equal(checkSourceTopologyStructure(x, { sourceSha: source }, base).eligible, false); count++; }
   }
   assert.equal(checkSourceTopologyStructure(undefined, undefined, base).eligible, false); count++;
-  assert.equal(FROZEN_BASE_HEAD, '73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12'); count++;
+  const currentMain = '67c09e853db308d102624a2ffd40db19959344f4';
+  const queueHead = 'cd71a0f773711bb230f64ab77b694fe7841e5bd8';
+  const frozenSource = '8c8163755abddd1046ebea65b290634676759112';
+  // Structurally synthetic metadata with the authenticated current main/queue IDs.
+  // Authentication remains the live collector's responsibility.
+  const current = { head: queueHead, clean: true, sourceIsAncestor: false,
+    headTree: 'd'.repeat(40), headParents: [currentMain], changedPaths: [
+      'docs/security/forge-candidate/provenance/pins.json',
+      'docs/security/forge-candidate/provenance/audit-policy-decision.json'],
+    currentGithub: { run: { repository: { id: 973881060, full_name: 'OxyHQ/oxy' },
+      head_repository: { full_name: 'OxyHQ/oxy' }, event: 'merge_group',
+      head_sha: queueHead, head_branch: `gh-readonly-queue/main/pr-1557-${currentMain}` },
+      commit: { sha: queueHead, tree: 'd'.repeat(40), parents: [currentMain] } } };
+  assert.equal(checkFrozenSourceTopology(current, { sourceSha: frozenSource }).eligible, true, 'the reviewed actual main base must admit its exact squash topology'); count++;
+  for (const wrongBase of ['73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12', 'f'.repeat(40)]) {
+    const wrong = structuredClone(current);
+    wrong.headParents = [wrongBase]; wrong.currentGithub.commit.parents = [wrongBase];
+    wrong.currentGithub.run.head_branch = `gh-readonly-queue/main/pr-1557-${wrongBase}`;
+    assert.equal(checkFrozenSourceTopology(wrong, { sourceSha: frozenSource }).eligible, false); count++;
+  }
+  assert.equal(FROZEN_BASE_HEAD, currentMain); count++;
+
 } finally { rmSync(root, { recursive: true, force: true }); }
 console.log(`${count} real Git SQUASH source-binding assertions pass; metadata is explicitly synthetic, no live approval.`);
