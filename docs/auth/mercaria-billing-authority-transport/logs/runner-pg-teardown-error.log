@@ -1,0 +1,32 @@
+✔ compiled runner prepare/apply/rollback preserves unrelated rows and rejects replay (3651.967854ms)
+✔ foreign target, extra payload and hash mismatch refuse without any row mutation (510.26164ms)
+✔ CAS detects same-scopes timestamp-preserving ABA across separate Node processes (834.725838ms)
+✔ closure fence rejects prepare before any authority change (406.913247ms)
+✖ /home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-billing-authority.mjs (3.420147ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5789.766935
+
+✖ failing tests:
+
+test at scripts/auth/test-mercaria-billing-authority.mjs:76:1
+✖ /home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-billing-authority.mjs (3.420147ms)
+  TypeError: Invalid URL
+      at new URL (node:internal/url:895:25)
+      at /home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/packages/api/dist/db/testDatabase.js:191:22
+      at Generator.next (<anonymous>)
+      at /home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/packages/api/dist/db/testDatabase.js:27:71
+      at new Promise (<anonymous>)
+      at __awaiter (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/packages/api/dist/db/testDatabase.js:23:12)
+      at dropTestDatabase (/home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/packages/api/dist/db/testDatabase.js:190:12)
+      at TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/1519-mercaria-authority-transport-20261003/scripts/auth/test-mercaria-billing-authority.mjs:79:11)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestHook.run (node:internal/test_runner/test:1409:7) {
+    code: 'ERR_INVALID_URL',
+    input: 'undefined'
+  }

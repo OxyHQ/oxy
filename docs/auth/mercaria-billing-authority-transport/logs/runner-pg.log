@@ -1,0 +1,13 @@
+✔ compiled runner prepare/apply/rollback preserves unrelated rows and rejects replay (3713.83905ms)
+✔ foreign target, extra payload and hash mismatch refuse without any row mutation (504.457733ms)
+✔ CAS detects same-scopes timestamp-preserving ABA across separate Node processes (826.626986ms)
+✔ closure fence rejects prepare before any authority change (418.951244ms)
+OWNED_DATABASE_DROPPED
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5919.492344
