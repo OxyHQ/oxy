@@ -205,9 +205,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (server) {
-    server.closeAllConnections();
-    await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));
+  const listener = server;
+  if (listener) {
+    listener.closeAllConnections();
+    await new Promise<void>((resolve, reject) => listener.close((error) => error ? reject(error) : resolve()));
   }
   await closePostgres();
 });
@@ -407,7 +408,7 @@ it.each(['missing', 'expired', 'revoked'] as const)(
       await getDb().insert(sessions).values({
         sessionId, userId: ORG_ID, operatedByUserId: USER_ID,
         deviceId: `settings-denied-device-${randomUUID()}`, deviceType: 'web', platform: 'web',
-        accessToken: 'fixture-denied-access', refreshToken: 'fixture-denied-refresh',
+        accessToken: `fixture-${sessionId}-access`, refreshToken: `fixture-${sessionId}-refresh`,
         expiresAt: new Date(Date.now() + (state === 'expired' ? -1_000 : 60_000)),
         isActive: state !== 'revoked',
       });
