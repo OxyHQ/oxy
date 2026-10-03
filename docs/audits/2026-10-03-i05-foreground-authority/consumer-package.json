@@ -1,0 +1,24 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node transport.mjs",
+    "typecheck": "tsc --strict --skipLibCheck --noEmit --module NodeNext --moduleResolution NodeNext consumer.mts"
+  },
+  "dependencies": {
+    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs/oxy.so-core-4.2.0.tgz",
+    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs/oxy.so-contracts-4.9.0.tgz",
+    "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-protocol-1.2.2.tgz",
+    "@oxy.so/telemetry": "file:/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-telemetry-1.2.0.tgz"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2",
+    "@types/node": "24.9.2"
+  },
+  "overrides": {
+    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs/oxy.so-core-4.2.0.tgz",
+    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs/oxy.so-contracts-4.9.0.tgz",
+    "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-protocol-1.2.2.tgz",
+    "@oxy.so/telemetry": "file:/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-telemetry-1.2.0.tgz"
+  }
+}

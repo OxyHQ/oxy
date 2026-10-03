@@ -1,0 +1,1 @@
+✓ Schema and snapshots agree: drizzle-kit read 223 tables and has nothing to emit.
