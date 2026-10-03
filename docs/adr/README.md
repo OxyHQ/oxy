@@ -43,6 +43,8 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0029](0029-one-oxy-session.md) | — | One Oxy session: every app signs in from its own dialog, and on the web the dialog opens auth.oxy.so in a window over the app (like "Sign in with Google"), with no code deciding by domain; one browser session shared by every Oxy app; web accounts are username + passkey + recovery email, Commons the official self-custody way; no cookies, no silent navigation. Changes 0028 D1b and 0024 D3–D6, D9. D1 and D3 changed by 0030 (sign-in inside the dialog by email, password, authenticator; no passkey). |
 | [0030](0030-email-code-password-authenticator.md) | #1421, #1422 | Passkeys are removed: an account without a key signs in inside every app's dialog by email (a 6-digit code or a link that approves only the browser that asked), an optional scrypt password and an optional authenticator (encrypted TOTP secret, hashed one-use backup codes); sensitive changes need a fresh email code or password; lockouts, decoys and send budgets keep it from telling whether an account exists; the passkey tables are dropped post-deploy. Changes 0029 D1, D3, 0028 and 0024's passkey, no-password and no-email lines. |
 
+| [0033](0033-subscription-credit-and-product-billing.md) | #1524, #1525 | Approved P1/P2/P3, FIFO tracked credits with opaque legacy preservation, explicit product catalogue and atomic verified awards; no inferred commercial offers or historical balance reconstruction. |
+
 ## Related
 
 - [`../architecture/inference-responsibility-matrix.md`](../architecture/inference-responsibility-matrix.md)

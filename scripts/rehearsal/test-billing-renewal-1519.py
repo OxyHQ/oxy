@@ -78,20 +78,23 @@ def main():
                    'src/services/__tests__/productProviderEvidence.test.ts',
                    'src/services/__tests__/productAccessPersistence.test.ts',
                    'src/services/__tests__/subscriptionCreditLedger.test.ts',
+                   'src/services/__tests__/subscriptionCreditLockOrder.test.ts',
                    'src/services/__tests__/subscriptionPeriodPolicy.test.ts',
                    'src/services/__tests__/subscriptionPromotionPolicy.test.ts',
+                   'src/services/__tests__/productBillingCatalogue.test.ts',
+                   'src/controllers/__tests__/subscription.controller.test.ts',
                    'src/db/__tests__/credits.test.ts',
                    'src/db/schema/__tests__/foreignKeys.test.ts',
                    'src/routes/__tests__/billingWebhookIdempotency.test.ts']
         result = subprocess.run(command, cwd=ROOT / 'packages/api', env=env,
                                 text=True, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, check=False)
-        log = scratch / 'provider-renewal' / 'api-focused.txt'
+        log = owned / 'api-focused.txt'
         log.parent.mkdir(exist_ok=True)
         log.write_text(result.stdout)
         print(json.dumps({'newLocalServerPid': pid, 'dataDirectory': str(data),
                           'database': db, 'command': command, 'exitCode': result.returncode,
-                          'log': str(log), 'productionAccess': False}))
+                          'log': str(log), 'productionAccess': False, 'suitesAndCounts': result.stdout.split('Test Suites:')[-1]}))
         result.check_returncode()
     finally:
         if server_started:

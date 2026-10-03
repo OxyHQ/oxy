@@ -19,6 +19,57 @@ describe('oxy.billing', () => {
     request.mockRejectedValue(new Error('Forbidden'));
     await expect(oxy.billing.productAccess({ schemaVersion: 1, subjectAccountId: 'me', productId: 'product' })).rejects.toThrow('Forbidden');
   });
+  it("reads plural sources and immutable grant provenance uncached, rejecting mixed units", async () => {
+    const { oxy, request } = stubbedClient('me');
+		request.mockResolvedValue({ subscriptions: [] });
+		await expect(oxy.billing.productSubscriptions()).resolves.toEqual([]);
+		expect(request).toHaveBeenLastCalledWith(
+			'GET',
+			"/billing/product-subscriptions",
+			undefined,
+			{ cache: false },
+		);
+		const grant = {
+			id: "grant",
+			invoiceId: "invoice",
+			origin: "subscription_payment",
+			period: {
+				start: "2026-01-01T00:00:00.000Z",
+				end: "2026-02-01T00:00:00.000Z",
+			},
+			granted: 10,
+			consumed: 3,
+			clawed: 2,
+			remaining: 5,
+			promotionId: null,
+			createdAt: "2026-01-01T00:00:00.000Z",
+		};
+		request.mockResolvedValue({ grants: [grant] });
+		await expect(oxy.billing.creditGrants()).resolves.toEqual([grant]);
+		expect(request).toHaveBeenLastCalledWith(
+			'GET',
+			"/billing/credit-grants",
+			undefined,
+			{ cache: false },
+		);
+		request.mockResolvedValue({ grants: [{ ...grant, remaining: 6 }] });
+		await expect(oxy.billing.creditGrants()).rejects.toThrow();
+		request.mockResolvedValue({ subscriptions: [], balance: 100 });
+		await expect(oxy.billing.productSubscriptions()).rejects.toThrow();
+	});
+	it("cancels only the named source and rejects an empty selector before transport", async () => {
+		const { oxy, request } = stubbedClient('me');
+		await expect(oxy.billing.cancelProductSubscription("")).rejects.toThrow();
+		expect(request).not.toHaveBeenCalled();
+		request.mockResolvedValue({ sourceId: "source", cancelAtPeriodEnd: true });
+		await oxy.billing.cancelProductSubscription("source");
+		expect(request).toHaveBeenLastCalledWith(
+			"POST",
+			"/billing/product-subscriptions/cancel",
+			{ sourceId: "source" },
+			{ cache: false },
+		);
+	});
   it('defaults every read to the signed-in user', async () => {
     const { oxy, request } = stubbedClient('me');
     request.mockResolvedValue({ plan: 'basic' });
