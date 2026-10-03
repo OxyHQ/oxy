@@ -148,31 +148,36 @@ def input_hashes():
     return result
 
 
-def scope():
+def scope(zero_only=False):
     return {'provider': 'stripe', 'providerAccountId': ACCOUNT, 'mode': 'test',
             'environment': 'test', 'databaseDeclaration': 'test:test',
             'nodeEnvironment': 'test', 'port': PORT, 'currency': 'usd',
-            'maximumSyntheticPaidMinorUnits': 50000, 'maximumSubscriptions': 4,
+            'maximumSyntheticPaidMinorUnits': 0 if zero_only else 50000,
+            'maximumSubscriptions': 1 if zero_only else 4,
+            'scenario': 'zero_invoice' if zero_only else 'full',
             'providerSignedDelivery': False, 'productionDatabase': False,
             'positivePromotionConfigured': False}
 
 
-def prepare():
+def prepare(zero_only=False):
     OUTPUT.mkdir(parents=True, exist_ok=True, mode=0o700)
     nonce = secrets.token_hex(12)
     path = OUTPUT / f'plan-{nonce}.json'
     write_private(path, {'schemaVersion': 1, 'nonce': nonce, 'preparedAt': int(time.time()),
-                         'expiresAt': int(time.time()) + 86400, 'scope': scope(),
+                         'expiresAt': int(time.time()) + 86400, 'scope': scope(zero_only),
                          'sourceHead': run(['git', 'rev-parse', 'HEAD'], cwd=ROOT).strip(),
                          'sourceSha256': input_hashes()})
-    print(json.dumps({'plan': str(path), 'mutations': False, 'scope': scope()}))
+    print(json.dumps({'plan': str(path), 'mutations': False, 'scope': scope(zero_only)}))
 
 
 def validate_plan(path):
     plan = json.loads(path.read_text())
     if set(plan) != {'schemaVersion', 'nonce', 'preparedAt', 'expiresAt', 'scope', 'sourceHead', 'sourceSha256'}:
         raise ValueError('Unexpected plan fields')
-    if plan['schemaVersion'] != 1 or plan['scope'] != scope():
+    scenario = plan['scope'].get('scenario') if isinstance(plan['scope'], dict) else None
+    if scenario not in ('full', 'zero_invoice'):
+        raise ValueError('Reviewed scope scenario differs')
+    if plan['schemaVersion'] != 1 or plan['scope'] != scope(scenario == 'zero_invoice'):
         raise ValueError('Reviewed scope differs')
     nonce = plan['nonce']
     if not isinstance(nonce, str) or len(nonce) != 24 or any(c not in '0123456789abcdef' for c in nonce):
@@ -199,6 +204,11 @@ def bootstrap_router():
     if json.loads(checked.stdout) != {'actualLoader': 'function', 'providerCredentialEnvPresent': False, 'databaseEnvPresent': False}:
         raise ValueError('Router bootstrap did not return the expected offline result')
     return checked.stdout
+
+
+def cleanup_requires_manifest_review(exit_code, forced_stop):
+    # Nonzero and unknown results never certify complete provider cleanup.
+    return bool(forced_stop or exit_code != 0)
 
 
 def execute(path):
@@ -289,7 +299,7 @@ def execute_owned(path, coordinator):
             result['childForcedStop'] = coordinator.forced
             result['lastManagedProcessPid'] = coordinator.last_child_pid
             result['lastManagedProcessStopped'] = coordinator.last_child_stopped
-            result['cleanupRequiresManifestReview'] = coordinator.forced or result['exitCode'] is None
+            result['cleanupRequiresManifestReview'] = cleanup_requires_manifest_review(result['exitCode'], coordinator.forced)
             write_private(owned / 'runner.json', result)
             print(json.dumps({'runDirectory': str(owned), **result}))
 
@@ -298,10 +308,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prepare', action='store_true')
     parser.add_argument('--execute', type=Path)
+    parser.add_argument('--prepare-zero', action='store_true', help='Prepare only the fixed zero-invoice case, zero paid budget and one subscription')
     options = parser.parse_args()
-    if options.prepare and options.execute:
+    if sum(bool(x) for x in (options.prepare, options.prepare_zero, options.execute)) > 1:
         parser.error('Choose preparation or execution')
     if options.execute:
         execute(options.execute.resolve())
     else:
-        prepare()
+        prepare(options.prepare_zero)

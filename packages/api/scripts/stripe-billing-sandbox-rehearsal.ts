@@ -71,6 +71,8 @@ type Plan = {
 		mode: string;
 		environment: string;
 		maximumSyntheticPaidMinorUnits: number;
+		maximumSubscriptions: number;
+		scenario: "full" | "zero_invoice";
 	};
 	sourceSha256: Record<string, string>;
 };
@@ -111,6 +113,28 @@ export function rehearsalErrorDiagnostic(error: unknown, phase: string) {
 				: error instanceof Error && error.message.startsWith("Timed out: own ")
 					? "own_event_timeout"
 					: "unclassified";
+	// Stripe may be loaded through both CJS and ESM. Diagnostics must not depend
+	// on cross-entrypoint instanceof identity; this list never grants authority.
+	const type = error instanceof Error ? Reflect.get(error, "type") : undefined;
+	const stripeError =
+		typeof type === "string" &&
+		[
+			"StripeInvalidRequestError",
+			"StripeAPIError",
+			"StripeAuthenticationError",
+			"StripePermissionError",
+			"StripeRateLimitError",
+			"StripeConnectionError",
+			"StripeSignatureVerificationError",
+			"StripeIdempotencyError",
+			"StripeUnknownError",
+		].includes(type);
+	const code = error instanceof Error ? Reflect.get(error, "code") : undefined;
+	const status =
+		error instanceof Error ? Reflect.get(error, "statusCode") : undefined;
+	const param =
+		error instanceof Error ? Reflect.get(error, "param") : undefined;
+
 	return {
 		phase,
 		name: error instanceof Error ? error.name : "UnknownError",
@@ -120,12 +144,27 @@ export function rehearsalErrorDiagnostic(error: unknown, phase: string) {
 					sourceLocation: `packages/api/scripts/stripe-billing-sandbox-rehearsal.ts:${source[1]}:${source[2]}`,
 				}
 			: {}),
-		...(error instanceof Stripe.errors.StripeError &&
-		typeof error.code === "string" &&
-		/^[a-z0-9_]{1,80}$/.test(error.code)
-			? { code: error.code }
+		...(stripeError
+			? {
+					...(typeof code === "string" && /^[a-z0-9_]{1,80}$/.test(code)
+						? { code }
+						: {}),
+					type,
+					...(Number.isInteger(status) ? { status } : {}),
+					...(typeof param === "string" && /^[a-z0-9_\[\].]{1,80}$/.test(param)
+						? { param }
+						: {}),
+				}
 			: {}),
 	};
+}
+
+export function assertSandboxCouponName(name: string): string {
+	assert.ok(
+		name.length > 0 && name.length <= 40,
+		"Coupon name exceeds the provider contract",
+	);
+	return name;
 }
 
 async function main() {
@@ -144,7 +183,16 @@ async function main() {
 	assert.equal(plan.scope.providerAccountId, ACCOUNT);
 	assert.equal(plan.scope.mode, "test");
 	assert.equal(plan.scope.environment, "test");
-	assert.equal(plan.scope.maximumSyntheticPaidMinorUnits, MAX_PAID);
+	assert.ok(
+		plan.scope.scenario === "full" || plan.scope.scenario === "zero_invoice",
+	);
+	const zeroOnly = plan.scope.scenario === "zero_invoice";
+	const maximumPaid = zeroOnly ? 0 : MAX_PAID;
+	const maximumSubscriptions = zeroOnly ? 1 : 4;
+	assert.equal(plan.scope.maximumSyntheticPaidMinorUnits, maximumPaid);
+	assert.equal(plan.scope.maximumSubscriptions, maximumSubscriptions);
+	// Validate before reading a key or recording any create intent.
+	const couponName = assertSandboxCouponName(`No-grant ${plan.nonce}`);
 	assert.ok(Date.now() / 1000 < plan.expiresAt);
 	const root = resolve(process.cwd());
 	for (const [path, digest] of Object.entries(plan.sourceSha256)) {
@@ -319,7 +367,7 @@ async function main() {
 		);
 		if (kind === "subscription") {
 			subscriptionsCreated += 1;
-			assert.ok(subscriptionsCreated <= 4);
+			assert.ok(subscriptionsCreated <= maximumSubscriptions);
 		}
 		const intent = {
 			step,
@@ -438,12 +486,12 @@ async function main() {
 		assert.equal(invoice.livemode, false);
 		assert.equal(ref(invoice.customer), customerId);
 		assert.equal(invoice.currency, "usd");
-		assert.ok(invoice.amount_paid >= 0 && invoice.amount_paid <= MAX_PAID);
+		assert.ok(invoice.amount_paid >= 0 && invoice.amount_paid <= maximumPaid);
 		if (!paidInvoiceIds.has(id)) {
 			observedPaid += invoice.amount_paid;
 			paidInvoiceIds.add(id);
 		}
-		assert.ok(observedPaid <= MAX_PAID, "Synthetic spend cap exceeded");
+		assert.ok(observedPaid <= maximumPaid, "Synthetic spend cap exceeded");
 		await persist();
 		return invoice;
 	}
@@ -584,7 +632,10 @@ async function main() {
 			},
 		};
 		const prices: Stripe.Price[] = [];
-		for (const [index, amount] of [2999, 9999, 199, 99].entries()) {
+		for (const [index, amount] of (zeroOnly
+			? [0]
+			: [2999, 9999, 199, 99]
+		).entries()) {
 			const product = await create("product", `product-${index}`, (opts) =>
 				stripe.products.create(
 					{ name: `Oxy sandbox fixture ${index} ${plan.nonce}`, metadata },
@@ -625,7 +676,7 @@ async function main() {
 			});
 		}
 		process.env.STRIPE_PRO_PRICE_ID = prices[0].id;
-		process.env.STRIPE_BUSINESS_PRICE_ID = prices[1].id;
+		if (!zeroOnly) process.env.STRIPE_BUSINESS_PRICE_ID = prices[1].id;
 		process.env.BILLING_PRODUCT_CATALOGUE_FILE = join(
 			directory,
 			"catalogue.private.json",
@@ -673,7 +724,8 @@ async function main() {
 			discounts?: Stripe.SubscriptionCreateParams.Discount[],
 		) {
 			assert.ok(
-				observedPaid + (prices[index].unit_amount ?? MAX_PAID + 1) <= MAX_PAID,
+				observedPaid + (prices[index].unit_amount ?? maximumPaid + 1) <=
+					maximumPaid,
 				"Creation would exceed synthetic budget",
 			);
 			const subscription = await create("subscription", step, (opts) =>
@@ -703,345 +755,379 @@ async function main() {
 			await saveCatalogue();
 			return current;
 		}
-		phase = "initialPaidInvoice";
-		const creditSub = await subscribe(0, "credit-subscription");
-		const baseInvoice = await paidInvoice(
-			ref(creditSub.latest_invoice),
-			customer.id,
-		);
-		const baseEvent = await providerEvent("invoice.paid", baseInvoice.id);
-		await deliver(baseEvent);
-		await deliver(baseEvent);
-		assert.equal((await grants(baseInvoice.id)).length, 1);
-		assert.equal(await balance(payer), 10000);
-		const baseAccessEvidence = await db
-			.select()
-			.from(accessProviderPeriods)
-			.where(eq(accessProviderPeriods.invoiceId, baseInvoice.id));
-		assert.equal(baseAccessEvidence.length, 1);
-		const baseAccessGrants = await db
-			.select()
-			.from(accessGrants)
-			.where(eq(accessGrants.sourceSegmentId, baseAccessEvidence[0].segmentId));
-		assert.equal(baseAccessGrants.length, 1);
-		assert.equal(baseAccessGrants[0].beneficiaryAccountId, beneficiary);
-		check("initial combined award and delivery replay", {
-			invoiceId: baseInvoice.id,
-			credits: 10000,
-			beneficiaryDiffersFromPayer: true,
-		});
-		phase = "trackedSpend";
-		const spendOperationId = randomUUID();
-		check("spend operation identity", { spendOperationId });
-		await persist();
-		options("local-spend");
-		assert.equal(
-			await spendSubscriptionTrackedCredits(db, payer, 6000, spendOperationId),
-			true,
-		);
-		assert.equal(
-			await spendSubscriptionTrackedCredits(db, payer, 6000, spendOperationId),
-			true,
-		);
-		assert.equal(await balance(payer), 4000);
-		check("canonical tracked FIFO spend replay", {
-			spent: 6000,
-			remaining: 4000,
-		});
-
-		phase = "paidProration";
-		const initialItem = creditSub.items.data[0];
-		assert.ok(initialItem);
-		assert.equal(creditSub.items.has_more, false);
-		const halfway =
-			initialItem.current_period_start +
-			Math.floor(
-				(initialItem.current_period_end - initialItem.current_period_start) / 2,
-			);
-		await stripe.testHelpers.testClocks.advance(
-			clock.id,
-			{ frozen_time: halfway },
-			options("clock-half"),
-		);
-		await waitFor("clock ready", async () => {
-			const value = await stripe.testHelpers.testClocks.retrieve(clock.id);
-			return value.status === "ready" ? value : null;
-		});
-		assert.ok(
-			observedPaid + 9999 <= MAX_PAID,
-			"Upgrade would exceed synthetic budget",
-		);
-		const upgrade = await stripe.subscriptions.update(
-			creditSub.id,
-			{
-				items: [{ id: initialItem.id, price: prices[1].id }],
-				proration_behavior: "always_invoice",
-				payment_behavior: "error_if_incomplete",
-			},
-			options("upgrade"),
-		);
-		const upgradeInvoice = await paidInvoice(
-			ref(upgrade.latest_invoice),
-			customer.id,
-		);
-		assert.notEqual(upgradeInvoice.id, baseInvoice.id);
-		const lines = await stripe.invoices.listLineItems(upgradeInvoice.id, {
-			limit: 100,
-		});
-		assert.equal(lines.has_more, false);
-		const positive = lines.data.filter(
-			(line) =>
-				line.amount > 0 &&
-				line.parent?.subscription_item_details?.proration === true,
-		);
-		assert.equal(positive.length, 1);
-		const expectedProrata = Number(
-			(BigInt(40000) *
-				BigInt(positive[0].period.end - positive[0].period.start)) /
-				BigInt(
-					initialItem.current_period_end - initialItem.current_period_start,
-				),
-		);
-		const upgradeEvent = await providerEvent("invoice.paid", upgradeInvoice.id);
-		await deliver(upgradeEvent);
-		await deliver(upgradeEvent);
-		const upgradeGrants = await grants(upgradeInvoice.id);
-		assert.equal(upgradeGrants.length, 1);
-		assert.equal(upgradeGrants[0].granted, expectedProrata);
-		assert.equal(await balance(payer), 4000 + expectedProrata);
-		check("paid P1 proration and replay", {
-			invoiceId: upgradeInvoice.id,
-			expectedCredits: expectedProrata,
-			oracle: "independent integer prorata from retrieved line period",
-		});
-
-		phase = "partialAndFullRefund";
-		const payments = await stripe.invoicePayments.list({
-			invoice: baseInvoice.id,
-			limit: 100,
-		});
-		assert.equal(payments.has_more, false);
-		assert.equal(payments.data.length, 1);
-		const paymentIntentId = payments.data[0].payment.payment_intent;
-		assert.ok(paymentIntentId);
-		const paymentIntent = await stripe.paymentIntents.retrieve(
-			ref(paymentIntentId),
-		);
-		const chargeId = ref(paymentIntent.latest_charge);
-		const half = Math.floor(baseInvoice.amount_paid / 2);
-		await create("refund", "refund-half", (opts) =>
-			stripe.refunds.create({ charge: chargeId, amount: half, metadata }, opts),
-		);
-		const halfEvent = await providerEvent(
-			"charge.refunded",
-			chargeId,
-			(object) => object.amount_refunded === half,
-		);
-		await deliver(halfEvent);
-		await deliver(halfEvent);
-		const expectedClaw = Math.min(
-			4000,
-			Number((BigInt(10000) * BigInt(half)) / BigInt(baseInvoice.amount_paid)),
-		);
-		assert.equal(await balance(payer), 4000 + expectedProrata - expectedClaw);
-		await create("refund", "refund-full", (opts) =>
-			stripe.refunds.create(
-				{ charge: chargeId, amount: baseInvoice.amount_paid - half, metadata },
-				opts,
-			),
-		);
-		const fullEvent = await providerEvent(
-			"charge.refunded",
-			chargeId,
-			(object) => object.amount_refunded === baseInvoice.amount_paid,
-		);
-		await deliver(fullEvent);
-		await deliver(fullEvent);
-		await deliver(halfEvent);
-		const [baseGrant] = await grants(baseInvoice.id);
-		assert.equal(baseGrant.consumed, 6000);
-		assert.equal(baseGrant.clawed, 4000);
-		assert.equal(await balance(payer), expectedProrata);
-		const [preservedUpgrade] = await grants(upgradeInvoice.id);
-		assert.equal(preservedUpgrade.clawed, 0);
-		check(
-			"partial then 100% cumulative refund, old delivery and unused-only clawback",
-			{
-				invoiceId: baseInvoice.id,
-				consumed: 6000,
-				clawed: 4000,
-				preservedOtherGrant: preservedUpgrade.granted,
-			},
-		);
-
-		phase = "nextPaidPeriod";
-		assert.ok(
-			observedPaid + 9999 <= MAX_PAID,
-			"Renewal would exceed synthetic budget",
-		);
-		await stripe.testHelpers.testClocks.advance(
-			clock.id,
-			{ frozen_time: initialItem.current_period_end + 60 },
-			options("clock-renewal"),
-		);
-		await waitFor("renewal clock ready", async () => {
-			const value = await stripe.testHelpers.testClocks.retrieve(clock.id);
-			return value.status === "ready" ? value : null;
-		});
-		const renewed = await stripe.subscriptions.retrieve(creditSub.id);
-		// The clock creates the next real invoice. Finalize/pay only that owned test
-		// invoice explicitly; do not depend on the account's webhook delay settings.
-		let renewalPending = await stripe.invoices.retrieve(
-			ref(renewed.latest_invoice),
-		);
-		assert.equal(renewalPending.livemode, false);
-		assert.equal(ref(renewalPending.customer), customer.id);
-		assert.equal(
-			ref(renewalPending.parent?.subscription_details?.subscription ?? null),
-			creditSub.id,
-		);
-		assert.notEqual(renewalPending.id, upgradeInvoice.id);
-		assert.equal(renewalPending.currency, "usd");
-		assert.ok(
-			renewalPending.amount_due >= 0 &&
-				observedPaid + renewalPending.amount_due <= MAX_PAID,
-		);
-		if (renewalPending.status === "draft")
-			renewalPending = await stripe.invoices.finalizeInvoice(
-				renewalPending.id,
-				{ auto_advance: false },
-				options("finalize-renewal"),
-			);
-		if (renewalPending.status === "open")
-			await stripe.invoices.pay(
-				renewalPending.id,
-				{ payment_method: pm.id },
-				options("pay-renewal"),
-			);
-		const renewalInvoice = await paidInvoice(
-			ref(renewed.latest_invoice),
-			customer.id,
-		);
-		assert.notEqual(renewalInvoice.id, upgradeInvoice.id);
-		const renewalEvent = await providerEvent("invoice.paid", renewalInvoice.id);
-		await deliver(renewalEvent);
-		await deliver(renewalEvent);
-		await deliver(baseEvent);
-		const [renewalGrant] = await grants(renewalInvoice.id);
-		assert.equal(renewalGrant.granted, 50000);
-		assert.equal(await balance(payer), expectedProrata + 50000);
-		check("next paid period renewal and old invoice replay", {
-			invoiceId: renewalInvoice.id,
-			credits: 50000,
-		});
-
-		phase = "bundleIndividualCancellation";
-		const bundle = await subscribe(2, "bundle-subscription");
-		const individual = await subscribe(3, "individual-subscription");
-		for (const subscription of [bundle, individual]) {
-			const invoice = await paidInvoice(
-				ref(subscription.latest_invoice),
+		let expectedBalanceAfterPaidChecks = 0;
+		if (!zeroOnly) {
+			phase = "initialPaidInvoice";
+			const creditSub = await subscribe(0, "credit-subscription");
+			const baseInvoice = await paidInvoice(
+				ref(creditSub.latest_invoice),
 				customer.id,
 			);
-			const event = await providerEvent("invoice.paid", invoice.id);
-			await deliver(event);
-			await deliver(event);
-			assert.equal((await grants(invoice.id)).length, 0);
-		}
-		const [source] = await db
-			.select()
-			.from(accessSubscriptionSources)
-			.where(
-				eq(accessSubscriptionSources.providerSubscriptionId, individual.id),
+			const baseEvent = await providerEvent("invoice.paid", baseInvoice.id);
+			await deliver(baseEvent);
+			await deliver(baseEvent);
+			assert.equal((await grants(baseInvoice.id)).length, 1);
+			assert.equal(await balance(payer), 10000);
+			const baseAccessEvidence = await db
+				.select()
+				.from(accessProviderPeriods)
+				.where(eq(accessProviderPeriods.invoiceId, baseInvoice.id));
+			assert.equal(baseAccessEvidence.length, 1);
+			const baseAccessGrants = await db
+				.select()
+				.from(accessGrants)
+				.where(
+					eq(accessGrants.sourceSegmentId, baseAccessEvidence[0].segmentId),
+				);
+			assert.equal(baseAccessGrants.length, 1);
+			assert.equal(baseAccessGrants[0].beneficiaryAccountId, beneficiary);
+			check("initial combined award and delivery replay", {
+				invoiceId: baseInvoice.id,
+				credits: 10000,
+				beneficiaryDiffersFromPayer: true,
+			});
+			phase = "trackedSpend";
+			const spendOperationId = randomUUID();
+			check("spend operation identity", { spendOperationId });
+			await persist();
+			options("local-spend");
+			assert.equal(
+				await spendSubscriptionTrackedCredits(
+					db,
+					payer,
+					6000,
+					spendOperationId,
+				),
+				true,
 			);
-		assert.ok(source);
-		const beforeSources = await db
-			.select()
-			.from(accessSubscriptionSources)
-			.where(eq(accessSubscriptionSources.beneficiaryAccountId, beneficiary));
-		const response = await fetch(
-			`http://127.0.0.1:${(server.address() as AddressInfo).port}/billing/product-subscriptions/cancel`,
-			{
-				method: "POST",
-				signal: AbortSignal.timeout(30000),
-				headers: {
-					authorization: `Bearer ${tokens.accessToken}`,
-					"content-type": "application/json",
-				},
-				body: JSON.stringify({
-					sourceId: source.id,
-					expectedSubjectAccountId: payer,
-				}),
-			},
-		);
-		assert.equal(
-			response.status,
-			200,
-			"Named cancellation must finish local reconciliation",
-		);
-		const remoteCancelled = await stripe.subscriptions.retrieve(individual.id);
-		assert.equal(remoteCancelled.cancel_at_period_end, true);
-		const updateEvent = await providerEvent(
-			"customer.subscription.updated",
-			individual.id,
-			(object) => object.cancel_at_period_end === true,
-		);
-		await deliver(updateEvent);
-		await deliver(updateEvent);
-		await deliver(
-			await providerEvent("customer.subscription.created", individual.id),
-		);
-		const unchangedBundle = await stripe.subscriptions.retrieve(bundle.id);
-		assert.equal(unchangedBundle.cancel_at_period_end, false);
-		const afterSources = await db
-			.select()
-			.from(accessSubscriptionSources)
-			.where(eq(accessSubscriptionSources.beneficiaryAccountId, beneficiary));
-		assert.equal(afterSources.length, beforeSources.length);
-		const asOf = new Date((initialItem.current_period_end + 60) * 1000);
-		const productB = await readSubjectProductAccess(
-			beneficiary,
-			products[1].id,
-			asOf,
-		);
-		assert.deepEqual(
-			productB.quotas.map((quota) => ({
-				key: quota.key,
-				included: quota.included,
-				combination: quota.combination,
-			})),
-			[{ key: "fixture_slots", included: 5, combination: "maximum" }],
-		);
-		assert.deepEqual(productB.conflicts, []);
-		const productA = await readSubjectProductAccess(
-			beneficiary,
-			products[0].id,
-			asOf,
-		);
-		assert.equal(productA.quotas[0]?.included, 5);
-		assert.equal(productA.quotas[0]?.combination, "maximum");
-		assert.deepEqual(productA.conflicts, []);
-		assert.deepEqual(
-			(await readSubjectProductAccess(payer, products[1].id, asOf)).quotas,
-			[],
-		);
-		assert.equal(await balance(payer), expectedProrata + 50000);
-		check(
-			"bundle+individual named cancellation preserves other source, beneficiary and credit balance",
-			{
-				sourceId: source.id,
-				bundleSubscriptionId: bundle.id,
-				productAccess: productB,
-			},
-		);
+			assert.equal(
+				await spendSubscriptionTrackedCredits(
+					db,
+					payer,
+					6000,
+					spendOperationId,
+				),
+				true,
+			);
+			assert.equal(await balance(payer), 4000);
+			check("canonical tracked FIFO spend replay", {
+				spent: 6000,
+				remaining: 4000,
+			});
 
+			phase = "paidProration";
+			const initialItem = creditSub.items.data[0];
+			assert.ok(initialItem);
+			assert.equal(creditSub.items.has_more, false);
+			const halfway =
+				initialItem.current_period_start +
+				Math.floor(
+					(initialItem.current_period_end - initialItem.current_period_start) /
+						2,
+				);
+			await stripe.testHelpers.testClocks.advance(
+				clock.id,
+				{ frozen_time: halfway },
+				options("clock-half"),
+			);
+			await waitFor("clock ready", async () => {
+				const value = await stripe.testHelpers.testClocks.retrieve(clock.id);
+				return value.status === "ready" ? value : null;
+			});
+			assert.ok(
+				observedPaid + 9999 <= MAX_PAID,
+				"Upgrade would exceed synthetic budget",
+			);
+			const upgrade = await stripe.subscriptions.update(
+				creditSub.id,
+				{
+					items: [{ id: initialItem.id, price: prices[1].id }],
+					proration_behavior: "always_invoice",
+					payment_behavior: "error_if_incomplete",
+				},
+				options("upgrade"),
+			);
+			const upgradeInvoice = await paidInvoice(
+				ref(upgrade.latest_invoice),
+				customer.id,
+			);
+			assert.notEqual(upgradeInvoice.id, baseInvoice.id);
+			const lines = await stripe.invoices.listLineItems(upgradeInvoice.id, {
+				limit: 100,
+			});
+			assert.equal(lines.has_more, false);
+			const positive = lines.data.filter(
+				(line) =>
+					line.amount > 0 &&
+					line.parent?.subscription_item_details?.proration === true,
+			);
+			assert.equal(positive.length, 1);
+			const expectedProrata = Number(
+				(BigInt(40000) *
+					BigInt(positive[0].period.end - positive[0].period.start)) /
+					BigInt(
+						initialItem.current_period_end - initialItem.current_period_start,
+					),
+			);
+			const upgradeEvent = await providerEvent(
+				"invoice.paid",
+				upgradeInvoice.id,
+			);
+			await deliver(upgradeEvent);
+			await deliver(upgradeEvent);
+			const upgradeGrants = await grants(upgradeInvoice.id);
+			assert.equal(upgradeGrants.length, 1);
+			assert.equal(upgradeGrants[0].granted, expectedProrata);
+			assert.equal(await balance(payer), 4000 + expectedProrata);
+			check("paid P1 proration and replay", {
+				invoiceId: upgradeInvoice.id,
+				expectedCredits: expectedProrata,
+				oracle: "independent integer prorata from retrieved line period",
+			});
+
+			phase = "partialAndFullRefund";
+			const payments = await stripe.invoicePayments.list({
+				invoice: baseInvoice.id,
+				limit: 100,
+			});
+			assert.equal(payments.has_more, false);
+			assert.equal(payments.data.length, 1);
+			const paymentIntentId = payments.data[0].payment.payment_intent;
+			assert.ok(paymentIntentId);
+			const paymentIntent = await stripe.paymentIntents.retrieve(
+				ref(paymentIntentId),
+			);
+			const chargeId = ref(paymentIntent.latest_charge);
+			const half = Math.floor(baseInvoice.amount_paid / 2);
+			await create("refund", "refund-half", (opts) =>
+				stripe.refunds.create(
+					{ charge: chargeId, amount: half, metadata },
+					opts,
+				),
+			);
+			const halfEvent = await providerEvent(
+				"charge.refunded",
+				chargeId,
+				(object) => object.amount_refunded === half,
+			);
+			await deliver(halfEvent);
+			await deliver(halfEvent);
+			const expectedClaw = Math.min(
+				4000,
+				Number(
+					(BigInt(10000) * BigInt(half)) / BigInt(baseInvoice.amount_paid),
+				),
+			);
+			assert.equal(await balance(payer), 4000 + expectedProrata - expectedClaw);
+			await create("refund", "refund-full", (opts) =>
+				stripe.refunds.create(
+					{
+						charge: chargeId,
+						amount: baseInvoice.amount_paid - half,
+						metadata,
+					},
+					opts,
+				),
+			);
+			const fullEvent = await providerEvent(
+				"charge.refunded",
+				chargeId,
+				(object) => object.amount_refunded === baseInvoice.amount_paid,
+			);
+			await deliver(fullEvent);
+			await deliver(fullEvent);
+			await deliver(halfEvent);
+			const [baseGrant] = await grants(baseInvoice.id);
+			assert.equal(baseGrant.consumed, 6000);
+			assert.equal(baseGrant.clawed, 4000);
+			assert.equal(await balance(payer), expectedProrata);
+			const [preservedUpgrade] = await grants(upgradeInvoice.id);
+			assert.equal(preservedUpgrade.clawed, 0);
+			check(
+				"partial then 100% cumulative refund, old delivery and unused-only clawback",
+				{
+					invoiceId: baseInvoice.id,
+					consumed: 6000,
+					clawed: 4000,
+					preservedOtherGrant: preservedUpgrade.granted,
+				},
+			);
+
+			phase = "nextPaidPeriod";
+			assert.ok(
+				observedPaid + 9999 <= MAX_PAID,
+				"Renewal would exceed synthetic budget",
+			);
+			await stripe.testHelpers.testClocks.advance(
+				clock.id,
+				{ frozen_time: initialItem.current_period_end + 60 },
+				options("clock-renewal"),
+			);
+			await waitFor("renewal clock ready", async () => {
+				const value = await stripe.testHelpers.testClocks.retrieve(clock.id);
+				return value.status === "ready" ? value : null;
+			});
+			const renewed = await stripe.subscriptions.retrieve(creditSub.id);
+			// The clock creates the next real invoice. Finalize/pay only that owned test
+			// invoice explicitly; do not depend on the account's webhook delay settings.
+			let renewalPending = await stripe.invoices.retrieve(
+				ref(renewed.latest_invoice),
+			);
+			assert.equal(renewalPending.livemode, false);
+			assert.equal(ref(renewalPending.customer), customer.id);
+			assert.equal(
+				ref(renewalPending.parent?.subscription_details?.subscription ?? null),
+				creditSub.id,
+			);
+			assert.notEqual(renewalPending.id, upgradeInvoice.id);
+			assert.equal(renewalPending.currency, "usd");
+			assert.ok(
+				renewalPending.amount_due >= 0 &&
+					observedPaid + renewalPending.amount_due <= MAX_PAID,
+			);
+			if (renewalPending.status === "draft")
+				renewalPending = await stripe.invoices.finalizeInvoice(
+					renewalPending.id,
+					{ auto_advance: false },
+					options("finalize-renewal"),
+				);
+			if (renewalPending.status === "open")
+				await stripe.invoices.pay(
+					renewalPending.id,
+					{ payment_method: pm.id },
+					options("pay-renewal"),
+				);
+			const renewalInvoice = await paidInvoice(
+				ref(renewed.latest_invoice),
+				customer.id,
+			);
+			assert.notEqual(renewalInvoice.id, upgradeInvoice.id);
+			const renewalEvent = await providerEvent(
+				"invoice.paid",
+				renewalInvoice.id,
+			);
+			await deliver(renewalEvent);
+			await deliver(renewalEvent);
+			await deliver(baseEvent);
+			const [renewalGrant] = await grants(renewalInvoice.id);
+			assert.equal(renewalGrant.granted, 50000);
+			assert.equal(await balance(payer), expectedProrata + 50000);
+			check("next paid period renewal and old invoice replay", {
+				invoiceId: renewalInvoice.id,
+				credits: 50000,
+			});
+
+			phase = "bundleIndividualCancellation";
+			const bundle = await subscribe(2, "bundle-subscription");
+			const individual = await subscribe(3, "individual-subscription");
+			for (const subscription of [bundle, individual]) {
+				const invoice = await paidInvoice(
+					ref(subscription.latest_invoice),
+					customer.id,
+				);
+				const event = await providerEvent("invoice.paid", invoice.id);
+				await deliver(event);
+				await deliver(event);
+				assert.equal((await grants(invoice.id)).length, 0);
+			}
+			const [source] = await db
+				.select()
+				.from(accessSubscriptionSources)
+				.where(
+					eq(accessSubscriptionSources.providerSubscriptionId, individual.id),
+				);
+			assert.ok(source);
+			const beforeSources = await db
+				.select()
+				.from(accessSubscriptionSources)
+				.where(eq(accessSubscriptionSources.beneficiaryAccountId, beneficiary));
+			const response = await fetch(
+				`http://127.0.0.1:${(server.address() as AddressInfo).port}/billing/product-subscriptions/cancel`,
+				{
+					method: "POST",
+					signal: AbortSignal.timeout(30000),
+					headers: {
+						authorization: `Bearer ${tokens.accessToken}`,
+						"content-type": "application/json",
+					},
+					body: JSON.stringify({
+						sourceId: source.id,
+						expectedSubjectAccountId: payer,
+					}),
+				},
+			);
+			assert.equal(
+				response.status,
+				200,
+				"Named cancellation must finish local reconciliation",
+			);
+			const remoteCancelled = await stripe.subscriptions.retrieve(
+				individual.id,
+			);
+			assert.equal(remoteCancelled.cancel_at_period_end, true);
+			const updateEvent = await providerEvent(
+				"customer.subscription.updated",
+				individual.id,
+				(object) => object.cancel_at_period_end === true,
+			);
+			await deliver(updateEvent);
+			await deliver(updateEvent);
+			await deliver(
+				await providerEvent("customer.subscription.created", individual.id),
+			);
+			const unchangedBundle = await stripe.subscriptions.retrieve(bundle.id);
+			assert.equal(unchangedBundle.cancel_at_period_end, false);
+			const afterSources = await db
+				.select()
+				.from(accessSubscriptionSources)
+				.where(eq(accessSubscriptionSources.beneficiaryAccountId, beneficiary));
+			assert.equal(afterSources.length, beforeSources.length);
+			const asOf = new Date((initialItem.current_period_end + 60) * 1000);
+			const productB = await readSubjectProductAccess(
+				beneficiary,
+				products[1].id,
+				asOf,
+			);
+			assert.deepEqual(
+				productB.quotas.map((quota) => ({
+					key: quota.key,
+					included: quota.included,
+					combination: quota.combination,
+				})),
+				[{ key: "fixture_slots", included: 5, combination: "maximum" }],
+			);
+			assert.deepEqual(productB.conflicts, []);
+			const productA = await readSubjectProductAccess(
+				beneficiary,
+				products[0].id,
+				asOf,
+			);
+			assert.equal(productA.quotas[0]?.included, 5);
+			assert.equal(productA.quotas[0]?.combination, "maximum");
+			assert.deepEqual(productA.conflicts, []);
+			assert.deepEqual(
+				(await readSubjectProductAccess(payer, products[1].id, asOf)).quotas,
+				[],
+			);
+			assert.equal(await balance(payer), expectedProrata + 50000);
+			check(
+				"bundle+individual named cancellation preserves other source, beneficiary and credit balance",
+				{
+					sourceId: source.id,
+					bundleSubscriptionId: bundle.id,
+					productAccess: productB,
+				},
+			);
+
+			expectedBalanceAfterPaidChecks = expectedProrata + 50000;
+		}
 		phase = "undeclaredZeroInvoice";
 		const coupon = await create("coupon", "zero-coupon", (opts) =>
 			stripe.coupons.create(
 				{
 					percent_off: 100,
 					duration: "once",
-					name: `No-grant sandbox ${plan.nonce}`,
+					name: couponName,
 					metadata,
 				},
 				opts,
@@ -1059,7 +1145,12 @@ async function main() {
 		await deliver(zeroEvent);
 		await deliver(zeroEvent);
 		assert.equal((await grants(zeroInvoice.id)).length, 0);
-		assert.equal(await balance(payer), expectedProrata + 50000);
+		if (zeroOnly) {
+			assert.equal(observedPaid, 0);
+			assert.equal(subscriptionsCreated, 1);
+			assert.equal((await db.select().from(accessGrants)).length, 0);
+		}
+		assert.equal(await balance(payer), expectedBalanceAfterPaidChecks);
 		check("undeclared free invoice cannot manufacture a promotion", {
 			invoiceId: zeroInvoice.id,
 			amountPaid: 0,

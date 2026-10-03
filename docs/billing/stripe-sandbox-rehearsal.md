@@ -133,3 +133,29 @@ with an explicit SubtleCryptoProvider, preserving default timestamp tolerance.
 Generated request signatures still belong to the local fixture, not Stripe's
 public delivery infrastructure. Earlier loader/crypto failures remain recorded;
 no test failure is described as a completed sandbox billing cycle.
+
+### Limited zero-invoice follow-up
+
+`--prepare-zero` freezes a separate `zero_invoice` scope: zero synthetic paid
+minor units, one subscription and a new nonce/database. It uses one own zero-unit
+recurring price plus an own 100% coupon; nominal price zero also prevents this
+follow-up from charging when the discount is not applied. This proves the free-price
+invoice case; it does not reproduce the earlier discounted 2,999-minor-unit
+invoice or establish that the coupon caused the zero amount. The paid-cycle checks
+are skipped. Only its actual free invoice/event, real receiver/replay, zero
+credit/access grants and zero balance are checked. Its fixture remains physically
+isolated from live billing and does not declare a promotion.
+
+The previous full run reached 26 runner checkpoints (six behavior groups,
+receiver deliveries/replays and one operation identity checkpoint), then failed
+in the zero-coupon create intent. The requested name was 41 characters; the
+[official coupon contract](https://docs.stripe.com/api/coupons/create) permits at
+most 40. This is a verified request defect; the old error projection does not
+prove that the provider rejected precisely that parameter. The follow-up uses a
+33-character name, validates it before key access/create intents, and tests the
+40/41 boundary offline. Historical receipts stay immutable.
+
+Any failed or unknown child exit now requires manifest review even when all
+returned mutable objects were cleaned. Retained test refunds and failed intents
+must be reported separately; a complete bounded empty list/readback does not
+turn a failed creation into a successful billing test.
