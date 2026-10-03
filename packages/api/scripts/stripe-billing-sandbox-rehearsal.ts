@@ -78,6 +78,20 @@ type Plan = {
 async function privateJson(path: string, value: unknown) {
 	await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 }
+/** Same loader used by offline bootstrap and the network-capable rehearsal. */
+export async function loadBillingRouter(
+	root: string,
+): Promise<express.RequestHandler> {
+	const sourcePath = join(root, "packages/api/src/routes/billing.ts");
+	const billingModule = await import(sourcePath);
+	let billingRoutes: unknown = billingModule.default;
+	if (billingRoutes && typeof billingRoutes === "object")
+		billingRoutes = Reflect.get(billingRoutes, "default");
+	assert.ok(typeof billingRoutes === "function");
+	const realRouter = billingRoutes;
+	return (req, res, next) => realRouter(req, res, next);
+}
+
 async function main() {
 	assert.equal(
 		process.argv.length,
@@ -590,15 +604,7 @@ async function main() {
 		);
 		app.use("/billing/webhook", express.raw({ type: "application/json" }));
 		app.use(express.json());
-		const billingModule = await import("../src/routes/billing.js");
-		let billingRoutes: unknown = billingModule.default;
-		if (billingRoutes && typeof billingRoutes === "object")
-			billingRoutes = Reflect.get(billingRoutes, "default");
-		assert.ok(typeof billingRoutes === "function");
-		const realRouter = billingRoutes;
-		const mount: express.RequestHandler = (req, res, next) =>
-			realRouter(req, res, next);
-		app.use("/billing", mount);
+		app.use("/billing", await loadBillingRouter(root));
 		server = http.createServer(app);
 		await new Promise<void>((resolveListen) =>
 			server?.listen(0, "127.0.0.1", resolveListen),
@@ -1177,16 +1183,17 @@ async function main() {
 			"Rehearsal or cleanup incomplete; inspect private manifest",
 		);
 }
-main()
-	.finally(() => closePostgres())
-	.catch((error) => {
-		console.error(
-			JSON.stringify({
-				failed: true,
-				name: error instanceof Error ? error.name : "UnknownError",
-				code:
-					error instanceof Stripe.errors.StripeError ? error.code : undefined,
-			}),
-		);
-		process.exitCode = 1;
-	});
+if (process.argv[1] && resolve(process.argv[1]) === resolve(__filename))
+	main()
+		.finally(() => closePostgres())
+		.catch((error) => {
+			console.error(
+				JSON.stringify({
+					failed: true,
+					name: error instanceof Error ? error.name : "UnknownError",
+					code:
+						error instanceof Stripe.errors.StripeError ? error.code : undefined,
+				}),
+			);
+			process.exitCode = 1;
+		});

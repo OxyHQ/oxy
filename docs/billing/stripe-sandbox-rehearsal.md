@@ -89,3 +89,21 @@ be derived from the counts, source/record hashes, provider readbacks and cleanup
 outcomes, not by committing the database directory or raw event/account data.
 Acceptance against the final Oxy candidate and actual Stripe execution remains
 pending until the reviewed plan is executed and its records are checked.
+
+### First provider attempt and loader correction
+
+The first attempt at source `f0bd1409c` stopped before creating any
+subscription or invoice: the Bun source runner imported `billing.js`, which does
+not exist beside `billing.ts`. It created 11 owned fixture objects (clock,
+customer, payment method, four products and four prices). All 11 cleanup
+operations and their readbacks succeeded, and PostgreSQL PID 3538383 stopped.
+There were zero completed billing assertions and zero observed paid minor units.
+This attempt does not establish real Stripe billing acceptance.
+
+The runner now exports one source loader for `billing.ts`; both the rehearsal
+and its offline bootstrap use that loader. The launcher executes the bootstrap
+with no database URL or provider credentials before starting the network-capable
+child. The runtime import remains after fixture price configuration because the
+route reads that configuration at module initialization. A retry requires a
+new frozen plan, nonce, owned database and reviewed source; it never resumes the
+first attempt or reuses its remote objects.
