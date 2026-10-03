@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "ba733f4fdf9e857d6a7ca5b5093afd57b45c16eb",
+  "baseHead": "fac621324d0721e9121ca9d3c96a25ff71c97326",
+  "inputs": [
+    {
+      "path": ".github/scripts/deploy-ecs-image.sh",
+      "gitObject": "faf5860b44b2c22ba52c522ce663d80eda9e48c5",
+      "sha256": "c01562c7cda939d284b792889262430fe8762e6b51f557609d40ec86f732e1a9"
+    },
+    {
+      "path": ".github/scripts/deploy-quiesced-image.sh",
+      "gitObject": "d4281701332456200a47fd3d0ec9ad847457842a",
+      "sha256": "ed41d4281583debb4b819f111f98482dc6662f930462eeb83bf9ba440219c301"
+    },
+    {
+      "path": ".github/scripts/guard-quiesced-deploy.mjs",
+      "gitObject": "8d3cce505ba673e32af59e2c010cada291f5a27c",
+      "sha256": "b7794b8232b1ab121360cca551fdcd218489ab93d48be222afbc84750aae1ca8"
+    },
+    {
+      "path": ".github/scripts/require-current-main.sh",
+      "gitObject": "210ab05112d93b40f421958ead1fdb7576fcbe35",
+      "sha256": "852130eba951edbd45bb78fb42a0048f5f0451ddd756d833d196ad745ca7ae56"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "gitObject": "e5dd6da87bf3402d4b08ae01fb9bd70e06bcc4c6",
+      "sha256": "b4ab1f3f7b4960f665a574f94ba569c5c5e12cdec9577208c5efbadbe13e2c15"
+    },
+    {
+      "path": ".github/workflows/deploy-aws.yml",
+      "gitObject": "5484a2b47536ae00781fc89ba86bb77bc13b4bec",
+      "sha256": "0a1ca1132d65459be53a7e7d846a8dc19400d495173943474cd0f887e5556ca8"
+    },
+    {
+      "path": "docs/runbooks/1519-quiesced-cutover/README.md",
+      "gitObject": "4c4affa458c350d6254f5e74777f28aed9d02a93",
+      "sha256": "5576e857400b37440e467e5c210abc133fd6686bad5d12a896ead317e235bb88"
+    },
+    {
+      "path": "scripts/test-quiesced-deploy-shell.mjs",
+      "gitObject": "7c40f1bc0d858c0d17054333188a2ed0d67ef98c",
+      "sha256": "1d02932c8d5020098f268259591b1ef917f264d4b3bfccd8caf1d8b85b91a321"
+    },
+    {
+      "path": "scripts/test-quiesced-deploy.mjs",
+      "gitObject": "ab7975d278d53bf7819b70abf3758d7d3c1d48cc",
+      "sha256": "d0c870a791816e8bf1740a46206739587202eec78f53921faf5fbaf556b4d979"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/evidence/asset-check.log",
+      "sha256": "de2144150211434c0f9db52260ea932a790b171403aa1c4990de4aa7e805c674"
+    },
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/evidence/asset-negatives.log",
+      "sha256": "b50cc2ee9c6ae9f6808de4221849677d94c559330ac0e26b375a6d0c79eeecb4"
+    },
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/evidence/bash-syntax.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/evidence/guard45.log",
+      "sha256": "3be27fdb6a59b92502a6084dcab524d2b157a03e49c520e7f0b9f561a2c6dfe0"
+    },
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/evidence/image-scope.log",
+      "sha256": "85cb8bcf2beaad3d34bd0a62e11e441ba6bd7b8e114716ee2b089de19601d5cd"
+    },
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/evidence/normal-transactions.log",
+      "sha256": "64f253746ae541d5b54d717c9cbd30eaaffc9eca048dec0cbcfcff0ce8a1ccef"
+    },
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/evidence/scoped-biome.log",
+      "sha256": "9b21edba1c2aa814b61c93f36948ea28b3ab68464e9939fdee077031519c1b06"
+    },
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/evidence/secrets-check.log",
+      "sha256": "179835484c196232ccebace1402711bec3b70bffaad737b632329db6431d082a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/evidence/secrets-negatives.log",
+      "sha256": "397e16d51f6e5102521d18a8f44c4595b711640866b6e7ba06da9b7e14c6aa74"
+    },
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/evidence/shell9.log",
+      "sha256": "0cd828f45546d361f5c01ff556e8d02f7f4bc742a5068eebe0de99d7f7485b21"
+    },
+    {
+      "path": "docs/audits/2026-10-03-quiesced-deploy/results.json",
+      "sha256": "4d86307b3d582ccca0537ba8ac4fbc66aa51eec9f0661b03b4b0519c589da5a5"
+    }
+  ],
+  "results": [
+    {
+      "name": "guard45",
+      "argv": [
+        "node",
+        "scripts/test-quiesced-deploy.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.064
+    },
+    {
+      "name": "shell9",
+      "argv": [
+        "node",
+        "scripts/test-quiesced-deploy-shell.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 2.069
+    },
+    {
+      "name": "normal-transactions",
+      "argv": [
+        "bash",
+        ".github/scripts/test-deploy-ecs-image.sh"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 25.624
+    },
+    {
+      "name": "asset-check",
+      "argv": [
+        "node",
+        "scripts/check-asset-worker-rollout.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.032
+    },
+    {
+      "name": "asset-negatives",
+      "argv": [
+        "node",
+        "scripts/test-check-asset-worker-rollout.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.165
+    },
+    {
+      "name": "secrets-check",
+      "argv": [
+        "node",
+        "scripts/check-deploy-secrets-sync.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.032
+    },
+    {
+      "name": "secrets-negatives",
+      "argv": [
+        "node",
+        "scripts/test-check-deploy-secrets-sync.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.465
+    },
+    {
+      "name": "image-scope",
+      "argv": [
+        "bun",
+        "scripts/test-deploy-image-scope.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.008
+    },
+    {
+      "name": "scoped-biome",
+      "argv": [
+        "node",
+        "node_modules/.bun/@biomejs+biome@1.9.4/node_modules/@biomejs/biome/bin/biome",
+        "check",
+        "--error-on-warnings",
+        ".github/scripts/guard-quiesced-deploy.mjs",
+        "scripts/test-quiesced-deploy.mjs",
+        "scripts/test-quiesced-deploy-shell.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.064
+    },
+    {
+      "name": "bash-syntax",
+      "argv": [
+        "bash",
+        "-n",
+        ".github/scripts/deploy-ecs-image.sh",
+        ".github/scripts/deploy-quiesced-image.sh",
+        ".github/scripts/require-current-main.sh"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.004
+    }
+  ],
+  "limits": [
+    "Local guard fixtures use synthetic AWS JSON; canonical shell tests use a mocked AWS CLI. No live service/scaler writes were made.",
+    "Worker restoration requires a separate reviewed watcher, final image/config, old tasks STOPPED, captured live count, and rollback:false.",
+    "This source requires its own final freeze, ARM provenance, authenticated policy review and operational plan before promotion.",
+    "Initial local setup errors were corrected: fixture key ordering, mocked update-service response shape, unavailable root Biome shim, and Node invocation of a Bun.YAML script. Only final recorded exit-zero checks are claimed."
+  ]
+}
