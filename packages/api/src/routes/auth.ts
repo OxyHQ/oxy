@@ -2106,9 +2106,10 @@ const authSessionFinalizeLimiter = rateLimit({
  *
  *       Atomic and single-use: the authorization code's identity is reserved by
  *       the same update that spends the request, so a request can never mint a
- *       second code, even under concurrent calls. Every failure mode collapses to
- *       one generic `invalid_grant` (RFC 6749 §5.2) — nothing enumerates which
- *       precondition failed.
+ *       second code, even under concurrent calls. An otherwise valid third-party
+ *       request with no scopes receives HTTP 400 `invalid_scope`. Other rejected
+ *       preconditions return the generic HTTP 401 `invalid_grant`; their precise
+ *       reason remains server-side.
  *     parameters:
  *       - name: sessionToken
  *         in: path
@@ -2131,6 +2132,19 @@ const authSessionFinalizeLimiter = rateLimit({
  *                 expiresIn:
  *                   type: integer
  *                   example: 60
+ *       400:
+ *         description: The third-party request names no scopes (`invalid_scope`).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [error, message]
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   enum: [invalid_scope]
+ *                 message:
+ *                   type: string
  *       401:
  *         description: >
  *           Unknown, not an OAuth request, not approved, expired, already
@@ -2150,7 +2164,7 @@ router.post(
       if (outcome.reason === 'invalid_scope') {
         throw new ApiError(400, 'Scopes must be explicit', 'invalid_scope');
       }
-      // One generic error for every rejection — the precise reason stays in the
+      // Other rejections share one generic error — the precise reason stays in the
       // server log so a caller cannot probe the request's state.
       logger.warn('[AuthSession] Finalize rejected', {
         reason: outcome.reason,

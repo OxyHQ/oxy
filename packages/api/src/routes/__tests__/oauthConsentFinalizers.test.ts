@@ -175,6 +175,7 @@ type Entry = 'authorize' | 'finalize';
 
 interface Finalized {
   status: number;
+  error?: unknown;
   code?: string;
   /** The PKCE verifier for redeeming `code`. */
   verifier: string;
@@ -194,7 +195,7 @@ async function viaAuthorize(userId: string, app: Client, scope: string): Promise
     ...(scope ? { scope } : {}),
   });
   const data = res.body.data as { code?: string } | undefined;
-  return { status: res.status, code: data?.code, verifier };
+  return { status: res.status, code: data?.code, verifier, error: res.body.error };
 }
 
 /** An OAuth-bound request approved by `userId`, ready to finalize. */
@@ -231,7 +232,7 @@ async function viaFinalize(userId: string, app: Client, scope: string): Promise<
   const request = await approvedRequest(userId, app, scope ? scope.split(' ') : []);
   const res = await post(`/auth/session/finalize/${request.sessionToken}`, {});
   const data = res.body.data as { code?: string } | undefined;
-  return { status: res.status, code: data?.code, verifier: request.verifier, authSessionId: request.id };
+  return { status: res.status, code: data?.code, verifier: request.verifier, authSessionId: request.id, error: res.body.error };
 }
 
 function finalizeWith(entry: Entry): typeof viaAuthorize {
@@ -752,6 +753,7 @@ describe('explicit consent and restricted empty-scope fallback', () => {
         explicit ? 'user:read acting-as:offline' : '');
       const denied = type === 'third_party' && !explicit;
       expect(result.status).toBe(denied ? 400 : 200);
+      if (denied) expect(result.error).toBe('invalid_scope');
       const state = await stateOf(userId, app.applicationId);
       const codeScopes = explicit ? ['user:read', 'acting-as:offline'] : ['user:read'];
       expect(state.codeScopes).toEqual(denied ? [] : [codeScopes]);

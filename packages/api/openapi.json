@@ -8473,7 +8473,7 @@
         ],
         "security": [],
         "summary": "Finalize an approved OAuth-bound auth session into an authorization code",
-        "description": "Terminal step of an OAuth authorization request created with `POST /auth/session/create` + an `oauth` binding and approved through any delivery surface (popup, push, QR, verified app link). Mints the ONE single-use `AuthCode` the relying party redeems at `POST /auth/oauth/token` with its PKCE verifier.\nNo `Authorization` header: the 128-bit `sessionToken` — held only by the originating client, never echoed to observers — IS the credential, exactly as on `POST /auth/session/claim`. No access token is ever handed out here.\nAtomic and single-use: the authorization code's identity is reserved by the same update that spends the request, so a request can never mint a second code, even under concurrent calls. Every failure mode collapses to one generic `invalid_grant` (RFC 6749 §5.2) — nothing enumerates which precondition failed.\n",
+        "description": "Terminal step of an OAuth authorization request created with `POST /auth/session/create` + an `oauth` binding and approved through any delivery surface (popup, push, QR, verified app link). Mints the ONE single-use `AuthCode` the relying party redeems at `POST /auth/oauth/token` with its PKCE verifier.\nNo `Authorization` header: the 128-bit `sessionToken` — held only by the originating client, never echoed to observers — IS the credential, exactly as on `POST /auth/session/claim`. No access token is ever handed out here.\nAtomic and single-use: the authorization code's identity is reserved by the same update that spends the request, so a request can never mint a second code, even under concurrent calls. An otherwise valid third-party request with no scopes receives HTTP 400 `invalid_scope`. Other rejected preconditions return the generic HTTP 401 `invalid_grant`; their precise reason remains server-side.\n",
         "parameters": [
           {
             "name": "sessionToken",
@@ -8502,6 +8502,31 @@
                     "expiresIn": {
                       "type": "integer",
                       "example": 60
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The third-party request names no scopes (`invalid_scope`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_scope"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
                     }
                   }
                 }
