@@ -54,7 +54,7 @@ class InventoryFixtures(unittest.TestCase):
             definition = module.build_definition(self.plan)
             self.assertEqual(definition['family'], 'oxy-billing-inventory-'+profile)
             self.assertEqual(definition['containerDefinitions'][0]['entryPoint'], ['/usr/local/bin/bun' if profile == 'peable-cohort' else '/usr/local/bin/node'])
-            self.assertEqual(definition['containerDefinitions'][0]['command'][0], '-e' if profile == 'peable-cohort' else '--input-type=module')
+            self.assertEqual(definition['containerDefinitions'][0]['command'][0], '--no-env-file' if profile == 'peable-cohort' else '--input-type=module')
             self.assertEqual(definition['containerDefinitions'][0]['workingDirectory'], '/app/packages/backend')
             self.assertNotIn('taskRoleArn', definition)
             self.assertEqual(len(definition['containerDefinitions'][0]['secrets']), 1)

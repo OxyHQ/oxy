@@ -65,7 +65,7 @@ try {
   const invocation = `\ntry {const r=await readInventory('clarity',process.env.DATABASE_URL);for(const line of encodeInventory(r,'${'b'.repeat(32)}')) console.log(line);}catch{console.error('OXY_BILLING_INVENTORY_FAILED');process.exitCode=1;}`;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', source + invocation], { encoding: 'utf8', cwd: process.cwd(), env: process.env });
   assert.equal(result.status, 0, result.stderr); assert(result.stdout.startsWith('OXY_BILLING_INVENTORY ')); assert(!result.stdout.includes('NEVER_PROJECT_THIS')); passed++;
-  const bunResult = spawnSync('bun', ['-e', source + invocation.replace("catch{console.error('OXY_BILLING_INVENTORY_FAILED');", "catch(error){console.error(error.name + ': ' + error.message);")], { encoding: 'utf8', cwd: process.cwd(), env: process.env });
+  const bunResult = spawnSync('bun', ['--no-env-file', '-e', source + invocation.replace("catch{console.error('OXY_BILLING_INVENTORY_FAILED');", "catch(error){console.error(error.name + ': ' + error.message);")], { encoding: 'utf8', cwd: process.cwd(), env: process.env });
   assert.equal(bunResult.status, 0, bunResult.stderr); assert(bunResult.stdout.startsWith('OXY_BILLING_INVENTORY ')); assert(!bunResult.stdout.includes('NEVER_PROJECT_THIS')); passed++;
   console.log(`Commercial inventory SQL/receiver fixtures: ${passed} passed; synthetic owned DB only.`);
 } finally { await client.end({ timeout: 5 }); }
