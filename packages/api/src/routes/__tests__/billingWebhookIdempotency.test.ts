@@ -1,3 +1,4 @@
+import { registerProductAccessConfiguration } from '../../services/productAccessPersistence.service';
 /**
  * Stripe webhooks and checkout — against a REAL Postgres, through the REAL route.
  *
@@ -1658,4 +1659,39 @@ it('reports pending when provider confirms the cancellation effect but returns a
   expect(await postWebhook(event)).toBe(200);
   const [after] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, source.id)); expect(after.cancelAtPeriodEnd).toBe(true);
   expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(2);
+}));
+
+
+it('maintains a paid empty bundle through list, named cancellation and lifecycle replay without any grants or credits', async () => withProductCatalogue(async () => {
+  const path = process.env.BILLING_PRODUCT_CATALOGUE_FILE;
+  if (!path) throw new Error('fixture catalogue missing');
+  const catalogue = JSON.parse(await readFile(path, 'utf8'));
+  const priceId = 'price_SYNTHETIC_EMPTY_BUNDLE';
+  catalogue.offers = [{ ...catalogue.offers[0], id: 'empty_bundle_fixture', kind: 'bundle', benefits: [] }];
+  catalogue.products = [];
+  catalogue.prices[0] = { ...catalogue.prices[0], priceId, offerId: 'empty_bundle_fixture', offerKind: 'bundle' };
+  await registerProductAccessConfiguration({ products: [], offers: catalogue.offers });
+  await writeFile(path, JSON.stringify(catalogue), { mode: 0o600 });
+  productPrices.set(priceId, { id: priceId, livemode: true, type: 'recurring', currency: 'usd', unit_amount: PRO_PRICE });
+  const sub = await subscriber({ priceId });
+  const paid = invoiceEvent(sub, { priceId }); makeProductEvidenceLive(paid, sub.subscriptionId);
+  expect(await postWebhook(paid)).toBe(200); expect(await postWebhook(paid)).toBe(200);
+  const [source] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId));
+  await withApp(async base => {
+    const headers = { 'content-type': 'application/json', 'x-test-user': sub.userId };
+    const list = await fetch(`${base}/billing/product-subscriptions`, { headers });
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({ subscriptions: [{ sourceId: source.id, canCancel: true, offers: [{ products: [] }] }] });
+    const cancel = await fetch(`${base}/billing/product-subscriptions/cancel`, { method: 'POST', headers, body: JSON.stringify({ sourceId: source.id }) });
+    expect(cancel.status).toBe(200); expect(await cancel.json()).toEqual({ sourceId: source.id, cancelAtPeriodEnd: true });
+  });
+  const event = envelope('customer.subscription.updated', { id: sub.subscriptionId, status: 'active' }); event.livemode = true;
+  expect(await postWebhook(event)).toBe(200); expect(await postWebhook(event)).toBe(200);
+  const [current] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, source.id));
+  expect(current.cancelAtPeriodEnd).toBe(true);
+  expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(0);
+  expect(await getDb().select().from(billingCreditGrants).where(eq(billingCreditGrants.userId, sub.userId))).toHaveLength(0);
+  expect(await getDb().select().from(accessOfferSegments).where(eq(accessOfferSegments.subscriptionId, source.id))).toHaveLength(1);
+  expect(await paidBalance(sub.userId)).toBe(0);
+  expect(subscriptionUpdateCalls).toEqual([sub.subscriptionId]);
 }));
