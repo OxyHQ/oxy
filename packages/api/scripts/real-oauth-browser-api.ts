@@ -1,8 +1,9 @@
 /** Disposable full API host for I11. No auth path is mocked or replaced. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { SMTPServer } from 'smtp-server';
 import { connectPostgres, closePostgres, getDb } from '../src/config/postgres';
 import { applications } from '../src/db/schema/applications';
 import { applicationCredentials } from '../src/db/schema/applicationCredentials';
@@ -31,6 +32,30 @@ async function main(): Promise<void> {
     assert(url.hostname === '127.0.0.1' || url.hostname === 'localhost', 'Unexpected remote fetch');
     return originalFetch(input, init);
   }) as typeof fetch;
+
+  // Real loopback SMTP transport: auth generates/verifies its own code and
+  // password proofs. Only external delivery ends at this owned mail sink.
+  const mailDirectory = join(dirname(manifestPath), 'mail');
+  await mkdir(mailDirectory, { mode: 0o700 });
+  const smtp = new SMTPServer({
+    authOptional: true, disabledCommands: ['AUTH', 'STARTTLS'], size: 65_536,
+    onRcptTo(address, _session, callback) {
+      callback(address.address.toLowerCase().endsWith('@fixture.invalid') ? undefined
+        : new Error('Only disposable fixture recipients are accepted'));
+    },
+    onData(stream, _session, callback) {
+      const chunks: Buffer[] = [];
+      let received = 0;
+      stream.on('data', (chunk: Buffer) => { received += chunk.length; if (received <= 65_536) chunks.push(chunk); });
+      stream.once('end', () => {
+        if (received > 65_536) { callback(new Error('Fixture SMTP message exceeds bound')); return; }
+        void writeFile(join(mailDirectory, `${randomBytes(8).toString('hex')}.eml`),
+          Buffer.concat(chunks), { mode: 0o600 }).then(() => callback(), callback);
+      });
+      stream.once('error', callback);
+    },
+  });
+  await new Promise<void>((done) => smtp.listen(17964, '127.0.0.1', done));
 
   await connectPostgres();
   const suffix = randomBytes(5).toString('hex');
@@ -88,6 +113,7 @@ async function main(): Promise<void> {
     const { closeIO } = await import('../src/utils/socket.js');
     closeIO();
     if (server.listening) await new Promise<void>((done) => server.close(() => done()));
+    await new Promise<void>((done) => smtp.close(done));
     await closePostgres();
     console.log(JSON.stringify({ fixtureStopped: true }));
     process.exit(0);

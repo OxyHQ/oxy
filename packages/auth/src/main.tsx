@@ -44,6 +44,9 @@ function App() {
                 <OxyProvider
                     baseURL={getApiBaseUrl()}
                     clientId={OXY_CLIENT_ID}
+                    // The IdP is its own bridge origin, including loopback/dev
+                    // hosts. It must not open a different default IdP domain.
+                    authorizeBaseUrl={`${window.location.origin}/authorize`}
                     // No product analytics on the origin where people sign in,
                     // consent and recover (ADR 0024 D1): nothing third-party runs
                     // here, and the edge's analytics beacon is blocked by this
