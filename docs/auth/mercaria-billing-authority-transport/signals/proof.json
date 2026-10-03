@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "previousSource": "0120223c9",
+  "previousProof": "eee6afbd6",
+  "sources": [
+    {
+      "path": "scripts/auth/mercaria-billing-authority-ecs.py",
+      "sha256": "37069512c1b9fee07d2cbf165d9997d69076e165029fdc6abba96a11e2ac5d1e"
+    },
+    {
+      "path": "scripts/auth/test-mercaria-billing-authority-ecs.py",
+      "sha256": "c92f0fb29843cbcf6be2fc55a3de326950e9de5514c7b0298dfc37c44552da75"
+    },
+    {
+      "path": "scripts/auth/test-mercaria-authority-signals.py",
+      "sha256": "9bb75d83a8e49d190812b663f21f2e1d702f2f31d46d4104c20f7d082189a75e"
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/signals/README.md",
+      "sha256": "da48f0b0674033a03b97f286420f11aa389670657012262f09790d2c7e38f994"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/signals/signals-red.log",
+      "sha256": "4c8e16c4d8ddd591268245041aaa43917933e111046ef6af0757a78aa594d9cc"
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/signals/launcher-tests-after-signals.log",
+      "sha256": "8d792d81c28f14e81434cb2a175feb8a800363e60faf05e9aa008104cb37a9c2"
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/signals/README.md",
+      "sha256": "da48f0b0674033a03b97f286420f11aa389670657012262f09790d2c7e38f994"
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/signals/signals-green.log",
+      "sha256": "62de378b578bd9359bba17c522ca345559491d42db29b8ad2e5b545550797c8a"
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/signals/signals-red-fixture.py",
+      "sha256": "6b6e74af6e0a1007e887090004f974300b58a4e14da3e49485a1102e8038a067"
+    },
+    {
+      "path": "docs/auth/mercaria-billing-authority-transport/signals/review-sigterm.txt",
+      "sha256": "50620f4e3613c9b464f0b6b14309e0849f0cf73c1fe6d536bbc2feacb92686a7"
+    }
+  ],
+  "preservedInputs": [
+    {
+      "path": "scripts/auth/mercaria-billing-authority.mjs",
+      "sha256": "3e83ebd68be54c5db78886762b6b526fb9946e6557dda1c46d51b8866519f0f5",
+      "unchangedSince": "0120223c9"
+    }
+  ],
+  "validation": {
+    "redSignalTests": 4,
+    "greenSignalTests": 4,
+    "ordinaryLauncherTests": 12,
+    "awsExecuted": false,
+    "sqlExecutedForSignalTests": false,
+    "automaticRedispatch": false,
+    "sqlRollbackOnSignal": false
+  }
+}

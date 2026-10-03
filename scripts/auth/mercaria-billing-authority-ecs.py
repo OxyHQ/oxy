@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import signal
 import stat
 import time
 
@@ -138,7 +139,50 @@ def collect(plan, task_arn):
     raise RuntimeError('Receipt missing; reconcile exact ID/nonce, never reissue')
 
 
+class OperatorInterrupted(RuntimeError):
+    pass
+
+
 def execute(plan, directory):
+    # Install before any AWS operation. Signals interrupt normal work exactly
+    # once; cleanup itself must finish even if another SIGTERM arrives.
+    state = {'interrupted': False, 'cleanup': False}
+    previous = {}
+
+    def interrupt(signum, _frame):
+        if state['interrupted']:
+            return
+        state['interrupted'] = True
+        path = Path(directory)
+        if path.is_dir():
+            try:
+                private_write(path/'interrupt.json', {
+                    'signal': signal.Signals(signum).name,
+                    'planSha256': digest(plan),
+                    'nonce': plan['request']['nonce'],
+                    'manualReconciliationRequired': True,
+                    'automaticRetry': False,
+                    'sqlRollbackAttempted': False,
+                })
+            except Exception:
+                # A filesystem failure must not prevent task/TD cleanup. The
+                # pre-dispatch intent remains the recovery boundary.
+                pass
+        if not state['cleanup']:
+            raise OperatorInterrupted('Operator interrupted; reconcile original attempt')
+
+    try:
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            previous[signum] = signal.signal(signum, interrupt)
+        _execute(plan, directory, state)
+        if state['interrupted']:
+            raise OperatorInterrupted('Interrupted during cleanup; inspect receipts')
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+def _execute(plan, directory, interruption):
     require(plan['launcherSha256'] == hashlib.sha256(Path(__file__).read_bytes()).hexdigest() and
             plan['transportSha256'] == hashlib.sha256(BASE.read_bytes()).hexdigest() and
             plan['runnerSha256'] == hashlib.sha256(RUNNER.read_bytes()).hexdigest(), 'Transport source changed')
@@ -151,13 +195,15 @@ def execute(plan, directory):
     private_write(directory/'attempt.json', {'pending': True, 'planSha256': digest(plan), 'request': plan['request']})
     # Reserve immutable output before register/run; an uncertain ACK cannot create a second task automatically.
     result_fd = os.open(directory/'result.private.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    registered = None; task_arns = []; cleanup = {'taskStopped': False, 'definitionInactive': False, 'failures': []}
+    registered = None; task_arns = []; registration_attempted = False; dispatch_attempted = False; cleanup = {'taskStopped': False, 'definitionInactive': False, 'failures': []}
     try:
         definition = build_definition(plan); private_write(directory/'definition.private.json', definition)
+        registration_attempted = True
         actual = aws('ecs', 'register-task-definition', '--cli-input-json', 'file://' + str((directory/'definition.private.json').resolve()))['taskDefinition']
         registered = actual['taskDefinitionArn']; transport.verify_registered(actual, definition)
         transport.verify_registered(aws('ecs', 'describe-task-definition', '--task-definition', registered)['taskDefinition'], definition)
         private_write(directory/'registered.json', {'taskDefinitionArn': registered, 'startedBy': 'billing-cas-' + plan['request']['nonce'][:20], 'clientToken': digest(plan)})
+        dispatch_attempted = True
         launched = aws('ecs', 'run-task', '--cluster', CLUSTER, '--launch-type', 'FARGATE', '--task-definition', registered,
                        '--network-configuration', json.dumps(plan['live']['network']), '--count', '1',
                        '--started-by', 'billing-cas-' + plan['request']['nonce'][:20], '--client-token', digest(plan))
@@ -176,6 +222,11 @@ def execute(plan, directory):
             result_fd = None; json.dump(result, stream); stream.write('\n'); stream.flush(); os.fsync(stream.fileno())
         private_write(directory/'receipt.json', {'planSha256': digest(plan), 'resultSha256': digest(result), 'taskArn': task_arns[0], 'image': plan['live']['image']})
     finally:
+        interruption['cleanup'] = True
+        cleanup['definitionIdentityUnknown'] = registration_attempted and registered is None
+        cleanup['taskIdentityUnknown'] = dispatch_attempted and not task_arns
+        if cleanup['definitionIdentityUnknown']: cleanup['failures'].append('definition_identity_unknown')
+        if cleanup['taskIdentityUnknown']: cleanup['failures'].append('task_identity_unknown')
         if result_fd is not None: os.close(result_fd)
         for arn in task_arns:
             try:

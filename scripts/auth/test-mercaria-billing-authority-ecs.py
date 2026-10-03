@@ -77,7 +77,7 @@ class Fixtures(unittest.TestCase):
             with self.assertRaises(RuntimeError):m.execute(self.plan,self.directory/'execute')
         self.assertTrue((self.directory/'execute/attempt.json').exists());self.assertTrue((self.directory/'execute/result.private.json').exists())
         self.assertEqual([x[1] for x in calls],['register-task-definition'])
-        self.assertEqual(json.loads((self.directory/'execute/cleanup.json').read_text())['failures'],[])
+        self.assertEqual(json.loads((self.directory/'execute/cleanup.json').read_text())['failures'],['definition_identity_unknown'])
 
     def lifecycle(self, cleanup_failure=False):
         definition=m.build_definition(self.plan)
