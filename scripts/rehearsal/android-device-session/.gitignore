@@ -1,0 +1,5 @@
+.gradle/
+.signing/
+.tooling/
+**/build/
+local.properties

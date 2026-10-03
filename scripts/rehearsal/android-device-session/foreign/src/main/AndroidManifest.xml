@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <uses-permission android:name="so.oxy.permission.DEVICE_SESSION" />
+ <queries><provider android:authorities="so.oxy.accounts.dev.devicesession" /></queries>
+ <application android:label="Oxy1519 foreign fixture" android:allowBackup="false">
+ </application>
+ <instrumentation android:name="so.oxy.fixture.ProbeInstrumentation" android:targetPackage="onl.alia.app.dev" android:functionalTest="true" />
+</manifest>

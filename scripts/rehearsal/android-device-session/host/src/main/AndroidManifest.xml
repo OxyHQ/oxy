@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <permission android:name="so.oxy.permission.DEVICE_SESSION" android:protectionLevel="signature" />
+ <uses-permission android:name="so.oxy.permission.DEVICE_SESSION" />
+ <queries><provider android:authorities="so.oxy.accounts.dev.devicesession" /></queries>
+ <application android:label="Oxy1519 host fixture" android:allowBackup="false">
+  <provider android:name="so.oxy.devicesession.OxyDeviceSessionProvider" android:authorities="so.oxy.accounts.dev.devicesession" android:exported="true" android:permission="so.oxy.permission.DEVICE_SESSION" />
+ </application>
+</manifest>
