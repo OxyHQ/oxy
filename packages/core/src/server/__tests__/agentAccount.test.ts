@@ -23,3 +23,17 @@ it.each(['accountId', 'actorId', 'action', 'publicKey', 'expiresAt'] as const)('
   await expect(signInAgentAccount({ client, accountId: 'bot', signer: { publicKey, signMessage } })).rejects.toThrow();
   expect(signMessage).not.toHaveBeenCalled();
 });
+
+it('rejects an invalid signer point before requesting a challenge or signature', async () => {
+  const client = new OxyServices({ baseURL: 'https://fixture.invalid' });
+  const request = jest.spyOn(client, 'request').mockRejectedValue(new Error('Unexpected fixture request')); const signMessage = jest.fn(async () => 'unused');
+  await expect(signInAgentAccount({ client, accountId: 'bot', signer: { publicKey: 'invalid', signMessage } })).rejects.toThrow();
+  expect(request).not.toHaveBeenCalled(); expect(signMessage).not.toHaveBeenCalled();
+});
+it('does not sign a challenge with missing method provenance', async () => {
+  const client = new OxyServices({ baseURL: 'https://fixture.invalid' });
+  jest.spyOn(client, 'request').mockResolvedValue({ ...claims, authMethodId: '' });
+  const signMessage = jest.fn(async () => 'unused');
+  await expect(signInAgentAccount({ client, accountId: 'bot', signer: { publicKey, signMessage } })).rejects.toThrow();
+  expect(signMessage).not.toHaveBeenCalled();
+});
