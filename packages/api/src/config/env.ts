@@ -182,6 +182,11 @@ export interface RequiredEnvVars {
   INBOX_EVENT_OUTBOX_POLL_INTERVAL_MS?: string;
   INBOX_EVENT_OUTBOX_BATCH_SIZE?: string;
 
+  // Exact SNS topic authorized to deliver SES bounce/complaint feedback.
+  // Optional at boot, but the public SES feedback route fails closed when it
+  // is unset. This ARN is an identifier, not a secret.
+  SES_FEEDBACK_TOPIC_ARN?: string;
+
   // Server
   PORT?: string;
   NODE_ENV?: string;
