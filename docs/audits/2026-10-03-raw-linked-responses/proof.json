@@ -1,0 +1,121 @@
+{
+  "sourceCommit": "bc8c0b3d7cb4c2ba2c7c0a0773dfd110d8261a80",
+  "base": "f364fe58a41aab6913cf92ec01a9a9c1ea489120",
+  "sources": [
+    {
+      "path": "packages/core/src/HttpService.ts",
+      "sha256": "6a302a412c436cc984caa7a4daa5771018e49d38e427d4ccfaed1ec47ac3b061",
+      "bytes": 79478
+    },
+    {
+      "path": "packages/core/src/index.ts",
+      "sha256": "493446c8d5aa967617437f1f27594c8a1dac55a3296a21d9cd149408901978a8",
+      "bytes": 18481
+    },
+    {
+      "path": "packages/core/src/__tests__/rawResponse.test.ts",
+      "sha256": "dad5599e99266a42a495c672c4ec56fbc643f3e2609db73cefd575198bd89040",
+      "bytes": 14905
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-red-real.log",
+      "sha256": "21cd7dbf92f3f1747723a0c13b4c8d3b6bed228f6e8364bed4d3aaaa7c1e5a27",
+      "bytes": 6778
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-session-race-red.log",
+      "sha256": "0a3c005b14beb78d0621e929e2038f68125758d19ce4f3dc3e5ddd63fc02d782",
+      "bytes": 25319
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-green-initial.log",
+      "sha256": "5073a4ddada2d4927a7c643c6d32be681973e4c758aae2370ccc46ed5c537866",
+      "bytes": 1229
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-green.log",
+      "sha256": "041fe15ecb9dc1aeeda80e23d9700ef42618613057507405f11e271070066145",
+      "bytes": 1412
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-session-race-green.log",
+      "sha256": "4b8e64c6cc2c33e128dd45d7ad8006e7e3a60ac6ebd1de650bc4ae431824200d",
+      "bytes": 1176
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-core-full-initial.log",
+      "sha256": "bf32df7c046758fbba864edce9840c9cf915a43825334c304ab9a54c73235c37",
+      "bytes": 1598
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-core-full-final2.log",
+      "sha256": "1bdc92f326dfbc25177e03f9891c970e330d430e2f951b3f511b6ed6cff4e4c2",
+      "bytes": 190
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-final-focal2.log",
+      "sha256": "d3369b40e2eb65c8e7b1848ce4387e7211ab8b42810938f95001e8672ace1376",
+      "bytes": 529
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-types.log",
+      "sha256": "b1a23d59a7bf037186893435639503974c97ed4d72528830ee170620b8b6f6ea",
+      "bytes": 11167
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-deps.log",
+      "sha256": "93fc750300add2db15f319e5187ce33de0e9021cc9e84ff15249d756b16b23e0",
+      "bytes": 1106
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-types-final.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-lint-final3.log",
+      "sha256": "94cf74da15f5f347365d8f075e8b8810699bf75fbd5792ea2824107d092a192d",
+      "bytes": 42
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc",
+      "bytes": 570
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/logs/i04-raw-response-pack.log",
+      "sha256": "89c7eca4f7fe11060e4bd70d013e16f08a98aa784d0e4ddbe23cf5d3b3d4ceaf",
+      "bytes": 26067
+    }
+  ],
+  "candidatePackage": {
+    "path": "/home/nate/Oxy/.agent-evidence/oxy.so-core-4.2.0.tgz",
+    "sha256": "a00dc900dab9f2f292775a6f2ae338df2ad38a894066bd9ac69ff28299bf5683",
+    "bytes": 1602344
+  },
+  "published": false,
+  "validation": {
+    "coreFull": {
+      "suites": 181,
+      "passed": 2208,
+      "failed": 0
+    },
+    "finalFocal": {
+      "suites": 4,
+      "passed": 51,
+      "failed": 0
+    },
+    "types": "PASS after workspace dependency builds",
+    "lint": "3 files PASS",
+    "buildAndPack": "same shell command; candidate only"
+  },
+  "limits": [
+    "Loopback HTTP real; JWTs synthetic, no authority-verification claim.",
+    "Injected transport delegates to Node fetch; no Expo device-runtime claim.",
+    "No server idempotency, provider effect, publication or rollout claim.",
+    "Stream validity after handing Response to caller requires caller cancellation on session change.",
+    "Full suite precedes one additional null-to-person test and formatting-only changes; final focal covers the additional test."
+  ]
+}

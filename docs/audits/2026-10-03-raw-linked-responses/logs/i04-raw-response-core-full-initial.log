@@ -1,0 +1,46 @@
+$ jest --passWithNoTests --runInBand
+FAIL src/__tests__/linkedClient.test.ts
+  ● OxyServices.createLinkedClient › delegates token refresh to the session owner
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "refreshed_access"
+    Received: null
+
+      81 |     const refreshed = await linked.client.refreshAccessToken('preflight');
+      82 |
+    > 83 |     expect(refreshed).toBe('refreshed_access');
+         |                       ^
+      84 |     expect(oxy.session.accessToken).toBe('refreshed_access');
+      85 |     expect(linked.client.getAccessToken()).toBe('refreshed_access');
+      86 |
+
+      at Object.<anonymous> (src/__tests__/linkedClient.test.ts:83:23)
+
+
+Summary of all failing tests
+FAIL src/__tests__/linkedClient.test.ts
+  ● OxyServices.createLinkedClient › delegates token refresh to the session owner
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "refreshed_access"
+    Received: null
+
+      81 |     const refreshed = await linked.client.refreshAccessToken('preflight');
+      82 |
+    > 83 |     expect(refreshed).toBe('refreshed_access');
+         |                       ^
+      84 |     expect(oxy.session.accessToken).toBe('refreshed_access');
+      85 |     expect(linked.client.getAccessToken()).toBe('refreshed_access');
+      86 |
+
+      at Object.<anonymous> (src/__tests__/linkedClient.test.ts:83:23)
+
+
+Test Suites: 1 failed, 180 passed, 181 total
+Tests:       1 failed, 2203 passed, 2204 total
+Snapshots:   0 total
+Time:        33.806 s
+Ran all test suites.
+error: script "test" exited with code 1
