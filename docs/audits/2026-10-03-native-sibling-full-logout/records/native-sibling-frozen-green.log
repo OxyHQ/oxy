@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/boot/__tests__/nativeSiblingSignOut.frozen.test.ts src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        0.403 s, estimated 1 s
+Ran all test suites within paths "src/boot/__tests__/nativeSiblingSignOut.frozen.test.ts", "src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts".

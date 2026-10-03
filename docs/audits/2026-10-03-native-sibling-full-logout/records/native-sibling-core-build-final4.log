@@ -1,0 +1,9 @@
+$ node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs
+@oxy.so/telemetry build: $ rm -rf dist
+@oxy.so/telemetry build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/telemetry build: $ tsc -p tsconfig.esm.json
+@oxy.so/telemetry build: $ tsc -p tsconfig.types.json
+@oxy.so/telemetry build: Exited with code 0
+$ tsc -p tsconfig.cjs.json
+src/session/SessionClient.ts(412,45): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.

@@ -1,0 +1,205 @@
+{
+  "sourceCommit": "e5a44006aaa998494eac65ced581bbda83f8fd5e",
+  "frozenRedCommits": [
+    "80403d151",
+    "07dafb507"
+  ],
+  "sourceInputs": [
+    {
+      "path": "packages/core/src/session/SessionClient.ts",
+      "sha256": "99192d1703a896bb9766240a61dfb3b89be815aeb2ca92b7c4468dec96d62005"
+    },
+    {
+      "path": "packages/core/src/session/refresh.ts",
+      "sha256": "134007e170fbb5212ac36c71657303daad6109643085810fcf179d0aa9cb285f"
+    },
+    {
+      "path": "packages/core/src/session/authStateStore.ts",
+      "sha256": "6f6beb307f528945db9994bf0de321cb4837d542de49f577a099d49a4af2cc36"
+    },
+    {
+      "path": "packages/core/src/boot/sessionColdBoot.ts",
+      "sha256": "e3c71a269eb7fbc01afa062f1f3b4ef3baf04b15bdb7d7ae53d1ce6135706bef"
+    },
+    {
+      "path": "packages/core/src/boot/__tests__/nativeSiblingSignOut.test.ts",
+      "sha256": "08bceb509b49b0c6ec69b83ec555c91b5803e941a13ef326c648a16ae6a1a166"
+    },
+    {
+      "path": "packages/core/src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts",
+      "sha256": "8bd74c815f625008ded49f17024d0a642d51e0271134ad64b6a943ebc0afb8a8"
+    },
+    {
+      "path": "packages/core/src/boot/__tests__/nativeSiblingSignOutGuards.test.ts",
+      "sha256": "d15dea44f1edec694738320d7274d7a8737ed296737fe6f141fc77f9e1b998b8"
+    },
+    {
+      "path": "packages/core/src/session/sharedDeviceCredential.ts",
+      "sha256": "064a85defa2cddf05ac89130d2e47638d8e5699cb74a8ac2eb1731a19148a4a5"
+    },
+    {
+      "path": "packages/services/src/ui/session/deviceCredentialTracker.ts",
+      "sha256": "82868a0cfb2f152608c30cec68a6aa8a1163391fc00ce526dd42cf59e854c0fc"
+    },
+    {
+      "path": "packages/services/src/ui/context/OxyContext.tsx",
+      "sha256": "07ee0d114e82fbd07a5ae8996a40d375e38451f908cf892597799828e8d92b21"
+    },
+    {
+      "path": "packages/services/src/ui/session/createSessionClient.ts",
+      "sha256": "5a69a28e42887225c3850cd9f651c6e95738dfb2228e6b15c5293a7d1b20774e"
+    },
+    {
+      "path": "docs/auth/device-session.md",
+      "sha256": "73967005fe775e71f13b997b6b83c3ddfc8267fc06c5a3475d998ef79732ad47"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/android-red-projection.json",
+      "sha256": "e57a2350eeab26bcfbe670eedbdcbc290d2ab5286ed0e95dd11b7ace62081fc0"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/frozen-live.test.ts",
+      "sha256": "f65bfb4b0a6172dac84cc42d464c7aeee989de5ac74ecd9e7364e99df7cf7d8c"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/frozen-stopped.test.ts",
+      "sha256": "8bd74c815f625008ded49f17024d0a642d51e0271134ad64b6a943ebc0afb8a8"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-biome-final3.log",
+      "sha256": "670d9169ea991deb7201465d5221d3b73519fe4ce74226f8cb49515c1d73a10c"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-biome-final4.log",
+      "sha256": "588821127f68d687b2284556edc930642fa71d435cd974967b57ed6a83b327c4"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-biome-real.log",
+      "sha256": "19e5fef5a5a515a51d5c34813f440df045396835947f70762ffe7b83848b0755"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-core-build-final4.log",
+      "sha256": "828a27744691cba7aebc094e6ccd5bdb0ae569be8a3ddeeaa9d6cae80d42db34"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-core-build-final6.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-core-full-final.log",
+      "sha256": "34ab7d47ffcc58afe6857e071c075c401e93de08513cc5f5c028c3667a276ca3"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-core-regression-final5.log",
+      "sha256": "020d2bf0eb5a0a4d887bb1991199ee527a20bddb4736823c7192425c783cee18"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-core-regression.log",
+      "sha256": "826bb6163f2ce7eb37967f0751f64f11d3b75c958952855ff3ce89ceed78b42a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-frozen-green.log",
+      "sha256": "469793c2432860d1796f6aa0a4e326f06657aa5b0f9fe9ce405d1fb46d77db89"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-red-final.log",
+      "sha256": "6020f7cccedee13feb1a9c09746d692608016f8751f74f38e7628c724f804e64"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-services-build-final.log",
+      "sha256": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-sibling-services-full-final.log",
+      "sha256": "c88bcbe4ce67890c15b6e294dccb8334fbbb3f7d55e0d5a6e8cca05ac2d9ea39"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sibling-full-logout/records/native-stopped-sibling-red-final.log",
+      "sha256": "17cd2bf97d20c1ef6d6d1462c5b6cfb6cb46843c0063bb260ce2954663263fe6"
+    }
+  ],
+  "builtInputs": [
+    {
+      "path": "packages/core/dist/cjs/session/SessionClient.js",
+      "sha256": "70d6fcba208db1bac99814edd8f4d110214acf4b73ea49aa2f9d5ccdbc31684b"
+    },
+    {
+      "path": "packages/core/dist/cjs/session/authStateStore.js",
+      "sha256": "af2129b7dbb5fc8dd22a23ed05676acc2de7466241c6cada6cc879f6eef46486"
+    },
+    {
+      "path": "packages/core/dist/cjs/session/refresh.js",
+      "sha256": "44be1c4d394dea9edbaf4675526ee46526c324bafe07a2bad1a00f323fedf404"
+    },
+    {
+      "path": "packages/core/dist/cjs/boot/sessionColdBoot.js",
+      "sha256": "1f66983dcc03e5c174146eee190bdf4eaf7d8ddcd1b3c9fb2f16d22a25847c56"
+    },
+    {
+      "path": "packages/core/dist/esm/session/SessionClient.js",
+      "sha256": "48e3ee26e7ccd50c3a709165246a81e6cc920d94a1116d9232ec0d41a0d9870d"
+    },
+    {
+      "path": "packages/core/dist/esm/session/authStateStore.js",
+      "sha256": "98873be12ce195f997b6abaf72deb88bdb268f4522f9020188addbda1a5b5bb1"
+    },
+    {
+      "path": "packages/core/dist/esm/session/refresh.js",
+      "sha256": "aa8ac6fda52ed5f532be42e2f5a98d928eb68634a9296e4a6ba6bc0940a76060"
+    },
+    {
+      "path": "packages/core/dist/esm/boot/sessionColdBoot.js",
+      "sha256": "6e0ba5854a8cf72c58cf2d661c871a3ccf42a27cb4d7ff89441c974fc63a9d68"
+    },
+    {
+      "path": "packages/core/dist/types/session/SessionClient.d.ts",
+      "sha256": "e24d4ea741d75d39026a84c8b869dc35f17efa137df6b9e010fa4a5d3911ce4e"
+    },
+    {
+      "path": "packages/core/dist/types/session/authStateStore.d.ts",
+      "sha256": "35c328abb7234bf77955bea948ca5f934ceb511a8c72b88d7fd9393abbffa73d"
+    },
+    {
+      "path": "packages/core/dist/types/session/refresh.d.ts",
+      "sha256": "8ed323551f22123676d9bc2c98ef35d50464659c3a1b82504beb5f947290248f"
+    },
+    {
+      "path": "packages/core/dist/types/boot/sessionColdBoot.d.ts",
+      "sha256": "124c9e1cdf5c1ac4af3fd359816fcf3de15abce185a78eeb08dd059a21a2f83e"
+    }
+  ],
+  "results": {
+    "liveRed": "3 failed/2 passed",
+    "stoppedRed": "4 failed/1 passed",
+    "sameFrozenGreen": "2 suites/10 passed",
+    "additionalGuards": 6,
+    "core": "180 suites/2186 passed",
+    "services": "113 suites/1038 passed",
+    "coreBuild": "CJS/ESM/types exit0",
+    "servicesBuild": "exit0; package33exports verified",
+    "biome": "7 scoped files/0 errors"
+  },
+  "commands": {
+    "core": "cd packages/core && bun --no-env-file run test --runInBand",
+    "services": "cd packages/services && bun --no-env-file run test --runInBand",
+    "coreBuild": "cd packages/core && bun --no-env-file run build",
+    "servicesBuild": "cd packages/services && bun --no-env-file run build",
+    "lint": "packages/core/node_modules/.bin/biome lint --error-on-warnings <seven scoped TypeScript files>"
+  },
+  "historicalFailures": {
+    "native-sibling-core-regression.log": "Earlier callback duplicated:437PASS/1FAIL, interrupted after failed assertion skipped teardown. Preserved, superseded.",
+    "native-sibling-core-build-final4.log": "Nullable token decoder TS error corrected before final6 build exit0.",
+    "native-sibling-biome-real.log": "2 lint errors corrected. Initial root biome path unavailable is not lint evidence.",
+    "native-sibling-biome-final3.log": "Template style corrected before final4 lint0."
+  },
+  "limits": [
+    "Local real SessionClient/native KV/coldboot/refresh use mocked endpoint replies. Root actual Android RED retained separately; no new Android GREEN claimed.",
+    "Frozen first file replayed byte-identically under temporary sibling path, then removed. Current first fixture only differs by template style; stopped fixture unchanged.",
+    "Full core/Services test logs bind ff7 runtime; e5 changes refresh JSDoc only. Final core build binds exact e5.",
+    "401 classification retains existing message.includes markers, not a new structured parser.",
+    "Identity pin/isolated OAuth exclusions unchanged; no identity keys/global slot/real-device storage removed.",
+    "Forge INACTIVE; no registry or production acceptance."
+  ]
+}
