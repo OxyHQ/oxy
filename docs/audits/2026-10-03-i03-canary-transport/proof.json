@@ -1,0 +1,753 @@
+{
+  "kind": "i03-canary-external-transport-local-proof",
+  "sourceHead": "c63976419cbd0cf6c29273dee9b3fa9363703703",
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/services/aliaRevocationCanary.service.ts",
+      "sha256": "11649e498c6c9cda82b4b94f25cfe26668586ed45abf2cbfa4b87b8fb2bf2175"
+    },
+    {
+      "path": "packages/api/src/services/applicationCredentialAudit.service.ts",
+      "sha256": "880db9dc51caba7cbc3fcf4c04429c7474d31f92c2df3cacf1c159e9d253cc32"
+    },
+    {
+      "path": "packages/api/src/services/applicationCredentialRevocation.service.ts",
+      "sha256": "ceff282607b58635cad7c819cafd3c2bcb610d09c2cceec4914ed3999679a3c1"
+    },
+    {
+      "path": "scripts/agency/alia-revocation-canary-ecs.py",
+      "sha256": "a1f80623f15646482811868ff767a64f4da8383ff18e1068fe5b7a3be1fd0d38"
+    },
+    {
+      "path": "scripts/agency/alia-revocation-canary-receiver.mjs",
+      "sha256": "b81e9b404dee54be31c871b2ac912b3ec70a5d7ced8ab51546cba48d4ceda959"
+    },
+    {
+      "path": "scripts/agency/alia-revocation-canary.mjs",
+      "sha256": "cafd05c33cb57269ea6c4ba74f9d8dd8d90e39cede013360aec419b97dc5eace"
+    },
+    {
+      "path": "scripts/agency/foreground-pilot-ecs.py",
+      "sha256": "b9fc5d2649c2875c5745ea94fcf5edf2ea17c614d856df78a9570eb235839e8d"
+    },
+    {
+      "path": "scripts/agency/oxy-profile-registrar-preflight-ecs.py",
+      "sha256": "881cdf42e575e6bf3b0164ea4765ffadfb2277fc647e365293f89e10495375d0"
+    },
+    {
+      "path": "scripts/agency/test-alia-revocation-canary-receivers.mjs",
+      "sha256": "2d02140e95266326270314b40f64c65d1c8d2162964d6571a23eb201345199ec"
+    },
+    {
+      "path": "scripts/agency/tests/canary-task-node-seed.mjs",
+      "sha256": "d510f682eb344087f0b2d85100f2c11c2a94a92f4b7052857be2bad80d2a6d7b"
+    },
+    {
+      "path": "scripts/agency/tests/test-alia-canary-ecs.py",
+      "sha256": "5bf1b78e2efc262edf722776b487e0ad3642e8d1612312e1fd2ef8e2b7c4e556"
+    },
+    {
+      "path": "scripts/agency/tests/test-canary-task-node.py",
+      "sha256": "467dd10ef039caaf1f697df778e9bb7ca9dc66b843f6bece55c6506e4eb66670"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/canary-launcher-offline.log",
+      "bytes": 114,
+      "sha256": "709fcbaf4b79f29dce2e3a29c1a9813cdf5e4f8db3e865bf49b5677dbebc4b22"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/canary-launcher-help.log",
+      "bytes": 1164,
+      "sha256": "7da182bf89870c58dccb865412e93e701f128767a1412ff7d054e164940245d4"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/canary-two-sdk-process-final-core.log",
+      "bytes": 252,
+      "sha256": "f88bbc7b4b3ccb9e842ad5ae634e34aca2f4f26c04ffa617655a0a4fe8b6f04e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/canary-generated-node-final.log",
+      "bytes": 1482,
+      "sha256": "24c03cb2e25c339b3c19e6ec409422742a6ae7a71b551271bfa2b48c305fe203"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/migrate-fresh.log",
+      "bytes": 8875,
+      "sha256": "133e4d126d8842c5b2dfd5a60f19b9b39d4f0789b614378a59278ef5402bc316"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/migrate-repeat.log",
+      "bytes": 173,
+      "sha256": "d831c4be763ba816402097ba550eb65e48c7e02a708abafa8c8597e15e31424c"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/seed.log",
+      "bytes": 962,
+      "sha256": "abeb289e6810993ef36009a934b5f1b98a1c68b6f5f71ab41061ef303935c621"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/prepare.log",
+      "bytes": 1006,
+      "sha256": "635ff60ecf068b2836ea09a5727203f4c8294de87834c25cc02d24a4c5e96e8e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/recover.log",
+      "bytes": 456,
+      "sha256": "4ba0995f3dd4ca8e3434fa49638c3dea12d72266303c7c56e7b87516acb21e8d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/runtime-pin-rejected.log",
+      "bytes": 49,
+      "sha256": "2fe7c7e440e23b178157227d9eac11b6ce00cbef4fd8b797c6d0ed4eaa7dca21"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/prepare.mjs",
+      "bytes": 22990,
+      "sha256": "fb06ebc3f0df1dfa14eecf60f951fbd04b34abd739d869fcc929c3bc014fb40d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-transport/recover.mjs",
+      "bytes": 23934,
+      "sha256": "547c5808972c1b08814d41a921f3d73713f375bc17948390aa1086909d54ae17"
+    }
+  ],
+  "compiledApiInputs": [
+    {
+      "path": "packages/api/dist/services/aliaRevocationCanary.service.js",
+      "sha256": "363cba14df14761139aea3f21ffd7a60eb1394f386380e9de24eeee0f150e098"
+    },
+    {
+      "path": "packages/api/dist/services/applicationCredentialRevocation.service.js",
+      "sha256": "6dcb62483c3206888483111ad95952176945360f3fdd301f20ae202ca3bd47a4"
+    },
+    {
+      "path": "packages/api/dist/services/applicationCredentialAudit.service.js",
+      "sha256": "13f6c78be7031244712771e4801f0dce393fcf25da95381635fbee28f6c907e5"
+    },
+    {
+      "path": "packages/api/dist/config/postgres.js",
+      "sha256": "d71c6f13be5ef0c6c9aa9d7b9878a1488dd5a85523755243aaf0972b6480cea2"
+    },
+    {
+      "path": "packages/api/dist/utils/credentialMaterial.js",
+      "sha256": "dc7e7e5180223cec591ca314c3d93c85b9d0c2dd3717e584586e0b0533af19d7"
+    }
+  ],
+  "finalCoreCandidate": {
+    "workspace": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003",
+    "headAtRecord": "6c9a83deb19ca5a0ff4d62e541866157cf091c83",
+    "coreSourceTree": "6f7773216c835ccb0978061fdbf7a614ecae79cd",
+    "inputs": [
+      {
+        "path": "packages/core/dist/cjs/.tsbuildinfo",
+        "sha256": "ad0ec9ad47c777339695ae36e520bdf0aca43f9ff9a0c518e50d8148bf4363ec"
+      },
+      {
+        "path": "packages/core/dist/cjs/HttpService.js",
+        "sha256": "735c17322bf7f346b0f8b74d0905087221f2d11964858e94a7453a4d3746f4be"
+      },
+      {
+        "path": "packages/core/dist/cjs/OxyServices.errors.js",
+        "sha256": "68880d140567fa3b0958d2b0b7fab2ee0ddcd8bd7bd93fbb52146d51dd8532bb"
+      },
+      {
+        "path": "packages/core/dist/cjs/OxyServices.js",
+        "sha256": "491375a654110376f45f78b2245816b12ea2ff1df731ec6873ee67ec6946beec"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/accounts.js",
+        "sha256": "0717e98a3d1d76f24a773f0131a9b85455d4cb62eed322a6f4357dc667c05dd9"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/agency.js",
+        "sha256": "c6c058a67fab41dcc3128097bfe59a9c1c1f7f2fe5c056ffdac4e46f8c5de90a"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/appData.js",
+        "sha256": "87c3d0a6141308e66575bd0301ec0efa89e1f3ae74e1e80f93217263d85ba837"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/apps.js",
+        "sha256": "7520dc11e025689cd2df02025e19804a79708b25e254bc1004619b5da05b1be3"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/assets.js",
+        "sha256": "a37b717e80931e33b100d88340da611e82b6df46419cad1ed31829d7acaff76a"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/auth.js",
+        "sha256": "c33fc420f2b210b1fab325aa6100699478849b0e8abd4daec925638467e0dd88"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/billing.js",
+        "sha256": "63e3dd759f08b1b7d423eced7cf23a7858fd7996c9db59714b0923225cd0f64c"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/civic.js",
+        "sha256": "9f71a7f0aa60ae76cf4290cbcba8e94186e8a0fc37f339e320187510156aef5c"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/contacts.js",
+        "sha256": "b1616f18e798c5eff8aba6cd97bca65ec6e6242a277e32d075a022dbeb90bd65"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/devices.js",
+        "sha256": "4ce79eaff395e76ea00d4dc0858beccc00c52d67768d27678f98667d29cc6df3"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/follows.js",
+        "sha256": "2ee89f62c8e95503a8bbbe53f31209543e620f2e4096e6bcc6c68880dbc05324"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/identity.js",
+        "sha256": "f87900abae1986e18c39f26f8ab21980f714c0781ca4c2bfc09357c60bb9c79c"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/linkedAccounts.js",
+        "sha256": "ac9f843a86256dc31c6648c5677f530e28e63d85413b28ea10efb72474fc807c"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/nodes.js",
+        "sha256": "715a5518929e9a1803a0e67e8e9f0fa9725f808f842af3da3a6cbcd1fdb0cf74"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/notifications.js",
+        "sha256": "34983ddd66c579b2af52b00f65c5834e0947efe871a4bd0d7bd38e8c2dc26f03"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/privacy.js",
+        "sha256": "20c6d928c220113534813caf9016d7128115a20f4bf362c5e90060a0b03357d0"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/reputation.js",
+        "sha256": "1ec6fa6e860cb57b63b3b7b17fdb1a729129f7b067c1669a2f30e88fce8c8f44"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/session.js",
+        "sha256": "f86b001b91f69131457da0514c1c3ae04b6f2aad0d2748bd6340caabff8dc60f"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/store.js",
+        "sha256": "ac1420117d2044244f06b1e281b3dbdaa8497ddbeb95bdf66a166f40a356ddc5"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/topics.js",
+        "sha256": "c1280aa516fd90c40d13f55ca0d8b058f0c8ffd2a1aef54b3f65ad9dd861cbeb"
+      },
+      {
+        "path": "packages/core/dist/cjs/api/users.js",
+        "sha256": "0bf1e40fb7b00d6007f7ddbec74b666af5ca0718c70ed2e2fd4b00cc0f10bc4e"
+      },
+      {
+        "path": "packages/core/dist/cjs/boot/sessionColdBoot.js",
+        "sha256": "3221b9b210791af7436dc68bfe393f42513171c699d8a03c590649de6dc98d8c"
+      },
+      {
+        "path": "packages/core/dist/cjs/civic/index.js",
+        "sha256": "5def639d8f0f805cdb2a8f49920ae6fd70e4e34ec227d7b58649edbe953913e4"
+      },
+      {
+        "path": "packages/core/dist/cjs/civic/payloads.js",
+        "sha256": "45b6129b3b6ff38fdfb76f6a0fe46e9e49749f5b3962dfe012a3af6b559980de"
+      },
+      {
+        "path": "packages/core/dist/cjs/client/context.js",
+        "sha256": "d43aa81f5bc89faa359e0f97c814ba25155591ff078fbb9bfd40f8c7c9683230"
+      },
+      {
+        "path": "packages/core/dist/cjs/constants/version.js",
+        "sha256": "607f574f7f91efb6ab2b4eb24f092c89bca9e51c61f2107205241d8a66675be5"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/aead.js",
+        "sha256": "055252ee06914b85ee99dd05869164ff823e20873944e99b93c4dbe884bf3600"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/deviceBackup.js",
+        "sha256": "e2771951209eaec0a760010829a4814837d286961a696594c98c8348fefa46d1"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/ecdh.js",
+        "sha256": "41c44252f97207d9fe5c576c82a84e910e3102d1274d4d7cd346d5c1679e3ca7"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/identityDerivations.js",
+        "sha256": "00ad280567bf5de5eca79e6e88217ca08bde8c8196398c7f3b1514aaa10a26fe"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/identityLink.js",
+        "sha256": "2bbccb03514d901acefe1e9a655846f4e8c5f10a7e39ba4486053394fb6ed61f"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/identityMarker.js",
+        "sha256": "257912b257ccc42956632fcd3de41b3cbe41641556d3fbabc2c918ec38f65048"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/identityProof.js",
+        "sha256": "8ce6326402e742b934fdc9827f43448b001c9f66b93e958170bc37f7e1c2a4db"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/identitySigner.js",
+        "sha256": "d43aa81f5bc89faa359e0f97c814ba25155591ff078fbb9bfd40f8c7c9683230"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/index.js",
+        "sha256": "4927d2323f70817b616a8df2d0b17b4309c493317db1b9989768e49f9fcadc8e"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/internal.js",
+        "sha256": "00a8fa473b87eae352cf2cbfca2324ea3552c415ee4db0426a6a041399619fd9"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/kdf.js",
+        "sha256": "4dc6d139595369852d0bf45f611ebe005d59044c3be981e1b8df08e83e45b23b"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/keyManager.js",
+        "sha256": "24fb2e6d5939ef56ac37909d365716c74e92942ebe41d0f3b651347e8126d865"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/polyfill.js",
+        "sha256": "12e1b6cfe58ce8a5c4417455c1d07472d0c191b5a2963f50d29e6d6806511e2f"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/recoveryPhrase.js",
+        "sha256": "634a0d04e5b59cf37f533291869295963e93e576160b85b11cc66db4a6af9a0d"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/registrationPow.js",
+        "sha256": "bfe6347d88b53ca0f792224fbc25bb6daaf21f8f9f35b24bca291902797c2c60"
+      },
+      {
+        "path": "packages/core/dist/cjs/crypto/signatureService.js",
+        "sha256": "6f3463d2fa36cbb60e9bcce97b63495746563010fd349117b4fd5baf0dc3a6dc"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/accountCategoryLabels.js",
+        "sha256": "7002819fea1b20c88135f8fcb70a695f8c5801d9a95c42fd4e1cbe56f4d77c38"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/accountRoleLabels.js",
+        "sha256": "c111a10736b04afaf3278200b8a8afbba2d2f8e55489dd0b5b9a06c44e9bf7b5"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/index.js",
+        "sha256": "a8f1dece6265ccec5576370466653720b91e8fec6f5a92f3acf6be20025f543d"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/ar-SA.js",
+        "sha256": "9370b078c4c6fe4087686f688f7cf6298fd500c83fee79d7979d96d6c2ae5a56"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/ca-ES.js",
+        "sha256": "cfc9053557d94cd9fecec805e07f7850f86bc95b78eb246d8045006d7dbd436b"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/de-DE.js",
+        "sha256": "4287f0d6aed0fc2ec2a19c6815dd2edc517c667fad4707e262a286adae06db2f"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/en-US.js",
+        "sha256": "24265001ed5eb439d3a243e245523fea3baa9fd0303f55cd80c4605e573cf97f"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/es-ES.js",
+        "sha256": "14156bfae8d1c2c7b4f412dd8aad26670bd09814ec7195b79f5276f4687fb814"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/fr-FR.js",
+        "sha256": "b61d02da7de9cac1198d6ff67e9853bffda86f1da393ec524e6ead48c55f3a53"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/it-IT.js",
+        "sha256": "506ab5e0e1edfac9a43d44bca71ca02cd0108e7c3ad3067125a0d2e4ab6ca7d0"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/ja-JP.js",
+        "sha256": "08e0eb0ba76ae7d50d6f74eb41dbb13421a28812c3a25978230bdc58f8bdb350"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/ko-KR.js",
+        "sha256": "394067d9f9c973c82b6786631840bbef7996effcb5a28ba8f7ac805163d26b5a"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/pt-PT.js",
+        "sha256": "f837ebe94fe75c0ccc4de792dfd157711de2ede4f892bd08df290f166e7f2158"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/locales/zh-CN.js",
+        "sha256": "61988fa09e69cc19bccf3b24665a2112f03279e6bec1daae63f1eed68af5d2a3"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/reputationCategoryLabels.js",
+        "sha256": "b9f71e96e582ab89eac0563afb0e7ad7e9dfc3dc1158ac66e91df29037c57103"
+      },
+      {
+        "path": "packages/core/dist/cjs/i18n/trustTierLabels.js",
+        "sha256": "415c89def69084c30ab47d87eee76959df134e1c301d0443ef62c7c3d48dcf6c"
+      },
+      {
+        "path": "packages/core/dist/cjs/index.js",
+        "sha256": "2886a4c73c54b73ab722195e93c8ca363e84a5dd73d72b00bf5cfa7901af12be"
+      },
+      {
+        "path": "packages/core/dist/cjs/inference/OxyInferenceClient.js",
+        "sha256": "e25a47784488fb9c1e89d90c90afba2c3e03b8e3c6b0579d043da6c2ba912f9e"
+      },
+      {
+        "path": "packages/core/dist/cjs/inference/index.js",
+        "sha256": "25979659340882d88996e78ecdf2ca2ef6b8a298ff8aeb3c62c7b175743b87fc"
+      },
+      {
+        "path": "packages/core/dist/cjs/logger/index.js",
+        "sha256": "53ab95ce49065ee9a28c759db69e76edd77c0b1c4d9d4efc4add543ccd5a4efe"
+      },
+      {
+        "path": "packages/core/dist/cjs/models/Topic.js",
+        "sha256": "1f439aef10a5bb3579bf8d4c62555dcca7d6ef0448a54dc9c74e984831ad4acb"
+      },
+      {
+        "path": "packages/core/dist/cjs/models/interfaces.js",
+        "sha256": "a8f6d29473fea64484b665722adb1d59a2a5e50a61b5aefc12c03f3193457574"
+      },
+      {
+        "path": "packages/core/dist/cjs/models/session.js",
+        "sha256": "d43aa81f5bc89faa359e0f97c814ba25155591ff078fbb9bfd40f8c7c9683230"
+      },
+      {
+        "path": "packages/core/dist/cjs/package.json",
+        "sha256": "cff8c3ee51bba7cae8c4cbec6feb5868b0f0dbdacbb30183464b7cf7b1be61a8"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/OxyServer.js",
+        "sha256": "51b5c9be1717772d401035680f101dcf2a321e14e1930b001719149cd994568f"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/agentAccount.js",
+        "sha256": "77bb2d1206d8d17cabb1df815e644f71357cc3ad09c6fe130dd6e9ec6bff5173"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/auth.js",
+        "sha256": "fb63546c80ad47b9ceac8620971b75a70885f8e6f88ebd1cd3c719c835048ead"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/capabilityTicket.js",
+        "sha256": "86215802b2c727b08ff1d9e1699d78861eb4fda495bdce5caeb41f45b8ae78ad"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/cors.js",
+        "sha256": "ba60ad137439511257df0e79dfc1f26f892e8100755db673a9d817bdc6244523"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/index.js",
+        "sha256": "2224a4174d43a109f382e01eedca496e3a3bb62270a145a6097cde79aa110d75"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/liveCapabilityTicket.js",
+        "sha256": "83a3c790975a08ad3ea268b32577cd28ce92c4586f553405fab99ef8aadab5fc"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/middleware.js",
+        "sha256": "c9a40b354256e2971906eb11a55dd96a786c537f6f51b390bd838b237edf2c33"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/namespaces.js",
+        "sha256": "5bd67f89bca7d7785bdc0a72ea3e38fa3746e9cd5b435a1fd839568e97e4f5ac"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/rateLimit.js",
+        "sha256": "7078288a6fa4b5de781f2bc918e290c1e7648e46a1cd0501ef01db3d1125ff24"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/requesterAssertion.js",
+        "sha256": "c12ecd1822e971a2d817129bff3b81476f70a6154a7b3f8ecba020ba658a2539"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/safeFetch.js",
+        "sha256": "2779eb87912da6d74aa76ae476d01dacce5baa1d76ddce9c4f44cbaedf727f2a"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/securityHeaders.js",
+        "sha256": "dc6e19bb9551deec8ecb38a08e456ad9d348cfadfeffbdb2d046e86bb53a0bc4"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/serviceTokenLifetime.js",
+        "sha256": "30b28080dd5793cde017c23f12fc549928d5ef96e811b1f46e82191a1d935f9b"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/traffic.js",
+        "sha256": "d1ffe80858d2f129125dd0050574a4e8f141cf40ef03691c5a7b1e50405bec5c"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/trafficNodeHttp.js",
+        "sha256": "2893a1c62ac643250e29a77a0a3e973d2d089200abda7e9b337d49cbc89de028"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/userInvalidation.js",
+        "sha256": "bf85a1cc67d3474cd3a904785623420223b981578d3442af866f9ac434a306ec"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/verifySecret.js",
+        "sha256": "5eac1bfb8826c64c115060eca9e6dee869df20eee7d3d0b76b897c5f63d4925b"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/workloadIdentity.client.js",
+        "sha256": "eadabd165291120bc5aed2ffa9c521dc7d8b237bbdab3d4813cd0767ddc372cb"
+      },
+      {
+        "path": "packages/core/dist/cjs/server/workloadIdentity.js",
+        "sha256": "a198f470842716dd7136d6bab6332e5105c9c6c6070609c3f21917d5e34f6cf7"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/SessionClient.js",
+        "sha256": "70d6fcba208db1bac99814edd8f4d110214acf4b73ea49aa2f9d5ccdbc31684b"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/accountDelegationAccess.js",
+        "sha256": "d247d00b4fa2c28a0db0d6fa36366ab804f0ff62c39aa923039f8cba603a1df2"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/accountDialogController.js",
+        "sha256": "05be55182d56af1bccbf5176bfbfb6aab74b5e106a8a44d2bd8a05f05b0ba39c"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/accountSwitchTargets.js",
+        "sha256": "0362c7800f14543348607348ce699915c03723dbf2112ce8c31bb9b9e7407839"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/authStateStore.js",
+        "sha256": "c172b6397bbaba069103144f35824eefa8f803e9aeb762e28f74a0a26d40ea52"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/createSessionClient.js",
+        "sha256": "fa050beb5f0b35b09e454029702007f4c8173c0be3d607e657cf96feeb5fabfa"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/deviceDirectory.js",
+        "sha256": "8e5d3018eb0ad68e6c05562fd8db91a36632b1a4a91d7eb632854a0973a6c685"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/deviceSwitcherRows.js",
+        "sha256": "a75590b2a2a040666eeefff15d7cd1ca691b594004a77e6b14415333863f8a49"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/identityPin.js",
+        "sha256": "7b32717040fd01e3f91c63b00d529bb23d1c53992266a6a1e258628a886c087a"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/identitySession.js",
+        "sha256": "63377acc9a3242d4bd63eef7357b0f174168f8d3d9de5c804fa87c09ee28d886"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/index.js",
+        "sha256": "dbe8e570add4b7ceb913c9a4c0d8a3393f8d39461f43ac9feb75f5c5497d725a"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/projectSessionState.js",
+        "sha256": "200aaff332b23a611b9efbe2b4034765913503f91427f1dadcdd19be90dc2b49"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/refresh.js",
+        "sha256": "129054cc2aa1c80cccd133d80e09fcc7e89b83937c04aa8f93f59e607c323c2b"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/sessionClientHost.js",
+        "sha256": "bc0ec62807b05a9aa9d6858ff42230ee3e3d49e4a06dbe6647f805406019461c"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/sharedDeviceCredential.js",
+        "sha256": "92089b29e421cda6784d12925a41b8ac19138588d867e1f64eb01ea381f8fac1"
+      },
+      {
+        "path": "packages/core/dist/cjs/session/socketLoader.js",
+        "sha256": "eb3391822fcbffd982bfc169de3e9bb0e745438bb010b76bbde93a2506bb38a8"
+      },
+      {
+        "path": "packages/core/dist/cjs/shared/utils/colorUtils.js",
+        "sha256": "ea3693c038bfc66d26194bf17f67cff1a3546d619db5a93fb5ecbf02d32a0d26"
+      },
+      {
+        "path": "packages/core/dist/cjs/shared/utils/errorUtils.js",
+        "sha256": "3480fe7bf142d3e37e25fea0f46283b8afa568b7edcd724792851a94210ea5fa"
+      },
+      {
+        "path": "packages/core/dist/cjs/shared/utils/index.js",
+        "sha256": "a98b6b4070bb4638cd5262efe39f55b0785d2e7ae9858ba5b8a3459174075085"
+      },
+      {
+        "path": "packages/core/dist/cjs/shared/utils/networkUtils.js",
+        "sha256": "bb9814ea2a459155c58f22e0c5e663c90735039fc2c50ac9f2370d111120d69b"
+      },
+      {
+        "path": "packages/core/dist/cjs/shared/utils/themeUtils.js",
+        "sha256": "ec1eb0f2a9a01b4ebe978234900ce8b39bb036fc7c67183e7bd357923a91079d"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/accountCacheSweep.js",
+        "sha256": "d01814199208c8af7180f94372a8fccaaed9dedcf5f48c3de3e6617ce7c69956"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/accountUtils.js",
+        "sha256": "080423ab694a28a88e03c687259692b80fea56ba1add7db6df2e5abf3dc369c3"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/activityId.js",
+        "sha256": "04d600313d05397e60f61746e1b591605618c1e62d230b3be894e602466e11a3"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/apiUtils.js",
+        "sha256": "6e5c3b411aeab4acdada7d63a0365398ee8ae3f806c7ced2fc5e3c3a813d2ec7"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/asyncUtils.js",
+        "sha256": "ee1d1b6388a1a412a466c133b4ec5be1626aa9047c1ed0e425d9f7ba700a696e"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/authHelpers.js",
+        "sha256": "c038bfef9cf0a558944e3205eec58b82cd00485f39aa5747d0b770d7bdcac19e"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/authWebUrl.js",
+        "sha256": "ddaffa40bcda8ceb41517ebce7bbf6daef1ba600c7ae127fcbec956ca9deffe6"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/avatarUtils.js",
+        "sha256": "d4379e0718296f7545395d14d66bcdbb88e601310d68900eac1d22b5c252e051"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/cache.js",
+        "sha256": "ae6b17c5935648056184334cdabda14335009c6d66dcb7096f80379b9ce3b446"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/cacheKey.js",
+        "sha256": "072de75915966a0e2a75997f7f98f13aa077eb6ec97d427b727113a7371a3f65"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/coldBoot.js",
+        "sha256": "a7ceec7218f43d6c85e1cd1fdf5b085378f89bfb5eb8c84228e6773ce7b7bc2a"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/commonsApproval.js",
+        "sha256": "14a8761811311b0b0721cf49380b86cfc2bfb5f5c4513bf2c3a621443aaaaaad"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/commonsDelivery.js",
+        "sha256": "a3d8b97e9bad3a78a0a6608346767da11c71f1157883354179e6e3ace900adfc"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/deviceManager.js",
+        "sha256": "330b8088e54453a52fedf8a50240d1ff1ada278d80513df0b48591438c8d4736"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/displayNamePolicyRanges.generated.js",
+        "sha256": "b7ca8f17c93031f8e1164c76fd9b9363a9ab45fd4980ad2237a86ea2ab2666f8"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/edgeRegion.js",
+        "sha256": "606ad9d91face55a36983228fe13f7c29db215f2beca5250786251492cefaadc"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/errorUtils.js",
+        "sha256": "3c12e9cbf0588104d9ee00754e9f5b80cac0cefac24c81ff0e289da4318a65ec"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/identityCacheSweep.js",
+        "sha256": "94f269ccf38c61b059716f6e5c3f40af232b5d6fc4306e2575127663bb98d3ec"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/languageUtils.js",
+        "sha256": "5a039bc36c363eacb1eb5978b0b8cc38978bb5f06e7603e0c711b8c802674fa2"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/oauthPkce.js",
+        "sha256": "583fff65ec14817c30e12f4e01fe3dae3a5ff8985e1f6d3e2f7e9a52f3350ad0"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/officialOrigins.js",
+        "sha256": "4da931c1973b43cfe0fb1231d79a8b58f6b01c823e520c0f8096843a5bc1c696"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/oxyServiceEnvironment.js",
+        "sha256": "012db6bc762a33a760c47da581c57bb80bfabdf906b3b6bc4ae1a096dfa57225"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/platform.js",
+        "sha256": "1d5826b8c41ef89fdf39532a6bbfbd4a0002eef282f2ff32c953b6bb7b08b354"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/profileLinks.js",
+        "sha256": "d72a42e7297edb5605ac7f43d450f0ee5cbd31235d8b78bed8ca273829d772f1"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/redactUrl.js",
+        "sha256": "2e1effc58543372f1b4cac0f78d4159ee741077b8b6773e966e8abf53d8e1b5a"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/registrableApex.js",
+        "sha256": "961698379483aec11b319d8427ce0ef116c8eb314f7465a4da79d96ff1be52e6"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/requestUtils.js",
+        "sha256": "964724e5b5c0e6009738ef967f99381dcb0aa13fcd186476817bfbb9f530884d"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/sessionUtils.js",
+        "sha256": "a6c17ea532cb8aaff48b401aaa05c80f3122f6f49d59f35cbc3c536aa54c0104"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/slashes.js",
+        "sha256": "55fdcff820ead443c00c3367bd0687f4b4f008d637cee31124da44dd7004e595"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/textNormalization.js",
+        "sha256": "9a9b96de0720c2c464bd0afca435b1b837c7a2804b9aca0781d0ff742d74d60f"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/tokenClaims.js",
+        "sha256": "270ffd9565da8022f0967fa740032743d32e06acf0933406ba07a0ac19ffa77d"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/userHandle.js",
+        "sha256": "70c31ac1a6bcba55efce83142213b3595436b0065e512b9c85f76c13a5fa4600"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/userIdentity.js",
+        "sha256": "29aa24e965a2431683a0c3376f86708a1eba5046b9ddd99f5d8ddf314eba018e"
+      },
+      {
+        "path": "packages/core/dist/cjs/utils/validationUtils.js",
+        "sha256": "55e9c5ba6e35a3afa5e2b271a9228942fa1a984451fc16566904918b8a434246"
+      },
+      {
+        "path": "packages/core/package.json",
+        "sha256": "cafe284430f4bf30392b90f75e0693fe0491ae31035d8b2a870b05dd4e8bb2e6"
+      }
+    ]
+  },
+  "results": {
+    "launcherOfflineTests": 15,
+    "twoRealSdkProcessesSyntheticOracleAssertions": 12,
+    "coreVersion": "4.2.0",
+    "parentForkUsed": true,
+    "generatedNodeProductionOwnPgChecks": 6,
+    "normalMigrationFreshRepeat": true,
+    "runtimePinRejectedBeforeOperation": true,
+    "nodeDatabaseDropped": true,
+    "nodePostgresPidAbsent": 4187688,
+    "awsRequests": 0,
+    "providerRequests": 0,
+    "liveRevocationMeasured": false
+  },
+  "limitations": [
+    "The API source is already accepted separately at fa5113ac9; this series changes only external helpers and tests.",
+    "AWS metadata and ACK uncertainty fixtures are mocked; no AWS dispatch or authority change occurred.",
+    "The two processes execute actual final-candidate core modules and crypto, with synthetic loopback AWS/authority facts. They do not establish live latency or registry publication.",
+    "Generated Node prepare/recover code runs byte-for-byte; the fixed ECS workingDirectory is represented by the owned API package cwd locally. No live image was executed.",
+    "The final followup changes only recovery metadata admission for failed zero-count deployments, covered by the 15 offline fixtures. Generated invocation and helpers are unchanged from the final Node run.",
+    "Live prepare requires a newly reviewed exact final API task revision/runtime hashes; execute also fixes the existing Alia workload role. No additional IAM permission is created.",
+    "Recovery requires the fsynced original dispatch plan/intent and conclusive STOPPED readback. Missing task/list output is not proof of absence.",
+    "The verifier is a distinct wl_ credential on the SAME Alia application. No claim of a second application, global p99, human revocation latency or business effect is made."
+  ]
+}

@@ -1,0 +1,2 @@
+{"level":30,"time":1791055027455,"pid":4187893,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+ALIA_CANARY_RESULT {"kind":"alia-canary-transport-v1","nonce":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","operation":"recover","result":{"kind":"alia-credential-revocation-canary-recovery-v1","credentialId":"83f49762-a0a7-40ba-ad70-12696cf0e8b5","nonce":"77fdbd3c60bdbc07ccfc2e66","cleanupConfirmed":true,"authorityUnchanged":true}}

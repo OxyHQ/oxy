@@ -1,0 +1,26 @@
+usage: alia-revocation-canary-ecs.py [-h] --plan PLAN [--execute]
+                                     [--output OUTPUT]
+                                     [--operation {prepare,execute,recover}]
+                                     [--definition DEFINITION]
+                                     [--verifier-definition VERIFIER_DEFINITION]
+                                     [--runtime-pins RUNTIME_PINS]
+                                     [--prior-plan PRIOR_PLAN]
+                                     [--prior-intent PRIOR_INTENT]
+                                     [--authorization-sha256 AUTHORIZATION_SHA256]
+                                     [--principal-id PRINCIPAL_ID]
+                                     [--canary-plan CANARY_PLAN]
+
+options:
+  -h, --help            show this help message and exit
+  --plan PLAN
+  --execute
+  --output OUTPUT
+  --operation {prepare,execute,recover}
+  --definition DEFINITION
+  --verifier-definition VERIFIER_DEFINITION
+  --runtime-pins RUNTIME_PINS
+  --prior-plan PRIOR_PLAN
+  --prior-intent PRIOR_INTENT
+  --authorization-sha256 AUTHORIZATION_SHA256
+  --principal-id PRINCIPAL_ID
+  --canary-plan CANARY_PLAN

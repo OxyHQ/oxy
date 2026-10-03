@@ -1,0 +1,32 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default database encoding has accordingly been set to "SQL_ASCII".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/.agent-evidence/i03-canary-task-node/pg-yxlat5mm/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/i03-canary-task-node/pg-yxlat5mm/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"kind": "generated-node-canary-entrypoint", "pid": 4187688, "ownedDirectory": "/home/nate/Oxy/.agent-evidence/i03-canary-task-node/pg-yxlat5mm", "compiledImageLayoutRelocatedOnlyByCwd": true, "nodeEnv": "production", "phases": ["prepare", "recover"], "checks": 6, "runtimePinRejectedBeforeOperation": true, "databaseDropped": true, "awsRequests": 0, "providerRequests": 0}
+waiting for server to shut down.... done
+server stopped
+
