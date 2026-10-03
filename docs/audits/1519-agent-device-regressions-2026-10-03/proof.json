@@ -1,0 +1,200 @@
+{
+  "sourceHead": "ea43f3d3a4a487e8eb6b96828d12d8d0d2dd9f2c",
+  "baseHead": "9b1288b1789c23e1dbb787bf1fcea2c8f9c49aed",
+  "sourceSha256": {
+    "packages/api/src/services/deviceSession.service.ts": "ba9358568c5cde4a8d4fc2e3f1ae0aad7462b6e1cc3cc60ed8e946ce187101cc",
+    "packages/core/src/server/agentAccount.ts": "7bb2c2eb2665bc003773f33dab80b971921947a9ea808ffea6e10225627832d2",
+    "packages/api/src/services/__tests__/deviceDirectory.service.test.ts": "a0abd22a7c16156ed9472a2b2e5d8aac40c3162d073c59ee5c20d029bc8d944f",
+    "packages/api/src/routes/__tests__/agentAutonomousFlow.test.ts": "9f3baf5d9ab57f94663a6cbc7b54f102d83caf260a4d8694e90173e05120388b",
+    "packages/core/src/server/__tests__/agentAccount.test.ts": "63bf58983fcdfc35849133b0261767ee61edbd2be7a6c9838c0ba0245a18960a",
+    "scripts/rehearsal/test-agent-device-regressions-1519.py": "b02abf8b2b4670d66cb2765db50d8035c17493f39f99ebe78eb2cd0f1d094a1e",
+    "scripts/rehearsal/test-device-session-compatibility-1519.py": "0803e8848c368ce32e613103bc17c81a10628f25a0aa6c07931b1b8f6bca9bc6"
+  },
+  "records": {
+    "docs/audits/1519-agent-device-regressions-2026-10-03/initial-red-3-api.log": {
+      "sha256": "a3a0340594c79b003452eee79c440f791482a3e14b19fa81ada35c84314bbdcd",
+      "bytes": 3770
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/add-red-4-api.log": {
+      "sha256": "af20b66d8ad778f2e27cbf81cd77386e12c6bdde665558a79c6e5559bb734c21",
+      "bytes": 5015
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/frozen-red-api.log": {
+      "sha256": "112c038362b1787395236715a1c481a7f1a24fabed61b142ba2e8edbfdf02110",
+      "bytes": 8950
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/frozen-red-core.log": {
+      "sha256": "892fd1d1e033db0416b7f5e9e7d6df982b5026805fa0124207b1f81700cbe1c1",
+      "bytes": 2266
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/frozen-control.json": {
+      "sha256": "b59219d641e81e6e535102bef086529602c74c87542b010fcde85a06fa4a5dac",
+      "bytes": 1849
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/frozen-red-owned-pg.log": {
+      "sha256": "5a07159b9b1f5e05f5f214c6a8dfde9fcd6feb7bef18586ef857f48f1432b914",
+      "bytes": 2958
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/frozen-green-owned-pg.log": {
+      "sha256": "5973a96d11ffecedb70d4041692292433e8824758bba82ca03f1db9616b4683e",
+      "bytes": 2037
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/compatibility-owned-pg.log": {
+      "sha256": "e9f1a044851a244c1beff3ae5b53f08195d095e763a1487ad60c776781692b49",
+      "bytes": 2135
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/frozen-green-core.log": {
+      "sha256": "5340575067dfea6436e1811b4376558cf917b9bbf7af5a652d1a404f5f28d13e",
+      "bytes": 293
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/build-all.log": {
+      "sha256": "5a7e0dd78417362c96db81a94d974013dfef3109d69533c44144a7d84abb2302",
+      "bytes": 118535
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/api-ts.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/scripts-ts.log": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/core-ts.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/biome-real.log": {
+      "sha256": "5a0450fa34df9f4cc94b1a293a32be56d419943e585aca0b5215780f2928503b",
+      "bytes": 121
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/frozen-green-api.log": {
+      "sha256": "056792a37023ed67ee13f034625ce1aec0cf0f512a3de4e3c39b86ade50d8399",
+      "bytes": 391
+    },
+    "docs/audits/1519-agent-device-regressions-2026-10-03/compatibility-api.log": {
+      "sha256": "a93d20a9843464a184bee8c2436fbb392a85803a20a0289e7e479973bae4fc4c",
+      "bytes": 860
+    }
+  },
+  "checks": {
+    "frozenBaselineApi": {
+      "exitCode": 1,
+      "failed": 8,
+      "passed": 62,
+      "total": 70
+    },
+    "frozenFinalApi": {
+      "exitCode": 0,
+      "passed": 70,
+      "suites": 2
+    },
+    "compatibilityApi": {
+      "exitCode": 0,
+      "passed": 109,
+      "suites": 3
+    },
+    "frozenBaselineCore": {
+      "exitCode": 1,
+      "failed": 2,
+      "passed": 6
+    },
+    "frozenFinalCore": {
+      "exitCode": 0,
+      "passed": 8
+    },
+    "buildAll": {
+      "exitCode": 0,
+      "tasks": 19
+    },
+    "apiTsc": 0,
+    "scriptsTsc": 0,
+    "coreTsc": 0,
+    "scopedBiome": {
+      "executable": "@biomejs/biome@1.9.4",
+      "files": 5,
+      "exitCode": 0
+    }
+  },
+  "ownedPostgres": [
+    {
+      "pid": 3506544,
+      "serverStopped": true,
+      "exitCode": 0,
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--runTestsByPath",
+        "src/services/__tests__/deviceDirectory.service.test.ts",
+        "src/routes/__tests__/agentAutonomousFlow.test.ts"
+      ]
+    },
+    {
+      "pid": 3507479,
+      "serverStopped": true,
+      "exitCode": 0,
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--runTestsByPath",
+        "src/services/__tests__/deviceSession.service.test.ts",
+        "src/routes/__tests__/sessionDeviceDirectory.test.ts",
+        "src/routes/__tests__/sessionDevice.test.ts"
+      ]
+    }
+  ],
+  "mutation": {
+    "baseline": "9b1288b1789c23e1dbb787bf1fcea2c8f9c49aed",
+    "fixtureSha256": {
+      "packages/api/src/services/__tests__/deviceDirectory.service.test.ts": "a0abd22a7c16156ed9472a2b2e5d8aac40c3162d073c59ee5c20d029bc8d944f",
+      "packages/api/src/routes/__tests__/agentAutonomousFlow.test.ts": "9f3baf5d9ab57f94663a6cbc7b54f102d83caf260a4d8694e90173e05120388b",
+      "packages/core/src/server/__tests__/agentAccount.test.ts": "63bf58983fcdfc35849133b0261767ee61edbd2be7a6c9838c0ba0245a18960a",
+      "scripts/rehearsal/test-agent-device-regressions-1519.py": "b02abf8b2b4670d66cb2765db50d8035c17493f39f99ebe78eb2cd0f1d094a1e"
+    },
+    "restoredSourceSha256": {
+      "packages/api/src/services/deviceSession.service.ts": "ba9358568c5cde4a8d4fc2e3f1ae0aad7462b6e1cc3cc60ed8e946ce187101cc",
+      "packages/core/src/server/agentAccount.ts": "7bb2c2eb2665bc003773f33dab80b971921947a9ea808ffea6e10225627832d2"
+    },
+    "commands": [
+      {
+        "command": [
+          "python3",
+          "scripts/rehearsal/test-agent-device-regressions-1519.py"
+        ],
+        "cwd": "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003",
+        "exitCode": 1,
+        "log": "api-red.txt"
+      },
+      {
+        "command": [
+          "bun",
+          "run",
+          "test",
+          "--runInBand",
+          "--runTestsByPath",
+          "src/server/__tests__/agentAccount.test.ts"
+        ],
+        "cwd": "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/core",
+        "exitCode": 1,
+        "log": "core-red.txt"
+      }
+    ],
+    "baselineSourceSha256": {
+      "packages/api/src/services/deviceSession.service.ts": "ec1ce9715725542b567d0e7066ce56b5310b5784f136b34d3456bcb1e8ed23f8",
+      "packages/core/src/server/agentAccount.ts": "75ff10d774973250cd5e06c8ffc4e886fb7afd42ee0c4d82660a40e0b9b3f173"
+    },
+    "restoreVerified": true,
+    "fixturesUnchanged": true
+  },
+  "limitations": [
+    "No production database, deployment, SDK publication or device run.",
+    "The API helper test resolves public package exports to source through the existing Jest mapper; it is real HTTP, SQL, signatures and JWT, not a packed registry adoption test.",
+    "Core negative challenge tests use strict synthetic RPC replies to measure refusal before signer invocation.",
+    "Compatibility suites include their documented auth/minter stubs; focused device/agent suites run real minter and graph.",
+    "Legacy background storage binds account only: retiring its context conservatively clears that account binding, while other account bindings and surviving holders remain valid.",
+    "The initial empty lint from the unrelated biome CLI is not accepted evidence; only biome-real.log measures the five files."
+  ]
+}

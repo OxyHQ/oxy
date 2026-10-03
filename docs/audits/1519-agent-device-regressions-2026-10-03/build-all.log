@@ -1,0 +1,1061 @@
+$ turbo run build
+• turbo 2.10.12
+
+   • Packages in scope: @oxy.so/api, @oxy.so/app-preset, @oxy.so/contracts, @oxy.so/core, @oxy.so/db, @oxy.so/doctor, @oxy.so/expo-splash, @oxy.so/federation, @oxy.so/mcp, @oxy.so/node, @oxy.so/protocol, @oxy.so/services, @oxy.so/ship, @oxy.so/stickers, @oxy.so/telemetry, @oxy.so/utils, accounts, auth, commons, create-oxy-app, oxy-console, test-app, test-app-vite
+   • Running build in 23 packages
+   • Remote caching disabled, using shared worktree cache
+
+@oxy.so/expo-splash:build: cache hit, replaying logs d0a9fc45621d4706
+@oxy.so/expo-splash:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/expo-splash:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/expo-splash:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/expo-splash:build: ESM imports fixed
+@oxy.so/expo-splash:build: $ tsc -p tsconfig.types.json
+@oxy.so/utils:build: cache hit, replaying logs c61009e09866bae1
+@oxy.so/utils:build: $ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/utils:build: $ rm -rf dist
+@oxy.so/utils:build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/utils:build: $ tsc -p tsconfig.esm.json && node scripts/mark-esm.mjs
+@oxy.so/utils:build: $ tsc -p tsconfig.types.json
+@oxy.so/telemetry:build: cache hit, replaying logs 06fcb736969983f1
+@oxy.so/telemetry:build: $ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/telemetry:build: $ rm -rf dist
+@oxy.so/telemetry:build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/telemetry:build: $ tsc -p tsconfig.esm.json
+@oxy.so/telemetry:build: $ tsc -p tsconfig.types.json
+create-oxy-app:build: cache hit, replaying logs 3a337925a4de5a69
+create-oxy-app:build: $ tsc -p tsconfig.json
+@oxy.so/db:build: cache hit, replaying logs 2741ecedaf2d04b6
+@oxy.so/db:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/db:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/db:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/db:build: ESM imports fixed
+@oxy.so/db:build: $ tsc -p tsconfig.types.json
+@oxy.so/contracts:build: cache hit, replaying logs 3642bf6845146929
+@oxy.so/contracts:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/contracts:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/contracts:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/contracts:build: ESM imports fixed
+@oxy.so/contracts:build: $ tsc -p tsconfig.types.json
+@oxy.so/stickers:build: cache hit, replaying logs 3667b314b86fdd77
+@oxy.so/stickers:build: $ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/stickers:build: $ rm -rf dist
+@oxy.so/stickers:build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/stickers:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/stickers:build: ESM imports fixed
+@oxy.so/stickers:build: $ tsc -p tsconfig.types.json
+@oxy.so/mcp:build: cache hit, replaying logs 2e9ad76dcfb1ea95
+@oxy.so/mcp:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/mcp:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/mcp:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/mcp:build: $ tsc -p tsconfig.types.json
+@oxy.so/protocol:build: cache hit, replaying logs d7c0b7f48be1c6dd
+@oxy.so/protocol:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/protocol:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/protocol:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/protocol:build: ESM imports fixed
+@oxy.so/protocol:build: $ tsc -p tsconfig.types.json
+@oxy.so/core:build: cache miss, executing 35f55dea054432b2
+@oxy.so/core:build: $ node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs
+@oxy.so/core:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/core:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/core:build: ESM imports fixed
+@oxy.so/core:build: $ tsc -p tsconfig.types.json
+@oxy.so/ship:build: cache miss, executing 29d5f856984c14c9
+@oxy.so/node:build: cache miss, executing 2c123a84fa88b2df
+@oxy.so/federation:build: cache miss, executing 6a808ee7771baa89
+@oxy.so/services:build: cache miss, executing aa3b5e15cdcf5e70
+@oxy.so/ship:build: $ tsc -p tsconfig.json && node scripts/add-shebang.mjs
+@oxy.so/node:build: $ node ../core/scripts/build-workspace-deps.mjs @oxy.so/contracts @oxy.so/protocol @oxy.so/core && tsc
+@oxy.so/federation:build: $ node ../core/scripts/build-workspace-deps.mjs @oxy.so/contracts @oxy.so/protocol @oxy.so/core && bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/services:build: $ bun run check:icon-fonts && bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view
+@oxy.so/services:build: $ node scripts/check-icon-font-subsets.mjs
+@oxy.so/federation:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/services:build: Services icon subsets match source usage, package version and recorded hashes.
+@oxy.so/federation:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/services:build: ℹ [commonjs] Cleaning up previous build at lib/commonjs
+@oxy.so/services:build: ℹ [commonjs] Compiling 277 files in src with babel
+@oxy.so/federation:build: ESM imports fixed
+@oxy.so/federation:build: $ tsc -p tsconfig.types.json
+@oxy.so/api:build: cache miss, executing 5630ab1d1f053084
+@oxy.so/api:build: $ node ../core/scripts/build-workspace-deps.mjs @oxy.so/utils @oxy.so/telemetry @oxy.so/contracts @oxy.so/protocol @oxy.so/core @oxy.so/federation @oxy.so/db @oxy.so/mcp && tsc
+@oxy.so/services:build: ✔ [commonjs] Wrote files to lib/commonjs
+@oxy.so/services:build: ℹ [module] Cleaning up previous build at lib/module
+@oxy.so/services:build: ℹ [module] Compiling 277 files in src with babel
+@oxy.so/services:build: ✔ [module] Wrote files to lib/module
+@oxy.so/services:build: ℹ [typescript] Cleaning up previous build at lib/typescript
+@oxy.so/services:build: ℹ [typescript] Generating type definitions with tsc
+@oxy.so/services:build: ✔ [typescript] Wrote definition files to lib/typescript
+@oxy.so/services:build: $ copyfiles -u 1 "src/assets/**/*" lib/commonjs/assets && copyfiles -u 1 "src/assets/**/*" lib/module/assets
+@oxy.so/services:build: $ copyfiles -u 1 "src/**/*.d.ts" lib/typescript
+@oxy.so/services:build: $ find ./lib/commonjs -name '*.d.js*' -delete && find ./lib/module -name '*.d.js*' -delete
+@oxy.so/services:build: $ rm -rf ./lib/commonjs/components/bottomSheetDebugView ./lib/module/components/bottomSheetDebugView ./lib/typescript/components/bottomSheetDebugView || true
+@oxy.so/services:build: $ node scripts/verify-package.mjs
+@oxy.so/services:build: [verify-package] ok — @oxy.so/services@11.1.0 packs 2417 files (2084 under lib/), all 33 exports targets resolve, every module declared (251 in lib/commonjs/, 251 in lib/module/), no unsubstituted dependency protocol
+oxy-console:build: cache miss, executing ab71e7d830b35ce8
+test-app-vite:build: cache miss, executing d0e42565b96eb845
+accounts:build: cache miss, executing ceb965eb5b1db4ce
+auth:build: cache miss, executing c3fd0118845ddf61
+test-app-vite:build: $ tsc -b && vite build
+oxy-console:build: $ vite build && bun ../core/scripts/writePagesHeaders.ts dist
+accounts:build: $ node scripts/export-web.js && bun ../core/scripts/writePagesHeaders.ts dist
+auth:build: $ vite build && bun ../core/scripts/writePagesHeaders.ts dist
+auth:build: rolldown-vite v7.3.1 building client environment for production...
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+oxy-console:build: rolldown-vite v7.3.1 building client environment for production...
+accounts:build: React Compiler enabled
+accounts:build: Expo Autolinking module resolution enabled
+accounts:build: Starting Metro Bundler
+accounts:build: 
+accounts:build: Static rendering is enabled. Learn more: https://docs.expo.dev/router/web/static-rendering/
+auth:build: [plugin rolldown:vite-resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/protocol/dist/esm/platform/crypto.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+auth:build: [plugin rolldown:vite-resolve] Module "node:async_hooks" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/node_modules/.bun/expo-font@57.0.3/node_modules/expo-font/build/serverContext.web.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+auth:build: [vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+auth:build: 1  |  @import "tailwindcss/theme.css" layer(theme);
+auth:build: 2  |  @import "tailwindcss/preflight.css" layer(base);
+auth:build:    |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+auth:build: 3  |  @import "tailwindcss/utilities.css";
+auth:build: 4  |  @import "nativewind/theme";
+auth:build: [2Kauth:build: transforming...✓ 2487 modules transformed.
+auth:build: rendering chunks...
+auth:build: [plugin builtin:vite-reporter] 
+auth:build: (!) __vite-browser-external is dynamically imported by /home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/protocol/dist/esm/platform/crypto.js but also statically imported by /home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/node_modules/.bun/expo-font@57.0.3/node_modules/expo-font/build/serverContext.web.js, dynamic import will not move module into another chunk.
+auth:build: 
+oxy-console:build: [plugin rolldown:vite-resolve] Module "node:async_hooks" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/node_modules/.bun/expo-font@57.0.3/node_modules/expo-font/build/serverContext.web.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+oxy-console:build: [plugin rolldown:vite-resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/protocol/dist/esm/platform/crypto.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+test-app-vite:build: rolldown-vite v7.3.1 building client environment for production...
+auth:build: computing gzip size...
+auth:build: dist/bridge.html                                                0.50 kB │ gzip:   0.27 kB
+auth:build: dist/index.html                                                 0.70 kB │ gzip:   0.37 kB
+auth:build: dist/assets/unmatched-C2XkAHgU.png                              4.75 kB
+auth:build: dist/assets/arrow_down-NdGCEnxo.png                             9.45 kB
+auth:build: dist/assets/OxyServicesMaterialCommunityIcons-DVHLYwp4.ttf     28.85 kB
+auth:build: dist/assets/JetBrainsMono-Variable-B9CIFXIH.woff2              40.40 kB
+auth:build: dist/assets/OxyServicesIonicons-B1hZ8Dc8.ttf                   43.00 kB
+auth:build: dist/assets/slide-4-DSNFt0xP.jpg                               46.63 kB
+auth:build: dist/assets/InterVariable-Dx4kXJAl.woff2                       48.25 kB
+auth:build: dist/assets/slide-3-Bp5gr1Be.jpg                               59.18 kB
+auth:build: dist/assets/BlomusModernus-Bold-0E_Y-ihB.woff2                 77.61 kB
+auth:build: dist/assets/BlomusModernus-Regular-kZR3rHS0.woff2              77.64 kB
+auth:build: dist/assets/slide-2-BAN8I4Iy.jpg                               87.90 kB
+auth:build: dist/assets/slide-1-CPYeLD4l.jpg                              102.17 kB
+auth:build: dist/assets/main-BUPqwwOD.css                                  52.91 kB │ gzip:  10.17 kB
+auth:build: dist/assets/__vite-browser-external-CVJuAHGm.js                 0.05 kB │ gzip:   0.07 kB
+auth:build: dist/assets/trustTierLabels-CS4utLaX.js                         0.12 kB │ gzip:   0.12 kB
+auth:build: dist/assets/Ionicons-CqjN7LUK.js                                0.15 kB │ gzip:   0.14 kB
+auth:build: dist/assets/LinkCommonsScreen-CjfDiFBr.js                       0.26 kB │ gzip:   0.21 kB
+auth:build: dist/assets/SignInAuthenticatorScreen-CPLI4MlQ.js               0.26 kB │ gzip:   0.21 kB
+auth:build: dist/assets/FollowersListScreen-mtF44fRR.js                     0.27 kB │ gzip:   0.22 kB
+auth:build: dist/assets/FollowingListScreen-NnR_M8kY.js                     0.27 kB │ gzip:   0.22 kB
+auth:build: dist/assets/AccountSecurityPanelScreen-Bh4llQt1.js              0.27 kB │ gzip:   0.22 kB
+auth:build: dist/assets/DeleteAccountScreen-DuMdurkW.js                     0.29 kB │ gzip:   0.23 kB
+auth:build: dist/assets/SignInPasswordScreen-8D3pUvjN.js                    0.30 kB │ gzip:   0.24 kB
+auth:build: dist/assets/version-Dbd2Rk8Z.js                                 0.33 kB │ gzip:   0.23 kB
+auth:build: dist/assets/useReduceMotion-DRfwl9ti.js                         0.40 kB │ gzip:   0.29 kB
+auth:build: dist/assets/SettingsIcon-DSV4XiYR.js                            0.49 kB │ gzip:   0.35 kB
+auth:build: dist/assets/useSettingToggle-BXfFHhBN.js                        0.68 kB │ gzip:   0.44 kB
+auth:build: dist/assets/colorUtils-D8jb93bc.js                              0.77 kB │ gzip:   0.24 kB
+auth:build: dist/assets/plural-CwaJg1la.js                                  0.86 kB │ gzip:   0.51 kB
+auth:build: dist/assets/UserLinksScreen-R0MprK8f.js                         0.90 kB │ gzip:   0.52 kB
+auth:build: dist/assets/ProfileSummaryCard-CbPuCQje.js                      1.01 kB │ gzip:   0.57 kB
+auth:build: dist/assets/logger-CpY_NdJH.js                                  1.05 kB │ gzip:   0.53 kB
+auth:build: dist/assets/message-helpers-BLYmo9uf.js                         1.15 kB │ gzip:   0.58 kB
+auth:build: dist/assets/AvatarCameraBadge-N5lk3A4v.js                       1.15 kB │ gzip:   0.70 kB
+auth:build: dist/assets/RiSparklingLine-Cy8zmOJy.js                         1.20 kB │ gzip:   0.64 kB
+auth:build: dist/assets/oxy-api-client-DFKYM0a8.js                          1.32 kB │ gzip:   0.69 kB
+auth:build: dist/assets/build-Ebxzpsp-.js                                   1.51 kB │ gzip:   0.77 kB
+auth:build: dist/assets/TrustFAQScreen-Dr63mcB4.js                          1.55 kB │ gzip:   0.81 kB
+auth:build: dist/assets/RiShieldCheckLine-DLAoepNe.js                       1.62 kB │ gzip:   0.90 kB
+auth:build: dist/assets/TrustRulesScreen-j3pgSYhs.js                        1.99 kB │ gzip:   1.03 kB
+auth:build: dist/assets/SearchSettingsScreen-DX5XA2fz.js                    2.17 kB │ gzip:   0.96 kB
+auth:build: dist/assets/Haptics-CETCL1lo.js                                 2.35 kB │ gzip:   1.05 kB
+auth:build: dist/assets/bridge-hY3VgMY3.js                                  2.36 kB │ gzip:   1.14 kB
+auth:build: dist/assets/HelpSupportScreen-CFfFjTbO.js                       2.48 kB │ gzip:   0.91 kB
+auth:build: dist/assets/ConnectedAppsScreen-gCLPsmVy.js                     2.70 kB │ gzip:   1.35 kB
+auth:build: dist/assets/module-CEa8MydY.js                                  2.89 kB │ gzip:   1.22 kB
+auth:build: dist/assets/NotificationsScreen-BffaeyJU.js                     2.92 kB │ gzip:   1.09 kB
+auth:build: dist/assets/EditProfileScreen-DYTYfo1e.js                       3.13 kB │ gzip:   1.17 kB
+auth:build: dist/assets/LanguageSelectorScreen-B-I-6fIQ.js                  3.13 kB │ gzip:   1.47 kB
+auth:build: dist/assets/SettingsList-CE2dHx4F.js                            3.14 kB │ gzip:   1.36 kB
+auth:build: dist/assets/PreferencesScreen-BfSkZAh8.js                       3.22 kB │ gzip:   1.35 kB
+auth:build: dist/assets/HistoryViewScreen-CgWwvLYa.js                       3.44 kB │ gzip:   1.35 kB
+auth:build: dist/assets/LearnMoreUsernamesScreen-BzEjJAyv.js                3.71 kB │ gzip:   1.62 kB
+auth:build: dist/assets/authStateStore-Cp2zCoi7.js                          3.71 kB │ gzip:   1.02 kB
+auth:build: dist/assets/TrustAboutScreen-D3cnuqWQ.js                        3.71 kB │ gzip:   1.60 kB
+auth:build: dist/assets/Card-iIFdbLG0.js                                    3.80 kB │ gzip:   1.64 kB
+auth:build: dist/assets/DomainsScreen-Ducyi9-t.js                           3.89 kB │ gzip:   1.47 kB
+auth:build: dist/assets/TrustCenterScreen-BsnD9JHD.js                       3.96 kB │ gzip:   1.62 kB
+auth:build: dist/assets/LegalDocumentsScreen-CDyq20xP.js                    3.99 kB │ gzip:   1.33 kB
+auth:build: dist/assets/TrustLeaderboardScreen-D9pCkoji.js                  4.03 kB │ gzip:   1.73 kB
+auth:build: dist/assets/ChangeAvatarScreen-BmxvsTil.js                      4.41 kB │ gzip:   1.83 kB
+auth:build: dist/assets/AccountSettingsScreen-B5A_NqW3.js                   5.46 kB │ gzip:   2.23 kB
+auth:build: dist/assets/AccountVerificationScreen-DzNPt8Ub.js               6.59 kB │ gzip:   2.73 kB
+auth:build: dist/assets/ImagePicker-UwIwN0D6.js                             6.81 kB │ gzip:   2.60 kB
+auth:build: dist/assets/CreateAccountScreen-BjXATL_a.js                     6.98 kB │ gzip:   2.67 kB
+auth:build: dist/assets/Chip-DS5Gqgdp.js                                    8.00 kB │ gzip:   3.43 kB
+auth:build: dist/assets/WelcomeNewUserScreen-CrN643S0.js                    8.03 kB │ gzip:   2.88 kB
+auth:build: dist/assets/WebBrowser-LxJMLPIi.js                              8.11 kB │ gzip:   3.18 kB
+auth:build: dist/assets/src-DAjnRpXx.js                                     8.14 kB │ gzip:   3.04 kB
+auth:build: dist/assets/ProfileScreen-BsYz1Xa7.js                           8.18 kB │ gzip:   2.91 kB
+auth:build: dist/assets/module-DgZYM8Y0.js                                  9.05 kB │ gzip:   2.74 kB
+auth:build: dist/assets/TrustRewardsScreen-KJJ9pPff.js                      9.06 kB │ gzip:   2.82 kB
+auth:build: dist/assets/AccountMembersScreen-FfLUApwl.js                    9.42 kB │ gzip:   2.88 kB
+auth:build: dist/assets/AppInfoScreen-DITzQV1Y.js                           9.91 kB │ gzip:   3.52 kB
+auth:build: dist/assets/PrivacySettingsScreen-BFByVJH6.js                  10.58 kB │ gzip:   2.74 kB
+auth:build: dist/assets/UserListScreen-DlxMsX74.js                         11.57 kB │ gzip:   4.56 kB
+auth:build: dist/assets/zh-CN-LSdYJkhT.js                                  11.86 kB │ gzip:   4.99 kB
+auth:build: dist/assets/it-IT-B2rpNMAb.js                                  12.61 kB │ gzip:   4.63 kB
+auth:build: dist/assets/ca-ES-CAt2SZxZ.js                                  12.92 kB │ gzip:   4.70 kB
+auth:build: dist/assets/pt-PT-CfoBzbG9.js                                  13.03 kB │ gzip:   4.67 kB
+auth:build: dist/assets/de-DE-BfJQOi5M.js                                  13.39 kB │ gzip:   4.89 kB
+auth:build: dist/assets/fr-FR-Ks1hCmOS.js                                  13.72 kB │ gzip:   4.88 kB
+auth:build: dist/assets/ko-KR-oG06dzG3.js                                  13.83 kB │ gzip:   4.92 kB
+auth:build: dist/assets/ja-JP-BLq7nJ7x.js                                  15.92 kB │ gzip:   5.11 kB
+auth:build: dist/assets/ar-SA-BN-TzziT.js                                  16.09 kB │ gzip:   5.17 kB
+auth:build: dist/assets/ManageAccountScreen-Bq61OktX.js                    18.61 kB │ gzip:   5.49 kB
+auth:build: dist/assets/AvatarCropScreen-Bl0_lVsC.js                       20.02 kB │ gzip:   6.54 kB
+auth:build: dist/assets/validationUtils-C4YiR5Ec.js                        21.14 kB │ gzip:   6.14 kB
+auth:build: dist/assets/PaymentGatewayScreen-CCT7Mrmv.js                   24.09 kB │ gzip:   5.91 kB
+auth:build: dist/assets/recoveryPhrase-B82h_T_Y.js                         24.60 kB │ gzip:  11.20 kB
+auth:build: dist/assets/EditProfileFieldScreen-DOQKTa8X.js                 25.50 kB │ gzip:   8.53 kB
+auth:build: dist/assets/OxyAccountDialogScreen-C2e62pFQ.js                 35.73 kB │ gzip:  11.82 kB
+auth:build: dist/assets/internal-Bdyae9yo.js                               39.79 kB │ gzip:  13.49 kB
+auth:build: dist/assets/esm-D9zqpSS-.js                                    42.18 kB │ gzip:  13.15 kB
+auth:build: dist/assets/zh-Dghra-i9.js                                     56.74 kB │ gzip:  23.94 kB
+auth:build: dist/assets/id-z9-PpLhM.js                                     59.79 kB │ gzip:  22.12 kB
+auth:build: dist/assets/tr-F_ig7p91.js                                     61.71 kB │ gzip:  23.47 kB
+auth:build: dist/assets/it-BNcZI9S7.js                                     63.86 kB │ gzip:  23.35 kB
+auth:build: dist/assets/pt-Gso6uVuZ.js                                     64.00 kB │ gzip:  23.55 kB
+auth:build: dist/assets/de-CkskSgae.js                                     64.13 kB │ gzip:  23.77 kB
+auth:build: dist/assets/ca-CmmB0Ne5.js                                     64.25 kB │ gzip:  23.76 kB
+auth:build: dist/assets/es-ChQFkBWu.js                                     64.45 kB │ gzip:  23.73 kB
+auth:build: dist/assets/es-ES-xq4KVPaw.js                                  65.38 kB │ gzip:  20.74 kB
+auth:build: dist/assets/fr-RHMmmN9F.js                                     66.34 kB │ gzip:  24.28 kB
+auth:build: dist/assets/ja-k9GZnwTS.js                                     68.06 kB │ gzip:  25.31 kB
+auth:build: dist/assets/FileManagementScreen-BjxoUNDa.js                   83.03 kB │ gzip:  25.39 kB
+auth:build: dist/assets/ar-q-_KXzXf.js                                     84.90 kB │ gzip:  26.93 kB
+auth:build: dist/assets/ru-DvCehqW3.js                                     91.51 kB │ gzip:  28.57 kB
+auth:build: dist/assets/hi-DWNTEKiV.js                                    102.10 kB │ gzip:  27.03 kB
+auth:build: dist/assets/bn-DKfRKGrB.js                                    104.25 kB │ gzip:  26.64 kB
+auth:build: dist/assets/main-DQpCeWT3.js                                4,015.70 kB │ gzip: 942.92 kB
+auth:build: [33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+auth:build:    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/uuid/index.web.ts:6:10 [38;5;246m][0m
+auth:build:    [38;5;246m│[0m
+auth:build:  [38;5;246m6 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249m"[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m([0m[38;5;249m"[0m[38;5;249mn[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249me[0m[38;5;249m:[0m[38;5;249mc[0m[38;5;249mr[0m[38;5;249my[0m[38;5;249mp[0m[38;5;249mt[0m[38;5;249mo[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m.[0m[38;5;249mr[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249md[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249mU[0m[38;5;249mU[0m[38;5;249mI[0m[38;5;249mD[0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m;[0m
+auth:build:  [38;5;240m  │[0m               ──┬─  
+auth:build:  [38;5;240m  │[0m                 ╰─── Use of direct `eval` here.
+auth:build:  [38;5;240m  │[0m 
+auth:build:  [38;5;240m  │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+auth:build: [38;5;246m───╯[0m
+auth:build: 
+auth:build: [plugin builtin:vite-reporter] 
+auth:build: (!) Some chunks are larger than 500 kB after minification. Consider:
+auth:build: - Using dynamic import() to code-split the application
+auth:build: - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+auth:build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+auth:build: [33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+auth:build:     [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/.bun/expo@57.0.21/node_modules/expo/src/async-require/fetchThenEvalJs.ts:20:11 [38;5;246m][0m
+auth:build:     [38;5;246m│[0m
+auth:build:  [38;5;246m20 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249mb[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249my[0m[38;5;249m)[0m[38;5;249m;[0m
+auth:build:  [38;5;240m   │[0m                 ──┬─  
+auth:build:  [38;5;240m   │[0m                   ╰─── Use of direct `eval` here.
+auth:build:  [38;5;240m   │[0m 
+auth:build:  [38;5;240m   │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+auth:build: [38;5;246m────╯[0m
+auth:build: 
+auth:build: ✓ built in 3.28s
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+auth:build: Wrote /home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/auth/dist/_headers (scanned 2 HTML file(s))
+oxy-console:build: [2Koxy-console:build: transforming...✓ 3174 modules transformed.
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:3507086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+oxy-console:build: rendering chunks...
+oxy-console:build: [plugin builtin:vite-reporter] 
+oxy-console:build: (!) __vite-browser-external is dynamically imported by /home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/protocol/dist/esm/platform/crypto.js but also statically imported by /home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/node_modules/.bun/expo-font@57.0.3/node_modules/expo-font/build/serverContext.web.js, dynamic import will not move module into another chunk.
+oxy-console:build: 
+oxy-console:build: computing gzip size...
+oxy-console:build: dist/index.html                                                       3.66 kB │ gzip:     1.33 kB
+oxy-console:build: dist/assets/unmatched-C2XkAHgU.png                                    4.75 kB
+oxy-console:build: dist/assets/arrow_down-NdGCEnxo.png                                   9.45 kB
+oxy-console:build: dist/assets/OxyServicesMaterialCommunityIcons-DVHLYwp4.ttf           28.85 kB
+oxy-console:build: dist/assets/JetBrainsMono-Variable-B9CIFXIH.woff2                    40.40 kB
+oxy-console:build: dist/assets/OxyServicesIonicons-B1hZ8Dc8.ttf                         43.00 kB
+oxy-console:build: dist/assets/slide-4-DSNFt0xP.jpg                                     46.63 kB
+oxy-console:build: dist/assets/InterVariable-Dx4kXJAl.woff2                             48.25 kB
+oxy-console:build: dist/assets/slide-3-Bp5gr1Be.jpg                                     59.18 kB
+oxy-console:build: dist/assets/BlomusModernus-Bold-0E_Y-ihB.woff2                       77.61 kB
+oxy-console:build: dist/assets/BlomusModernus-Regular-kZR3rHS0.woff2                    77.64 kB
+oxy-console:build: dist/assets/slide-2-BAN8I4Iy.jpg                                     87.90 kB
+oxy-console:build: dist/assets/slide-1-CPYeLD4l.jpg                                    102.17 kB
+oxy-console:build: dist/assets/index-31PKFFTC.css                                      164.40 kB │ gzip:    24.88 kB
+oxy-console:build: dist/assets/c-BZfPS0kl.js                                             0.05 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/r-B6vb0B-2.js                                             0.05 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/__vite-browser-external-C1FjNas_.js                       0.05 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/cpp-BnTcSwQ6.js                                           0.05 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/css-DQamNfPF.js                                           0.05 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/jsx-Br_UQ4g3.js                                           0.05 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/lua-BeM3PBXL.js                                           0.05 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/sql-BP2yOzdT.js                                           0.05 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/tsx-mwZXMq9F.js                                           0.05 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/xml-ZA3JteSK.js                                           0.05 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/glsl-CWpFgx-t.js                                          0.06 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/haml-Dhza0ydi.js                                          0.06 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/html-Db5XC_lP.js                                          0.06 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/java-CZXCHJai.js                                          0.06 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/json-C3-zbo4d.js                                          0.06 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/scss-BXmV2Uls.js                                          0.06 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/yaml-6ABMvtga.js                                          0.06 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/regexp-D3NDWvZn.js                                        0.06 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/graphql-C7QdAy-G.js                                       0.06 kB │ gzip:     0.07 kB
+oxy-console:build: dist/assets/javascript-CRfOz2Vm.js                                    0.06 kB │ gzip:     0.08 kB
+oxy-console:build: dist/assets/typescript-CqkXVzh8.js                                    0.06 kB │ gzip:     0.08 kB
+oxy-console:build: dist/assets/shellscript-Dnfafpdv.js                                   0.06 kB │ gzip:     0.08 kB
+oxy-console:build: dist/assets/angular-html-B8IIZfv9.js                                  0.06 kB │ gzip:     0.08 kB
+oxy-console:build: dist/assets/trustTierLabels-ChysNPPJ.js                               0.12 kB │ gzip:     0.12 kB
+oxy-console:build: dist/assets/Ionicons-B_AODXZm.js                                      0.15 kB │ gzip:     0.14 kB
+oxy-console:build: dist/assets/LinkCommonsScreen-DcwzKDyE.js                             0.19 kB │ gzip:     0.17 kB
+oxy-console:build: dist/assets/SignInAuthenticatorScreen-BBcyJfpJ.js                     0.19 kB │ gzip:     0.17 kB
+oxy-console:build: dist/assets/FollowersListScreen-C7YlIQe_.js                           0.20 kB │ gzip:     0.18 kB
+oxy-console:build: dist/assets/FollowingListScreen-BTEEaDBE.js                           0.20 kB │ gzip:     0.18 kB
+oxy-console:build: dist/assets/DeleteAccountScreen-g2wIpkfe.js                           0.23 kB │ gzip:     0.19 kB
+oxy-console:build: dist/assets/SignInPasswordScreen-BSsxV7lb.js                          0.24 kB │ gzip:     0.20 kB
+oxy-console:build: dist/assets/AccountSecurityPanelScreen-BPzobAav.js                    0.27 kB │ gzip:     0.22 kB
+oxy-console:build: dist/assets/version-Qodb8n5_.js                                       0.33 kB │ gzip:     0.23 kB
+oxy-console:build: dist/assets/useReduceMotion-BPDNrjFK.js                               0.40 kB │ gzip:     0.29 kB
+oxy-console:build: dist/assets/SettingsIcon-CzPP_o20.js                                  0.49 kB │ gzip:     0.35 kB
+oxy-console:build: dist/assets/codeowners-C6XU6v3g.js                                    0.54 kB │ gzip:     0.31 kB
+oxy-console:build: dist/assets/useSettingToggle-DbkdDphf.js                              0.68 kB │ gzip:     0.44 kB
+oxy-console:build: dist/assets/shellsession-D0URKgAA.js                                  0.71 kB │ gzip:     0.43 kB
+oxy-console:build: dist/assets/tsv-B4Z64AXD.js                                           0.73 kB │ gzip:     0.33 kB
+oxy-console:build: dist/assets/colorUtils-cSmKvY0V.js                                    0.77 kB │ gzip:     0.24 kB
+oxy-console:build: dist/assets/UserLinksScreen-TmK3ejoA.js                               0.83 kB │ gzip:     0.49 kB
+oxy-console:build: dist/assets/html-derivative-CPLxCbc9.js                               0.84 kB │ gzip:     0.46 kB
+oxy-console:build: dist/assets/plural-CkjYiIXR.js                                        0.86 kB │ gzip:     0.51 kB
+oxy-console:build: dist/assets/git-rebase-CbSIMZPb.js                                    0.98 kB │ gzip:     0.44 kB
+oxy-console:build: dist/assets/qmldir-C5fRq0eb.js                                        0.99 kB │ gzip:     0.44 kB
+oxy-console:build: dist/assets/ProfileSummaryCard-DKiDGSqz.js                            1.01 kB │ gzip:     0.57 kB
+oxy-console:build: dist/assets/csv-BKhdtvGS.js                                           1.13 kB │ gzip:     0.36 kB
+oxy-console:build: dist/assets/message-helpers-D1vdy17y.js                               1.15 kB │ gzip:     0.58 kB
+oxy-console:build: dist/assets/AvatarCameraBadge-GVFF7_RX.js                             1.15 kB │ gzip:     0.70 kB
+oxy-console:build: dist/assets/RiSparklingLine-w2roFT2h.js                               1.20 kB │ gzip:     0.64 kB
+oxy-console:build: dist/assets/git-commit-C0BDeVG6.js                                    1.22 kB │ gzip:     0.52 kB
+oxy-console:build: dist/assets/xsl-CziS1lXT.js                                           1.36 kB │ gzip:     0.49 kB
+oxy-console:build: dist/assets/dotenv-DbMgoilc.js                                        1.41 kB │ gzip:     0.52 kB
+oxy-console:build: dist/assets/sparql-3xn0LX--.js                                        1.47 kB │ gzip:     0.81 kB
+oxy-console:build: dist/assets/TrustFAQScreen-DfArKFJa.js                                1.49 kB │ gzip:     0.77 kB
+oxy-console:build: dist/assets/build-B8ey8wB_.js                                         1.51 kB │ gzip:     0.76 kB
+oxy-console:build: dist/assets/ini-a-ar-JGk.js                                           1.51 kB │ gzip:     0.49 kB
+oxy-console:build: dist/assets/RiShieldCheckLine-HHW8gQ5J.js                             1.62 kB │ gzip:     0.90 kB
+oxy-console:build: dist/assets/fortran-fixed-form-DoeCYMrn.js                            1.66 kB │ gzip:     0.69 kB
+oxy-console:build: dist/assets/docker-kshjmzvc.js                                        1.73 kB │ gzip:     0.59 kB
+oxy-console:build: dist/assets/hxml-DCViVeOd.js                                          1.74 kB │ gzip:     0.87 kB
+oxy-console:build: dist/assets/desktop-DQzZSPTM.js                                       1.82 kB │ gzip:     0.75 kB
+oxy-console:build: dist/assets/TrustRulesScreen-DsVvMsue.js                              1.92 kB │ gzip:     0.98 kB
+oxy-console:build: dist/assets/SearchSettingsScreen-DR8jC_I0.js                          2.10 kB │ gzip:     0.92 kB
+oxy-console:build: dist/assets/erb-C76OH_93.js                                           2.13 kB │ gzip:     0.62 kB
+oxy-console:build: dist/assets/wenyan-B_37P8uK.js                                        2.15 kB │ gzip:     1.08 kB
+oxy-console:build: dist/assets/jssm-DbUxV1OT.js                                          2.23 kB │ gzip:     0.61 kB
+oxy-console:build: dist/assets/edge-BkGJZcMg.js                                          2.30 kB │ gzip:     0.68 kB
+oxy-console:build: dist/assets/reg-e_qwLYRQ.js                                           2.33 kB │ gzip:     0.69 kB
+oxy-console:build: dist/assets/Haptics-D_qlkrab.js                                       2.35 kB │ gzip:     1.05 kB
+oxy-console:build: dist/assets/HelpSupportScreen-BMehRmLG.js                             2.41 kB │ gzip:     0.87 kB
+oxy-console:build: dist/assets/diff-CliQzcZe.js                                          2.56 kB │ gzip:     0.68 kB
+oxy-console:build: dist/assets/gleam-Ym6KXmbP.js                                         2.57 kB │ gzip:     0.81 kB
+oxy-console:build: dist/assets/ConnectedAppsScreen-BMqxlgoj.js                           2.63 kB │ gzip:     1.31 kB
+oxy-console:build: dist/assets/hy-DuZNDUrv.js                                            2.64 kB │ gzip:     1.17 kB
+oxy-console:build: dist/assets/json-CNyPdQlK.js                                          2.81 kB │ gzip:     0.76 kB
+oxy-console:build: dist/assets/openscad-C9dSAsZ-.js                                      2.81 kB │ gzip:     1.00 kB
+oxy-console:build: dist/assets/log-C9NH1uGt.js                                           2.84 kB │ gzip:     0.89 kB
+oxy-console:build: dist/assets/NotificationsScreen-nb1YZ0UV.js                           2.85 kB │ gzip:     1.05 kB
+oxy-console:build: dist/assets/module-Dt50vKYk.js                                        2.90 kB │ gzip:     1.22 kB
+oxy-console:build: dist/assets/cairo-sGMRe72W.js                                         2.93 kB │ gzip:     0.80 kB
+oxy-console:build: dist/assets/berry-CdPki7q8.js                                         2.99 kB │ gzip:     0.80 kB
+oxy-console:build: dist/assets/jsonl-ByvX78Ot.js                                         3.00 kB │ gzip:     0.78 kB
+oxy-console:build: dist/assets/EditProfileScreen-DvvD5uE9.js                             3.07 kB │ gzip:     1.14 kB
+oxy-console:build: dist/assets/LanguageSelectorScreen-CX-oMoZ3.js                        3.07 kB │ gzip:     1.43 kB
+oxy-console:build: dist/assets/jsonc-AaR-c8gt.js                                         3.10 kB │ gzip:     0.78 kB
+oxy-console:build: dist/assets/logo-U2KW2IZv.js                                          3.12 kB │ gzip:     1.46 kB
+oxy-console:build: dist/assets/SettingsList-D7TpFwCv.js                                  3.14 kB │ gzip:     1.36 kB
+oxy-console:build: dist/assets/PreferencesScreen-DWT4YRls.js                             3.15 kB │ gzip:     1.31 kB
+oxy-console:build: dist/assets/po-D2kYnb-d.js                                            3.23 kB │ gzip:     0.90 kB
+oxy-console:build: dist/assets/json5-rxP3Qirc.js                                         3.24 kB │ gzip:     0.82 kB
+oxy-console:build: dist/assets/mipsasm-jFc49cIR.js                                       3.25 kB │ gzip:     1.17 kB
+oxy-console:build: dist/assets/tasl-Br9y_OZx.js                                          3.28 kB │ gzip:     0.84 kB
+oxy-console:build: dist/assets/genie-G4u9vRMK.js                                         3.34 kB │ gzip:     1.20 kB
+oxy-console:build: dist/assets/rel-9AHxib5v.js                                           3.36 kB │ gzip:     1.10 kB
+oxy-console:build: dist/assets/vala-C1f5aeIl.js                                          3.36 kB │ gzip:     1.18 kB
+oxy-console:build: dist/assets/HistoryViewScreen-COTIRDsc.js                             3.38 kB │ gzip:     1.31 kB
+oxy-console:build: dist/assets/splunk-BqMt_mQh.js                                        3.42 kB │ gzip:     1.51 kB
+oxy-console:build: dist/assets/hurl-BJDbfXQV.js                                          3.51 kB │ gzip:     1.09 kB
+oxy-console:build: dist/assets/fluent-D-KicQ71.js                                        3.60 kB │ gzip:     0.89 kB
+oxy-console:build: dist/assets/ssh-config-BdDjiUMJ.js                                    3.61 kB │ gzip:     1.59 kB
+oxy-console:build: dist/assets/jsonnet-CM_1l8XQ.js                                       3.61 kB │ gzip:     1.03 kB
+oxy-console:build: dist/assets/kdl-B-2EYpxG.js                                           3.62 kB │ gzip:     1.03 kB
+oxy-console:build: dist/assets/glsl-BOQg6bNh.js                                          3.63 kB │ gzip:     1.41 kB
+oxy-console:build: dist/assets/LearnMoreUsernamesScreen-tgM7WTgD.js                      3.65 kB │ gzip:     1.58 kB
+oxy-console:build: dist/assets/TrustAboutScreen-CC13QRmY.js                              3.65 kB │ gzip:     1.56 kB
+oxy-console:build: dist/assets/narrat-8Nln2u8S.js                                        3.66 kB │ gzip:     1.09 kB
+oxy-console:build: dist/assets/turtle-zga0VsHc.js                                        3.69 kB │ gzip:     0.96 kB
+oxy-console:build: dist/assets/Card-DKBVz9nc.js                                          3.80 kB │ gzip:     1.65 kB
+oxy-console:build: dist/assets/DomainsScreen-DVxm4Iro.js                                 3.82 kB │ gzip:     1.44 kB
+oxy-console:build: dist/assets/TrustCenterScreen-QVGFJOHQ.js                             3.90 kB │ gzip:     1.58 kB
+oxy-console:build: dist/assets/zenscript-D3jQ1NSj.js                                     3.90 kB │ gzip:     1.28 kB
+oxy-console:build: dist/assets/ron-UVRFNjVn.js                                           3.90 kB │ gzip:     0.97 kB
+oxy-console:build: dist/assets/LegalDocumentsScreen-C38RPilM.js                          3.92 kB │ gzip:     1.29 kB
+oxy-console:build: dist/assets/TrustLeaderboardScreen-tGmDbjXq.js                        3.95 kB │ gzip:     1.69 kB
+oxy-console:build: dist/assets/gn-D5ZjKi7W.js                                            3.99 kB │ gzip:     1.47 kB
+oxy-console:build: dist/assets/pascal-D2jEy35S.js                                        4.14 kB │ gzip:     1.67 kB
+oxy-console:build: dist/assets/ChangeAvatarScreen-B9Fc4_KQ.js                            4.24 kB │ gzip:     1.76 kB
+oxy-console:build: dist/assets/http-Bg0ijguF.js                                          4.41 kB │ gzip:     1.06 kB
+oxy-console:build: dist/assets/tcl-elpl993d.js                                           4.42 kB │ gzip:     1.50 kB
+oxy-console:build: dist/assets/nextflow-CEKWON_B.js                                      4.50 kB │ gzip:     1.16 kB
+oxy-console:build: dist/assets/esm-BCdbZSR4.js                                           4.51 kB │ gzip:     1.46 kB
+oxy-console:build: dist/assets/rosmsg-XlJQR_nX.js                                        4.51 kB │ gzip:     1.05 kB
+oxy-console:build: dist/assets/polar-Dz30gwUc.js                                         4.66 kB │ gzip:     1.12 kB
+oxy-console:build: dist/assets/sdbl-AYOk_PgW.js                                          4.69 kB │ gzip:     2.00 kB
+oxy-console:build: dist/assets/fennel-wrVx7Kiz.js                                        4.76 kB │ gzip:     1.53 kB
+oxy-console:build: dist/assets/bibtex-BxnpYgE2.js                                        4.78 kB │ gzip:     0.83 kB
+oxy-console:build: dist/assets/llvm-vqtpjmMn.js                                          5.04 kB │ gzip:     2.01 kB
+oxy-console:build: dist/assets/wgsl-NGTyiI6E.js                                          5.13 kB │ gzip:     1.38 kB
+oxy-console:build: dist/assets/gdresource-VQLJCE5C.js                                    5.28 kB │ gzip:     1.33 kB
+oxy-console:build: dist/assets/zig-F1Pi-lQn.js                                           5.33 kB │ gzip:     1.55 kB
+oxy-console:build: dist/assets/qml-BclkFyLQ.js                                           5.33 kB │ gzip:     1.38 kB
+oxy-console:build: dist/assets/dax-96X_n8gF.js                                           5.35 kB │ gzip:     2.21 kB
+oxy-console:build: dist/assets/bicep-C6SLqPMJ.js                                         5.37 kB │ gzip:     1.14 kB
+oxy-console:build: dist/assets/xml-BCCrhyyV.js                                           5.38 kB │ gzip:     1.20 kB
+oxy-console:build: dist/assets/AccountSettingsScreen-D6FRSmqB.js                         5.39 kB │ gzip:     2.19 kB
+oxy-console:build: dist/assets/awk-CZwfwpPi.js                                           5.45 kB │ gzip:     1.37 kB
+oxy-console:build: dist/assets/coq-3t8pmfdE.js                                           5.54 kB │ gzip:     1.91 kB
+oxy-console:build: dist/assets/jinja-nNFRqBcw.js                                         5.62 kB │ gzip:     1.36 kB
+oxy-console:build: dist/assets/lean-D1ABi2Ay.js                                          5.77 kB │ gzip:     1.91 kB
+oxy-console:build: dist/assets/moonbit-DpFT7jaf.js                                       5.89 kB │ gzip:     1.67 kB
+oxy-console:build: dist/assets/powerquery-Df5TxHK7.js                                    5.89 kB │ gzip:     1.51 kB
+oxy-console:build: dist/assets/shaderlab-DkidK3m4.js                                     5.91 kB │ gzip:     2.08 kB
+oxy-console:build: dist/assets/verilog-W6WURBV_.js                                       5.92 kB │ gzip:     1.89 kB
+oxy-console:build: dist/assets/cypher-agd-rH-5.js                                        5.94 kB │ gzip:     1.71 kB
+oxy-console:build: dist/assets/vb-cQ6j9pso.js                                            6.08 kB │ gzip:     2.33 kB
+oxy-console:build: dist/assets/red-BRUqicKb.js                                           6.25 kB │ gzip:     1.59 kB
+oxy-console:build: dist/assets/min-dark-4LJLSS9D.js                                      6.28 kB │ gzip:     1.70 kB
+oxy-console:build: dist/assets/gdshader-DfFA8TDu.js                                      6.31 kB │ gzip:     1.72 kB
+oxy-console:build: dist/assets/prisma-DEXxBofq.js                                        6.32 kB │ gzip:     1.38 kB
+oxy-console:build: dist/assets/ara-qaxklBAH.js                                           6.35 kB │ gzip:     1.80 kB
+oxy-console:build: dist/assets/clojure-De1LN4BG.js                                       6.40 kB │ gzip:     1.41 kB
+oxy-console:build: dist/assets/postcss-CjX6Je85.js                                       6.41 kB │ gzip:     1.90 kB
+oxy-console:build: dist/assets/toml-IAOSLZR_.js                                          6.41 kB │ gzip:     1.28 kB
+oxy-console:build: dist/assets/solarized-light-C-EUFoMY.js                               6.47 kB │ gzip:     1.71 kB
+oxy-console:build: dist/assets/AccountVerificationScreen-CY5Vz_Qt.js                     6.52 kB │ gzip:     2.69 kB
+oxy-console:build: dist/assets/r-BRCRBpqY.js                                             6.52 kB │ gzip:     1.77 kB
+oxy-console:build: dist/assets/proto--aHLNpeQ.js                                         6.54 kB │ gzip:     1.41 kB
+oxy-console:build: dist/assets/smalltalk-BhQ-aK4x.js                                     6.58 kB │ gzip:     1.61 kB
+oxy-console:build: dist/assets/talonscript-bxmUvidL.js                                   6.75 kB │ gzip:     1.48 kB
+oxy-console:build: dist/assets/ImagePicker-CdpdQ9Nb.js                                   6.81 kB │ gzip:     2.60 kB
+oxy-console:build: dist/assets/solarized-dark-Cxh5mZHL.js                                6.84 kB │ gzip:     1.78 kB
+oxy-console:build: dist/assets/riscv-BDhEIhyV.js                                         6.90 kB │ gzip:     1.97 kB
+oxy-console:build: dist/assets/CreateAccountScreen-Ct-S-_Dy.js                           6.92 kB │ gzip:     2.63 kB
+oxy-console:build: dist/assets/soy-BbVp4P8O.js                                           6.92 kB │ gzip:     1.62 kB
+oxy-console:build: dist/assets/min-light-Ija4O1Iq.js                                     6.96 kB │ gzip:     1.88 kB
+oxy-console:build: dist/assets/scheme-CP376-O8.js                                        7.16 kB │ gzip:     2.04 kB
+oxy-console:build: dist/assets/hlsl-BCW0lgbt.js                                          7.25 kB │ gzip:     2.18 kB
+oxy-console:build: dist/assets/qss-CadIDLsY.js                                           7.46 kB │ gzip:     2.57 kB
+oxy-console:build: dist/assets/dart-BVwkM0Np.js                                          7.80 kB │ gzip:     1.91 kB
+oxy-console:build: dist/assets/systemd-C6bUY0v1.js                                       7.86 kB │ gzip:     2.54 kB
+oxy-console:build: dist/assets/monokai-xgk88DRn.js                                       7.88 kB │ gzip:     1.90 kB
+oxy-console:build: dist/assets/WelcomeNewUserScreen-Dmz_24bt.js                          7.97 kB │ gzip:     2.84 kB
+oxy-console:build: dist/assets/regexp-BomS1-YN.js                                        7.97 kB │ gzip:     1.41 kB
+oxy-console:build: dist/assets/Chip-DfGfriGC.js                                          8.00 kB │ gzip:     3.42 kB
+oxy-console:build: dist/assets/WebBrowser-B_158fzu.js                                    8.11 kB │ gzip:     3.18 kB
+oxy-console:build: dist/assets/ProfileScreen-eVDxz4N_.js                                 8.12 kB │ gzip:     2.87 kB
+oxy-console:build: dist/assets/src-B4Hgqg1j.js                                           8.15 kB │ gzip:     3.04 kB
+oxy-console:build: dist/assets/haml-DV58kGly.js                                          8.25 kB │ gzip:     1.81 kB
+oxy-console:build: dist/assets/typst-B3an2RJc.js                                         8.38 kB │ gzip:     1.66 kB
+oxy-console:build: dist/assets/vue-html-B1e_NtQf.js                                      8.47 kB │ gzip:     1.68 kB
+oxy-console:build: dist/assets/plsql-C14-Iq-v.js                                         8.50 kB │ gzip:     2.99 kB
+oxy-console:build: dist/assets/horizon-Dum5OVKI.js                                       8.77 kB │ gzip:     1.94 kB
+oxy-console:build: dist/assets/kotlin-BR5dhHbO.js                                        8.77 kB │ gzip:     2.12 kB
+oxy-console:build: dist/assets/horizon-bright-BhIwXfJ2.js                                8.78 kB │ gzip:     1.96 kB
+oxy-console:build: dist/assets/ts-tags-UhmUB9M5.js                                       8.92 kB │ gzip:     1.20 kB
+oxy-console:build: dist/assets/make-DLojeTf4.js                                          8.95 kB │ gzip:     1.76 kB
+oxy-console:build: dist/assets/TrustRewardsScreen-B1Agpt-T.js                            9.00 kB │ gzip:     2.78 kB
+oxy-console:build: dist/assets/andromeeda-C7aqOlkq.js                                    9.01 kB │ gzip:     2.35 kB
+oxy-console:build: dist/assets/module-DtnxRQSz.js                                        9.05 kB │ gzip:     2.73 kB
+oxy-console:build: dist/assets/sas-DAizl_UY.js                                           9.06 kB │ gzip:     3.82 kB
+oxy-console:build: dist/assets/dark-plus-DSel8hrr.js                                     9.09 kB │ gzip:     2.10 kB
+oxy-console:build: dist/assets/slack-dark-Bkskkdh_.js                                    9.11 kB │ gzip:     1.96 kB
+oxy-console:build: dist/assets/sass-CxXJ68N9.js                                          9.28 kB │ gzip:     2.48 kB
+oxy-console:build: dist/assets/plastic-DRGx7qbj.js                                       9.29 kB │ gzip:     1.96 kB
+oxy-console:build: dist/assets/AccountMembersScreen-gRZ_AOLL.js                          9.36 kB │ gzip:     2.84 kB
+oxy-console:build: dist/assets/slack-ochin-CJlQVBne.js                                   9.42 kB │ gzip:     2.08 kB
+oxy-console:build: dist/assets/tex-CacXuM_h.js                                           9.67 kB │ gzip:     3.06 kB
+oxy-console:build: dist/assets/jison-HvzP7bCH.js                                         9.69 kB │ gzip:     1.86 kB
+oxy-console:build: dist/assets/AppInfoScreen-BNW3ICx_.js                                 9.84 kB │ gzip:     3.49 kB
+oxy-console:build: dist/assets/cmake-Dy9Uja7l.js                                         9.84 kB │ gzip:     3.37 kB
+oxy-console:build: dist/assets/light-plus-ohR9OKVd.js                                    9.93 kB │ gzip:     2.27 kB
+oxy-console:build: dist/assets/hcl-BfNT5eiQ.js                                          10.04 kB │ gzip:     1.93 kB
+oxy-console:build: dist/assets/rst-BTFRXcuV.js                                          10.31 kB │ gzip:     2.25 kB
+oxy-console:build: dist/assets/pkl-BfLDH2oi.js                                          10.36 kB │ gzip:     1.37 kB
+oxy-console:build: dist/assets/beancount-jrjHEj9l.js                                    10.36 kB │ gzip:     1.42 kB
+oxy-console:build: dist/assets/nextflow-groovy-BO4eXDg9.js                              10.39 kB │ gzip:     2.12 kB
+oxy-console:build: dist/assets/dream-maker-SLz866k9.js                                  10.46 kB │ gzip:     2.25 kB
+oxy-console:build: dist/assets/raku-BQNfvwez.js                                         10.46 kB │ gzip:     2.94 kB
+oxy-console:build: dist/assets/yaml-CbtTvIKS.js                                         10.49 kB │ gzip:     2.26 kB
+oxy-console:build: dist/assets/PrivacySettingsScreen-BqrYrVcz.js                        10.52 kB │ gzip:     2.70 kB
+oxy-console:build: dist/assets/just-B61gLyIb.js                                         10.76 kB │ gzip:     2.60 kB
+oxy-console:build: dist/assets/elm-CAImE0XD.js                                          10.94 kB │ gzip:     2.09 kB
+oxy-console:build: dist/assets/github-light-Cf9qHeGe.js                                 11.18 kB │ gzip:     2.49 kB
+oxy-console:build: dist/assets/prolog-DMUI5ksf.js                                       11.34 kB │ gzip:     3.84 kB
+oxy-console:build: dist/assets/terraform-DkYnJVuH.js                                    11.38 kB │ gzip:     2.51 kB
+oxy-console:build: dist/assets/github-dark-CyMG_9s6.js                                  11.40 kB │ gzip:     2.53 kB
+oxy-console:build: dist/assets/puppet-Dt-gjuLS.js                                       11.43 kB │ gzip:     2.10 kB
+oxy-console:build: dist/assets/laserwave-DlIiYo2o.js                                    11.49 kB │ gzip:     2.57 kB
+oxy-console:build: dist/assets/UserListScreen-C3kB20sQ.js                               11.54 kB │ gzip:     4.56 kB
+oxy-console:build: dist/assets/zh-CN-B0xkLFUN.js                                        11.86 kB │ gzip:     4.99 kB
+oxy-console:build: dist/assets/gherkin-C8F307Xe.js                                      11.93 kB │ gzip:     5.04 kB
+oxy-console:build: dist/assets/wasm-CSXO6Nn2.js                                         12.00 kB │ gzip:     2.17 kB
+oxy-console:build: dist/assets/hjson-BCy9DojX.js                                        12.04 kB │ gzip:     1.64 kB
+oxy-console:build: dist/assets/handlebars-B_LtAsZF.js                                   12.16 kB │ gzip:     2.38 kB
+oxy-console:build: dist/assets/apache-Ch-nr_2W.js                                       12.44 kB │ gzip:     3.71 kB
+oxy-console:build: dist/assets/it-IT-BHrgVlIj.js                                        12.61 kB │ gzip:     4.63 kB
+oxy-console:build: dist/assets/vesper-3Gxl7gIK.js                                       12.68 kB │ gzip:     1.97 kB
+oxy-console:build: dist/assets/bat-CPEQl4uJ.js                                          12.88 kB │ gzip:     3.22 kB
+oxy-console:build: dist/assets/ca-ES-BbgVfYVy.js                                        12.92 kB │ gzip:     4.70 kB
+oxy-console:build: dist/assets/fish-B4btX5EG.js                                         13.03 kB │ gzip:     1.73 kB
+oxy-console:build: dist/assets/pt-PT-DuakWAT7.js                                        13.03 kB │ gzip:     4.67 kB
+oxy-console:build: dist/assets/v-CHuKIVjd.js                                            13.20 kB │ gzip:     2.73 kB
+oxy-console:build: dist/assets/de-DE-DLqInvav.js                                        13.39 kB │ gzip:     4.89 kB
+oxy-console:build: dist/assets/vitesse-light-Cj5eKiP0.js                                13.61 kB │ gzip:     3.03 kB
+oxy-console:build: dist/assets/aurora-x-B67dXtYj.js                                     13.65 kB │ gzip:     2.28 kB
+oxy-console:build: dist/assets/vitesse-black-LLoITvLL.js                                13.67 kB │ gzip:     3.05 kB
+oxy-console:build: dist/assets/fr-FR-B8t2Qk1G.js                                        13.72 kB │ gzip:     4.88 kB
+oxy-console:build: dist/assets/vitesse-dark-DGvNuQqQ.js                                 13.75 kB │ gzip:     3.06 kB
+oxy-console:build: dist/assets/ko-KR-DsJHC4A9.js                                        13.83 kB │ gzip:     4.92 kB
+oxy-console:build: dist/assets/pug-_vA58AUW.js                                          13.84 kB │ gzip:     2.58 kB
+oxy-console:build: dist/assets/luau-BMbG1Jnm.js                                         13.95 kB │ gzip:     3.16 kB
+oxy-console:build: dist/assets/synthwave-84-DoiB8dW1.js                                 14.03 kB │ gzip:     2.85 kB
+oxy-console:build: dist/assets/github-light-default-B-YWk9Y3.js                         14.15 kB │ gzip:     3.02 kB
+oxy-console:build: dist/assets/clarity-BGYIjv40.js                                      14.26 kB │ gzip:     2.46 kB
+oxy-console:build: dist/assets/github-light-high-contrast-CxeiO0FP.js                   14.27 kB │ gzip:     3.00 kB
+oxy-console:build: dist/assets/github-dark-dimmed-DvnezIB9.js                           14.43 kB │ gzip:     3.11 kB
+oxy-console:build: dist/assets/github-dark-default-CQdxcuqA.js                          14.43 kB │ gzip:     3.12 kB
+oxy-console:build: dist/assets/github-dark-high-contrast-BnzAZZRh.js                    14.59 kB │ gzip:     3.07 kB
+oxy-console:build: dist/assets/gnuplot-Cr8eTKL8.js                                      14.77 kB │ gzip:     3.27 kB
+oxy-console:build: dist/assets/rust-BdskMYMg.js                                         15.06 kB │ gzip:     2.71 kB
+oxy-console:build: dist/assets/kusto-Bgvq5mX2.js                                        15.16 kB │ gzip:     3.93 kB
+oxy-console:build: dist/assets/actionscript-3-DwfG2Wma.js                               15.19 kB │ gzip:     2.66 kB
+oxy-console:build: dist/assets/nix-D55J0T50.js                                          15.50 kB │ gzip:     2.47 kB
+oxy-console:build: dist/assets/lua-BX1FgB-_.js                                          15.53 kB │ gzip:     3.15 kB
+oxy-console:build: dist/assets/abap-BM5PMK0-.js                                         15.84 kB │ gzip:     5.93 kB
+oxy-console:build: dist/assets/ja-JP-Den_x8VK.js                                        15.92 kB │ gzip:     5.11 kB
+oxy-console:build: dist/assets/solidity-DZCzWlhJ.js                                     16.06 kB │ gzip:     3.09 kB
+oxy-console:build: dist/assets/matlab-DiDlmkn3.js                                       16.07 kB │ gzip:     3.06 kB
+oxy-console:build: dist/assets/ar-SA-ChILPLly.js                                        16.09 kB │ gzip:     5.17 kB
+oxy-console:build: dist/assets/cue-BfB100Xe.js                                          16.19 kB │ gzip:     2.04 kB
+oxy-console:build: dist/assets/elixir-Bk80h613.js                                       16.26 kB │ gzip:     2.76 kB
+oxy-console:build: dist/assets/odin-B7Gubokx.js                                         16.50 kB │ gzip:     2.92 kB
+oxy-console:build: dist/assets/bird2-2zVKh6wV.js                                        16.96 kB │ gzip:     3.84 kB
+oxy-console:build: dist/assets/kanagawa-wave-BwRw6Ipr.js                                17.12 kB │ gzip:     2.90 kB
+oxy-console:build: dist/assets/kanagawa-lotus-CLXcfnMb.js                               17.12 kB │ gzip:     2.90 kB
+oxy-console:build: dist/assets/kanagawa-dragon-xwOBSE3_.js                              17.12 kB │ gzip:     2.92 kB
+oxy-console:build: dist/assets/move-BPw3URN_.js                                         17.49 kB │ gzip:     3.06 kB
+oxy-console:build: dist/assets/graphql-Ja3mIzKH.js                                      18.00 kB │ gzip:     2.49 kB
+oxy-console:build: dist/assets/liquid-CkFPFOK1.js                                       18.10 kB │ gzip:     3.14 kB
+oxy-console:build: dist/assets/svelte-BnGG8TFW.js                                       18.24 kB │ gzip:     3.14 kB
+oxy-console:build: dist/assets/ManageAccountScreen-DUX9KLPm.js                          18.55 kB │ gzip:     5.44 kB
+oxy-console:build: dist/assets/material-theme-ByVCaFGo.js                               18.61 kB │ gzip:     3.10 kB
+oxy-console:build: dist/assets/material-theme-darker-D0Xrm9hJ.js                        18.62 kB │ gzip:     3.10 kB
+oxy-console:build: dist/assets/material-theme-ocean-DRmByest.js                         18.62 kB │ gzip:     3.12 kB
+oxy-console:build: dist/assets/material-theme-lighter-DJvX3Onv.js                       18.63 kB │ gzip:     3.10 kB
+oxy-console:build: dist/assets/material-theme-palenight-Bw3HvpGF.js                     18.63 kB │ gzip:     3.11 kB
+oxy-console:build: dist/assets/gdscript-ZTE84qr5.js                                     18.98 kB │ gzip:     3.75 kB
+oxy-console:build: dist/assets/groovy-DB9AAN_I.js                                       19.17 kB │ gzip:     3.59 kB
+oxy-console:build: dist/assets/FloatingTanStackRouterDevtools-CNROBv9F-C3VWC9cU.js      19.33 kB │ gzip:     5.06 kB
+oxy-console:build: dist/assets/mdc-Dxjhf9Li.js                                          19.54 kB │ gzip:     6.66 kB
+oxy-console:build: dist/assets/AvatarCropScreen-BWctn7UN.js                             19.84 kB │ gzip:     6.47 kB
+oxy-console:build: dist/assets/ayu-dark-m7b6BOC8.js                                     20.07 kB │ gzip:     3.93 kB
+oxy-console:build: dist/assets/ayu-mirage-CxGGcZTu.js                                   20.08 kB │ gzip:     3.91 kB
+oxy-console:build: dist/assets/glimmer-js-CKOpoBLX.js                                   20.08 kB │ gzip:     2.94 kB
+oxy-console:build: dist/assets/glimmer-ts-B1vY8tAm.js                                   20.08 kB │ gzip:     2.93 kB
+oxy-console:build: dist/assets/powershell-DCgNvfrt.js                                   20.14 kB │ gzip:     4.05 kB
+oxy-console:build: dist/assets/ayu-light-Rwg3X_QU.js                                    20.14 kB │ gzip:     3.89 kB
+oxy-console:build: dist/assets/viml-BXNCBRjg.js                                         20.35 kB │ gzip:     6.73 kB
+oxy-console:build: dist/assets/nushell-mpML_Bk4.js                                      20.40 kB │ gzip:     5.21 kB
+oxy-console:build: dist/assets/snazzy-light-DGPwC0b8.js                                 20.77 kB │ gzip:     3.80 kB
+oxy-console:build: dist/assets/twig-siqlsNhJ.js                                         20.90 kB │ gzip:     3.66 kB
+oxy-console:build: dist/assets/dracula-wtsZGzoc.js                                      21.06 kB │ gzip:     3.99 kB
+oxy-console:build: dist/assets/dracula-soft-C-uQMXRX.js                                 21.07 kB │ gzip:     4.02 kB
+oxy-console:build: dist/assets/validationUtils-By33DZup.js                              21.14 kB │ gzip:     6.14 kB
+oxy-console:build: dist/assets/wit-BGGUOJdi.js                                          21.46 kB │ gzip:     2.87 kB
+oxy-console:build: dist/assets/rose-pine-F2qKqNI3.js                                    21.74 kB │ gzip:     3.86 kB
+oxy-console:build: dist/assets/rose-pine-moon-DGqcNm7j.js                               21.75 kB │ gzip:     3.87 kB
+oxy-console:build: dist/assets/rose-pine-dawn-pjKZ4O2g.js                               21.75 kB │ gzip:     3.88 kB
+oxy-console:build: dist/assets/nim-CJp9Ffq6.js                                          22.45 kB │ gzip:     3.15 kB
+oxy-console:build: dist/assets/common-lisp-DE6ZbSOc.js                                  22.57 kB │ gzip:     6.07 kB
+oxy-console:build: dist/assets/surrealql-BKgZl47n.js                                    22.58 kB │ gzip:     4.31 kB
+oxy-console:build: dist/assets/gruvbox-dark-hard-COAxC64L.js                            22.63 kB │ gzip:     4.15 kB
+oxy-console:build: dist/assets/gruvbox-dark-soft-DwIfvVj-.js                            22.63 kB │ gzip:     4.15 kB
+oxy-console:build: dist/assets/gruvbox-light-hard-BL-UdPba.js                           22.63 kB │ gzip:     4.16 kB
+oxy-console:build: dist/assets/gruvbox-light-soft-ByAryh6P.js                           22.63 kB │ gzip:     4.16 kB
+oxy-console:build: dist/assets/gruvbox-dark-medium-BYuKaf8u.js                          22.63 kB │ gzip:     4.15 kB
+oxy-console:build: dist/assets/gruvbox-light-medium-BDj3i2wm.js                         22.63 kB │ gzip:     4.16 kB
+oxy-console:build: dist/assets/sql-FvEs0mev.js                                          23.39 kB │ gzip:     7.43 kB
+oxy-console:build: dist/assets/cadence-CaHDavSY.js                                      23.66 kB │ gzip:     3.65 kB
+oxy-console:build: dist/assets/typespec-DEGXSA-5.js                                     24.01 kB │ gzip:     2.57 kB
+oxy-console:build: dist/assets/PaymentGatewayScreen-C1Kufzsc.js                         24.02 kB │ gzip:     5.87 kB
+oxy-console:build: dist/assets/astro-C5rQChi0.js                                        24.02 kB │ gzip:     7.59 kB
+oxy-console:build: dist/assets/apl-BugCrHw7.js                                          24.02 kB │ gzip:     4.17 kB
+oxy-console:build: dist/assets/templ-CkarHD9C.js                                        24.06 kB │ gzip:     5.41 kB
+oxy-console:build: dist/assets/angular-html-DmLSewpk.js                                 24.17 kB │ gzip:     3.94 kB
+oxy-console:build: dist/assets/vhdl-QEoIrJqZ.js                                         24.25 kB │ gzip:     3.86 kB
+oxy-console:build: dist/assets/vue-Dsj1VXFY.js                                          24.48 kB │ gzip:     2.95 kB
+oxy-console:build: dist/assets/recoveryPhrase-DOAtmCkb.js                               24.57 kB │ gzip:    11.21 kB
+oxy-console:build: dist/assets/purescript-CRQQZxUr.js                                   24.67 kB │ gzip:     3.23 kB
+oxy-console:build: dist/assets/one-light-Cxx1pacD.js                                    25.29 kB │ gzip:     3.63 kB
+oxy-console:build: dist/assets/fsharp-DIWfDWp5.js                                       25.30 kB │ gzip:     4.12 kB
+oxy-console:build: dist/assets/EditProfileFieldScreen-DRtyvE53.js                       25.43 kB │ gzip:     8.48 kB
+oxy-console:build: dist/assets/marko-DrZMT2Sw.js                                        25.48 kB │ gzip:     3.59 kB
+oxy-console:build: dist/assets/c3-BmOJt39V.js                                           25.62 kB │ gzip:     3.85 kB
+oxy-console:build: dist/assets/context-De2EB1AA-CBGrp6nA.js                             25.76 kB │ gzip:     9.98 kB
+oxy-console:build: dist/assets/night-owl-light-D0GIt8Kh.js                              25.89 kB │ gzip:     4.23 kB
+oxy-console:build: dist/assets/system-verilog-CtmlN_3X.js                               26.19 kB │ gzip:     4.82 kB
+oxy-console:build: dist/assets/nord-DIClOQM9.js                                         26.72 kB │ gzip:     4.35 kB
+oxy-console:build: dist/assets/codeql-BrwVwyK7.js                                       26.87 kB │ gzip:     3.77 kB
+oxy-console:build: dist/assets/scss-CspD3Em-.js                                         27.20 kB │ gzip:     4.18 kB
+oxy-console:build: dist/assets/java-Bvi3jchj.js                                         27.20 kB │ gzip:     4.24 kB
+oxy-console:build: dist/assets/coffee-DdcnVGJO.js                                       27.42 kB │ gzip:     6.35 kB
+oxy-console:build: dist/assets/razor-CJ4GTJRN.js                                        27.45 kB │ gzip:     3.53 kB
+oxy-console:build: dist/assets/scala-JNKh2yGd.js                                        28.87 kB │ gzip:     3.92 kB
+oxy-console:build: dist/assets/night-owl-DYOp3mPs.js                                    28.91 kB │ gzip:     5.14 kB
+oxy-console:build: dist/assets/crystal-CivJajZs.js                                      29.41 kB │ gzip:     4.44 kB
+oxy-console:build: dist/assets/mermaid-DHy5lXrB.js                                      29.50 kB │ gzip:     3.64 kB
+oxy-console:build: dist/assets/applescript-F2pJar76.js                                  29.56 kB │ gzip:     5.94 kB
+oxy-console:build: dist/assets/julia-DNrRP94g.js                                        30.99 kB │ gzip:     4.28 kB
+oxy-console:build: dist/assets/stylus-C6uSHW0X.js                                       31.06 kB │ gzip:     8.01 kB
+oxy-console:build: dist/assets/poimandres-Da5yso_l.js                                   33.49 kB │ gzip:     5.49 kB
+oxy-console:build: dist/assets/one-dark-pro-DFm-CLPp.js                                 33.78 kB │ gzip:     5.50 kB
+oxy-console:build: dist/assets/bsl-CDIFg8E9.js                                          33.86 kB │ gzip:     8.34 kB
+oxy-console:build: dist/assets/haxe-Bfm4jB07.js                                         35.15 kB │ gzip:     5.90 kB
+oxy-console:build: dist/assets/nginx-BDJwSqJ9.js                                        35.35 kB │ gzip:     4.43 kB
+oxy-console:build: dist/assets/houston-DCwIQH0M.js                                      35.41 kB │ gzip:     5.76 kB
+oxy-console:build: dist/assets/tokyo-night-L7JSe-Fr.js                                  35.66 kB │ gzip:     6.22 kB
+oxy-console:build: dist/assets/OxyAccountDialogScreen-DNzZvtyt.js                       35.66 kB │ gzip:    11.77 kB
+oxy-console:build: dist/assets/erlang-ClbeWmwF.js                                       37.47 kB │ gzip:     4.35 kB
+oxy-console:build: dist/assets/cobol-DrGMBfQ5.js                                        39.09 kB │ gzip:    10.89 kB
+oxy-console:build: dist/assets/internal-CSmEmQjN.js                                     39.77 kB │ gzip:    13.47 kB
+oxy-console:build: dist/assets/asm-9eOKwzR0.js                                          40.71 kB │ gzip:     8.16 kB
+oxy-console:build: dist/assets/shellscript-B8rBzWAH.js                                  41.46 kB │ gzip:     6.06 kB
+oxy-console:build: dist/assets/haskell-DnA2tqqg.js                                      41.48 kB │ gzip:     6.41 kB
+oxy-console:build: dist/assets/esm-CyNeE7yX.js                                          42.18 kB │ gzip:    13.15 kB
+oxy-console:build: dist/assets/perl-CjoICxro.js                                         43.14 kB │ gzip:     4.63 kB
+oxy-console:build: dist/assets/d-B8HTJG2Q.js                                            43.78 kB │ gzip:     8.43 kB
+oxy-console:build: dist/assets/BaseTanStackRouterDevtoolsPanel-fP2H3uLR-BIJDmzF3.js     44.51 kB │ gzip:    13.04 kB
+oxy-console:build: dist/assets/ruby-DG8qIOyW.js                                         45.83 kB │ gzip:     5.55 kB
+oxy-console:build: dist/assets/go-C0SNItyj.js                                           46.80 kB │ gzip:     5.13 kB
+oxy-console:build: dist/assets/apex-0GHPQT9r.js                                         46.97 kB │ gzip:     6.71 kB
+oxy-console:build: dist/assets/catppuccin-mocha-B9g5nbVy.js                             47.25 kB │ gzip:     7.98 kB
+oxy-console:build: dist/assets/catppuccin-latte-7isrEBjy.js                             47.25 kB │ gzip:     7.98 kB
+oxy-console:build: dist/assets/catppuccin-frappe-DGcst_jF.js                            47.25 kB │ gzip:     7.99 kB
+oxy-console:build: dist/assets/catppuccin-macchiato-DkHyafcy.js                         47.26 kB │ gzip:     7.99 kB
+oxy-console:build: dist/assets/ada-B_m96icB.js                                          48.07 kB │ gzip:     5.96 kB
+oxy-console:build: dist/assets/css-oPTjvU6l.js                                          49.01 kB │ gzip:    11.89 kB
+oxy-console:build: dist/assets/imba-CO89h_5c.js                                         49.92 kB │ gzip:     9.47 kB
+oxy-console:build: dist/assets/everforest-dark-DsqbDDsU.js                              53.74 kB │ gzip:     8.37 kB
+oxy-console:build: dist/assets/everforest-light-xFeNHBfu.js                             53.74 kB │ gzip:     8.36 kB
+oxy-console:build: dist/assets/wikitext-FZfRxBHb.js                                     55.87 kB │ gzip:     4.74 kB
+oxy-console:build: dist/assets/zh-DTERtHPH.js                                           56.74 kB │ gzip:    23.94 kB
+oxy-console:build: dist/assets/stata-CWV7tUNK.js                                        56.99 kB │ gzip:    12.39 kB
+oxy-console:build: dist/assets/html-3YBXMWjP.js                                         57.24 kB │ gzip:    11.72 kB
+oxy-console:build: dist/assets/ballerina-Ba65P_0B.js                                    58.68 kB │ gzip:     8.09 kB
+oxy-console:build: dist/assets/markdown-BL5McdgK.js                                     59.32 kB │ gzip:     5.61 kB
+oxy-console:build: dist/assets/id-DY7lLr6g.js                                           59.79 kB │ gzip:    22.12 kB
+oxy-console:build: dist/assets/tr-Cejkgxsf.js                                           61.71 kB │ gzip:    23.47 kB
+oxy-console:build: dist/assets/ocaml-CZ-IHB_I.js                                        62.44 kB │ gzip:     5.00 kB
+oxy-console:build: dist/assets/it-BBIMy3fm.js                                           63.86 kB │ gzip:    23.35 kB
+oxy-console:build: dist/assets/pt-Cmt6SOhH.js                                           64.00 kB │ gzip:    23.55 kB
+oxy-console:build: dist/assets/de-DnB0efza.js                                           64.13 kB │ gzip:    23.77 kB
+oxy-console:build: dist/assets/ca-B5fA9zBx.js                                           64.25 kB │ gzip:    23.77 kB
+oxy-console:build: dist/assets/es-CxMFQyoe.js                                           64.45 kB │ gzip:    23.73 kB
+oxy-console:build: dist/assets/es-ES-Daj6xL2K.js                                        65.38 kB │ gzip:    20.74 kB
+oxy-console:build: dist/assets/fr-BoYu2Z5R.js                                           66.34 kB │ gzip:    24.28 kB
+oxy-console:build: dist/assets/ja-CzCxutjJ.js                                           68.06 kB │ gzip:    25.31 kB
+oxy-console:build: dist/assets/mojo-CSrq8r9e.js                                         69.79 kB │ gzip:     9.20 kB
+oxy-console:build: dist/assets/python-CGHbIuBr.js                                       69.94 kB │ gzip:     9.08 kB
+oxy-console:build: dist/assets/c-D7-qSLkn.js                                            72.10 kB │ gzip:    10.48 kB
+oxy-console:build: dist/assets/latex-CmLO5ajY.js                                        72.61 kB │ gzip:     6.67 kB
+oxy-console:build: dist/assets/vyper-DRMxijDZ.js                                        74.64 kB │ gzip:    10.68 kB
+oxy-console:build: dist/assets/FileManagementScreen--9hw1kXk.js                         80.03 kB │ gzip:    24.41 kB
+oxy-console:build: dist/assets/hack-ebrLJcUt.js                                         80.18 kB │ gzip:    26.27 kB
+oxy-console:build: dist/assets/ar-vBcw8bWu.js                                           84.90 kB │ gzip:    26.93 kB
+oxy-console:build: dist/assets/swift-B-bdrhpX.js                                        86.68 kB │ gzip:    14.68 kB
+oxy-console:build: dist/assets/fortran-free-form-B5TPZgyE.js                            88.96 kB │ gzip:    11.18 kB
+oxy-console:build: dist/assets/csharp-BxcTSzXa.js                                       89.68 kB │ gzip:    10.62 kB
+oxy-console:build: dist/assets/ru-YKy--Ebj.js                                           91.51 kB │ gzip:    28.57 kB
+oxy-console:build: dist/assets/racket-DGfP4yla.js                                       92.38 kB │ gzip:    15.03 kB
+oxy-console:build: dist/assets/less-BDHGN65n.js                                         97.62 kB │ gzip:    14.71 kB
+oxy-console:build: dist/assets/hi-Do-_joW7.js                                          102.10 kB │ gzip:    27.03 kB
+oxy-console:build: dist/assets/bn-n6siZUNj.js                                          104.25 kB │ gzip:    26.64 kB
+oxy-console:build: dist/assets/blade-BML8odvv.js                                       104.97 kB │ gzip:    28.29 kB
+oxy-console:build: dist/assets/objective-c-BmQmR_Ut.js                                 105.40 kB │ gzip:    23.39 kB
+oxy-console:build: dist/assets/php-CL04f8E1.js                                         111.05 kB │ gzip:    28.62 kB
+oxy-console:build: dist/assets/asciidoc-CC2gsOKb.js                                    131.52 kB │ gzip:     9.30 kB
+oxy-console:build: dist/assets/mdx-CkGV_Csy.js                                         136.10 kB │ gzip:    23.42 kB
+oxy-console:build: dist/assets/objective-cpp-txuM9Z_V.js                               171.96 kB │ gzip:    30.61 kB
+oxy-console:build: dist/assets/javascript-YklWKmnR.js                                  174.81 kB │ gzip:    16.46 kB
+oxy-console:build: dist/assets/tsx-BeQURn2V.js                                         175.52 kB │ gzip:    16.44 kB
+oxy-console:build: dist/assets/jsx-DilTG4Hr.js                                         177.77 kB │ gzip:    16.54 kB
+oxy-console:build: dist/assets/typescript-DM0Cq6v4.js                                  181.06 kB │ gzip:    15.99 kB
+oxy-console:build: dist/assets/angular-ts-xUK1Exkn.js                                  183.72 kB │ gzip:    16.54 kB
+oxy-console:build: dist/assets/vue-vine-CHdU44bo.js                                    190.05 kB │ gzip:    17.95 kB
+oxy-console:build: dist/assets/wolfram-D4Th5g-x.js                                     262.38 kB │ gzip:    77.63 kB
+oxy-console:build: dist/assets/wasm-DeYoUErr.js                                        622.32 kB │ gzip:   231.80 kB
+oxy-console:build: dist/assets/cpp-v_P2_ors.js                                         626.05 kB │ gzip:    44.42 kB
+oxy-console:build: dist/assets/emacs-lisp-DRFW9yeR.js                                  779.84 kB │ gzip:   197.53 kB
+oxy-console:build: dist/assets/index-srsmMENo.js                                     9,781.63 kB │ gzip: 2,248.73 kB
+oxy-console:build: [33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+oxy-console:build:    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/uuid/index.web.ts:6:10 [38;5;246m][0m
+oxy-console:build:    [38;5;246m│[0m
+oxy-console:build:  [38;5;246m6 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249m"[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m([0m[38;5;249m"[0m[38;5;249mn[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249me[0m[38;5;249m:[0m[38;5;249mc[0m[38;5;249mr[0m[38;5;249my[0m[38;5;249mp[0m[38;5;249mt[0m[38;5;249mo[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m.[0m[38;5;249mr[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249md[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249mU[0m[38;5;249mU[0m[38;5;249mI[0m[38;5;249mD[0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m;[0m
+oxy-console:build:  [38;5;240m  │[0m               ──┬─  
+oxy-console:build:  [38;5;240m  │[0m                 ╰─── Use of direct `eval` here.
+oxy-console:build:  [38;5;240m  │[0m 
+oxy-console:build:  [38;5;240m  │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+oxy-console:build: [38;5;246m───╯[0m
+oxy-console:build: 
+oxy-console:build: [plugin builtin:vite-reporter] 
+oxy-console:build: (!) Some chunks are larger than 500 kB after minification. Consider:
+oxy-console:build: - Using dynamic import() to code-split the application
+oxy-console:build: - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+oxy-console:build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+oxy-console:build: [33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+oxy-console:build:     [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/.bun/expo@57.0.21/node_modules/expo/src/async-require/fetchThenEvalJs.ts:20:11 [38;5;246m][0m
+oxy-console:build:     [38;5;246m│[0m
+oxy-console:build:  [38;5;246m20 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249mb[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249my[0m[38;5;249m)[0m[38;5;249m;[0m
+oxy-console:build:  [38;5;240m   │[0m                 ──┬─  
+oxy-console:build:  [38;5;240m   │[0m                   ╰─── Use of direct `eval` here.
+oxy-console:build:  [38;5;240m   │[0m 
+oxy-console:build:  [38;5;240m   │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+oxy-console:build: [38;5;246m────╯[0m
+oxy-console:build: 
+oxy-console:build: ✓ built in 5.27s
+oxy-console:build: Wrote /home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/console/dist/_headers (scanned 1 HTML file(s))
+test-app-vite:build: [plugin rolldown:vite-resolve] Module "node:async_hooks" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/node_modules/.bun/expo-font@57.0.3/node_modules/expo-font/build/serverContext.web.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+test-app-vite:build: [plugin rolldown:vite-resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/protocol/dist/esm/platform/crypto.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+test-app-vite:build: [2Ktest-app-vite:build: transforming...✓ 4016 modules transformed.
+test-app-vite:build: rendering chunks...
+test-app-vite:build: [plugin builtin:vite-reporter] 
+test-app-vite:build: (!) __vite-browser-external is dynamically imported by /home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/protocol/dist/esm/platform/crypto.js but also statically imported by /home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/node_modules/.bun/expo-font@57.0.3/node_modules/expo-font/build/serverContext.web.js, dynamic import will not move module into another chunk.
+test-app-vite:build: 
+test-app-vite:build: computing gzip size...
+test-app-vite:build: dist/index.html                                                 0.45 kB │ gzip:     0.29 kB
+test-app-vite:build: dist/assets/unmatched-C2XkAHgU.png                              4.75 kB
+test-app-vite:build: dist/assets/arrow_down-NdGCEnxo.png                             9.45 kB
+test-app-vite:build: dist/assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2        10.25 kB
+test-app-vite:build: dist/assets/inter-greek-ext-wght-normal-DlzME5K_.woff2         11.23 kB
+test-app-vite:build: dist/assets/inter-cyrillic-wght-normal-DqGufNeO.woff2          18.74 kB
+test-app-vite:build: dist/assets/inter-greek-wght-normal-CkhJZR-_.woff2             18.99 kB
+test-app-vite:build: dist/assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2      25.96 kB
+test-app-vite:build: dist/assets/OxyServicesMaterialCommunityIcons-DVHLYwp4.ttf     28.85 kB
+test-app-vite:build: dist/assets/JetBrainsMono-Variable-B9CIFXIH.woff2              40.40 kB
+test-app-vite:build: dist/assets/OxyServicesIonicons-B1hZ8Dc8.ttf                   43.00 kB
+test-app-vite:build: dist/assets/slide-4-DSNFt0xP.jpg                               46.63 kB
+test-app-vite:build: dist/assets/InterVariable-Dx4kXJAl.woff2                       48.25 kB
+test-app-vite:build: dist/assets/slide-3-Bp5gr1Be.jpg                               59.18 kB
+test-app-vite:build: dist/assets/BlomusModernus-Bold-0E_Y-ihB.woff2                 77.61 kB
+test-app-vite:build: dist/assets/BlomusModernus-Regular-kZR3rHS0.woff2              77.64 kB
+test-app-vite:build: dist/assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2         85.06 kB
+test-app-vite:build: dist/assets/slide-2-BAN8I4Iy.jpg                               87.90 kB
+test-app-vite:build: dist/assets/slide-1-CPYeLD4l.jpg                              102.17 kB
+test-app-vite:build: dist/assets/index-BX_zslv9.css                                137.74 kB │ gzip:    22.54 kB
+test-app-vite:build: dist/assets/__vite-browser-external-C-66KuVh.js                 0.05 kB │ gzip:     0.07 kB
+test-app-vite:build: dist/assets/trustTierLabels-CB-cW7L7.js                         0.12 kB │ gzip:     0.12 kB
+test-app-vite:build: dist/assets/Ionicons-DhXNWoa_.js                                0.15 kB │ gzip:     0.14 kB
+test-app-vite:build: dist/assets/LinkCommonsScreen-BFiRFilx.js                       0.19 kB │ gzip:     0.17 kB
+test-app-vite:build: dist/assets/SignInAuthenticatorScreen-Dp-fmM2J.js               0.19 kB │ gzip:     0.17 kB
+test-app-vite:build: dist/assets/FollowersListScreen-B_CJP3NE.js                     0.20 kB │ gzip:     0.18 kB
+test-app-vite:build: dist/assets/FollowingListScreen-Bqi1MOzz.js                     0.20 kB │ gzip:     0.18 kB
+test-app-vite:build: dist/assets/DeleteAccountScreen-D59FD4nE.js                     0.23 kB │ gzip:     0.19 kB
+test-app-vite:build: dist/assets/SignInPasswordScreen-CEoHXsVi.js                    0.24 kB │ gzip:     0.20 kB
+test-app-vite:build: dist/assets/AccountSecurityPanelScreen-DNDTiD5Q.js              0.27 kB │ gzip:     0.22 kB
+test-app-vite:build: dist/assets/version-CWdfnVuE.js                                 0.33 kB │ gzip:     0.23 kB
+test-app-vite:build: dist/assets/useReduceMotion-C8F2xPxG.js                         0.40 kB │ gzip:     0.30 kB
+test-app-vite:build: dist/assets/SettingsIcon-D9x-KcFB.js                            0.49 kB │ gzip:     0.35 kB
+test-app-vite:build: dist/assets/useSettingToggle-DtvrHQ1s.js                        0.68 kB │ gzip:     0.44 kB
+test-app-vite:build: dist/assets/colorUtils-BHi3f_Nr.js                              0.77 kB │ gzip:     0.24 kB
+test-app-vite:build: dist/assets/UserLinksScreen-IhinVmyT.js                         0.83 kB │ gzip:     0.48 kB
+test-app-vite:build: dist/assets/plural-CkjYiIXR.js                                  0.86 kB │ gzip:     0.51 kB
+test-app-vite:build: dist/assets/ProfileSummaryCard-BhTVWA8G.js                      1.01 kB │ gzip:     0.57 kB
+test-app-vite:build: dist/assets/message-helpers-e2NeP3FX.js                         1.14 kB │ gzip:     0.58 kB
+test-app-vite:build: dist/assets/AvatarCameraBadge-DEzmieNB.js                       1.15 kB │ gzip:     0.70 kB
+test-app-vite:build: dist/assets/IconCircle-DyokcUKr.js                              1.20 kB │ gzip:     0.64 kB
+test-app-vite:build: dist/assets/TrustFAQScreen-DBBUEAgU.js                          1.49 kB │ gzip:     0.77 kB
+test-app-vite:build: dist/assets/build-CzyfFjsf.js                                   1.51 kB │ gzip:     0.77 kB
+test-app-vite:build: dist/assets/BenefitList-BlrAMtnb.js                             1.63 kB │ gzip:     0.90 kB
+test-app-vite:build: dist/assets/TrustRulesScreen-416SglDR.js                        1.92 kB │ gzip:     0.99 kB
+test-app-vite:build: dist/assets/SearchSettingsScreen-V-gRfBZg.js                    2.10 kB │ gzip:     0.92 kB
+test-app-vite:build: dist/assets/HelpSupportScreen-3XU2O8uU.js                       2.41 kB │ gzip:     0.87 kB
+test-app-vite:build: dist/assets/Haptics-DXLZ3WCO.js                                 2.41 kB │ gzip:     1.09 kB
+test-app-vite:build: dist/assets/ConnectedAppsScreen-Bi00Qxuq.js                     2.63 kB │ gzip:     1.31 kB
+test-app-vite:build: dist/assets/NotificationsScreen-DQKS7pAF.js                     2.85 kB │ gzip:     1.04 kB
+test-app-vite:build: dist/assets/module-KjCqWHpb.js                                  2.90 kB │ gzip:     1.22 kB
+test-app-vite:build: dist/assets/EditProfileScreen-BrwYYuUN.js                       3.06 kB │ gzip:     1.13 kB
+test-app-vite:build: dist/assets/LanguageSelectorScreen-Dgulae1o.js                  3.06 kB │ gzip:     1.42 kB
+test-app-vite:build: dist/assets/SettingsList-8rtipw--.js                            3.14 kB │ gzip:     1.36 kB
+test-app-vite:build: dist/assets/PreferencesScreen-CyZ7iN4a.js                       3.15 kB │ gzip:     1.31 kB
+test-app-vite:build: dist/assets/HistoryViewScreen-DWqKYyv2.js                       3.37 kB │ gzip:     1.31 kB
+test-app-vite:build: dist/assets/LearnMoreUsernamesScreen-3s1ECYTV.js                3.64 kB │ gzip:     1.57 kB
+test-app-vite:build: dist/assets/TrustAboutScreen-D8y-ELQO.js                        3.64 kB │ gzip:     1.56 kB
+test-app-vite:build: dist/assets/Card-PGZq_knM.js                                    3.80 kB │ gzip:     1.64 kB
+test-app-vite:build: dist/assets/DomainsScreen-DQUsCk7b.js                           3.82 kB │ gzip:     1.43 kB
+test-app-vite:build: dist/assets/TrustCenterScreen-DXbsGh-6.js                       3.89 kB │ gzip:     1.57 kB
+test-app-vite:build: dist/assets/LegalDocumentsScreen-DME7z09e.js                    3.91 kB │ gzip:     1.29 kB
+test-app-vite:build: dist/assets/TrustLeaderboardScreen-t9Yfjd4d.js                  3.95 kB │ gzip:     1.68 kB
+test-app-vite:build: dist/assets/ChangeAvatarScreen-CbhwW02B.js                      4.23 kB │ gzip:     1.75 kB
+test-app-vite:build: dist/assets/AccountSettingsScreen-bs-XFpdK.js                   5.39 kB │ gzip:     2.18 kB
+test-app-vite:build: dist/assets/AccountVerificationScreen-4XycMV4w.js               6.51 kB │ gzip:     2.69 kB
+test-app-vite:build: dist/assets/ImagePicker-BGr_zQWC.js                             6.81 kB │ gzip:     2.60 kB
+test-app-vite:build: dist/assets/CreateAccountScreen-DPf5j6tD.js                     6.92 kB │ gzip:     2.62 kB
+test-app-vite:build: dist/assets/WelcomeNewUserScreen-LVerNoJ4.js                    7.96 kB │ gzip:     2.84 kB
+test-app-vite:build: dist/assets/Chip-D1s5KCVB.js                                    8.00 kB │ gzip:     3.42 kB
+test-app-vite:build: dist/assets/ProfileScreen-D_lKiAl-.js                           8.11 kB │ gzip:     2.86 kB
+test-app-vite:build: dist/assets/WebBrowser-Bhxk7fHm.js                              8.11 kB │ gzip:     3.19 kB
+test-app-vite:build: dist/assets/src-CAX2_SgU.js                                     8.15 kB │ gzip:     3.04 kB
+test-app-vite:build: dist/assets/TrustRewardsScreen-DqieMGxG.js                      9.00 kB │ gzip:     2.78 kB
+test-app-vite:build: dist/assets/module-4BO6ZRHY.js                                  9.05 kB │ gzip:     2.74 kB
+test-app-vite:build: dist/assets/AccountMembersScreen-BBaJv321.js                    9.36 kB │ gzip:     2.84 kB
+test-app-vite:build: dist/assets/AppInfoScreen-j-ZIN6b9.js                           9.85 kB │ gzip:     3.49 kB
+test-app-vite:build: dist/assets/PrivacySettingsScreen-DNkjA-GP.js                  10.51 kB │ gzip:     2.70 kB
+test-app-vite:build: dist/assets/UserListScreen-Dnd36qWb.js                         11.54 kB │ gzip:     4.56 kB
+test-app-vite:build: dist/assets/zh-CN-C6hbHoo5.js                                  11.86 kB │ gzip:     4.99 kB
+test-app-vite:build: dist/assets/it-IT-DWgMtKjp.js                                  12.61 kB │ gzip:     4.63 kB
+test-app-vite:build: dist/assets/ca-ES-KGCDcjFB.js                                  12.92 kB │ gzip:     4.70 kB
+test-app-vite:build: dist/assets/pt-PT-ChFcGxOh.js                                  13.03 kB │ gzip:     4.67 kB
+test-app-vite:build: dist/assets/de-DE-C2Dhguyt.js                                  13.39 kB │ gzip:     4.89 kB
+test-app-vite:build: dist/assets/fr-FR-eMeBolXt.js                                  13.72 kB │ gzip:     4.88 kB
+test-app-vite:build: dist/assets/ko-KR-VBqg4SNj.js                                  13.83 kB │ gzip:     4.92 kB
+test-app-vite:build: dist/assets/ja-JP-kIF3q7sw.js                                  15.92 kB │ gzip:     5.11 kB
+test-app-vite:build: dist/assets/ar-SA-BAV6ETVp.js                                  16.09 kB │ gzip:     5.17 kB
+test-app-vite:build: dist/assets/ManageAccountScreen-C9g_KYTM.js                    18.55 kB │ gzip:     5.45 kB
+test-app-vite:build: dist/assets/AvatarCropScreen-Ex1YVS3Q.js                       19.84 kB │ gzip:     6.46 kB
+test-app-vite:build: dist/assets/validationUtils-B-jsh-eg.js                        21.14 kB │ gzip:     6.14 kB
+test-app-vite:build: dist/assets/PaymentGatewayScreen-DSE1fL3V.js                   24.02 kB │ gzip:     5.88 kB
+test-app-vite:build: dist/assets/recoveryPhrase-DUwFEyId.js                         24.57 kB │ gzip:    11.19 kB
+test-app-vite:build: dist/assets/EditProfileFieldScreen-B3tyyfjs.js                 25.44 kB │ gzip:     8.48 kB
+test-app-vite:build: dist/assets/OxyAccountDialogScreen-CceRQg35.js                 35.66 kB │ gzip:    11.75 kB
+test-app-vite:build: dist/assets/internal-DU3jL85g.js                               39.77 kB │ gzip:    13.47 kB
+test-app-vite:build: dist/assets/esm-D-nsNY_7.js                                    42.18 kB │ gzip:    13.15 kB
+test-app-vite:build: dist/assets/zh-BcRuxmvQ.js                                     56.74 kB │ gzip:    23.94 kB
+test-app-vite:build: dist/assets/id-COTkfg1B.js                                     59.79 kB │ gzip:    22.13 kB
+test-app-vite:build: dist/assets/tr-CVuKBGEq.js                                     61.71 kB │ gzip:    23.48 kB
+test-app-vite:build: dist/assets/it-DIvQdJO7.js                                     63.86 kB │ gzip:    23.36 kB
+test-app-vite:build: dist/assets/pt-DpgtyAGc.js                                     64.00 kB │ gzip:    23.56 kB
+test-app-vite:build: dist/assets/de-KL_nwhaQ.js                                     64.13 kB │ gzip:    23.78 kB
+test-app-vite:build: dist/assets/ca-BEnRhsnm.js                                     64.25 kB │ gzip:    23.77 kB
+test-app-vite:build: dist/assets/es-B_mZ6x03.js                                     64.45 kB │ gzip:    23.73 kB
+test-app-vite:build: dist/assets/es-ES-B8xzkC5p.js                                  65.38 kB │ gzip:    20.74 kB
+test-app-vite:build: dist/assets/fr-CFrwYuNJ.js                                     66.34 kB │ gzip:    24.29 kB
+test-app-vite:build: dist/assets/ja-B1KeOhLl.js                                     68.06 kB │ gzip:    25.31 kB
+test-app-vite:build: dist/assets/FileManagementScreen-DisLuBRn.js                   82.86 kB │ gzip:    25.29 kB
+test-app-vite:build: dist/assets/ar-3hp9sCjN.js                                     84.90 kB │ gzip:    26.94 kB
+test-app-vite:build: dist/assets/ru-dD_4txUZ.js                                     91.51 kB │ gzip:    28.58 kB
+test-app-vite:build: dist/assets/hi-ClXUtDgY.js                                    102.10 kB │ gzip:    27.04 kB
+test-app-vite:build: dist/assets/bn-MBloAM8H.js                                    104.25 kB │ gzip:    26.64 kB
+test-app-vite:build: dist/assets/index-luQhLIOv.js                               8,801.35 kB │ gzip: 2,034.03 kB
+test-app-vite:build: [33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+test-app-vite:build:     [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/.bun/expo@57.0.21/node_modules/expo/src/async-require/fetchThenEvalJs.ts:20:11 [38;5;246m][0m
+test-app-vite:build:     [38;5;246m│[0m
+test-app-vite:build:  [38;5;246m20 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249mb[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249my[0m[38;5;249m)[0m[38;5;249m;[0m
+test-app-vite:build:  [38;5;240m   │[0m                 ──┬─  
+test-app-vite:build:  [38;5;240m   │[0m                   ╰─── Use of direct `eval` here.
+test-app-vite:build:  [38;5;240m   │[0m 
+test-app-vite:build:  [38;5;240m   │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+test-app-vite:build: [38;5;246m────╯[0m
+test-app-vite:build: 
+test-app-vite:build: [plugin builtin:vite-reporter] 
+test-app-vite:build: (!) Some chunks are larger than 500 kB after minification. Consider:
+test-app-vite:build: - Using dynamic import() to code-split the application
+test-app-vite:build: - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+test-app-vite:build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+test-app-vite:build: [33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+test-app-vite:build:    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/uuid/index.web.ts:6:10 [38;5;246m][0m
+test-app-vite:build:    [38;5;246m│[0m
+test-app-vite:build:  [38;5;246m6 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249m"[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m([0m[38;5;249m"[0m[38;5;249mn[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249me[0m[38;5;249m:[0m[38;5;249mc[0m[38;5;249mr[0m[38;5;249my[0m[38;5;249mp[0m[38;5;249mt[0m[38;5;249mo[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m.[0m[38;5;249mr[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249md[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249mU[0m[38;5;249mU[0m[38;5;249mI[0m[38;5;249mD[0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m;[0m
+test-app-vite:build:  [38;5;240m  │[0m               ──┬─  
+test-app-vite:build:  [38;5;240m  │[0m                 ╰─── Use of direct `eval` here.
+test-app-vite:build:  [38;5;240m  │[0m 
+test-app-vite:build:  [38;5;240m  │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+test-app-vite:build: [38;5;246m───╯[0m
+test-app-vite:build: 
+test-app-vite:build: ✓ built in 5.99s
+accounts:build: | [33m» [1mandroid[22m: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".[39m
+accounts:build: | [33m» [1mios[22m: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".[39m
+accounts:build: | [33m» [1mandroid[22m: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".[39m
+accounts:build: | [33m» [1mios[22m: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".[39m
+accounts:build:  WARN  Attempted to import the module "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/node_modules/.bun/@noble+hashes@1.8.0/node_modules/@noble/hashes/crypto.js" which is not listed in the "exports" of "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/node_modules/.bun/@noble+hashes@1.8.0/node_modules/@noble/hashes" under the requested subpath "./crypto.js". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+accounts:build: λ Bundled 26601ms node_modules/.bun/@expo+router-server@57.0.9/node_modules/@expo/router-server/node/render.js (4631 modules)
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: Web Bundled 27541ms node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/entry.js (4232 modules)
+accounts:build: 
+accounts:build: › web bundles (75):
+accounts:build: _expo/static/css/global-6da08a638ccf36bf408868d103e4c7be.css (52KB)
+accounts:build: _expo/static/js/web/__common-63e34ef6cfdbec8faa6590b118e8b25e.js (13KB)
+accounts:build: _expo/static/js/web/__expo-metro-runtime-beff96064147bde5b1983fe629d44cbe.js (3.8KB)
+accounts:build: _expo/static/js/web/AccountMembersScreen-9c9229d2c821e89ba20100a9162124b3.js (14KB)
+accounts:build: _expo/static/js/web/AccountSettingsScreen-9656afeebf71641372dc48f208fb1158.js (8.2KB)
+accounts:build: _expo/static/js/web/AccountVerificationScreen-c654687f2bc85d528bc3d34ea30d1339.js (4.9KB)
+accounts:build: _expo/static/js/web/AppInfoScreen-ef991f1eefdac9d40ba765b503a9c96b.js (12KB)
+accounts:build: _expo/static/js/web/ar-8970672313956903b8bcec42633e2a65.js (178KB)
+accounts:build: _expo/static/js/web/ar-SA-f187eae4c889ea74c4c6895663dac974.js (35KB)
+accounts:build: _expo/static/js/web/AvatarCropScreen-9d65d431740c036de47561e5d86db446.js (21KB)
+accounts:build: _expo/static/js/web/bn-1583b714c2a8e3a5958ee1eaa5e95c06.js (173KB)
+accounts:build: _expo/static/js/web/ca-ES-4f826b19fcc94afcbe45b3e58dad2505.js (13KB)
+accounts:build: _expo/static/js/web/ca-fd3fb68a378339eb2092530b267483a0.js (67KB)
+accounts:build: _expo/static/js/web/ChangeAvatarScreen-61328d9a4ab0e43c62b723aaeb008c35.js (4.3KB)
+accounts:build: _expo/static/js/web/ConnectedAppsScreen-11d4fcd4e2432659d34e97e20ab2ba5b.js (3.1KB)
+accounts:build: _expo/static/js/web/CreateAccountScreen-1100c4310d79e0908ebd679e59bf85a0.js (7.5KB)
+accounts:build: _expo/static/js/web/de-96c43d6daa83441e4492398deb485d3e.js (66KB)
+accounts:build: _expo/static/js/web/de-DE-294732f9cb097d6d7e63c811e2b3679e.js (14KB)
+accounts:build: _expo/static/js/web/DeleteAccountScreen-60a2c69cc7f8f2d1e7bc0ecac1f7904c.js (348B)
+accounts:build: _expo/static/js/web/DomainsScreen-bcf10bc4f649601e76ae3c2a88822d71.js (5.9KB)
+accounts:build: _expo/static/js/web/EditProfileFieldScreen-57580c69505eb9220bb2b01a07710309.js (16KB)
+accounts:build: _expo/static/js/web/EditProfileScreen-465f625d92edd17e8777832f7fb6e596.js (3.5KB)
+accounts:build: _expo/static/js/web/entry-31a6155c82f0b07d16172a19d6a05905.js (8.5MB)
+accounts:build: _expo/static/js/web/es-20a76c214430de5ee5aa745f8477873c.js (67KB)
+accounts:build: _expo/static/js/web/es-ES-9a1b4d6cb703484a2a36e779d9927e10.js (67KB)
+accounts:build: _expo/static/js/web/FileManagementScreen-1cb4755c9711037599c0e256230e639c.js (107KB)
+accounts:build: _expo/static/js/web/FollowersListScreen-554b7724141a07f7815fc53025c9106a.js (312B)
+accounts:build: _expo/static/js/web/FollowingListScreen-5cce3950c31cfd1994905dde62de453e.js (312B)
+accounts:build: _expo/static/js/web/fr-5043f43efb84d7ea58d748001ef6f0e3.js (70KB)
+accounts:build: _expo/static/js/web/fr-FR-51fc9936702c906610b0ccdf796947f1.js (14KB)
+accounts:build: _expo/static/js/web/HelpSupportScreen-badd97768609ef0f84a63d77a01cce35.js (3.5KB)
+accounts:build: _expo/static/js/web/hi-1b3bbbb4a7efc32787e685468fad8135.js (168KB)
+accounts:build: _expo/static/js/web/HistoryViewScreen-0d3c363ef3071ce783b9f1918507ca44.js (3.9KB)
+accounts:build: _expo/static/js/web/id-171b117c13bb27d26146906f1c55d9b3.js (61KB)
+accounts:build: _expo/static/js/web/ImagePicker-9f1d988df823bf172aaf0fb9b0fc409c.js (8.6KB)
+accounts:build: _expo/static/js/web/index-14857a964b5085ad5e9c7bd6377f0ab5.js (45KB)
+accounts:build: _expo/static/js/web/index-460f132032ebd7c5413399fc332160bd.js (54KB)
+accounts:build: _expo/static/js/web/index-660c1b8dccc40701e8f8e48619d45948.js (2.1KB)
+accounts:build: _expo/static/js/web/index-b00a5e32f93a3c7f32c50ab0d23a4add.js (13KB)
+accounts:build: _expo/static/js/web/internal-43b3cfdc66d9d8a58a834a81ed000882.js (2.4KB)
+accounts:build: _expo/static/js/web/it-f6bf8046a428e3f66ac5315794f0a864.js (65KB)
+accounts:build: _expo/static/js/web/it-IT-575afe25abc35bd7d8822fea000268f1.js (13KB)
+accounts:build: _expo/static/js/web/ja-4a38d1930d8ff9d90e4c00ffc9606f4e.js (104KB)
+accounts:build: _expo/static/js/web/ja-JP-d3ac94230d86b97e8f0448bea19c790e.js (26KB)
+accounts:build: _expo/static/js/web/ko-KR-91f360825ff1e15815201e6f9cd1f532.js (21KB)
+accounts:build: _expo/static/js/web/LanguageSelectorScreen-cbaaa7fa5392448b9bdb9b8dd6fa8d18.js (3.6KB)
+accounts:build: _expo/static/js/web/LearnMoreUsernamesScreen-1ef664c37a44c8a033ee931ca87fe079.js (2.9KB)
+accounts:build: _expo/static/js/web/LegalDocumentsScreen-0e69c10c9a993a05085df0eb57233ce9.js (4.4KB)
+accounts:build: _expo/static/js/web/LinkCommonsScreen-21c3ee14a3d53c3eb77a92c90ca4b3e9.js (313B)
+accounts:build: _expo/static/js/web/ManageAccountScreen-b2b53d6c675e832837b85522a9d4fbab.js (21KB)
+accounts:build: _expo/static/js/web/NotificationsScreen-f7fdccfdc4c6d95204a566905e4be760.js (4.2KB)
+accounts:build: _expo/static/js/web/OxyAccountDialogScreen-e274047d611ef3cfa4e4eb75a8a90785.js (25KB)
+accounts:build: _expo/static/js/web/PaymentGatewayScreen-23731297a85681da982c08a50178bb64.js (35KB)
+accounts:build: _expo/static/js/web/PreferencesScreen-f6be1261ae3ca8b72cad9fbab72a1f10.js (3.4KB)
+accounts:build: _expo/static/js/web/PrivacySettingsScreen-2f589184c59d6b3b309079fef8356b7c.js (12KB)
+accounts:build: _expo/static/js/web/ProfileScreen-fe05d25c947092fb32cad3da8eb31680.js (9KB)
+accounts:build: _expo/static/js/web/pt-b8f279b9458810e24160aa28490cd8a5.js (67KB)
+accounts:build: _expo/static/js/web/pt-PT-9794b1b9350d354e86b3426ae36a4ffe.js (14KB)
+accounts:build: _expo/static/js/web/ru-4c6634b312c56b59608b3976e06a4dbf.js (199KB)
+accounts:build: _expo/static/js/web/SearchSettingsScreen-b75b9cd786ececd3f40a9a3d180f4ef1.js (3.4KB)
+accounts:build: _expo/static/js/web/SecureStore-946450eead3ad6d146416b16e5d480a3.js (2.4KB)
+accounts:build: _expo/static/js/web/SignInAuthenticatorScreen-0b9734bfc9772a4852ad56697f6b2996.js (315B)
+accounts:build: _expo/static/js/web/SignInPasswordScreen-aea6b2c5ba2f1aa9012df63b77949067.js (355B)
+accounts:build: _expo/static/js/web/tr-e4eac2afd661340c24941479055e7ac4.js (71KB)
+accounts:build: _expo/static/js/web/TrustAboutScreen-10a567548ac92df468722f18c83ca0c2.js (2.8KB)
+accounts:build: _expo/static/js/web/TrustCenterScreen-4be2b276f4ed892aa728dd017fa71a7c.js (5.1KB)
+accounts:build: _expo/static/js/web/TrustFAQScreen-f1d25d1dbf2b96e7b23cce2e2e3c6980.js (2.3KB)
+accounts:build: _expo/static/js/web/TrustLeaderboardScreen-ea50b5b1d6cd6478cc8d90c5ba6f2a39.js (5.2KB)
+accounts:build: _expo/static/js/web/TrustRewardsScreen-f819eca7695ceb5d8e6ee67c59a7f37b.js (13KB)
+accounts:build: _expo/static/js/web/TrustRulesScreen-f4d90dc13e859336b9a1c17dce645347.js (2.7KB)
+accounts:build: _expo/static/js/web/UserLinksScreen-d1e1622834c9d19d2a253b8c872c4ff6.js (1.1KB)
+accounts:build: _expo/static/js/web/WebBrowser-93052aea902e4f0285686ac21479bed8.js (8.3KB)
+accounts:build: _expo/static/js/web/WelcomeNewUserScreen-c43d0f6e2b9577f3d12871553c3d91c2.js (8.6KB)
+accounts:build: _expo/static/js/web/zh-c23844856c29fead46b3b6f28d53181f.js (81KB)
+accounts:build: _expo/static/js/web/zh-CN-a8c1317b8524cbcd67f715a092a751d6.js (18KB)
+accounts:build: 
+accounts:build: › Static routes (37):
+accounts:build: /data (43KB)
+accounts:build: / (index) (43KB)
+accounts:build: /agency (43KB)
+accounts:build: /family (43KB)
+accounts:build: /search (43KB)
+accounts:build: /scan-qr (43KB)
+accounts:build: /sharing (43KB)
+accounts:build: /storage (43KB)
+accounts:build: /_sitemap (31KB)
+accounts:build: /activity (43KB)
+accounts:build: /payments (43KB)
+accounts:build: /security (43KB)
+accounts:build: /sessions (43KB)
+accounts:build: /authorize (43KB)
+accounts:build: /+not-found (31KB)
+accounts:build: /(tabs)/data (43KB)
+accounts:build: /(auth) (43KB)
+accounts:build: /(tabs) (43KB)
+accounts:build: /(tabs)/agency (43KB)
+accounts:build: /(tabs)/family (43KB)
+accounts:build: /personal-info (43KB)
+accounts:build: /(tabs)/search (43KB)
+accounts:build: /devices (43KB)
+accounts:build: /(tabs)/scan-qr (43KB)
+accounts:build: /(tabs)/sharing (43KB)
+accounts:build: /(tabs)/storage (43KB)
+accounts:build: /(tabs)/activity (43KB)
+accounts:build: /(tabs)/payments (43KB)
+accounts:build: /(tabs)/security (43KB)
+accounts:build: /(tabs)/sessions (43KB)
+accounts:build: /(tabs)/authorize (43KB)
+accounts:build: /managed-accounts (43KB)
+accounts:build: /devices/[deviceId] (43KB)
+accounts:build: /(tabs)/personal-info (43KB)
+accounts:build: /(tabs)/devices (43KB)
+accounts:build: /(tabs)/managed-accounts (43KB)
+accounts:build: /(tabs)/devices/[deviceId] (43KB)
+accounts:build: 
+accounts:build: Exported: dist
+accounts:build: 
+accounts:build: Export completed. Killing hung process group.
+accounts:build: Wrote /home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/accounts/dist/_headers (scanned 37 HTML file(s))
+
+ Tasks:    19 successful, 19 total
+Cached:    9 cached, 19 total
+  Time:    46.25s 
+
