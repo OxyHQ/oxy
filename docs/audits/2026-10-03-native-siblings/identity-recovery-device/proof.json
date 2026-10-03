@@ -80,5 +80,10 @@
       "bytes": 5046
     }
   ],
-  "acceptance": "real file recovery and identity preservation under owned fixture; registry repeat pending"
+  "acceptance": "real file recovery and identity preservation under owned fixture; registry repeat pending",
+  "rootFinalReceipt": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/recovery-observation.json",
+    "sha256": "38ff5a9f6012e12b71181af62b5c804aae9ca69b7884b908e8b4dfe191270d25",
+    "bytes": 4426
+  }
 }
