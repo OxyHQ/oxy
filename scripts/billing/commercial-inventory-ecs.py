@@ -16,6 +16,8 @@ REGION = 'us-west-2'
 CLUSTER = 'oxy-cluster'
 READER = Path(__file__).with_name('read-commercial-inventory.mjs')
 PROFILES = {
+    'mercaria-cohort': {'service': 'mercaria', 'definition': 'oxy-mercaria:59', 'container': 'mercaria', 'cwd': '/app/packages/backend', 'parameter': '/oxy/mercaria/DATABASE_URL'},
+    'peable-cohort': {'service': 'peable', 'definition': 'oxy-peable:7', 'container': 'peable', 'cwd': '/app/packages/backend', 'parameter': '/oxy/peable/DATABASE_URL'},
     'oxy': {'service': 'oxy-api', 'definition': 'oxy-oxy-api:691', 'container': 'oxy-api', 'cwd': '/app/packages/api', 'parameter': '/oxy/oxy-api/DATABASE_URL'},
     'clarity': {'service': 'clarity-api', 'definition': 'oxy-clarity-api:44', 'container': 'clarity-api', 'cwd': '/app/packages/backend', 'parameter': '/oxy/clarity/DATABASE_URL'},
     'mercaria': {'service': 'mercaria', 'definition': 'oxy-mercaria:59', 'container': 'mercaria', 'cwd': '/app/packages/backend', 'parameter': '/oxy/mercaria/DATABASE_URL'},
