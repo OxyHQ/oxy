@@ -1,0 +1,9 @@
+# OTP footer touch diagnostic, source frozen a16aecc60
+
+This independent app uses the published Bloom6.2.1 package. Both resolvers match all20940 registry files. It shares the existing owned third-party fixture APK/native modules and runs Metro17976; only root operates ADB. Sibling Metros17967/17968 remain unchanged. No auth provider, HTTP request, credential or identity read is in this fixture.
+
+The actual auth RED remains in root's hashed private observation: identifier Continue and password Continue accept touch; the taller code frame's password alternative ignores three touches but reacts immediately to Tab/Enter. This diagnostic is not yet device evidence and does not assert its cause.
+
+Operator sequence: reuse the existing `so.oxy.acceptance1519` fixture APK with localhost8081 forwarded to17976; do not clear or uninstall. Open OTP touch probe, tap Continue to code frame, then the measured password alternative. Observe `link` counter; compare native sibling control. Scroll if necessary. Read touch diagnostics only after the failed/successful attempt: it reports last20 public event targets/coordinates and measured wrapper/native bounds; its output may change layout. `capture-start` returns false and does not claim the responder. `password-in/out/press` distinguish a delivered press from cancellation. Counters and all fields are synthetic. The measured link wrapper is additional instrumentation, so a passing reduced fixture does not prove the original auth layout fixed.
+
+After recording the baseline, close/reopen with autofocus disabled or morph disabled separately. These are diagnostic controls, not proposed product workarounds. Neither registry package source nor SDK source is edited. The initial TypeScript failure is preserved as setup evidence; final strict fixture TypeScript passed with skipLibCheck explicitly configured. Bundle hash/source/lock are in proof.json. No ADB operation occurred during preparation.

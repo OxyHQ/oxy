@@ -1,0 +1,57 @@
+{
+  "sourceHead": "a16aecc609e231f8902cc6660cc639ad1a6f5957",
+  "sourceRoot": "/home/nate/Oxy/oxy/.worktrees/1519-native-link-touch-20261003",
+  "sourceSha256": {
+    "package.json": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1",
+    "bun.lock": "f94136743e40fa1fb9539e8076d18b7484c784fdacd1beac25532278085667db",
+    "packages/test-app-expo/acceptance/entry.tsx": "4020aa3947296e4daed395fa2f21860745cc6b24071464452e8d5a7e85d2311b",
+    "packages/test-app-expo/acceptance/tsconfig.json": "e9b6c9210bb6d46be2b3731f18a3a29a68925d8df1f67e67e9427e7b503df70f",
+    "packages/test-app-expo/index.js": "a523cfe3eebb1525b177b4f2d861d57ec65285d0850e2372531107c046ef1332",
+    "packages/test-app-expo/metro.config.js": "28975f8508ea17c4935bd0ac9d5e2304dba801623d58a67d77b514c36be86a27",
+    "packages/test-app-expo/babel.config.js": "f0846b3cbee62fb0aa6b68030e2317854c65d9ec21e96de03e5506c43256546a",
+    "packages/test-app-expo/package.json": "857608e3e19311b7997ab59cbee6dc132b3a778f28c28f1232b2a45ba5b3a985"
+  },
+  "rootFrozenRed": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/observations-partial-1240.json",
+    "sha256": "e38a80d62c583405d9b77cd27f44978bc4c2cb5d9b59f7b73a3762aeff55c675",
+    "bytes": 7081
+  },
+  "records": {
+    "docs/audits/2026-10-03-native-siblings/otp-touch-diagnostic/i04-native-link-touch-ts.log": {
+      "sha256": "c3d88bd6e28683217a0c92fad122203764e887d2d89f2755f2843fec41166758",
+      "bytes": 1578
+    },
+    "docs/audits/2026-10-03-native-siblings/otp-touch-diagnostic/i04-native-link-touch-install.log": {
+      "sha256": "819502e3e1f2f914bfab441c461d9f58102f6cb6016e04eb9a2acdf66d0ba7b6",
+      "bytes": 1065
+    },
+    "docs/audits/2026-10-03-native-siblings/otp-touch-diagnostic/i04-native-link-touch-ts-final.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "docs/audits/2026-10-03-native-siblings/otp-touch-diagnostic/i04-native-link-touch-installed-bundle.json": {
+      "sha256": "c18dd4ad985d8d5d1088d0a22e8fe43995b02c0d3f590b1cad72eb9bf401f750",
+      "bytes": 1006
+    },
+    "docs/audits/2026-10-03-native-siblings/otp-touch-diagnostic/README.md": {
+      "sha256": "c295cf20e44988a528a25410681f2be1b538d75e6b5bb23bc7346df2b391bee2",
+      "bytes": 1951
+    }
+  },
+  "metro": {
+    "port": 17976,
+    "sessionId": 49924
+  },
+  "bundle": {
+    "sha256": "65dbe7dd601f651825c07aa43d4dc7ab851647f779df8fbafb99cd548e17b1a9",
+    "bytes": 11534324
+  },
+  "rootSoleAdbOperator": true,
+  "runtimeAuth": false,
+  "deviceOutcome": "not yet run",
+  "setupNotes": [
+    "Initial TS identified event-target type and LinkButton lacking public ref; corrected fixture uses a measured wrapper.",
+    "17972 occupied: did not stop owner; selected17976.",
+    "Existing17967/17968 untouched."
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "tarballSha256": "edf4cfe3d8597e4bf86f997bceacf332f7fce4a8f92c541b3cd375decbce3a0a",
+  "installed": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-link-touch-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+      "fileCount": 20940,
+      "version": "6.2.1"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-link-touch-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+      "fileCount": 20940,
+      "version": "6.2.1"
+    }
+  ],
+  "bundle": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-native-link-touch.bundle.js",
+    "bytes": 11534324,
+    "sha256": "65dbe7dd601f651825c07aa43d4dc7ab851647f779df8fbafb99cd548e17b1a9",
+    "url": "http://127.0.0.1:17976/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=.%2Facceptance%2Froutes&transform.reactCompiler=true&unstable_transformProfile=hermes-stable"
+  }
+}

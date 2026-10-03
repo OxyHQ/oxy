@@ -1,0 +1,12 @@
+packages/test-app-expo/acceptance/entry.tsx(31,24): error TS2322: Type 'EventRecord | { target?: string | undefined; x?: number | undefined; y?: number | undefined; kind: string; }' is not assignable to type 'EventRecord'.
+  Type '{ target?: string | undefined; x?: number | undefined; y?: number | undefined; kind: string; }' is not assignable to type 'EventRecord'.
+    Types of property 'target' are incompatible.
+      Type 'string | undefined' is not assignable to type 'number | undefined'.
+        Type 'string' is not assignable to type 'number'.
+packages/test-app-expo/acceptance/entry.tsx(31,55): error TS2322: Type '{ target?: string | undefined; x?: number | undefined; y?: number | undefined; kind: string; }' is not assignable to type 'EventRecord'.
+  Types of property 'target' are incompatible.
+    Type 'string | undefined' is not assignable to type 'number | undefined'.
+      Type 'string' is not assignable to type 'number'.
+packages/test-app-expo/acceptance/entry.tsx(58,23): error TS2322: Type '{ children: string; ref: (node: any) => void; testID: string; size: "sm"; linkTone: "secondary"; style: { readonly alignSelf: "center"; readonly paddingTop: 10; readonly paddingBottom: 10; readonly marginTop: 12; }; onPressIn: () => void; onPressOut: () => void; onPress: () => void; }' is not assignable to type 'IntrinsicAttributes & ButtonProps'.
+  Property 'ref' does not exist on type 'IntrinsicAttributes & ButtonProps'. Did you mean 'href'?
+packages/test-app-expo/acceptance/entry.tsx(58,28): error TS7006: Parameter 'node' implicitly has an 'any' type.
