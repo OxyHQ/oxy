@@ -13,3 +13,5 @@ checks. The launcher owns a new PostgreSQL process and checks executable, UID,
 data directory and loopback socket before creating its database; fresh/repeat
 142 migrations pass and the process is stopped in finally. No production or
 live browser fixture was modified. This RED is a reproduction, not acceptance.
+
+Current source has one bounded retry for an unpinned mint only after the same holder authenticates and revision changes. Frozen RED is byte-identical to GREEN: 3 fail/9 pass → 12 pass. Combined authority/schema/bridge suites pass 8/83 with normal fresh142/repeat, API build and actual scoped ESLint zero warnings. Pins, final credential revocation, unchanged empty state and a second transition remain denied. Live WEB04 rerun remains pending.

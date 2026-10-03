@@ -1,0 +1,127 @@
+{
+  "sourceHead": "e3d7090811244b9fcae83cbca100d955b226820d",
+  "baseHead": "8bcfbbaf1",
+  "redHead": "4f0d43812",
+  "recordedAt": "2026-10-03T12:00:50.254729+00:00",
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/routes/sessionDevice.ts",
+      "sha256": "d86b4d93eea13109bdbe065b264ba3c1642040b771d9947f265bd863c91cded1"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/browserBridge.test.ts",
+      "sha256": "02269e5de0c1209065e0cfe69ceec79d20dda7687eef9dcde0c4da2a70981be5"
+    },
+    {
+      "path": "packages/api/src/services/deviceSession.service.ts",
+      "sha256": "ba9358568c5cde4a8d4fc2e3f1ae0aad7462b6e1cc3cc60ed8e946ce187101cc"
+    },
+    {
+      "path": "scripts/rehearsal/test-web-first-party-fallback-1519.py",
+      "sha256": "3c0ad0686521ccff5e1299801d4625382f6e1ad7b6bdf10342bea4dbc2ba5a1f"
+    },
+    {
+      "path": "scripts/rehearsal/test-final-authority-composite-1519.py",
+      "sha256": "9da01adbe79142878515b48c86193e414337aea2f8a2e8d0bea9c704ff5f7af6"
+    },
+    {
+      "path": "packages/api/src/db/schema/agency.ts",
+      "sha256": "9de331b4301a3f4c0ed73f655fa5dd12d4d528a934fdfca8d7a3260e95192af2"
+    },
+    {
+      "path": "packages/api/src/routes/capabilities.ts",
+      "sha256": "1f78fcf5b9c555385cefc607e19df865ab31621d926a59feb0d05a1c35413cfa"
+    },
+    {
+      "path": "packages/api/src/services/foregroundCapabilityRequester.service.ts",
+      "sha256": "efcc6ba5d53be0fa3f4e0514b3346c65b995acdd51158f55a9caec0d900bc56a"
+    },
+    {
+      "path": "packages/api/drizzle/0142_melodic_sister_grimm.sql",
+      "sha256": "39171c5cfae5c33ba756389cf69741e096a31dc1130684b963efdb46275196e7"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/green-api.txt",
+      "sha256": "c4d45b28de8c86d4c5f2f198e20b427f0bf8a836d46b7d013b3efdb5450c774b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/green-launcher.txt",
+      "sha256": "63adf9350d897dc6ed86bba90d22ea9d27e1a0504ef46b1f6310184cd3f61908"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/composite-api.txt",
+      "sha256": "2e3f6808797d59b56bc19170ea448d3d20a9f79c6c8e764a12970703ef2e6053"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/migration-fresh.txt",
+      "sha256": "e846b0a265876ae0e8c1a6dc25740ddd13dea3bc9542d5e5d33e528ed25d024b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/migration-repeat.txt",
+      "sha256": "1d48636a85e20e14eeebe9d95e92f16ed1ff21f6572056b8430eb62a86c5353b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/composite-launcher.txt",
+      "sha256": "bcb0c8ace115c0a5db9b992bc8a1fccaff8013c1d329721b3b78889643387cb2"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/api-build.txt",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/scoped-lint.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/scoped-lint-invocation-error.txt",
+      "sha256": "753ebfc37cef98a4c4e90ae8940c5ed052303067fdb1be0246fef0af4e418969"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/full-lint-baseline.txt",
+      "sha256": "f9ea22d1e115ba15dc4a0b7fd9557a6534c1c05374aebda2476eeed105add837"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/red-api.txt",
+      "sha256": "b641b1435559125e5453130b29f4aa0b945e682ae20a6241188c2ec70ee16d47"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/red-launcher.txt",
+      "sha256": "d7e5f1fe1104c1fef28409d9d1cebd147bb70236da7b9fcee31bd4effccef55e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party-fallback/red-browserBridge.test.ts.txt",
+      "sha256": "02269e5de0c1209065e0cfe69ceec79d20dda7687eef9dcde0c4da2a70981be5"
+    }
+  ],
+  "results": {
+    "red": {
+      "passed": 9,
+      "failed": 3
+    },
+    "green": {
+      "suites": 1,
+      "tests": 12
+    },
+    "composite": {
+      "suites": 8,
+      "tests": 83
+    },
+    "normalMigrationCount": 142,
+    "freshAndRepeat": true,
+    "apiBuildExit": 0,
+    "scopedEslintWarnings": 0
+  },
+  "limits": [
+    "Outer bearer/rate/socket scheduling fixture synthetic; SQL membership, holder auth, SessionService and JWT real.",
+    "Browser first-party GREEN pending actual host API replacement; production and registry acceptance pending.",
+    "Initial scoped-eslint invocation failed exports resolution; final actual eslint scoped invocation passes. Full package lint command produced 82 pre-existing warnings and is not the scoped zero-warning gate."
+  ],
+  "ownedPostgres": {
+    "pid": 3807985,
+    "port": 5596,
+    "dataDirectory": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/authority-composite-pg1519-7bbgrv0p/data",
+    "stopped": true
+  }
+}
