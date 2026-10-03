@@ -1,0 +1,29 @@
+{
+  "probe": "kaana-attempt-null-readback-v1",
+  "pages": [
+    {
+      "page": 0,
+      "status": 200,
+      "count": 500,
+      "bytes": 275977,
+      "responseSha256": "d4fb0daef815e8fe6ed3507e790279c5b557d63a5bb2cfa79a1dcecc5890162f",
+      "caughtUp": false,
+      "readAt": "2026-10-03T01:51:30.437Z"
+    }
+  ],
+  "nullUnits": 500,
+  "emptyUnits": 0,
+  "example": {
+    "requestIdSha256": "ca9632d5585f6ab3cb0c0ed88461c28b56efea3fa5e599a317577e0b55662107",
+    "attemptIndex": 0,
+    "units": null,
+    "costIsNull": true,
+    "costSource": "unknown",
+    "telemetryIsNull": true,
+    "deploymentId": "dep_cerebras_gpt_oss_120b_observed_2026_09_01"
+  },
+  "nullServed": true,
+  "providerRequests": 0,
+  "oxyLedgerWrites": 0,
+  "responseAuthentication": "TLS plus signed request; response has no separate signature"
+}
