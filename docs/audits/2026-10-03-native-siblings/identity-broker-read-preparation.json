@@ -1,0 +1,23 @@
+{
+  "sourceCommit": "eb5fa9e95",
+  "sourceFile": "packages/commons/acceptance/entry.tsx",
+  "sourceSha256": "e030309f8ba6baec202e544e0c78b19c4919d494e07d7f9e7cd252f67c9fd850",
+  "bundlePath": "/home/nate/Oxy/.agent-evidence/i04-native-identity-broker-read-bundle-20261003.js",
+  "bundleSha256": "a59f00bc99fd95849d21740e300278ebbc6246e5ae423a9db067ac0ebc891a1e",
+  "apkUnchangedSha256": "5b5b04eb6f65d45c1f2f73e5efca8ff14c500db9c2b8ca06fd0cc437cf33127c",
+  "realHelper": "createPlatformSharedDeviceCredentialStore().read()",
+  "hostOrder": [
+    "so.oxy.commons.devicesession",
+    "so.oxy.commons.dev.devicesession",
+    "so.oxy.accounts.devicesession",
+    "so.oxy.accounts.dev.devicesession"
+  ],
+  "display": "result.state only, no credential or error payload",
+  "checks": {
+    "strictTS": "PASS",
+    "scopedESLint": "PASS",
+    "Metro17969": "HTTP200"
+  },
+  "reason": "Root observed Mention cold boot used its durable token without reading the corrupted Commons file. This explicit real SDK broker read reaches Commons.dev self store before later hosts. Returned state may reflect later Accounts host, so file recovery must be observed separately by hashes.",
+  "deviceResult": "PENDING root proof; no device mutation by this author"
+}
