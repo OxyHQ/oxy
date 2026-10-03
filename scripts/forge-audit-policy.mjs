@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { userInfo } from 'node:os';
 import {
   ADVISORY, TRUSTED_BASELINE, TRUSTED_WORKFLOW, PINS_PATH,
-  canonicalAudit, collect, evaluate, inventory, sha256, collectIndependentInputObjects, INDEPENDENT_INPUT_PATHS,
+  canonicalAudit, collect, evaluate, inventory, sha256, collectIndependentInputObjects, INDEPENDENT_INPUT_PATHS, trustedImageWorkflow,
 } from './forge-remediation-proof-proposal.mjs';
 
 export const DECISION_PATH = 'docs/security/forge-candidate/provenance/audit-policy-decision.json';
@@ -69,7 +69,7 @@ export function checkForgePolicyStructure(input) {
       || finalImageProof.artifactExpiries.some(expiry => !(Date.parse(now) < Date.parse(expiry)))) fail('Own authenticated execution image proof required; PR image cannot authorize queue/main publication');
   }
   if (!Array.isArray(facts?.git?.changedPaths) || facts.git.changedPaths.some(path => !DECLARATIVE_PATHS.includes(path))) fail('Only the two exact declarative paths may differ from target');
-  for (const path of EXECUTED_PATHS) if (!blobs?.source?.[path] || blobs.source[path] !== blobs?.current?.[path]) fail(`Executed code changed: ${path}`);
+  for (const path of new Set([...EXECUTED_PATHS, ...trustedImageWorkflow(facts?.pins?.headBranch).executedPaths])) if (!blobs?.source?.[path] || blobs.source[path] !== blobs?.current?.[path]) fail(`Executed code changed: ${path}`);
   if (!Array.isArray(copies) || copies.length === 0) fail('Installed Forge inventory is missing');
   else for (const copy of copies) if (copy.version !== '1.4.0' || !same(copy.files, TRUSTED_BASELINE.files)) fail('An installed Forge copy differs from pinned bytes');
   const evidence = decision?.independentEvidence;
@@ -147,7 +147,7 @@ export function inspectForgeAuditPolicy(audit, options = {}) {
     if (!same(facts.audit, audit)) throw new Error('Audit changed between checks');
     const target = decision.targetSourceHead;
     const blobs = { source: {}, current: {} };
-    for (const path of EXECUTED_PATHS) {
+    for (const path of new Set([...EXECUTED_PATHS, ...trustedImageWorkflow(facts.pins.headBranch).executedPaths])) {
       blobs.source[path] = git('rev-parse', `${target}:${path}`).toString().trim();
       blobs.current[path] = git('rev-parse', `HEAD:${path}`).toString().trim();
     }
