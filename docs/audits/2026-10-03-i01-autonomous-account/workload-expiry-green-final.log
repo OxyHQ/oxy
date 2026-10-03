@@ -1,0 +1,9 @@
+$ jest --runInBand src/db/schema/__tests__/workloadAttributionCredential.test.ts src/services/__tests__/inferenceLedger.service.test.ts
+{"level":30,"time":1790995147234,"pid":3415095,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790995147602,"pid":3415095,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 2 passed, 2 total
+Tests:       64 passed, 64 total
+Snapshots:   0 total
+Time:        4.276 s
+Ran all test suites matching src/db/schema/__tests__/workloadAttributionCredential.test.ts|src/services/__tests__/inferenceLedger.service.test.ts.

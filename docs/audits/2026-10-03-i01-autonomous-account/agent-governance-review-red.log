@@ -1,0 +1,63 @@
+$ jest --runInBand src/services/__tests__/agentKeyGovernance.test.ts
+FAIL src/services/__tests__/agentKeyGovernance.test.ts
+  ● bot self operations do not turn an explicit admin membership into owner authority
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: undefined
+
+      65 |   expect(access?.permissions).toContain('members:remove');
+      66 |   // The remove-member route uses this predicate; an admin cannot remove an owner.
+    > 67 |   await expect(accountService.removeMember(f.actor.id, owner.id, access?.role === 'owner')).rejects.toMatchObject({ statusCode: 403 });
+         |         ^
+      68 |   expect(access?.role).toBe('admin');
+      69 |   const ownerAccess = await accountService.resolveEffectiveAccess(other.id, f.actor.id);
+      70 |   await expect(accountService.removeMember(f.actor.id, owner.id, ownerAccess?.role === 'owner')).resolves.toBeUndefined();
+
+      at expect (../../node_modules/.bun/expect@30.5.1/node_modules/expect/build/index.js:2116:15)
+      at src/services/__tests__/agentKeyGovernance.test.ts:67:9
+      at fulfilled (src/services/__tests__/agentKeyGovernance.test.ts:5:58)
+
+  ● bot self has operational permissions without implicit governance or bare-id authority
+
+    expect(received).not.toBe(expected) // Object.is equality
+
+    Expected: not "owner"
+
+      78 |     expect(access?.permissions).not.toContain(permission);
+      79 |   }
+    > 80 |   expect(access?.role).not.toBe('owner');
+         |                            ^
+      81 |   expect(await accountService.resolveEffectiveAccess(f.actor.id, f.actor.id)).toBeNull();
+      82 |   const next = keys();
+      83 |   await expect(requestAgentKeyOperation(f.session.sessionId, f.actor.id,
+
+      at src/services/__tests__/agentKeyGovernance.test.ts:80:28
+      at fulfilled (src/services/__tests__/agentKeyGovernance.test.ts:5:58)
+
+  ● personal governor with a public key may use verified password reauth instead of a root signature
+
+    expect(received).resolves.toHaveProperty()
+
+    Received promise rejected instead of resolved
+    Rejected to value: [ApiError: Fresh proof is required for this operation]
+
+      92 |   await expect(executeAgentKeyOperation(f.session.sessionId, f.target.id, operation,
+      93 |     { ...signed, governorSignature: undefined, reauth: { password: 'wrong-password' } })).rejects.toMatchObject({ statusCode: 401 });
+    > 94 |   await expect(executeAgentKeyOperation(f.session.sessionId, f.target.id, operation,
+         |         ^
+      95 |     { ...signed, governorSignature: undefined, reauth: { password: 'synthetic-governor-password-41' } })).resolves.toHaveProperty('methodId');
+      96 | });
+      97 |
+
+      at expect (../../node_modules/.bun/expect@30.5.1/node_modules/expect/build/index.js:2116:15)
+      at src/services/__tests__/agentKeyGovernance.test.ts:94:9
+      at fulfilled (src/services/__tests__/agentKeyGovernance.test.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 6 passed, 9 total
+Snapshots:   0 total
+Time:        1.409 s
+Ran all test suites matching src/services/__tests__/agentKeyGovernance.test.ts.
+error: script "test" exited with code 1
