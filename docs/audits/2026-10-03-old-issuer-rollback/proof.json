@@ -418,8 +418,8 @@
   },
   "records": {
     "docs/audits/2026-10-03-old-issuer-rollback/README.md": {
-      "sha256": "dc467136a6a1c1551c6944f01814b7c0cc43dd2586406b34d3a2fc2831b26e28",
-      "bytes": 11141
+      "sha256": "b72ddf7f77403a157286c35b07ce163e2cf083d29ee90dfafa769266360eb5a4",
+      "bytes": 11771
     },
     "docs/audits/2026-10-03-old-issuer-rollback/built-dependencies.json": {
       "sha256": "9ba33319dce295089f048df08e161d399569eb4473547a0f071d7bf3745d3df6",
@@ -503,6 +503,8 @@
     "awsWorkloadAttestation": "synthetic trusted seam",
     "fullApiSuite": false,
     "productionRollbackAccepted": false,
-    "independentReceiverStopStillRequired": true
+    "independentReceiverStopStillRequired": true,
+    "oldProductionBootstrapStartsFinancialWriters": true,
+    "productionColdStartBlockedUntilEmbeddedWriterStopVerified": true
   }
 }
