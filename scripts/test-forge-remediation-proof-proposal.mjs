@@ -115,6 +115,41 @@ accept(seal(complete(), callerPair(complete())), 'complete run with a truthful c
 { const r = run(complete()); assert.ok(r.requiresParentDecision.some(item => /forge-suite/.test(item))); assert.ok(r.requiresParentDecision.some(item => /security review/.test(item))); assert.ok(r.requiresParentDecision.some(item => /structural check only/.test(item))); checks++; }
 assert.equal(expectedRegressionRows().length, 321); checks++;
 
+// GitHub clears Actions pull_requests after merge. The fallback still binds the
+// exact source commit through authenticated commit->PR and PR metadata reads.
+function mergedAssociation() {
+  const x = complete();
+  x.github.run.pull_requests = [];
+  const pr = { number: x.pins.pullRequest, state: 'closed', merged: true,
+    merge_commit_sha: 'a'.repeat(40),
+    head: { ref: x.pins.headBranch, sha: 'b'.repeat(40), repo: { full_name: TRUSTED_WORKFLOW.repository, id: TRUSTED_WORKFLOW.repositoryId } },
+    base: { ref: 'main', repo: { full_name: TRUSTED_WORKFLOW.repository, id: TRUSTED_WORKFLOW.repositoryId } } };
+  x.github.pullRequest = pr;
+  x.github.sourcePullRequests = [structuredClone(pr)];
+  return x;
+}
+accept(mergedAssociation(), 'merged run with empty mutable Actions PR list and exact authenticated source association');
+for (const [label, mutate] of [
+  ['missing PR read', x => { delete x.github.pullRequest; }],
+  ['missing source association', x => { x.github.sourcePullRequests = []; }],
+  ['another PR association', x => { x.github.sourcePullRequests[0].number++; }],
+  ['ambiguous source association', x => { x.github.sourcePullRequests.push(structuredClone(x.github.sourcePullRequests[0])); }],
+  ['wrong PR number', x => { x.github.pullRequest.number++; }],
+  ['unmerged PR', x => { x.github.pullRequest.merged = false; }],
+  ['open PR', x => { x.github.pullRequest.state = 'open'; }],
+  ['fork PR', x => { x.github.pullRequest.head.repo.full_name = 'fork/oxy'; }],
+  ['foreign repository ID', x => { x.github.pullRequest.head.repo.id++; }],
+  ['wrong branch', x => { x.github.pullRequest.head.ref = 'foreign'; }],
+  ['wrong base', x => { x.github.pullRequest.base.ref = 'other'; }],
+  ['foreign base repo', x => { x.github.pullRequest.base.repo.full_name = 'fork/oxy'; }],
+  ['malformed merged SHA', x => { x.github.pullRequest.merge_commit_sha = 'invalid'; }],
+  ['source association head mismatch', x => { x.github.sourcePullRequests[0].head.sha = 'c'.repeat(40); }],
+  ['source association branch mismatch', x => { x.github.sourcePullRequests[0].head.ref = 'foreign'; }],
+  ['source association merge mismatch', x => { x.github.sourcePullRequests[0].merge_commit_sha = 'c'.repeat(40); }],
+  ['nonempty unrelated Actions association', x => { x.github.run.pull_requests = [{ number: x.pins.pullRequest + 1 }]; }],
+  ['malformed Actions association list', x => { x.github.run.pull_requests = null; }],
+]) { const x = mergedAssociation(); mutate(x); refuse(x, /Workflow run identity differs/, label); }
+
 // ── 3. Coordinator acceptance regressions: BOTH caller manifest and test evidence changed coherently ─
 {
   const x = complete(); const pair = callerPair(x);

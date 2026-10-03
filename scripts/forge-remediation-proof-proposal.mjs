@@ -241,6 +241,25 @@ function checkGit(git, pins, fail) {
     || !same(hashes?.intentionalDanglingSharpLinks, ARM_PRUNED_LINKS) || !same(hashes?.pruningReceipt, ARM_PRUNING_RECEIPT)) fail('Committed candidate-hashes.json diverges from the reviewed baseline');
 }
 
+// Actions may erase run.pull_requests after merge. The live collector then
+// obtains BOTH the exact pinned commit's PR association and the merged PR.
+// An absent association or a caller-created object never authenticates facts.
+function candidatePullRequestBound(github, pins) {
+  const list = github?.run?.pull_requests;
+  if (!Array.isArray(list)) return false;
+  if (list.length) return list.some(pr => pr.number === pins.pullRequest);
+  const pr = github.pullRequest;
+  const repo = value => value?.full_name === TRUSTED_WORKFLOW.repository && value?.id === TRUSTED_WORKFLOW.repositoryId;
+  const matching = github.sourcePullRequests?.filter(value => value.number === pins.pullRequest);
+  const association = matching?.length === 1 ? matching[0] : null;
+  return pr?.number === pins.pullRequest && pr.state === 'closed' && pr.merged === true
+    && /^[a-f0-9]{40}$/.test(pr.merge_commit_sha ?? '') && /^[a-f0-9]{40}$/.test(pr.head?.sha ?? '')
+    && pr.head?.ref === pins.headBranch && repo(pr.head?.repo) && pr.base?.ref === 'main' && repo(pr.base?.repo)
+    && association?.head?.sha === pr.head.sha && association.head.ref === pr.head.ref && repo(association.head.repo)
+    && association.base?.ref === pr.base.ref && repo(association.base.repo)
+    && association.merge_commit_sha === pr.merge_commit_sha;
+}
+
 function checkGithub(github, git, pins, zip, now, fail) {
   if (!isObject(github)) return fail('Authenticated GitHub provenance unavailable');
   const { run, job, artifact, mergeCommit, blobsAtMerge, advisory } = github;
@@ -248,7 +267,7 @@ function checkGithub(github, git, pins, zip, now, fail) {
   if (run?.id !== pins.runId || run?.path !== W.path || run?.name !== W.name || run?.workflow_id !== W.workflowId || run?.event !== W.event
     || run?.head_sha !== pins.sourceSha || run?.head_branch !== pins.headBranch || run?.status !== 'completed' || run?.conclusion !== 'success'
     || run?.run_attempt !== pins.runAttempt || run?.repository?.full_name !== W.repository || run?.repository?.id !== W.repositoryId
-    || run?.head_repository?.full_name !== W.repository || !run?.pull_requests?.some(pr => pr.number === pins.pullRequest)) fail('Workflow run identity differs from the pinned run of the trusted workflow');
+    || run?.head_repository?.full_name !== W.repository || !candidatePullRequestBound(github, pins)) fail('Workflow run identity differs from the pinned run of the trusted workflow');
   if (job?.id !== pins.jobId || job?.run_id !== pins.runId || job?.run_attempt !== pins.runAttempt || job?.name !== W.job || job?.workflow_name !== W.name
     || job?.head_sha !== pins.sourceSha || job?.status !== 'completed' || job?.conclusion !== 'success' || !same(job?.labels, W.runnerLabels)) fail('Job identity/architecture differs from the trusted ARM job');
   if (!same(job?.steps?.map(step => step.name), W.steps) || job?.steps?.some(step => step.conclusion !== 'success')) fail('Job steps differ from the trusted workflow (mount-target check or whole-image root discovery missing, or a step did not succeed)');
@@ -515,6 +534,11 @@ export function collect(options = {}) {
     blobsAtMerge: Object.fromEntries(TRUSTED_WORKFLOW.executedPaths.map(path => [path, contents(path)])),
     advisory: api(`/advisories/${ADVISORY}`),
   };
+  if (Array.isArray(github.run.pull_requests) && github.run.pull_requests.length === 0) {
+    github.pullRequest = api(`${R}/pulls/${pins.pullRequest}`);
+    github.sourcePullRequests = api(`${R}/commits/${source}/pulls?per_page=100`);
+    if (!Array.isArray(github.sourcePullRequests) || github.sourcePullRequests.length >= 100) throw new Error('Pinned source PR associations unavailable or exceed bounded page');
+  }
   const artifactZip = api(`${R}/actions/artifacts/${pins.artifactId}/zip`, true);
   const collected = freeze({ audit, pins, git: facts, github, artifactZip, runtime, now: new Date().toISOString() });
   COLLECTED.add(collected);
