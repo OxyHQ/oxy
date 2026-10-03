@@ -11,6 +11,7 @@ import tempfile
 import importlib.util
 import shutil
 import time
+from diagnostics import failure_diagnostic, required_extensions
 
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMA = ROOT.parent / '1519-i05-foreground-capability-20261003'
@@ -70,7 +71,10 @@ def main():
                     os.killpg(task.pid,signal.SIGKILL);task.wait(timeout=10)
                 raise RuntimeError(f'{name} exceeded its bound; own process group stopped')
         raw=(owned/name).read_bytes(); receipt[name]={'exitCode':task.returncode,'sha256':hashlib.sha256(raw).hexdigest()};save()
-        if task.returncode: raise RuntimeError(f'{name} failed; inspect owned private log')
+        if task.returncode:
+            receipt[name]['diagnostic']=failure_diagnostic(raw);save()
+            print(json.dumps({'phase':name,'exitCode':task.returncode,'diagnostic':receipt[name]['diagnostic']}),flush=True)
+            raise RuntimeError(f'{name} failed; inspect owned private log')
     if image_mode:
         def interrupted(signum, _frame):
             signal.signal(signal.SIGTERM, signal.SIG_IGN);signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -89,6 +93,9 @@ def main():
         listener=[r.split() for r in Path('/proc/net/tcp').read_text().splitlines()[1:] if r.split()[1]==f'0100007F:{PORT:04X}' and r.split()[3]=='0A']
         assert len(listener)==1 and f'socket:[{listener[0][9]}]' in fds
         assert Path(sql("select current_setting('data_directory')")).resolve()==data.resolve()
+        extensions=json.loads(sql("SELECT coalesce(json_object_agg(name,default_version),'{}'::json)::text FROM pg_available_extensions WHERE name IN ('postgis','pg_trgm')"))
+        receipt['requiredExtensionAvailability']=extensions;save()
+        receipt['requiredExtensions']=required_extensions(extensions);save()
         database='oxy_rollback_'+secrets.token_hex(8);sql(f'CREATE DATABASE "{database}"')
         receipt.update(postgresPid=pg_pid,postgresData=str(data),database=database,port=PORT);save()
         redis_log=(owned/'redis.log').open('w');logs.append(redis_log)
