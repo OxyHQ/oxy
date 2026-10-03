@@ -88,6 +88,7 @@ import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 import { exchangeAuthCode } from '../../services/oauthCode.service';
 import { resolveServiceActingAsGrant } from '../../services/serviceActingAs.service';
 import authRouter from '../auth';
+import { USER_CONSENT_REQUIRED_SCOPES } from '../../utils/applicationScopes';
 
 interface JsonResponse {
   status: number;
@@ -428,11 +429,8 @@ describe('a revocation survives a first-party sign-in on either entry', () => {
   });
 
   it('finalize: a request that named NO scopes cannot undo it through the fallback set', async () => {
-    // An AuthSession that names no scopes is issued the application's whole
-    // registered set — here including `acting-as:offline`. Nobody was asked
-    // about that scope, so for this TRUSTED application it must neither record
-    // a consent-required grant nor clear the refusal, even though the code
-    // carries it. (A third party's fallback is #1521 decision 2, still open.)
+    // The approved fallback carries ordinary scopes only. Mandatory consent
+    // cannot be inferred from trust, and an earlier refusal stays in force.
     const app = await client(ACTING_APP);
     const userId = await account();
     await revoke(userId, app.applicationId);
@@ -443,7 +441,7 @@ describe('a revocation survives a first-party sign-in on either entry', () => {
     expect(await stateOf(userId, app.applicationId)).toEqual({
       grantScopes: null,
       revoked: true,
-      codeScopes: [['user:read', 'acting-as:offline']],
+      codeScopes: [['user:read']],
       actingAs: false,
     });
   });
@@ -738,9 +736,8 @@ describe('replay and concurrency', () => {
   });
 });
 
-// Characterization of the unresolved empty-scope policy, not policy approval.
-// A future decision must deliberately update these rows and its consent UI.
-describe('explicit and empty requests expose the remaining consent policy decision', () => {
+// Approved policy: trusted fallback is ordinary-only; third parties name scopes.
+describe('explicit consent and restricted empty-scope fallback', () => {
   it.each([
     ['first_party', false, false], ['first_party', false, true],
     ['first_party', true, false], ['first_party', true, true],
@@ -753,14 +750,65 @@ describe('explicit and empty requests expose the remaining consent policy decisi
       if (revoked) await revoke(userId, app.applicationId);
       const result = await finalizeWith(entry)(userId, app,
         explicit ? 'user:read acting-as:offline' : '');
-      expect(result.status).toBe(200);
+      const denied = type === 'third_party' && !explicit;
+      expect(result.status).toBe(denied ? 400 : 200);
       const state = await stateOf(userId, app.applicationId);
-      const codeScopes = explicit || entry === 'finalize' ? ['user:read', 'acting-as:offline'] : [];
-      expect(state.codeScopes).toEqual([codeScopes]);
+      const codeScopes = explicit ? ['user:read', 'acting-as:offline'] : ['user:read'];
+      expect(state.codeScopes).toEqual(denied ? [] : [codeScopes]);
       expect(state.revoked).toBe(revoked && !explicit);
-      expect(state.grantScopes).toEqual(type === 'third_party' || explicit ? codeScopes : null);
-      expect(state.actingAs).toBe(codeScopes.includes('acting-as:offline')
-        && (type === 'third_party' || explicit) && (!revoked || explicit));
+      expect(state.grantScopes).toEqual(explicit ? codeScopes : null);
+      expect(state.actingAs).toBe(explicit);
     }
+  });
+});
+
+
+describe('empty scopes cannot silently consent at any OAuth entry', () => {
+  it.each(['first_party', 'third_party'] as const)('consent screen: %s', async (type) => {
+    const app = await client({ type, scopes: ['user:read', ...USER_CONSENT_REQUIRED_SCOPES] });
+    const userId = await account();
+    const result = await getConsent(userId, app, '');
+    expect(result.status).toBe(type === 'third_party' ? 400 : 200);
+    if (type === 'third_party') expect(result.body.error).toBe('invalid_scope');
+    else expect(result.body.data).toEqual({ consentRequired: false, reason: 'trusted' });
+  });
+
+  it.each(ENTRIES)('%s: trusted fallback excludes ALL consent-required scopes', async (entry) => {
+    const app = await client({ type: 'first_party', scopes: ['user:read', ...USER_CONSENT_REQUIRED_SCOPES] });
+    const userId = await account();
+    const result = await finalizeWith(entry)(userId, app, '');
+    expect(result.status).toBe(200);
+    expect(await stateOf(userId, app.applicationId)).toEqual({
+      grantScopes: null, revoked: false, codeScopes: [['user:read']], actingAs: false,
+    });
+  });
+
+  it('rejects a third-party empty request before persisting an AuthSession', async () => {
+    const app = await client();
+    const { challenge } = pkce();
+    const result = await post('/auth/session/create', {
+      sessionToken: randomBytes(32).toString('hex'),
+      clientId: app.clientId,
+      oauth: { redirectUri: REDIRECT, codeChallenge: challenge, codeChallengeMethod: 'S256' },
+    });
+    expect(result.status).toBe(400);
+    expect(result.body.error).toBe('invalid_scope');
+    const rows = await getDb().select({ id: authSessions.id }).from(authSessions)
+      .where(eq(authSessions.applicationId, app.applicationId));
+    expect(rows).toEqual([]);
+  });
+});
+
+
+describe('explicit but unregistered scopes never become a fallback', () => {
+  it.each(ENTRIES)('%s', async (entry) => {
+    const app = await client({ type: 'first_party', scopes: ['user:read', 'acting-as:offline'] });
+    const userId = await account();
+    await revoke(userId, app.applicationId);
+    const result = await finalizeWith(entry)(userId, app, 'unknown:permission');
+    expect(result.status).toBe(200);
+    expect(await stateOf(userId, app.applicationId)).toEqual({
+      grantScopes: null, revoked: true, codeScopes: [[]], actingAs: false,
+    });
   });
 });
