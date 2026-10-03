@@ -1,0 +1,20 @@
+{
+  "rootReceipt": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/candidate621-observation.json",
+    "sha256": "d9f0faf8644972422a0f63ee0dfa2655b282007893006ad0306f9cf9d77ae0d9",
+    "bytes": 4229
+  },
+  "sourceCandidate": "0ae3e3155; Bloom8572e8a4",
+  "observed": {
+    "BackVeto": "PASS dialog remains visible",
+    "explicitX": "PASS closed1",
+    "reopen": "PASS step0",
+    "nativeAndBloomPressCounters": "1/1",
+    "paintAfterGrow": "FAIL lower content unpainted; reproduced with morph:false"
+  },
+  "limits": [
+    "First default fill correction is insufficient to update resized SVG geometry.",
+    "No publication or complete native acceptance.",
+    "No evidence that paint defect causes the earlier auth-dialog touch observation."
+  ]
+}
