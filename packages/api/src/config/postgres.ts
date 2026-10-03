@@ -15,6 +15,7 @@ import { logger } from '../utils/logger';
 import { ConfigurationError, getEnvNumber } from './env';
 import { DATABASE_CASING } from '@oxy.so/db';
 import * as schema from '../db/schema';
+import { assertPersistedBillingNamespace, readPersistedBillingNamespace } from './billingNamespace';
 
 /**
  * Connection-pool defaults, overridable per deployment. Sized well below the
@@ -54,6 +55,7 @@ export type DatabaseOrTransaction = Database | Transaction;
 
 let db: Database | null = null;
 let client: postgres.Sql | null = null;
+let billingDeclaration: string | null = null;
 
 /**
  * Open the connection pool. Call once during startup, before serving traffic.
@@ -65,7 +67,7 @@ let client: postgres.Sql | null = null;
  *   misconfiguration; fail fast and loudly rather than degrade.
  */
 export async function connectPostgres(): Promise<Database> {
-  if (db) return db;
+  if (db) { assertPersistedBillingNamespace(billingDeclaration); return db; }
 
   const url = process.env.DATABASE_URL;
   if (!url) {
@@ -95,14 +97,23 @@ export async function connectPostgres(): Promise<Database> {
     throw error;
   }
 
+  const candidate = drizzle(instanceClient, { schema, casing: DATABASE_CASING });
+  try {
+    billingDeclaration = await readPersistedBillingNamespace(candidate);
+    assertPersistedBillingNamespace(billingDeclaration);
+  } catch (error) {
+    await instanceClient.end({ timeout: CLOSE_TIMEOUT_SECONDS });
+    throw error;
+  }
   client = instanceClient;
   // Drizzle applies `casing` at RUNTIME when building SQL, drizzle-kit applies
   // it at GENERATE time when emitting DDL. They must agree or queries reference
   // columns the migrations never created — so both read the SAME constant, and
   // `@oxy.so/db` owns it.
-  db = drizzle(instanceClient, { schema, casing: DATABASE_CASING });
+  db = candidate;
 
   logger.info('Connected to PostgreSQL successfully', { maxPoolSize });
+  assertPersistedBillingNamespace(billingDeclaration);
   return db;
 }
 
@@ -120,6 +131,7 @@ export function getDb(): Database {
       'before issuing queries.'
     );
   }
+  assertPersistedBillingNamespace(billingDeclaration);
   return db;
 }
 

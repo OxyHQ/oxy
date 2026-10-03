@@ -1,3 +1,4 @@
+import { billingNamespaceSchema } from '../config/billingNamespace';
 /** Backend configuration only: explicit versioned catalogue, never guessed from plan names. */
 import { readFile } from "node:fs/promises";
 import {
@@ -7,7 +8,7 @@ import {
 } from "@oxy.so/contracts";
 import type Stripe from "stripe";
 import { z } from "zod";
-import { getStripe } from "../utils/stripeClient";
+import { getBillingStripe } from "../utils/billingStripe";
 import type { ProductProviderPeriodInput } from "./productProviderEvidence.service";
 import {
 	allInvoiceLines,
@@ -20,8 +21,8 @@ const priceSchema = z
 	.object({
 		priceId: id,
 		providerAccountId: z.string().regex(/^acct_[a-zA-Z0-9_]+$/),
-		mode: z.literal("live"),
-		environment: z.literal("production"),
+		mode: z.enum(["live", "test"]),
+		environment: z.enum(["production", "test", "staging", "development"]),
 		offerId: id,
 		offerVersion: z.number().int().positive().safe(),
 		validFrom: z.string().datetime(),
@@ -32,7 +33,9 @@ const priceSchema = z
 		offerKind: z.enum(["individual", "bundle"]),
 		kind: z.enum(["existing_product", "oxy_one"]),
 	})
-	.strict();
+	.strict().superRefine((value, context) => {
+    if (!billingNamespaceSchema.safeParse({ mode: value.mode, environment: value.environment }).success) context.addIssue({ code: "custom", message: "Provider price namespace is incoherent" });
+  });
 export const productBillingCatalogueSchema = z
 	.object({
 		schemaVersion: z.literal(1),
@@ -45,6 +48,7 @@ export const productBillingCatalogueSchema = z
 			z
 				.object({
 					providerSubscriptionId: id,
+          mode: z.enum(["live", "test"]), environment: z.enum(["production", "test", "staging", "development"]),
 					providerAccountId: id,
 					payerAccountId: productSubscriptionSourceSchema.shape.payerAccountId,
 					beneficiaryAccountId:
@@ -75,6 +79,7 @@ export const productBillingCatalogueSchema = z
 				(other) =>
 					other !== binding &&
 					other.providerAccountId === binding.providerAccountId &&
+          other.mode === binding.mode && other.environment === binding.environment &&
 					other.priceId === binding.priceId,
 			);
 			const start = Date.parse(binding.validFrom);
@@ -142,13 +147,14 @@ export const productBillingCatalogueSchema = z
 		}
 		const assignments = new Set<string>();
 		for (const subscription of value.subscriptions) {
-			const key = `${subscription.providerAccountId}:${subscription.providerSubscriptionId}`;
+			const key = `${subscription.providerAccountId}:${subscription.mode}:${subscription.environment}:${subscription.providerSubscriptionId}`;
 			if (assignments.has(key))
 				context.addIssue({
 					code: "custom",
 					message: "Ambiguous subscription beneficiary mapping",
 				});
-			assignments.add(key);
+			if (!billingNamespaceSchema.safeParse({ mode: subscription.mode, environment: subscription.environment }).success) context.addIssue({ code: "custom", message: "Subscription mapping namespace is incoherent" });
+      assignments.add(key);
 		}
 	});
 export type ProductBillingCatalogue = z.infer<
@@ -244,7 +250,7 @@ export async function prepareStripeProductPeriod(
 		])
 	)
 		throw new Error("Configured product provider binding differs");
-	const price = await getStripe().prices.retrieve(binding.priceId);
+	const price = await (await getBillingStripe()).prices.retrieve(binding.priceId);
 	if (
 		price.id !== binding.priceId ||
 		price.livemode !== invoice.livemode ||
@@ -260,7 +266,7 @@ export async function prepareStripeProductPeriod(
 	)
 		throw new Error("Product price, quantity, currency or paid period differs");
 	const observed = new Date();
-	const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
+	const subscription = await (await getBillingStripe()).subscriptions.retrieve(subscriptionId);
 	if (
 		subscription.id !== subscriptionId ||
 		subscription.livemode !== invoice.livemode ||
@@ -272,7 +278,7 @@ export async function prepareStripeProductPeriod(
 	const item = subscription.items.data[0];
 	const assigned = catalogue.subscriptions.find(
 		(value) =>
-			value.providerAccountId === binding.providerAccountId &&
+			value.providerAccountId === binding.providerAccountId && value.mode === binding.mode && value.environment === binding.environment &&
 			value.providerSubscriptionId === subscriptionId,
 	);
 	if (assigned && assigned.payerAccountId !== payerAccountId)
