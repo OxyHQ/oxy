@@ -92,6 +92,28 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm --network none --read-only --cap-drop ALL             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m             --tmpfs /tmp:rw,noexec,nosuid,size=32m             --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly"             --mount "type=bind,src=$PWD/docs/security/forge-candidate,dst=/proof/hashes,readonly"             --mount "type=bind,src=$PWD/patches,dst=/proof/patches,readonly"             --entrypoint node "oxy-forge-candidate:$SOURCE_SHA"             /proof/scripts/forge-candidate-image-proof.mjs /app             /proof/hashes/candidate-hashes.json /proof/scripts/forge-candidate-regression.cjs             /proof/patches/node-forge@1.4.0.patch             > "$RUNNER_TEMP/forge-image-regression-proof.json"
+      - name: Validate the auth-only archive binding fixtures
+        if: github.head_ref == 'review/1519-old-auth-only-20261003'
+        run: python3 -B scripts/rehearsal/old-auth-only/test-archive-proof.py
+      - name: Retain the exact scanned auth-only ARM image without rebuilding
+        if: github.head_ref == 'review/1519-old-auth-only-20261003'
+        run: |
+          set -euo pipefail
+          IMAGE_ID="$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Id}}')"
+          docker image inspect "$IMAGE_ID" --format '{{json .}}' > "$RUNNER_TEMP/auth-only-image-inspection.private.json"
+          docker image save --output "$RUNNER_TEMP/auth-only-image.tar" "$IMAGE_ID"
+          python3 -B scripts/rehearsal/old-auth-only/archive-proof.py \
+            "$RUNNER_TEMP/auth-only-image.tar" "$RUNNER_TEMP/auth-only-image-inspection.private.json" \
+            "$SOURCE_SHA" "$GITHUB_RUN_ID" > "$RUNNER_TEMP/auth-only-archive-proof.json"
+      - uses: actions/upload-artifact@v7
+        if: success() && github.head_ref == 'review/1519-old-auth-only-20261003'
+        with:
+          name: auth-only-arm-image-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/auth-only-image.tar
+            ${{ runner.temp }}/auth-only-archive-proof.json
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/upload-artifact@v7
         if: always()
         with:
