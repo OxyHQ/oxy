@@ -1,4 +1,4 @@
-import { and, desc, asc, eq, gt, gte, isNull, ne } from 'drizzle-orm';
+import { and, desc, asc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
@@ -1083,7 +1083,10 @@ class SessionService {
    * @param sessionId - The session ID to deactivate
    * @returns true if session was deactivated, false otherwise
    */
-  async deactivateSession(sessionId: string): Promise<boolean> {
+  async deactivateSession(sessionId: string, options?: { expectedXmin: string }): Promise<boolean> {
+    if (options && !/^[0-9]+$/.test(options.expectedXmin)) {
+      throw new Error('SESSION_DEACTIVATION_CAS_INVALID');
+    }
     try {
       // `deactivate` never DELETES — only the expiry sweep removes a row, which
       // is what keeps every `session_id` reference from another table
@@ -1091,8 +1094,13 @@ class SessionService {
       const deactivated = await getDb()
         .update(sessions)
         .set({ isActive: false })
-        .where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true)))
+        .where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true),
+          ...(options ? [sql`xmin::text = ${options.expectedXmin}`] : [])))
         .returning({ id: sessions.id });
+
+      if (options && deactivated.length !== 1) {
+        throw new Error('SESSION_DEACTIVATION_CAS_MISMATCH');
+      }
 
       // Invalidate cache
       sessionCache.invalidate(sessionId);
@@ -1106,6 +1114,9 @@ class SessionService {
         method: 'deactivateSession',
         sessionId,
       });
+      // Administrative CAS must never confuse an unsuccessful write with retirement.
+      // Ordinary callers retain their existing non-throwing contract.
+      if (options) throw error;
       // Return false on error for graceful degradation - consistent with other non-critical operations
       return false;
     }
