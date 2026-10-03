@@ -247,7 +247,7 @@ interface BillingRequest extends AuthRequest {
 }
 
 type BillingPrincipal =
-  | { readonly kind: 'user'; readonly userId: string }
+  | { readonly kind: 'user'; readonly userId: string; readonly sessionId?: string }
   | { readonly kind: 'service'; readonly service: ServiceTokenPayload };
 
 /**
@@ -279,11 +279,11 @@ function principalOf(req: BillingRequest): BillingPrincipal {
   if (req.serviceApp !== undefined) {
     return { kind: 'service', service: req.serviceApp };
   }
-  const userId = req.user?.id;
+  const userId = req.oxyToken?.principalUserId ?? req.user?.id;
   if (typeof userId !== 'string' || userId.length === 0) {
     throw new UnauthorizedError('Authentication is required for this operation');
   }
-  return { kind: 'user', userId };
+  return { kind: 'user', userId, ...(req.sessionId ? { sessionId: req.sessionId } : {}) };
 }
 
 /**
@@ -332,7 +332,7 @@ async function authorizeAccount(
     return;
   }
 
-  const access = await resolveCallerAccountAccess(principal.userId, accountId);
+  const access = await resolveCallerAccountAccess(principal.userId, accountId, principal.sessionId);
   if (access.status === 'no-access') {
     // 404, not 403 — see the module header.
     throw new NotFoundError('No billing profile is available for that account');

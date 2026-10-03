@@ -92,6 +92,7 @@ it('P5: key revocation rejects an existing challenge and a previously warmed ses
   await expect(requestAgentChallenge(f.publicKey)).rejects.toMatchObject({ statusCode: 404 });
   await expect(verifyAgentChallenge(f.publicKey, proof(pending, f.privateKey), request)).rejects.toThrow();
   expect(await sessionService.validateSessionById(session.sessionId)).toBeNull();
+  expect(await sessionService.getAccessToken(session.sessionId)).toBeNull();
 });
 
 it('P13: archiving a bot prevents challenges and invalidates its session', async () => {

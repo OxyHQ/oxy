@@ -1,8 +1,9 @@
-# PROPUESTA — Autenticación autónoma de una cuenta bot como sí misma
+# Diseño aprobado y matriz — Autenticación autónoma de una cuenta bot como sí misma
 
 > **Estado: recomendaciones aprobadas; implementación I01 en curso.**
 > Autorización de Nate: [registro del 3 de octubre](../../architecture/1519-approved-completion-2026-10-03/authorization.txt).
-> El esquema 0137 está probado; runtime y aceptación completa siguen pendientes.
+> Runtime candidato y esquemas 0137/0139 implementados; revisión, composición y aceptación final pendientes.
+> La norma vigente es [ADR 0032](../../adr/0032-autonomous-account-agent-keys.md); el diseño histórico siguiente conserva sus alternativas, no requisitos adicionales.
 > El gobierno corresponde a responsables actuales owner/admin, que pueden ser
 > personas o bots autenticados; el creador no conserva derechos perpetuos.
 > Issue: [#1520](https://github.com/OxyHQ/oxy/issues/1520), padre [#1519](https://github.com/OxyHQ/oxy/issues/1519).
@@ -84,7 +85,7 @@ Reproducido con un test que fallaba (6/6 en rojo) contra Postgres real y el
 un bot o canal se rechaza antes de escribir nada. Test:
 `routes/__tests__/operatedApprovalKeepsOperator.test.ts` (8/8). Solo restringe.
 
-## 2. Diseño propuesto: clave de agente
+## 2. Diseño histórico propuesto: clave de agente
 
 ### Idea
 
@@ -315,8 +316,13 @@ se ata a `auth_method_id`, no a "sesión sin operador".
 
 ## 4. Pruebas contra suplantación y escalada
 
-Las marcadas **hoy** existen y pasan en #1530 sin habilitar nada. El resto son
-pruebas de aceptación de la implementación propuesta.
+T1–T11 son evidencia histórica de la base #1530. P1–P14 referencian las
+regresiones de la implementación candidata: rutas HTTP reales, firmas reales y
+Postgres efímero propio. Los nombres de archivo se encuentran en
+`packages/api/src/{routes,services}/__tests__`. No acreditan producción ni pagos
+reales. Las pruebas de dominio financiero son simuladas con sujetos obtenidos de
+sesiones creadas mediante challenge/firma/verify, y verifican permiso billing
+antes de operar el ledger. La composición de consent+epoch de I03 se prueba aparte.
 
 | # | Caso | Resultado esperado | Estado |
 |---|---|---|---|
@@ -331,22 +337,28 @@ pruebas de aceptación de la implementación propuesta.
 | T9 | Un bot de la org A intenta actuar en la org B | Denegado | **hoy** `botHasNoWayInOfItsOwn` |
 | T10 | Un bot crea otro bot | El hijo no hereda autoridad sobre la org ni sobre su creador; un `editor` no tiene `children:create` | **hoy** `botHasNoWayInOfItsOwn` |
 | T11 | Un bot sin operador no es propietario de sí mismo | `resolveEffectiveAccess(bot, bot)` → `null` | **hoy** (cambia con D3) |
-| P1 | Sesión con clave de agente | Actor = bot, `delegated:false`; el propietario no aparece | propuesta |
-| P2 | Sesión con clave de agente contra `/internal/*` o como service token | 401/403; sin scopes de app | propuesta |
-| P3 | Replay del challenge `agent_signin` | La segunda vez 401 (quema atómica); dos `verify` concurrentes → una sola sesión | propuesta |
-| P4 | Firma de `agent_key_enroll` o `rotate` usada como `agent_signin` | 401 (acción y audiencia en el mensaje) | propuesta |
-| P5 | Clave revocada | Challenge y verify → 401; sus sesiones se deniegan con lectura autoritativa en decisión y dentro del plazo normal aprobado por I03; el refresco → 401 | propuesta |
-| P6 | Alta de una clave pública ajena, sin prueba de posesión | 400 | propuesta |
-| P7 | Alta o recuperación sin reauth fresco, o sin `credentials:manage` | 401 / 403 | propuesta |
-| P8 | Alta de `agent_key` en una cuenta que no es bot | 403 | propuesta |
-| P9 | El bot, con su sesión, intenta quitar a su propietario, transferir la propiedad o desarchivarse | Según D2/D3 y la política de archivo que Nate apruebe: verificar la autoridad de gobierno explícita y su ausencia; no asumir permiso ni un 403 incondicional | pendiente de decisión |
-| P10 | El bot rota su clave sin persona | Correcto con firma de la vieja + prueba de la nueva; sin la vieja → 400 | propuesta |
-| P11 | Recibe fondos y paga con su sesión | Saldo y recibo del bot; el saldo del propietario no se mueve; sin aprobación del propietario | propuesta (simulado) |
-| P12 | Misma acción con mismo rol y plan, persona vs bot con clave | Mismo resultado y mismo tratamiento comercial | propuesta |
-| P13 | Bot archivado | Challenge → 404; sesiones muertas | propuesta |
-| P14 | La clave pública de un bot ya registrada en otro bot | 409 (única global) | propuesta |
+| P1 | Sesión con clave de agente | Sesión autónoma normal; actor bot, nunca propietario ni servicio | `agentKeyAuth.test.ts` P1/P2; `agentAutonomousFlow.test.ts` |
+| P2 | Sesión con clave de agente contra `/internal/*` o como service token | El service verifier y `/internal` real rechazan bearer de bot | `agentKeyAuth.test.ts` P1/P2; `agentAutonomousFlow.test.ts` P2 |
+| P3 | Replay del challenge `agent_signin` | Dos verificaciones concurrentes consumen una vez y crean una sesión | `agentKeyAuth.test.ts` P3 |
+| P4 | Firma de `agent_key_enroll` o `rotate` usada como `agent_signin` | Cambiar acción/cuenta/método/audiencia firmados deniega sin consumir | `agentKeyAuth.test.ts` P4, cuatro mutaciones |
+| P5 | Clave revocada | Clave revocada: challenge 404, verificación inválida y validación/refresco denegados | `agentKeyAuth.test.ts` P5; `agentAutonomousFlow.test.ts` OAuth/MCP |
+| P6 | Alta de una clave pública ajena, sin prueba de posesión | Alta sin prueba de posesión de la clave nueva: 400 | `agentKeyGovernance.test.ts` |
+| P7 | Alta o recuperación sin reauth fresco, o sin `credentials:manage` | Sin prueba fresca 401; sin gobierno vigente 403; persona con raíz admite reauth válido | `agentKeyGovernance.test.ts` |
+| P8 | Alta de `agent_key` en una cuenta que no es bot | Personal/organization/project/channel no admiten agent_key: 403 | `agentKeyGovernance.test.ts` P8, cuatro clases |
+| P9 | El bot, con su sesión, intenta quitar a su propietario, transferir la propiedad o desarchivarse | Operación propia no añade gobierno; admin conserva protección de owner; owner real conserva sus facultades | `agentKeyGovernance.test.ts` role/admin/governor; `agentKeyAuth.test.ts` archivo/fence |
+| P10 | El bot rota su clave sin persona | Rotación propia con vieja+nueva, retiro inmediato o solape; prueba fresca ausente 401 | `agentKeyGovernance.test.ts` rotation/retirement |
+| P11 | Recibe fondos y paga con su sesión | Recibir/pagar usa saldo y recibo del bot, no los del propietario | `botAccountParity.test.ts` SQL simulado, sesión autónoma real |
+| P12 | Misma acción con mismo rol y plan, persona vs bot con clave | Misma autoridad y tratamiento comercial; sin límite por kind | `botAccountParity.test.ts`; `commercialTreatmentIgnoresAccountKind.test.ts` |
+| P13 | Bot archivado | Archivado o closure fence: challenge 404 y sesión inválida | `agentKeyAuth.test.ts` P13 y closure |
+| P14 | La clave pública de un bot ya registrada en otro bot | Clave global duplicada 409; recuperación fallida revierte revocación y challenge | `agentKeyGovernance.test.ts` duplicate/recovery rollback |
 
-## 5. Lo que le falta a #1530 para cumplir #1520
+## 5. Inventario histórico de lo que faltaba a #1530
+
+Esta sección describe la base, no bloqueos de decisión vigentes. El candidato
+actual implementa ADR 0032; las pruebas P anteriores y el proof de entrega son
+la evidencia de revisión. Quedan composición con la transacción de consentimiento
+I03, CI del conjunto, publicación coordinada y rollout. No hay aprobación de
+Nate pendiente para D1–D7.
 
 Casilla a casilla de la ficha:
 

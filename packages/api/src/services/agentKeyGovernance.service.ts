@@ -16,7 +16,7 @@ import { authCodes } from '../db/schema/authCodes';
 import { securityActivities } from '../db/schema/securityActivities';
 import { effectivePermissionsForMember } from '../utils/accountRoles';
 import { ApiError } from '../utils/error';
-import { resolveEffectiveMembership } from './account.service';
+import accountService, { resolveEffectiveMembership } from './account.service';
 import { readLiveAgentKey } from './agentKeyAuthority.service';
 import { digestIdentityPayload } from './identityProof.service';
 import SignatureService from './signature.service';
@@ -82,9 +82,11 @@ async function operationContext(tx: Transaction, sessionId: string, targetId: st
   )).for('update').limit(1);
   if (!stillLive) throw invalid();
 
+  const retiringOwnKey = operation.operation === 'revoke' && actorId === targetId
+    && operation.methodId === governorMethodId;
   if (operation.operation === 'rotate') {
     if (actorId !== targetId || !governorMethodId) throw denied();
-  } else {
+  } else if (!retiringOwnKey) {
     const membership = await readMembership(tx, actorId, targetId);
     if (!membership || !['owner', 'admin'].includes(membership.row.role)
       || !effectivePermissionsForMember(membership.row).includes('credentials:manage')) throw denied();
@@ -206,4 +208,24 @@ export async function executeAgentKeyOperation(sessionId: string, targetId: stri
     });
     return { methodId: keyId, revokedMethodIds: revokedIds };
   });
+}
+
+
+/** A live autonomous self or a current credential governor may inspect public key metadata. */
+export async function listAgentKeys(sessionId: string, accountId: string) {
+  const session = await sessionService.validateSessionById(sessionId, true, { useCache: false });
+  if (!session) throw invalid();
+  const actorId = session.session.operatedByUserId ?? session.session.userId;
+  const access = await accountService.resolveEffectiveAccess(actorId, accountId, sessionId);
+  if (!access || !(access.source === 'self' || access.permissions.includes('credentials:manage'))) throw denied();
+  const [target] = await getDb().select({ kind: users.kind }).from(users).where(eq(users.id, accountId));
+  if (target?.kind !== 'bot') throw denied();
+  const keys = await getDb().select({ id: userAuthMethods.id, publicKey: userAuthMethods.methodPublicKey,
+    label: userAuthMethods.label, enrolledByUserId: userAuthMethods.enrolledByUserId,
+    enrollmentMethod: userAuthMethods.enrollmentMethod, linkedAt: userAuthMethods.linkedAt,
+    lastUsedAt: userAuthMethods.lastUsedAt, revokedAt: userAuthMethods.revokedAt,
+  }).from(userAuthMethods).where(and(eq(userAuthMethods.userId, accountId), eq(userAuthMethods.type, 'agent_key')))
+    .orderBy(asc(userAuthMethods.linkedAt), asc(userAuthMethods.id));
+  return { keys: keys.map((key) => ({ ...key, linkedAt: key.linkedAt.toISOString(),
+    lastUsedAt: key.lastUsedAt?.toISOString() ?? null, revokedAt: key.revokedAt?.toISOString() ?? null })) };
 }

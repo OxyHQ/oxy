@@ -159,7 +159,7 @@ const routingServiceWriteLimiter = rateLimit({
 
 /** Which of the two lanes a request arrived on. */
 type RoutingPolicyPrincipal =
-  | { readonly kind: 'user'; readonly userId: string }
+  | { readonly kind: 'user'; readonly userId: string; readonly sessionId?: string }
   | { readonly kind: 'service'; readonly service: ServiceTokenPayload };
 
 /** A request that has been through {@link routingPolicyPrincipal}. */
@@ -198,11 +198,11 @@ function principalOf(req: RoutingRequest): RoutingPolicyPrincipal {
   if (req.serviceApp !== undefined) {
     return { kind: 'service', service: req.serviceApp };
   }
-  const userId = req.user?.id;
+  const userId = req.oxyToken?.principalUserId ?? req.user?.id;
   if (typeof userId !== 'string' || userId.length === 0) {
     throw new UnauthorizedError('Authentication is required for this operation');
   }
-  return { kind: 'user', userId };
+  return { kind: 'user', userId, ...(req.sessionId ? { sessionId: req.sessionId } : {}) };
 }
 
 /**
@@ -246,7 +246,7 @@ async function authorizeApplication(
     return;
   }
 
-  const access = await resolveCallerApplicationAccess(principal.userId, applicationId);
+  const access = await resolveCallerApplicationAccess(principal.userId, applicationId, { sessionId: principal.sessionId });
   if (access.status === 'unknown-application') {
     throw new NotFoundError('No routing policy is available for that application');
   }
@@ -277,7 +277,7 @@ async function authorizeAccount(
     return;
   }
 
-  const access = await resolveCallerAccountAccess(principal.userId, accountId);
+  const access = await resolveCallerAccountAccess(principal.userId, accountId, principal.sessionId);
   if (access.status === 'no-access') {
     throw new NotFoundError('No routing policy is available for that account');
   }

@@ -764,7 +764,8 @@ router.post(
     // moving an account into it refused the organization's own owner.
     const destAccess = await accountService.resolveEffectiveAccess(
       requireOperatorId(req),
-      newParentId
+      newParentId,
+      req.sessionId
     );
     if (!destAccess || !destAccess.permissions.includes('children:create')) {
       throw new ForbiddenError('Missing permission to add children to the destination account');

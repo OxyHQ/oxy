@@ -25,6 +25,7 @@ import {
 } from '../db/schema/agency';
 import { users } from '../db/schema/users';
 import accountService from './account.service';
+import { readLiveAgentKey } from './agentKeyAuthority.service';
 import { activeCapabilityCatalog } from './capabilityCatalog.service';
 import { resolveLiveAgencyCoordinator } from './agencyServicePrincipal.service';
 import { AGENCY_COORDINATE_CAPABILITY } from '../utils/applicationCapabilities';
@@ -197,6 +198,15 @@ export async function evaluateCapabilityAuthority(
   }
   const authorization = await loadExecutionAuthorization(request, now);
   if (!authorization) return denied('execution_authorization_not_active');
+  if (authorization.requesterAuthMethodId && !await readLiveAgentKey({
+    authMethodId: authorization.requesterAuthMethodId, authMethodOwnerId: authorization.requesterAccountId,
+  })) return denied('requester_autonomous_credential_not_active');
+  const autonomousSelf = !!authorization.requesterAuthMethodId
+    && authorization.actorType === 'agent'
+    && authorization.actorAccountId === authorization.requesterAccountId
+    && authorization.ownerAccountId === authorization.requesterAccountId
+    && authorization.effectiveAccountId === authorization.requesterAccountId;
+
   let runId: string;
   let stepId: string | undefined;
   if (authorization.kind === 'automation') {
@@ -211,10 +221,10 @@ export async function evaluateCapabilityAuthority(
     runId = authorization.runId;
     stepId = authorization.stepId ?? undefined;
   }
-  if (!await requesterCanOperate(authorization.requesterAccountId, authorization.effectiveAccountId)) {
+  if (!autonomousSelf && !await requesterCanOperate(authorization.requesterAccountId, authorization.effectiveAccountId)) {
     return denied('requester_lacks_current_account_authority');
   }
-  if (!await requesterCanOperate(authorization.requesterAccountId, authorization.ownerAccountId)) {
+  if (!autonomousSelf && !await requesterCanOperate(authorization.requesterAccountId, authorization.ownerAccountId)) {
     return denied('requester_lacks_grant_owner_authority');
   }
 
@@ -250,7 +260,7 @@ export async function evaluateCapabilityAuthority(
     limits,
   );
   if (authorizationSensitiveLimitError) return denied(authorizationSensitiveLimitError);
-  if (actor.type === 'agent') {
+  if (actor.type === 'agent' && !autonomousSelf) {
     const [actorRow] = await getDb().select({ kind: users.kind, accountStatus: users.accountStatus })
       .from(users).where(eq(users.id, actor.accountId)).limit(1);
     if (!actorRow || actorRow.kind !== 'bot' || actorRow.accountStatus === 'archived') {

@@ -193,7 +193,7 @@ const providerValidationLimiter = rateLimit({
 /* -------------------------------------------------------------------------- */
 
 type ProviderPrincipal =
-  | { readonly kind: 'user'; readonly userId: string }
+  | { readonly kind: 'user'; readonly userId: string; readonly sessionId?: string }
   | { readonly kind: 'service'; readonly service: ServiceTokenPayload };
 
 interface ProviderRequest extends AuthRequest {
@@ -229,11 +229,11 @@ function principalOf(req: ProviderRequest): ProviderPrincipal {
   if (req.serviceApp !== undefined) {
     return { kind: 'service', service: req.serviceApp };
   }
-  const userId = req.user?.id;
+  const userId = req.oxyToken?.principalUserId ?? req.user?.id;
   if (typeof userId !== 'string' || userId.length === 0) {
     throw new UnauthorizedError('Authentication is required for this operation');
   }
-  return { kind: 'user', userId };
+  return { kind: 'user', userId, ...(req.sessionId ? { sessionId: req.sessionId } : {}) };
 }
 
 /**
@@ -348,7 +348,7 @@ async function authorizeAccount(
     return;
   }
 
-  const access = await resolveCallerAccountAccess(principal.userId, accountId);
+  const access = await resolveCallerAccountAccess(principal.userId, accountId, principal.sessionId);
   if (access.status === 'no-access') {
     throw new NotFoundError('No provider connection is available for that account');
   }
@@ -384,7 +384,7 @@ async function authorizeApplication(
     return;
   }
 
-  const access = await resolveCallerApplicationAccess(principal.userId, applicationId);
+  const access = await resolveCallerApplicationAccess(principal.userId, applicationId, { sessionId: principal.sessionId });
   if (access.status === 'unknown-application' || access.status === 'no-access') {
     // Same answer either way: distinguishing them would make this an existence
     // oracle for other accounts' applications.

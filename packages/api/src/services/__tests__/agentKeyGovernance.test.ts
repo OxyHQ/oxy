@@ -19,7 +19,7 @@ import sessionService from '../session.service';
 import accountService from '../account.service';
 import { storePassword } from '../password.service';
 import { requestAgentChallenge, verifyAgentChallenge } from '../agentKeyAuth.service';
-import { executeAgentKeyOperation, requestAgentKeyOperation } from '../agentKeyGovernance.service';
+import { executeAgentKeyOperation, requestAgentKeyOperation, listAgentKeys } from '../agentKeyGovernance.service';
 
 const request = { headers: { 'user-agent': 'governor-fixture' } } as Request;
 let counter = 500;
@@ -31,7 +31,7 @@ async function fixture(kind: 'personal' | 'bot' = 'personal') {
   const actorKey = keys();
   const [actor] = await getDb().insert(users).values({ kind, ...(kind === 'personal' ? { publicKey: actorKey.publicKey } : {}) }).returning({ id: users.id });
   const [target] = await getDb().insert(users).values({ kind: 'bot' }).returning({ id: users.id });
-  let session;
+  let session: Awaited<ReturnType<typeof sessionService.createSession>>;
   if (kind === 'bot') {
     const [key] = await getDb().insert(userAuthMethods).values({ userId: actor.id, type: 'agent_key', methodPublicKey: actorKey.publicKey, label: 'governor', enrollmentMethod: 'governor' }).returning({ id: userAuthMethods.id });
     session = await sessionService.createSession(actor.id, request, { authMethod: { authMethodId: key.id, authMethodOwnerId: actor.id }, stableDeviceKey: `fixture:${randomUUID()}` });
@@ -152,4 +152,58 @@ it('recovery revokes old key sessions and outstanding proofs atomically before e
   const [row] = await getDb().select({ used: authChallenges.used }).from(authChallenges).where(eq(authChallenges.challenge, pending.challenge));
   expect(row.used).toBe(true);
   await expect(requestAgentChallenge(next.publicKey)).resolves.toMatchObject({ accountId: f.target.id });
+});
+
+
+it('a bot may retire the key that signs its request, but cannot revoke another runtime key without governance', async () => {
+  const f = await fixture('bot'); const next = keys();
+  const rotate = { operation: 'rotate', publicKey: next.publicKey, label: 'overlap' } as const;
+  const result = await executeAgentKeyOperation(f.session.sessionId, f.actor.id, rotate,
+    await signedOperation(f.session.sessionId, f.actor.id, rotate, f.actorKey.privateKey, next.privateKey));
+  expect(await sessionService.validateSessionById(f.session.sessionId)).not.toBeNull();
+  await expect(requestAgentKeyOperation(f.session.sessionId, f.actor.id,
+    { operation: 'revoke', methodId: result.methodId ?? 'missing-created-key' })).rejects.toMatchObject({ statusCode: 403 });
+  const retire = { operation: 'revoke', methodId: f.session.authMethodId ?? 'missing-session-key' } as const;
+  await executeAgentKeyOperation(f.session.sessionId, f.actor.id, retire,
+    await signedOperation(f.session.sessionId, f.actor.id, retire, f.actorKey.privateKey));
+  expect(await sessionService.validateSessionById(f.session.sessionId)).toBeNull();
+  await expect(requestAgentChallenge(next.publicKey)).resolves.toMatchObject({ accountId: f.actor.id });
+});
+
+
+it.each(['personal', 'organization', 'project', 'channel'] as const)('P8: agent credentials cannot be enrolled on %s', async (kind) => {
+  const f = await fixture(); const next = keys();
+  await getDb().update(users).set({ kind }).where(eq(users.id, f.target.id));
+  await expect(requestAgentKeyOperation(f.session.sessionId, f.target.id,
+    { operation: 'enroll', publicKey: next.publicKey, label: 'wrong-kind' })).rejects.toMatchObject({ statusCode: 403 });
+});
+
+it('P14: a key already bound to another bot cannot be enrolled again, and failed recovery rolls back revocation', async () => {
+  const f = await fixture(); const other = await fixture(); const shared = keys(); const existing = keys();
+  const enroll = { operation: 'enroll', publicKey: shared.publicKey, label: 'shared' } as const;
+  await executeAgentKeyOperation(f.session.sessionId, f.target.id, enroll,
+    await signedOperation(f.session.sessionId, f.target.id, enroll, f.actorKey.privateKey, shared.privateKey));
+  const old = { operation: 'enroll', publicKey: existing.publicKey, label: 'old' } as const;
+  const original = await executeAgentKeyOperation(other.session.sessionId, other.target.id, old,
+    await signedOperation(other.session.sessionId, other.target.id, old, other.actorKey.privateKey, existing.privateKey));
+  const recovery = { operation: 'recover', publicKey: shared.publicKey, label: 'collision' } as const;
+  await expect(executeAgentKeyOperation(other.session.sessionId, other.target.id, recovery,
+    await signedOperation(other.session.sessionId, other.target.id, recovery, other.actorKey.privateKey, shared.privateKey)))
+    .rejects.toMatchObject({ statusCode: 409 });
+  const [retained] = await getDb().select({ revokedAt: userAuthMethods.revokedAt }).from(userAuthMethods).where(eq(userAuthMethods.id, original.methodId ?? 'missing-original-key'));
+  expect(retained.revokedAt).toBeNull();
+});
+
+
+it('public key inventory follows current governance and contains no session or proof fields', async () => {
+  const f = await fixture(); const runtime = keys();
+  const operation: AgentKeyOperation = { operation: 'enroll', publicKey: runtime.publicKey, label: 'inventory' };
+  const proof = await signedOperation(f.session.sessionId, f.target.id, operation, f.actorKey.privateKey, runtime.privateKey);
+  await executeAgentKeyOperation(f.session.sessionId, f.target.id, operation, proof);
+  const inventory = await listAgentKeys(f.session.sessionId, f.target.id);
+  expect(inventory.keys).toHaveLength(1);
+  expect(Object.keys(inventory.keys[0]).sort()).toEqual(['id', 'publicKey', 'label', 'enrolledByUserId', 'enrollmentMethod', 'linkedAt', 'lastUsedAt', 'revokedAt'].sort());
+  expect(inventory.keys[0].publicKey).toBe(runtime.publicKey);
+  await getDb().delete(accountMembers).where(eq(accountMembers.accountId, f.target.id));
+  await expect(listAgentKeys(f.session.sessionId, f.target.id)).rejects.toMatchObject({ statusCode: 403 });
 });

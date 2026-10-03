@@ -12,8 +12,8 @@ out. This page exists so there is one place that is answerable for being right.
 ## The model in five nouns
 
 An **identity** is a cryptographic human identity controlled by its owner's root key, held in Commons ([ADR 0024](../adr/0024-one-oxy-account-root-holders.md)); an account without a key has no identity root and signs in by email ([ADR 0030](../adr/0030-email-code-password-authenticator.md)).
-A **principal** is a human who has authenticated onto one device or browser
-profile. An **account** is the subject an application acts as. A **device
+A **principal** is a personal account or autonomous bot authenticated onto a
+device or browser profile ([ADR 0032](../adr/0032-autonomous-account-agent-keys.md)). An **account** is the subject an application acts as. A **device
 session** is the server's record of one device, its principals, and their
 contexts. A **device account context** is one principal acting as one account —
 the globally switchable unit, and the thing `contextId` names.

@@ -209,3 +209,6 @@ export { observeNodeHttp, withoutNodeHttpObservation } from './trafficNodeHttp';
  */
 export { canAttestWorkloadIdentity, requestWorkloadServiceToken } from './workloadIdentity';
 export type { WorkloadServiceToken, WorkloadServiceTokenOptions } from './workloadIdentity';
+
+export { signInAgentAccount } from './agentAccount';
+export type { AgentAccountSigner } from './agentAccount';

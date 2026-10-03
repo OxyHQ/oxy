@@ -14,15 +14,18 @@ import express from 'express';
 import request from 'supertest';
 
 let principalUserId = '';
+let approvingSessionId = '';
+import { sessions } from '../../db/schema/sessions';
 let serviceApplicationId = '';
 let serviceCredentialId = '';
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { oxyToken?: Record<string, unknown> },
+    req: { oxyToken?: Record<string, unknown>; sessionId?: string },
     _res: unknown,
     next: () => void,
   ) => {
+    req.sessionId = approvingSessionId;
     req.oxyToken = {
       principalUserId,
       subjectAccountId: principalUserId,
@@ -83,6 +86,9 @@ async function fixture(): Promise<{
     color: 'teal',
   }).returning({ id: users.id });
   principalUserId = owner.id;
+  approvingSessionId = randomUUID();
+  await getDb().insert(sessions).values({ sessionId: approvingSessionId, userId: owner.id,
+    deviceId: randomUUID(), deviceType: 'web', platform: 'web', accessToken: randomUUID(), refreshToken: randomUUID(), expiresAt: new Date(Date.now() + 3_600_000) });
   const appSlug = `mcp-route-${randomUUID()}`;
   const resource = `https://${appSlug}.example.test`;
   const resourceAppName = `MCP route resource ${randomUUID()}`;
