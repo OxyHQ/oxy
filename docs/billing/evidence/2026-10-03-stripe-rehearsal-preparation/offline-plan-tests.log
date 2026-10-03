@@ -1,0 +1,11 @@
+test_changed_source_or_head_refused (__main__.FrozenPlanTests.test_changed_source_or_head_refused) ... ok
+test_credential_environment_is_not_forwarded (__main__.FrozenPlanTests.test_credential_environment_is_not_forwarded) ... ok
+test_exact_reviewed_plan (__main__.FrozenPlanTests.test_exact_reviewed_plan) ... ok
+test_expired_plan_refused (__main__.FrozenPlanTests.test_expired_plan_refused) ... ok
+test_foreign_inputs_and_reused_nonce_shape_refused (__main__.FrozenPlanTests.test_foreign_inputs_and_reused_nonce_shape_refused) ... ok
+test_namespace_account_and_budget_changes_refused (__main__.FrozenPlanTests.test_namespace_account_and_budget_changes_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.451s
+
+OK
