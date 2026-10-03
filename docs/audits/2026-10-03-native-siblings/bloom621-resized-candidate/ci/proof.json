@@ -1,0 +1,38 @@
+{
+  "head": "2e5a5d9e85b38f7aac177225bd9a03c399585c55",
+  "maintenanceMerge": "a35ef1b2f7daeeb5f13e7a77e648289cac6be20d",
+  "tree": "425a497f353e62712ef471d94ac2f9def1fb755c",
+  "ciRun": 37120459494,
+  "ciUrl": "https://github.com/OxyHQ/Bloom/actions/runs/37120459494",
+  "sourceSuiteUnionExact": true,
+  "suites": 490,
+  "testsPassed": 11007,
+  "testsFailed": 0,
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/bloom621-resized-candidate/ci/ci-final.json",
+      "sha256": "1381ab01f68289d06731b4864929d478eb0255814e8abe15096466313538f644"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/bloom621-resized-candidate/ci/ci-final-summary.json",
+      "sha256": "3b875de48bde9fc41a7813ccbd7320174aac2ab6c79daeb24693588ac33fbb86"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/bloom621-resized-candidate/ci/ci-union.json",
+      "sha256": "80bbe577f6e21fe9a5514f8a2f6aa4af98d1672542f5fa5138651424cf5749eb"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/bloom621-resized-candidate/ci/suite-census.json",
+      "sha256": "16c05e5fc1a1c59edf8bc90f68375e245216eca7a4a3e7b1d03f822eeb5c2c17"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/bloom621-resized-candidate/ci/suite-census.log",
+      "sha256": "59e0575a5f9564956a435027aa26608f8a6d1f269564f8e63cd0aec3aa014a7d"
+    }
+  ],
+  "privateAuthenticatedArchive": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-bloom-621-ci-final.zip",
+    "sha256": "7d532c5ee60e90d0b5a42f8ab39a5208153d236ed1ed3de0360e69bf7eb96b35"
+  },
+  "publication": "Root reported fresh publish exit0; registry readback still pending. No republish."
+}

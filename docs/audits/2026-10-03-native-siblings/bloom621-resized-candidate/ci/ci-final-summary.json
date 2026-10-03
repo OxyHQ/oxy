@@ -1,0 +1,83 @@
+[
+  {
+    "file": "Tests (5_9)/6_Run node --no-opt node_modules_jest_bin_jest.js --watchman=false --maxWorkers=2 --shard=5_9.txt",
+    "summary": [
+      "2026-10-03T11:47:26.2174738Z Test Suites: 54 passed, 54 total",
+      "2026-10-03T11:47:26.2175691Z Tests:       833 passed, 833 total",
+      "2026-10-03T11:47:26.2176257Z Snapshots:   0 total"
+    ],
+    "sha256": "0a530152c990a8d9e4fe779568e4529b95e0e2acfe4a806b9c51fdceb71438e8"
+  },
+  {
+    "file": "Tests (8_9)/6_Run node --no-opt node_modules_jest_bin_jest.js --watchman=false --maxWorkers=2 --shard=8_9.txt",
+    "summary": [
+      "2026-10-03T11:45:02.3179676Z Test Suites: 54 passed, 54 total",
+      "2026-10-03T11:45:02.3180277Z Tests:       803 passed, 803 total",
+      "2026-10-03T11:45:02.3180590Z Snapshots:   0 total"
+    ],
+    "sha256": "7228d3f0ec40aad314b7eb0b07489f0c016f852a4a020660eb81eb01d365ad41"
+  },
+  {
+    "file": "Tests (4_9)/6_Run node --no-opt node_modules_jest_bin_jest.js --watchman=false --maxWorkers=2 --shard=4_9.txt",
+    "summary": [
+      "2026-10-03T11:47:50.0954695Z Test Suites: 55 passed, 55 total",
+      "2026-10-03T11:47:50.0955388Z Tests:       721 passed, 721 total",
+      "2026-10-03T11:47:50.0955938Z Snapshots:   0 total"
+    ],
+    "sha256": "f0131e67a11181697b68ef4cef8c149c9696e8588e35b94337606db58f7cfb1f"
+  },
+  {
+    "file": "Tests (7_9)/6_Run node --no-opt node_modules_jest_bin_jest.js --watchman=false --maxWorkers=2 --shard=7_9.txt",
+    "summary": [
+      "2026-10-03T11:43:49.3617877Z Test Suites: 54 passed, 54 total",
+      "2026-10-03T11:43:49.3618266Z Tests:       897 passed, 897 total",
+      "2026-10-03T11:43:49.3618519Z Snapshots:   0 total"
+    ],
+    "sha256": "79cf2f237922fe6092fb4fb7314408060c14df84128df37c80f49d3ab82f0f46"
+  },
+  {
+    "file": "Tests (3_9)/6_Run node --no-opt node_modules_jest_bin_jest.js --watchman=false --maxWorkers=2 --shard=3_9.txt",
+    "summary": [
+      "2026-10-03T11:46:55.0749815Z Test Suites: 55 passed, 55 total",
+      "2026-10-03T11:46:55.0750418Z Tests:       4237 passed, 4237 total",
+      "2026-10-03T11:46:55.0750808Z Snapshots:   0 total"
+    ],
+    "sha256": "7c126659b6af63970408e24acc3ca5944c5a3806f2a1f1b7092367ee04b23ed4"
+  },
+  {
+    "file": "Tests (1_9)/6_Run node --no-opt node_modules_jest_bin_jest.js --watchman=false --maxWorkers=2 --shard=1_9.txt",
+    "summary": [
+      "2026-10-03T11:43:42.8087474Z Test Suites: 55 passed, 55 total",
+      "2026-10-03T11:43:42.8087871Z Tests:       830 passed, 830 total",
+      "2026-10-03T11:43:42.8088130Z Snapshots:   0 total"
+    ],
+    "sha256": "0758a25b2a68542bf0e689dfc444b30a887da0c894146b8f97240174cff47f14"
+  },
+  {
+    "file": "Tests (2_9)/6_Run node --no-opt node_modules_jest_bin_jest.js --watchman=false --maxWorkers=2 --shard=2_9.txt",
+    "summary": [
+      "2026-10-03T11:47:41.5552586Z Test Suites: 55 passed, 55 total",
+      "2026-10-03T11:47:41.5553404Z Tests:       1184 passed, 1184 total",
+      "2026-10-03T11:47:41.5554410Z Snapshots:   1 passed, 1 total"
+    ],
+    "sha256": "e2d27d5912e6595ad005a2ae7a6c635525804ac404f27ffb967968aac3b5459b"
+  },
+  {
+    "file": "Tests (9_9)/6_Run node --no-opt node_modules_jest_bin_jest.js --watchman=false --maxWorkers=2 --shard=9_9.txt",
+    "summary": [
+      "2026-10-03T11:44:22.5609049Z Test Suites: 54 passed, 54 total",
+      "2026-10-03T11:44:22.5609683Z Tests:       701 passed, 701 total",
+      "2026-10-03T11:44:22.5610482Z Snapshots:   0 total"
+    ],
+    "sha256": "2b42b366b607f0eb4446e30114dc8934246d5b14eccb6131f79b67bef9b4bdc0"
+  },
+  {
+    "file": "Tests (6_9)/6_Run node --no-opt node_modules_jest_bin_jest.js --watchman=false --maxWorkers=2 --shard=6_9.txt",
+    "summary": [
+      "2026-10-03T11:45:50.8990404Z Test Suites: 54 passed, 54 total",
+      "2026-10-03T11:45:50.8991138Z Tests:       801 passed, 801 total",
+      "2026-10-03T11:45:50.8991771Z Snapshots:   0 total"
+    ],
+    "sha256": "9a5e340e0c062c6f22edf83f04164c9032013dfa054bb1bbf2c2265016c07efb"
+  }
+]

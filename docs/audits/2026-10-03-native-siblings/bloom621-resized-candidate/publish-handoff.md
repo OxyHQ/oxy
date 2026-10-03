@@ -39,3 +39,9 @@ After publication, independently read registry version metadata and dist-tags; r
 ## Sibling preparation after registry
 
 Owned Mention/Allo worktrees remain frozen on SDK1e719. Exact `/tmp/i04-native-resume.patch` from commit6cacee275 applies cleanly to both (read-only apply checks done). After registry availability, install published Bloom6.2.1, apply only that reviewed OxyContext delta, rebuild workspace services as needed and freeze source/bundles/installed-byte proofs. Root alone operates ADB; no reinstall/clear/uninstall or key changes are required for JS-only updates. Final complete Oxy registry repeat follows coverage's final release pin; do not substitute nominal candidate versions.
+
+## Completed CI and publication reconciliation
+
+Final CI37120459494 succeeded on exact2e5a5d9e: build/package/types and all nine shards, 490 unique suites / 11007 tests passed, zero failures. The authenticated shard union equals the source `test --listTests` census; records and hashes are in [ci/proof.json](ci/proof.json). Root merged maintenance6.2 to a35ef1b2f7daeeb5f13e7a77e648289cac6be20d with the expected tree. Main7 forward-port PR258 was also merged to fb52fa49007f6325a1d802683417d67b1546940b; no7.x publication.
+
+Root reported a successful fresh build/pack/publish command for6.2.1, while initial registry reads still returned404. Availability is not yet claimed by this record. Do not retry publication after that ACK. npm documents a publish-time scan before installation becomes available, typically about five minutes and sometimes15minutes or longer depending on size/load; those are estimates, not guarantees. This general mechanism does not prove the status of this specific version. Reconcile exact metadata/tarball integrity and tags before consumer installation. [Official npm announcement](https://github.blog/changelog/2026-07-28-npm-publish-time-malware-scanning-and-dual-use-metadata/).
