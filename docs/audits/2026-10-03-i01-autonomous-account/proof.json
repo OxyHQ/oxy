@@ -1,0 +1,538 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "14422e3798aa5c46283f1880fd03418ab387b0a2",
+  "runtimeHead": "780bef073a6a8f51f80ad5dd83e954934b1f02d4",
+  "base": "ad0681f837b76dac46bb2a24cef0ff1aaf59f968",
+  "date": "2026-10-03",
+  "sources": [
+    {
+      "path": "docs/adr/0032-autonomous-account-agent-keys.md",
+      "sha256": "651e32839989bc1f226ccb5226d96a876a4f7360f7f6b3d25d1ed6bb2eec0833",
+      "bytes": 6185
+    },
+    {
+      "path": "docs/auth/index.md",
+      "sha256": "dd7014a4caefaaefcc0510b7145af99875c99baa1803791307b302cf0c0b9dc6",
+      "bytes": 7279
+    },
+    {
+      "path": "docs/auth/principals-and-account-contexts.md",
+      "sha256": "6fd19a37d8161e5b0d4193ea33402c8bde0516e6396f2e1e024148644a7deab7",
+      "bytes": 6748
+    },
+    {
+      "path": "docs/auth/proposals/bot-autonomous-auth.md",
+      "sha256": "50e7ad33a34a0a5e1a5ce567e8eefbe93b8a721f7781c7db0cf3ac2420d526e7",
+      "bytes": 29876
+    },
+    {
+      "path": "packages/api/drizzle/0139_condemned_cloak.sql",
+      "sha256": "46a03fc4fa91fc5e7015a6a9a8444748aa00aba17fd95c6f19e56722a473c161",
+      "bytes": 1942
+    },
+    {
+      "path": "packages/api/drizzle/meta/0139_snapshot.json",
+      "sha256": "19bb7b207d12a50632c1832b5654251c5e215993c40390db2bdeb8a6b230cf80",
+      "bytes": 1157900
+    },
+    {
+      "path": "packages/api/drizzle/meta/_journal.json",
+      "sha256": "b353735bb088f4e6ad71a7281fcd35c5f5d2da21165025a2117ebbb1832125db",
+      "bytes": 21279
+    },
+    {
+      "path": "packages/api/openapi.json",
+      "sha256": "cc75776fc95b8740ba9b97b2c01a567a47bf11ad45c9a1b4b95cf85bbc292110",
+      "bytes": 1478939
+    },
+    {
+      "path": "packages/api/scripts/generate-openapi.ts",
+      "sha256": "cb4a4c87f7e0966ef35aab951aafeb3ef1296745874e02673febd6bc7d82f36f",
+      "bytes": 80545
+    },
+    {
+      "path": "packages/api/src/db/schema/__tests__/workloadAttributionCredential.test.ts",
+      "sha256": "5fe2f8ef39f341f1124a0487af22b3b5707d12e2c78a925d8001c07db3a1b618",
+      "bytes": 20983
+    },
+    {
+      "path": "packages/api/src/db/schema/agency.ts",
+      "sha256": "b4a6ca2240e6c10919a3134f49ebe84e9ba6752347f3ce9b6eb2a81223982e5a",
+      "bytes": 11537
+    },
+    {
+      "path": "packages/api/src/db/schema/authSessions.ts",
+      "sha256": "5b26f6ebed669619af9604d914a6972ed418500f0bf9c944db09245feb5733d3",
+      "bytes": 11792
+    },
+    {
+      "path": "packages/api/src/db/schema/mcpOAuth.ts",
+      "sha256": "7e7dc160bdf979b99064699adef55557b6a1e938165dd3e692e199a99d2d88eb",
+      "bytes": 11760
+    },
+    {
+      "path": "packages/api/src/middleware/authUtils.ts",
+      "sha256": "815c63b8408413b2f8a927a9acd3b7d99d0400288d1bba3148d4c4ceff930da5",
+      "bytes": 5555
+    },
+    {
+      "path": "packages/api/src/middleware/optionalAuth.ts",
+      "sha256": "4a3bb8f86dc501a5c64865b9a84a36fb0699a05a525bc9277026f1e4dc7292e0",
+      "bytes": 10276
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/accountsSwitch.test.ts",
+      "sha256": "4afe25bec130a6199ac27dced3a30ff7280c26d2b30938746c2528bc7cd348ed",
+      "bytes": 18088
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/agentAutonomousFlow.test.ts",
+      "sha256": "05a439327dcbabebfa33d4f4598da7b84fe4d0f6c083b324363f427f66a66e65",
+      "bytes": 17786
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/mcpOAuth.routes.test.ts",
+      "sha256": "9323d76af7bab0cb3c5f288ebcb4b9a93c933b75570fc1cce927398192807187",
+      "bytes": 21203
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/updatesAdminAuth.test.ts",
+      "sha256": "18f3f1e70de411a74912c002657df2a9c1778b70ad3e6d80fb2ae5d7a7fba5aa",
+      "bytes": 11070
+    },
+    {
+      "path": "packages/api/src/routes/accountBilling.ts",
+      "sha256": "e3317e3508fae8fbc80222737f79ff7e54efeda23d3e6cecdfe6d78832940162",
+      "bytes": 36698
+    },
+    {
+      "path": "packages/api/src/routes/accounts.ts",
+      "sha256": "7167d235ef0f3367dbed6a8b9c61e63dccd13d7ab3e442a702210587c49705fe",
+      "bytes": 41369
+    },
+    {
+      "path": "packages/api/src/routes/agentAuth.ts",
+      "sha256": "457dcd5c56c0f32e0a2b60839c43f2190fffaffc1b15846121e9173c40aa2b83",
+      "bytes": 3064
+    },
+    {
+      "path": "packages/api/src/routes/agentKeys.ts",
+      "sha256": "4db5bee3a6fbf787b6c08ba9b6cc0a4584726c9863f4eb31fdb0b2265cdb4572",
+      "bytes": 2747
+    },
+    {
+      "path": "packages/api/src/routes/applications.ts",
+      "sha256": "d490a467603723a046c5c78ab4c68c415fe507486d3363ad7deb8d8e41188c3e",
+      "bytes": 64835
+    },
+    {
+      "path": "packages/api/src/routes/auth.ts",
+      "sha256": "789b3dd9ff93071078190ffccbf6f6d564b58d1add61f06ca33d39100941fe58",
+      "bytes": 157061
+    },
+    {
+      "path": "packages/api/src/routes/capabilities.ts",
+      "sha256": "f39bc4d1568c2438c0dd9d5668ebb8189995f333da07485314c27b56020537e7",
+      "bytes": 39981
+    },
+    {
+      "path": "packages/api/src/routes/followRegistry.v2.routes.ts",
+      "sha256": "3ea945541f692306b34e616230377979a64ccebd74e44b277677246e00caeda8",
+      "bytes": 10038
+    },
+    {
+      "path": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "sha256": "0392b8f1b1c1b3c15be863cb2cdb536e45b48bb87be4d50083d13ed2f169d8e0",
+      "bytes": 49557
+    },
+    {
+      "path": "packages/api/src/routes/inferenceReporting.ts",
+      "sha256": "ef88b5f19e0cb2031572c10663661b7ffbb197a02fd7370a57e9e491e612abd9",
+      "bytes": 39802
+    },
+    {
+      "path": "packages/api/src/routes/inferenceRoutingPolicies.ts",
+      "sha256": "da8f1d0690ec4f7c398a898770e8c4e3e91adebfcde187b35d52eebcae4f9d67",
+      "bytes": 24932
+    },
+    {
+      "path": "packages/api/src/routes/mcpOAuth.ts",
+      "sha256": "d6639eab49fa0c9e144eb8bcfaff444b2759be0feec50f841a326761233ae3e2",
+      "bytes": 27449
+    },
+    {
+      "path": "packages/api/src/routes/profiles.ts",
+      "sha256": "49e8322dacbd1eb0b3191cdd70645700974855d37ed300f8a63f4f1bf9194689",
+      "bytes": 60352
+    },
+    {
+      "path": "packages/api/src/routes/resourceIntrospection.ts",
+      "sha256": "baa4cad9a763d96a6754ca83fc0a050b9d70d680d96aee8d127dd25375cbf2e9",
+      "bytes": 6298
+    },
+    {
+      "path": "packages/api/src/routes/updatesAdmin.ts",
+      "sha256": "c2f7fb74303bf5e3e641a700464b48c7b8bc1e06ca3adfa6f5da5f96907ef37c",
+      "bytes": 10929
+    },
+    {
+      "path": "packages/api/src/server.ts",
+      "sha256": "134f22a6df3f89879c3d3516f4514c91f9cff7500bd27649fed34bc1ff6c088c",
+      "bytes": 68021
+    },
+    {
+      "path": "packages/api/src/services/__tests__/agentKeyAuth.test.ts",
+      "sha256": "273243d2d8679d96e1e43bd8516c4fee4cef4bbb14a9ab7444007ab5cb2db67f",
+      "bytes": 7283
+    },
+    {
+      "path": "packages/api/src/services/__tests__/agentKeyGovernance.test.ts",
+      "sha256": "53013898ab4ab6d6df1e6701a0ae1a8c2ff8e70696afc3b5d95a5aa069b6e257",
+      "bytes": 16228
+    },
+    {
+      "path": "packages/api/src/services/__tests__/botAccountParity.test.ts",
+      "sha256": "f26beb800418588e5a5d83e74cfde6ca72ef643e3c063b38ba1f6a12888deded",
+      "bytes": 17200
+    },
+    {
+      "path": "packages/api/src/services/__tests__/capabilityAuthority.db.test.ts",
+      "sha256": "c6a79c470eb4e692ce94e89bf36d4a8e22ed856ce3072d499458ec9b42845e8e",
+      "bytes": 26311
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mcpOAuth.service.test.ts",
+      "sha256": "dc1158c4018427e727f1a4b25da47ebeb09af6a42da9feb120147fa920565298",
+      "bytes": 12660
+    },
+    {
+      "path": "packages/api/src/services/account.service.ts",
+      "sha256": "f74553ffb3e8c7ca2a04f041164158237d3c32955b0882659a151ee54806c4c6",
+      "bytes": 68649
+    },
+    {
+      "path": "packages/api/src/services/agentKeyAuth.service.ts",
+      "sha256": "619884ba7b442f44dc7a789e70241fa549a0a6069019785ede509b28035ac917",
+      "bytes": 5992
+    },
+    {
+      "path": "packages/api/src/services/agentKeyAuthority.service.ts",
+      "sha256": "903c04220b9a13218007a7d72c8910ddadf6f6158c1532c35b93f1c49345f790",
+      "bytes": 4344
+    },
+    {
+      "path": "packages/api/src/services/agentKeyGovernance.service.ts",
+      "sha256": "a018b4c4b0106cf65a6ed197d3f9fc62f76cb72a0f769af877433faba3b79d80",
+      "bytes": 15585
+    },
+    {
+      "path": "packages/api/src/services/attribution.service.ts",
+      "sha256": "32c87915d64a93f8de99f961523ff07cf972d966b0611f118505fc022a0e2a00",
+      "bytes": 34967
+    },
+    {
+      "path": "packages/api/src/services/authSession.service.ts",
+      "sha256": "ba48ebc9a7ef178f946921be819e6ebe0125fde6072afbec285565b28934c47b",
+      "bytes": 38169
+    },
+    {
+      "path": "packages/api/src/services/capabilityAuthority.service.ts",
+      "sha256": "360e164ed0e7130490fc4ff9dc5532cab9df3623d464bf42aaf303610a8a13d7",
+      "bytes": 19830
+    },
+    {
+      "path": "packages/api/src/services/deviceSession.service.ts",
+      "sha256": "ec1ce9715725542b567d0e7066ce56b5310b5784f136b34d3456bcb1e8ed23f8",
+      "bytes": 92304
+    },
+    {
+      "path": "packages/api/src/services/mcpConnection.service.ts",
+      "sha256": "c67d3e30c38d756007002f1edb75b281a748e21ad884c33bac8bbc52f07e03c8",
+      "bytes": 17171
+    },
+    {
+      "path": "packages/api/src/services/mcpOAuth.service.ts",
+      "sha256": "b74a76d0d917dcf3fd43db35c20e412b28a02a914c70657959ba6c68a7f326e4",
+      "bytes": 29242
+    },
+    {
+      "path": "packages/api/src/services/oauthCode.service.ts",
+      "sha256": "e87abe8882900da41993fb0af60e5a7e587880e3eb72ea22530db20b5c1434eb",
+      "bytes": 11040
+    },
+    {
+      "path": "packages/api/src/services/productAccessAuthorization.service.ts",
+      "sha256": "f6df2a502b724671337ddb97ce83f01259153a83b58a358000f48671d6e7e0d5",
+      "bytes": 3078
+    },
+    {
+      "path": "packages/api/src/services/session.service.ts",
+      "sha256": "924a4ffcfc509d0938072062fa012af70d5fa51fdd7472c43413d6b5345cecab",
+      "bytes": 60041
+    },
+    {
+      "path": "packages/api/src/types/session.types.ts",
+      "sha256": "4659889e790af6323276573d136a90d67e379cf964ce770ff353b35362397b10",
+      "bytes": 4635
+    },
+    {
+      "path": "packages/api/src/utils/accountRoles.ts",
+      "sha256": "4e4ccf1ee0e916f9aa2f6c72ca152f1a62ffe989cf18223c207affbe70470815",
+      "bytes": 23965
+    },
+    {
+      "path": "packages/contracts/src/agentKeys.ts",
+      "sha256": "181deb51c270b0acc7502171bbae96ffa90dd607d6fae51af6375f33d8d82de7",
+      "bytes": 4026
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "90ac4443d2c73e777dce7f80b23c7e7a964528b1e2c718a4486aa78a0e757e0d",
+      "bytes": 42336
+    },
+    {
+      "path": "packages/core/src/api/__tests__/authAgent.test.ts",
+      "sha256": "a548dbfde71afc896057adb7e3cc327f1b3f7cbc50a5f3f5527743ea949e84c9",
+      "bytes": 3215
+    },
+    {
+      "path": "packages/core/src/api/accounts.ts",
+      "sha256": "b7cdc8506a5d2a65f9f0ebd35382af11e07329afc07e61c3ed937cb1bd6247b2",
+      "bytes": 25515
+    },
+    {
+      "path": "packages/core/src/api/auth.ts",
+      "sha256": "c8463a9954e0402e78998db0592aa13c48cf6bd93b6be6510d4f774b6bb5a68b",
+      "bytes": 63711
+    },
+    {
+      "path": "packages/core/src/server/__tests__/agentAccount.test.ts",
+      "sha256": "36322ff4ce625088ecae7e89c3ac22911ceb5e55d9ea14d2b2439b20e0ac93f2",
+      "bytes": 1928
+    },
+    {
+      "path": "packages/core/src/server/agentAccount.ts",
+      "sha256": "75ff10d774973250cd5e06c8ffc4e886fb7afd42ee0c4d82660a40e0b9b3f173",
+      "bytes": 1349
+    },
+    {
+      "path": "packages/core/src/server/index.ts",
+      "sha256": "f78a0f6b2f31cf77a77ed40021dd2d7b19dadbb58f99eb5e5de2211f05e28f68",
+      "bytes": 7332
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-governance-review-red.log",
+      "sha256": "b182d5cf1ce12296c8e3c80c538dcb57688c8de647b425f16001abc14c1c94fc",
+      "bytes": 3216
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-governance-review-green.log",
+      "sha256": "96407a73bb4f05b5cb4a41965b62a7a6ebb2d5983a6c2635fbd797aba47a22c2",
+      "bytes": 344
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-surface-focals.log",
+      "sha256": "45fa4df458433281ab88c67f6945c27c9a08ba6920e15a1ac1ff588397baef70",
+      "bytes": 1706
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-final-entry.log",
+      "sha256": "e0ddfe90351d1502659dd193b70bd9895487822055af1612fb80ed3e3ff03ed1",
+      "bytes": 342
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-final-focals.log",
+      "sha256": "8458e6ff30854351e216559d6585fa5cc6d27a0145208e70d658434efe4f0b96",
+      "bytes": 1355
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-core-full.log",
+      "sha256": "46eea082d675501282c46c3522c2a3efed094c905760c8f295cd5bed23e8eb56",
+      "bytes": 174
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-core-final-focals.log",
+      "sha256": "b9a4602005c0ae486821d9c9ea730a8cc1c931c4aa1a21dc5ee992ed6bc85af5",
+      "bytes": 343
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-contracts-full.log",
+      "sha256": "7841036d2ac21f29ebe6b543425b453ed335b2954646a429609922a389466842",
+      "bytes": 157
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-contracts-final-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce",
+      "bytes": 201
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-core-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc",
+      "bytes": 570
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-final-ts-frozen.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-openapi.log",
+      "sha256": "f72502d8a60ea300e8ca7d39b47ec5666d301835567174b347994d8b5b9e47c7",
+      "bytes": 178
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-openapi-census-final.log",
+      "sha256": "ed3318bb0210fd864f1d18cc89bdcdbde4b7166af28de955b2b335a0eedb8226",
+      "bytes": 296
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-no-payload.log",
+      "sha256": "fca774fabd3c90ded913e22a6e981f5b188a8d2287939af2090293a42166b8c8",
+      "bytes": 195
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-biome-comparison.json",
+      "sha256": "4abd346054efd07031695a12c2094ff9af80866d62e7066740323f221f105bf4",
+      "bytes": 45702
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-biome-new-final.json",
+      "sha256": "d091691e1ba30d5f0196a32f0139f38c694d5a1b9c289d99f9927b08b8a43d53",
+      "bytes": 213
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-eslint-comparison.json",
+      "sha256": "efb7c9d5021c4fde6710275f4e24d8e482d87bb62b85dc53d61699d57c7c8e57",
+      "bytes": 7467
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/0139-mcp-generate.log",
+      "sha256": "cf7304bc8159c8c45c14fac17b54c716c5765f17db89f75a7f83a96547c49dd1",
+      "bytes": 11095
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/0139-final-generate-repeat.log",
+      "sha256": "7c88a2ff7c973eca79d755d363f4576f189eb64e9e9fa405e174c57240799929",
+      "bytes": 11066
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/0139-final-migrate-fresh-corrected.log",
+      "sha256": "53de902c8c93261f8caef73ba1812fd4e3fb8f2a2de1abb7348fccfd2f4666c9",
+      "bytes": 8695
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/0139-final-migrate-repeat.log",
+      "sha256": "5d3eefd489b54f6129cfdfd9604d6941497cc9bd3084f252bf2d8a7f784aa777",
+      "bytes": 173
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/0139-final-census.log",
+      "sha256": "00940b8ffeb5224ca9643ee2ecede2de96a780ae9ea7e59bfbfb82a7d6571aed",
+      "bytes": 1223
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/0139-final-teardown.log",
+      "sha256": "0d7f8f8542f4f048d813bb9c7cf34c13f3f537064ace91d5ea0a64a7b1da8f90",
+      "bytes": 60
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-api-full.log",
+      "sha256": "b171d13521b9173db809e6d43cb065df7014c392c967fce442067884f2f128bf",
+      "bytes": 660339
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-api-full-serial.log",
+      "sha256": "bf088c85f17bf634bc03fd7adff1e71fafb61089d412531502f308926365d71d",
+      "bytes": 314922
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-full-fixture-attribution.log",
+      "sha256": "bf5d545f09db30dd3e649033e9db2a58e4743170c427cff8ece31121b62ce1d5",
+      "bytes": 568
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/workload-expiry-red.log",
+      "sha256": "e991d3f330db37a700cbc3755b2d4d1cc8edc70b7c5082d5350cbe3eef45e90e",
+      "bytes": 1878
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/workload-expiry-green.log",
+      "sha256": "d7e96c0b571b60c4e178c3704f453981b09ca7783364aaa55b9fdc10a03355bb",
+      "bytes": 2146
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/workload-expiry-green-final.log",
+      "sha256": "06615381e489a6457cd81d70b5a4231b0d76df894118111b25c6bdc2676773fd",
+      "bytes": 650
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/workload-expiry-ordered-green.log",
+      "sha256": "cd6483386a566bd841c31a484c032af41cac10a00a2387d3656ea68e1e2f8f00",
+      "bytes": 727
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/workload-expiry-reverse-green.log",
+      "sha256": "71ab38ef2351573eb5464a1bb603889216e64477dd6df10cbc08aa6fc01bfe68",
+      "bytes": 725
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/workload-lint.log",
+      "sha256": "0fae482231a5ab58dcd6facb790e958fb2a72d45f8316f55d9441bd85fc4d0fc",
+      "bytes": 41
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/agent-final-pg-cleanup.log",
+      "sha256": "0d7f8f8542f4f048d813bb9c7cf34c13f3f537064ace91d5ea0a64a7b1da8f90",
+      "bytes": 60
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/workload-first.cjs",
+      "sha256": "cbd1f71abd4b91800161975cb02476b1cab3e6d94a9cf5675c3d10f21ccb8337",
+      "bytes": 150
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-autonomous-account/ledger-first.cjs",
+      "sha256": "20096137679a8fa6f803bbd6c5d607ff84b7ea4d2b343c5509e0b9b085aaf533",
+      "bytes": 148
+    }
+  ],
+  "results": {
+    "apiSurface": {
+      "suites": 10,
+      "passed": 179
+    },
+    "apiFinalFocal": {
+      "suites": 6,
+      "passed": 108
+    },
+    "apiEntry": {
+      "suites": 2,
+      "passed": 18
+    },
+    "coreFull": {
+      "suites": 174,
+      "passed": 2128
+    },
+    "contractsFull": {
+      "suites": 53,
+      "passed": 915
+    },
+    "fixtureBothOrders": {
+      "eachSuites": 2,
+      "eachPassed": 64
+    },
+    "apiFull": "INCOMPLETE: serial Node heap exhaustion after 2 failing files; maxWorkers2 first attempt invalid for harness",
+    "typescript": "PASS",
+    "migration": "139 fresh, repeat no-op, four constraints queried, own DB absent after teardown",
+    "lint": "Biome existing 77\u219277/new0 (12 new files clean); ESLint17\u219217/new0; test-only followup Biome clean"
+  },
+  "limitations": [
+    "API full is not green; fixture source780 corrects updatesAdmin matcher,144 corrects workload schema hold contamination. Final scoped suites passed.",
+    "OAuth standing-consent transaction race is owned by I03; composing lockLiveAgentKeyForAuthorization before epoch/grant/marker/code remains required.",
+    "Core/contracts full tests precede test-only lint cleanup; core final 2/7 confirms it. API full precedes final test-only fixture correction. Runtime source780 unchanged thereafter.",
+    "Local Postgres17 owned by this agent, role oxy_i01, loopback5574; no remote credentials/payments/rollout.",
+    "No package version bump/publication/adoption; no production latency or platform-wide acceptance claim."
+  ]
+}
