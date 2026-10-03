@@ -1,0 +1,19 @@
+✔ projects account/key mode/Portal without PII and only fixed GETs (12.968165ms)
+✔ discovery never automatically chooses a default or compatible configuration (0.471232ms)
+✔ test/live/restricted prefixes explicit; unknown denied before network (0.299203ms)
+✔ Portal mode mismatch rejects (0.107558ms)
+✔ immediate cancellation and updates are projected as incompatible without mutation (0.09996ms)
+✔ disabled cancel may use immediate mode; inactive still incompatible (0.077134ms)
+✔ changed selected configuration fails instead of recording acceptance (0.511045ms)
+✔ duplicate pages and empty has_more reject (0.796956ms)
+✔ three-page budget rejects partial census (0.511149ms)
+✔ provider failure/oversized stream rejects without error or raw data persistence (0.932043ms)
+✔ encoded projection has nonce/digest and no key/PII (0.385313ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 21.987119

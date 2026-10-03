@@ -1,0 +1,21 @@
+AST stripe-preflight-ecs.py
+AST test-stripe-preflight-ecs.py
+NODE read-stripe-preflight.mjs
+NODE test-stripe-preflight.mjs
+usage: stripe-preflight-ecs.py [-h] [--portal-ref PORTAL_REF]
+                               --definition DEFINITION
+                               [--plan-sha256 PLAN_SHA256] --plan PLAN
+                               [--execute] [--output OUTPUT]
+                               {mercaria,peable}
+
+positional arguments:
+  {mercaria,peable}
+
+options:
+  -h, --help            show this help message and exit
+  --portal-ref PORTAL_REF
+  --definition DEFINITION
+  --plan-sha256 PLAN_SHA256
+  --plan PLAN
+  --execute
+  --output OUTPUT

@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "kind": "stripe-account-portal-preflight-preparation",
+  "sourceHead": "1c508b44e5146aee12a4229ab03ee777cae8c49a",
+  "sourceInputs": [
+    {
+      "path": "scripts/operations/billing-live-acceptance/stripe-preflight-ecs.py",
+      "bytes": 22028,
+      "sha256": "f844bbb3ba16b4470a65237a75efcc03fe480b74378a9593f91329da9d542f39"
+    },
+    {
+      "path": "scripts/operations/billing-live-acceptance/read-stripe-preflight.mjs",
+      "bytes": 5307,
+      "sha256": "b1de1fd5d1edd6cdaca968d1654f0d438d7b45a4118da472fa9578d59056113a"
+    },
+    {
+      "path": "scripts/operations/billing-live-acceptance/test-stripe-preflight-ecs.py",
+      "bytes": 5605,
+      "sha256": "35ee2865985cc92cc4e8ff2285ec0d80ae21dc90bf866adc810d2e48e651fdb0"
+    },
+    {
+      "path": "scripts/operations/billing-live-acceptance/test-stripe-preflight.mjs",
+      "bytes": 5128,
+      "sha256": "ed7fee9cbc7ba0cf8befa830a3f2c379afe218eaec6b736b3049613821706ec5"
+    },
+    {
+      "path": "docs/architecture/1519-billing-live-acceptance/stripe-preflight.md",
+      "bytes": 8429,
+      "sha256": "a7d80a701923982c7e70d5e88f5172bdd3b5223c07d9f4a9e65d6b8c93aac321"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-stripe-live-preflight/reader.log",
+      "bytes": 976,
+      "sha256": "bf1d78eafefd1e767165deb8622ffd01dffef994d8dfdbeb6647dba01436a2d0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-stripe-live-preflight/syntax-help.log",
+      "bytes": 654,
+      "sha256": "1bdea4c046ae1db63519ec7b6ca9c84db622e6b4f754f0e69e2363b744311e6e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-stripe-live-preflight/transport.log",
+      "bytes": 106,
+      "sha256": "698d16d7b93c4bd9707d3cfacda6fb1e0fea99ed0cda6e69bedc42772940540a"
+    }
+  ],
+  "reviewedInputs": [
+    {
+      "path": "/home/nate/Oxy/Peable/.worktrees/1519-i11-sdk022-registry-20261003/docs/integrations/i08-approved-recurring-cohort.md",
+      "bytes": 3867,
+      "sha256": "fb44b9a4e56a72b4d8fc238b4b18eef045f115ad81c9e9a7bb0200dbb452d279"
+    },
+    {
+      "path": "/home/nate/Oxy/Peable/.worktrees/1519-i11-sdk022-registry-20261003/packages/backend/src/services/billing/stripeBillingProvider.ts",
+      "bytes": 7305,
+      "sha256": "28494ea10eca47fdb196e0ac36bb2dcbf635a4c2688b70a6960286c5cb54274f"
+    },
+    {
+      "path": "/home/nate/Oxy/Peable/.worktrees/1519-i11-sdk022-registry-20261003/packages/backend/src/services/providers/stripe/client.ts",
+      "bytes": 15032,
+      "sha256": "dc0ecd5f190684e8a59522b15da322b36e1f6c42d9a80729b03a2397057bd8d2"
+    },
+    {
+      "path": "/home/nate/Oxy/Peable/.worktrees/1519-i11-sdk022-registry-20261003/packages/backend/src/services/billing/configuredBilling.ts",
+      "bytes": 2163,
+      "sha256": "98e4a85d48b7e784bfa81a9f1cf06bf31e192865108a21058a9c21245f06d785"
+    },
+    {
+      "path": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/packages/backend/src/services/billing/register.ts",
+      "bytes": 2119,
+      "sha256": "e8b5608102c337a54a8bb98d0dc551e96df0a4b6d7492fecd16d622cf0452c64"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/README.md",
+      "bytes": 17599,
+      "sha256": "6805c4f4f2d3370c5e21611fc384df3b40874fcfe668906baa87867ed04eb0cb"
+    },
+    {
+      "path": "scripts/operations/billing-live-acceptance/commercial-inventory-ecs.py",
+      "bytes": 21035,
+      "sha256": "bfb229db8e8ec7d83908cde1696c768b54921a939a72aa3edf014f10a6bd57fb"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-readonly-helper-rehearsal-2020/snapshot.json",
+      "bytes": 250255,
+      "sha256": "7791cb9f7260f8bcfc8170106254112c5100cb958a667a78101486155adbcf5d"
+    }
+  ],
+  "issueRead": {
+    "url": "https://github.com/OxyHQ/Peable/issues/87",
+    "comments": [
+      5953414091,
+      5953948636,
+      5962362319,
+      5962489460
+    ]
+  },
+  "validation": {
+    "transportTests": 8,
+    "readerTests": 11,
+    "syntaxAndHelp": true,
+    "awsCalls": 0,
+    "sqlCalls": 0,
+    "stripeRequests": 0
+  },
+  "scope": {
+    "profiles": [
+      "mercaria",
+      "peable"
+    ],
+    "soleDeployedSecretReference": "arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mercaria/STRIPE_SECRET_KEY",
+    "apiVersion": "2026-07-29.dahlia",
+    "requests": [
+      "GET /v1/account",
+      "GET /v1/billing_portal/configurations",
+      "GET /v1/billing_portal/configurations/bpc_REVIEWED_ID"
+    ],
+    "maxPages": 3,
+    "maxRequests": 6,
+    "databaseSecret": false,
+    "taskRole": false,
+    "financialEffects": false,
+    "activation": false
+  },
+  "limits": [
+    "No live metadata capture/plan/dispatch occurred; exact revision and reviewed raw-file hash required",
+    "AWS transport fixture and fake fetch only, not production authority",
+    "Missing key reference produces metadata-only configuredfalse record, no executable task",
+    "Mode from actual injected key prefix plus Portal livemode; account response alone lacks mode",
+    "No auto Portal selection or product/price/cohort creation",
+    "Same Mercaria/Peable account/mode and merchant namespace requires actual readback; sandbox cannot substitute",
+    "No remote atomic snapshot: list/retrieve projection comparison detects observed drift only"
+  ]
+}
