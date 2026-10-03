@@ -1,0 +1,42 @@
+{
+  "source": [
+    {
+      "path": "packages/api/src/routes/auth.ts",
+      "sha256": "18da3bdfc3ad078012a475d4cb466b88bf819c0c9a16dfb0b43d450568e085de",
+      "bytes": 156353
+    },
+    {
+      "path": "packages/api/openapi.json",
+      "sha256": "0ceda408cc5d9ef446b577a93ac8fce495f487e7fa2e708b909ac42fa85ae8c0",
+      "bytes": 1457512
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/oauthConsentFinalizers.test.ts",
+      "sha256": "ed287ef750f49598dbfa16aacbd569e8156ff576a85247ac431744ea73de5ef5",
+      "bytes": 31017
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/oauthAuthorizeRedirect.test.ts",
+      "sha256": "6579f8edddb06155ae9a67ceca97c88724decee1d1410d140a26bb0166bd1b06",
+      "bytes": 11878
+    },
+    {
+      "path": "packages/api/src/services/__tests__/authSession.service.test.ts",
+      "sha256": "5b70ed281a1694047e5037929270cd6b8997fd2f4855d089f9d5c0d077c73f70",
+      "bytes": 44763
+    }
+  ],
+  "logs": [
+    {
+      "path": "docs/audits/2026-10-03-i02-followup/i02-p3-fixtures-final.log",
+      "sha256": "4f2ab224a6b06814d17095633e66fb9a0427923e46ed8469dc8d14897be76072",
+      "bytes": 4568
+    },
+    {
+      "path": "docs/audits/2026-10-03-i02-followup/i02-p3-openapi-check-final.log",
+      "sha256": "7813763b59653e2ed37991ab4ffe26acaa85b97b882efaad51590038a5f5df4f",
+      "bytes": 296
+    }
+  ],
+  "scope": "I02 review P3 + fixture correction for approved empty-scope policy; no policy/runtime change."
+}

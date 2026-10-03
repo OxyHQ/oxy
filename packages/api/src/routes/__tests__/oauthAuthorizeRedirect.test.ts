@@ -212,6 +212,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     const { clientId } = await client(['https://acme.example/oauth/callback']);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/oauth/callback/',
     });
@@ -224,6 +225,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     const { clientId } = await client(['https://acme.example/oauth/callback']);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://evil.example/steal',
     });
@@ -236,6 +238,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     const { clientId } = await client(['https://acme.example/oauth/callback']);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/oauth',
     });
@@ -252,6 +255,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     ]);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/b',
     });
@@ -263,6 +267,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     const { clientId } = await client(['http://localhost:8081/callback']);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'http://localhost:8081/callback',
     });
@@ -274,6 +279,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     const { clientId } = await client([]);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/oauth/callback',
     });
@@ -286,6 +292,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
 describe('POST /auth/oauth/authorize — client resolution', () => {
   it('rejects an unknown client with 400 and no code', async () => {
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId: 'oxy_dk_unknown',
       redirectUri: 'https://acme.example/oauth/callback',
     });
@@ -298,6 +305,7 @@ describe('POST /auth/oauth/authorize — client resolution', () => {
     const { clientId } = await client(['https://acme.example/cb'], { status: 'revoked' });
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/cb',
     });
@@ -313,6 +321,7 @@ describe('POST /auth/oauth/authorize — client resolution', () => {
     });
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/cb',
     });
@@ -327,6 +336,7 @@ describe('POST /auth/oauth/authorize — client resolution', () => {
     });
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/cb',
     });
@@ -342,6 +352,7 @@ describe('POST /auth/oauth/authorize — client resolution', () => {
       .where(eq(applications.id, applicationId));
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/cb',
     });
@@ -354,6 +365,7 @@ describe('POST /auth/oauth/authorize — client resolution', () => {
     const { clientId } = await client(['https://acme.example/cb']);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/cb',
       codeChallenge: 'x'.repeat(43),

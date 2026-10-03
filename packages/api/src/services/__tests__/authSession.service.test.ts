@@ -1037,8 +1037,8 @@ describe('finalizeOAuthAuthorization', () => {
     );
   });
 
-  it('falls back to the application scopes when the request named none', async () => {
-    const { sessionToken } = await approved({ oauthScopes: [] }, { scopes: ['user:read'] });
+  it('falls back to ordinary scopes for a trusted application when the request named none', async () => {
+    const { sessionToken } = await approved({ oauthScopes: [] }, { type: 'first_party', scopes: ['user:read'] });
 
     await finalizeOAuthAuthorization({ sessionToken });
 
