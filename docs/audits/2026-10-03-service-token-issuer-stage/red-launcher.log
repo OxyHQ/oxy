@@ -1,0 +1,42 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /tmp/oxy1519-issuer-stage-zl323rlo/pg1519-7egivds8/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /tmp/oxy1519-issuer-stage-zl323rlo/pg1519-7egivds8/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"newLocalServerPid": 3474927, "dataDirectory": "/tmp/oxy1519-issuer-stage-zl323rlo/pg1519-7egivds8/data", "database": "oxy_rehearsal_1519_b24a6d32abb10167", "command": ["bun", "run", "test", "--runInBand", "--testSequencer", "/tmp/oxy1519-issuer-stage-zl323rlo/ordered-sequencer.cjs", "--runTestsByPath", "src/routes/__tests__/serviceTokenCredentials.test.ts", "src/services/__tests__/workloadIdentity.db.test.ts"], "exitCode": 1, "log": "/tmp/oxy1519-issuer-stage-zl323rlo/api/focused.txt", "productionAccess": false}
+waiting for server to shut down.... done
+server stopped
+
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/scripts/rehearsal/test-issuer-stage-1519.py", line 105, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/scripts/rehearsal/test-issuer-stage-1519.py", line 98, in main
+    result.check_returncode()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/subprocess.py", line 508, in check_returncode
+    raise CalledProcessError(self.returncode, self.args, self.stdout,
+                             self.stderr)
+subprocess.CalledProcessError: Command '['bun', 'run', 'test', '--runInBand', '--testSequencer', '/tmp/oxy1519-issuer-stage-zl323rlo/ordered-sequencer.cjs', '--runTestsByPath', 'src/routes/__tests__/serviceTokenCredentials.test.ts', 'src/services/__tests__/workloadIdentity.db.test.ts']' returned non-zero exit status 1.

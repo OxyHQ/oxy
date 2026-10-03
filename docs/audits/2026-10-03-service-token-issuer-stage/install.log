@@ -1,0 +1,30 @@
+bun install v1.4.2 (744846f84)
+
++ @types/express@4.17.25
++ @types/jest@30.0.0
++ drizzle-orm@0.45.2
++ expo@57.0.21
++ expo-constants@57.0.17
++ expo-document-picker@57.0.1
++ expo-haptics@57.0.2
++ expo-image-manipulator@57.0.16
++ expo-linear-gradient@57.0.1
++ expo-modules-core@57.0.17
++ expo-notifications@57.0.17
++ expo-web-browser@57.0.2
++ jest-environment-jsdom@30.5.1
++ react-native-keyboard-controller@1.21.13
++ react-native-web@0.21.2
++ ts-jest@29.4.12
++ turbo@2.10.12
++ typescript@5.9.3
++ vite@7.3.1
++ @expo/metro-runtime@57.0.15
++ @oxy.so/bloom@6.2.0
++ expo-contacts@57.0.4
++ expo-image-picker@57.0.16
++ expo-splash-screen@57.0.8
++ is-arrayish@0.3.4
++ react-native-worklets@0.10.0
+
+2265 packages installed [2.77s]

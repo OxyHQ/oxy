@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "62e0098767d31bcdc36eb43458dfd07152085788",
+  "base": "4b145040afca38be93ad4096241d4c60e12e1c82",
+  "runtimeChange": "SERVICE_TOKEN_EXPIRY 3600 -> 300 only; verifier and grant rules unchanged",
+  "sourceInputs": [
+    {
+      "file": "packages/api/openapi.json",
+      "sha256": "25a63f896a2749bd7230a65b2565309b3fc8e6c2b47ec6a6a6f96864515b3ff2"
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/serviceTokenCredentials.test.ts",
+      "sha256": "6447c23019b859c7878e3e360dba46907941ed7f99f9f58effbe7ac8afbf077a"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "sha256": "25b62980cdd0128bce0af7381aab44ea421a7fb11c8d06be0ade95a96b91d39b"
+    },
+    {
+      "file": "packages/api/src/services/__tests__/workloadIdentity.db.test.ts",
+      "sha256": "4051197143d8d202417d94de241abffcec401f1d44e3a296ee519537c8f869bb"
+    },
+    {
+      "file": "packages/api/src/services/serviceTokenMint.service.ts",
+      "sha256": "72e8365318d75403909e5ce683c7fbd09909268512e1e066c9c2dbf9bc5ff1d2"
+    },
+    {
+      "file": "scripts/rehearsal/test-issuer-stage-1519.py",
+      "sha256": "c4a655f58fa5a5a644634aa3e1141611806e65ce1e93513bb05942a062a5ea0a"
+    }
+  ],
+  "records": [
+    {
+      "file": "red.log",
+      "sha256": "86b8cef095a7bd73a12dfd9a15e76f61961dd05d4fb5ca5ccafe3e7395842d50"
+    },
+    {
+      "file": "green.log",
+      "sha256": "a9f3c4966523bb0d6cdcaf4ea76f2548745f7aa5eba098d11ff1855478c4db7d"
+    },
+    {
+      "file": "red-launcher.log",
+      "sha256": "daa0e42d7240c6d0dffcaf89298aa05d850c0e1835c9763257e005ce98bd03a1"
+    },
+    {
+      "file": "green-launcher.log",
+      "sha256": "c02caf50d0a6963443bf3eb4d18dd2247970c47ada73ccdd60b07c0fc3a96f8d"
+    },
+    {
+      "file": "dependency-build.log",
+      "sha256": "d0b583f8cca2af94fd55a1f0198cf9cd6f00925ae2b8a239dd323b58b709e95d"
+    },
+    {
+      "file": "types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "openapi.log",
+      "sha256": "d69fefb8ba15acd8cd2b68b932027519a7b0ae9acb90939b76ece41e557510e2"
+    },
+    {
+      "file": "install.log",
+      "sha256": "beb1fcca2a4c99322996c26c638db2d1557e2966b3d3784184d1a5a5c031338d"
+    },
+    {
+      "file": "base-comparison.json",
+      "sha256": "700926898685eec69975bf1db851bc6d712a7c1a2a41ee310152ceff1e8d242e"
+    },
+    {
+      "file": "live-ecr-tags.json",
+      "sha256": "01b6aac28146d8579828eb3d504e56f225aec85728ef5edefbbc4eb51e768451"
+    }
+  ],
+  "results": {
+    "red": {
+      "suites": 2,
+      "tests": 44,
+      "failed": 2,
+      "passed": 42
+    },
+    "green": {
+      "suites": 2,
+      "tests": 44,
+      "passed": 44
+    },
+    "apiTypesExit": 0,
+    "scopedLintExit": 0
+  },
+  "limits": [
+    "Owned local PostgreSQL with normal baseline migrations; no production writes",
+    "Synthetic workload-attestor fixture; real binding/repository/signature validation",
+    "ECR tags and Git input equality are metadata, not cryptographic live-image source attestation",
+    "No strict verifier, SDK release, receiver adoption, deployment, or drain completed"
+  ]
+}

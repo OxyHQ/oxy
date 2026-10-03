@@ -1,0 +1,40 @@
+{
+  "liveImage": "sha256:29502ab56460ed8261b5dd747d93fd36e345f28e633a17c865c34d4fae7b653a",
+  "taggedSource": "c807c2b5e48cb1ee108cc9c9b45d13e639eeacaa",
+  "main": "4b145040afca38be93ad4096241d4c60e12e1c82",
+  "entireChangedPaths": [
+    ".github/scripts/decisions-release-smoke/smoke.cjs",
+    ".github/scripts/decisions-release-smoke/smoke.mjs",
+    ".github/scripts/release-decisions-packages.test.mjs"
+  ],
+  "inputTrees": {
+    "packages": {
+      "liveSource": "3970e5cf69cee3836c75ebc80abfe811c08237e3",
+      "main": "3970e5cf69cee3836c75ebc80abfe811c08237e3"
+    },
+    "package.json": {
+      "liveSource": "cef08163bf260ee41cf9bf5b130da8cc2e2091c8",
+      "main": "cef08163bf260ee41cf9bf5b130da8cc2e2091c8"
+    },
+    "bun.lock": {
+      "liveSource": "40c632c4e0c48869b56bf3763e872a5cc330bcb0",
+      "main": "40c632c4e0c48869b56bf3763e872a5cc330bcb0"
+    },
+    "Dockerfile": {
+      "liveSource": "66cfc91519dbc8ae752bcb2383fc58d3702893ac",
+      "main": "66cfc91519dbc8ae752bcb2383fc58d3702893ac"
+    },
+    "bunfig.toml": {
+      "liveSource": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+      "main": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8"
+    },
+    ".dockerignore": {
+      "liveSource": "985afecc24868f8599a4251ddd247c5e774fe8f7",
+      "main": "985afecc24868f8599a4251ddd247c5e774fe8f7"
+    }
+  },
+  "limits": [
+    "Authenticated ECR tag mapping is metadata evidence, not reconstructed live image/source byte attestation.",
+    "No stage source changes or deployments performed."
+  ]
+}

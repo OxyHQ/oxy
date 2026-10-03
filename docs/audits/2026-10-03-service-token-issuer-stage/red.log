@@ -1,0 +1,69 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-issuer-stage-zl323rlo/ordered-sequencer.cjs" --runTestsByPath src/routes/__tests__/serviceTokenCredentials.test.ts src/services/__tests__/workloadIdentity.db.test.ts
+FAIL src/routes/__tests__/serviceTokenCredentials.test.ts
+  ● POST /auth/service-token — credential usability › mints a token for an ACTIVE service credential with the correct secret
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "appName": "App b70ff146-adda-47ec-9a3e-5391871b494b",
+    -   "expiresIn": 300,
+    +   "expiresIn": 3600,
+      }
+
+      228 |
+      229 |     expect(res.status).toBe(200);
+    > 230 |     expect(res.body.data).toMatchObject({ expiresIn: 300, appName: client.appName });
+          |                           ^
+      231 |     const claims = decodeServiceJwt((res.body.data as { token: string }).token);
+      232 |     expect(claims.exp - claims.iat).toBe(300);
+      233 |   });
+
+      at src/routes/__tests__/serviceTokenCredentials.test.ts:230:27
+      at fulfilled (src/routes/__tests__/serviceTokenCredentials.test.ts:54:58)
+
+{"level":30,"time":1790999922240,"pid":3474942,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1790999922255,"pid":3474942,"hostname":"SuperPC","kid":"dev-ephemeral-45ed18fe115e","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1790999922256,"pid":3474942,"hostname":"SuperPC","applicationId":"01a0ffea-0646-78ff-bdf7-0477bb33abff","appName":"Workload test 4c9adb6c-41fb-4eda-aaa9-c6484c14c5b4","provider":"aws-iam","attestationId":"wl_e65f0891b3a6d70fd0262b21","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1790999922269,"pid":3474942,"hostname":"SuperPC","applicationId":"01a0ffea-0655-7fee-9c5f-adfaaeb9b0bf","appName":"Workload test 17e142f8-e66e-4265-b855-f6fb460f847e","provider":"aws-iam","attestationId":"wl_7e397cd5c90eb92a9b8e48b4","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1790999922282,"pid":3474942,"hostname":"SuperPC","applicationId":"01a0ffea-0661-752a-88df-a3e5b42c5ee8","appName":"Workload test cafd248e-79b1-403f-a83e-f7014dddcf33","provider":"aws-iam","attestationId":"wl_ca3ffdafe6ba0c972db60bfe","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":50,"time":1790999922287,"pid":3474942,"hostname":"SuperPC","provider":"aws-iam","attestationId":"wl_ca3ffdafe6ba0c972db60bfe","applicationId":"01a0ffea-0664-784c-b611-da98058b5c51","msg":"[WorkloadIdentity] attested identity is attributed to another application"}
+{"level":30,"time":1790999922297,"pid":3474942,"hostname":"SuperPC","applicationId":"01a0ffea-0672-71bf-b8c7-78a62bd8e712","appName":"Workload test 53daaba5-3f5d-4685-a21a-618301fc1944","provider":"aws-iam","attestationId":"wl_325a50b7d55b63c1cb53d5ec","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":40,"time":1790999922297,"pid":3474942,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":43,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1790999922297,"pid":3474942,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":35,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1790999922298,"pid":3474942,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":33,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1790999922300,"pid":3474942,"hostname":"SuperPC","provider":"aws-iam","msg":"[WorkloadIdentity] attested workload has no binding"}
+{"level":40,"time":1790999922315,"pid":3474942,"hostname":"SuperPC","provider":"aws-iam","msg":"[WorkloadIdentity] attested workload has no binding"}
+{"level":30,"time":1790999922324,"pid":3474942,"hostname":"SuperPC","applicationId":"01a0ffea-068d-7f79-a7e8-8478e8fdd064","appName":"Workload test 0b27720d-1ee6-4a3f-bfa3-9f06bd1f84fb","provider":"aws-iam","attestationId":"wl_d81b5633b9d1407017e90dda","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1790999922331,"pid":3474942,"hostname":"SuperPC","applicationId":"01a0ffea-0696-7486-8e57-106f5e33d05a","appName":"Workload test d6fb8c2b-b516-46aa-80b0-0dd4d2e004de","provider":"aws-iam","attestationId":"wl_c5bac239ad6cd355b4603b70","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1790999922340,"pid":3474942,"hostname":"SuperPC","applicationId":"01a0ffea-069e-783e-b5a2-d97e760072c8","appName":"Workload test a0468e07-ac51-4026-988d-7034c5058a3a","provider":"aws-iam","attestationId":"wl_755daa5a66113f8f4f9bbaaa","attribution":"created","scopes":["federation:write","signals:write","catalogs:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1790999922347,"pid":3474942,"hostname":"SuperPC","applicationId":"01a0ffea-06a6-75ec-98f8-be2176fcb7eb","appName":"Workload test 274653c1-3809-4234-b5cd-2e37722846df","provider":"aws-iam","attestationId":"wl_e61bb919df8f7b212e3b8707","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1790999922355,"pid":3474942,"hostname":"SuperPC","applicationId":"01a0ffea-06ad-7d59-a853-935f8b954c52","appName":"Workload test c91906a7-e290-4a42-8f27-455cc7d3ff6a","provider":"aws-iam","attestationId":"wl_b052a9ceac4576ee3a1baa95","attribution":"created","scopes":["user:read","signals:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1790999922359,"pid":3474942,"hostname":"SuperPC","applicationId":"01a0ffea-06ad-7d59-a853-935f8b954c52","appName":"Workload test c91906a7-e290-4a42-8f27-455cc7d3ff6a","provider":"aws-iam","attestationId":"wl_b052a9ceac4576ee3a1baa95","attribution":"unchanged","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+FAIL src/services/__tests__/workloadIdentity.db.test.ts
+  ● workload-identity mint › mints a service token for a bound, official application
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 300
+    Received: 3600
+
+      183 |
+      184 |     expect(grant.appName).toBe(application.name);
+    > 185 |     expect(grant.expiresIn).toBe(300);
+          |                             ^
+      186 |     const verified = verifyServiceToken(grant.token);
+      187 |     expect(verified.ok).toBe(true);
+      188 |     if (!verified.ok) return;
+
+      at src/services/__tests__/workloadIdentity.db.test.ts:185:29
+      at fulfilled (src/services/__tests__/workloadIdentity.db.test.ts:31:58)
+
+Test Suites: 2 failed, 2 total
+Tests:       2 failed, 42 passed, 44 total
+Snapshots:   0 total
+Time:        2.693 s
+Ran all test suites within paths "src/routes/__tests__/serviceTokenCredentials.test.ts", "src/services/__tests__/workloadIdentity.db.test.ts".
+error: script "test" exited with code 1
