@@ -1,0 +1,60 @@
+{
+  "status": "candidate preparation only",
+  "metro": 17971,
+  "baselineMetro": 17970,
+  "bloom": "7.1.2 unpublished candidate",
+  "bloomSource": "efa54000",
+  "bloomVersionHead": "216480c41b7f03f603e8bc8fe81874602a3aac7e",
+  "package": "so.oxy.acceptance1519",
+  "sameInstalledApk": "02d764e2fe92ac4bb2ff8e230f87994d6823a48d8d5052d42346ff814acb8c66",
+  "sources": [
+    {
+      "path": "package.json",
+      "sha256": "9c5b63303c98231a01afbff11167c5e813ad4450b6240b73c5818ff8a901ab88",
+      "bytes": 8403
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "d8033938d92999435b9ed90aa1811050cd541491ba4a678cb1b0faa5239edd93",
+      "bytes": 801425
+    },
+    {
+      "path": "packages/test-app-expo/index.js",
+      "sha256": "a523cfe3eebb1525b177b4f2d861d57ec65285d0850e2372531107c046ef1332",
+      "bytes": 182
+    },
+    {
+      "path": "packages/test-app-expo/app.config.js",
+      "sha256": "66da2075a320035a9f2a5f8a9e08f07a57300b2dace13663d713399f49891654",
+      "bytes": 612
+    },
+    {
+      "path": "packages/test-app-expo/acceptance/entry.tsx",
+      "sha256": "cb2709a4813cf4cce715b1095086b0cfd4d3e2149be2ee88251e1857c7e02410",
+      "bytes": 3623
+    },
+    {
+      "path": "packages/test-app-expo/acceptance/routes/index.tsx",
+      "sha256": "c0a040df97b59cdfc3038cdd0f142322ced4448c53d630f9fec0edba7b1de07c",
+      "bytes": 143
+    }
+  ],
+  "tarball": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-bloom-7.1.2-candidate/oxy.so-bloom-7.1.2.tgz",
+    "sha256": "2b44b9f029ceec9a723080c8e37ec8a129c4f2113f44882ec46c74ba9f5a34c1",
+    "bytes": 30538236
+  },
+  "bundle": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-native-dialog-candidate-bundle-20261003.js",
+    "sha256": "bcd78f33e2273803c62c0fcb1dfe08116a323076eb953ec7bbccdbc8c95ac35b",
+    "bytes": 13234380
+  },
+  "installedFilesByteIdentical": 21941,
+  "limitations": [
+    "Local catalog file reference exists only in this disposable diagnostic worktree; not a product adoption change",
+    "Pure Dialog fixture direct entry and unused local router root avoid traversing old playground routes removed in Bloom7",
+    "Baseline6.2.0 compared with7.1.2, not a complete fleet major-version migration",
+    "No authentication/network/identity mutations; root only ADB",
+    "TS and scoped lint pass; runtime candidate device replay pending"
+  ]
+}

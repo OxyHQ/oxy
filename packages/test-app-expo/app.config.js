@@ -6,6 +6,7 @@ module.exports = () => {
     ...base,
     name: 'Oxy 1519 Acceptance',
     slug: 'oxy-1519-native-acceptance',
+    extra: { ...base.extra, router: { root: './acceptance/routes' } },
     scheme: 'astro',
     android: { ...base.android, package: 'so.oxy.acceptance1519' },
     plugins: base.plugins.map((plugin) => Array.isArray(plugin) && plugin[0] === '@oxy.so/app-preset'
