@@ -1,0 +1,160 @@
+{
+  "sourceCommit": "e736c65b0e778dcc8ff2a4da9e617422480a7e41",
+  "candidateSdkSource": "1e719545f290cfb6308c2648cabc10d311136716",
+  "sources": [
+    {
+      "path": "packages/test-app-expo/acceptance/entry.tsx",
+      "sha256": "ebdb5071a7e6f5a883e9e89ca1e56ef5defa140bb4e73232cc56c4a0502a1744",
+      "bytes": 3964
+    },
+    {
+      "path": "packages/test-app-expo/acceptance/tsconfig.json",
+      "sha256": "e9b6c9210bb6d46be2b3731f18a3a29a68925d8df1f67e67e9427e7b503df70f",
+      "bytes": 219
+    },
+    {
+      "path": "packages/test-app-expo/acceptance/README.md",
+      "sha256": "25494c830191db1cdc7887e5218ed585b627fd6dca31c7acd5a90f1f722455c8",
+      "bytes": 2426
+    },
+    {
+      "path": "packages/test-app-expo/app.config.js",
+      "sha256": "f8fb908b06dca2e971651118a269d2694341e6515bef31b54143c3bff6e106e0",
+      "bytes": 929
+    },
+    {
+      "path": "packages/test-app-expo/package.json",
+      "sha256": "857608e3e19311b7997ab59cbee6dc132b3a778f28c28f1232b2a45ba5b3a985",
+      "bytes": 2870
+    },
+    {
+      "path": "packages/test-app-expo/index.js",
+      "sha256": "92f445c9e3e3a1fca8deb3fc6528b08ef6227ce581e3f36b4222b409c8c989ac",
+      "bytes": 222
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "b03e9262914b01b0584c241494ee112fcb154f13a9c4cec20531dc1ff28bd928",
+      "bytes": 801217
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/siblings-types-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/siblings-lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/mention-prebuild.log",
+      "sha256": "8e2825aab6d2a7de2463b5d91c85e9b5718d514cfd069091ba30aeb480aa38bc",
+      "bytes": 358
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/mention-gradle.log",
+      "sha256": "ccb44263ee548216860f319792fe6ac2f3e8ca3a89a6d8bee42dc008829effef",
+      "bytes": 95992
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/mention-metro.log",
+      "sha256": "6e8202a6c741e69ff76fd7ad825225c4bc50d63558e447220de7d61be01c75ee",
+      "bytes": 1834
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/allo-install.log",
+      "sha256": "6a02faa782f814f5b8df501a1e6d7bb43a7c488c28e4dccbf3f4308b543dbfbc",
+      "bytes": 785
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/allo-prebuild.log",
+      "sha256": "8e2825aab6d2a7de2463b5d91c85e9b5718d514cfd069091ba30aeb480aa38bc",
+      "bytes": 358
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/allo-gradle.log",
+      "sha256": "5218f0f0b2ef6e97d5e5399dd422e405bcb5fb3c8946adb1fc6fe61d616e0dbe",
+      "bytes": 95321
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/allo-metro.log",
+      "sha256": "c2be98c3282458ea61af5b1d35fe706fe51caeb494287ca60a534e1fdffa18c6",
+      "bytes": 1482
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/mention-apk.txt",
+      "sha256": "e5608ab3d4b465fc411f463ff5bde3a6d66cf9aeb7c1686334285235903f5406",
+      "bytes": 7333
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/allo-apk.txt",
+      "sha256": "1669caaafd2989a10f954850e6596794da9ebcf0ec50b7b7862ba15ddb4909fd",
+      "bytes": 7051
+    }
+  ],
+  "artifacts": [
+    {
+      "variant": "mention",
+      "package": "earth.mention.app.dev",
+      "port": 17967,
+      "clientId": "oxy_dk_fdd8bad9263ac96d8f44e10c7cee68c62f0a1896a9ac6c4c",
+      "apk": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-native-mention-20261003.apk",
+        "sha256": "75b8d6f15e89d43b83fc532e703c0f35c7969dee4288c01f6a37816a9890c8fd",
+        "bytes": 88342738
+      },
+      "bundle": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-native-mention-bundle-20261003.js",
+        "sha256": "a4b1cd2dbe9fd016969ec66a8b253eee15adfaef159abc90a0c0f6249aace0e7",
+        "bytes": 21493168
+      },
+      "httpStatus": 200
+    },
+    {
+      "variant": "allo",
+      "package": "com.allo.app.dev",
+      "port": 17968,
+      "clientId": "oxy_dk_0d3595f8bb0182adb0972a4981ec4c609567a1eea56e4747",
+      "apk": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-native-allo-20261003.apk",
+        "sha256": "ee1be0c191746869e3eadc429cf86f9abf8e6ab9fee51e271f386f4f8652bca2",
+        "bytes": 88342738
+      },
+      "bundle": {
+        "path": "/home/nate/Oxy/.agent-evidence/i04-native-allo-bundle-20261003.js",
+        "sha256": "039f125600eda5ce9cb3e2776c904119bf83ee9bbc9e20dc285bcebbf435b6b2",
+        "bytes": 21493137
+      },
+      "httpStatus": 200
+    }
+  ],
+  "copiedBuildOutputs": {
+    "from": "/home/nate/Oxy/oxy/.worktrees/1519-native-sdk-acceptance-20261003",
+    "packages": [
+      "contracts",
+      "protocol",
+      "core",
+      "telemetry"
+    ],
+    "reason": "same SDK source pin; builds already recorded in previous native proof; no publishing"
+  },
+  "runtimeChangedInSdk": false,
+  "nativeAllowlistChanged": false,
+  "adbInvoked": false,
+  "devicePass": false,
+  "preservedPackages": [
+    "so.oxy.accounts.dev",
+    "onl.alia.app.dev",
+    "so.oxy.acceptance1519"
+  ],
+  "rootAuthorizedReplacement": "owned earth.mention.app.dev instrumental peer only",
+  "rootVerifiedEmptySlot": "com.allo.app.dev",
+  "pending": [
+    "root install/execute SDK sibling adoption/switch/logout",
+    "final registry install and repeat",
+    "separate reviewed AND03 identity recovery plan"
+  ]
+}

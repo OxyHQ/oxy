@@ -1,0 +1,22 @@
+Starting project at /home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo
+React Compiler enabled
+Expo Autolinking module resolution enabled
+Starting Metro Bundler
+
+Waiting on http://localhost:17967
+
+An update for expo is available: 57.0.21 → ~57.0.26
+21 other packages may need updating. Run npx expo install --check for details.
+Logs for your project will appear below.
+| (node:3707250) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3707250) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3707250) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3707250) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3707250) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+ WARN  Attempted to import the module "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/.bun/@noble+hashes@1.8.0/node_modules/@noble/hashes/crypto.js" which is not listed in the "exports" of "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/.bun/@noble+hashes@1.8.0/node_modules/@noble/hashes" under the requested subpath "./crypto.js". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+Android Bundled 6135ms packages/test-app-expo/index.js (3553 modules)

@@ -1,0 +1,10 @@
+- Creating native directory (./android)
+✔ Created native directory
+- Updating package.json
+› Using expo@catalog: instead of recommended expo@~57.0.21.
+- Updating package.json
+› Using react-native@catalog: instead of recommended react-native@0.86.3.
+- Updating package.json
+✔ Updated package.json | no changes
+- Running prebuild
+✔ Finished prebuild
