@@ -3,12 +3,14 @@ import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { DatabaseOrTransaction, Transaction } from '../config/postgres';
-import { billingCreditInvoices, billingCreditGrants, billingCreditSpends, billingCreditConsumptions, billingCreditRefundObservations, SUBSCRIPTION_CREDIT_SOURCES } from '../db/schema/billingCreditGrants';
+import { accountClosureFences } from '../db/schema/accountClosureFences';
+import {
+	SUBSCRIPTION_CREDIT_SOURCES,
+	billingCreditConsumptions, billingCreditGrants, billingCreditInvoices, billingCreditRefundObservations, billingCreditSpends, } from '../db/schema/billingCreditGrants';
 import { billingTransactions } from '../db/schema/billingTransactions';
 import { userCredits } from '../db/schema/userCredits';
-import { ConflictError } from '../utils/error';
 import { users } from '../db/schema/users';
-import { accountClosureFences } from '../db/schema/accountClosureFences';
+import { ConflictError } from '../utils/error';
 
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const id = z.string().min(1).max(160);
@@ -35,13 +37,22 @@ function digest(parts: unknown[]): string { return createHash('sha256').update(J
 function identical(actual: unknown, expected: unknown): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new ConflictError('Immutable credit evidence differs');
 }
-async function balanceForUpdate(tx: Transaction, userId: string) {
+/**
+ * Account -> balance -> invoice identity -> grants, before any financial INSERT.
+ * Callers creating receipts must take this lock first: their user FK would
+ * otherwise acquire KEY SHARE and later upgrade in a different order.
+ * Locking alone never authorizes an award or prevents historical maintenance.
+ */
+export async function lockSubscriptionCreditAccount(tx: Transaction, userId: string) {
+  const [account] = await tx.select({ status: users.accountStatus }).from(users).where(eq(users.id, userId)).for('update');
   const [balance] = await tx.select().from(userCredits).where(eq(userCredits.userId, userId)).for('update');
-  if (!balance) throw new ConflictError('Credit account is unavailable');
-  count.parse(balance.creditsPaid); count.parse(balance.creditsFree);
-  return balance;
+  if (balance) { count.parse(balance.creditsPaid); count.parse(balance.creditsFree); }
+  return { account, balance };
 }
-/** Account balance -> global invoice identity -> grants; common across all paths. */
+async function requireOpenCreditAccount(tx: Transaction, userId: string, status: string) {
+  const [fence] = await tx.select().from(accountClosureFences).where(eq(accountClosureFences.accountId, userId));
+  if (status !== 'active' || fence) throw new ConflictError('Account closure prevents new credit grants or spends');
+}
 async function bindInvoice(tx: Transaction, input: { providerAccountRef: string; invoiceId: string; userId: string; currency: string; amountPaid: number }) {
   const attribution = { providerAccountRef: input.providerAccountRef, invoiceId: input.invoiceId,
     userId: input.userId, currency: input.currency, amountPaid: input.amountPaid };
@@ -80,30 +91,30 @@ export async function grantSubscriptionCredits(tx: Transaction, raw: Subscriptio
   const [receipt] = await tx.select().from(billingTransactions).where(eq(billingTransactions.id, input.transactionId));
   if (!receipt || receipt.userId !== input.userId || receipt.stripeInvoiceId !== input.invoiceId
     || receipt.stripeSubscriptionId !== input.subscriptionId || receipt.type !== input.sourceType
-    || receipt.amountMinorUnits !== input.amountPaid || receipt.currency !== input.currency || receipt.credits !== input.granted || receipt.status !== 'completed') {
+    || receipt.promotionId !== input.promotionId ||
+		receipt.amountMinorUnits !== input.amountPaid || receipt.currency !== input.currency || receipt.credits !== input.granted || receipt.status !== 'completed') {
     throw new ConflictError('Credit grant differs from its paid receipt');
   }
-  const [account] = await tx.select({ status: users.accountStatus }).from(users).where(eq(users.id, input.userId)).for('update');
-  const [fence] = await tx.select().from(accountClosureFences).where(eq(accountClosureFences.accountId, input.userId));
-  if (!account || account.status !== 'active' || fence) throw new ConflictError('Account closure prevents new credit grants');
-  const balance = await balanceForUpdate(tx, input.userId);
-  await bindInvoice(tx, input);
+  const { account, balance } = await lockSubscriptionCreditAccount(tx, input.userId);
+  if (!account || !balance) throw new ConflictError('Credit account is unavailable');
   const existingGrants = await trackedGrants(tx, input.userId);
   if (trackedTotal(existingGrants) > balance.creditsPaid) throw new ConflictError('Aggregate paid credits diverged from grant ledger');
   const grantId = `credit_grant_${digest([input.providerAccountRef, input.invoiceId, input.sourceType])}`;
-  const existing = existingGrants.find(g => g.id === grantId);
-  const projection = (g: typeof input) => ({ userId: g.userId, transactionId: g.transactionId,
+	const existing = existingGrants.find(g => g.id === grantId);
+	const projection = (g: typeof input) => ({ userId: g.userId, transactionId: g.transactionId,
     providerAccountRef: g.providerAccountRef, invoiceId: g.invoiceId, subscriptionId: g.subscriptionId,
     sourceType: g.sourceType, periodStart: g.periodStart, periodEnd: g.periodEnd,
     currency: g.currency, amountPaid: g.amountPaid, granted: g.granted,
     promotionId: g.promotionId, oncePerAccountPromotionId: g.oncePerAccountPromotionId });
-  if (existing) { identical(projection(existing), projection(input)); return { status: 'replayed' as const, id: grantId, issued: 0 }; }
-  const clawed = await refundTarget(tx, input);
-  const issued = input.granted - clawed;
-  if (BigInt(balance.creditsPaid) + BigInt(issued) > BigInt(Number.MAX_SAFE_INTEGER)) throw new ConflictError('Credit balance exceeds supported count');
-  await tx.insert(billingCreditGrants).values({ ...input, id: grantId, consumed: 0, clawed });
-  await tx.update(userCredits).set({ creditsPaid: sql`${userCredits.creditsPaid} + ${issued}` }).where(eq(userCredits.userId, input.userId));
-  return { status: 'recorded' as const, id: grantId, issued };
+	if (existing) { identical(projection(existing), projection(input)); return { status: 'replayed' as const, id: grantId, issued: 0 }; }
+	await requireOpenCreditAccount(tx, input.userId, account.status);
+	await bindInvoice(tx, input);
+	const clawed = await refundTarget(tx, input);
+	const issued = input.granted - clawed;
+	if (BigInt(balance.creditsPaid) + BigInt(issued) > BigInt(Number.MAX_SAFE_INTEGER)) throw new ConflictError('Credit balance exceeds supported count');
+	await tx.insert(billingCreditGrants).values({ ...input, id: grantId, consumed: 0, clawed });
+	await tx.update(userCredits).set({ creditsPaid: sql`${userCredits.creditsPaid} + ${issued}` }).where(eq(userCredits.userId, input.userId));
+	return { status: 'recorded' as const, id: grantId, issued };
 }
 
 /** Paid remains first: FIFO new grants, then opaque legacy/purchased, then free. */
@@ -111,11 +122,11 @@ export async function spendSubscriptionTrackedCredits(db: DatabaseOrTransaction,
   if (!Number.isSafeInteger(amount) || amount < 0) return false;
   id.parse(userId); id.parse(operationId);
   return db.transaction(async tx => {
-    const [balance] = await tx.select().from(userCredits).where(eq(userCredits.userId, userId)).for('update');
-    if (!balance) return false;
-    count.parse(balance.creditsPaid); count.parse(balance.creditsFree);
+    const { account, balance } = await lockSubscriptionCreditAccount(tx, userId);
+    if (!account || !balance) return false;
     const [prior] = await tx.select().from(billingCreditSpends).where(and(eq(billingCreditSpends.userId, userId), eq(billingCreditSpends.operationId, operationId)));
     if (prior) { if (prior.amount !== amount) throw new ConflictError('Credit spend intent was reused with a different amount'); return true; }
+    await requireOpenCreditAccount(tx, userId, account.status);
     if (BigInt(balance.creditsPaid) + BigInt(balance.creditsFree) < BigInt(amount)) return false;
     const grants = await trackedGrants(tx, userId);
     const total = trackedTotal(grants);
@@ -142,7 +153,9 @@ export async function spendSubscriptionTrackedCredits(db: DatabaseOrTransaction,
 export async function recordCreditRefundSnapshot(db: DatabaseOrTransaction, raw: CreditRefundSnapshotInput) {
   const input = refundSchema.parse(raw);
   return db.transaction(async tx => {
-    const balance = await balanceForUpdate(tx, input.userId);
+    const { account, balance } = await lockSubscriptionCreditAccount(tx, input.userId);
+    if (!account || !balance) throw new ConflictError('Credit account is unavailable');
+    // Confirmed refunds maintain retained history even after an account closes.
     await bindInvoice(tx, input);
     const grants = await trackedGrants(tx, input.userId);
     if (trackedTotal(grants) > balance.creditsPaid) throw new ConflictError('Aggregate paid credits diverged from grant ledger');

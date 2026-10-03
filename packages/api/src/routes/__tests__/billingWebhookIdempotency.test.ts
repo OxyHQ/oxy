@@ -28,10 +28,15 @@
  * stub never leaves the process.
  */
 
-import express from 'express';
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { and, eq } from 'drizzle-orm';
+
+
+import express from "express";
 
 
 /** Stripe's side of every subscription, as `subscriptions.retrieve` answers it. */
@@ -39,6 +44,7 @@ const invoiceLinePages = new Map<string, Array<{ data: Record<string, unknown>[]
 const invoiceLineCalls: Array<{ id: string; cursor?: string }> = [];
 const currentInvoices = new Map<string, Record<string, unknown>>();
 const invoiceRetrieveCalls: string[] = [];
+const productPrices = new Map<string, Record<string, unknown>>();
 const currentCharges = new Map<string, Record<string, unknown>>();
 const invoicePayments = new Map<string, Record<string, unknown>>();
 let failNextInvoiceRetrieve = false;
@@ -55,14 +61,31 @@ let sessionCounter = 0;
 
 jest.mock('../../utils/stripeClient', () => ({
   getStripe: () => ({
-    accounts: { retrieve: async () => ({ id: 'acct_synthetic_billing' }) },
+    prices: {
+			retrieve: async (id: string) => {
+				const price = productPrices.get(id);
+				if (!price) throw new Error("fixture price missing");
+				return structuredClone(price);
+			},
+		},
+		accounts: { retrieve: async () => ({ id: 'acct_synthetic_billing' }) },
     charges: { retrieve: async (id: string) => structuredClone(currentCharges.get(id) ?? { id, livemode: false, payment_intent: null }) },
     invoicePayments: { list: async (params: { invoice?: string; payment?: { payment_intent?: string } }) => ({ has_more: false, data: [...invoicePayments.values()].filter(p => params.invoice ? p.invoice === params.invoice : (p.payment as { payment_intent: string }).payment_intent === params.payment?.payment_intent) }) },
     webhooks: {
       constructEvent: (body: Buffer) => JSON.parse(body.toString()),
     },
     subscriptions: {
-      retrieve: async (id: string) => {
+      update: async (id: string, params: { cancel_at_period_end: boolean }) => {
+				const current = stripeSubscriptions.get(id);
+				if (!current) throw new Error("No such subscription");
+				const updated = {
+					...current,
+					cancel_at_period_end: params.cancel_at_period_end,
+				};
+				stripeSubscriptions.set(id, updated);
+				return structuredClone(updated);
+			},
+			retrieve: async (id: string) => {
         const hold = holdNextRetrieve;
         holdNextRetrieve = null;
         // Snapshot BEFORE waiting: a held read answers with the state at the
@@ -72,8 +95,8 @@ jest.mock('../../utils/stripeClient', () => ({
         if (!state) throw Object.assign(new Error(`No such subscription: ${id}`), { type: 'StripeInvalidRequestError' });
         return structuredClone(state);
       },
-    },
-    invoices: {
+		},
+		invoices: {
       list: async (params: { subscription: string }) => ({ has_more: false, data: [...currentInvoices.values()].filter(invoice => (invoice.parent as { subscription_details?: { subscription?: string } })?.subscription_details?.subscription === params.subscription && invoice.status === 'paid') }),
       retrieve: async (id: string) => {
         invoiceRetrieveCalls.push(id);
@@ -92,7 +115,7 @@ jest.mock('../../utils/stripeClient', () => ({
         return structuredClone(pages.shift());
       },
     },
-    checkout: {
+		checkout: {
       sessions: {
         create: async (params: unknown, options?: { idempotencyKey?: string }) => {
           checkoutCreateCalls.push({ params, options });
@@ -165,18 +188,27 @@ jest.mock('../../services/stripeAccountBilling.service', () => ({
   getOrCreateAccountStripeCustomer: async (userId: string) => `cus_${userId}`,
 }));
 
-import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { billingStripeEvents } from '../../db/schema/billingStripeEvents';
-import { billingSubscriptions } from '../../db/schema/billingSubscriptions';
-import { billingTransactions } from '../../db/schema/billingTransactions';
-import { userCredits } from '../../db/schema/userCredits';
-import { billingCreditGrants, billingCreditRefundObservations } from '../../db/schema/billingCreditGrants';
+import { closePostgres, connectPostgres, getDb } from "../../config/postgres";
 import { deductCredits } from '../../db/credits';
-import { users } from '../../db/schema/users';
+import {
+	accessGrants,
+	accessOfferSegments,
+	accessProviderEvents,
+	accessProviderPeriods,
+	accessSubscriptionSources,
+} from "../../db/schema";
+import { billingCreditGrants, billingCreditRefundObservations } from '../../db/schema/billingCreditGrants';
+import { billingStripeEvents } from "../../db/schema/billingStripeEvents";
+import { billingSubscriptions } from "../../db/schema/billingSubscriptions";
+import { billingTransactions } from "../../db/schema/billingTransactions";
+import { userCredits } from "../../db/schema/userCredits";
+import { users } from "../../db/schema/users";
+import { productAccessFixture } from "../../services/__fixtures__/productAccessFixtures";
+import { readSubjectProductAccess } from "../../services/productAccessPersistence.service";
 
-const WEBHOOK_SECRET = 'whsec_test_secret';
-const PRO_PRICE_ID = 'price_test_pro';
-const BUSINESS_PRICE_ID = 'price_test_business';
+const WEBHOOK_SECRET = "whsec_test_secret";
+const PRO_PRICE_ID = "price_test_pro";
+const BUSINESS_PRICE_ID = "price_test_business";
 const PRO_PRICE = 2999;
 const PRO_CREDITS = 10_000;
 const BUSINESS_PRICE = 9999;
@@ -838,9 +870,9 @@ async function postCheckout(
 }
 
 const CHECKOUT_BODY = {
-  planId: 'pro_monthly',
-  successUrl: 'https://oxy.so/billing/success',
-  cancelUrl: 'https://oxy.so/billing/cancel',
+	planId: "pro_monthly",
+	successUrl: "https://oxy.so/billing/success",
+	cancelUrl: "https://oxy.so/billing/cancel",
 };
 
 describe('POST /billing/checkout/subscription — Idempotency-Key', () => {
@@ -1068,7 +1100,6 @@ describe('invoice.paid complete recurring-line reconciliation', () => {
   });
 });
 
-
 function upgradeInvoice(sub: { subscriptionId: string; customerId: string; periodStart: number }, day: number, invoiceId: string) {
   const event = invoiceEvent(sub, { invoiceId, billingReason: 'subscription_update', amountPaid: 6000 });
   const original = event.data.object.lines.data[0];
@@ -1176,7 +1207,6 @@ describe('approved P1/P2/P3 through actual webhook transactions', () => {
   });
 });
 
-
 it('a new delivery of an old upgrade invoice recognizes the frozen receipt after current renewal and cancellation', async () => {
   const sub = await subscriber(); invoiceEvent(sub); const upgrade = upgradeInvoice(sub, 10, `in_${sub.subscriptionId}_old`);
   expect(await postWebhook(upgrade)).toBe(200);
@@ -1195,7 +1225,6 @@ it('a purchased/auto-recharge charge without invoice allocation is ignored rathe
   expect(await paidBalance(userId)).toBe(5000);
 });
 
-
 it('concurrent new upgrade invoice deliveries serialize real financial writers under the same cap', async () => {
   const sub = await subscriber(); const base = invoiceEvent(sub);
   const a = upgradeInvoice(sub, 1, `in_a_${sub.subscriptionId}`); const b = upgradeInvoice(sub, 2, `in_b_${sub.subscriptionId}`);
@@ -1203,7 +1232,6 @@ it('concurrent new upgrade invoice deliveries serialize real financial writers u
   expect(await paidBalance(sub.userId)).toBe(50_000);
   expect((await receipts(sub.userId, 'subscription_proration')).map(row => row.credits).sort((x,y) => x-y)).toEqual([1334,38666]);
 });
-
 
 it('first late paid upgrade delivery uses its historical base period even after current renewal and cancellation', async () => {
   const sub = await subscriber(); const base = invoiceEvent(sub);
@@ -1215,3 +1243,336 @@ it('first late paid upgrade delivery uses its historical base period even after 
   expect(await postWebhook(base)).toBe(200); expect(await paidBalance(sub.userId)).toBe(36_666);
   expect((await mirrorOf(sub.subscriptionId)).status).toBe('canceled');
 });
+
+async function withProductCatalogue(
+	run: (
+		data: Awaited<ReturnType<typeof productAccessFixture>>,
+	) => Promise<void>,
+) {
+	const f = await productAccessFixture();
+	const dir = await mkdtemp(join(tmpdir(), "oxy-i07-catalogue-fixture-"));
+	const previous = {
+		key: process.env.STRIPE_SECRET_KEY,
+		environment: process.env.BILLING_PROCESSOR_ENVIRONMENT,
+		file: process.env.BILLING_PRODUCT_CATALOGUE_FILE,
+	};
+	const catalogue = {
+		schemaVersion: 1,
+		products: f.products,
+		offers: f.offers,
+		subscriptions: [],
+		prices: [
+			{
+				priceId: PRO_PRICE_ID,
+				providerAccountId: "acct_synthetic_billing",
+				mode: "live",
+				environment: "production",
+				offerId: f.offers[0].id,
+				offerVersion: f.offers[0].version,
+				offerKind: f.offers[0].kind,
+				kind: "existing_product",
+				validFrom: "2000-01-01T00:00:00Z",
+				validUntil: null,
+				currency: "usd",
+				amountMinorUnits: PRO_PRICE,
+			},
+		],
+	};
+	await writeFile(join(dir, "catalogue.json"), JSON.stringify(catalogue), {
+		mode: 0o600,
+	});
+	process.env.STRIPE_SECRET_KEY = "sk_live_SYNTHETIC_NO_NETWORK";
+	process.env.BILLING_PROCESSOR_ENVIRONMENT = "production";
+	process.env.BILLING_PRODUCT_CATALOGUE_FILE = join(dir, "catalogue.json");
+	productPrices.set(PRO_PRICE_ID, {
+		id: PRO_PRICE_ID,
+		active: true,
+		livemode: true,
+		type: "recurring",
+		currency: "usd",
+		unit_amount: PRO_PRICE,
+	});
+	try {
+		await run(f);
+	} finally {
+		for (const [key, value] of Object.entries({
+			STRIPE_SECRET_KEY: previous.key,
+			BILLING_PROCESSOR_ENVIRONMENT: previous.environment,
+			BILLING_PRODUCT_CATALOGUE_FILE: previous.file,
+		})) {
+			if (value === undefined) Reflect.deleteProperty(process.env, key);
+			else process.env[key] = value;
+		}
+		productPrices.clear();
+		await rm(dir, { recursive: true });
+	}
+}
+function makeProductEvidenceLive(
+	event: ReturnType<typeof invoiceEvent>,
+	subscriptionId: string,
+) {
+	event.livemode = true;
+	event.data.object.livemode = true;
+	const state = stripeSubscriptions.get(subscriptionId);
+	if (!state) throw new Error("fixture subscription missing");
+	state.livemode = true;
+}
+it("combined product and credit award rollback both halves after a credit-ledger failure, then replay creates each once", async () =>
+	withProductCatalogue(async (f) => {
+		const sub = await subscriber();
+		const paid = invoiceEvent(sub);
+		makeProductEvidenceLive(paid, sub.subscriptionId);
+		failNextGrant = true;
+		expect(await postWebhook(paid)).toBe(500);
+		expect(await paidBalance(sub.userId)).toBe(0);
+		expect(await receipts(sub.userId, "subscription_payment")).toHaveLength(0);
+		expect(
+			await getDb()
+				.select()
+				.from(accessSubscriptionSources)
+				.where(
+					eq(
+						accessSubscriptionSources.providerSubscriptionId,
+						sub.subscriptionId,
+					),
+				),
+		).toHaveLength(0);
+		expect(
+			await getDb()
+				.select()
+				.from(accessGrants)
+				.where(eq(accessGrants.beneficiaryAccountId, sub.userId)),
+		).toHaveLength(0);
+		expect(
+			await getDb()
+				.select()
+				.from(accessProviderPeriods)
+				.where(eq(accessProviderPeriods.invoiceId, paid.data.object.id)),
+		).toHaveLength(0);
+		expect(await postWebhook(paid)).toBe(200);
+		expect(await postWebhook(envelope("invoice.paid", paid.data.object))).toBe(
+			500,
+		);
+		// That envelope deliberately has test mode: a contradictory delivery must fail.
+		const replay = {
+			...envelope("invoice.paid", paid.data.object),
+			livemode: true,
+		};
+		expect(await postWebhook(replay)).toBe(200);
+		expect(await paidBalance(sub.userId)).toBe(10_000);
+		for (const product of f.products)
+			expect(
+				(await readSubjectProductAccess(sub.userId, product.id)).capabilities,
+			).toHaveLength(1);
+		expect(
+			await getDb()
+				.select()
+				.from(accessGrants)
+				.where(eq(accessGrants.beneficiaryAccountId, sub.userId)),
+		).toHaveLength(2);
+		expect(
+			await getDb()
+				.select()
+				.from(accessProviderPeriods)
+				.where(eq(accessProviderPeriods.invoiceId, paid.data.object.id)),
+		).toHaveLength(1);
+	}));
+it("first historical paid product invoice after renewal/cancellation keeps current access empty while granting credits once", async () =>
+	withProductCatalogue(async (f) => {
+		const sub = await subscriber({ periodStart: nowSeconds() - MONTH - HOUR });
+		const paid = invoiceEvent(sub);
+		setStripeSubscription(sub.subscriptionId, sub.customerId, {
+			periodStart: sub.periodStart + MONTH,
+			status: "canceled",
+		});
+		makeProductEvidenceLive(paid, sub.subscriptionId);
+		expect(await postWebhook(paid)).toBe(200);
+		expect(await paidBalance(sub.userId)).toBe(10_000);
+		const [source] = await getDb()
+			.select()
+			.from(accessSubscriptionSources)
+			.where(
+				eq(
+					accessSubscriptionSources.providerSubscriptionId,
+					sub.subscriptionId,
+				),
+			);
+		expect(source.status).toBe("canceled");
+		expect(source.periodStart.getTime()).toBe((sub.periodStart + MONTH) * 1000);
+		for (const product of f.products)
+			expect(
+				(await readSubjectProductAccess(sub.userId, product.id)).capabilities,
+			).toEqual([]);
+		const replay = {
+			...envelope("invoice.paid", paid.data.object),
+			livemode: true,
+		};
+		expect(await postWebhook(replay)).toBe(200);
+		expect(await paidBalance(sub.userId)).toBe(10_000);
+		expect(
+			await getDb()
+				.select()
+				.from(accessOfferSegments)
+				.where(eq(accessOfferSegments.subscriptionId, source.id)),
+		).toHaveLength(1);
+		expect(
+			await getDb()
+				.select()
+				.from(accessGrants)
+				.where(eq(accessGrants.beneficiaryAccountId, sub.userId)),
+		).toHaveLength(2);
+		expect(await receipts(sub.userId, "subscription_payment")).toHaveLength(1);
+		expect(
+			await getDb()
+				.select()
+				.from(accessProviderEvents)
+				.where(eq(accessProviderEvents.sourceId, source.id)),
+		).toHaveLength(2);
+	}));
+
+it("self-service lists multiple product sources and named cancellation preserves the other source and grants", async () =>
+	withProductCatalogue(async () => {
+		const first = await subscriber();
+		const second = await subscriber();
+		await getDb()
+			.update(userCredits)
+			.set({ stripeCustomerId: first.customerId })
+			.where(eq(userCredits.userId, first.userId));
+		const paid = invoiceEvent(first);
+		makeProductEvidenceLive(paid, first.subscriptionId);
+		expect(await postWebhook(paid)).toBe(200);
+		const otherInvoice = invoiceEvent({
+			...second,
+			userId: first.userId,
+			customerId: first.customerId,
+		});
+		const remote = stripeSubscriptions.get(second.subscriptionId);
+		if (!remote) throw new Error("fixture subscription missing");
+		stripeSubscriptions.set(second.subscriptionId, {
+			...remote,
+			customer: first.customerId,
+		});
+		makeProductEvidenceLive(otherInvoice, second.subscriptionId);
+		expect(await postWebhook(otherInvoice)).toBe(200);
+		for (const id of [first.subscriptionId, second.subscriptionId]) {
+			const sync = envelope(
+				"customer.subscription.updated",
+				stripeSubscriptions.get(id),
+			);
+			sync.livemode = true;
+			expect(await postWebhook(sync)).toBe(200);
+		}
+		await withApp(async (base) => {
+			const headers = {
+				"x-test-user": first.userId,
+				"content-type": "application/json",
+			};
+			const read = await fetch(`${base}/billing/product-subscriptions`, {
+				headers,
+			});
+			expect(read.status).toBe(200);
+			expect(read.headers.get("cache-control")).toBe("no-store");
+			const body = (await read.json()) as {
+				subscriptions: Array<{ sourceId: string; canCancel: boolean }>;
+			};
+			expect(body.subscriptions).toHaveLength(2);
+			expect(body.subscriptions.every((value) => value.canCancel)).toBe(true);
+			const selected = body.subscriptions[0].sourceId;
+			const [target] = await getDb()
+				.select()
+				.from(accessSubscriptionSources)
+				.where(eq(accessSubscriptionSources.id, selected));
+			const denied = await fetch(
+				`${base}/billing/product-subscriptions/cancel`,
+				{
+					method: "POST",
+					headers: { ...headers, "x-test-user": second.userId },
+					body: JSON.stringify({ sourceId: selected }),
+				},
+			);
+			expect(denied.status).toBe(404);
+			const canceled = await fetch(
+				`${base}/billing/product-subscriptions/cancel`,
+				{
+					method: "POST",
+					headers,
+					body: JSON.stringify({ sourceId: selected }),
+				},
+			);
+			expect(canceled.status).toBe(200);
+			const sources = await getDb()
+				.select()
+				.from(accessSubscriptionSources)
+				.where(eq(accessSubscriptionSources.payerAccountId, first.userId));
+			expect(
+				sources
+					.filter((value) => value.cancelAtPeriodEnd)
+					.map((value) => value.id),
+			).toEqual([selected]);
+			expect(
+				stripeSubscriptions.get(target.providerSubscriptionId)
+					?.cancel_at_period_end,
+			).toBe(true);
+			expect(
+				await getDb()
+					.select()
+					.from(accessGrants)
+					.where(eq(accessGrants.beneficiaryAccountId, first.userId)),
+			).toHaveLength(4);
+			const grantRead = await fetch(`${base}/billing/credit-grants`, {
+				headers,
+			});
+			expect(grantRead.status).toBe(200);
+			const grants = (await grantRead.json()) as {
+				grants: Array<{ remaining: number }>;
+			};
+			expect(grants.grants).toHaveLength(2);
+			expect(grants.grants.map((value) => value.remaining)).toEqual([
+				PRO_CREDITS,
+				PRO_CREDITS,
+			]);
+			const foreign = await fetch(`${base}/billing/credit-grants`, {
+				headers: { ...headers, "x-test-user": second.userId },
+			});
+			expect(await foreign.json()).toEqual({ grants: [] });
+			const scalar = await fetch(`${base}/billing/subscription`, { headers });
+			expect(scalar.status).toBe(409);
+			const ambiguousCancel = await fetch(
+				`${base}/billing/subscription/cancel`,
+				{ method: "POST", headers },
+			);
+			expect(ambiguousCancel.status).toBe(409);
+			const plural = await fetch(`${base}/billing/subscriptions`, { headers });
+			expect(plural.status).toBe(200);
+			expect(
+				((await plural.json()) as { subscriptions: unknown[] }).subscriptions,
+			).toHaveLength(2);
+		});
+	}));
+
+it('product-only lifecycle uses a fresh authenticated read and never revives externally canceled access from an old event', async () => withProductCatalogue(async f => {
+  const path = process.env.BILLING_PRODUCT_CATALOGUE_FILE; if (!path) throw new Error('fixture catalogue missing');
+  const catalogue = JSON.parse(await readFile(path, 'utf8'));
+  const priceId = 'price_SYNTHETIC_PRODUCT_ONLY'; catalogue.prices[0].priceId = priceId;
+  catalogue.displayNames = { products: Object.fromEntries(f.products.map((product, index) => [product.id, `Fixture product ${index + 1}`])), offers: { [`${f.offers[0].id}@1`]: 'Fixture bundle' } };
+  await writeFile(path, JSON.stringify(catalogue), { mode: 0o600 });
+  productPrices.set(priceId, { id: priceId, livemode: true, type: 'recurring', currency: 'usd', unit_amount: PRO_PRICE });
+  const sub = await subscriber({ priceId }); const paid = invoiceEvent(sub, { priceId }); makeProductEvidenceLive(paid, sub.subscriptionId);
+  expect(await postWebhook(paid)).toBe(200); expect(await paidBalance(sub.userId)).toBe(0);
+  const old = envelope('customer.subscription.updated', { id: sub.subscriptionId, status: 'active' }); old.livemode = true;
+  const current = stripeSubscriptions.get(sub.subscriptionId); if (!current) throw new Error('fixture subscription missing');
+  stripeSubscriptions.set(sub.subscriptionId, { ...current, status: 'canceled', cancel_at_period_end: true });
+  const deleted = envelope('customer.subscription.deleted', { id: sub.subscriptionId, status: 'canceled' }); deleted.livemode = true;
+  expect(await postWebhook(deleted)).toBe(200); expect(await postWebhook(old)).toBe(200);
+  const [source] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId));
+  expect(source.status).toBe('canceled'); expect(source.cancelAtPeriodEnd).toBe(true);
+  expect((await readSubjectProductAccess(sub.userId, f.products[0].id)).capabilities).toEqual([]);
+  expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(2);
+  expect(await getDb().select().from(billingSubscriptions).where(eq(billingSubscriptions.stripeSubscriptionId, sub.subscriptionId))).toHaveLength(0);
+  expect(await getDb().select().from(billingCreditGrants).where(eq(billingCreditGrants.userId, sub.userId))).toHaveLength(0);
+  await withApp(async base => {
+    const read = await fetch(`${base}/billing/product-subscriptions`, { headers: { 'x-test-user': sub.userId } }); expect(read.status).toBe(200);
+    const body = await read.json() as { subscriptions: Array<{ offers: Array<{ displayName: string; current: boolean; period: { start: string; end: string } }> }> };
+    expect(body.subscriptions[0].offers[0]).toMatchObject({ displayName: 'Fixture bundle', current: false, period: { start: new Date(sub.periodStart * 1000).toISOString(), end: new Date((sub.periodStart + MONTH) * 1000).toISOString() } });
+  });
+}));

@@ -20,13 +20,13 @@ jest.mock('../../utils/stripeClient', () => ({
   }),
 }));
 
-import type { Response } from 'express';
 import { eq } from 'drizzle-orm';
-import type { AuthRequest } from '../../middleware/auth';
+import type { Response } from 'express';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { billingSubscriptions } from '../../db/schema/billingSubscriptions';
 import { subscriptions } from '../../db/schema/subscriptions';
 import { users } from '../../db/schema/users';
+import type { AuthRequest } from '../../middleware/auth';
 import { cancelSubscription, getSubscription } from '../subscription.controller';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -205,4 +205,18 @@ describe('cancelSubscription', () => {
     expect(status).toHaveBeenCalledWith(404);
     expect(json).toHaveBeenCalledWith({ message: 'Subscription not found' });
   });
+});
+
+it("legacy cancellation changes only its own source when a billing plan is present", async () => {
+	const userId = await account();
+	await giveBillingSubscription(userId);
+	await giveLegacySubscription(userId);
+	const { res } = responseSpy();
+	await cancelSubscription(requestFor(userId), res);
+	const [legacy] = await getDb()
+		.select()
+		.from(subscriptions)
+		.where(eq(subscriptions.userId, userId));
+	expect(legacy.status).toBe("active");
+	expect(mockStripeSubscriptionsUpdate).toHaveBeenCalledTimes(1);
 });

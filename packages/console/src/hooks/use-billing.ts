@@ -1,4 +1,5 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useRef } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services';
 
 export interface CreditPackage {
@@ -76,14 +77,15 @@ export interface CancelSubscriptionResult {
 // ======================
 
 export function useCredits() {
-  const { oxyServices, isAuthenticated, isReady } = useAuth();
+  const { oxyServices, isAuthenticated, isReady, user } = useAuth();
+  const subject = user?.id;
 
   return useQuery({
-    queryKey: ['credits'],
-    queryFn: () => oxyServices.request<Credits>('GET', '/credits/'),
+    queryKey: ['credits', subject],
+    queryFn: () => oxyServices.request<Credits>('GET', '/credits/', undefined, { cache: false }),
     staleTime: 1000 * 60, // 1 minute
     retry: 2,
-    enabled: isReady && isAuthenticated,
+    enabled: !!subject && isReady && isAuthenticated,
   });
 }
 
@@ -92,10 +94,11 @@ export function useCredits() {
 // ======================
 
 export function useCreditPackages() {
-  const { oxyServices, isAuthenticated, isReady } = useAuth();
+  const { oxyServices, isAuthenticated, isReady, user } = useAuth();
+  const subject = user?.id;
 
   return useQuery({
-    queryKey: ['credit-packages'],
+    queryKey: ['credit-packages', subject],
     queryFn: async (): Promise<Array<CreditPackage>> => {
       const result = await oxyServices.request<{ packages: Array<CreditPackage> }>(
         'GET',
@@ -105,7 +108,7 @@ export function useCreditPackages() {
     },
     staleTime: 1000 * 60 * 60, // 1 hour
     retry: 2,
-    enabled: isReady && isAuthenticated,
+    enabled: !!subject && isReady && isAuthenticated,
   });
 }
 
@@ -114,10 +117,11 @@ export function useCreditPackages() {
 // ======================
 
 export function useSubscriptionPlans() {
-  const { oxyServices, isAuthenticated, isReady } = useAuth();
+  const { oxyServices, isAuthenticated, isReady, user } = useAuth();
+  const subject = user?.id;
 
   return useQuery({
-    queryKey: ['subscription-plans'],
+    queryKey: ['subscription-plans', subject],
     queryFn: async (): Promise<Array<SubscriptionPlan>> => {
       const result = await oxyServices.request<{ plans: Array<SubscriptionPlan> }>(
         'GET',
@@ -127,7 +131,7 @@ export function useSubscriptionPlans() {
     },
     staleTime: 1000 * 60 * 60, // 1 hour
     retry: 2,
-    enabled: isReady && isAuthenticated,
+    enabled: !!subject && isReady && isAuthenticated,
   });
 }
 
@@ -136,20 +140,21 @@ export function useSubscriptionPlans() {
 // ======================
 
 export function useSubscription() {
-  const { oxyServices, isAuthenticated, isReady } = useAuth();
+  const { oxyServices, isAuthenticated, isReady, user } = useAuth();
+  const subject = user?.id;
 
   return useQuery({
-    queryKey: ['subscription'],
+    queryKey: ['subscription', subject],
     queryFn: async (): Promise<Subscription | null> => {
       const result = await oxyServices.request<{ subscription: Subscription | null }>(
         'GET',
-        '/billing/subscription'
+        '/billing/subscription', undefined, { cache: false }
       );
       return result.subscription;
     },
     staleTime: 1000 * 60 * 2, // 2 minutes
     retry: 2,
-    enabled: isReady && isAuthenticated,
+    enabled: !!subject && isReady && isAuthenticated,
   });
 }
 
@@ -157,20 +162,21 @@ export function useSubscription() {
 // Transactions
 // ======================
 
-export function useTransactions(limit: number = 20, offset: number = 0) {
-  const { oxyServices, isAuthenticated, isReady } = useAuth();
+export function useTransactions(limit = 20, offset = 0) {
+  const { oxyServices, isAuthenticated, isReady, user } = useAuth();
+  const subject = user?.id;
 
   return useQuery({
-    queryKey: ['transactions', limit, offset],
+    queryKey: ['transactions', subject, limit, offset],
     queryFn: () =>
       oxyServices.request<{ transactions: Array<Transaction>; total: number }>(
         'GET',
         '/billing/transactions',
-        { limit, offset }
+        { limit, offset }, { cache: false }
       ),
     staleTime: 1000 * 60, // 1 minute
     retry: 1,
-    enabled: isReady && isAuthenticated,
+    enabled: !!subject && isReady && isAuthenticated,
   });
 }
 
@@ -240,4 +246,38 @@ export function useCreatePortalSession() {
       return result.url;
     },
   });
+}
+
+/** Access provenance remains separate from the API-credit balance and exact-money ledger. */
+export function useProductSubscriptions() {
+  const { oxyServices, isAuthenticated, isReady, user } = useAuth();
+  const subject = user?.id;
+  return useQuery({ queryKey: ['product-subscriptions', subject], queryFn: () => oxyServices.billing.productSubscriptions(),
+    enabled: !!subject && isReady && isAuthenticated, staleTime: 0 });
+}
+export function useCreditGrants() {
+  const { oxyServices, isAuthenticated, isReady, user } = useAuth();
+  const subject = user?.id;
+  return useQuery({ queryKey: ['credit-grants', subject], queryFn: () => oxyServices.billing.creditGrants(),
+    enabled: !!subject && isReady && isAuthenticated, staleTime: 0 });
+}
+export function useCreditSubscriptions() {
+  const { oxyServices, isAuthenticated, isReady, user } = useAuth();
+  const subject = user?.id;
+  return useQuery({ queryKey: ['credit-subscriptions', subject], queryFn: async () =>
+    (await oxyServices.request<{ subscriptions: Subscription[] }>('GET', '/billing/subscriptions', undefined, { cache: false })).subscriptions,
+    enabled: !!subject && isReady && isAuthenticated, staleTime: 0 });
+}
+export function useCancelNamedSubscription() {
+  const { oxyServices, user } = useAuth(); const queries = useQueryClient();
+  const currentSubject = useRef(user?.id); currentSubject.current = user?.id;
+  return useMutation({ mutationFn: async ({ id, kind, subject }: { id: string; kind: 'product' | 'credit'; subject: string }) => {
+    if (currentSubject.current !== subject) throw new Error('The signed-in account changed; reload this subscription');
+    if (kind === 'product') await oxyServices.billing.cancelProductSubscription(id, subject);
+    else await oxyServices.request('POST', '/billing/subscriptions/cancel', { subscriptionId: id, expectedSubjectAccountId: subject });
+  }, onSuccess: async (_, variables) => { await Promise.all([
+    queries.invalidateQueries({ queryKey: ['product-subscriptions', variables.subject] }),
+    queries.invalidateQueries({ queryKey: ['credit-subscriptions', variables.subject] }),
+    queries.invalidateQueries({ queryKey: ['subscription', variables.subject] }),
+  ]); } });
 }

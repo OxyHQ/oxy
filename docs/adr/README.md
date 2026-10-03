@@ -44,6 +44,8 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0030](0030-email-code-password-authenticator.md) | #1421, #1422 | Passkeys are removed: an account without a key signs in inside every app's dialog by email (a 6-digit code or a link that approves only the browser that asked), an optional scrypt password and an optional authenticator (encrypted TOTP secret, hashed one-use backup codes); sensitive changes need a fresh email code or password; lockouts, decoys and send budgets keep it from telling whether an account exists; the passkey tables are dropped post-deploy. Changes 0029 D1, D3, 0028 and 0024's passkey, no-password and no-email lines. |
 
 | [0031](0031-explicit-oauth-consent-fallback.md) | #1521 | Third parties must name OAuth scopes; trusted empty requests receive only registered ordinary scopes. Mandatory consent and restoration of offline authority always require explicit carried scopes. |
+| [0032](0032-autonomous-account-agent-keys.md) | #1520 | Autonomous accounts use transferable governed agent keys, live session provenance and explicit bot OAuth approval; self authority is distinct from governance. |
+| [0033](0033-subscription-credit-and-product-billing.md) | #1524, #1525 | Approved P1/P2/P3, FIFO tracked credits with opaque legacy preservation, explicit product catalogue and atomic verified awards; no inferred commercial offers or historical balance reconstruction. |
 
 ## Related
 

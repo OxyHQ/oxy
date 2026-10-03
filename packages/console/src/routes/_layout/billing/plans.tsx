@@ -1,3 +1,5 @@
+import { useAuth } from '@oxy.so/services';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -18,20 +20,22 @@ import {
   useCreateSubscriptionCheckout,
   useCreditPackages,
   useCredits,
-  useSubscription,
+  useCreditSubscriptions,
+  useProductSubscriptions,
+  useCreditGrants,
+  useCancelNamedSubscription,
   useSubscriptionPlans,
   useTransactions,
 } from '@/hooks/use-billing';
 import { getErrorMessage } from '@/lib/api-error';
 import { BillingHeader } from '@/components/billing/billing-header';
-import { accountLabel, useAccount } from '@/hooks/use-account';
 
 /**
  * Product plans and credits — the SIGNED-IN USER's subscription, not the
  * account's pay-as-you-go inference balance.
  *
  * These are two different things and #972 is explicit that confusing them is the
- * failure mode: a product plan buys monthly credits against Oxy products, while
+ * failure mode: product offers grant named product rights, while API-credit plans buy monthly API credits, while
  * inference spend is exact money settled per request through the financial
  * ledger. They share no unit, they are never added together, and they live on
  * different pages for that reason. The other billing pages read
@@ -43,10 +47,14 @@ export const Route = createFileRoute('/_layout/billing/plans')({
 });
 
 function BillingPlansPage() {
-  const { currentAccount } = useAccount();
+  const { user } = useAuth();
   const { data: credits, isLoading: isLoadingCredits } = useCredits();
   const { data: packages = [], isLoading: isLoadingPackages } = useCreditPackages();
-  const { data: subscription } = useSubscription();
+  const creditSubscriptions = useCreditSubscriptions();
+  const productSubscriptions = useProductSubscriptions();
+  const creditGrants = useCreditGrants();
+  const cancelNamed = useCancelNamedSubscription();
+  const liveCreditPlans = (creditSubscriptions.data ?? []).filter(plan => ['active', 'trialing'].includes(plan.status));
   const { data: plans = [] } = useSubscriptionPlans();
   const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactions();
   const createCheckout = useCreateCheckout();
@@ -90,16 +98,16 @@ function BillingPlansPage() {
     <ScrollArea className="flex-1 bg-background">
       <BillingHeader
         active="plans"
-        accountName={currentAccount === null ? undefined : accountLabel(currentAccount)}
+        accountName={user ? (typeof user.displayName === 'string' && user.displayName ? user.displayName : getNormalizedUserHandle(user) ?? undefined) : undefined}
       />
 
       <div className="px-6 py-6 border-b border-border">
         <div className="rounded-lg border border-dashed border-border p-4">
           <p className="text-sm font-medium text-foreground">
-            These are product credits, not inference spend
+            Product access, API credits and inference money
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            A plan buys monthly credits against Oxy products and belongs to the signed-in user.
+            Product subscriptions grant named rights. API-credit plans and purchases hold separate credits. Oxy One excludes API credits.
             Pay-as-you-go inference is billed to the account in exact money and is under Overview,
             Spend and Holds and charges. The two are never added together, and a credit is not a
             currency.
@@ -140,31 +148,46 @@ function BillingPlansPage() {
         )}
       </div>
 
-      {/* Current plan */}
       <div className="px-6 py-6 border-b border-border">
-        <p className="text-sm font-semibold text-foreground mb-4">Current plan</p>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-lg font-semibold text-foreground">
-              {subscription?.plan?.name || 'Free Plan'}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {subscription
-                ? `${subscription.plan.creditsPerMonth.toLocaleString()} credits/month`
-                : '300 free credits daily refresh'}
-            </p>
-          </div>
-          {!subscription && (
-            <Button variant="outline" size="sm" onClick={() => setShowUpgradeDialog(true)}>
-              Upgrade plan
-            </Button>
-          )}
-          {subscription && (
-            <Badge variant={subscription.cancelAtPeriodEnd ? 'secondary' : 'default'}>
-              {subscription.cancelAtPeriodEnd ? 'Cancels at period end' : 'Active'}
-            </Badge>
-          )}
-        </div>
+        <p className="text-sm font-semibold mb-4">Product subscriptions</p>
+        {productSubscriptions.isError ? <p role="alert">Product subscriptions could not be loaded.</p> :
+          productSubscriptions.isLoading ? <p>Loading subscriptions…</p> :
+          (productSubscriptions.data ?? []).length === 0 ? <p>No product subscription sources.</p> :
+          (productSubscriptions.data ?? []).map(source => <div key={source.sourceId} className="py-4 border-b border-border">
+            <p className="text-sm font-medium">{source.offers.map(offer => offer.displayName).join(', ')}</p>
+            <p className="text-sm">Products: {source.offers.flatMap(offer => offer.products.map(product => product.displayName)).join(', ')}</p>
+            {source.offers.map(offer => <p key={offer.segmentId} className="text-xs text-muted-foreground">{offer.displayName} · {offer.origin === 'bundle' ? 'Bundle' : 'Individual'} · {offer.current ? 'Current paid period' : 'Paid history'} · {new Date(offer.period.start).toLocaleDateString()} – {new Date(offer.period.end).toLocaleDateString()}</p>)}
+            <p className="text-xs text-muted-foreground">{source.status} · {new Date(source.period.start).toLocaleDateString()} – {new Date(source.period.end).toLocaleDateString()}</p>
+            {source.cancelAtPeriodEnd ? <Badge variant="secondary">Cancels at period end</Badge> : source.canCancel &&
+              <Button variant="outline" size="sm" disabled={cancelNamed.isPending} onClick={() => {
+                if (window.confirm('Cancel this named product subscription at its period end?'))
+                  void cancelNamed.mutateAsync({ kind: 'product', id: source.sourceId, subject: user?.id ?? '' }).catch(error => toast.error(getErrorMessage(error, 'Cancellation failed')));
+              }}>Cancel this subscription</Button>}
+          </div>)}
+      </div>
+      <div className="px-6 py-6 border-b border-border">
+        <p className="text-sm font-semibold mb-4">API-credit plans</p>
+        {creditSubscriptions.isError ? <p role="alert">Credit plans could not be loaded.</p> : liveCreditPlans.map(plan =>
+          <div key={plan._id} className="py-4 border-b border-border"><p>{plan.plan.name} · {plan.plan.creditsPerMonth.toLocaleString()} credits/month</p>
+            <p className="text-xs">{plan.status} · through {new Date(plan.currentPeriodEnd).toLocaleDateString()}</p>
+            {plan.cancelAtPeriodEnd ? <Badge variant="secondary">Cancels at period end</Badge> :
+              <Button variant="outline" size="sm" disabled={cancelNamed.isPending} onClick={() => {
+                if (window.confirm(`Cancel ${plan.plan.name} at its period end?`))
+                  void cancelNamed.mutateAsync({ kind: 'credit', id: plan._id, subject: user?.id ?? '' }).catch(error => toast.error(getErrorMessage(error, 'Cancellation failed')));
+              }}>Cancel this credit plan</Button>}
+          </div>)}
+        {liveCreditPlans.length === 0 && !creditSubscriptions.isError && <p>300 free credits daily refresh</p>}
+        {liveCreditPlans.length === 0 && <Button variant="outline" size="sm" onClick={() => setShowUpgradeDialog(true)}>Choose a credit plan</Button>}
+      </div>
+      <div className="px-6 py-6 border-b border-border">
+        <p className="text-sm font-semibold mb-4">Credit grant origins and remaining amounts</p>
+        <p className="text-xs text-muted-foreground">Historical mixed credits are preserved without inferred origins. Spending uses tracked grants in FIFO order, then historical paid credits, then free credits.</p>
+        {creditGrants.isError ? <p role="alert">Grant history could not be loaded.</p> : (creditGrants.data ?? []).map(grant =>
+          <div key={grant.id} className="py-3 border-b border-border">
+            <p>{grant.origin.replaceAll('_', ' ')}{grant.promotionId ? ` · ${grant.promotionId}` : ''}</p>
+            <p className="text-xs">Granted {grant.granted.toLocaleString()} · consumed {grant.consumed.toLocaleString()} · refunded {grant.clawed.toLocaleString()} · remaining {grant.remaining.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Invoice {grant.invoiceId} · {new Date(grant.period.start).toLocaleDateString()} – {new Date(grant.period.end).toLocaleDateString()}</p>
+          </div>)}
       </div>
 
       {/* Credit packages */}

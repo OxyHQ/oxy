@@ -3,12 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
+import { accountClosureFences } from '../../db/schema/accountClosureFences';
 import { userCredits } from '../../db/schema/userCredits';
 import { billingTransactions } from '../../db/schema/billingTransactions';
 import { billingCreditGrants, billingCreditSpends, billingCreditInvoices, billingCreditRefundObservations } from '../../db/schema/billingCreditGrants';
 import { deductCredits } from '../../db/credits';
 import { describeAccountFinancialHolds, resetRestrictingReferenceCache } from '../accountFinancialHolds.service';
-import { grantSubscriptionCredits, recordCreditRefundSnapshot, refundCreditTarget, spendSubscriptionTrackedCredits, type SubscriptionCreditGrantInput } from '../subscriptionCreditLedger.service';
+import { grantSubscriptionCredits, lockSubscriptionCreditAccount, recordCreditRefundSnapshot, refundCreditTarget, spendSubscriptionTrackedCredits, type SubscriptionCreditGrantInput } from '../subscriptionCreditLedger.service';
 
 beforeAll(async () => { await connectPostgres(); });
 afterAll(closePostgres);
@@ -23,6 +24,7 @@ async function grant(userId: string, credits = 10000, invoiceId = `in_${randomUU
     periodStart: new Date('2026-10-01T00:00:00Z'), periodEnd: new Date('2026-11-01T00:00:00Z'),
     currency: 'usd', amountPaid: 2999, granted: credits, promotionId: null, oncePerAccountPromotionId: null };
   await getDb().transaction(async tx => {
+    await lockSubscriptionCreditAccount(tx, userId);
     await tx.insert(billingTransactions).values({ id: input.transactionId, userId, stripeInvoiceId: invoiceId,
       stripeSubscriptionId: input.subscriptionId, stripeSubscriptionPeriodStart: input.periodStart,
       type: input.sourceType, amountMinorUnits: input.amountPaid, currency: input.currency, credits, status: 'completed' });
@@ -193,6 +195,7 @@ it('a declared once-per-account promotion cannot be granted through a second sub
   const user = await account(0);
   const promotion = 'synthetic-trial@v1';
   const award = async (suffix: string) => getDb().transaction(async tx => {
+    await lockSubscriptionCreditAccount(tx, user);
     const invoiceId = `in_promo_${suffix}_${user}`; const subscriptionId = `sub_promo_${suffix}_${user}`;
     const [receipt] = await tx.insert(billingTransactions).values({ userId: user, stripeInvoiceId: invoiceId,
       stripeSubscriptionId: subscriptionId, stripeSubscriptionPeriodStart: new Date('2026-10-01T00:00:00Z'),
@@ -206,4 +209,26 @@ it('a declared once-per-account promotion cannot be granted through a second sub
   await expect(award('second')).rejects.toThrow(); expect(await paid(user)).toBe(2000);
   expect(await getDb().select().from(billingTransactions).where(eq(billingTransactions.userId, user))).toHaveLength(1);
   expect(await getDb().select().from(billingCreditInvoices).where(eq(billingCreditInvoices.userId, user))).toHaveLength(1);
+});
+
+
+it.each(['fenced', 'archived'] as const)('maintains confirmed refunds and replays after %s closure while refusing new awards and spends', async closure => {
+  const user = await account(200); const input = await grant(user, 1000);
+  expect(await spendSubscriptionTrackedCredits(getDb(), user, 100, 'before-close')).toBe(true);
+  if (closure === 'fenced') await getDb().insert(accountClosureFences).values({ accountId: user });
+  else await getDb().update(users).set({ accountStatus: 'archived' }).where(eq(users.id, user));
+  const snapshot = refund(input);
+  expect((await recordCreditRefundSnapshot(getDb(), snapshot)).removed).toBe(900);
+  expect((await recordCreditRefundSnapshot(getDb(), snapshot)).removed).toBe(0);
+  expect(await spendSubscriptionTrackedCredits(getDb(), user, 100, 'before-close')).toBe(true);
+  expect((await getDb().transaction(tx => grantSubscriptionCredits(tx, input))).status).toBe('replayed');
+  await expect(spendSubscriptionTrackedCredits(getDb(), user, 1, 'after-close')).rejects.toThrow('closure prevents');
+  await expect(grant(user, 1000)).rejects.toThrow('closure prevents');
+  const historic = { ...snapshot, invoiceId: `in_old_${randomUUID()}`, eventId: `evt_old_${randomUUID()}`, chargeId: `ch_old_${randomUUID()}` };
+  expect(await recordCreditRefundSnapshot(getDb(), historic)).toMatchObject({ matchedGrants: 0, removed: 0, status: 'recorded' });
+  expect(await paid(user)).toBe(200);
+  expect(await getDb().select().from(billingTransactions).where(eq(billingTransactions.userId, user))).toHaveLength(1);
+  expect(await getDb().select().from(billingCreditSpends).where(eq(billingCreditSpends.userId, user))).toHaveLength(1);
+  expect(await getDb().select().from(billingCreditInvoices).where(eq(billingCreditInvoices.userId, user))).toHaveLength(2);
+  expect((await ledger(user))[0]).toMatchObject({ consumed: 100, clawed: 900 });
 });
