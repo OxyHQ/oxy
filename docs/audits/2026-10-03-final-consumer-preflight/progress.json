@@ -33,7 +33,7 @@
       "head": "f36071e55c22d1802d00b03a96820c83eb48968b",
       "proof": "docs/audits/2026-10-03-final-sdk-source-compat/proof.json",
       "proofSha256": "f0d501280f77114eae4068908200d3c4ac502944427bcebad460f27e3aabc502",
-      "status": "Root accepted initial compatibility; socket follow-up submitted for review, 2 suites / 10 PASS SQL with explicit Oxy auth double"
+      "status": "Root accepted initial compatibility and socket follow-up: 2 suites / 10 PASS SQL with explicit Oxy auth double; registry/runtime pending"
     }
   ],
   "AliaI05": "Integration confirms uncommitted WIP on d9847676849a74b1956934f2033f2421caf0b62b; no accepted source/test commit. Await exact handoff before composing with d5d02f274.",

@@ -28,8 +28,7 @@ Git bases. [progress.json](progress.json) records the later commits and exact
 proof hashes. Clarity now passes 25 tests, types and web export; Expo passes
 types and web export; Allo passes its source migration checks plus 10 HTTP /
 Socket.IO / SQL tests (Oxy authority remains an explicit double). Root accepted
-the first three compatibility checkpoints; Allo socket follow-up is submitted
-for review. Candidate `file:` installs are local evidence, not final manifests.
+these compatibility checkpoints and the Allo socket follow-up. Candidate `file:` installs are local evidence, not final manifests.
 
 Alia I05 remains integration-owned uncommitted WIP with no accepted test/source
 commit. Its I10 base and prepared pin patch are preserved; no WIP was copied.
