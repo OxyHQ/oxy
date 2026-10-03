@@ -1,7 +1,7 @@
 {
   "status": "INDEPENDENT_REPRODUCTION_COMPLETED_CANDIDATE_UNAPPROVED",
-  "recordedAtUTC": "2026-10-03T04:13:45.803168+00:00",
-  "candidateCommit": "15cf6b6e5a2743e15486df4943c9b6eda1909ece",
+  "recordedAtUTC": "2026-10-03T05:29:17.501160+00:00",
+  "candidateCommit": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
   "upstreamTag": "v1.4.0",
   "upstreamCommit": "fa385f92440879601240020f158bed68e444e83a",
   "toolchain": {
@@ -79,10 +79,10 @@
   "oxyTests": {
     "suitesPassing": 3,
     "testsPassing": 34,
-    "ownedPostgresPid": 3482519,
+    "ownedPostgresPid": 3517840,
     "ownedPostgresMajor": 17,
     "ownedPostgresPort": 5578,
-    "ownedPostgresDataDirectory": "/tmp/oxy-forge-final-pg-wetexg_h/data",
+    "ownedPostgresDataDirectory": "/tmp/oxy-forge-final-pg-nhuo2o26/data",
     "databaseLifecycle": "fresh initdb owned PID/UID/data/executable/listening socket verified; normal migrator130+repeat; Jest random databases migrated/dropped; server stopped finally"
   },
   "knownKeyControls": {
@@ -158,16 +158,16 @@
     },
     {
       "file": "expo-14-final.log",
-      "sha256": "66f06aae306b58996c208322fe33453a98ddc41ef53e56ae5ff62600539644e0",
-      "completedFileMtimeUTC": "2026-10-03T04:09:46.059357+00:00",
+      "sha256": "f1fe1f3cd6e34950f5f4ca57d77d22b17143e11077ab31e278171735d79e8c20",
+      "completedFileMtimeUTC": "2026-10-03T05:29:17.501160+00:00",
       "command": "node scripts/forge-independent-expo-compat.cjs packages/api",
       "exitCode": 0,
       "reusedHistorical": false
     },
     {
       "file": "oxy-34.log",
-      "sha256": "8873f21fd145f5d547a5f7151a982afe332aca2e546b345c5380a0b3cc885c35",
-      "completedFileMtimeUTC": "2026-10-03T04:09:46.059211+00:00",
+      "sha256": "f5a543db3b41e8d8a6762ce1516f0bed83888f11a23248f470ffc8c842e2c3db",
+      "completedFileMtimeUTC": "2026-10-03T05:29:17.501160+00:00",
       "command": "python3 scripts/rehearsal/test-forge-final-input-1519.py (owned server, normal API test/migrator)",
       "exitCode": 0,
       "reusedHistorical": false
@@ -178,7 +178,8 @@
       "completedFileMtimeUTC": "2026-10-03T04:09:46.059281+00:00",
       "command": "bunx turbo run build --filter=@oxy.so/api^... (eight dependencies built)",
       "exitCode": 0,
-      "reusedHistorical": false
+      "reusedHistorical": true,
+      "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece"
     },
     {
       "file": "stock-install-pinned.log",
@@ -202,7 +203,8 @@
       "completedFileMtimeUTC": "2026-10-03T04:09:46.059325+00:00",
       "command": "bun install --frozen-lockfile --minimum-release-age=0 (issuer-only staging input)",
       "exitCode": 0,
-      "reusedHistorical": false
+      "reusedHistorical": true,
+      "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece"
     },
     {
       "file": "stock-controls.json",
@@ -218,7 +220,8 @@
       "completedFileMtimeUTC": "2026-10-03T04:09:46.059394+00:00",
       "command": "node scripts/forge-candidate-regression.cjs <final installed Forge root> candidate",
       "exitCode": 0,
-      "reusedHistorical": false
+      "reusedHistorical": true,
+      "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece"
     },
     {
       "file": "hashes-after-build-2.json",
@@ -261,20 +264,20 @@
       "hashes-after-build-2.json",
       "candidate-build-repeat.json"
     ],
-    "scope": "Stock/candidate Forge source, patch, webpack/toolchain and all five stock/candidate/installed outputs verified unchanged via 15 SHA-256 comparisons. Historical build/upstream/control logs reused explicitly. New Oxy34/Expo14/install/installed321 rerun on issuer-only input candidateCommit. ARM proof not yet collected."
+    "scope": "Historical stock/candidate Forge builds, upstream828+4pending, and known-key321 controls are reused on unchanged source/patch/toolchain and15 verified output hashes. Current Oxy34 and Expo14 rerun on source9efa8d28e. Dependency build/install and installed321 from15cf explicitly reused because dependency input trees and allfive installedForge outputs unchanged; only API comments/OpenAPI changed between15cf and9efa. New ARM target still required."
   },
   "supplementalRecords": [
     {
       "file": "consumer-runner-final.log",
-      "sha256": "b707461d504b9d4a29db7bbabdebe9ddff7c014e3de73f898e3096939c78795f"
+      "sha256": "07117c816cf897a8e11c2c9283498d1e6ca6b8f5f312001d2feae3d572cc487e"
     },
     {
       "file": "migrate-fresh.txt",
-      "sha256": "47b34be95d3c14015835bb0868821aa8113795f1cd2555689f25c5195fe0ac9b"
+      "sha256": "e8a9e2b605f8d81a9b17ef4b5fcf819521c6b50e5eafba2f2ea171cc667c6c6b"
     },
     {
       "file": "migrate-repeat.txt",
-      "sha256": "1287476192036783a658439f252b7d2fdc97c2e4db8bc56c2ffae8dc093b30ac"
+      "sha256": "b3a8918777c87fa23ea35591d9778ef23d9264abecbb83bd47e22c7d4929028d"
     },
     {
       "file": "inventory.json",
@@ -334,7 +337,7 @@
     }
   ],
   "inputTrees": {
-    "packages": "21919cfe0b0bb7cb32574c7557909b475ce36ec6",
+    "packages": "0dd0ca266d583f50abb62335cff8434aea953cf2",
     "bun.lock": "266d2176150ca013b673908bb22bc84f20a65b5f",
     "package.json": "19136677bba961cb17936a52f1262b4d54801a78",
     "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
@@ -353,6 +356,7 @@
     "policyStatus": "INACTIVE",
     "armProofCollected": false,
     "expiryNotExtended": "2026-10-09T22:00:00Z",
-    "firstExpoInvocation": "node --test also treated packages/api as a test; 14 own checks passed but invocation failed; corrected direct runner passed14"
+    "firstExpoInvocation": "node --test also treated packages/api as a test; 14 own checks passed but invocation failed; corrected direct runner passed14",
+    "machineInputBindingCorrection": "Policy EVIDENCE_PATH requires this17-record proof. It now names9efa and refreshed Oxy/Expo/PG+Gitinputs. Separate refreeze23-record proof is supplemental, not a bypass/substitute for the policy machine format."
   }
 }

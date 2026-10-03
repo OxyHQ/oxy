@@ -125,7 +125,8 @@
   "reuse": {
     "earlierProof": "docs/security/forge-independent/2026-10-03-final-input/proof.json",
     "sha256": "e95d5f7515f1662904af32f984ccc58bb616e2847a674fbff19f80c19c38461a",
-    "scope": "Historical stock/candidate builds, upstream828+4pending, and known-key321 controls reused: source/patch/toolchain and15 output hashes unchanged; dependency input trees unchanged except API comments/OpenAPI. Fresh Oxy34+Expo14 and current runtime closure rerun here. Earlier ARM8a is historical only; no new ARM or activation yet."
+    "scope": "Historical stock/candidate builds, upstream828+4pending, and known-key321 controls reused: source/patch/toolchain and15 output hashes unchanged; dependency input trees unchanged except API comments/OpenAPI. Fresh Oxy34+Expo14 and current runtime closure rerun here. Earlier ARM8a is historical only; no new ARM or activation yet.",
+    "earlierProofSourceHead": "8a75356399c93710d4d24bdc674fa8f7fe721f48"
   },
   "errorsPreserved": {
     "redisLauncher": "invoked resolved redis-check-rdb symlink name; fixed invocation redis-server with resolved executable guard",
@@ -140,5 +141,11 @@
     "ARM target remains to be built from new frozen source and independently authenticated/reviewed",
     "No production mutation/publish/merge/deploy in this checkpoint"
   ],
-  "securityApproved": false
+  "securityApproved": false,
+  "machinePolicyProof": {
+    "path": "docs/security/forge-independent/2026-10-03-final-input/proof.json",
+    "sha256": "a08052867df2aa28e22b5d64384bd6bfd9ac2f09db0a2d59e15ea2513c5a7282",
+    "candidateCommit": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
+    "records": 17
+  }
 }
