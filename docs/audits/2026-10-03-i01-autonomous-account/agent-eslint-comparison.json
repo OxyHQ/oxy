@@ -1,0 +1,212 @@
+{
+  "base": "ad0681f83",
+  "current": [
+    {
+      "file": "packages/api/src/middleware/authUtils.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'error' is defined but never used.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/middleware/authUtils.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'id' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/middleware/authUtils.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'requireAuth' is assigned a value but never used. Allowed unused args must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/routes/accounts.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'serviceAuthMiddleware' is defined but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/routes/accounts.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'ServiceAuthRequest' is defined but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/routes/accounts.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'ApplicationScope' is defined but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/routes/accounts.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'accountMembers' is defined but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/routes/capabilities.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'userId' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/services/session.service.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'DeviceFingerprint' is defined but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/services/session.service.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'tokenError' is defined but never used.",
+      "severity": 1
+    }
+  ],
+  "baseline": [
+    {
+      "file": "packages/api/src/middleware/authUtils.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'error' is defined but never used.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/middleware/authUtils.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'id' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/middleware/authUtils.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'requireAuth' is assigned a value but never used. Allowed unused args must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/routes/accounts.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'serviceAuthMiddleware' is defined but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/routes/accounts.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'ServiceAuthRequest' is defined but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/routes/accounts.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'ApplicationScope' is defined but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/routes/accounts.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'accountMembers' is defined but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/routes/capabilities.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'userId' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "rule": "@typescript-eslint/no-explicit-any",
+      "message": "Unexpected any. Specify a different type.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/services/session.service.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'DeviceFingerprint' is defined but never used. Allowed unused vars must match /^_/u.",
+      "severity": 1
+    },
+    {
+      "file": "packages/api/src/services/session.service.ts",
+      "rule": "@typescript-eslint/no-unused-vars",
+      "message": "'tokenError' is defined but never used.",
+      "severity": 1
+    }
+  ],
+  "new": []
+}
