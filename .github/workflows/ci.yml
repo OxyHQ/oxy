@@ -864,6 +864,8 @@ jobs:
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+          node scripts/test-quiesced-deploy.mjs
+          node scripts/test-quiesced-deploy-shell.mjs
           bash .github/scripts/test-resolve-queue-image.sh
           bash .github/scripts/test-verify-reused-service-credential.sh
           bash .github/scripts/test-put-secure-parameter.sh

@@ -49,6 +49,20 @@ POST_DEPLOY_TASKS_CONCURRENT="${POST_DEPLOY_TASKS_CONCURRENT:-false}"
 # — oxy-api uses it to start the asset-variant worker's rollout so the queue's
 # consumer is replaced before its producer.
 PRE_ROLLOUT_SCRIPT="${PRE_ROLLOUT_SCRIPT:-}"
+# Explicit maintenance input; ordinary deployments continue to reject count0.
+# The plan binds a previously stopped service to one reviewed final digest.
+QUIESCED_DEPLOY_PLAN_PATH="${QUIESCED_DEPLOY_PLAN_PATH:-}"
+QUIESCED_DEPLOY_PLAN_SHA256="${QUIESCED_DEPLOY_PLAN_SHA256:-}"
+quiesced_deploy=false
+if [[ -n "$QUIESCED_DEPLOY_PLAN_PATH" || -n "$QUIESCED_DEPLOY_PLAN_SHA256" ]]; then
+  if [[ ! -f "$QUIESCED_DEPLOY_PLAN_PATH" ||
+        ! "$QUIESCED_DEPLOY_PLAN_SHA256" =~ ^[0-9a-f]{64}$ ||
+        ! "${DEPLOY_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "::error::Quiesced deployment requires the reviewed plan/hash and a main source SHA."
+    exit 1
+  fi
+  quiesced_deploy=true
+fi
 # Optional ceiling on running tasks during the rollout, as ECS's maximumPercent.
 # Unset keeps the one-extra-task surge below (the shape every copy of this
 # script had). A caller with measured Fargate headroom can raise it — up to 200,
@@ -263,7 +277,12 @@ fi
 rollback_task_definition="$current_task_definition"
 
 service_desired_count="$(jq -r '.services[0].desiredCount // empty' <<<"$service_json")"
-if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]] ||
+if [[ "$quiesced_deploy" == true ]]; then
+  # No AWS writes have occurred. Require main binding plus current AWS evidence,
+  # not a file that merely asserts that the maintenance prerequisites were met.
+  bash "$DEPLOY_HEAD_GUARD_SCRIPT"
+  service_desired_count="$(node .github/scripts/guard-quiesced-deploy.mjs)"
+elif ! [[ "$service_desired_count" =~ ^[0-9]+$ ]] ||
    (( service_desired_count < 1 )); then
   echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying."
   exit 1
@@ -330,6 +349,10 @@ echo "Rollout surge: ${deployment_surge_percent}% of ${service_desired_count} ta
 
 task_definition_file="$(mktemp)"
 rendered_task_definition_file="$(mktemp)"
+maintenance_tasks_file="$(mktemp)"
+if [[ "$quiesced_deploy" == true ]]; then
+  jq -c '.previousTasks' "$QUIESCED_DEPLOY_PLAN_PATH" >"$maintenance_tasks_file"
+fi
 active_one_shot_task_arn=""
 active_one_shot_task_stopped=true
 active_one_shot_label=""
@@ -339,7 +362,7 @@ cleanup() {
         -n "$active_one_shot_task_arn" ]]; then
     echo "::warning::Unfinished $active_one_shot_label task $active_one_shot_task_arn may still be running; the deploy role cannot call ecs:StopTask."
   fi
-  rm -f "$task_definition_file" "$rendered_task_definition_file"
+  rm -f "$task_definition_file" "$rendered_task_definition_file" "$maintenance_tasks_file"
 }
 trap cleanup EXIT
 
@@ -406,6 +429,9 @@ wait_for_service_rollout() {
       sleep "$POLL_INTERVAL"
       elapsed=$((elapsed + POLL_INTERVAL))
       continue
+    fi
+    if [[ "$quiesced_deploy" == true ]]; then
+      node .github/scripts/guard-quiesced-deploy.mjs --record-tasks "$new_task_definition" "$maintenance_tasks_file" || return 1
     fi
 
     ours="$(jq -c --arg id "$deployment_id" '
@@ -604,7 +630,11 @@ run_one_shot_command() {
     service_retry_desired="$(jq -r '.services[0].desiredCount // empty' <<<"$service_retry_json")"
     service_retry_running="$(jq -r '.services[0].runningCount // 0' <<<"$service_retry_json")"
     service_retry_pending="$(jq -r '.services[0].pendingCount // 0' <<<"$service_retry_json")"
-    if [[ "$service_retry_status" != "ACTIVE" ||
+    if [[ "$quiesced_deploy" == true && "$expected_service_task_definition" == "$rollback_task_definition" ]]; then
+      # Maintenance pre-DDL retries remain at zero; all live prerequisites must
+      # still hold. Post-cutover tasks keep the ordinary positive-count check.
+      node .github/scripts/guard-quiesced-deploy.mjs >/dev/null || return 1
+    elif [[ "$service_retry_status" != "ACTIVE" ||
           "$service_retry_task_definition" != "$expected_service_task_definition" ||
           ! "$service_retry_desired" =~ ^[0-9]+$ ]] ||
        (( service_retry_desired < 1 )); then
@@ -648,6 +678,34 @@ run_one_shot_command() {
 
 rollback_service() {
   local rollback_json rollback_deployment_id rollback_service_json rollback_desired_count
+
+  if [[ "$quiesced_deploy" == true ]]; then
+    # Starting the old normal bootstrap would restart financial/authority
+    # writers. Keep maintenance closed; AUTH-only recovery is a separate gate.
+    local maintenance_current
+    maintenance_current="$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")" || return 1
+    if ! jq -e --arg old "$rollback_task_definition" --arg new "$new_task_definition" '
+      .failures == [] and (.services | length) == 1 and
+      (.services[0].taskDefinition == $old or .services[0].taskDefinition == $new)
+    ' <<<"$maintenance_current" >/dev/null; then
+      echo "::error::Maintenance recovery refuses a foreign task definition."
+      return 1
+    fi
+    node .github/scripts/guard-quiesced-deploy.mjs --record-tasks "$new_task_definition" "$maintenance_tasks_file" || return 1
+    aws ecs update-service --cluster "$CLUSTER" --service "$APP" \
+      --desired-count 0 >/dev/null || return 1
+    local elapsed=0
+    while (( elapsed < MAX_WAIT_SECS )); do
+      if node .github/scripts/guard-quiesced-deploy.mjs --assert-shutdown "$new_task_definition" "$maintenance_tasks_file"; then
+        echo "Maintenance recovery holds $APP stopped with no registered targets; old bootstrap was not restored."
+        return 0
+      fi
+      sleep "$POLL_INTERVAL"
+      elapsed=$((elapsed + POLL_INTERVAL))
+    done
+    echo "::error::Maintenance shutdown/drain was not confirmed; manual recovery is required."
+    return 1
+  fi
 
   if ! rollback_service_json="$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")" ||
      [[ "$(jq '.failures | length' <<<"$rollback_service_json")" != "0" ]] ||
@@ -824,10 +882,16 @@ jq \
   ' \
   "$task_definition_file" >"$rendered_task_definition_file"
 
+if [[ "$quiesced_deploy" == true ]]; then
+  node .github/scripts/guard-quiesced-deploy.mjs --assert-rendered "$rendered_task_definition_file"
+fi
 new_task_definition="$(aws ecs register-task-definition \
   --cli-input-json "file://$rendered_task_definition_file" \
   --query 'taskDefinition.taskDefinitionArn' \
   --output text)"
+if [[ "$quiesced_deploy" == true ]]; then
+  node .github/scripts/guard-quiesced-deploy.mjs --assert-registered "$new_task_definition"
+fi
 
 one_shot_run_task_args=()
 if [[ "$RUN_MIGRATIONS" == "true" ||
@@ -905,14 +969,27 @@ if [[ -n "${DEPLOY_SHA:-}" ]]; then
   bash "$DEPLOY_HEAD_GUARD_SCRIPT"
 fi
 
+if [[ "$quiesced_deploy" == true ]]; then
+  # Migration and worker rollout may have taken minutes; reject API/scaler/TG
+  # drift before the single update that installs newTD AND restores its count.
+  checked_restore_count="$(node .github/scripts/guard-quiesced-deploy.mjs)"
+  if [[ "$checked_restore_count" != "$service_desired_count" ]]; then
+    echo "::error::Maintenance restore count changed before service update."
+    exit 1
+  fi
+fi
+deployment_auto_rollback=true
+if [[ "$quiesced_deploy" == true ]]; then deployment_auto_rollback=false; fi
+
 deploy_update_json=""
 if ! deploy_update_json="$(aws ecs update-service \
   --cluster "$CLUSTER" \
   --service "$APP" \
   --task-definition "$new_task_definition" \
   --desired-count "$service_desired_count" \
-  --deployment-configuration "$(jq -nc --argjson maxPercent "$deployment_surge_percent" '{
-    deploymentCircuitBreaker: {enable: true, rollback: true},
+  --deployment-configuration "$(jq -nc --argjson maxPercent "$deployment_surge_percent" \
+    --argjson autoRollback "$deployment_auto_rollback" '{
+    deploymentCircuitBreaker: {enable: true, rollback: $autoRollback},
     minimumHealthyPercent: 100,
     maximumPercent: $maxPercent
   }')" \
@@ -946,7 +1023,7 @@ if [[ -n "$POST_DEPLOY_SMOKE_SCRIPT" ]]; then
   echo "Running post-deploy smoke checks with $POST_DEPLOY_SMOKE_SCRIPT"
   smoke_exit=0
   bash "$POST_DEPLOY_SMOKE_SCRIPT" || smoke_exit=$?
-  if (( smoke_exit == SMOKE_NO_ROLLBACK_EXIT )); then
+  if (( smoke_exit == SMOKE_NO_ROLLBACK_EXIT )) && [[ "$quiesced_deploy" != true ]]; then
     # The smoke script attributed every failure to something outside the image.
     # The release keeps going — including the reconciliation task below, which
     # would otherwise be skipped over a fault it has nothing to do with — and the
