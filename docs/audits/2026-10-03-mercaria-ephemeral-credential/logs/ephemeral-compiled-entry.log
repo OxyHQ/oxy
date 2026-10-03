@@ -1,0 +1,1 @@
+{"command": "node packages/api/dist/operations/mercariaEphemeralCredential.js <invalid synthetic request> <matching sha256>", "exitCode": 1, "stdoutEmpty": true, "sanitizedError": true, "noDatabaseConnection": true}
