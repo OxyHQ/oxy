@@ -1,0 +1,6 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/server/__tests__/agentAccount.test.ts
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        0.345 s, estimated 1 s
+Ran all test suites within paths "src/server/__tests__/agentAccount.test.ts".

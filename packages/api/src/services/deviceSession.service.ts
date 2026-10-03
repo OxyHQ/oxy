@@ -610,6 +610,16 @@ class DeviceSessionService {
     return row;
   }
 
+  /** Binding writers take this device lock before reading contexts or secrets.
+   * Session deactivation stays after COMMIT: a device transaction never waits
+   * for a pool write to a row whose FK points back to the locked device.
+   */
+  private async lockDevice(db: Queryable, deviceId: string): Promise<DeviceSessionRow | null> {
+    const [locked] = await db.select({ id: deviceSessions.id }).from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, deviceId)).for('update');
+    return locked ? this.load(db, deviceId) : null;
+  }
+
   /**
    * The RAW `device_sessions` row, created empty if absent.
    *
@@ -698,7 +708,9 @@ class DeviceSessionService {
     const result = await this.withAuthuserRaceRetry(async () => {
       displacedSessionId = null;
       return getDb().transaction(async (tx) => {
-        const current = await this.ensureDevice(tx, deviceId);
+        await this.ensureDeviceRecord(tx, deviceId);
+        const current = await this.lockDevice(tx, deviceId);
+        if (!current) throw new Error(`device_sessions row for "${deviceId}" vanished after lock`);
         const contexts = await this.loadContexts(tx, current.id);
         // Keyed on the ACCOUNT, not on the pair, which keeps this path
         // producing the one-entry-per-account set the flat contract promises.
@@ -918,61 +930,55 @@ class DeviceSessionService {
 
   async signout(deviceId: string, target: { accountId: string } | { all: true }): Promise<DeviceSessionState> {
     const db = getDb();
-    const current = await this.load(db, deviceId);
-    if (!current) return this.getState(deviceId);
-    const allAccounts = current.accounts;
+    let removedSessionIds: string[] = [];
+    const updated = await db.transaction(async (tx) => {
+      const current = await this.lockDevice(tx, deviceId);
+      if (!current) return null;
+      const allAccounts = current.accounts;
 
-    let removingIds: Set<string>;
-    if ('all' in target) {
-      removingIds = new Set(allAccounts.map((a) => a.accountId));
-    } else {
-      const targetPresent = allAccounts.some((a) => a.accountId === target.accountId);
-      if (!targetPresent) return projectState(current);
-      removingIds = new Set([target.accountId]);
-      // Cascade: signing out an operator's own account must also remove every
-      // managed/org account that operator switched into on this device (one
-      // level deep — operated accounts can't themselves operate others). This
-      // is ADR 0001's "removing a principal removes exactly its own contexts",
-      // and it is the same rule `device_account_contexts.principal_id`'s
-      // ON DELETE CASCADE enforces for a delete that never reaches this service.
-      for (const a of allAccounts) {
-        if (a.operatedByUserId === target.accountId) {
-          removingIds.add(a.accountId);
+      let removingIds: Set<string>;
+      if ('all' in target) {
+        removingIds = new Set(allAccounts.map((a) => a.accountId));
+      } else {
+        const targetPresent = allAccounts.some((a) => a.accountId === target.accountId);
+        if (!targetPresent) return current;
+        removingIds = new Set([target.accountId]);
+        // Cascade: signing out an operator's own account must also remove every
+        // managed/org account that operator switched into on this device (one
+        // level deep — operated accounts can't themselves operate others). This
+        // is ADR 0001's "removing a principal removes exactly its own contexts",
+        // and it is the same rule `device_account_contexts.principal_id`'s
+        // ON DELETE CASCADE enforces for a delete that never reaches this service.
+        for (const a of allAccounts) {
+          if (a.operatedByUserId === target.accountId) {
+            removingIds.add(a.accountId);
+          }
         }
       }
-    }
 
-    const removing = allAccounts.filter((a) => removingIds.has(a.accountId));
-    for (const a of removing) {
-      try {
-        await sessionService.deactivateSession(a.sessionId);
-      } catch (error) {
-        logger.warn('deviceSession.signout: deactivate failed', { sessionId: a.sessionId, error });
-      }
-    }
+      removedSessionIds = allAccounts.filter((a) => removingIds.has(a.accountId)).map((a) => a.sessionId);
 
-    const remaining = allAccounts.filter((a) => !removingIds.has(a.accountId));
-    const activeStillPresent = remaining.some((a) => a.accountId === current.activeAccountId);
-    const nextActive = activeStillPresent
-      ? current.activeAccountId
-      : (remaining[0] ? remaining[0].accountId : null);
-    const boundBackgroundAccountId = current.backgroundSecretAccountId;
-    const shouldClearBackground =
-      'all' in target ||
-      (boundBackgroundAccountId !== null && removingIds.has(boundBackgroundAccountId));
+      const remaining = allAccounts.filter((a) => !removingIds.has(a.accountId));
+      const activeStillPresent = remaining.some((a) => a.accountId === current.activeAccountId);
+      const nextActive = activeStillPresent
+        ? current.activeAccountId
+        : (remaining[0] ? remaining[0].accountId : null);
+      const boundBackgroundAccountId = current.backgroundSecretAccountId;
+      const shouldClearBackground =
+        'all' in target ||
+        (boundBackgroundAccountId !== null && removingIds.has(boundBackgroundAccountId));
 
-    // The holders' `device_credentials` are NOT revoked here: ADR 0029 D2 makes
-    // the browser's DeviceSession shared by every official web app on it, so a
-    // credential proves "this browser", not "this account". Removing one account
-    // removes it for every holder at once (the contexts below), and each holder
-    // keeps minting for whichever accounts remain — Google's model. The
-    // credentials go when the device ends with nobody signed in, inside the
-    // transaction below, and always on signout-ALL.
-    const clearedSecrets = {
-      ...(shouldClearBackground ? this.clearedBackgroundCredentialFields() : {}),
-    };
+      // The holders' `device_credentials` are NOT revoked here: ADR 0029 D2 makes
+      // the browser's DeviceSession shared by every official web app on it, so a
+      // credential proves "this browser", not "this account". Removing one account
+      // removes it for every holder at once (the contexts below), and each holder
+      // keeps minting for whichever accounts remain — Google's model. The
+      // credentials go when the device ends with nobody signed in, inside the
+      // transaction below, and always on signout-ALL.
+      const clearedSecrets = {
+        ...(shouldClearBackground ? this.clearedBackgroundCredentialFields() : {}),
+      };
 
-    const updated = await db.transaction(async (tx) => {
       if (removingIds.size > 0) {
         // Scoped by ACCOUNT, so it removes that account under every principal
         // of this device. Under this path there is only ever one — the flat
@@ -1006,8 +1012,10 @@ class DeviceSessionService {
       }
       return this.load(tx, deviceId);
     });
-    if (!updated) {
-      throw new Error(`device_sessions row for "${deviceId}" vanished during signout`);
+    if (!updated) return this.getState(deviceId);
+    for (const sessionId of removedSessionIds) {
+      try { await sessionService.deactivateSession(sessionId); }
+      catch (error) { logger.warn('deviceSession.signout: deactivate failed', { sessionId, error }); }
     }
     return projectState(updated);
   }
@@ -1147,32 +1155,37 @@ class DeviceSessionService {
     db: Queryable,
     deviceSessionId: string,
     principals: readonly DevicePrincipalRow[],
-    contexts: readonly DeviceContextRow[],
     actAsByPrincipal: ReadonlyMap<string, ReadonlyMap<string, ActAsAccount>>
   ): Promise<boolean> {
-    const missing: { principalId: string; accountId: string }[] = [];
-    const staleContextIds: string[] = [];
-
-    for (const principal of principals) {
-      const actAs = actAsByPrincipal.get(principal.id);
-      if (!actAs) continue;
-      const own = contexts.filter((context) => context.principalId === principal.id);
-      const held = new Set(own.map((context) => context.accountId));
-      // Sorted so a device that gains three organizations at once materializes
-      // them in one order, not in whatever order the graph query returned.
-      for (const accountId of [...actAs.keys()].sort()) {
-        if (!held.has(accountId)) missing.push({ principalId: principal.id, accountId });
-      }
-      for (const context of own) {
-        if (context.sessionId === null && !actAs.has(context.accountId)) {
-          staleContextIds.push(context.contextId);
+    return db.transaction(async (tx) => {
+      const [locked] = await tx.select({ id: deviceSessions.id }).from(deviceSessions)
+        .where(eq(deviceSessions.id, deviceSessionId)).for('update');
+      if (!locked) return false;
+      const currentPrincipals = await this.loadPrincipals(tx, deviceSessionId);
+      const currentContexts = await this.loadContexts(tx, deviceSessionId);
+      const missing: { principalId: string; accountId: string }[] = [];
+      const staleContextIds: string[] = [];
+      for (const principal of currentPrincipals) {
+        const original = principals.find((entry) => entry.id === principal.id);
+        if (!original || original.personalSessionId !== principal.personalSessionId) continue;
+        const actAs = actAsByPrincipal.get(principal.id);
+        if (!actAs) continue;
+        const own = currentContexts.filter((context) => context.principalId === principal.id);
+        const held = new Set(own.map((context) => context.accountId));
+        // Sorted so a device that gains three organizations at once materializes
+        // them in one order, not in whatever order the graph query returned.
+        for (const accountId of [...actAs.keys()].sort()) {
+          if (!held.has(accountId)) missing.push({ principalId: principal.id, accountId });
+        }
+        for (const context of own) {
+          if (context.sessionId === null && !actAs.has(context.accountId)) {
+            staleContextIds.push(context.contextId);
+          }
         }
       }
-    }
 
-    if (missing.length === 0 && staleContextIds.length === 0) return false;
+      if (missing.length === 0 && staleContextIds.length === 0) return false;
 
-    await db.transaction(async (tx) => {
       if (missing.length > 0) {
         await tx
           .insert(deviceAccountContexts)
@@ -1202,8 +1215,8 @@ class DeviceSessionService {
           .delete(deviceAccountContexts)
           .where(inArray(deviceAccountContexts.id, staleContextIds));
       }
+      return true;
     });
-    return true;
   }
 
   /**
@@ -1329,7 +1342,6 @@ class DeviceSessionService {
       db,
       device.id,
       principals,
-      initial,
       actAsByPrincipal
     );
     const contexts = reconciled ? await this.loadContexts(db, device.id) : initial;
@@ -1707,28 +1719,20 @@ class DeviceSessionService {
     preserveSessionId: string
   ): Promise<DeviceSessionState | null> {
     const db = getDb();
-    const current = await this.load(db, deviceId);
-    if (!current) return null;
-    const entry = current.accounts.find((a) => a.accountId === accountId);
-    if (!entry) return null;
-
-    // Deactivate a DIFFERENT (genuinely stale) session the row referenced —
-    // never the one that just migrated and is now live on the caller's device.
-    if (entry.sessionId && entry.sessionId !== preserveSessionId) {
-      try {
-        await sessionService.deactivateSession(entry.sessionId);
-      } catch (error) {
-        logger.warn('deviceSession.detachMigratedAccount: deactivate failed', { sessionId: entry.sessionId, error });
-      }
-    }
-
-    const remaining = current.accounts.filter((a) => a.accountId !== accountId);
-    const activeStillPresent = remaining.some((a) => a.accountId === current.activeAccountId);
-    const nextActive = activeStillPresent
-      ? current.activeAccountId
-      : (remaining[0] ? remaining[0].accountId : null);
-
+    let displacedSessionId: string | null = null;
     const updated = await db.transaction(async (tx) => {
+      const current = await this.lockDevice(tx, deviceId);
+      if (!current) return null;
+      const entry = current.accounts.find((a) => a.accountId === accountId);
+      if (!entry) return null;
+      displacedSessionId = entry.sessionId !== preserveSessionId ? entry.sessionId : null;
+
+      const remaining = current.accounts.filter((a) => a.accountId !== accountId);
+      const activeStillPresent = remaining.some((a) => a.accountId === current.activeAccountId);
+      const nextActive = activeStillPresent
+        ? current.activeAccountId
+        : (remaining[0] ? remaining[0].accountId : null);
+
       await tx
         .delete(deviceAccountContexts)
         .where(
@@ -1743,13 +1747,16 @@ class DeviceSessionService {
         .set({
           ...(await this.resolveActiveFields(tx, current.id, nextActive)),
           revision: sql`${deviceSessions.revision} + 1`,
+          ...(current.backgroundSecretAccountId === accountId ? this.clearedBackgroundCredentialFields() : {}),
         })
         .where(eq(deviceSessions.id, current.id));
       await this.revokeHolderCredentialsIfSignedOut(tx, current.id);
       return this.load(tx, deviceId);
     });
-    if (!updated) {
-      throw new Error(`device_sessions row for "${deviceId}" vanished during detachMigratedAccount`);
+    if (!updated) return null;
+    if (displacedSessionId) {
+      try { await sessionService.deactivateSession(displacedSessionId); }
+      catch (error) { logger.warn('deviceSession.detachMigratedAccount: deactivate failed', { sessionId: displacedSessionId, error }); }
     }
     return projectState(updated);
   }
