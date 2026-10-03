@@ -55,6 +55,8 @@ export interface SessionClientHost {
 }
 
 export interface SessionClientOptions {
+  /** Await durable local logout intent only after an explicit removal leaves no account. */
+  onFullExplicitSignOut?: () => Promise<void>;
   transport?: TokenTransport;
   /**
    * Invoked when an APPLIED state has zero accounts — i.e. a device
@@ -726,6 +728,7 @@ export class SessionClient {
     const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, { cache: false });
     this.applySync(res);
     this.postCommitPing();
+    if (this.state?.accounts.length === 0) await this.options.onFullExplicitSignOut?.();
   }
 
   /**
@@ -782,6 +785,7 @@ export class SessionClient {
       this.notify();
     }
     this.postCommitPing();
+    if (this.state?.accounts.length === 0) await this.options.onFullExplicitSignOut?.();
   }
 
   async addCurrentAccount(): Promise<void> {

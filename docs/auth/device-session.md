@@ -234,3 +234,25 @@ The account switcher unions both: accounts already in the device set (instant sw
 Signing a device out of an account **never** revokes graph membership — the device set and the graph are independent; the account simply disappears from this device.
 
 The `GET /session/device/state` device subset is deliberately **not** the graph: the IdP chooser mirrors the device subset only, while RP clients union the graph from `GET /accounts` on top.
+
+
+### Foreground reconciliation
+
+`OxyProvider` reconciles the canonical `SessionClient` state when a web tab
+becomes visible or a native app moves from `inactive`/`background` to `active`.
+A suspended sibling can miss the active-context switch socket event; resume
+reads the authoritative state, then publishes through the same runtime projection
+as manual `refreshSessions`. Concurrent foreground notifications share that read.
+There is no reconciliation on mount or native unknown→active initialization.
+
+An isolated OAuth grant never enters this device lane. A missing device bearer
+uses the existing shared HTTP refresh single-flight, and identity mode continues
+through the existing pinned `SessionClient` and runtime projection. Foreground
+reconciliation does not authorize another subject for an identity holder.
+
+
+### Native explicit sign-out and identity recovery
+
+An explicit removal that leaves no account records a durable local sign-out intent in the native auth store. In ordinary account mode, cold boot and token refresh then skip automatic Commons challenge/verify and warm bearer planting from generic late saves. The marker survives generic saves, clears and process restarts; only a successful explicit sign-in commit releases it. A partial logout with another account remaining does not set it. A current shared device holder may still be adopted and must pass the canonical server mint; the marker does not grant authority to an old shared slot.
+
+Native store operations run in call order so a save already pending cannot land after a later clear. Marker write/read-back failure is reported as a failed durable sign-out, and unknown marker storage blocks automatic key recovery. None of these operations deletes an identity key. Identity mode ignores the account-mode marker and keeps its original pinned-key recovery contract. Third-party OAuth sessions remain isolated from this native recovery policy.

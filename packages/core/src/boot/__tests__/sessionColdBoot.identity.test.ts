@@ -148,6 +148,7 @@ describe('runSessionColdBoot — identity mode: warm-token-plant', () => {
     const store = await seedStore({ accessToken: jwtFor('vault-user'), expiresAt: farFuture() });
     const { oxy, setTokens } = makeOxy();
 
+    store.isAutomaticIdentitySignInSuppressed = jest.fn(async () => true);
     const outcome = await runSessionColdBoot({
       oxy,
       store,
@@ -350,7 +351,7 @@ describe('runSessionColdBoot — identity-key-signin vs commons-proof-signin', (
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
     expect(outcome).toMatchObject({ kind: 'session', via: 'commons-proof-signin' });
-    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({ requestOptions: { retry: false } });
+    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({ plantTokens: false, requestOptions: { retry: false } });
     expect(requestChallenge).not.toHaveBeenCalled();
   });
 
