@@ -1,0 +1,48 @@
+{
+  "recordedAt": "2026-10-03T01:54:31.322494+00:00",
+  "source": "268182c213bb5a45a80dc1a48c2565e3cd4c82fd",
+  "nullUnits": 500,
+  "emptyUnits": 0,
+  "httpStatus": 200,
+  "providerRequests": 0,
+  "oxyLedgerWrites": 0,
+  "sourceInputs": [
+    {
+      "path": "scripts/rehearsal/read-kaana-attempt-null-1519.mjs",
+      "sha256": "cf165be948137a4fc2ff20f7e4b4daf5e5fbd4030c383e211dddb3cc53f95e0d"
+    },
+    {
+      "path": "scripts/rehearsal/run-kaana-attempt-null-readback-1519.py",
+      "sha256": "f442b8d594bb741ff2fc63ee2099daa9a1c96dd0165d0be168bd9cf817fed920"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/wire/execute.log",
+      "sha256": "b80f4c70560596ab282b72e02a43e407d92255369a3169c9fced940b77fcc298"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/wire/first-registration-aborted-proof.json",
+      "sha256": "780644eec9517c9fa75f3d52814542d4f12597834df08f1af80eb659094c6921"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/wire/prepare.json",
+      "sha256": "90e6e801430692db1e3d1b24a374cad827c95693ef82af1594005b15933f0900"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/wire/proof.json",
+      "sha256": "c95a33782135b8a45485d3477431813823a48ff81ebe5e6ad7bc1e6cbd49376e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/wire/result.json",
+      "sha256": "9b0686d3080b9f337d7b90a686c22aa0bb1c72fd1ed4e1258b1a41d00426432d"
+    }
+  ],
+  "limits": [
+    "Production wire verifies SQL NULL projection path with new source image, not provider measurement accuracy or approved tariff.",
+    "All500read rows had unknown units; no known-empty array was observed in this live page. Local upstream tests separately prove [] distinction.",
+    "TLS plus signed request; response has no independent signature. Raw page not stored, response SHA and minimal projection retained.",
+    "No canary/inference/upstream financial action or Oxy ingestion. Unknown cost is preserved, not zero.",
+    "First registered definition aborted before run-task because AWS reordered environment fields; definition deregistered. Followup only canonicalizes named maps, preserving values/cardinality."
+  ]
+}
