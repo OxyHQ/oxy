@@ -53,10 +53,6 @@
       "sha256": "25741fa71a6558e2bf3415a53ffb7e6a7e0349c9f75a25086ac6051e4d34cdfe",
       "bytes": 621
     },
-    "consumer-install.log": {
-      "sha256": "ceedd09a7f73fff477cb670cf6af62bb7566c9fb8c9763ac0299c7847dd1fd7d",
-      "bytes": 685
-    },
     "consumer-package.json": {
       "sha256": "42a9e60ecef5e2ad4ecb994efab622cdb111ddebe9cb2ee3d9274578794f5db3",
       "bytes": 1407
@@ -65,17 +61,9 @@
       "sha256": "70549d22e40f7201417aa27ecaee1d3864eea11bf08892ff043ad9606a008671",
       "bytes": 4254
     },
-    "consumer-test.log": {
-      "sha256": "161effd50748e0fb577d8b45552e4ba3a9f4cd5de080436920b204017b746a3c",
-      "bytes": 381
-    },
     "consumer-transport.mjs": {
       "sha256": "c5948629a7e111aaf01db09cc30c76a88417aafac04b63d9ba2971db30936c9e",
       "bytes": 3068
-    },
-    "consumer-typecheck.log": {
-      "sha256": "7700e7e6338ba074abf49273ae20013ccbb99184992fd5acb01c6dc2620d9e66",
-      "bytes": 98
     },
     "contracts-final.txt": {
       "sha256": "6042cc7fe0b0fa387dd069ac971e55ab27c9b1ed3cbf2bff361118632613a403",
@@ -152,6 +140,18 @@
     "snapshot.txt": {
       "sha256": "b6ab8a8bb0f1c5854b5d2a14d86b6bde73dcbdd1554bcc237901e2c2527d8883",
       "bytes": 85
+    },
+    "consumer-install.txt": {
+      "sha256": "ceedd09a7f73fff477cb670cf6af62bb7566c9fb8c9763ac0299c7847dd1fd7d",
+      "bytes": 685
+    },
+    "consumer-test.txt": {
+      "sha256": "161effd50748e0fb577d8b45552e4ba3a9f4cd5de080436920b204017b746a3c",
+      "bytes": 381
+    },
+    "consumer-typecheck.txt": {
+      "sha256": "7700e7e6338ba074abf49273ae20013ccbb99184992fd5acb01c6dc2620d9e66",
+      "bytes": 98
     }
   },
   "artifacts": [
