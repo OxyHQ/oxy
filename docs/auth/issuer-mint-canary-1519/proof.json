@@ -1,0 +1,26 @@
+{
+  "sourceHead": "b1b3ccecbf5e7170f9ca312d6eebc8ae12242b26",
+  "sourceSha256": {
+    "scripts/auth/probe-service-token-issuer-1519.mjs": "b6aa733e5631b33bbd7e91027f28afd89f7d462384570c710834c9555f98fc66",
+    "scripts/auth/test-probe-service-token-issuer-1519.mjs": "2384c755786beecc2f1ae3aaa7c89ba66f66280d9da128bdf00646363ef5d187",
+    "scripts/auth/run-service-token-issuer-canary-1519.py": "2e05e460498b7c1da3aabe12d62d87da6cfe6306e003836100877ee584587908",
+    "scripts/auth/test-service-token-issuer-canary-launcher-1519.py": "7fdf59c248559e27873900e29fe0dc1bb79086dc01e916b829982d20b2ed511a"
+  },
+  "records": {
+    "docs/auth/issuer-mint-canary-1519/probe-http.log": "64dff5ded9d926abc4499313a767f76ffb3a95e22951607e3fdcc017c917d339",
+    "docs/auth/issuer-mint-canary-1519/launcher-shape.log": "8750c49fcff068e23f3d0c01f7be32cba413ddc0441a01b7b83736abb2ba1fcc",
+    "docs/auth/issuer-mint-canary-1519/initial-fixture-missing-returned-metadata.log": "567d5c5265224cc5b32cdcd54db11d23e2951ed1cabb0c9672e3067eba69ce3f"
+  },
+  "results": {
+    "probeHttpRealSignatureFixture": 0,
+    "launcherShapePositiveAndSixNegatives": 0,
+    "awsExecuted": false,
+    "initialFixtureFailure": "Missing returned taskDefinitionArn/status in synthetic fixture; guard unchanged, fixture corrected."
+  },
+  "limits": [
+    "No live mint or ECS task launched by this checkpoint.",
+    "Live mint writes existing credential/application lastUsedAt and shared rate-limit counters; no product effects or scope use.",
+    "Virtual-clock fixture is not a real245s observation.",
+    "Root prepares/reviews exact issuer stable ARN/digest before execute."
+  ]
+}
