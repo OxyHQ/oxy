@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "ACTIVE",
+  "status": "INACTIVE",
   "targetSourceHead": "c06a24d4f3e3e08b254b94cf62677a946fd70ca5",
   "expiresAt": "2026-10-09T22:00:00.000Z",
   "authorizationRecord": {
