@@ -48,6 +48,7 @@ import {
   KAANA_APPLICATION_ID,
   MENTION_APPLICATION_ID,
   NILO_APPLICATION_ID,
+  GOWAY_APPLICATION_ID,
   MEDIA_WORKER_APPLICATION_ID,
   SEED_APPS,
   seedApplicationLookupIdentity,
@@ -94,6 +95,37 @@ describe('the canonical official-application registry', () => {
     expect(SEED_APPS.filter(spec => !requiresPublicSeedCredential(spec))).toEqual([OXY_PROFILE_REGISTRAR_SPEC]);
     expect(SEED_APPS.filter(spec => spec !== OXY_PROFILE_REGISTRAR_SPEC).every(requiresPublicSeedCredential)).toBe(true);
     expect(seedApplicationLookupIdentity(OXY_PROFILE_REGISTRAR_SPEC, PLATFORM_OWNER_ID)).toEqual({ kind: 'id', id: OXY_PROFILE_REGISTRAR_APPLICATION_ID });
+  });
+
+  it('plans GoWay as a pinned public sign-in application without service authority', () => {
+    const spec = specNamed('GoWay');
+    expect(seedApplicationLookupIdentity(spec, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id', id: GOWAY_APPLICATION_ID,
+    });
+    expect(SEED_APPS.filter((entry) => entry.id === GOWAY_APPLICATION_ID)).toHaveLength(1);
+    expect(GOWAY_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    expect(requiresPublicSeedCredential(spec)).toBe(true);
+    const target = {
+      description: spec.description,
+      websiteUrl: spec.websiteUrl,
+      type: spec.type,
+      ownerAccountId: PLATFORM_OWNER_ID,
+      redirectUris: spec.redirectUris,
+      scopes: spec.scopes ?? [],
+      capabilities: spec.capabilities ?? [],
+    };
+    const plan = computeSeedApplicationPlan(null, target);
+    expect(plan.creates).toBe(true);
+    expect(plan.desired).toMatchObject({
+      ownerAccountId: PLATFORM_OWNER_ID,
+      websiteUrl: 'https://goway.to',
+      redirectUris: ['https://goway.to'],
+      type: 'first_party', isOfficial: true, isInternal: false,
+      scopes: ['user:read'], capabilities: [],
+    });
+    expect(spec.ownerAccountUsername).toBeUndefined();
+    expect(spec.legacyNames).toBeUndefined();
+    expect(computeSeedApplicationPlan(plan.desired, target).changes).toEqual([]);
   });
 
   it('registers Nilo by exact identity with only public user-read authority', () => {
