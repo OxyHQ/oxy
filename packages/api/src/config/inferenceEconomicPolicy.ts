@@ -46,7 +46,7 @@ import type { InferenceEnvironment, InferenceEconomicTreatment } from '@oxy.so/c
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-02.2';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-03.3';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -60,6 +60,16 @@ export interface InternalMeteredCapacity {
   readonly maxConcurrentRequests: number;
   /** Requests admitted per UTC day, per application + environment. */
   readonly maxRequestsPerUtcDay: number;
+}
+
+export interface InternalMeteredPilot {
+  readonly maxControlledInputBudget: number;
+  readonly maxOutputTokens: number;
+  readonly deployments: readonly {
+    readonly deploymentId: string;
+    readonly modelReference: string;
+    readonly provider: string;
+  }[];
 }
 
 export interface InternalMeteredRelationship {
@@ -77,6 +87,7 @@ export interface InternalMeteredRelationship {
    */
   readonly lane: 'service_token';
   readonly capacity: InternalMeteredCapacity;
+  readonly pilot?: InternalMeteredPilot;
 }
 
 /**
@@ -92,7 +103,7 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
     providerProduct: 'kaana',
     environments: ['production'],
     lane: 'service_token',
-    // PROPOSED, pending Nate's approval on #1526 — not an approved limit.
+    // Approved by Nate on 2026-10-03; exact pilot proposal at 062d4d3019.
     // Sized from Alia's measured production traffic (inference_usage_events,
     // 2026-09-02..2026-10-02, read-only): busiest UTC day 185 requests (p95
     // 148, median 18), busiest minute 16, at most 3 requests in flight at once,
@@ -102,6 +113,17 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
     capacity: {
       maxConcurrentRequests: 32,
       maxRequestsPerUtcDay: 5_000,
+    },
+    pilot: {
+      maxControlledInputBudget: 8192,
+      maxOutputTokens: 2048,
+      deployments: ['cerebras', 'groq', 'openrouter'].map((provider) => ({
+        deploymentId: provider === 'cerebras'
+          ? 'dep_cerebras_gpt_oss_120b_observed_2026_09_01'
+          : `dep_${provider}_openai_gpt_oss_120b_observed_2026_09_01`,
+        modelReference: 'openai/gpt-oss-120b@observed-2026-09-01',
+        provider,
+      })),
     },
   },
 ];

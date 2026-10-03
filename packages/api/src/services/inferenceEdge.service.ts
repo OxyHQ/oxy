@@ -108,7 +108,7 @@ import { decisionAvailability } from '../config/decisionAvailability';
 
 import { createHash, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
-import { sql, and, asc, desc, eq, or } from 'drizzle-orm';
+import { and, asc, desc, eq, or } from 'drizzle-orm';
 import type { z } from 'zod';
 import {
   currentDeploymentLiveness,
@@ -228,6 +228,7 @@ import {
   type KaanaUsageEvidence,
 } from './kaanaClient';
 import type { ApplicationScope } from '../utils/applicationScopes';
+import { controlledInputBudget, pilotAllowsDeployment } from './inferenceInternalPilot';
 import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
 import { logger } from '../utils/logger';
 import {
@@ -973,6 +974,17 @@ async function admitWithAutoDecision(
     );
   }
 
+  const pilot = economics.treatment === 'internal_metered' ? economics.relationship.pilot : undefined;
+  const pilotInputBudget = pilot === undefined ? undefined : controlledInputBudget(request);
+  if (pilot !== undefined) {
+    if (pilotInputBudget === undefined) return refuse('unsupported_modality',
+      'The internal pilot serves controlled text completions only.', { param: 'input' });
+    if (pilotInputBudget > pilot.maxControlledInputBudget) return refuse('context_length_exceeded',
+      'The controlled input exceeds the internal pilot budget.', { param: 'input' });
+  }
+  const acceptsPilotDeployment = (route: EdgeRoute): boolean =>
+    pilot === undefined || pilotAllowsDeployment(pilot, route);
+
   // 5a. Resolve the policy this request is admitted under, and PIN its version.
   //     The application's own policy wins, then the owner account's; `none`
   //     means the platform default, which is a real answer rather than a gap.
@@ -1041,8 +1053,11 @@ async function admitWithAutoDecision(
   }
 
   const requiredModality = requirementForRequest(request, context.apiFormat);
-  const requestedOutput = request.maxOutputTokens;
-  const estimatedInputTokens = estimateInputTokens(request);
+  // maxOutputTokens is a caller upper bound. Cap older Alia defaults as well as
+  // omitted values before route qualification, quotes, claims and signed attempts.
+  const requestedOutput = pilot === undefined ? request.maxOutputTokens
+    : Math.min(request.maxOutputTokens ?? pilot.maxOutputTokens, pilot.maxOutputTokens);
+  const estimatedInputTokens = pilotInputBudget ?? estimateInputTokens(request);
   const contextInputTokens = request.input.format === 'decisions'
     ? decisionInputBudget(request.input.decisions).context
     : estimatedInputTokens;
@@ -1197,6 +1212,7 @@ async function admitWithAutoDecision(
     // implicit output ceiling nor is quoted: it will never be signed.
     const rankedAtPriority = resolutions
       .flatMap((resolution) => [resolution.route, ...resolution.alternates])
+      .filter(acceptsPilotDeployment)
       .filter(acceptsCarriedParameters)
       .sort((left, right) =>
         compareQualifiedRoutes(
@@ -1491,6 +1507,7 @@ async function admitWithAutoDecision(
   const rankedCandidates: RankedCandidate[] = [];
   for (const group of routeGroups) {
     for (const route of [group.resolution.route, ...group.resolution.alternates]) {
+      if (!acceptsPilotDeployment(route)) continue;
       if (liveness !== undefined && !isDeploymentPublished(liveness, route.deploymentId)) {
         sawUnpublished = true;
         continue;

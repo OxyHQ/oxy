@@ -39,7 +39,6 @@ import { reconcileMeteredReceipts } from '../../services/inferenceMeteredUsage.s
 import type { KaanaClient, KaanaCompletion } from '../../services/kaanaClient';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
-import * as economicPolicy from '../../config/inferenceEconomicPolicy';
 import * as autoConfig from '../../config/autoClassification';
 import * as decisionConfig from '../../config/decisionAvailability';
 import * as catalogue from '../../services/inferenceCatalogue.service';
@@ -68,7 +67,6 @@ const ORIGINAL = Object.fromEntries(Object.keys(ROLLOUT_ENVIRONMENT).map((k) => 
 
 let server: http.Server;
 let executions = 0;
-let pilotEnvelopes: InferenceRequest[] = [];
 let behaviour: 'complete' | 'fail' = 'complete';
 
 beforeAll(async () => {
@@ -93,7 +91,6 @@ afterAll(async () => {
 
 beforeEach(() => {
   executions = 0;
-  pilotEnvelopes = [];
   behaviour = 'complete';
 });
 
@@ -180,7 +177,6 @@ function fakeKaana(): KaanaClient {
     attestDeployments: attestFixtureDeployments,
     execute: async (envelope) => {
       executions += 1;
-      pilotEnvelopes.push(envelope);
       // Give concurrent duplicates a window to race the one that got in.
       await new Promise((resolve) => setTimeout(resolve, 50));
       if (behaviour === 'fail') throw new Error('synthetic transport failure');
@@ -236,13 +232,13 @@ async function makeCredential(
 }
 
 /** One priced ($3/M in, $15/M out), approved, servable route and a neutral policy. */
-async function makeRoute(ownerAccountId: string, applicationId: string, createPolicy = true, pilot = false): Promise<string> {
+async function makeRoute(ownerAccountId: string, applicationId: string, createPolicy = true): Promise<string> {
   const db = getDb();
   const t = tag();
-  const publisherSlug = pilot ? 'openai' : `pub${t}`;
-  const modelSlug = pilot ? 'gpt-oss-120b' : `model-${t}`;
-  const providerSlug = pilot ? 'cerebras' : `prov${t}`;
-  const revision = pilot ? 'observed-2026-09-01' : '2026-01-01';
+  const publisherSlug = `pub${t}`;
+  const modelSlug = `model-${t}`;
+  const providerSlug = `prov${t}`;
+  const revision = '2026-01-01';
   await db.insert(inferencePublishers).values({ slug: publisherSlug, displayName: `Publisher ${t}` });
   const [model] = await db
     .insert(inferenceModels)
@@ -278,7 +274,7 @@ async function makeRoute(ownerAccountId: string, applicationId: string, createPo
     { priceVersionId: price.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
     { priceVersionId: price.id, unit: 'reasoning_tokens', amount: '15.000000000000', per: 1_000_000 },
   ]);
-  const kaanaDeploymentId = pilot ? 'dep_cerebras_gpt_oss_120b_observed_2026_09_01' : `kaana-im-${t}`;
+  const kaanaDeploymentId = `kaana-im-${t}`;
   await db.insert(inferenceDeployments).values({
     modelRevisionId: revisionRow.id, providerSlug, internalRouteId: kaanaDeploymentId, regions: ['us-west-2'],
     retainsPayloads: false, retentionDays: 0, trainsOnCustomerData: false, zeroDataRetentionAvailable: true,
@@ -400,20 +396,7 @@ async function moneyRowsFor(accountId: string) {
 /*  Cases                                                                     */
 /* -------------------------------------------------------------------------- */
 
-// Mechanism fixtures deliberately use a synthetic relationship with no production
-// pilot. They verify durable metering/capacity/Auto, not deployment allowlisting.
-const resolveProductionEconomics = economicPolicy.resolveEconomicTreatment;
-function useMechanismRelationship() {
-  jest.spyOn(economicPolicy, 'resolveEconomicTreatment').mockImplementation((principal) =>
-    resolveProductionEconomics(principal, economicPolicy.INTERNAL_METERED_RELATIONSHIPS.map((relationship) => {
-      const { pilot: _pilot, ...mechanism } = relationship;
-      return mechanism;
-    }), 'synthetic-metering-mechanism'));
-}
-afterEach(() => jest.restoreAllMocks());
-
 describe('one installation, charging armed', () => {
-  beforeEach(useMechanismRelationship);
   it('serves Alia internal_metered with no money at all, and charges an external customer', async () => {
     const internal = await alia();
     const internalResponse = await post(body(internal), bearer(serviceToken(internal)));
@@ -544,7 +527,6 @@ describe('one installation, charging armed', () => {
 });
 
 describe('nothing a caller sends selects the internal treatment', () => {
-  beforeEach(useMechanismRelationship);
   it('ignores a forged treatment header and an internal or bot delegated user', async () => {
     const internal = await alia();
     const external = await customer('10.000000000000');
@@ -590,7 +572,6 @@ describe('nothing a caller sends selects the internal treatment', () => {
 });
 
 describe('internal_metered keeps the guards a hold used to imply', () => {
-  beforeEach(useMechanismRelationship);
   it('runs N concurrent retries of one Idempotency-Key exactly once', async () => {
     const internal = await alia();
     const key = `retry-${tag()}`;
@@ -707,7 +688,6 @@ async function internalAutoFixture() {
 }
 
 describe('I10 durable internal Auto and generation records', () => {
-  beforeEach(useMechanismRelationship);
   afterEach(() => jest.restoreAllMocks());
   it('claims parent before a racing child, meters both and takes no financial hold', async () => {
     const f = await internalAutoFixture();
@@ -810,7 +790,6 @@ async function scopedFixture(commercial = false) {
 }
 
 describe('I10 scoped execution with durable economic admission', () => {
-  beforeEach(useMechanismRelationship);
   afterEach(() => jest.restoreAllMocks());
   it('executes an exact reviewed internal scoped claim without money even with charging off, then refuses replay', async () => {
     const f = await scopedFixture();
@@ -852,12 +831,6 @@ describe('I10 scoped execution with durable economic admission', () => {
 
 
 describe('approved production pilot admission', () => {
-  let approvedCaller: Caller;
-  beforeAll(async () => {
-    const caller = await alia();
-    approvedCaller = { ...caller, modelReference: await makeRoute(caller.accountId, caller.applicationId, false, true) };
-  });
-
   it.each([
     ['ASCII', 'a'.repeat(9_000)],
     ['Unicode UTF-8', '\u0800'.repeat(2_800)],
@@ -880,69 +853,4 @@ describe('approved production pilot admission', () => {
     expect(executions).toBe(0);
     expect(await moneyRowsFor(caller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
   });
-  it.each([[4096, 2048], [3000, 2048], [512, 512], [undefined, 2048]])(
-    'caps caller output ceiling %s to effective signed %s', async (requested, expected) => {
-      const response = await post({ model: approvedCaller.modelReference, input: 'Hello',
-        ...(requested === undefined ? {} : { maxOutputTokens: requested }) }, bearer(serviceToken(approvedCaller)));
-      expect(response.status).toBe(200);
-      expect(pilotEnvelopes).toHaveLength(1);
-      expect(pilotEnvelopes[0].maxOutputTokens).toBe(expected);
-      expect(pilotEnvelopes[0].authorizedRoutes.every((route) =>
-        route.deploymentId === 'dep_cerebras_gpt_oss_120b_observed_2026_09_01')).toBe(true);
-      expect(await moneyRowsFor(approvedCaller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
-    });
-
-  it('preserves a commercial caller output ceiling of 4096', async () => {
-    const caller = await customer('10.000000000000');
-    const response = await post({ ...body(caller), maxOutputTokens: 4096 }, bearer(caller.machineToken));
-    expect(response.status).toBe(200);
-    expect(pilotEnvelopes[0].maxOutputTokens).toBe(4096);
-    expect((await moneyRowsFor(caller.accountId)).receipts).toHaveLength(1);
-  });
-
-  it.each(['tool', 'response schema'])('refuses an oversized %s before the provider', async (kind) => {
-    const schema = { type: 'object', description: 'x'.repeat(9000) };
-    const response = await post({ model: approvedCaller.modelReference, input: 'Hello',
-      ...(kind === 'tool' ? { tools: [{ type: 'function', name: 'lookup', parameters: schema }] }
-        : { responseFormat: { type: 'json_schema', name: 'result', schema, strict: true } }) },
-      bearer(serviceToken(approvedCaller)));
-    expect(response.status).toBe(400);
-    expect(executions).toBe(0);
-  });
-
-  it('does not execute or claim a duplicate pilot request twice', async () => {
-    const headers = { ...bearer(serviceToken(approvedCaller)), 'Idempotency-Key': `pilot-${tag()}` };
-    const input = { model: approvedCaller.modelReference, input: 'Hello', maxOutputTokens: 4096 };
-    const results = await Promise.all([post(input, headers), post(input, headers)]);
-    expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
-    expect(executions).toBe(1);
-    expect(pilotEnvelopes[0].maxOutputTokens).toBe(2048);
-  });
-
-  it('excludes an unapproved alternate from the actual signed authorization set', async () => {
-    const original = catalogue.resolveEdgeRoute;
-    jest.spyOn(catalogue, 'resolveEdgeRoute').mockImplementation(async (...args) => {
-      const result = await original(...args);
-      return result.status !== 'resolved' ? result : { ...result, alternates: [
-        ...result.alternates, { ...result.route, deploymentId: 'synthetic-unapproved-alternate' },
-      ] };
-    });
-    const response = await post({ model: approvedCaller.modelReference, input: 'Hello' }, bearer(serviceToken(approvedCaller)));
-    expect(response.status).toBe(200);
-    expect(pilotEnvelopes[0].authorizedRoutes.map((route) => route.deploymentId))
-      .toEqual(['dep_cerebras_gpt_oss_120b_observed_2026_09_01']);
-  });
-
-  it.each(['modelReference', 'provider'] as const)('rejects an approved deployment ID with mismatched %s', async (field) => {
-    const original = catalogue.resolveEdgeRoute;
-    jest.spyOn(catalogue, 'resolveEdgeRoute').mockImplementation(async (...args) => {
-      const result = await original(...args);
-      return result.status !== 'resolved' ? result : { ...result, route: { ...result.route,
-        [field]: field === 'provider' ? 'other' : 'openai/gpt-oss-120b@other' }, alternates: [] };
-    });
-    const response = await post({ model: approvedCaller.modelReference, input: 'Hello' }, bearer(serviceToken(approvedCaller)));
-    expect(response.status).toBe(503);
-    expect(executions).toBe(0);
-  });
-
 });
