@@ -1,0 +1,46 @@
+{
+  "sourceHead": "f0bd1409c6593d6eb3c620ca3028addb160f7a1e",
+  "planSha256": "7e200475a89634e8862d6f2bc5a42920a0c80d7fa32d22fb1f0bde245f4afef3",
+  "providerEffectsAttempted": true,
+  "exitCode": 1,
+  "postgresPid": 3538383,
+  "postgresStopped": true,
+  "ownedFixtureObjects": 11,
+  "completedChecks": 0,
+  "cleanupOperationsSucceeded": 11,
+  "unresolvedCleanupOperations": 0,
+  "subscriptionsCreated": 0,
+  "observedPaidMinorUnits": 0,
+  "primaryError": {
+    "phase": "ownedResources",
+    "name": "ResolveMessage"
+  },
+  "cause": "Bun source import billing.js did not resolve billing.ts",
+  "privateRecords": {
+    "manifest.private.json": {
+      "sha256": "a1cb43701cfc018abc760da5aff38cac25316013049770817d6716b8140db808",
+      "bytes": 4265,
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/16a854d4256534ee40da5e2e/manifest.private.json"
+    },
+    "runner.json": {
+      "sha256": "8da223e1e65feadb14862d32a3b5a9f47e7a90de45b4f8164b527742b816cdca",
+      "bytes": 168,
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/16a854d4256534ee40da5e2e/runner.json"
+    },
+    "child.private.log": {
+      "sha256": "414dbcb56271ae2082ba6968e635d921e49a2d95a81cca657de8e88ea08c9c32",
+      "bytes": 157,
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/16a854d4256534ee40da5e2e/child.private.log"
+    },
+    "build.log": {
+      "sha256": "59c55d48f6065107a9a0ece5b0bca3e17d18758424cfd1e0225d17bd2d8d37d0",
+      "bytes": 2192,
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/16a854d4256534ee40da5e2e/build.log"
+    },
+    "migrate.log": {
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+      "bytes": 40,
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/16a854d4256534ee40da5e2e/migrate.log"
+    }
+  }
+}
