@@ -1,0 +1,16 @@
+test_changed_source_or_head_refused (__main__.FrozenPlanTests.test_changed_source_or_head_refused) ... ok
+test_coupon_name_contract_accepts_forty_and_refuses_forty_one_before_intents (__main__.FrozenPlanTests.test_coupon_name_contract_accepts_forty_and_refuses_forty_one_before_intents) ... ok
+test_credential_environment_is_not_forwarded (__main__.FrozenPlanTests.test_credential_environment_is_not_forwarded) ... ok
+test_diagnostics_never_return_arbitrary_provider_messages (__main__.FrozenPlanTests.test_diagnostics_never_return_arbitrary_provider_messages) ... ok
+test_exact_reviewed_plan (__main__.FrozenPlanTests.test_exact_reviewed_plan) ... ok
+test_expired_plan_refused (__main__.FrozenPlanTests.test_expired_plan_refused) ... ok
+test_failed_or_unknown_run_always_requires_manifest_review (__main__.FrozenPlanTests.test_failed_or_unknown_run_always_requires_manifest_review) ... ok
+test_foreign_inputs_and_reused_nonce_shape_refused (__main__.FrozenPlanTests.test_foreign_inputs_and_reused_nonce_shape_refused) ... ok
+test_namespace_account_and_budget_changes_refused (__main__.FrozenPlanTests.test_namespace_account_and_budget_changes_refused) ... ok
+test_same_router_loader_bootstraps_without_credentials (__main__.FrozenPlanTests.test_same_router_loader_bootstraps_without_credentials) ... ok
+test_zero_invoice_scope_is_exactly_zero_paid_and_one_subscription (__main__.FrozenPlanTests.test_zero_invoice_scope_is_exactly_zero_paid_and_one_subscription) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 1.121s
+
+OK
