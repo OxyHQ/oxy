@@ -62,19 +62,7 @@
     "packageVersion": "0.0.6",
     "ownPublicApiChecksPassing": 14,
     "upstreamExpoSuiteExecuted": false,
-    "historicalInitialHarness": {
-      "sourceHead": "b09309b62e0eb60ad9d2e43726d8fd11749180c7",
-      "passing": 12,
-      "failing": 2,
-      "meaning": "historical b093 harness correction; not the current issuer-stage command"
-    },
-    "stageInitialInvocation": {
-      "command": "node --test scripts/forge-independent-expo-compat.cjs packages/api",
-      "ownChecksPassing": 14,
-      "extraneousPackageEntryFailing": 1,
-      "correctedCommand": "node scripts/forge-independent-expo-compat.cjs packages/api",
-      "correctedChecksPassing": 14
-    }
+    "command": "node scripts/forge-independent-expo-compat.cjs packages/api"
   },
   "oxyTests": {
     "suitesPassing": 3,
@@ -88,11 +76,13 @@
   "knownKeyControls": {
     "stock": {
       "count": 321,
-      "knownKeyControlsOnly": true
+      "knownKeyControlsOnly": true,
+      "evidenceVintage": "historical unchanged Forge/toolchain"
     },
     "candidate": {
       "count": 321,
-      "knownKeyControlsOnly": true
+      "knownKeyControlsOnly": true,
+      "evidenceVintage": "current AUTH-only installed bytes"
     }
   },
   "noPrivateKeyForgeryDemonstrated": false,
@@ -107,7 +97,8 @@
       "command": "bun run build (stock)",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 6652
+      "bytes": 6652,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "candidate-build-1.log",
@@ -116,7 +107,8 @@
       "command": "bun run build (candidate)",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 6652
+      "bytes": 6652,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "candidate-build-2.log",
@@ -125,7 +117,8 @@
       "command": "bun run build (candidate)",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 6650
+      "bytes": 6650,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "candidate-build-3.log",
@@ -134,7 +127,8 @@
       "command": "bun run build (candidate)",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 6650
+      "bytes": 6650,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "stock-upstream.log",
@@ -143,7 +137,8 @@
       "command": "NODE_ENV=test node node_modules/mocha/bin/mocha -t 30000 -R dot tests/unit/index.js (stock)",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 2836
+      "bytes": 2836,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "candidate-upstream.log",
@@ -152,7 +147,8 @@
       "command": "NODE_ENV=test node node_modules/mocha/bin/mocha -t 30000 -R dot tests/unit/index.js (candidate)",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 2836
+      "bytes": 2836,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "expo-14.log",
@@ -161,7 +157,8 @@
       "command": "current AUTH-only consumer revalidation; see README",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 1234
+      "bytes": 1234,
+      "evidenceVintage": "current AUTH-only source dd1721e8662e8f5640a7f3a2325d17cbb83cd18d"
     },
     {
       "file": "expo-14-final.log",
@@ -170,7 +167,8 @@
       "command": "current AUTH-only consumer revalidation; see README",
       "exitCode": 0,
       "reusedHistorical": false,
-      "bytes": 1234
+      "bytes": 1234,
+      "evidenceVintage": "current AUTH-only source dd1721e8662e8f5640a7f3a2325d17cbb83cd18d"
     },
     {
       "file": "oxy-34.log",
@@ -179,7 +177,8 @@
       "command": "current AUTH-only consumer revalidation; see README",
       "exitCode": 0,
       "reusedHistorical": false,
-      "bytes": 967
+      "bytes": 967,
+      "evidenceVintage": "current AUTH-only source dd1721e8662e8f5640a7f3a2325d17cbb83cd18d"
     },
     {
       "file": "oxy-db-build.log",
@@ -189,7 +188,8 @@
       "exitCode": 0,
       "reusedHistorical": true,
       "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece",
-      "bytes": 4181
+      "bytes": 4181,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "stock-install-pinned.log",
@@ -198,7 +198,8 @@
       "command": "bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts (stock, copied pinned lock)",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 63
+      "bytes": 63,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "candidate-install.log",
@@ -207,7 +208,8 @@
       "command": "bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts (candidate, copied pinned lock)",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 688
+      "bytes": 688,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "oxy-install.log",
@@ -217,7 +219,8 @@
       "exitCode": 0,
       "reusedHistorical": true,
       "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece",
-      "bytes": 160
+      "bytes": 160,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "stock-controls.json",
@@ -226,7 +229,8 @@
       "command": "node scripts/forge-candidate-regression.cjs .forge-independent/stock stock",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 54763
+      "bytes": 54763,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "candidate-controls.json",
@@ -236,7 +240,8 @@
       "exitCode": 0,
       "reusedHistorical": true,
       "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece",
-      "bytes": 54821
+      "bytes": 54821,
+      "evidenceVintage": "current AUTH-only source dd1721e8662e8f5640a7f3a2325d17cbb83cd18d"
     },
     {
       "file": "hashes-after-build-2.json",
@@ -245,7 +250,8 @@
       "command": "Python hashlib SHA-256 snapshot after candidate build 2, before build 3",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 1484
+      "bytes": 1484,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     },
     {
       "file": "candidate-build-repeat.json",
@@ -254,15 +260,15 @@
       "command": "Python hashlib SHA-256 snapshot after candidate build 3; asserted equality with build 2 snapshot",
       "exitCode": 0,
       "reusedHistorical": true,
-      "bytes": 467
+      "bytes": 467,
+      "evidenceVintage": "historical byte-identical Forge/toolchain or dependency installation"
     }
   ],
   "retainedPaths": {
-    "evidenceRoot": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002",
-    "stockClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock",
-    "candidateClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate",
-    "exactOxyWorktree": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003",
-    "installedForge": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge"
+    "exactOxyWorktree": "/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003",
+    "installedForge": "/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge",
+    "consumerRunEvidence": "/home/nate/Oxy/.agent-evidence/integration-old-auth-only-20261003",
+    "ownedOxyRunEvidence": "/home/nate/Oxy/.agent-evidence/fp1519/oxy-forge-final-evidence-lti81y5a/consumer-input"
   },
   "historicalCryptoEvidence": {
     "sourceHead": "b09309b62e0eb60ad9d2e43726d8fd11749180c7",
@@ -274,99 +280,21 @@
       "candidate-build-3.log",
       "stock-upstream.log",
       "candidate-upstream.log",
-      "expo-14.log",
+      "oxy-db-build.log",
       "stock-install-pinned.log",
       "candidate-install.log",
+      "oxy-install.log",
       "stock-controls.json",
       "hashes-after-build-2.json",
       "candidate-build-repeat.json"
     ],
-    "scope": "Historical stock/candidate Forge builds, upstream828+4pending, and known-key321 controls are reused on unchanged source/patch/toolchain and15 verified output hashes. Current Oxy34 and Expo14 rerun on source9efa8d28e. Dependency build/install and installed321 from15cf explicitly reused because dependency input trees and allfive installedForge outputs unchanged; only API comments/OpenAPI changed between15cf and9efa. New ARM target still required."
-  },
-  "supplementalRecords": [
-    {
-      "file": "consumer-runner-final.log",
-      "sha256": "07117c816cf897a8e11c2c9283498d1e6ca6b8f5f312001d2feae3d572cc487e"
-    },
-    {
-      "file": "migrate-fresh.txt",
-      "sha256": "e8a9e2b605f8d81a9b17ef4b5fcf819521c6b50e5eafba2f2ea171cc667c6c6b"
-    },
-    {
-      "file": "migrate-repeat.txt",
-      "sha256": "b3a8918777c87fa23ea35591d9778ef23d9264abecbb83bd47e22c7d4929028d"
-    },
-    {
-      "file": "inventory.json",
-      "sha256": "47c6b1f8bcde4f332eb6cdc3b1913f6fc55015aab3261f48d6300b43308f6314"
-    },
-    {
-      "file": "policy-final.log",
-      "sha256": "b5301cec2da2ba4115792c31924802f4d94bb8d65be57b6bd7ac0cdfaad22b33"
-    },
-    {
-      "file": "framework-inputs.json",
-      "sha256": "cfa7d1e82fd58c72ecc890e270dada8f05a6c75890ea0a84a37cdc2ea174a8da"
-    },
-    {
-      "file": "dag82.log",
-      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9"
-    },
-    {
-      "file": "resolver14.log",
-      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3"
-    },
-    {
-      "file": "topology20.log",
-      "sha256": "b11f784808c503afd7758fb8b018d41ab2ccc5ebe574f5da8fab144875823ed0"
-    },
-    {
-      "file": "binding43.log",
-      "sha256": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4"
-    },
-    {
-      "file": "collector61.log",
-      "sha256": "9746a7f6baed84fa55c2320db1dca1acb2e69c1aac74423199a7db1394317c95"
-    },
-    {
-      "file": "clock13.log",
-      "sha256": "095db5ea3c1425fcc0c6c5486c36f7dd9b19d6993b3291969c165a0939d44441"
-    },
-    {
-      "file": "stream13.log",
-      "sha256": "d034ab39354c2f034fa02526bcbb2b25197c79369aa9fb04ff68ee72fc6a232f"
-    },
-    {
-      "file": "audit-fixtures.log",
-      "sha256": "7a58bf46bbdd442d52778789e68999c475f3331f64ffcd9fd526b166ab8e2bce"
-    },
-    {
-      "file": "proposal131.log",
-      "sha256": "d029c2e020cf6fafc5acce840c0a5e116ec25d18cae4e0520dd713f07dacbe77"
-    },
-    {
-      "file": "expo-invocation-error.log",
-      "sha256": "f63682204c89951d63fe9a0f1bd156242cc5f3636b396549c73eaa5be1a70c87"
-    },
-    {
-      "file": "openapi-fresh.log",
-      "sha256": "9e6fb144dfee1c9fbe5a4db3f7165209f2bb9bf4c5c4a806416563e35130cd0b"
+    "scope": "Historical stock/candidate Forge builds, upstream828+4pending and stock321 controls are reused on exact unchanged patch/toolchain/five output hashes. Dependency install/build logs are reused on identical root manifests/lock; no historical Oxy consumer or framework run is attributed to this AUTH-only source. Current AUTH-only Oxy34, Expo14 and installed321 are new records, linked to candidateCommit and current inputTrees.",
+    "retainedClones": {
+      "stock": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock",
+      "candidate": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate"
     }
-  ],
-  "inputTrees": {
-    "packages": "0dd0ca266d583f50abb62335cff8434aea953cf2",
-    "bun.lock": "266d2176150ca013b673908bb22bc84f20a65b5f",
-    "package.json": "19136677bba961cb17936a52f1262b4d54801a78",
-    "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
-    "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
-    "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
-    "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
-    "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
-    "scripts/rehearsal/test-forge-final-input-1519.py": "c61511bc703368530a680bd54bd082406e86a0e7",
-    "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
   },
-  "stage": "old-derived AUTH-only source; own consumer revalidation",
-  "independentInputObjects": {
+  "inputTrees": {
     "packages": "7711bc34fe2d6996d34917092c68e48ac8819dc6",
     "bun.lock": "266d2176150ca013b673908bb22bc84f20a65b5f",
     "package.json": "19136677bba961cb17936a52f1262b4d54801a78",
@@ -378,6 +306,7 @@
     "scripts/rehearsal/test-forge-final-input-1519.py": "7b32719c59af6901921577516cea34628d99146c",
     "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
   },
+  "stage": "old-derived AUTH-only source; own consumer revalidation",
   "historicalReuse": {
     "sourceProof": "docs/security/forge-independent/2026-10-03-final-input/proof.json",
     "upstreamTestsAndBuilds": "unchanged exact Forge patch, toolchain lock, five source/bundle hashes; historical timestamps retained",
@@ -387,5 +316,6 @@
     "Oxy34 and Expo14 and installed321 rerun on this AUTH-only consumer tree; tests use synthetic known keys, not a no-key exploit.",
     "AUTH-only production HTTP/SQL bootstrap control evidence is separately pinned; actual ARM bootstrap and security activation remain pending.",
     "Stock/candidate828+4pending and build2/3 records reused only for byte-identical Forge/toolchain."
-  ]
+  ],
+  "supplementalEvidence": "docs/audits/2026-10-03-old-auth-only-recovery/arm-setup/proof.json; current records only, distinct from seventeen required gate records"
 }
