@@ -1,0 +1,13 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [17]
+Saved lockfile
+
++ @types/node@24.9.2
++ typescript@5.9.2
++ @oxy.so/contracts@/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs/oxy.so-contracts-4.9.0.tgz
++ @oxy.so/core@/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs-revoke/oxy.so-core-4.2.0.tgz
++ @oxy.so/protocol@/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-protocol-1.2.2.tgz
++ @oxy.so/telemetry@/home/nate/Oxy/.agent-evidence/integration-1519-20261003/release-final/tarballs/oxy.so-telemetry-1.2.0.tgz
+
+287 packages installed [1033.00ms]

@@ -1,0 +1,107 @@
+{
+  "sourceHead": "7e35b77ff3f5fdf61db2d6b3b838627f8f60bd05",
+  "sourceSha256": {
+    "packages/api/openapi.json": "2a8a9e406d27894c6f3626702f96629f3546487429202fe7db24b4cf1ad95558",
+    "packages/api/src/routes/capabilities.ts": "bac702e80c05cf3a08dc2c260cdcb9eb8c2df1241e9cda7ba10581f0d46d1d8d",
+    "packages/core/src/server/__tests__/agencyAuthority.test.ts": "2f0f309bb8a966bcb75425a3cd3b35e855894fabf89b0a6e1cfc1036eea2200c",
+    "packages/core/src/server/namespaces.ts": "e5f074d4b4a5c5ade7c8cf19f1f2a194282bc3e4dc155df7c85291e5946734c1"
+  },
+  "records": {
+    "consumer-bun.lock": {
+      "sha256": "8b8e1677d12886e441dbb79a9ded6f20fce1370e8656bf457c192bb03019d2f8",
+      "bytes": 67702
+    },
+    "consumer-consumer.mts": {
+      "sha256": "a57bc08011e212cd3db31fc63182ef62d502b0ec3d23715f3d5a632cc475717f",
+      "bytes": 765
+    },
+    "consumer-install.txt": {
+      "sha256": "959d49f04b1b1eaee34047a2dd7302bca56a9cdee91d0df18b64c9377ffdf2f8",
+      "bytes": 675
+    },
+    "consumer-package.json": {
+      "sha256": "acdbd955db61286b31f102b4cfc3d3467e8b49b1687f1bf92f8d713bfd8c19de",
+      "bytes": 1421
+    },
+    "consumer-test-initial-fixture-count-red.txt": {
+      "sha256": "aac804914e4772ed7539f836bfd654a2b80dfa2cffaa11f4834dd026ebe70979",
+      "bytes": 876
+    },
+    "consumer-test.txt": {
+      "sha256": "d6dadf19390be6bc2bf166bc25491524cee4209744675a99f702e6f76e2fd7ad",
+      "bytes": 433
+    },
+    "consumer-transport.mjs": {
+      "sha256": "2cdea48ff9d1951ee935958e0e8a32f0d3e0bbebdbbb4b6e7704a48f14c1f14b",
+      "bytes": 3741
+    },
+    "consumer-typecheck.txt": {
+      "sha256": "7700e7e6338ba074abf49273ae20013ccbb99184992fd5acb01c6dc2620d9e66",
+      "bytes": 98
+    },
+    "core.txt": {
+      "sha256": "af398ed748dad58fad9473eff491f6c47a76c5d3bcea9f1c1ba5b33756b650c4",
+      "bytes": 299
+    },
+    "installed-files.json": {
+      "sha256": "c73277d6e8d61995f942c0744b309d1cb7e7afa4e39142ac5f88a25286eb16a1",
+      "bytes": 78661
+    },
+    "lint.txt": {
+      "sha256": "2da747d3f669e92026c1ee66c469df054276c8f3e4ccb6be41e3f5334b5db9df",
+      "bytes": 42
+    },
+    "openapi-fixtures.txt": {
+      "sha256": "d1b6863b530fd65f26dab8940fc7cad1f6fa47cb0788eb8f9f8cda43dda31037",
+      "bytes": 58
+    },
+    "openapi-fresh.txt": {
+      "sha256": "a8a8a561b75049eb0e98574d8f3541d30519feef6c86479a9ab5ee01ec0a1d2c",
+      "bytes": 305
+    },
+    "openapi-generate.txt": {
+      "sha256": "496060096d03da5b38cf9f9476588e574b41c66d6de767cf17e11afbe8aa1171",
+      "bytes": 187
+    },
+    "openapi-pattern.txt": {
+      "sha256": "3d8ab09f0ec30845127dda891c02448da53c20f712d8863c124b6baed25629a6",
+      "bytes": 107
+    },
+    "pack.txt": {
+      "sha256": "11fe3b9a4a1e2ece2822cdfa2af9ef19f80688c4f85230b0cd0cd1edb6619ff8",
+      "bytes": 26688
+    },
+    "ts.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  },
+  "artifact": {
+    "path": "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs-revoke/oxy.so-core-4.2.0.tgz",
+    "sha256": "4b509872e9ad82c5f7035ee5880fc81b15ed2ebff2f9d29e1ab0a0c435d2b61f",
+    "installedFiles": 581
+  },
+  "acceptance": {
+    "coreFocalTests": 6,
+    "coreStrictTsExit": 0,
+    "biomeFiles": 2,
+    "biomeExit": 0,
+    "consumerFormats": [
+      "ESM",
+      "CJS"
+    ],
+    "consumerStrictTs": {
+      "exitCode": 0,
+      "skipLibCheck": true
+    },
+    "openapiFreshExit": 0,
+    "openapiFixtures": 37,
+    "remoteRequests": 0,
+    "publishedAcceptance": false
+  },
+  "limits": [
+    "Canonical requester-authenticated DELETE is unchanged backend authority, not service attribution",
+    "Earlier consumer fixture expected four calls after adding two DELETE calls; its census assertion corrected to exactly six, no product relaxation",
+    "Pattern followup corrects OpenAPI escaping only; runtime bearer regex was already strict"
+  ]
+}
