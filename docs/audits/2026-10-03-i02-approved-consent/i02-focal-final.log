@@ -1,0 +1,7 @@
+$ jest --runInBand src/routes/__tests__/oauthConsentFinalizers.test.ts src/routes/__tests__/sessionApproveInfo.test.ts src/routes/__tests__/authSessionOAuthRequest.test.ts src/routes/__tests__/oauthConsentGrants.test.ts src/utils/__tests__/applicationScopes.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       152 passed, 152 total
+Snapshots:   0 total
+Time:        4.473 s
+Ran all test suites matching src/routes/__tests__/oauthConsentFinalizers.test.ts|src/routes/__tests__/sessionApproveInfo.test.ts|src/routes/__tests__/authSessionOAuthRequest.test.ts|src/routes/__tests__/oauthConsentGrants.test.ts|src/utils/__tests__/applicationScopes.test.ts.

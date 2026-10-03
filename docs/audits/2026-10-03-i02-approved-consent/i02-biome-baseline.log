@@ -1,0 +1,637 @@
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/__tests__/sessionApproveInfo.test.ts:19:18 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    18 │ import express from 'express';
+  > 19 │ import http from 'http';
+       │                  ^^^^^^
+    20 │ import type { AddressInfo } from 'net';
+    21 │ import { randomUUID } from 'node:crypto';
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     17  17 │   
+     18  18 │   import express from 'express';
+     19     │ - import·http·from·'http';
+         19 │ + import·http·from·'node:http';
+     20  20 │   import type { AddressInfo } from 'net';
+     21  21 │   import { randomUUID } from 'node:crypto';
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/__tests__/sessionApproveInfo.test.ts:20:34 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    18 │ import express from 'express';
+    19 │ import http from 'http';
+  > 20 │ import type { AddressInfo } from 'net';
+       │                                  ^^^^^
+    21 │ import { randomUUID } from 'node:crypto';
+    22 │ 
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     18  18 │   import express from 'express';
+     19  19 │   import http from 'http';
+     20     │ - import·type·{·AddressInfo·}·from·'net';
+         20 │ + import·type·{·AddressInfo·}·from·'node:net';
+     21  21 │   import { randomUUID } from 'node:crypto';
+     22  22 │   
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/__tests__/authSessionOAuthRequest.test.ts:21:18 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    20 │ import express from 'express';
+  > 21 │ import http from 'http';
+       │                  ^^^^^^
+    22 │ import type { AddressInfo } from 'net';
+    23 │ import { randomUUID } from 'node:crypto';
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     19  19 │   
+     20  20 │   import express from 'express';
+     21     │ - import·http·from·'http';
+         21 │ + import·http·from·'node:http';
+     22  22 │   import type { AddressInfo } from 'net';
+     23  23 │   import { randomUUID } from 'node:crypto';
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/__tests__/authSessionOAuthRequest.test.ts:22:34 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    20 │ import express from 'express';
+    21 │ import http from 'http';
+  > 22 │ import type { AddressInfo } from 'net';
+       │                                  ^^^^^
+    23 │ import { randomUUID } from 'node:crypto';
+    24 │ 
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     20  20 │   import express from 'express';
+     21  21 │   import http from 'http';
+     22     │ - import·type·{·AddressInfo·}·from·'net';
+         22 │ + import·type·{·AddressInfo·}·from·'node:net';
+     23  23 │   import { randomUUID } from 'node:crypto';
+     24  24 │   
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/services/authSession.service.ts:499:22 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    497 │   if (!delegation.ok) {
+    498 │     logger.warn('[AuthSession] Delegated subject refused on signed approval', {
+  > 499 │       authorizeCode: authorizeCode.substring(0, 8) + '...',
+        │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    500 │       identityUserId: userId,
+    501 │       reason: delegation.reason,
+  
+  i Unsafe fix: Use a template literal.
+  
+    497 497 │     if (!delegation.ok) {
+    498 498 │       logger.warn('[AuthSession] Delegated subject refused on signed approval', {
+    499     │ - ······authorizeCode:·authorizeCode.substring(0,·8)·+·'...',
+        499 │ + ······authorizeCode:·`${authorizeCode.substring(0,·8)}...`,
+    500 500 │         identityUserId: userId,
+    501 501 │         reason: delegation.reason,
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/services/authSession.service.ts:676:22 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    674 │   if (!claimed.originVerified) {
+    675 │     logger.warn('Auth session authorized (bearer, by code) with an unverified origin', {
+  > 676 │       authorizeCode: authorizeCode.substring(0, 8) + '...',
+        │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    677 │       userId: authenticatedUserId,
+    678 │       applicationId: claimed.applicationId,
+  
+  i Unsafe fix: Use a template literal.
+  
+    674 674 │     if (!claimed.originVerified) {
+    675 675 │       logger.warn('Auth session authorized (bearer, by code) with an unverified origin', {
+    676     │ - ······authorizeCode:·authorizeCode.substring(0,·8)·+·'...',
+        676 │ + ······authorizeCode:·`${authorizeCode.substring(0,·8)}...`,
+    677 677 │         userId: authenticatedUserId,
+    678 678 │         applicationId: claimed.applicationId,
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/services/authSession.service.ts:889:21 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    888 │     logger.info('[AuthSession] OAuth authorization finalized', {
+  > 889 │       sessionToken: sessionToken.substring(0, 8) + '...',
+        │                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    890 │       applicationId: app.id,
+    891 │       identityUserId,
+  
+  i Unsafe fix: Use a template literal.
+  
+    887 887 │   
+    888 888 │       logger.info('[AuthSession] OAuth authorization finalized', {
+    889     │ - ······sessionToken:·sessionToken.substring(0,·8)·+·'...',
+        889 │ + ······sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    890 890 │         applicationId: app.id,
+    891 891 │         identityUserId,
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/services/authSession.service.ts:907:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    905 │       '[AuthSession] Authorization code mint failed after the request was spent',
+    906 │       error instanceof Error ? error : new Error(String(error)),
+  > 907 │       { sessionToken: sessionToken.substring(0, 8) + '...', applicationId: app.id }
+        │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    908 │     );
+    909 │     return { ok: false, reason: 'issue_failed' };
+  
+  i Unsafe fix: Use a template literal.
+  
+    905 905 │         '[AuthSession] Authorization code mint failed after the request was spent',
+    906 906 │         error instanceof Error ? error : new Error(String(error)),
+    907     │ - ······{·sessionToken:·sessionToken.substring(0,·8)·+·'...',·applicationId:·app.id·}
+        907 │ + ······{·sessionToken:·`${sessionToken.substring(0,·8)}...`,·applicationId:·app.id·}
+    908 908 │       );
+    909 909 │       return { ok: false, reason: 'issue_failed' };
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/__tests__/oauthConsentFinalizers.test.ts:25:18 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    24 │ import express from 'express';
+  > 25 │ import http from 'http';
+       │                  ^^^^^^
+    26 │ import type { AddressInfo } from 'net';
+    27 │ import { createHash, randomBytes, randomUUID } from 'node:crypto';
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     23  23 │   
+     24  24 │   import express from 'express';
+     25     │ - import·http·from·'http';
+         25 │ + import·http·from·'node:http';
+     26  26 │   import type { AddressInfo } from 'net';
+     27  27 │   import { createHash, randomBytes, randomUUID } from 'node:crypto';
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/__tests__/oauthConsentFinalizers.test.ts:26:34 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    24 │ import express from 'express';
+    25 │ import http from 'http';
+  > 26 │ import type { AddressInfo } from 'net';
+       │                                  ^^^^^
+    27 │ import { createHash, randomBytes, randomUUID } from 'node:crypto';
+    28 │ 
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     24  24 │   import express from 'express';
+     25  25 │   import http from 'http';
+     26     │ - import·type·{·AddressInfo·}·from·'net';
+         26 │ + import·type·{·AddressInfo·}·from·'node:net';
+     27  27 │   import { createHash, randomBytes, randomUUID } from 'node:crypto';
+     28  28 │   
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:21:20 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    19 │ import express from 'express';
+    20 │ import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+  > 21 │ import crypto from 'crypto';
+       │                    ^^^^^^^^
+    22 │ import { z } from 'zod';
+    23 │ import { SessionController } from '../controllers/session.controller';
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+      19   19 │   import express from 'express';
+      20   20 │   import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+      21      │ - import·crypto·from·'crypto';
+           21 │ + import·crypto·from·'node:crypto';
+      22   22 │   import { z } from 'zod';
+      23   23 │   import { SessionController } from '../controllers/session.controller';
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:860:19 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    859 │   logger.debug('Auth session created', {
+  > 860 │     sessionToken: sessionToken.substring(0, 8) + '...',
+        │                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    861 │     authorizeCode: authorizeCode.substring(0, 8) + '...',
+    862 │     applicationId: resolvedApp.id,
+  
+  i Unsafe fix: Use a template literal.
+  
+     858  858 │   
+     859  859 │     logger.debug('Auth session created', {
+     860      │ - ····sessionToken:·sessionToken.substring(0,·8)·+·'...',
+          860 │ + ····sessionToken:·`${sessionToken.substring(0,·8)}...`,
+     861  861 │       authorizeCode: authorizeCode.substring(0, 8) + '...',
+     862  862 │       applicationId: resolvedApp.id,
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:861:20 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    859 │   logger.debug('Auth session created', {
+    860 │     sessionToken: sessionToken.substring(0, 8) + '...',
+  > 861 │     authorizeCode: authorizeCode.substring(0, 8) + '...',
+        │                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    862 │     applicationId: resolvedApp.id,
+    863 │   });
+  
+  i Unsafe fix: Use a template literal.
+  
+     859  859 │     logger.debug('Auth session created', {
+     860  860 │       sessionToken: sessionToken.substring(0, 8) + '...',
+     861      │ - ····authorizeCode:·authorizeCode.substring(0,·8)·+·'...',
+          861 │ + ····authorizeCode:·`${authorizeCode.substring(0,·8)}...`,
+     862  862 │       applicationId: resolvedApp.id,
+     863  863 │     });
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1202:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1200 │     if (!delegation.ok) {
+    1201 │       logger.warn('Delegated subject refused on session authorize', {
+  > 1202 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1203 │         userId: authenticatedUserId,
+    1204 │         reason: delegation.reason,
+  
+  i Unsafe fix: Use a template literal.
+  
+    1200 1200 │       if (!delegation.ok) {
+    1201 1201 │         logger.warn('Delegated subject refused on session authorize', {
+    1202      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1202 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1203 1203 │           userId: authenticatedUserId,
+    1204 1204 │           reason: delegation.reason,
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1223:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1221 │     if (!operator.ok) {
+    1222 │       logger.warn('Session authorize refused: operated seat', {
+  > 1223 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1224 │         userId: authenticatedUserId,
+    1225 │         reason: operator.reason,
+  
+  i Unsafe fix: Use a template literal.
+  
+    1221 1221 │       if (!operator.ok) {
+    1222 1222 │         logger.warn('Session authorize refused: operated seat', {
+    1223      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1223 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1224 1224 │           userId: authenticatedUserId,
+    1225 1225 │           reason: operator.reason,
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1270:19 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1269 │   logger.info('Auth session authorized', {
+  > 1270 │     sessionToken: sessionToken.substring(0, 8) + '...',
+         │                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1271 │     userId: authenticatedUserId,
+    1272 │     applicationId: authSession.applicationId,
+  
+  i Unsafe fix: Use a template literal.
+  
+    1268 1268 │   
+    1269 1269 │     logger.info('Auth session authorized', {
+    1270      │ - ····sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1270 │ + ····sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1271 1271 │       userId: authenticatedUserId,
+    1272 1272 │       applicationId: authSession.applicationId,
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1399:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1397 │       logger.warn('[AuthSession] Claim rejected', {
+    1398 │         reason: outcome.reason,
+  > 1399 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1400 │       });
+    1401 │       throw new UnauthorizedError('invalid_grant');
+  
+  i Unsafe fix: Use a template literal.
+  
+    1397 1397 │         logger.warn('[AuthSession] Claim rejected', {
+    1398 1398 │           reason: outcome.reason,
+    1399      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1399 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1400 1400 │         });
+    1401 1401 │         throw new UnauthorizedError('invalid_grant');
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1410:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1408 │       // never want to return a successful response without these.
+    1409 │       logger.error('[AuthSession] Claimed authSession is missing bindings', new Error('missing bindings'), {
+  > 1410 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1411 │       });
+    1412 │       throw new UnauthorizedError('invalid_grant');
+  
+  i Unsafe fix: Use a template literal.
+  
+    1408 1408 │         // never want to return a successful response without these.
+    1409 1409 │         logger.error('[AuthSession] Claimed authSession is missing bindings', new Error('missing bindings'), {
+    1410      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1410 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1411 1411 │         });
+    1412 1412 │         throw new UnauthorizedError('invalid_grant');
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1425:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1423 │     if (!user) {
+    1424 │       logger.error('[AuthSession] User not found for claimed session', new Error('user not found'), {
+  > 1425 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1426 │         userId: authSession.authorizedUserId,
+    1427 │       });
+  
+  i Unsafe fix: Use a template literal.
+  
+    1423 1423 │       if (!user) {
+    1424 1424 │         logger.error('[AuthSession] User not found for claimed session', new Error('user not found'), {
+    1425      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1425 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1426 1426 │           userId: authSession.authorizedUserId,
+    1427 1427 │         });
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1444:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1442 │     if (!approvedSession) {
+    1443 │       logger.error('[AuthSession] Underlying session disappeared between authorize and claim', new Error('session missing'), {
+  > 1444 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1445 │       });
+    1446 │       throw new UnauthorizedError('invalid_grant');
+  
+  i Unsafe fix: Use a template literal.
+  
+    1442 1442 │       if (!approvedSession) {
+    1443 1443 │         logger.error('[AuthSession] Underlying session disappeared between authorize and claim', new Error('session missing'), {
+    1444      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1444 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1445 1445 │         });
+    1446 1446 │         throw new UnauthorizedError('invalid_grant');
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1495:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1493 │     if (!tokenResult) {
+    1494 │       logger.error('[AuthSession] Could not resolve access token for claimed session', new Error('no access token'), {
+  > 1495 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1496 │         sessionId: session.sessionId,
+    1497 │       });
+  
+  i Unsafe fix: Use a template literal.
+  
+    1493 1493 │       if (!tokenResult) {
+    1494 1494 │         logger.error('[AuthSession] Could not resolve access token for claimed session', new Error('no access token'), {
+    1495      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1495 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1496 1496 │           sessionId: session.sessionId,
+    1497 1497 │         });
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1502:21 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1501 │     logger.info('[AuthSession] Claim succeeded', {
+  > 1502 │       sessionToken: sessionToken.substring(0, 8) + '...',
+         │                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1503 │       sessionId: session.sessionId,
+    1504 │       userId: authSession.authorizedUserId,
+  
+  i Unsafe fix: Use a template literal.
+  
+    1500 1500 │   
+    1501 1501 │       logger.info('[AuthSession] Claim succeeded', {
+    1502      │ - ······sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1502 │ + ······sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1503 1503 │         sessionId: session.sessionId,
+    1504 1504 │         userId: authSession.authorizedUserId,
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1753:22 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1752 │     logger.info('Auth session authorized (key-signed)', {
+  > 1753 │       authorizeCode: authorizeCode.substring(0, 8) + '...',
+         │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1754 │       userId: outcome.userId,
+    1755 │     });
+  
+  i Unsafe fix: Use a template literal.
+  
+    1751 1751 │   
+    1752 1752 │       logger.info('Auth session authorized (key-signed)', {
+    1753      │ - ······authorizeCode:·authorizeCode.substring(0,·8)·+·'...',
+         1753 │ + ······authorizeCode:·`${authorizeCode.substring(0,·8)}...`,
+    1754 1754 │         userId: outcome.userId,
+    1755 1755 │       });
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:1843:22 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1842 │     logger.info('Auth session authorized (bearer, by code)', {
+  > 1843 │       authorizeCode: authorizeCode.substring(0, 8) + '...',
+         │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1844 │       userId: authenticatedUserId,
+    1845 │     });
+  
+  i Unsafe fix: Use a template literal.
+  
+    1841 1841 │   
+    1842 1842 │       logger.info('Auth session authorized (bearer, by code)', {
+    1843      │ - ······authorizeCode:·authorizeCode.substring(0,·8)·+·'...',
+         1843 │ + ······authorizeCode:·`${authorizeCode.substring(0,·8)}...`,
+    1844 1844 │         userId: authenticatedUserId,
+    1845 1845 │       });
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:2150:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    2148 │       logger.warn('[AuthSession] Finalize rejected', {
+    2149 │         reason: outcome.reason,
+  > 2150 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    2151 │       });
+    2152 │       throw new UnauthorizedError('invalid_grant');
+  
+  i Unsafe fix: Use a template literal.
+  
+    2148 2148 │         logger.warn('[AuthSession] Finalize rejected', {
+    2149 2149 │           reason: outcome.reason,
+    2150      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         2150 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    2151 2151 │         });
+    2152 2152 │         throw new UnauthorizedError('invalid_grant');
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:2520:19 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    2518 │       // not registered. Surface the error to the auth UI instead.
+    2519 │       logger.warn('[OAuth] Rejected unregistered redirect_uri', {
+  > 2520 │         clientId: clientId.substring(0, 12) + '...',
+         │                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    2521 │         redirectUri,
+    2522 │       });
+  
+  i Unsafe fix: Use a template literal.
+  
+    2518 2518 │         // not registered. Surface the error to the auth UI instead.
+    2519 2519 │         logger.warn('[OAuth] Rejected unregistered redirect_uri', {
+    2520      │ - ········clientId:·clientId.substring(0,·12)·+·'...',
+         2520 │ + ········clientId:·`${clientId.substring(0,·12)}...`,
+    2521 2521 │           redirectUri,
+    2522 2522 │         });
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:2577:17 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    2576 │     logger.info('[OAuth] Authorization code issued', {
+  > 2577 │       clientId: clientId.substring(0, 12) + '...',
+         │                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    2578 │       userId: user._id.toString(),
+    2579 │       hasPkce: Boolean(codeChallenge),
+  
+  i Unsafe fix: Use a template literal.
+  
+    2575 2575 │   
+    2576 2576 │       logger.info('[OAuth] Authorization code issued', {
+    2577      │ - ······clientId:·clientId.substring(0,·12)·+·'...',
+         2577 │ + ······clientId:·`${clientId.substring(0,·12)}...`,
+    2578 2578 │         userId: user._id.toString(),
+    2579 2579 │         hasPkce: Boolean(codeChallenge),
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:3137:19 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    3135 │       logger.warn('[OAuth] Token exchange rejected', {
+    3136 │         reason: exchange.reason,
+  > 3137 │         clientId: clientId.substring(0, 12) + '...',
+         │                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    3138 │       });
+    3139 │       if (exchange.reason === 'invalid_client') {
+  
+  i Unsafe fix: Use a template literal.
+  
+    3135 3135 │         logger.warn('[OAuth] Token exchange rejected', {
+    3136 3136 │           reason: exchange.reason,
+    3137      │ - ········clientId:·clientId.substring(0,·12)·+·'...',
+         3137 │ + ········clientId:·`${clientId.substring(0,·12)}...`,
+    3138 3138 │         });
+    3139 3139 │         if (exchange.reason === 'invalid_client') {
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:3640:68 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    3639 │   if (!credential) {
+  > 3640 │     logger.warn('[ServiceToken] Invalid apiKey attempt', { apiKey: apiKey.substring(0, 12) + '...' });
+         │                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    3641 │     throw new UnauthorizedError('Invalid credentials');
+    3642 │   }
+  
+  i Unsafe fix: Use a template literal.
+  
+    3638 3638 │   
+    3639 3639 │     if (!credential) {
+    3640      │ - ····logger.warn('[ServiceToken]·Invalid·apiKey·attempt',·{·apiKey:·apiKey.substring(0,·12)·+·'...'·});
+         3640 │ + ····logger.warn('[ServiceToken]·Invalid·apiKey·attempt',·{·apiKey:·`${apiKey.substring(0,·12)}...`·});
+    3641 3641 │       throw new UnauthorizedError('Invalid credentials');
+    3642 3642 │     }
+  
+
+/tmp/inference-1519/i04-handoff-i01-i03/lint-baseline/packages/api/src/routes/auth.ts:22:8 lint/style/useImportType  FIXABLE  ━━━━━━━━━━
+
+  × All these imports are only used as types.
+  
+    20 │ import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+    21 │ import crypto from 'crypto';
+  > 22 │ import { z } from 'zod';
+       │        ^^^^^^^^^^^^^^^^
+    23 │ import { SessionController } from '../controllers/session.controller';
+    24 │ import { publicColumns } from '@oxy.so/db/assert';
+  
+  i Importing the types with import type ensures that they are removed by the compilers and avoids loading unnecessary modules.
+  
+  i Safe fix: Use import type.
+  
+    22 │ import·type·{·z·}·from·'zod';
+       │        +++++                 
+
+Checked 6 files in 32ms. No fixes applied.
+Found 30 errors.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

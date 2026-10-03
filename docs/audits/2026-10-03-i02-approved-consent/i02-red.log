@@ -1,0 +1,124 @@
+$ jest --runInBand src/routes/__tests__/oauthConsentFinalizers.test.ts
+FAIL src/routes/__tests__/oauthConsentFinalizers.test.ts
+  ● a revocation survives a first-party sign-in on either entry › finalize: a request that named NO scopes cannot undo it through the fallback set
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 0
+    + Received  + 1
+
+      Object {
+        "actingAs": false,
+        "codeScopes": Array [
+          Array [
+            "user:read",
+    +       "acting-as:offline",
+          ],
+        ],
+        "grantScopes": null,
+        "revoked": true,
+      }
+
+      438 |
+      439 |     expect(result.status).toBe(200);
+    > 440 |     expect(await stateOf(userId, app.applicationId)).toEqual({
+          |                                                      ^
+      441 |       grantScopes: null,
+      442 |       revoked: true,
+      443 |       codeScopes: [['user:read']],
+
+      at src/routes/__tests__/oauthConsentFinalizers.test.ts:440:54
+      at fulfilled (src/routes/__tests__/oauthConsentFinalizers.test.ts:27:58)
+
+  ● explicit consent and restricted empty-scope fallback › first_party explicit=false revoked=false
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 1
+
+      Array [
+    -   Array [
+    -     "user:read",
+    -   ],
+    +   Array [],
+      ]
+
+      754 |       const state = await stateOf(userId, app.applicationId);
+      755 |       const codeScopes = explicit ? ['user:read', 'acting-as:offline'] : ['user:read'];
+    > 756 |       expect(state.codeScopes).toEqual(denied ? [] : [codeScopes]);
+          |                                ^
+      757 |       expect(state.revoked).toBe(revoked && !explicit);
+      758 |       expect(state.grantScopes).toEqual(explicit ? codeScopes : null);
+      759 |       expect(state.actingAs).toBe(explicit);
+
+      at src/routes/__tests__/oauthConsentFinalizers.test.ts:756:32
+      at fulfilled (src/routes/__tests__/oauthConsentFinalizers.test.ts:27:58)
+
+  ● explicit consent and restricted empty-scope fallback › first_party explicit=false revoked=true
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 1
+
+      Array [
+    -   Array [
+    -     "user:read",
+    -   ],
+    +   Array [],
+      ]
+
+      754 |       const state = await stateOf(userId, app.applicationId);
+      755 |       const codeScopes = explicit ? ['user:read', 'acting-as:offline'] : ['user:read'];
+    > 756 |       expect(state.codeScopes).toEqual(denied ? [] : [codeScopes]);
+          |                                ^
+      757 |       expect(state.revoked).toBe(revoked && !explicit);
+      758 |       expect(state.grantScopes).toEqual(explicit ? codeScopes : null);
+      759 |       expect(state.actingAs).toBe(explicit);
+
+      at src/routes/__tests__/oauthConsentFinalizers.test.ts:756:32
+      at fulfilled (src/routes/__tests__/oauthConsentFinalizers.test.ts:27:58)
+
+  ● explicit consent and restricted empty-scope fallback › third_party explicit=false revoked=false
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 200
+
+      751 |         explicit ? 'user:read acting-as:offline' : '');
+      752 |       const denied = type === 'third_party' && !explicit;
+    > 753 |       expect(result.status).toBe(denied ? 400 : 200);
+          |                             ^
+      754 |       const state = await stateOf(userId, app.applicationId);
+      755 |       const codeScopes = explicit ? ['user:read', 'acting-as:offline'] : ['user:read'];
+      756 |       expect(state.codeScopes).toEqual(denied ? [] : [codeScopes]);
+
+      at src/routes/__tests__/oauthConsentFinalizers.test.ts:753:29
+      at fulfilled (src/routes/__tests__/oauthConsentFinalizers.test.ts:27:58)
+
+  ● explicit consent and restricted empty-scope fallback › third_party explicit=false revoked=true
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 200
+
+      751 |         explicit ? 'user:read acting-as:offline' : '');
+      752 |       const denied = type === 'third_party' && !explicit;
+    > 753 |       expect(result.status).toBe(denied ? 400 : 200);
+          |                             ^
+      754 |       const state = await stateOf(userId, app.applicationId);
+      755 |       const codeScopes = explicit ? ['user:read', 'acting-as:offline'] : ['user:read'];
+      756 |       expect(state.codeScopes).toEqual(denied ? [] : [codeScopes]);
+
+      at src/routes/__tests__/oauthConsentFinalizers.test.ts:753:29
+      at fulfilled (src/routes/__tests__/oauthConsentFinalizers.test.ts:27:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 29 passed, 34 total
+Snapshots:   0 total
+Time:        3.448 s
+Ran all test suites matching src/routes/__tests__/oauthConsentFinalizers.test.ts.
+error: script "test" exited with code 1
