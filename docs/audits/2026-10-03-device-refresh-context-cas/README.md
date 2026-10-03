@@ -1,0 +1,5 @@
+The old mint could overwrite durable account B with account A after a normal SDK switch on the same holder. The frozen fixture has three failures on the prior source and five passes after the guard; the selected bearer stays B and a new native store reads B. A second barrier replaces state after the retained-state read and before the queued commit.
+
+The epoch-changed lane compares the full snapshot inside the storage queue and retains only a valid secret rotation for unchanged context. It never transplants the old account/session/bearer, refills a removed store, or publishes stale shared bytes. The current lane uses the available queued CAS too.
+
+Full core184/2233, Services113/1040, actual API/PG4 and normal142 fresh/repeat pass. The owned PostgreSQL process is stopped. Wire regression uses synthetic fetch responses and explicit persistence after SessionClient.switchAccount; it is not an Android/OxyProvider test. Earlier Android three-PASS acceptance stays scoped to9e07; final registry replay remains pending. Setup failures are preserved, with no suppressions or product workaround.

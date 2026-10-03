@@ -1,0 +1,95 @@
+$ jest --passWithNoTests --runInBand src/session/__tests__/refresh.contextCas.test.ts
+FAIL src/session/__tests__/refresh.contextCas.test.ts
+  ● device refresh uses full native context CAS after a normal SDK switch › late A cannot overwrite persisted B for the same holder or publish shared bytes
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Object {
+    -   "accessToken": "e30.eyJ1c2VySWQiOiJvcmctYiIsInNlc3Npb25JZCI6InNlc3Npb24tYiIsIm5vbmNlIjowLCJleHAiOjE3OTEwNTE5NjJ9.s",
+    +   "accessToken": "e30.eyJ1c2VySWQiOiJwZXJzb24tYSIsInNlc3Npb25JZCI6InNlc3Npb24tYSIsIm5vbmNlIjoxLCJleHAiOjE3OTEwNTE5NjJ9.s",
+        "deviceId": "same-device",
+    -   "deviceSecret": "same-holder",
+    +   "deviceSecret": "rotated-holder-a",
+        "expiresAt": "2026-10-03T18:26:02.199Z",
+    -   "sessionId": "session-b",
+    -   "userId": "org-b",
+    +   "sessionId": "session-a",
+    +   "userId": "person-a",
+      }
+
+      60 |     expect(await pending).toEqual({status: 'session-ended'});
+      61 |     expect(oxy.session.accessToken).toBe(tokenB);
+    > 62 |     expect(await native.load()).toEqual(selectedB);
+         |                                 ^
+      63 |     expect(await createNativeAuthStateStore(storage).load()).toEqual(selectedB);
+      64 |     expect(sharedPublish).not.toHaveBeenCalled();
+      65 |   });
+
+      at Object.<anonymous> (src/session/__tests__/refresh.contextCas.test.ts:62:33)
+
+  ● device refresh uses full native context CAS after a normal SDK switch › a replacement queued after the retained-state read still wins the native CAS
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Object {
+    -   "accessToken": "e30.eyJ1c2VySWQiOiJvcmctYiIsInNlc3Npb25JZCI6InNlc3Npb24tYiIsIm5vbmNlIjowLCJleHAiOjE3OTEwNTE5NjJ9.s",
+    +   "accessToken": "e30.eyJ1c2VySWQiOiJwZXJzb24tYSIsInNlc3Npb25JZCI6InNlc3Npb24tYSIsIm5vbmNlIjoxLCJleHAiOjE3OTEwNTE5NjJ9.s",
+        "deviceId": "same-device",
+    -   "deviceSecret": "same-holder",
+    +   "deviceSecret": "rotated-holder-a",
+        "expiresAt": "2026-10-03T18:26:02.199Z",
+    -   "sessionId": "session-b",
+    -   "userId": "org-b",
+    +   "sessionId": "session-a",
+    +   "userId": "person-a",
+      }
+
+      75 |     oxy.session.setAccessToken(tokenB); await store.save(selectedB); continueRead.resolve();
+      76 |     expect(await pending).toEqual({status: 'session-ended'}); expect(oxy.session.accessToken).toBe(tokenB);
+    > 77 |     expect(await createNativeAuthStateStore(storage).load()).toEqual(selectedB);
+         |                                                              ^
+      78 |   });
+      79 |   it('token-null teardown retains only valid credential rotation without restoring a bearer', async () => {
+      80 |     const {storage, store, oxy} = fixture(); await store.save(prior);
+
+      at Object.<anonymous> (src/session/__tests__/refresh.contextCas.test.ts:77:62)
+
+  ● device refresh uses full native context CAS after a normal SDK switch › token-null teardown retains only valid credential rotation without restoring a bearer
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+    @@ -1,7 +1,7 @@
+      Object {
+    -   "accessToken": "e30.eyJ1c2VySWQiOiJwZXJzb24tYSIsInNlc3Npb25JZCI6InNlc3Npb24tYSIsIm5vbmNlIjowLCJleHAiOjE3OTEwNTE5NjJ9.s",
+    +   "accessToken": "e30.eyJ1c2VySWQiOiJwZXJzb24tYSIsInNlc3Npb25JZCI6InNlc3Npb24tYSIsIm5vbmNlIjoxLCJleHAiOjE3OTEwNTE5NjJ9.s",
+        "deviceId": "same-device",
+        "deviceSecret": "rotated-holder-a",
+        "expiresAt": "2026-10-03T18:26:02.199Z",
+        "sessionId": "session-a",
+        "userId": "person-a",
+
+      83 |     const pending = refreshDeviceSecretArm({oxy, store}); await entered.promise; oxy.http.endSession(); release.resolve(response);
+      84 |     expect(await pending).toEqual({status: 'session-ended'}); expect(oxy.session.accessToken).toBeNull();
+    > 85 |     expect(await createNativeAuthStateStore(storage).load()).toEqual({...prior, deviceSecret: response.nextDeviceSecret});
+         |                                                              ^
+      86 |   });
+      87 |   it('cleared native storage stays absent after a late successful mint', async () => {
+      88 |     const {storage, store, oxy} = fixture(); await store.save(prior);
+
+      at Object.<anonymous> (src/session/__tests__/refresh.contextCas.test.ts:85:62)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 2 passed, 5 total
+Snapshots:   0 total
+Time:        0.362 s, estimated 1 s
+Ran all test suites matching src/session/__tests__/refresh.contextCas.test.ts.
+error: script "test" exited with code 1

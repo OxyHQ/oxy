@@ -1,0 +1,10 @@
+$ node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs
+@oxy.so/telemetry build: $ rm -rf dist
+@oxy.so/telemetry build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/telemetry build: $ tsc -p tsconfig.esm.json
+@oxy.so/telemetry build: $ tsc -p tsconfig.types.json
+@oxy.so/telemetry build: Exited with code 0
+$ tsc -p tsconfig.cjs.json
+$ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+ESM imports fixed
+$ tsc -p tsconfig.types.json

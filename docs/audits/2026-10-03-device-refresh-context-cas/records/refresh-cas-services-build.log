@@ -1,0 +1,18 @@
+$ bun run check:icon-fonts && bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view
+$ node scripts/check-icon-font-subsets.mjs
+Services icon subsets match source usage, package version and recorded hashes.
+ℹ [commonjs] Cleaning up previous build at lib/commonjs
+ℹ [commonjs] Compiling 277 files in src with babel
+✔ [commonjs] Wrote files to lib/commonjs
+ℹ [module] Cleaning up previous build at lib/module
+ℹ [module] Compiling 277 files in src with babel
+✔ [module] Wrote files to lib/module
+ℹ [typescript] Cleaning up previous build at lib/typescript
+ℹ [typescript] Generating type definitions with tsc
+✔ [typescript] Wrote definition files to lib/typescript
+$ copyfiles -u 1 "src/assets/**/*" lib/commonjs/assets && copyfiles -u 1 "src/assets/**/*" lib/module/assets
+$ copyfiles -u 1 "src/**/*.d.ts" lib/typescript
+$ find ./lib/commonjs -name '*.d.js*' -delete && find ./lib/module -name '*.d.js*' -delete
+$ rm -rf ./lib/commonjs/components/bottomSheetDebugView ./lib/module/components/bottomSheetDebugView ./lib/typescript/components/bottomSheetDebugView || true
+$ node scripts/verify-package.mjs
+[verify-package] ok — @oxy.so/services@11.1.0 packs 2418 files (2084 under lib/), all 33 exports targets resolve, every module declared (251 in lib/commonjs/, 251 in lib/module/), no unsubstituted dependency protocol

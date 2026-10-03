@@ -1,0 +1,6 @@
+$ jest --passWithNoTests --runInBand src/session/__tests__/refresh.contextCas.test.ts
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        0.297 s, estimated 1 s
+Ran all test suites matching src/session/__tests__/refresh.contextCas.test.ts.
