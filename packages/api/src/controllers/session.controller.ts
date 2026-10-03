@@ -25,7 +25,7 @@ import { userService } from '../services/user.service';
 import securityActivityService from '../services/securityActivityService';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
 import type { AuthRequest } from '../middleware/auth';
-import { isValidUsername, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
+import { accountActorChainFromSession, isValidUsername, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
 import {
   meetsRegistrationPowDifficulty,
   REGISTRATION_POW_DIFFICULTY_BITS,
@@ -141,6 +141,19 @@ export function buildSessionAuthResponse(session: { sessionId: string; deviceId:
       avatar: userData.avatar,
     },
   };
+}
+
+/**
+ * Who acted, and as whom, on this session — read off the ROW, never off a
+ * header or a token claim (issue #1520). A consumer's audit records
+ * `actorAccountId` as the actor and `effectiveAccountId` as the account spoken
+ * as; a bot acting unoperated is its own actor, never its owner.
+ */
+function sessionActorChain(session: { userId: string; operatedByUserId?: string | null }) {
+  return accountActorChainFromSession({
+    subjectAccountId: session.userId,
+    operatedByAccountId: session.operatedByUserId ?? null,
+  });
 }
 
 export class SessionController {
@@ -761,7 +774,8 @@ export class SessionController {
         expiresAt: result.session.expiresAt.toISOString(),
         lastActivity: result.session.lastActiveAt.toISOString(),
         deviceId: result.session.deviceId,
-        user: userData
+        user: userData,
+        actor: sessionActorChain(result.session),
       });
     } catch (error) {
       logger.error('Validate session error:', error);
@@ -811,7 +825,8 @@ export class SessionController {
         lastActivity: result.session.lastActiveAt.toISOString(),
         deviceId: result.session.deviceId,
         user: userData,
-        sessionId: result.session.sessionId
+        sessionId: result.session.sessionId,
+        actor: sessionActorChain(result.session),
       });
     } catch (error) {
       logger.error('Validate session from header error:', error);

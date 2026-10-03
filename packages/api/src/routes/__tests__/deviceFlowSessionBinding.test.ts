@@ -32,7 +32,7 @@ jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 const mockLogDeviceAdded = jest.fn();
 const mockVerifyActingAs = jest.fn();
 
-let authenticatedUser: { _id: string; username?: string; publicKey?: string } | null = null;
+let authenticatedUser: { _id: string; username?: string; publicKey?: string; sessionId?: string } | null = null;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
@@ -45,6 +45,8 @@ jest.mock('../../middleware/auth', () => ({
       return;
     }
     req.user = authenticatedUser;
+    // The real middleware sets the bearer's own session id; so does this stub.
+    (req as { sessionId?: string }).sessionId = authenticatedUser.sessionId;
     next();
   },
   serviceAuthMiddleware: jest.fn(),
@@ -194,7 +196,7 @@ describe('approve then claim, on a device that is already signed in', () => {
     const boundBefore = await storedSession(sessionId);
     expect(boundBefore.deviceSessionId).not.toBeNull();
 
-    authenticatedUser = { _id: userId, username: 'someone' };
+    authenticatedUser = { _id: userId, username: 'someone', sessionId };
     const sessionToken = await pendingRequest(deviceId);
 
     const approved = await post(`/auth/session/authorize/${sessionToken}`, {});
@@ -233,7 +235,7 @@ describe('approve then claim, on a device that is already signed in', () => {
     const { userId, deviceId, sessionId } = await signedInOnDevice();
     const staleCopy = await storedSession(sessionId);
 
-    authenticatedUser = { _id: userId, username: 'someone' };
+    authenticatedUser = { _id: userId, username: 'someone', sessionId };
     const sessionToken = await pendingRequest(deviceId);
     expect((await post(`/auth/session/authorize/${sessionToken}`, {})).status).toBe(200);
 
