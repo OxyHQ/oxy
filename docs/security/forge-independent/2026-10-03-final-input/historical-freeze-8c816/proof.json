@@ -1,7 +1,7 @@
 {
   "status": "INDEPENDENT_REPRODUCTION_COMPLETED_CANDIDATE_UNAPPROVED",
-  "recordedAtUTC": "2026-10-03T20:17:14.604714+00:00",
-  "candidateCommit": "9157c9c4bce3f4453f91b094410bcdffb564cb9c",
+  "recordedAtUTC": "2026-10-03T19:32:12.993977+00:00",
+  "candidateCommit": "f68d6896b0dd0eb07a97eb60c049563cb2067e5f",
   "upstreamTag": "v1.4.0",
   "upstreamCommit": "fa385f92440879601240020f158bed68e444e83a",
   "toolchain": {
@@ -269,92 +269,56 @@
       "hashes-after-build-2.json",
       "candidate-build-repeat.json"
     ],
-    "scope": "Forge source/patch/pinned toolchain unchanged; all17 records retained byte-identically from prior measured sources. Installed321/Expo14/Oxy34/normal142/APIbuild/frozeninstall and actualPG4170519 lifecycle are explicitly reused historical. Fresh topology23/policy144/DAG82/resolver14 are framework-only rechecks."
+    "scope": "Unchanged Forge source/patch/pinned toolchain stock/candidate828+4pending builds and stock321 controls are historical. All15 files checked now. Current installed321, Expo14, Oxy34 normal142, API build and frozen install are fresh; canary3/58+compiledNode5 are a separate composed proof."
   },
   "supplementalRecords": [
     {
       "file": "consumer-runner-final.log",
-      "sha256": "1af7f2e6ae70efbee630a1a30416e38038433d2da9007c3de843850e5d957e41",
-      "reusedHistorical": true
+      "sha256": "1af7f2e6ae70efbee630a1a30416e38038433d2da9007c3de843850e5d957e41"
     },
     {
       "file": "migrate-fresh.txt",
-      "sha256": "eb04eedbc6290ca12475ffd5058fdc5151268bd5c0be93ab7d776e3ebf6e0ef6",
-      "reusedHistorical": true
+      "sha256": "eb04eedbc6290ca12475ffd5058fdc5151268bd5c0be93ab7d776e3ebf6e0ef6"
     },
     {
       "file": "migrate-repeat.txt",
-      "sha256": "30fbb36a141fcff679ee4b8dc4b99d62a918e75a2fd804542cf2a00653185a51",
-      "reusedHistorical": true
+      "sha256": "30fbb36a141fcff679ee4b8dc4b99d62a918e75a2fd804542cf2a00653185a51"
     },
     {
       "file": "inventory.json",
-      "sha256": "aeb662c679e3b3b371bc5da771d247257fddb33aede784789e9cad08d2b65f0c",
-      "reusedHistorical": true
+      "sha256": "aeb662c679e3b3b371bc5da771d247257fddb33aede784789e9cad08d2b65f0c"
     },
     {
       "file": "policy-final.log",
-      "sha256": "82b1290ade8edc1b7274941466f9e02d599b29c5ea381da04fab3cae1ac5f23b",
-      "reusedHistorical": true
+      "sha256": "82b1290ade8edc1b7274941466f9e02d599b29c5ea381da04fab3cae1ac5f23b"
     },
     {
       "file": "dag82.log",
-      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9",
-      "reusedHistorical": true
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9"
     },
     {
       "file": "resolver14.log",
-      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3",
-      "reusedHistorical": true
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3"
     },
     {
       "file": "raw-audit.json",
-      "sha256": "496b6b4085635ba813c61d01452b72fe1099f5b79493cbaef5b05b6db8bc4f07",
-      "reusedHistorical": true
+      "sha256": "496b6b4085635ba813c61d01452b72fe1099f5b79493cbaef5b05b6db8bc4f07"
     },
     {
       "file": "framework-inputs.json",
-      "sha256": "9d2ddd24c5fa0580df797d4082b4d3848384c0e49d0e2dbe44212a32d9838b14"
+      "sha256": "e4bbbe7216bce89316ecf144bac8ecdc8db18998152149f2a49172478faaa760"
     },
     {
       "file": "quiesced-census61.log",
-      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca",
-      "reusedHistorical": true
+      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca"
     },
     {
       "file": "quiesced-census-shell10.log",
-      "sha256": "44ef42ef01cd322870a3bf2ea4a556b2c5088b3dc067d829f59864a7707b3fb9",
-      "reusedHistorical": true
+      "sha256": "44ef42ef01cd322870a3bf2ea4a556b2c5088b3dc067d829f59864a7707b3fb9"
     },
     {
       "file": "quiesced-census-biome3.log",
-      "sha256": "94cf74da15f5f347365d8f075e8b8810699bf75fbd5792ea2824107d092a192d",
-      "reusedHistorical": true
-    },
-    {
-      "file": "fixed-main-topology-red.log",
-      "sha256": "bd0c44a6498bd87cd77fd03a0fa3fb968fbe912fc69acbc96fe8fd2bdb3165e1",
-      "exitCode": 1
-    },
-    {
-      "file": "fixed-main-topology-green.log",
-      "sha256": "42c3f57beb42c5302d38f534e5148ee96cda6ba6f06dcf2e210ff3e790fac463",
-      "exitCode": 0
-    },
-    {
-      "file": "fixed-main-policy144.log",
-      "sha256": "219be3a507bb54a02f15d53d4d75dad6510f1d4eb3f078eb9de88f62199ea84c",
-      "exitCode": 0
-    },
-    {
-      "file": "fixed-main-dag82.log",
-      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9",
-      "exitCode": 0
-    },
-    {
-      "file": "fixed-main-resolver14.log",
-      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3",
-      "exitCode": 0
+      "sha256": "94cf74da15f5f347365d8f075e8b8810699bf75fbd5792ea2824107d092a192d"
     }
   ],
   "inputTrees": {
@@ -397,16 +361,14 @@
       "canaryApiTests": 58,
       "compiledNodeCanaryChecks": 5,
       "quiescedGuardChecks": 61,
-      "quiescedShellChecks": 10,
-      "fixedMainTopologyAssertions": 23
+      "quiescedShellChecks": 10
     },
     "limits": [
       "Fresh ARM and authenticated full gate required before declarative ACTIVE; historical ebb fullgreen does not promote new source",
       "Native9e07 candidate3PASS is historical bounded; final registry replay/consumer adoption remains pending",
       "Live two-process revocation and cutover watcher are operational acceptance gates, not this local proof",
       "Root-reviewed session authorization persists; same expiry2026-10-09T22:00Z",
-      "Crypto results and ownedPG4170519 lifecycle are measured on200134 and explicitly reused for test-only refreeze; own RED/GREEN processes4186959/4187728 stopped. New full CI/ARM remains pending.",
-      "Queuecd71 failed fixed base topology against authenticmain67c09; original9dc CI PASS is historical. Corrected literal requires own ARM/authenticated gate, not inherited ACTIVE approval."
+      "Crypto results and ownedPG4170519 lifecycle are measured on200134 and explicitly reused for test-only refreeze; own RED/GREEN processes4186959/4187728 stopped. New full CI/ARM remains pending."
     ],
     "historicalIssuerProofCandidate": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
     "currentNativeSdkSource": "9e07f55c522655e52c805244799d86dd7cffeb7c",
@@ -477,25 +439,6 @@
       ],
       "all10PackageInputObjectsUnchangedFrom195397": true,
       "recordReuse": "17 crypto records reused byte-identically from200134. Guard3 source inputs changed; fresh61guard/10canonical-shell/Biome3 recorded. Runtime product API/SDK/schema142, patch/toolchain and packages unchanged. New ARM/fullgate/CI required."
-    },
-    "mainTopologyRefreeze": {
-      "baselineFreeze": "8c8163755abddd1046ebea65b290634676759112",
-      "baselineMachineProofSha256": "49a79473bcdb2c109a1e014cc7d1f138fe822c47a2060ea4af9980407793eb12",
-      "source": "6b03be9c8262795a34e6201cac085669054752f2",
-      "proofCommit": "9157c9c4bce3f4453f91b094410bcdffb564cb9c",
-      "proofPath": "docs/audits/2026-10-03-forge-main-topology/proof.json",
-      "proofSha256": "fdad9bed326e901e2f699a9e0599e18d2218a44947fd8b56089469c517ba270d",
-      "changedFrameworkPaths": [
-        "scripts/forge-source-topology.mjs",
-        "scripts/test-forge-source-topology.mjs"
-      ],
-      "unchangedPackageInputObjects": 10,
-      "frameworkCount": 43,
-      "freshTopologyAssertions": 23,
-      "freshPolicyAssertions": 144,
-      "freshDagAssertions": 82,
-      "freshResolverCases": 14,
-      "scope": "Fixed main literal and topology regression only. All17 crypto records, Oxy34/Expo14/API build/install/321 and actualPG4170519 lifecycle reused from prior measured source, not freshly executed. Product API/SDK/schema142 and all6SHA/10objects/15Forge files unchanged. Own ARM/fullgate/CI required."
     }
   },
   "historicalSupplementalRecords": [

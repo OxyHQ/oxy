@@ -1,5 +1,5 @@
 {
-  "sourceHead": "9157c9c4bce3f4453f91b094410bcdffb564cb9c",
+  "sourceHead": "f68d6896b0dd0eb07a97eb60c049563cb2067e5f",
   "base": "67c09e853db308d102624a2ffd40db19959344f4",
   "changes": [
     {
@@ -154,9 +154,9 @@
     },
     {
       "file": "scripts/forge-source-topology.mjs",
-      "sha256": "ddb3c9483ce4b93469f1041b46db38d039defebfac5128c2109e7fe3b41e776e",
-      "gitObject": "31d867406cade204dd37c207e9da3d560640ebfb",
-      "sameAsIssuerMain67c09": false
+      "sha256": "2216c161537c04b06b49bde8d603112f9a6982bc2a301bed1ab4a2b3454fc047",
+      "gitObject": "3e6a3ba3ec3c520e6eb176356b637c8eed063723",
+      "sameAsIssuerMain67c09": true
     },
     {
       "file": "scripts/rehearsal/test-forge-final-input-1519.py",
@@ -208,9 +208,9 @@
     },
     {
       "file": "scripts/test-forge-source-topology.mjs",
-      "sha256": "eeaaff04fae71c09c9d636a714643e7073d7a18ba7c7554203438d7033f4f3c0",
-      "gitObject": "c10453159bf0bb9e15799137c632e125895a3a12",
-      "sameAsIssuerMain67c09": false
+      "sha256": "fa6b0e960a6e8cbb4629c8a5916e3fdfd2cae55df011b550cf8d3c6f0276fdd7",
+      "gitObject": "e08e83280d2364988f00838b37de85e0410fa0cf",
+      "sameAsIssuerMain67c09": true
     },
     {
       "file": "scripts/test-verify-forge-oci-artifact.py",
