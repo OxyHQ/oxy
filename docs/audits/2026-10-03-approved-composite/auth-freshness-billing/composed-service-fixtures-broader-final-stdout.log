@@ -1,0 +1,10 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-k3_o1dnv/ordered-sequencer.cjs" --runTestsByPath src/middleware/__tests__/serviceCredentialRateLimit.test.ts src/middleware/__tests__/publicIdentifierNotABearer.test.ts src/routes/__tests__/reputationAwardAuthz.test.ts src/routes/__tests__/inferenceEdgeCredentialLanes.test.ts src/routes/__tests__/inferenceProviderConnections.test.ts src/routes/__tests__/internalServiceAccountSwitch.test.ts src/routes/__tests__/inferenceCataloguePublication.test.ts src/routes/__tests__/inferenceRoutingPolicies.test.ts src/routes/__tests__/inferenceCatalogueRoute.test.ts src/routes/__tests__/inferenceReporting.test.ts
+{"level":40,"time":1790996341285,"pid":3430982,"hostname":"SuperPC","kid":"dev-ephemeral-2c017646531a","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1790996341690,"pid":3430982,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1790996341742,"pid":3430982,"hostname":"SuperPC","kid":"dev-ephemeral-b09a21dd8321","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+
+Test Suites: 10 passed, 10 total
+Tests:       202 passed, 202 total
+Snapshots:   0 total
+Time:        7.908 s
+Ran all test suites within paths "src/middleware/__tests__/serviceCredentialRateLimit.test.ts", "src/middleware/__tests__/publicIdentifierNotABearer.test.ts", "src/routes/__tests__/reputationAwardAuthz.test.ts", "src/routes/__tests__/inferenceEdgeCredentialLanes.test.ts", "src/routes/__tests__/inferenceProviderConnections.test.ts", "src/routes/__tests__/internalServiceAccountSwitch.test.ts", "src/routes/__tests__/inferenceCataloguePublication.test.ts", "src/routes/__tests__/inferenceRoutingPolicies.test.ts", "src/routes/__tests__/inferenceCatalogueRoute.test.ts", "src/routes/__tests__/inferenceReporting.test.ts".

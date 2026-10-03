@@ -1,0 +1,31 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /tmp/oxy1519-i09-fre7n_2f/pg1519-uzwhfjjg/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /tmp/oxy1519-i09-fre7n_2f/pg1519-uzwhfjjg/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"newLocalServerPid": 3439526, "dataDirectory": "/tmp/oxy1519-i09-fre7n_2f/pg1519-uzwhfjjg/data", "database": "oxy_rehearsal_1519_faaf8720ada5a6a0", "command": ["bun", "run", "test", "--runInBand", "--testSequencer", "/tmp/oxy1519-i09-fre7n_2f/ordered-sequencer.cjs", "--runTestsByPath", "src/routes/__tests__/nativeRequesterAssertion.routes.test.ts", "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts", "src/routes/__tests__/serviceTokenCredentials.test.ts", "src/services/__tests__/approvedActingAsEpochs.test.ts", "src/services/__tests__/agentKeyAuth.test.ts", "src/services/__tests__/agentKeyGovernance.test.ts", "src/routes/__tests__/agentAutonomousFlow.test.ts", "src/routes/__tests__/mcpOAuth.routes.test.ts", "src/services/__tests__/subscriptionCreditLockOrder.test.ts", "src/services/__tests__/productBillingCatalogue.test.ts"], "exitCode": 0, "log": "/tmp/oxy1519-i09-fre7n_2f/api/focused.txt", "productionAccess": false}
+waiting for server to shut down.... done
+server stopped
+

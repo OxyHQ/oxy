@@ -1,0 +1,16 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-fre7n_2f/ordered-sequencer.cjs" --runTestsByPath src/routes/__tests__/nativeRequesterAssertion.routes.test.ts src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/routes/__tests__/serviceTokenCredentials.test.ts src/services/__tests__/approvedActingAsEpochs.test.ts src/services/__tests__/agentKeyAuth.test.ts src/services/__tests__/agentKeyGovernance.test.ts src/routes/__tests__/agentAutonomousFlow.test.ts src/routes/__tests__/mcpOAuth.routes.test.ts src/services/__tests__/subscriptionCreditLockOrder.test.ts src/services/__tests__/productBillingCatalogue.test.ts
+{"level":30,"time":1790996975068,"pid":3439541,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1790996975377,"pid":3439541,"hostname":"SuperPC","kid":"dev-ephemeral-ef6c6a01b2ea","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1790996975615,"pid":3439541,"hostname":"SuperPC","callerAppId":"01a0ffbd-0f08-7d5a-999f-ac617c26b23f","subjectAppId":"01a0ffbd-0f08-7d5a-999f-ac617c26b23f","authorized":true,"msg":"[internal] service-acting-as verify"}
+{"level":30,"time":1790996975652,"pid":3439541,"hostname":"SuperPC","callerAppId":"01a0ffbd-0f08-7d5a-999f-ac617c26b23f","subjectAppId":"01a0ffbd-0f08-7d5a-999f-ac617c26b23f","authorized":true,"msg":"[internal] service-acting-as verify"}
+{"level":30,"time":1790996975669,"pid":3439541,"hostname":"SuperPC","callerAppId":"01a0ffbd-0f08-7d5a-999f-ac617c26b23f","subjectAppId":"01a0ffbd-0f08-7d5a-999f-ac617c26b23f","authorized":false,"msg":"[internal] service-acting-as verify"}
+{"level":30,"time":1790996975674,"pid":3439541,"hostname":"SuperPC","callerAppId":"01a0ffbd-0f08-7d5a-999f-ac617c26b23f","subjectAppId":"01a0ffbd-0f08-7d5a-999f-ac617c26b23f","authorized":false,"msg":"[internal] service-acting-as verify"}
+{"measurement":"local_two_process_revoke_commit_to_fresh_denials_ms","value":13.177009999999427,"productionP99":false}
+{"level":30,"time":1790996979148,"pid":3439541,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790996980149,"pid":3439541,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 10 passed, 10 total
+Tests:       136 passed, 136 total
+Snapshots:   0 total
+Time:        11.515 s
+Ran all test suites within paths "src/routes/__tests__/nativeRequesterAssertion.routes.test.ts", "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts", "src/routes/__tests__/serviceTokenCredentials.test.ts", "src/services/__tests__/approvedActingAsEpochs.test.ts", "src/services/__tests__/agentKeyAuth.test.ts", "src/services/__tests__/agentKeyGovernance.test.ts", "src/routes/__tests__/agentAutonomousFlow.test.ts", "src/routes/__tests__/mcpOAuth.routes.test.ts", "src/services/__tests__/subscriptionCreditLockOrder.test.ts", "src/services/__tests__/productBillingCatalogue.test.ts".

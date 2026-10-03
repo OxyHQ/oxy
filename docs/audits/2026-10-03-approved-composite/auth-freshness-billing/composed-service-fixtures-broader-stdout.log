@@ -1,0 +1,225 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-992zdq_e/ordered-sequencer.cjs" --runTestsByPath src/middleware/__tests__/serviceCredentialRateLimit.test.ts src/middleware/__tests__/publicIdentifierNotABearer.test.ts src/routes/__tests__/reputationAwardAuthz.test.ts src/routes/__tests__/inferenceEdgeCredentialLanes.test.ts src/routes/__tests__/inferenceProviderConnections.test.ts src/routes/__tests__/internalServiceAccountSwitch.test.ts src/routes/__tests__/inferenceCataloguePublication.test.ts src/routes/__tests__/inferenceRoutingPolicies.test.ts src/routes/__tests__/inferenceCatalogueRoute.test.ts src/routes/__tests__/inferenceReporting.test.ts
+{"level":40,"time":1790996050157,"pid":3427433,"hostname":"SuperPC","kid":"dev-ephemeral-a2afec7b35de","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1790996050568,"pid":3427433,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1790996050622,"pid":3427433,"hostname":"SuperPC","kid":"dev-ephemeral-96ae67d7ea0e","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+FAIL src/routes/__tests__/internalServiceAccountSwitch.test.ts
+  ● the operator header › refuses an operator the app grant was revoked by (403)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 403
+
+      436 |
+      437 |     const before = await grantedServiceSwitch(bot, app, operator);
+    > 438 |     expect(before.status).toBe(200);
+          |                           ^
+      439 |
+      440 |     await revokeServiceActingAs(operator, app.appId);
+      441 |
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:438:27
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● the target account › answers 404 for an account that does not exist
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 404
+    Received: 403
+
+      490 |     const res = await grantedServiceSwitch(randomUUID(), app, operator);
+      491 |
+    > 492 |     expect(res.status).toBe(404);
+          |                        ^
+      493 |     expect(res.body.data).toBeUndefined();
+      494 |   });
+      495 |
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:492:24
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● the target account › answers 404 for an ARCHIVED account the operator can act as
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 404
+    Received: 403
+
+      500 |     await member(bot, operator, 'admin');
+      501 |
+    > 502 |     expect((await grantedServiceSwitch(bot, app, operator)).status).toBe(404);
+          |                                                                     ^
+      503 |   });
+      504 |
+      505 |   /**
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:502:69
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● the target account › STILL mints for a BOT — the switcher narrowing must not close this lane
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 403
+
+      521 |     const res = await grantedServiceSwitch(bot, app, operator);
+      522 |
+    > 523 |     expect(res.status).toBe(200);
+          |                        ^
+      524 |     expect(claims(res.body.data?.accessToken ?? '').sub).toBe(bot);
+      525 |   });
+      526 |
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:523:24
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● the target account › mints for an ORGANIZATION and a PROJECT too, not only a bot
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 403
+
+      536 |       const res = await grantedServiceSwitch(target, app, operator);
+      537 |
+    > 538 |       expect(res.status).toBe(200);
+          |                          ^
+      539 |       expect(claims(res.body.data?.accessToken ?? '').sub).toBe(target);
+      540 |     }
+      541 |   });
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:538:26
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● a successful mint › mints a session whose SUBJECT is the account and whose ACTOR is the human
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 403
+
+      555 |     const res = await grantedServiceSwitch(bot, app, operator);
+      556 |
+    > 557 |     expect(res.status).toBe(200);
+          |                        ^
+      558 |     const accessToken = res.body.data?.accessToken;
+      559 |     expect(typeof accessToken).toBe('string');
+      560 |
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:557:24
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● a successful mint › mints an UNBOUND bearer — no `azp`, no `scope`, full authority over the account
+
+    JsonWebTokenError: jwt must be provided
+
+      248 | /** The v2 access-token claims the mint asserts. Read with the real verifier. */
+      249 | function claims(accessToken: string): { sub?: string; act?: { sub?: string }; sid?: string } {
+    > 250 |   const decoded = jwt.verify(accessToken, ACCESS_TOKEN_SECRET);
+          |                       ^
+      251 |   if (typeof decoded === 'string') {
+      252 |     throw new Error('access token did not decode to a claim set');
+      253 |   }
+
+      at Object.module.exports [as verify] (../../node_modules/.bun/jsonwebtoken@9.0.3/node_modules/jsonwebtoken/verify.js:60:17)
+      at claims (src/routes/__tests__/internalServiceAccountSwitch.test.ts:250:23)
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:600:21
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● a successful mint › returns the account as the session user, never the operator
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "01a0ffae-ffdc-7ef5-846d-9bf9f6ee8119"
+    Received: undefined
+
+      624 |     const res = await grantedServiceSwitch(bot, app, operator);
+      625 |
+    > 626 |     expect(res.body.data?.user?.id).toBe(bot);
+          |                                     ^
+      627 |     expect(res.body.data?.user?.id).not.toBe(operator);
+      628 |     expect(typeof res.body.data?.expiresAt).toBe('string');
+      629 |   });
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:626:37
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● device attribution › reuses ONE device and ONE session across repeated mints for the same (app, account)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 403
+
+      650 |     const second = await serviceSwitch(bot, serviceToken(app), operator);
+      651 |
+    > 652 |     expect(first.status).toBe(200);
+          |                          ^
+      653 |     expect(second.status).toBe(200);
+      654 |     expect(second.body.data?.deviceId).toBe(first.body.data?.deviceId);
+      655 |     expect(second.body.data?.sessionId).toBe(first.body.data?.sessionId);
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:652:26
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● device attribution › derives that device from (account, app), so it is stable and per-application
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "1df66b848355a414d5d8b763d0388930"
+    Received: undefined
+
+      670 |     const res = await grantedServiceSwitch(bot, app, operator);
+      671 |
+    > 672 |     expect(res.body.data?.deviceId).toBe(
+          |                                     ^
+      673 |       deriveServiceDeviceId(bot, `service:${app.appId}:${bot}`)
+      674 |     );
+      675 |   });
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:672:37
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● device attribution › gives two APPLICATIONS acting as one account two different devices
+
+    expect(received).not.toBe(expected) // Object.is equality
+
+    Expected: not undefined
+
+      691 |     const fromOther = await grantedServiceSwitch(bot, other, operator);
+      692 |
+    > 693 |     expect(fromAlia.body.data?.deviceId).not.toBe(fromOther.body.data?.deviceId);
+          |                                              ^
+      694 |     expect(await sessionRowsFor(bot)).toHaveLength(2);
+      695 |   });
+      696 |
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:693:46
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+  ● device attribution › gives two OPERATORS of one account two different sessions on the same device
+
+    expect(received).not.toBe(expected) // Object.is equality
+
+    Expected: not undefined
+
+      712 |
+      713 |     expect(one.body.data?.deviceId).toBe(two.body.data?.deviceId);
+    > 714 |     expect(one.body.data?.sessionId).not.toBe(two.body.data?.sessionId);
+          |                                          ^
+      715 |
+      716 |     const rows = await sessionRowsFor(bot);
+      717 |     expect(rows).toHaveLength(2);
+
+      at src/routes/__tests__/internalServiceAccountSwitch.test.ts:714:42
+      at fulfilled (src/routes/__tests__/internalServiceAccountSwitch.test.ts:31:58)
+
+
+Test Suites: 1 failed, 9 passed, 10 total
+Tests:       12 failed, 190 passed, 202 total
+Snapshots:   0 total
+Time:        8.505 s
+Ran all test suites within paths "src/middleware/__tests__/serviceCredentialRateLimit.test.ts", "src/middleware/__tests__/publicIdentifierNotABearer.test.ts", "src/routes/__tests__/reputationAwardAuthz.test.ts", "src/routes/__tests__/inferenceEdgeCredentialLanes.test.ts", "src/routes/__tests__/inferenceProviderConnections.test.ts", "src/routes/__tests__/internalServiceAccountSwitch.test.ts", "src/routes/__tests__/inferenceCataloguePublication.test.ts", "src/routes/__tests__/inferenceRoutingPolicies.test.ts", "src/routes/__tests__/inferenceCatalogueRoute.test.ts", "src/routes/__tests__/inferenceReporting.test.ts".
+error: script "test" exited with code 1
