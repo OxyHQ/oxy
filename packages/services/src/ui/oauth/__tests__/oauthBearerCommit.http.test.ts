@@ -56,14 +56,14 @@ describe('OAuth bearer commit with real HTTP transport', () => {
         expect(params.get('code_verifier')).toBeTruthy();
         exchanges += 1;
         res.end(JSON.stringify({ access_token: token(exchangeSubject), session_id: 'fixture-session',
-          expires_in: 300, user: { id: exchangeSubject, username: exchangeSubject === PERSON ? 'person' : 'organization' } }));
+          expires_in: 300, user: { id: exchangeSubject, username: exchangeSubject === PERSON ? 'fixture-person' : 'fixture-organization' } }));
       } else if (req.method === 'GET' && req.url === '/users/me') {
         const bearer = req.headers.authorization;
         const subject = bearer === `Bearer ${token(PERSON)}` ? PERSON
           : bearer === `Bearer ${token(ORGANIZATION)}` ? ORGANIZATION : null;
         if (!subject) { res.statusCode = 401; res.end(JSON.stringify({ message: 'Unauthorized' })); return; }
         profileSubjects.push(subject);
-        res.end(JSON.stringify({ id: subject, username: subject === PERSON ? 'person' : 'organization' }));
+        res.end(JSON.stringify({ id: subject, username: subject === PERSON ? 'fixture-person' : 'fixture-organization' }));
       } else {
         unexpectedRequests.push(`${req.method} ${req.url}`);
         res.statusCode = 500; res.end(JSON.stringify({ message: 'Unexpected fixture request' }));

@@ -522,13 +522,15 @@ describe('the canonical official-application registry', () => {
     });
   });
 
-  describe('Mercaria owns only its catalog execution authority', () => {
-    it('declares the scopes used by catalog registration, ticket introspection and audit', () => {
+  describe('Mercaria owns its catalog and approved merchant billing authority', () => {
+    it('declares the scopes used by catalog registration, ticket introspection, audit and merchant billing', () => {
       expect(specNamed('Mercaria').scopes).toEqual([
         'user:read',
         'catalogs:write',
         'capabilities:read',
         'capability-audit:write',
+        'payments:read',
+        'payments:write',
       ]);
     });
 
