@@ -1,0 +1,38 @@
+test_ambiguous_response_denied (__main__.EcrReadback.test_ambiguous_response_denied) ... ok
+test_cli_existing_tag_refused_before_build (__main__.EcrReadback.test_cli_existing_tag_refused_before_build) ... ok
+test_config_oversize_before_transport (__main__.EcrReadback.test_config_oversize_before_transport) ... ok
+test_config_untrusted_url (__main__.EcrReadback.test_config_untrusted_url) ... ok
+test_empty_response_denied (__main__.EcrReadback.test_empty_response_denied) ... ok
+test_foreign_repository_denied (__main__.EcrReadback.test_foreign_repository_denied) ... ok
+test_missing_exact_tag (__main__.EcrReadback.test_missing_exact_tag) ... ok
+test_other_failure_denied (__main__.EcrReadback.test_other_failure_denied) ... ok
+test_redirect_refused (__main__.EcrReadback.test_redirect_refused) ... ok
+test_hold_true_denies_even_when_original_allows (__main__.HeldCallerJobs.test_hold_true_denies_even_when_original_allows) ... ok
+test_only_four_caller_conditions_change (__main__.HeldCallerJobs.test_only_four_caller_conditions_change) ... ok
+test_artifact_retains_exact_manifest_bytes (__main__.ImageBinding.test_artifact_retains_exact_manifest_bytes) ... ok
+test_build_digest_mismatch (__main__.ImageBinding.test_build_digest_mismatch) ... ok
+test_config_digest_mismatch (__main__.ImageBinding.test_config_digest_mismatch) ... ok
+test_exact_build_ecr_config_source (__main__.ImageBinding.test_exact_build_ecr_config_source) ... ok
+test_index_denied (__main__.ImageBinding.test_index_denied) ... ok
+test_manifest_byte_drift (__main__.ImageBinding.test_manifest_byte_drift) ... ok
+test_wrong_architecture (__main__.ImageBinding.test_wrong_architecture) ... ok
+test_wrong_dockerfile (__main__.ImageBinding.test_wrong_dockerfile) ... ok
+test_wrong_source_label (__main__.ImageBinding.test_wrong_source_label) ... ok
+test_wrong_tree (__main__.ImageBinding.test_wrong_tree) ... ok
+test_closed_16_repositories_19_jobs_20_services (__main__.MaterializedWorkflows.test_closed_16_repositories_19_jobs_20_services) ... ok
+test_cli_guard_failure_no_aws (__main__.SourceGuard.test_cli_guard_failure_no_aws) ... ok
+test_committed_dockerfile_drift (__main__.SourceGuard.test_committed_dockerfile_drift) ... ok
+test_dirty_checkout (__main__.SourceGuard.test_dirty_checkout) ... ok
+test_malformed_sha (__main__.SourceGuard.test_malformed_sha) ... ok
+test_non_manual (__main__.SourceGuard.test_non_manual) ... ok
+test_real_guard_accepts_exact_clean_git (__main__.SourceGuard.test_real_guard_accepts_exact_clean_git) ... ok
+test_sha_mismatch (__main__.SourceGuard.test_sha_mismatch) ... ok
+test_unknown_recipe (__main__.SourceGuard.test_unknown_recipe) ... ok
+test_wrong_branch (__main__.SourceGuard.test_wrong_branch) ... ok
+test_wrong_repository (__main__.SourceGuard.test_wrong_repository) ... ok
+
+----------------------------------------------------------------------
+Ran 32 tests in 0.744s
+
+OK
+{"verified": true, "recipe": "example", "imageUri": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/example@sha256:125f787876f5b468a1c71997e68b70d731ec5c5c44efe617e43dea669253f465"}

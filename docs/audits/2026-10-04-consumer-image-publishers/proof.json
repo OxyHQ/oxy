@@ -1,0 +1,641 @@
+{
+  "kind": "consumer-image-publisher-preparation",
+  "schemaVersion": 1,
+  "sourceHead": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+  "sourceInputs": [
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Alia/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Alia/.github/scripts/reviewed-images.json",
+      "sha256": "6ea02def3752ffd85a6c50d848b3c5d3bbc35a4566b957f412cebd9fa7e83ab0"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Alia/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "86059ac9ce64a4a58b6fe00bd4d567da3df844e67381929987f3a46fead97e71"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Allo/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Allo/.github/scripts/reviewed-images.json",
+      "sha256": "d3348b386f6d6a321a544f31caa672a6d5b9d86e0d6a304b7d3096b2271ce70f"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Allo/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "83f2f557915bb9e81f9a39b5fdbb15ef665c8b7e16aa7948f5bad37aa03ca36e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Clarity/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Clarity/.github/scripts/reviewed-images.json",
+      "sha256": "0057b85538185e305d84db6cd85874e43899fe5647668df293ff039ea33ec69c"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Clarity/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "20b6d29637054252dc359e45b3ac0936f10b70370f62f1599c81e7bcd547878e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/CrowdSource/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/CrowdSource/.github/scripts/reviewed-images.json",
+      "sha256": "6d47a74e2beae224819a01478ba2489cce481aca9d12e6370eb382ad62fba4a1"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/CrowdSource/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "aa25f35b348aa2476c0b1f2ad3a8dbb4f1fed13ee05ecd95c8b2952b780263c3"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/GoWay/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/GoWay/.github/scripts/reviewed-images.json",
+      "sha256": "22edce262c6365ff8384ee572d7311c990c7e4bd15bfded63e9cd3d34288dfca"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/GoWay/.github/workflows/ci.yml",
+      "sha256": "3a611324872689885bea01b8db45ad2f09a5da2b26835da6ba5a5dd84bd9e4dd"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/GoWay/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "47bf0d989cffc14880f6e6cae8c69325a4d7629cdd54e41ac174d67d6544153c"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Homiio/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Homiio/.github/scripts/reviewed-images.json",
+      "sha256": "2cb1f2e1644ace9e994ef9621e88c9b9b02e6636d1d959421b8416cc729272a2"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Homiio/.github/workflows/ci.yml",
+      "sha256": "3074fc39cc2d3c9dc1c0c4a68b7808600b0f67b3099caefdacef7c060b03ee3d"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Homiio/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "8eade832ea322303388a93176e7b78ca6e168060f37f509c30bb37aab3a5da98"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Mention/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Mention/.github/scripts/reviewed-images.json",
+      "sha256": "2999dad8b1921ad29ad3b30dc2878f009682dbeea16dfe2b75d8b8aee878565a"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Mention/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "40e32f4bac2d5f4e7aace2a9a5221a411bddf1828ab9621967df77c9a774eb51"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Mercaria/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Mercaria/.github/scripts/reviewed-images.json",
+      "sha256": "f9b2b60d5023ad4fee044f8e130bdafc4e504e5d281d69f0d1d31a4bbea4c5c8"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Mercaria/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "e1003b675db831ab65722a59e3c8fc09c2fed3c9202f451ba03dbf90bcba065c"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Moovo/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Moovo/.github/scripts/reviewed-images.json",
+      "sha256": "e5a99d4eb945719b6e63c70da153e4d8295356448d57b2ec6bb595cdcb493063"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Moovo/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "72842f4f16fb34235651fd3f8503a2452b8dfc6e88118b4da05a03d1f74162f5"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Nilo/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Nilo/.github/scripts/reviewed-images.json",
+      "sha256": "f5dd2277b943a130dc8f1306a3ea724fd7a6c5db8c55bacafa6dc3e576a723b1"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Nilo/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "9b81858b4803865c464ec342bcc4511f537e39a4ac956b0c295c351ef2543cc4"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Noted/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Noted/.github/scripts/reviewed-images.json",
+      "sha256": "39bdb1d1c2e6fc76b721dbf87175664d0b0f2c15f3d30ac209317216ee615d25"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Noted/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "4c79ba19ae44d86a1f139907b98dce0a5daf0adbea9bdb4b4af900c88345f83c"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Peable/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Peable/.github/scripts/reviewed-images.json",
+      "sha256": "9a722df9715e5e717ec262bfe90d13415daf461395c4a81e143abc8f6708aac4"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Peable/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "4cb9365a3b39a9a186082f70100a5e92352414ca7c78862ae040ab548ed3a9af"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Syra/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Syra/.github/scripts/reviewed-images.json",
+      "sha256": "f14569c76fbc528b2c90c20ec8ee21a6ecaefa17a6d2086c17b3742505a3e3d5"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Syra/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "906d0302d0b4c1b104a3a896f5238ffcf890dee0a953ae018d870c812a63fc4f"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Willo/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Willo/.github/scripts/reviewed-images.json",
+      "sha256": "2252e59a437293a2ef3ae246eccdbe0c811631a808e76777056dddf089d4ec77"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/Willo/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "1150a1078138d76bde4a9c8ff27e28ecdb001a3cbfbfbc48e1621a1452b2b2ef"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/manifest.json",
+      "sha256": "bf788a21997dd605b590be94e2bddc1f385707c8ce97379652e78c9efe540dc3"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/tnp/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/tnp/.github/scripts/reviewed-images.json",
+      "sha256": "ac7135f35c9b219e39a5e5a4e842802f552c7e0cdf4822d26fa9609967a90796"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/tnp/.github/workflows/ci.yml",
+      "sha256": "a971410fc9e2bb87357e21f138789406b0db45e26ea5e64429fca78727374fc3"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/tnp/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "3ff20d56458185eaefb39e353743d2943d8dbada4a8fcc5d8a534441debf2fa3"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/website/.github/scripts/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/website/.github/scripts/reviewed-images.json",
+      "sha256": "3e0ff5faf9903a4993aad6b182cd78988fe59145387fc011dc177797b2f22194"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-image-publishers/website/.github/workflows/publish-reviewed-images.yml",
+      "sha256": "8fc45ed25338fc2b8b98aac1d647235f14205eb8097fb4660cb72a430cfb2660"
+    },
+    {
+      "path": "docs/audits/2026-10-04-consumer-image-publishers/README.md",
+      "sha256": "6f7464ea688c7f64272afabc692e6823880c59b751c702ec6a5d93115380ec52"
+    },
+    {
+      "path": "scripts/operations/consumer-publishers/publish-reviewed-image.py",
+      "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+    },
+    {
+      "path": "scripts/operations/consumer-publishers/render.py",
+      "sha256": "1b6a63b6656d03fb3435cfc19dae890ba4625b9d406f03f651ac491123efee93"
+    },
+    {
+      "path": "scripts/operations/tests/test-consumer-image-publishers.py",
+      "sha256": "b46ad2f9c7a54cac0f2d9e7cd50a2c0b65a8b4965a07e16cc7337771e4395e34"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-consumer-image-publishers/offline-tests.log",
+      "bytes": 3069,
+      "sha256": "a9866a9afac90bbf7a4e081c9f58678e98a610461b8115cfcebdbc664924c283"
+    },
+    {
+      "path": "docs/audits/2026-10-04-consumer-image-publishers/syntax.log",
+      "bytes": 48,
+      "sha256": "6a5b974e996fddc44b7fda6d258799b84488c4548126d8b28b48055c97d14ef8"
+    }
+  ],
+  "recipeInput": {
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+    "sourceHead": "d8e8367b2a2437838c64a8cab5084078a33f0196",
+    "path": "docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
+    "sha256": "0d91e5e5222dd8e7f927f3b0e6dfe95c948dca0fe84e22007ef83bc3ef6b9fc0"
+  },
+  "parserInputs": [
+    {
+      "path": "/home/nate/Oxy/Mention/node_modules/js-yaml/index.js",
+      "bytes": 1585,
+      "sha256": "e85d524fcd45466669dfc37618284e0c53ccaaf3f4bef1e23cd25ec6c43120bc"
+    },
+    {
+      "path": "/home/nate/Oxy/Mention/node_modules/js-yaml/package.json",
+      "bytes": 2281,
+      "sha256": "3eeb05aa0ceb4c3686e44c9b5d9b88f914b099ba9a7426b36947e65c6373d9a5"
+    }
+  ],
+  "consumerInputs": [
+    {
+      "repository": "OxyHQ/Alia",
+      "preparedHead": "ce1baf5c0536bf3b975cc42556d746a60a41c7d8",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "cda1d0e2d2463eb920ab2effc6d0ca39e74d270f3a4d44574fdec8357b2c261f"
+        },
+        {
+          "path": ".github/workflows/deploy-computer-host.yml",
+          "sha256": "e29e33c5432c6fe9dc3c8a41e2b3a2c875256e6958bebb46e558fd7e9864c058"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "8cce916b1ead676a81a446936ee4a54670423fe817735299a64463a72be5da6c"
+        },
+        {
+          "path": ".github/workflows/deploy-integrations.yml",
+          "sha256": "356a26ecb9935b759e7e32a478beb58dc00a08cbcc10987a1eebdf38140badb3"
+        },
+        {
+          "path": "packages/api/Dockerfile",
+          "sha256": "8bffb1983c8f94c5906c8b6859cf68295b8de21a50a360ea1c2a7ae92e2d3108"
+        },
+        {
+          "path": "packages/integrations/Dockerfile",
+          "sha256": "c5d96354f8483bd2f70ae118f9e544f865d44f914627ebc2f20dca6f8d0d6bad"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Mention",
+      "preparedHead": "2765e797f13b0287e8441f6c943116e6dcd6cab5",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "30af4f12a0bba70751570ad09add509e6366ebb9fe70dfb2f0176a1d6347f7de"
+        },
+        {
+          "path": ".github/workflows/deploy-backend-config.yml",
+          "sha256": "6c715b9a4001411d405617a339bf55b2eb9c1a09a9969f506ed040c3f8e4768a"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "bc00ccbdd0c2d62eb520b971fc128f30df2c12d4cb89c13b3aa664c51fc6ef66"
+        },
+        {
+          "path": ".github/workflows/deploy-mcp-aws.yml",
+          "sha256": "d099c52cb352174ca74f849534b4add797372819fa4a219d28d54851c9cc94a0"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "03fd7ec3c3b5d436fd0e1c5d9471850992d3f32d045b849d98b8bfcb8034a2f8"
+        },
+        {
+          "path": "packages/mcp/Dockerfile",
+          "sha256": "e7fc9a82e29aa54b3b4cb15ffeede58772f4b829874a3961f4593182b2587eae"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "preparedHead": "813755a7333f02ff169b6ceba5bab72d4dd27f81",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "ff1d7a79f3cee6ffcd35f25d732bfe89d1690636628888f4fb94ca2118ce3d61"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare.yml",
+          "sha256": "a9f3a399f618f561aad467920662f2aeab969cec6205c23de68f71a0808fb4cc"
+        },
+        {
+          "path": ".github/workflows/deploy-dashboard.yml",
+          "sha256": "51d2ee4a1ce99cbe7f2e52348f3036d7e386292082c5a72d79dc9d8db70996cd"
+        },
+        {
+          "path": ".github/workflows/deploy-pos.yml",
+          "sha256": "4c5940e544fbaa4712466b02aabe8d1c51e96e38144f3688666df188e8c4c3eb"
+        },
+        {
+          "path": ".github/workflows/publish-sdk.yml",
+          "sha256": "cdf1cbe9edfc927558ac07a0ef2113cc5abba28ec866cc4c63f94b39c5efe7dc"
+        },
+        {
+          "path": "Dockerfile",
+          "sha256": "5f93c981c46906d9e5cf117566fa173058f15e08023dceea7a2c2fa9c8f6cac2"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "preparedHead": "250f035b2d45e7513b03c72e320bb86585f7837d",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "76507ae52f6ffaaff871e01801dc58f17c4d3fb1e0ec4b2703e518db84939c33"
+        },
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "f82c0dc1e232a5277ac19dddf60db800d994f33742a293fed364aca0b7ee7824"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "217e119146ee838972eb738b2950c891fa5bb7d389228bcf7b8fbb7132d8a051"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Allo",
+      "preparedHead": "5a76eed3270433b883ff6b5a6325ce0a47815a43",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "5ecff31e47c9730626523fc45a33b6e43d741c6baf682a355b4134fe40380b8a"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "32ce63eb5220af3bca16915255c75969708d3257d1f807cdf13c9beb767ebce7"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "fc38746c57a018f566a8c45633fffe55393421c67bf7db468564305bebde5a68"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Noted",
+      "preparedHead": "dedc9eeeb7f024498c353a3459b10842831112e4",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "7a43adfc946065bf8b8e94f3184cd6fe344e96d08be0877297aaa7ba644b2ca9"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare.yml",
+          "sha256": "6843f7465809c5278703555f6ec54a81f2160d1308b72858fefd288f8f9fd7c4"
+        },
+        {
+          "path": "Dockerfile",
+          "sha256": "c5c723d339f66ff22ff166bb085a3d8e235b43aac1d3bf61f8dc4f615e342757"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Homiio",
+      "preparedHead": "7b753949bc17c5787430c0ac3c8411529c5b1c67",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "sha256": "fd58b0326cce5d089fc917cbcadd462a925c576f676d4193ca72f70384303f94"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "58726ff5df5319415b95ab07d51da3072b427a8f5e06e10b77630158e9e03a5d"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "abf5b71a4322106151608405784b23193466fe9bb9388a2bc2228026993713f4"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "5e2dbd0194e858f3efcb6791f3ae2941e5422146f1195a79c2eaca4955986473"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/website",
+      "preparedHead": "2dc4a9013a3bc532697b31e0093c175b52b297b4",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "3d4ba3f3edf6f90bda6513a90faa87e65fe555e05341229d446790465f909544"
+        },
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "932f5f256dee52f9ad1de5e68279e2b89c53db7d5ab1460e7d69f40ad47ae0fc"
+        },
+        {
+          "path": "Dockerfile",
+          "sha256": "ed6b14b0f98eb41e4d8cd26f840b585f1d36b8b77b1eafd360fbea18a5528a5d"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Peable",
+      "preparedHead": "11b9f19730ed64863ee1fac5bc3c3b4b7d691386",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "65cb8c800f9c216582ac6ca9658fd7bd920fe7ecd34174aa59ba5bbbc8fe804b"
+        },
+        {
+          "path": ".github/workflows/deploy-checkout.yml",
+          "sha256": "128bf02b74a81daefedbfbc87a6ded9c7e38f6c2f051ce32bd071ceeea603497"
+        },
+        {
+          "path": ".github/workflows/deploy-frontend.yml",
+          "sha256": "911d592edb7cfa5330687f5b4b4669f18d93843f3a605b7be2e5b6a0b8f3829f"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "ce92f2eb1e5859dcbc9b8117c0b2cb3b63d7bbad79421f0c9af3f79cc05ce58d"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "preparedHead": "e5f62c750837f9e6a0b2d73655628a4c53df2bc7",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "sha256": "e495541f93a905b963f9d0c2e0b60eff473175c1c9e3d8422a95c726a8648d99"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "deb6c65f6499c0b631dc061a13a125ecd8b6ade82f282dd08f3c7eea4dca5218"
+        },
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "6004e0742fea8415ac7015d0d21e964178b8d58454c42338617dffbb034c166c"
+        },
+        {
+          "path": "Dockerfile.api",
+          "sha256": "b43478d6f2a876f95b04c9ef1607eb7db8511af9b6847567b39aea7dfa05fc66"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Willo",
+      "preparedHead": "1daf3501191ffb82bc4c4b3de3199eebe2bcedd9",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "55c247451df5719b6301ed6f64de0807c97a71e904894e8dc9d38f82148f200f"
+        },
+        {
+          "path": ".github/workflows/deploy-frontend.yml",
+          "sha256": "65b8b43302d754e5dedf45a2337ea0610ccf0636a660e457b27f73f2d9facb4d"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "1dd056ad6fa46518be5e32fcb64cf83f9cb2d7d3702d0a43955a0db20d5a9f5b"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/GoWay",
+      "preparedHead": "2f0cd7a4acbe4d37d76c219a20700bef4f41d8f8",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "sha256": "856b628a96ea8c7b1a26ab18942b0c5771db49de046d091945b1d3395c6f5f03"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "496739defe1221b8297b48a5dd437b06e9dca36f17b8bf59ad37ed3ca4f77cb3"
+        },
+        {
+          "path": ".github/workflows/deploy-frontend.yml",
+          "sha256": "c440ee82e33ea240d3c950429b36b3302d950fbb59dc88787d7a7796f3340f15"
+        },
+        {
+          "path": ".github/workflows/publish-sdk.yml",
+          "sha256": "40ccd223b71d2517fbe2a7695ad6c9df8be54a4e11e38dea8d6dee6be4ee828d"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "dd68b79d9dbe8745f4e9f043c9c066ac59ac7bc8a1454716daf1d9250fe9fe8d"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Moovo",
+      "preparedHead": "37c16ebbce76eba12ff2c00e37d2b633536961a1",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "2ac1208f690f0db6a51438acd2096f64b1034af22d0c04323f6436544d116177"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare-go.yml",
+          "sha256": "3fe61208994d8718fbd00de6ff24dc452964dff73e51d1ce852540b24dbcd6ac"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare-hub.yml",
+          "sha256": "dbc3f97dce9efe98b731343c1a6029d850556332a2a59af273e9389fbf70f46b"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare-tracker.yml",
+          "sha256": "ec60e1e4a934883a0cb57ff05c9701a15bcd73904d89211826bac92e83f5fbf3"
+        },
+        {
+          "path": ".github/workflows/deploy-cloudflare.yml",
+          "sha256": "6ac6e01e5c2bb62f4af4078c1a65f328a3abf6d63e71a1b464e9ec0c3079639a"
+        },
+        {
+          "path": "Dockerfile",
+          "sha256": "7b207fcc60e7804b0e1e8460dd8692e1d56e6a05e2e8193eae61c95c3e7dd9fc"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "preparedHead": "195400b8cd4681684d4bbce4fae8a3dd8003b2e7",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "4333a74beff859f69c66cafe2dca214ed78a3eeae5defbbf63ae654e273db9b1"
+        },
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "0f8be3952ce4c6def57abe4e41b8a0fdf47fe99f78cfb242c333139dd3388b60"
+        },
+        {
+          "path": "apps/api/Dockerfile",
+          "sha256": "0ac7938817baf22c3231330970c55feaaabc98d49db722fccfa36274db82f4db"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "preparedHead": "988ad19a3ad363c2cdfee47789cc8daaada1902b",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "466794ea4bab8ce062cb9f8382d600f3c3781c72d2f4f18d0559061a14dc5113"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "19668ff6d182c53ba6917abd7d35d21ee494d49fe08d9f04482caccc0248c088"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "03ee825714d7245a4a0eddf5b346fcb2d9c571c96b9f0490375c3267f033cfa4"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Syra",
+      "preparedHead": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "sourceInputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "1bf9f5442bf0b4bcd28c8fffada50bf765a4db295edf0fb946f7f8ab99ea2c8a"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "abe084b9feef33b107ab45763ec8a2deb53f802c05f55fd3a13725d7908d0dc9"
+        },
+        {
+          "path": ".github/workflows/deploy-studio.yml",
+          "sha256": "76f55b8370f972a1ee5063fec07cb3e77c271edaef9b7abc095113f1f5664420"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "f018fd35b839fdb1e840ca1f0c2a679e80b47d5a209d9997d5e182652717a23f"
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "offlineTests": 32,
+    "repositories": 16,
+    "nativeArmJobs": 19,
+    "services": 20,
+    "heldCiCallerJobs": 4,
+    "awsRequests": 0,
+    "githubDispatches": 0,
+    "dockerBuilds": 0,
+    "consumerWorktreesEdited": false
+  },
+  "limits": [
+    "Templates unapplied; no image publication or service acceptance",
+    "Local AWS stub and isolated config transport only; root verified real config API separately",
+    "Source-tag vacancy is not CAS; serialized publisher hold is mandatory",
+    "Artifact ECR manifest bytes retained exactly; failed/lost build ACK requires external run/tag/digest reconciliation",
+    "Root authenticates run/jobs/artifact and image digest before promotion; no image reuse from labels alone"
+  ]
+}
