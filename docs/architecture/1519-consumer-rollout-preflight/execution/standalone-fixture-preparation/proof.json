@@ -1,0 +1,161 @@
+{
+  "sources": [
+    {
+      "path": "scripts/adoption/materialize-registry-fixture.py",
+      "sha256": "4f61a2d2fe1f625fa9e2dc281bfa027c70e7ad139caf707df44b611a25ffbf73"
+    },
+    {
+      "path": "scripts/adoption/verify-registry-fixture.py",
+      "sha256": "af776b85bf70ea563778b3db2d2b7260b6ad517b5d77827c22b5eebbc458c093"
+    },
+    {
+      "path": "scripts/adoption/launch-registry-fixture.py",
+      "sha256": "4b4fbe4d90c921e6e14be72465ebc570cb1be92b66339ad7102077617c2d98a9"
+    },
+    {
+      "path": "scripts/adoption/test-registry-fixtures.py",
+      "sha256": "a61c5c15d0702821688c5708635005e8d9a0285033fbc4c20924f02cb0c17f53"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/README.md",
+      "sha256": "adb491ba43354d325266bb89b18252b78689ff14ee30a831f3f94f9e8eb06da4"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/acceptance/entry.tsx",
+      "sha256": "8fd2684a48a9394f4087186f7259044854f425f70aa3a2768f01d25bcd576ab2"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/app.config.js",
+      "sha256": "5d7da4f9b597fc71a782a5f7197d991c69429e2d6e693079ad649e2be4497e99"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/app.json",
+      "sha256": "2166a35df755fd3e656522569674a8a6fa2f970ed6ef69919f93eb1c094c0b58"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/OxyLogo.svg",
+      "sha256": "5264cd9b239c509a840e62d46ff340bd9b403e8085322fd24bf21f6c4dcb9d7d"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/android-icon-background.png",
+      "sha256": "fb139c2dee362ebf2070e23b96da6fc0d43f8492de38b8af1fd7223e19b5861d"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/android-icon-foreground.png",
+      "sha256": "9e3d0315a33c6799de601dd34cd8bf8cc3a8d16f3bf75592baec2ceb7240b391"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/android-icon-monochrome.png",
+      "sha256": "6371fc2c12e33ad2215a86c281db3d682a81bebe7c957a842c13b8bf00cceb83"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/favicon.png",
+      "sha256": "a4e030697a7571b3e95d31860e4da55d2f98e5e861e2b55e414f45a8556828ba"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/icon.png",
+      "sha256": "119462bb78eb240a65c869fc067ee599639b3cb5a41953f25c07b17d2a8c7e0f"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/partial-react-logo.png",
+      "sha256": "015a72aeb24c1166243ebc185355c9488cc892fbf3aa82f9ae66819a10f3451c"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/react-logo.png",
+      "sha256": "224b7636b15e672801579b5b418077cbc2ca42f0146389062364356b0ecb5c5c"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/react-logo@2x.png",
+      "sha256": "fa600be9ad2f869c7a8dbaffc78bb15af741123e1319c948f0be51753a153cde"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/react-logo@3x.png",
+      "sha256": "cd84e02a5d542a3e71b7fa10a685c1b9fb51db4aff92aca6c0da6461ce17be16"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/splash-icon.png",
+      "sha256": "5f4c0a732b6325bf4071d9124d2ae67e037cb24fcc9c482ef82bea742109a3b8"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/logo.tsx",
+      "sha256": "d0adf0613eaf5ae8de85632bb3e3d5a072bf249291cb7863743ac2ed671e6e10"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/babel.config.js",
+      "sha256": "2a898566f2801519ec0c20e5f439a24ec34a22ef7f1fecf011df4ced6ec3e91c"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/global.css",
+      "sha256": "1aead181e4799f714333fc44e7655027349b16c42fdc74aec9d8ec14f8e22973"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/index.js",
+      "sha256": "92f445c9e3e3a1fca8deb3fc6528b08ef6227ce581e3f36b4222b409c8c989ac"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/metro.config.js",
+      "sha256": "fe1bd2d8508fb7a3c1bf451c2a92b5027a5c0d4b2bb059b38bdbfc420b68eb2d"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/package.json",
+      "sha256": "9eb3ddc59a8cecd3e85e7fdd7631888e68f843fbd6172a98c7f90c55ec4cfd93"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/postcss.config.mjs",
+      "sha256": "f50058e0d309cdb3e7c25a1123337338641fb71e988572607d57f47209db1fd1"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/tsconfig.json",
+      "sha256": "f0c735e6b162bddbbcfb6aea958daa60c1b11bd331294ced24ed42bcdaf5eba4"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/preserved-inputs.json",
+      "sha256": "03558f16c24ad3912af14f432a0582480a45b49a67fad10bc9c04d65135c4148"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/web/empty-module.js",
+      "sha256": "450f0af4f4c1ecc4c7180f2e364c8a59bfed69dd350fb6b47bce8641c2a37786"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/web/index.html",
+      "sha256": "715278825eaf5bd04bbda2e7ca04ced67fd7ebe6b18a5fffda11f9a92d874a1f"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/web/main.tsx",
+      "sha256": "36a045f4d7218f02d8a873dc9f203c1791095091bf6a7ed98178cf9638b8b9a4"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/web/package.json",
+      "sha256": "e8d4fd55a68ddebd430ee5f7a6dc59dc76ae8694326be1f202a324c71e905f9d"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/web/tsconfig.json",
+      "sha256": "8aeadf67067918555c1098f89b7776d015a03a31f6527c51452a433efc106fef"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/web/vite.config.ts",
+      "sha256": "0512d38e3654a0b31efe05a933a0a9cb4cf84096d717fe08a934b6bff4140c48"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/standalone-fixture-preparation/offline-tests.log",
+      "sha256": "13b96ed43ad62b23c6812e318f100b156de88f41891dfeb3b15c976596356e17"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/standalone-fixture-preparation/materialized.json",
+      "sha256": "62a96df1b3cfc5854cd3bb5c77ff55bf94b76ce260a58d50e96f14db2616b042"
+    }
+  ],
+  "validation": {
+    "offlineTests": 6,
+    "pythonCompile": true,
+    "metroJavaScriptSyntax": true,
+    "materializedDirectories": 5,
+    "registrySDKInstalled": false,
+    "buildsRun": false,
+    "runtimeLaunched": false
+  },
+  "preservedInputs": "scripts/adoption/registry-fixtures/preserved-inputs.json",
+  "existingResources": "Metros17967/17968, RP/Vite, API17960/IdP17961/PG and all devices untouched"
+}

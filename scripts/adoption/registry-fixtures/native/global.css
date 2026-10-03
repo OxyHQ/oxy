@@ -1,0 +1,41 @@
+/* Shared Oxy Tailwind v4 + NativeWind + Bloom base (imports + SDK @source globs).
+   See @oxy.so/app-preset/base.css. App-specific globs and theme follow below. */
+@import "@oxy.so/app-preset/base.css";
+
+@source "./app/**/*.{js,jsx,ts,tsx}";
+@source "./components/**/*.{js,jsx,ts,tsx}";
+
+/* App base color tokens — registers the existing color KEYS so utilities like
+   `text-foreground` / `bg-background` emit at build time. BloomThemeProvider writes
+   the actual var values to document.documentElement at runtime. */
+@theme {
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-card: var(--card);
+}
+
+/* :root fallbacks so the build's color vars are non-empty and fonts resolve.
+   BloomThemeProvider (colors) and applyFontFaces (fonts) override at runtime. */
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #0b0b0c;
+    --card: #ffffff;
+    --primary: #5b3df5;
+    --primary-foreground: #ffffff;
+    --muted: #f2f2f5;
+    --muted-foreground: #6b6b72;
+    --accent: #eeeef2;
+    --ring: #5b3df5;
+    --input: #e4e4e9;
+    --border: #e4e4e9;
+  }
+}

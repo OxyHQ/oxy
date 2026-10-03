@@ -1,0 +1,42 @@
+[
+  {
+    "label": "mention",
+    "kind": "native",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention",
+    "files": 22,
+    "installed": false,
+    "launched": false
+  },
+  {
+    "label": "allo",
+    "kind": "native",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo",
+    "files": 22,
+    "installed": false,
+    "launched": false
+  },
+  {
+    "label": "web-first",
+    "kind": "web",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-first",
+    "files": 6,
+    "installed": false,
+    "launched": false
+  },
+  {
+    "label": "web-second",
+    "kind": "web",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-second",
+    "files": 6,
+    "installed": false,
+    "launched": false
+  },
+  {
+    "label": "web-third-party",
+    "kind": "web",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-third-party",
+    "files": 6,
+    "installed": false,
+    "launched": false
+  }
+]
