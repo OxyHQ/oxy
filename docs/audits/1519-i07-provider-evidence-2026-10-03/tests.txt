@@ -1,0 +1,14 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/productProviderEvidence.test.ts src/services/__tests__/productAccessPersistence.test.ts src/services/__tests__/productAccessClosure.test.ts src/services/__tests__/productAccess.test.ts src/services/__tests__/accountFinancialHolds.service.test.ts src/routes/__tests__/productAccess.test.ts src/db/schema/__tests__/foreignKeys.test.ts
+{"level":30,"time":1790980914383,"pid":3201141,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790980916083,"pid":3201141,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790980917786,"pid":3201141,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790980918351,"pid":3201141,"hostname":"SuperPC","sessionId":"811f9736","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790980918351,"pid":3201141,"hostname":"SuperPC","sessionId":"811f9736","operatorId":"01a0fec8-0bec-7e84-9f3a-2f405db91b41","accountId":"01a0fec8-0bc0-7fe4-bc38-0dc8a673f21f","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":30,"time":1790980918928,"pid":3201141,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790980919679,"pid":3201141,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 7 passed, 7 total
+Tests:       77 passed, 77 total
+Snapshots:   0 total
+Time:        6.537 s, estimated 10 s
+Ran all test suites within paths "src/services/__tests__/productProviderEvidence.test.ts", "src/services/__tests__/productAccessPersistence.test.ts", "src/services/__tests__/productAccessClosure.test.ts", "src/services/__tests__/productAccess.test.ts", "src/services/__tests__/accountFinancialHolds.service.test.ts", "src/routes/__tests__/productAccess.test.ts", "src/db/schema/__tests__/foreignKeys.test.ts".

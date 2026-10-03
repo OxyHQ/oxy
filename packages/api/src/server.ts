@@ -25,6 +25,7 @@ import authRoutes from './routes/auth';
 import accountSecurityRoutes from './routes/accountSecurity';
 import resourceIntrospectionRoutes from './routes/resourceIntrospection';
 import productCatalogueRoutes from './routes/productCatalogue';
+import productAccessRoutes from './routes/productAccess';
 import mcpOAuthRoutes, { mcpOAuthDiscoveryRouter } from './routes/mcpOAuth';
 import assetRoutes from './routes/assets';
 import cdnRoutes from './routes/cdn';
@@ -66,6 +67,8 @@ import inferenceEdgeRoutes, { configuredKaanaClient } from './routes/inferenceEd
 import { attachRealtimeEdge } from './routes/inferenceRealtime';
 import { createKaanaRealtimeClient } from './services/kaanaRealtimeClient';
 import { startKaanaCatalogueSyncSchedule } from './services/kaanaCatalogueSync.service';
+import { startProviderCostFeedSchedule } from './services/kaanaProviderCostFeed.service';
+import { startMeteredReceiptReconciliationSchedule } from './services/inferenceMeteredUsage.service';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
 import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
 import inferenceProviderConnectionRoutes from './routes/inferenceProviderConnections';
@@ -700,6 +703,7 @@ app.use(mcpOAuthDiscoveryRouter);
 app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
 app.use("/auth", authRateLimiter, authRoutes);
 app.use('/auth/resources', authRateLimiter, resourceIntrospectionRoutes);
+app.use('/v1/products', productAccessRoutes);
 app.use('/v1/products', productCatalogueRoutes);
 app.use("/auth", userRateLimiter, authLinkingRoutes); // Auth linking (requires auth)
 app.use("/assets", assetRoutes);
@@ -1339,6 +1343,10 @@ export async function bootstrap(
   // fleet-wide advisory lock lets one run at a time. A task without the Kaana
   // binding registers nothing. Failures are logged, never thrown.
   startKaanaCatalogueSyncSchedule();
+  // Kaana's per-attempt upstream cost, read over its signed operator feed into
+  // `inference_provider_cost_attempts` (#1526). Read-only; same edge key.
+  startProviderCostFeedSchedule();
+  startMeteredReceiptReconciliationSchedule();
 
   // Outbound relay readiness. Say it at boot: without a relay every send is
   // refused, and the failure is otherwise only discoverable by a user trying to

@@ -1,0 +1,50 @@
+{
+  "capturedAtUTC": "2026-10-02T17:11:29.016Z",
+  "readerSourceHead": "062d4d30196727b51bcb93a3c6b6836bfdc5518e",
+  "oxyRuntimeTaskDefinition": "oxy-oxy-api:691",
+  "endpoint": "https://kaana.ai/internal/v1/provider-telemetry/attempts",
+  "method": "HTTPS read using a signed operator request; response JSON not cryptographically signed",
+  "query": {
+    "schemaVersion": 1,
+    "limit": 25
+  },
+  "after": null,
+  "httpStatus": 200,
+  "rawSnapshotSha256": "8fb8e3be8489928a0b9123e094dfc17d53182cfc4c7954a422cc0011853b501b",
+  "window": {
+    "firstOccurredAt": "2026-09-11T02:07:42.00066Z",
+    "lastOccurredAt": "2026-09-11T02:49:00.441776Z"
+  },
+  "attemptCount": 25,
+  "uniqueRequestCount": 23,
+  "caughtUp": false,
+  "nextCursorPresent": true,
+  "blankKeyClasses": 21,
+  "unknownCosts": 25,
+  "wireUnitsEmptyArrays": 25,
+  "wireUnitsNull": 0,
+  "validationBeforeFix": {
+    "accepted": false,
+    "issueCount": 21,
+    "field": "keyClass"
+  },
+  "oxyAdmissionRead": {
+    "capturedAtUTC": "2026-10-02T17:18:03.210070+00:00",
+    "scope": "exact 23 request IDs, projected usage_reservations/usage_receipts, LIMIT50 each",
+    "transactionReadOnly": "on",
+    "statementTimeoutSeconds": 5,
+    "lockTimeoutSeconds": 1,
+    "matchingReservations": 0,
+    "matchingReceipts": 0,
+    "meteredTableExists": false,
+    "costAttemptTableExists": false
+  },
+  "limitations": [
+    "One bounded oldest page, not full feed or current end cursor.",
+    "No matching Oxy admission or receipt: no successful reconciliation claimed.",
+    "Old producer units=[] do not prove measured empty; NULL-preserving Kaana PR150 must precede first live ingestion.",
+    "Local replay uses a consistently pseudonymized derived fixture, not byte-identical HTTP response.",
+    "All costs unknown; no zero-cost or invoice assertion.",
+    "No inference, production SQL writes, runner/tunnel provisioning, credential or permissions changes."
+  ]
+}

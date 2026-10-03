@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/contracts`
 
+## Unreleased (MINOR — additive; release coordinated with #1519 I04/I07)
+
+### Added
+
+- Account subject contract (`accountSubject.ts`, #1520): `accountKindActorNature`
+  / `accountKindActsAsItself` (a bot is its own actor, `'agent'`),
+  `KIND_INDEPENDENT_ACCOUNT_DIMENSIONS`, `accountActorChainSchema` /
+  `accountActorChainFromSession` (effective account, actor, `delegated`),
+  `financialEffectAttributionSchema` / `attributeFinancialEffect` (a debit or
+  credit belongs to the effective account, never the operator).
+  `isOperatorSwitchTargetKind` and `isDelegatedActAsEligibleKind` are unchanged.
+
 ## 4.7.0
 
 Inference contract set **3.5.0** (from 3.4.0): typed, non-streaming decisions.

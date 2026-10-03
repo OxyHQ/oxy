@@ -1,0 +1,1 @@
+check-ci-build-cache.mjs behaves: 28 cases — cacheable tasks, hash inputs, env mode, every ci.yml write path, the writer's triggers, permissions and fresh build, and the restore/save wiring.

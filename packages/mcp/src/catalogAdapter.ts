@@ -63,15 +63,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function requireRecord(value: unknown, label: string): Record<string, unknown> {
+export function requireRecord(value: unknown, label: string): Record<string, unknown> {
   if (!isRecord(value)) {
     throw new Error(`${label} must be a JSON object`);
   }
   return value;
 }
 
-function normalizeToolResult(
-  definition: CatalogMcpToolDefinition,
+export function normalizeToolResult(
+  definition: Pick<CatalogMcpToolDefinition, 'tool' | 'outputSchema'>,
   result: CatalogToolResult,
 ): CallToolResult {
   let structuredContent = result.structuredContent;

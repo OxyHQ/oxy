@@ -1,0 +1,247 @@
+[
+  {
+    "repository": "Alia",
+    "pin": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+    "path": "AGENTS.md",
+    "sha256": "dac0c02cdcc9bee40b856941b8f2ea47ca59986e537d8bc9e3a74d86fd03e594",
+    "blob": "70f6bd0b19e8294ac7c85ca248ef271aac9e259c"
+  },
+  {
+    "repository": "Alia",
+    "pin": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+    "path": "README.md",
+    "sha256": "19c826cd8df1dad5cd7503cddf1e4009c3b373f2e951f6f203b1517464345dfa",
+    "blob": "dffab9fd6e999dbc8d257f6ab535808d4383a465"
+  },
+  {
+    "repository": "Alia",
+    "pin": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+    "path": "docs/agents.md",
+    "sha256": "1a7b95e284da973f61df2d2f9f840e49cce4c816f489dfec639173c2634d6f85",
+    "blob": "8634f1d25cb835f88e9ff28ac44ac0fd6bc8bb7a"
+  },
+  {
+    "repository": "Alia",
+    "pin": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+    "path": "docs/adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md",
+    "sha256": "9acee6dac657b8c2ede6e50f8ec10c6ad9eeae2806c7b2adc2ac9c5ce18cb7c2",
+    "blob": "2af70a6d63167d4750ddbe6d5cf7a3cce79ece87"
+  },
+  {
+    "repository": "Alia",
+    "pin": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+    "path": "packages/api/src/lib/tools/oxy-services.ts",
+    "sha256": "7032598797123f73215f2529eec206292d5b5ce3efc6218857ab2ffddf52be6a",
+    "blob": "e32e312541a71e5f834f12a7a7c4bfa16932ee05"
+  },
+  {
+    "repository": "Alia",
+    "pin": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+    "path": "packages/api/src/lib/oxy-capability-authority.ts",
+    "sha256": "2517bac8f1e01ad2daedc3569d2fee6316ba2f925acd2ac374d290ea98c7165f",
+    "blob": "b8f87fb3d884e2aba73bebae74690f4397f67789"
+  },
+  {
+    "repository": "Alia",
+    "pin": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+    "path": "packages/api/src/lib/oxy-service-client.ts",
+    "sha256": "6fd9df9dfd17a39a84869478158d2b5f5314abf02c735165a0212ebef143d3b9",
+    "blob": "9ceaaadf72dfe8d9cb804e01597177c690b2d737"
+  },
+  {
+    "repository": "Alia",
+    "pin": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+    "path": "packages/api/package.json",
+    "sha256": "88c64743d4223485e8626171f6e5f2a454c699a94f2e5e26c25f4715c52dfc3f",
+    "blob": "c4cf4e87d912748314dfbf8b4246935b48ae274f"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "AGENTS.md",
+    "sha256": "03eefe4821ea9b88abc1453dc5cf719a43844ba96842aea76ce498ea5d0c7394",
+    "blob": "772c98b03d21a455fa816fd47d251b5352c5ac06"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "README.md",
+    "sha256": "3203f403276b65da95268ef605b4390d6353c699ecfd40822966cb6b917e8318",
+    "blob": "c91c243db0a1ef1e1ec9bc10e7f7128b46ccaf78"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/lib/tool-registry.ts",
+    "sha256": "2a212c57248cf838c00d7fecf741619073ea7bfc87d0fff9529952f05cb3e292",
+    "blob": "570007917d21795599e1a074a38b0d083fbe7423"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/lib/capability-http.ts",
+    "sha256": "4ae599a16cee259d37c95028a1ed0e36a05bbf31a3a1a1bc23f12f8b07a3dac5",
+    "blob": "9ff39b7a944d7bd790b493883417095a083f2dcf"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/lib/capability-authority.ts",
+    "sha256": "09fc7c3400dac6be61fe14148d63a8e7f2e35f1cfe2211a7116bf47b1dc09f31",
+    "blob": "cb1ac065eebc6bed71d2fec0d52a16ddad4e4312"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/lib/api-client.ts",
+    "sha256": "cce10ea7bc8cbca745a2b92036e00f828c7e9f706b7fa1607755ba045f2bfa52",
+    "blob": "365809438a6fdebb674da279a628afaf25f093cf"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/server-http.ts",
+    "sha256": "d6c24dac507181ae8d35797c89d23490d937e691dafac69d97ac7e6ef1f8397d",
+    "blob": "245b14a91900db5d33aef047b157dc932d3b1aaf"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/package.json",
+    "sha256": "51574cd7948a44cc68ea7693672f59cb361cefbe29eaa6c4053613bc3a1c4341",
+    "blob": "47af71a7d747911497e28aaa88398a857fee0b28"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/backend/package.json",
+    "sha256": "15b930adeeae05ba87516d836adcdfe9eeff8c2e54fa317b25efcdda5e51ea13",
+    "blob": "0059e95a6841c32f8e04cf809851d5b6ca5a0c49"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/shared-types/src/mcpCapabilities.ts",
+    "sha256": "1b8f2c5fbe472c895bc6f6eb60d7b195653fcb2db96a4f55cfd582ea1426e459",
+    "blob": "3ad9bd1372029b4fdf24cedceddc6916664e0e74"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/backend/src/capabilities/capabilityAuth.middleware.ts",
+    "sha256": "c15b9e3e561592fc8493cef6a61153e6a128a626b170c694205f9a0732100a7f",
+    "blob": "99bc2791b812659ecc095876f4064c664f6c9507"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/backend/src/capabilities/capabilityEffectIdempotency.middleware.ts",
+    "sha256": "8df6a63c8fdc5aabd2ab46aeacd794ea6b5744290410e0636e31bf348adbc08e",
+    "blob": "edec8f01d85afb9f898f5a856289e0a4a747d92b"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/__tests__/capability-http.test.ts",
+    "sha256": "92f1fe3c6e6663062a4191d990cbb75fb2fea0c773b466c6c1b9bb6d4ab59209",
+    "blob": "917441da14449cbae7cc44015b4c1689e7b04003"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/__tests__/capability-catalog.test.ts",
+    "sha256": "63ccb1454c56ca343791bcc15eafd2447bcaa7249e38a31fb56e5302b3c3ecbc",
+    "blob": "e4d58b0f81541f92489524998454ab6b6b218e25"
+  },
+  {
+    "repository": "Alia",
+    "pin": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+    "path": "packages/api/src/lib/__tests__/oxy-services.test.ts",
+    "blob": "18ad310ae9c1ac3b3fb159dc7fdb5928cbb3e02f",
+    "sha256": "ac810049cc84c167e82475dd09d89e05a09e07c6cf9dffd809770193d50ca4da"
+  },
+  {
+    "repository": "Alia",
+    "pin": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+    "path": "package.json",
+    "blob": "350a0cdf53b2c2a667fbc60f0989fa487160fa86",
+    "sha256": "1834b5250f35ccb1b43de162eb3d496eae3fda485c23f10735230019bc73cb8b"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/README.md",
+    "blob": "e0141d22cbb9f084192706bcb49f676e63a36449",
+    "sha256": "521bd8c361d1b6d507ee528843f992710a2b6ef65783c970c9edc44e32a4f173"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/lib/context.ts",
+    "blob": "49bd370cdd5bf3f6eca97315ec96ba3da6a1f9ab",
+    "sha256": "a8eb8bf9d6e079ea4e20c866301788a6f14761c36ef9749b402d175b6fff1ec5"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/backend/src/__tests__/mcp/mcpEffectIdempotency.test.ts",
+    "blob": "1e9c264469ff46c55694aaebeb4710c7d0a1e3dc",
+    "sha256": "360ff30a78b4f245dc6e0f8d72550742cab472d8190e7b462dbe3a5178ddf146"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/backend/src/__tests__/mcp/mcpEffectReceiptService.test.ts",
+    "blob": "76309cea03ee436cad34d09ab5acad75316797a6",
+    "sha256": "ce75b469acecebb43a2f4629309264392226c30991039f0f7d226e4e6fe948c7"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "packages/mcp/__tests__/register-capability-catalog.test.ts",
+    "blob": "d8bfa3d0411eda0af91f5cd7edaf0beb70f69a3f",
+    "sha256": "a8a93e6557b14892cc0f7b34937c5ac5b183efbf83627c7d177597f9c89a1571"
+  },
+  {
+    "repository": "Mention",
+    "pin": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+    "path": "package.json",
+    "blob": "9228d8e174e4878ad923723196536871ad2f022b",
+    "sha256": "0f2fa7d538dcf2012baa2867b638cb3366afb911e38ef98aee884e2b151625d1"
+  },
+  {
+    "repository": "Oxy",
+    "pin": "5130d8827152fa54befffa5d05f7695c7f853d57",
+    "path": "packages/mcp/src/internalClient.ts",
+    "blob": "56d9fbcf5da77aa97e0fab6c66b6ef3a5afc9572",
+    "sha256": "e099401cf14a6c404ed72ecfc9d0bfa6fc010211d6dba3699aef6594a977e6fc"
+  },
+  {
+    "repository": "Oxy",
+    "pin": "5130d8827152fa54befffa5d05f7695c7f853d57",
+    "path": "packages/mcp/src/internalTransport.ts",
+    "blob": "849291d6aa81c7fd49b2ec2312231e29f8ede1fe",
+    "sha256": "b9fb1d4e22662210648331d4e42aca4389be7b95f854739dd79ea9f23afa5387"
+  },
+  {
+    "repository": "Oxy",
+    "pin": "5130d8827152fa54befffa5d05f7695c7f853d57",
+    "path": "packages/mcp/src/invocationAdapter.ts",
+    "blob": "014ee93794291a9a5c6507e96f7d372d41d4e35e",
+    "sha256": "fb76f6138e0753cbaae15a146fd6dc77c30b691fa06e5cf8b7233188b19d59c8"
+  },
+  {
+    "repository": "Oxy",
+    "pin": "5130d8827152fa54befffa5d05f7695c7f853d57",
+    "path": "packages/core/src/server/namespaces.ts",
+    "blob": "c082949fbaa73ae7a53f9105e08f3b761eb1e949",
+    "sha256": "3ea9b4d9e61d05c5030a91d649027f77082ebc8078c00b83cc48ded8885487c7"
+  },
+  {
+    "repository": "Oxy",
+    "pin": "5130d8827152fa54befffa5d05f7695c7f853d57",
+    "path": "docs/auth/internal-mcp.md",
+    "blob": "65aafe133af964b454cb9138ce2bf9b1ebe2dedb",
+    "sha256": "6e09f2aad20076f16f4a2c1f1cd7c462a25fc482c55165c85e1d9a43903cf3ff"
+  }
+]

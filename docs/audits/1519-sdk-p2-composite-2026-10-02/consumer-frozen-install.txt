@@ -1,0 +1,10 @@
+bun install v1.4.2 (744846f84)
+
++ @oxy.so/contracts@./artifacts/contracts-8d85acc5e787cbdaf3e7aad311f6659d07916337dcff1850d74c6c72195d97d7.tgz
++ @oxy.so/core@./artifacts/core-aae1b0f5a630c68edc73a96ebba756b0687f23936491290bd4a89767a58853bb.tgz
++ @oxy.so/mcp@./artifacts/mcp-803ac140a072b29150c6d30cdeed8ae68237b272a73c45342fa11f514e22b5d9.tgz
++ @oxy.so/protocol@./artifacts/protocol-3ae4da75421be6c09c83aa2286a630beaa86eb01b1821e10d0badf09d5ec7729.tgz
++ @oxy.so/services@./artifacts/services-e078ed45edc2f9174c10364f0bf0ffcbe94d31f20682ea08c541cf7e1b8cbb29.tgz
++ @oxy.so/telemetry@./artifacts/telemetry-c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12.tgz
+
+7 packages installed [56.00ms]

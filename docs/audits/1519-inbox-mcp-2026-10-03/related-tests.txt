@@ -1,0 +1,57 @@
+$ jest --runInBand --runTestsByPath src/capabilities/__tests__/inbox-mcp-postgres.test.ts src/capabilities/__tests__/inbox-mcp-http.test.ts src/capabilities/__tests__/inbox.handlers.test.ts src/capabilities/__tests__/inbox.contract.test.ts src/capabilities/__tests__/inbox.tools.test.ts src/services/__tests__/mcpConnection.service.test.ts src/services/__tests__/mcpOAuth.service.test.ts src/services/__tests__/emailService.messages.test.ts
+{"level":30,"time":1790975081027,"pid":3137594,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790975081043,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fa47-72b3-8807-b8a17502bb73","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081057,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fa47-72b3-8807-b8a17502bb73","msg":"Welcome email created"}
+{"level":30,"time":1790975081101,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fa82-74c3-a61f-371c06b66bb4","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081113,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fa82-74c3-a61f-371c06b66bb4","msg":"Welcome email created"}
+{"level":30,"time":1790975081155,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-faba-7fe4-9f1b-4a222e9b2f08","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081161,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-faba-7fe4-9f1b-4a222e9b2f08","msg":"Welcome email created"}
+{"level":30,"time":1790975081176,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fab7-7693-914c-54190e3ffd29","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081183,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fab7-7693-914c-54190e3ffd29","msg":"Welcome email created"}
+{"level":30,"time":1790975081206,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-faef-7d86-bcfa-34bd3663c885","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081213,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-faef-7d86-bcfa-34bd3663c885","msg":"Welcome email created"}
+{"level":30,"time":1790975081223,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-faef-7d86-bcfa-34bd3663c885","messageId":"01a0fe6e-fb01-78cf-beaa-82a034ff2f16","until":"2026-10-02T22:04:41.219Z","msg":"Message snoozed"}
+{"level":30,"time":1790975081234,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb0b-7c8b-8445-9f3bd3349357","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081241,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb0b-7c8b-8445-9f3bd3349357","msg":"Welcome email created"}
+{"level":30,"time":1790975081249,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb0b-7c8b-8445-9f3bd3349357","messageId":"01a0fe6e-fb1c-7df4-875b-9ce3a0636462","until":"2026-10-02T22:04:41.246Z","msg":"Message snoozed"}
+{"level":30,"time":1790975081258,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb0b-7c8b-8445-9f3bd3349357","messageId":"01a0fe6e-fb1c-7df4-875b-9ce3a0636462","until":"2026-10-02T23:04:41.252Z","msg":"Message snoozed"}
+{"level":30,"time":1790975081268,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb2e-73a0-9f85-3cb31dfc2b2a","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081275,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb2e-73a0-9f85-3cb31dfc2b2a","msg":"Welcome email created"}
+{"level":30,"time":1790975081283,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb2e-73a0-9f85-3cb31dfc2b2a","messageId":"01a0fe6e-fb3e-72b4-9f27-3d630c3c9c4d","until":"2026-10-02T22:04:41.279Z","msg":"Message snoozed"}
+{"level":30,"time":1790975081289,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb2e-73a0-9f85-3cb31dfc2b2a","messageId":"01a0fe6e-fb3e-72b4-9f27-3d630c3c9c4d","msg":"Message unsnoozed"}
+{"level":30,"time":1790975081297,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb4c-7461-a7f7-45e514fbb5fa","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081304,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb4c-7461-a7f7-45e514fbb5fa","msg":"Welcome email created"}
+{"level":30,"time":1790975081335,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb6b-727b-9211-f3a73791d4b6","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081340,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb6b-727b-9211-f3a73791d4b6","msg":"Welcome email created"}
+{"level":30,"time":1790975081350,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb6b-727b-9211-f3a73791d4b6","messageId":"01a0fe6e-fb7f-7d5c-8842-8559e0a0c4bb","until":"2026-10-02T22:04:41.346Z","msg":"Message snoozed"}
+{"level":30,"time":1790975081356,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb6b-727b-9211-f3a73791d4b6","messageId":"01a0fe6e-fb81-72d0-b059-5b0b06d3c4e0","until":"2026-10-02T23:04:41.352Z","msg":"Message snoozed"}
+{"level":30,"time":1790975081363,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fb6b-727b-9211-f3a73791d4b6","messageId":"01a0fe6e-fb7f-7d5c-8842-8559e0a0c4bb","msg":"Message unsnoozed"}
+{"level":30,"time":1790975081365,"pid":3137594,"hostname":"SuperPC","count":1,"msg":"Snooze cron processed"}
+{"level":30,"time":1790975081430,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fbd1-710d-bb50-c7ce78da4496","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081436,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fbd1-710d-bb50-c7ce78da4496","msg":"Welcome email created"}
+{"level":30,"time":1790975081471,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fbfa-70fd-a813-2dc64012efed","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081476,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fbfa-70fd-a813-2dc64012efed","msg":"Welcome email created"}
+{"level":30,"time":1790975081485,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fbfa-70fd-a813-2dc64012efed","msg":"All email data deleted for user"}
+{"level":30,"time":1790975081493,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc10-7e84-bdde-8a0ee7eb7541","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081499,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc10-7e84-bdde-8a0ee7eb7541","msg":"Welcome email created"}
+{"level":30,"time":1790975081518,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc28-78b1-8779-55f34a3001d8","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081524,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc28-78b1-8779-55f34a3001d8","msg":"Welcome email created"}
+{"level":30,"time":1790975081530,"pid":3137594,"hostname":"SuperPC","sender":"nolist-595e6d40@example.com","msg":"No List-Unsubscribe available, falling back to block"}
+{"level":30,"time":1790975081557,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc4f-77dc-bca1-d7cbe7849b14","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081563,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc4f-77dc-bca1-d7cbe7849b14","msg":"Welcome email created"}
+{"level":30,"time":1790975081571,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc4f-77dc-bca1-d7cbe7849b14","messageId":"01a0fe6e-fc5e-772c-ac7e-899942f92847","to":"alice@example.com","msg":"Read receipt (MDN) sent"}
+{"level":30,"time":1790975081578,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc66-7ecd-866e-4e0d1d018fcd","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081584,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc66-7ecd-866e-4e0d1d018fcd","msg":"Welcome email created"}
+{"level":30,"time":1790975081598,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc77-71e7-8ba4-275b51dcd733","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081604,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc77-71e7-8ba4-275b51dcd733","msg":"Welcome email created"}
+{"level":30,"time":1790975081635,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc9d-769c-9e8e-37c9d0145f8a","msg":"Email mailboxes provisioned"}
+{"level":30,"time":1790975081642,"pid":3137594,"hostname":"SuperPC","userId":"01a0fe6e-fc9d-769c-9e8e-37c9d0145f8a","msg":"Welcome email created"}
+{"level":30,"time":1790975083460,"pid":3137594,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790975083935,"pid":3137594,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790975084253,"pid":3137594,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 8 passed, 8 total
+Tests:       104 passed, 104 total
+Snapshots:   0 total
+Time:        3.901 s
+Ran all test suites within paths "src/capabilities/__tests__/inbox-mcp-postgres.test.ts", "src/capabilities/__tests__/inbox-mcp-http.test.ts", "src/capabilities/__tests__/inbox.handlers.test.ts", "src/capabilities/__tests__/inbox.contract.test.ts", "src/capabilities/__tests__/inbox.tools.test.ts", "src/services/__tests__/mcpConnection.service.test.ts", "src/services/__tests__/mcpOAuth.service.test.ts", "src/services/__tests__/emailService.messages.test.ts".

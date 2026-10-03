@@ -504,7 +504,8 @@ export class OxyServer extends OxyServices {
       const verified: ServiceActingAsVerification | null = result?.authorized
         ? { authorized: true, scopes: Array.isArray(result.scopes) ? result.scopes : [] }
         : null;
-      this.rememberActingAs(`${appId}:${userId}`, verified, ACTING_AS_GRANT_TTL_MS);
+      this.rememberActingAs(`${appId}:${userId}`, verified,
+        verified ? ACTING_AS_GRANT_TTL_MS : ACTING_AS_DENIAL_TTL_MS);
       return verified;
     } catch (error) {
       logger.warn('[oxy.auth] verifyActingAs lookup failed — caching negative result', {

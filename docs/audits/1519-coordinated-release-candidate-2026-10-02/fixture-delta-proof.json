@@ -1,0 +1,93 @@
+{
+  "sourceHead": "f6cee376c7fad285d1615fccbb866751ace10b65",
+  "checkedAtUTC": "2026-10-02T21:21:54.603724+00:00",
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/services/__tests__/internalMcpParity.db.test.ts",
+      "sha256": "6e4789b48d61fa6949e21b45aa4015cb13a4dd376b1a0f0979505e4f2040ac67"
+    },
+    {
+      "path": "scripts/rehearsal/isolated-oauth-browser.mjs",
+      "sha256": "db34dd207292f52020434a55e527cb9759039a5824d2c51d5a06ef39fc19e6f5"
+    },
+    {
+      "path": "scripts/rehearsal/isolated-oauth-popup-html.mjs",
+      "sha256": "12d40a81281ce4e3c7cbce618d83da1f425fe5e13b9ec361dcc348f0f2465d65"
+    },
+    {
+      "path": "scripts/rehearsal/test-isolated-oauth-popup-html.mjs",
+      "sha256": "5ccb6fb8763af9c8c6a95010a720257b7d0834dac4802d14ec365ac279c3add9"
+    },
+    {
+      "path": "scripts/rehearsal/test-release-parity-1519.py",
+      "sha256": "6b17a3011a414e76a4ff32b19f407393db4f82034f17337d5974704ee07bd2ef"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/1519-coordinated-release-candidate-2026-10-02/fixture-final-api-parity.txt",
+      "sha256": "098ad7925a6c18b8f7ecc7448dd9845d920be04897fd9b5c3287a06b2d443299",
+      "bytes": 667
+    },
+    {
+      "path": "docs/audits/1519-coordinated-release-candidate-2026-10-02/fixture-final-pg-codeql-owner.txt",
+      "sha256": "434781ed1f6941c4714d01a857a6876b0d1d48ee07426f4c65d5a1eb65b1556a",
+      "bytes": 1505
+    },
+    {
+      "path": "docs/audits/1519-coordinated-release-candidate-2026-10-02/fixture-final-api-final-ts.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/1519-coordinated-release-candidate-2026-10-02/fixture-final-scripts-final-ts.txt",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    },
+    {
+      "path": "docs/audits/1519-coordinated-release-candidate-2026-10-02/fixture-final-codeql-fixture-lint.txt",
+      "sha256": "1d410c3f2656384dc1e72e30db00816f54cff4fa4e81f6cc7b24563630d3f7e3",
+      "bytes": 41
+    },
+    {
+      "path": "docs/audits/1519-coordinated-release-candidate-2026-10-02/fixture-final-popup-injection-negative.txt",
+      "sha256": "d4900567bb6552904ae1894ee457699d9b6babe977773bd3fd45fa1cd3cbe3f9",
+      "bytes": 200
+    },
+    {
+      "path": "docs/audits/1519-coordinated-release-candidate-2026-10-02/fixture-final-browser-static-final.txt",
+      "sha256": "e52899391d6593211cda5d57178af55a7da6bf090df4057f8f5fd0fb87508043",
+      "bytes": 3056
+    }
+  ],
+  "ownedPg": {
+    "newLocalServerPid": 3146281,
+    "dataDirectory": "/tmp/oxy-release-pg-ljgh34ky/data",
+    "database": "oxy_rehearsal_1519_de4d5ba57726f3a8",
+    "command": [
+      "bun",
+      "run",
+      "test",
+      "--runInBand",
+      "--runTestsByPath",
+      "src/services/__tests__/internalMcpParity.db.test.ts",
+      "src/capabilities/__tests__/inbox-mcp-postgres.test.ts"
+    ],
+    "exitCode": 0,
+    "log": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/release-plan/api-parity.txt",
+    "productionAccess": false
+  },
+  "serverStopped": true,
+  "results": {
+    "apiSuites": 2,
+    "apiTests": 5,
+    "popupLiteralPayloadCases": 2,
+    "browserSourceAndPackedScenarios": 4,
+    "apiTs": 0,
+    "scriptsTs": 0,
+    "scopedBiome": 0
+  },
+  "codeqlStatus": "Pending new-head external analysis. a33 reported two duplicate pairs of alerts in fixtures; no suppression applied.",
+  "buildProof": "proof.json",
+  "runtimeRepacked": false
+}

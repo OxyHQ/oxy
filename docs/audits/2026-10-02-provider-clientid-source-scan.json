@@ -1,0 +1,266 @@
+{
+  "scope": "Previously inspected matrix source files only; not an exhaustive repository audit, registration and value usability unverified",
+  "provider_openings": [
+    {
+      "repository": "Alia",
+      "head": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+      "path": "packages/app/app/_layout.tsx",
+      "line": 135,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n          baseURL={OXY_API_URL}\n          clientId={OXY_CLIENT_ID}\n          authRedirectUri={\n            Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined\n          }\n          // Wires Alia's own i18n-js instance to Oxy's resolved language (the\n          // signed-in account's primary locale, or the device/guest locale\n          // when signed out) \u2014 Oxy decides WHICH language; `useI18nStore`\n          // keeps owning the translation catalogs and library. See ADR 0022\n          // in OxyHQServices (`docs/adr/0022-app-i18n-follows-oxy-language.md`).\n          language={{\n            supportedLocales: SUPPORTED_LOCALES,\n            fallbackLocale: DEFAULT_LOCALE,\n            onChange: useI18nStore.getState().setLocale,\n            onError: (error, locale) =>"
+    },
+    {
+      "repository": "Allo",
+      "head": "b75a4b2c7fd050892731f0fcaf9bfcc864abc263",
+      "path": "packages/frontend/components/providers/AppProviders.tsx",
+      "line": 79,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            oxyServices={oxyServices}\n            clientId={OXY_CLIENT_ID}\n            language={{\n              supportedLocales: SUPPORTED_LANGUAGES,\n              fallbackLocale: DEFAULT_LANGUAGE,\n              onChange: setLanguage,\n              onError: (error, locale) =>"
+    },
+    {
+      "repository": "Atlas",
+      "head": "530f6fea31fb6ba089026855646c4be9a73d91ac",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 43,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} queryClient={queryClient}>"
+    },
+    {
+      "repository": "Authenticator",
+      "head": "37268c92651509bca134fa30d5f321f2a01888c0",
+      "path": "app/_layout.tsx",
+      "line": 37,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID}>"
+    },
+    {
+      "repository": "Clarity",
+      "head": "b1e0054a7734f2e57d46b20d82f593a4be547738",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 78,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n          baseURL={OXY_API_URL}\n          clientId=\"oxy_dk_75cdd9996d19362e15ddedcc5ab0f4fb310de8d7b5e8523a\"\n          authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}\n          language={{\n            supportedLocales: SUPPORTED_LOCALES,\n            fallbackLocale: DEFAULT_LOCALE,\n            onChange: (locale) =>"
+    },
+    {
+      "repository": "CrowdSource",
+      "head": "63b9f49eeab8b96ce1ac4cfec1f5b6768f3f4ae7",
+      "path": "packages/reviewer/components/providers/AppProviders.tsx",
+      "line": 60,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            oxyServices={oxyServices}\n            clientId={OXY_CLIENT_ID}\n            authRedirectUri={OXY_AUTH_REDIRECT_URI}\n            // Without this the web flow is a full-page redirect, and the app\n            // bounces to the authorize endpoint before it ever renders. The\n            // popup keeps the reviewer on their own page.\n            webAuthMode=\"popup\"\n            storageKeyPrefix=\"crowdsource\"\n            queryClient={queryClient}\n          >"
+    },
+    {
+      "repository": "CrowdSource",
+      "head": "63b9f49eeab8b96ce1ac4cfec1f5b6768f3f4ae7",
+      "path": "packages/console/components/providers/AppProviders.tsx",
+      "line": 67,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            oxyServices={oxyServices}\n            clientId={OXY_CLIENT_ID}\n            authRedirectUri={OXY_AUTH_REDIRECT_URI}\n            // Without this the web flow is a full-page redirect, and the app\n            // bounces to the authorize endpoint before it ever renders. The popup\n            // keeps the operator on the page they were working on.\n            webAuthMode=\"popup\"\n            storageKeyPrefix=\"crowdsource-console\"\n            queryClient={queryClient}\n            // Oxy resolves which language the console shows \u2014 the signed-in\n            // account's primary locale, or the device/guest locale while signed\n            // out \u2014 and calls `setLanguage` whenever it changes. The console\n            // keeps its own translation catalog (`locales/en.json`,\n            // `locales/es.json`) untouched; it just stops deciding for itself.\n            language={{\n              supportedLocales: SUPPORTED_LANGUAGES,\n              fallbackLocale: DEFAULT_LANGUAGE,\n              onChange: setLanguage,\n              onError: handleLanguageError,\n            }}\n          >"
+    },
+    {
+      "repository": "GoWay",
+      "head": "c696e80d420212d3c899963681c421d5cf3b56d0",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 72,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n              oxyServices={oxyServices}\n              clientId={OXY_CLIENT_ID}\n              queryClient={queryClient}\n            >"
+    },
+    {
+      "repository": "Homiio",
+      "head": "64d458c542fcb0980c28c0c338dd2d600def0dae",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 359,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n                  baseURL={OXY_BASE_URL}\n                  clientId={OXY_CLIENT_ID}\n                  language={{\n                    supportedLocales: SUPPORTED_LANGUAGE_CODES,\n                    fallbackLocale: 'en-US',\n                    onChange: (locale) =>"
+    },
+    {
+      "repository": "Inbox",
+      "head": "730850e5ab0992079ab23b6c1c30e9001ad76af7",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 76,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n        baseURL={API_URL}\n        clientId={OXY_CLIENT_ID}\n        authRedirectUri={OXY_AUTH_REDIRECT_URI}\n        queryClient={queryClient}\n        accountQueries={INBOX_ACCOUNT_QUERIES}\n      >"
+    },
+    {
+      "repository": "Mention",
+      "head": "cbdba7f9ba077d239019114f2a88e2d1ef392cf1",
+      "path": "packages/frontend/components/providers/AppProviders.tsx",
+      "line": 103,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            oxyServices={oxyServices}\n            clientId={OXY_CLIENT_ID}\n            authRedirectUri={OXY_AUTH_REDIRECT_URI}\n            webAuthMode=\"popup\"\n            storageKeyPrefix=\"mention\"\n            queryClient={queryClient}\n            backgroundSession\n            language={{\n              supportedLocales: SUPPORTED_LANGUAGES,\n              fallbackLocale: DEFAULT_LANGUAGE,\n              onChange: setLanguage,\n              onError: handleLanguageError,\n            }}\n          >"
+    },
+    {
+      "repository": "Mercaria",
+      "head": "9e546e66b36b8050bfe07a37f53ee436444688cf",
+      "path": "packages/pos/app/_layout.tsx",
+      "line": 142,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            baseURL={OXY_API_URL}\n            clientId={OXY_CLIENT_ID}\n            authRedirectUri={Platform.OS !== \"web\" ? AUTH_REDIRECT_URI : undefined}\n          >"
+    },
+    {
+      "repository": "Mercaria",
+      "head": "9e546e66b36b8050bfe07a37f53ee436444688cf",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 140,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            baseURL={OXY_API_URL}\n            clientId={OXY_CLIENT_ID}\n            authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}\n          >"
+    },
+    {
+      "repository": "Mercaria",
+      "head": "9e546e66b36b8050bfe07a37f53ee436444688cf",
+      "path": "packages/dashboard/app/_layout.tsx",
+      "line": 129,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            baseURL={OXY_API_URL}\n            clientId={OXY_CLIENT_ID}\n            authRedirectUri={Platform.OS !== \"web\" ? AUTH_REDIRECT_URI : undefined}\n          >"
+    },
+    {
+      "repository": "Moovo",
+      "head": "dde4ab8bce332e2e971866483530f8f6754c2f94",
+      "path": "packages/tracker-app/app/_layout.tsx",
+      "line": 91,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            baseURL={OXY_API_URL}\n            clientId={OXY_CLIENT_ID}\n            authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}\n            // Moovo Tracker opens on a PUBLIC landing and stays usable signed\n            // out: pasting a number and reading the timeline never needs an\n            // account. Sign-in only buys a saved list and notifications, so the\n            // SDK cold boot restores a returning user silently without\n            // redirecting a stranger to auth.\n          >"
+    },
+    {
+      "repository": "Moovo",
+      "head": "dde4ab8bce332e2e971866483530f8f6754c2f94",
+      "path": "packages/fleet-dashboard/app/_layout.tsx",
+      "line": 151,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n          baseURL={OXY_API_URL}\n          clientId={OXY_CLIENT_ID}\n          authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}\n          // Moovo is a marketplace: anonymous visitors can browse listings/shops/\n          // search; sign-in is only required to buy or sell. The SDK cold boot\n          // silently restores a returning signed-in user (callback consume,\n          // FedCM/silent, silent-iframe, stored-session, cookie restore) without\n          // force-redirecting anonymous visitors to auth.\n          language={{\n            supportedLocales: SUPPORTED_LOCALES,\n            fallbackLocale: DEFAULT_LOCALE,\n            onChange: useI18nStore.getState().setLocale,\n            onError: (error, locale) =>"
+    },
+    {
+      "repository": "Moovo",
+      "head": "dde4ab8bce332e2e971866483530f8f6754c2f94",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 126,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n          baseURL={OXY_API_URL}\n          clientId={OXY_CLIENT_ID}\n          authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}\n          // Moovo is a marketplace: anonymous visitors can browse listings/shops/\n          // search; sign-in is only required to buy or sell. The SDK cold boot\n          // silently restores a returning signed-in user (callback consume,\n          // FedCM/silent, silent-iframe, stored-session, cookie restore) without\n          // force-redirecting anonymous visitors to auth.\n        >"
+    },
+    {
+      "repository": "Moovo",
+      "head": "dde4ab8bce332e2e971866483530f8f6754c2f94",
+      "path": "packages/courier-app/app/_layout.tsx",
+      "line": 126,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n          baseURL={OXY_API_URL}\n          clientId={OXY_CLIENT_ID}\n          authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}\n          // Moovo Go opens on a public landing: anonymous visitors reach the home\n          // screen; sign-in is only required to go online and accept jobs. The SDK\n          // cold boot silently restores a returning signed-in courier (callback\n          // consume, FedCM/silent, silent-iframe, stored-session, cookie restore)\n          // without force-redirecting anonymous visitors to auth.\n        >"
+    },
+    {
+      "repository": "Move",
+      "head": "b2fbf7ad2677819945249bb0fd81c3078ea357b6",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 53,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n              baseURL={OXY_API_URL}\n              clientId={OXY_CLIENT_ID}\n              queryClient={queryClient}\n              language={LANGUAGE}\n            >"
+    },
+    {
+      "repository": "Nilo",
+      "head": "a8d903d0da2a8c8fd409bf97998424273c372f85",
+      "path": "apps/app/app/_layout.tsx",
+      "line": 100,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            baseURL={OXY_API_URL}\n            clientId={process.env.EXPO_PUBLIC_OXY_CLIENT_ID}\n            authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}\n            language={{\n              supportedLocales: SUPPORTED_LOCALES,\n              fallbackLocale: DEFAULT_LOCALE,\n              onChange: (locale) =>"
+    },
+    {
+      "repository": "Noted",
+      "head": "806e9cae040a7d9446557e7ce9eda64069116056",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 130,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n          baseURL={OXY_API_URL}\n          clientId={OXY_CLIENT_ID}\n          authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}\n          language={{\n            supportedLocales: SUPPORTED_LANGUAGE_CODES,\n            fallbackLocale: 'en',\n            onChange: (locale) =>"
+    },
+    {
+      "repository": "Peable",
+      "head": "fcde0c7405bab5bb789dd5d14a3872d40d021702",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 329,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n              oxyServices={oxyServices}\n              clientId={OXY_CLIENT_ID}\n              authRedirectUri={OXY_AUTH_REDIRECT_URI}\n              storageKeyPrefix=\"peable\"\n              queryClient={queryClient}\n              language={{\n                supportedLocales: TRANSLATED_LANGUAGE_CODES,\n                fallbackLocale: DEFAULT_LANGUAGE,\n                onChange: handleLanguageChange,\n                onError: handleLanguageError,\n              }}\n            >"
+    },
+    {
+      "repository": "Schedio",
+      "head": "a5142004f785f3a41501d0ac7e96138fc93eeec4",
+      "path": "packages/frontend/components/providers/AppProviders.tsx",
+      "line": 46,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            oxyServices={oxyServices}\n            clientId={OXY_CLIENT_ID}\n            language={{\n              supportedLocales: SUPPORTED_LANGUAGES,\n              fallbackLocale: DEFAULT_LANGUAGE,\n              onChange: setLanguage,\n              onError: (error, locale) =>"
+    },
+    {
+      "repository": "Syra",
+      "head": "7804e1f1c1be89edf802e92ef41c81a4fb91eeae",
+      "path": "packages/studio/components/providers/AppProviders.tsx",
+      "line": 68,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n              oxyServices={oxyServices}\n              clientId={OXY_CLIENT_ID}\n              // Intentionally kept as \"oxy_syra_creators\" for session continuity \u2014\n              // this is the persisted session storage key; renaming it would log\n              // every existing user out. Do not change on the Studio rebrand.\n              storageKeyPrefix=\"oxy_syra_creators\"\n            >"
+    },
+    {
+      "repository": "Syra",
+      "head": "7804e1f1c1be89edf802e92ef41c81a4fb91eeae",
+      "path": "packages/frontend/components/providers/AppProviders.tsx",
+      "line": 177,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            oxyServices={oxyServices}\n            clientId={OXY_CLIENT_ID}\n            storageKeyPrefix=\"oxy_syra\"\n            queryClient={queryClient}\n            accountQueries={SYRA_ACCOUNT_QUERIES}\n          >"
+    },
+    {
+      "repository": "Willo",
+      "head": "6d059d7e133c4d3d6c22a008b16f51b0e78fbc96",
+      "path": "packages/frontend/app/_layout.tsx",
+      "line": 164,
+      "clientId_present_in_opening": true,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider\n            baseURL={process.env.EXPO_PUBLIC_OXY_API_URL}\n            clientId={process.env.EXPO_PUBLIC_OXY_CLIENT_ID}\n            authRedirectUri={process.env.EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI}\n            language={{\n              supportedLocales: SUPPORTED_LANGUAGES,\n              fallbackLocale: DEFAULT_LANGUAGE,\n              onChange: async locale =>"
+    },
+    {
+      "repository": "examples",
+      "head": "03f9d52eb123ad929237c42745c6bc7d9ce357a4",
+      "path": "expo-sign-in-with-oxy/app/_layout.tsx",
+      "line": 35,
+      "clientId_present_in_opening": false,
+      "spread_requires_inspection": false,
+      "opening": "<OxyProvider baseURL={API_URL} authRedirectUri={AUTH_REDIRECT_URI}>"
+    },
+    {
+      "repository": "examples",
+      "head": "03f9d52eb123ad929237c42745c6bc7d9ce357a4",
+      "path": "vite-react-oxy/src/main.tsx",
+      "line": 17,
+      "clientId_present_in_opening": false,
+      "spread_requires_inspection": false,
+      "opening": "<WebOxyProvider baseURL={OXY_API_URL} authWebUrl={OXY_AUTH_WEB_URL}>"
+    },
+    {
+      "repository": "examples",
+      "head": "03f9d52eb123ad929237c42745c6bc7d9ce357a4",
+      "path": "nextjs-sign-in-with-oxy/components/oxy-provider.tsx",
+      "line": 20,
+      "clientId_present_in_opening": false,
+      "spread_requires_inspection": false,
+      "opening": "<WebOxyProvider baseURL={OXY_API_URL} authWebUrl={OXY_AUTH_WEB_URL}>"
+    }
+  ]
+}

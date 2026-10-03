@@ -1,3 +1,5 @@
+import { accessSubscriptionSources } from './productAccess';
+import { accessProviderPeriods, accessProviderEvents } from './productProviderEvidence';
 import { emailSignInRequests } from './emailSignInRequests';
 import { signInSecondFactorChallenges } from './signInChallenges';
 import { externalIdentities, externalIdentityClaims } from './externalIdentities';
@@ -44,6 +46,7 @@ import { appEndorsementEdges } from './appEndorsementEdges';
 import { appUpdates } from './appUpdates';
 import { authCodes } from './authCodes';
 import { authSessions } from './authSessions';
+import { billingStripeEvents } from './billingStripeEvents';
 import { billingSubscriptions } from './billingSubscriptions';
 import { billingTransactions } from './billingTransactions';
 import { capabilityExecutionAuthorizations } from './agency';
@@ -87,6 +90,8 @@ import { transparencyCheckpointSnapshotEntries } from './transparencyCheckpoints
 import { usageReceipts } from './usageReceipts';
 import { usageRefunds } from './usageRefunds';
 import { usageReservations } from './usageReservations';
+import { inferenceMeteredUsage } from './inferenceMeteredUsage';
+import { inferenceProviderCostAttempts } from './inferenceProviderCostAttempts';
 import { userCredits } from './userCredits';
 import { userLocations } from './userLocations';
 import { users } from './users';
@@ -110,6 +115,11 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  { table: accessSubscriptionSources, column: accessSubscriptionSources.providerSubscriptionId, reason: 'Opaque subscription ID owned by Stripe or Peable; no local provider-subscription table exists.' },
+  { table: accessProviderPeriods, column: accessProviderPeriods.invoiceId, reason: 'Opaque invoice identity owned by the explicitly bound provider/account/mode/environment; not a local billing invoice ID.' },
+  { table: accessProviderPeriods, column: accessProviderPeriods.lineId, reason: 'Opaque recurring invoice line owned by the provider, combined with its invoice and provider binding; no local provider-line table exists.' },
+  { table: accessProviderPeriods, column: accessProviderPeriods.priceId, reason: 'Explicit opaque provider price in the normalized immutable paid-line evidence; not a local catalogue row.' },
+  { table: accessProviderEvents, column: accessProviderEvents.eventId, reason: 'Opaque provider delivery ID, deduplicated only within provider/account/mode/environment; no local provider-event table exists.' },
   { table: accountEvents, column: accountEvents.userId,
     reason: 'The DELETED account the event announces. Its `users` row is gone (or archived) by the time relying parties read this, which is the point of the event; a foreign key could only CASCADE the announcement away with the account or RESTRICT the deletion. Swept after `ACCOUNT_EVENT_RETENTION_SECONDS`.' },
   { table: storageObjectDeletions, column: storageObjectDeletions.accountId,
@@ -450,6 +460,27 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'payment record; Stripe is the authority for both.',
   },
   {
+    table: billingTransactions,
+    column: billingTransactions.stripeInvoiceId,
+    reason:
+      "Stripe's identifier for the paid invoice that evidences a renewal grant. " +
+      'Not a row in this database.',
+  },
+  {
+    table: billingStripeEvents,
+    column: billingStripeEvents.stripeEventId,
+    reason:
+      "Stripe's identifier for the webhook event (`evt_…`). Not a row in this " +
+      'database; it is what a redelivery is recognised by.',
+  },
+  {
+    table: billingStripeEvents,
+    column: billingStripeEvents.stripeObjectId,
+    reason:
+      "Stripe's identifier for the event's object — an invoice, subscription, " +
+      'session or charge, discriminated by `type`. Never a row here.',
+  },
+  {
     table: notifications,
     column: notifications.entityId,
     reason:
@@ -730,6 +761,79 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: inferenceUsageEvents,
     column: inferenceUsageEvents.generationId,
     reason: '(f) Same as `usage_receipts.generation_id`.',
+  },
+  // --- durable metered usage and provider cost (#1526, I09) ---------------
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.requestId,
+    reason: '(e) Same as `usage_reservations.request_id`.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.delegatedUserId,
+    reason: '(d) Same as `usage_reservations.delegated_user_id`.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.generationId,
+    reason: '(f) Same as `usage_receipts.generation_id`.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.admittedDeploymentId,
+    reason: '(f) Same as `inference_usage_events.deployment_id`.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.parentRequestId,
+    reason:
+      'The parent edge request correlation key, preserved in the child usage record ' +
+      'and the versioned generation response across Oxy and Kaana. It is not the ' +
+      'parent metering row id. Parent admission is enforced before child execution ' +
+      'by the edge; this classification preserves the correlation without adding ' +
+      'a new foreign-key lifecycle or erasure policy to migration 0134.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.finalAuthorizedDeploymentId,
+    reason: '(f) Same as `inference_metered_usage.admitted_deployment_id`, ' +
+      'snapshotted after final Auto requalification rather than initial admission.',
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.economicRelationshipId,
+    reason:
+      'A relationship NAME from `config/inferenceEconomicPolicy.ts` (`alia-kaana`), ' +
+      'versioned in code with `economic_policy_version` beside it. There is no ' +
+      'relationship table and there must not be one: the policy is reviewed data, ' +
+      'not a row an operator can edit.',
+  },
+  {
+    table: inferenceProviderCostAttempts,
+    column: inferenceProviderCostAttempts.requestId,
+    reason:
+      '(e) Same as `usage_reservations.request_id`, as Kaana echoes it in its ' +
+      'operator feed. The attempt can arrive before, after or without a metered ' +
+      'row, so the correlation is a join, never a constraint.',
+  },
+  {
+    table: inferenceProviderCostAttempts,
+    column: inferenceProviderCostAttempts.keyId,
+    reason:
+      'Kaana’s opaque provider-key handle from its operator feed. It names a row ' +
+      'in Kaana’s database, never in ours.',
+  },
+  {
+    table: inferenceProviderCostAttempts,
+    column: inferenceProviderCostAttempts.deploymentId,
+    reason: '(f) Same as `inference_usage_events.deployment_id`.',
+  },
+  {
+    table: inferenceProviderCostAttempts,
+    column: inferenceProviderCostAttempts.rateCardVersionId,
+    reason:
+      'Kaana’s append-only rate-card version id (Kaana migration 0015). An ' +
+      'operator observation from another service’s database.',
   },
   {
     table: inferenceUsageEvents,

@@ -169,6 +169,14 @@ describe('oxy.apps', () => {
   });
 
   describe('getPublic', () => {
+    it('fresh registry classification bypasses a cached public projection', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ application: { id: 'app1', type: 'first_party' } }));
+      await oxy.apps.getPublic('oxy_dk_fresh');
+      fetchMock.mockResolvedValueOnce(jsonResponse({ application: { id: 'app1', type: 'third_party' } }));
+      expect(await oxy.apps.getPublic('oxy_dk_fresh', { cache: false })).toEqual({ id: 'app1', type: 'third_party' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
     it('resolves a client id without sending the bearer', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse({ application: { id: 'app1', name: 'Mention' } }));
       await expect(oxy.apps.getPublic('oxy_dk/1')).resolves.toEqual({ id: 'app1', name: 'Mention' });

@@ -45,9 +45,15 @@ requireMatch(
 );
 requireMatch(
   edge,
-  /schemaVersion: 2,[\s\S]*?attribution:/,
+  /schemaVersion: (?:2|admitted\.scopedExecution === undefined \? 2 : 3),[\s\S]*?attribution:/,
   'Oxy buildEnvelope must emit inference request schemaVersion 2',
 );
+// Private v3 is permitted only on the canonical, admitted scoped branch.
+// The ordinary signed request remains v2 and uses its ordinary strict schema.
+if (edge.includes('scopedInferenceRequestSchema')) {
+  requireMatch(edge, /return \(admitted\.scopedExecution === undefined \? inferenceRequestSchema : scopedInferenceRequestSchema\)\.parse\(\{[\s\S]*?schemaVersion: admitted\.scopedExecution === undefined \? 2 : 3,[\s\S]*?\.\.\.\(admitted\.scopedExecution === undefined \? \{\} : \{ scopedExecution: admitted\.scopedExecution \}\)/,
+    'private v3 must be bound to the admitted scoped audience and its strict schema; ordinary requests remain v2');
+}
 requireMatch(
   evidence,
   /readback run: 34301660359[\s\S]*?canary run: 34302325992[\s\S]*?snapshot: snap_da7406fdfed50248[\s\S]*?task definition: arn:aws:ecs:us-west-2:237343248947:task-definition\/oxy-oxy-api:359[\s\S]*?image digest: sha256:5be97aa30dfac6b9e0d44d8767ace26017e4ebdb7b5c31da80d80ead7ad76b0b[\s\S]*?provider requests: 2[\s\S]*?Oxy ledger writes: 0/,

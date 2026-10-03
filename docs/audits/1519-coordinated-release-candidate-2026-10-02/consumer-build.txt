@@ -1,0 +1,247 @@
+$ vite build
+vite v7.3.6 building client environment for production...
+transforming...
+node_modules/react-native-web/dist/exports/Appearance/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Appearance/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Appearance/index.js" was ignored.
+node_modules/react-native-web/dist/exports/AppState/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/AppState/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/AppState/index.js" was ignored.
+node_modules/react-native-web/dist/exports/AccessibilityInfo/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/AccessibilityInfo/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/AccessibilityInfo/index.js" was ignored.
+node_modules/react-native-web/dist/exports/Animated/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Animated/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Animated/index.js" was ignored.
+node_modules/react-native-web/dist/exports/ActivityIndicator/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/ActivityIndicator/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/ActivityIndicator/index.js" was ignored.
+node_modules/react-native-web/dist/exports/Picker/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Picker/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Picker/index.js" was ignored.
+node_modules/react-native-web/dist/exports/FlatList/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/FlatList/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/FlatList/index.js" was ignored.
+node_modules/react-native-web/dist/exports/ProgressBar/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/ProgressBar/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/ProgressBar/index.js" was ignored.
+node_modules/react-native-web/dist/exports/Text/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Text/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Text/index.js" was ignored.
+node_modules/react-native-web/dist/exports/Pressable/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Pressable/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Pressable/index.js" was ignored.
+node_modules/react-native-web/dist/exports/Dimensions/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Dimensions/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Dimensions/index.js" was ignored.
+node_modules/react-native-web/dist/exports/TextInput/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/TextInput/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/TextInput/index.js" was ignored.
+node_modules/react-native-web/dist/exports/render/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/render/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/render/index.js" was ignored.
+node_modules/react-native-web/dist/exports/CheckBox/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/CheckBox/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/CheckBox/index.js" was ignored.
+node_modules/react-native-web/dist/exports/SectionList/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/SectionList/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/SectionList/index.js" was ignored.
+node_modules/react-native-web/dist/exports/Switch/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Switch/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Switch/index.js" was ignored.
+node_modules/react-native-web/dist/exports/Modal/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Modal/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Modal/index.js" was ignored.
+node_modules/react-native-web/dist/exports/createElement/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/createElement/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/createElement/index.js" was ignored.
+node_modules/react-native-web/dist/exports/KeyboardAvoidingView/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/KeyboardAvoidingView/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/KeyboardAvoidingView/index.js" was ignored.
+node_modules/react-native-web/dist/exports/Clipboard/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Clipboard/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Clipboard/index.js" was ignored.
+node_modules/react-native-web/dist/exports/VirtualizedList/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/VirtualizedList/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/VirtualizedList/index.js" was ignored.
+node_modules/react-native-web/dist/exports/useLocaleContext/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/useLocaleContext/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/useLocaleContext/index.js" was ignored.
+node_modules/react-native-web/dist/exports/useColorScheme/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/useColorScheme/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/useColorScheme/index.js" was ignored.
+node_modules/react-native-web/dist/exports/useWindowDimensions/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/useWindowDimensions/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/useWindowDimensions/index.js" was ignored.
+node_modules/react-native-web/dist/exports/TouchableHighlight/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/TouchableHighlight/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/TouchableHighlight/index.js" was ignored.
+node_modules/react-native-web/dist/exports/TouchableWithoutFeedback/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/TouchableWithoutFeedback/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/TouchableWithoutFeedback/index.js" was ignored.
+node_modules/react-native-web/dist/exports/TouchableOpacity/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/TouchableOpacity/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/TouchableOpacity/index.js" was ignored.
+node_modules/react-native-svg/lib/module/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-svg/lib/module/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-svg/lib/module/index.js" was ignored.
+node_modules/react-native-safe-area-context/lib/module/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-safe-area-context/lib/module/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-safe-area-context/lib/module/index.js" was ignored.
+node_modules/react-native-web/dist/exports/Text/TextAncestorContext.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Text/TextAncestorContext.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Text/TextAncestorContext.js" was ignored.
+node_modules/react-native-web/dist/exports/Image/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/Image/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/Image/index.js" was ignored.
+node_modules/react-native-web/dist/exports/AppRegistry/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/AppRegistry/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/AppRegistry/index.js" was ignored.
+node_modules/react-native-web/dist/exports/View/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/View/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/View/index.js" was ignored.
+node_modules/react-native-web/dist/exports/ScrollView/index.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/react-native-web/dist/exports/ScrollView/index.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/react-native-web/dist/exports/ScrollView/index.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/HydrationBoundary.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/HydrationBoundary.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/HydrationBoundary.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/useQuery.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/useQuery.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/useQuery.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/useMutation.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/useMutation.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/useMutation.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/useIsFetching.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/useIsFetching.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/useIsFetching.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/useQueries.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/useQueries.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/useQueries.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/useMutationState.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/useMutationState.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/useMutationState.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js" was ignored.
+node_modules/expo-blur/build/BlurView.web.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/expo-blur/build/BlurView.web.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/expo-blur/build/BlurView.web.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/useSuspenseInfiniteQuery.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/useSuspenseInfiniteQuery.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/useSuspenseInfiniteQuery.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/useSuspenseQuery.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/useSuspenseQuery.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/useSuspenseQuery.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/useSuspenseQueries.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/useSuspenseQueries.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/useSuspenseQueries.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js" was ignored.
+node_modules/@tanstack/react-query/build/modern/useBaseQuery.js (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/@tanstack/react-query/build/modern/useBaseQuery.js (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/@tanstack/react-query/build/modern/useBaseQuery.js" was ignored.
+[plugin vite:resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/release-plan/consumer/node_modules/@oxy.so/protocol/dist/esm/platform/crypto.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+node_modules/expo-image/src/ImageBackground.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/expo-image/src/ImageBackground.tsx (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/expo-image/src/ImageBackground.tsx" was ignored.
+node_modules/expo-image/src/useImage.ts (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/expo-image/src/useImage.ts (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/expo-image/src/useImage.ts" was ignored.
+node_modules/expo-image/src/Image.tsx (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/expo-image/src/Image.tsx (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/expo-image/src/Image.tsx" was ignored.
+node_modules/expo-modules-core/src/PermissionsHook.ts (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/expo-modules-core/src/PermissionsHook.ts (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/expo-modules-core/src/PermissionsHook.ts" was ignored.
+node_modules/expo-modules-core/src/hooks/useReleasingSharedObject.ts (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/expo-modules-core/src/hooks/useReleasingSharedObject.ts (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/expo-modules-core/src/hooks/useReleasingSharedObject.ts" was ignored.
+node_modules/expo-modules-core/src/SharedRef.ts (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/expo-modules-core/src/SharedRef.ts (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/expo-modules-core/src/SharedRef.ts" was ignored.
+node_modules/expo-modules-core/src/EventEmitter.ts (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/expo-modules-core/src/EventEmitter.ts (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/expo-modules-core/src/EventEmitter.ts" was ignored.
+node_modules/expo-modules-core/src/SharedObject.ts (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/expo-modules-core/src/SharedObject.ts (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/expo-modules-core/src/SharedObject.ts" was ignored.
+node_modules/expo-modules-core/src/NativeModule.ts (1:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+node_modules/expo-modules-core/src/NativeModule.ts (1:0): Module level directives cause errors when bundled, "use client" in "node_modules/expo-modules-core/src/NativeModule.ts" was ignored.
+✓ 2114 modules transformed.
+node_modules/expo-modules-core/src/uuid/index.web.ts (13:24): Use of eval in "node_modules/expo-modules-core/src/uuid/index.web.ts" is strongly discouraged as it poses security risks and may cause issues with minification.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                 0.14 kB │ gzip:   0.13 kB
+dist/assets/OxyServicesMaterialCommunityIcons-DVHLYwp4.ttf     28.85 kB
+dist/assets/JetBrainsMono-Variable-B9CIFXIH.woff2              40.40 kB
+dist/assets/OxyServicesIonicons-B1hZ8Dc8.ttf                   43.00 kB
+dist/assets/slide-4-DSNFt0xP.jpg                               46.64 kB
+dist/assets/InterVariable-Dx4kXJAl.woff2                       48.26 kB
+dist/assets/slide-3-Bp5gr1Be.jpg                               59.19 kB
+dist/assets/BlomusModernus-Bold-0E_Y-ihB.woff2                 77.61 kB
+dist/assets/BlomusModernus-Regular-kZR3rHS0.woff2              77.64 kB
+dist/assets/slide-2-BAN8I4Iy.jpg                               87.91 kB
+dist/assets/slide-1-CPYeLD4l.jpg                              102.17 kB
+dist/assets/__vite-browser-external-BIHI7g3E.js                 0.03 kB │ gzip:   0.05 kB
+dist/assets/SharedRef-sjBLPq_a.js                               0.05 kB │ gzip:   0.07 kB
+dist/assets/trustTierLabels-DWBOTPLj.js                         0.13 kB │ gzip:   0.13 kB
+dist/assets/Ionicons-WR0mLMM-.js                                0.17 kB │ gzip:   0.15 kB
+dist/assets/LinkCommonsScreen-Cree5Yff.js                       0.18 kB │ gzip:   0.16 kB
+dist/assets/SignInAuthenticatorScreen-ZbYN1Qaw.js               0.18 kB │ gzip:   0.16 kB
+dist/assets/SurfaceHeaderAction-DXov74rw.js                     0.18 kB │ gzip:   0.15 kB
+dist/assets/AccountSecurityPanelScreen-BHlZAkrN.js              0.22 kB │ gzip:   0.19 kB
+dist/assets/SignInPasswordScreen-B5pBgFvZ.js                    0.22 kB │ gzip:   0.19 kB
+dist/assets/FollowersListScreen-CTdFqnoj.js                     0.29 kB │ gzip:   0.22 kB
+dist/assets/FollowingListScreen-DTLjw81-.js                     0.29 kB │ gzip:   0.23 kB
+dist/assets/version-Bczodc9Z.js                                 0.33 kB │ gzip:   0.24 kB
+dist/assets/useReduceMotion-DI8eIgfx.js                         0.38 kB │ gzip:   0.29 kB
+dist/assets/SettingsIcon-B6p0TZEH.js                            0.42 kB │ gzip:   0.32 kB
+dist/assets/RiListUnordered-FrN7k95t.js                         0.51 kB │ gzip:   0.28 kB
+dist/assets/mutationKeys-DPMK5XXq.js                            0.53 kB │ gzip:   0.20 kB
+dist/assets/useServicesQueries-BSe4mEzA.js                      0.59 kB │ gzip:   0.35 kB
+dist/assets/useSettingToggle-BSfoi3i5.js                        0.66 kB │ gzip:   0.44 kB
+dist/assets/colorUtils-TKs8VHfH.js                              0.78 kB │ gzip:   0.25 kB
+dist/assets/UserLinksScreen-D5ZSioJO.js                         0.83 kB │ gzip:   0.50 kB
+dist/assets/plural-BqYb_7jL.js                                  0.88 kB │ gzip:   0.52 kB
+dist/assets/ProfileSummaryCard-Br1aWMCY.js                      0.95 kB │ gzip:   0.55 kB
+dist/assets/message-helpers-CzjCVErm.js                         0.97 kB │ gzip:   0.51 kB
+dist/assets/AvatarCameraBadge-C3zqyarf.js                       1.09 kB │ gzip:   0.67 kB
+dist/assets/RiSparklingLine-CVWIHTy2.js                         1.15 kB │ gzip:   0.61 kB
+dist/assets/TrustFAQScreen-2U9a_hxi.js                          1.44 kB │ gzip:   0.77 kB
+dist/assets/index-DdkDhiCd.js                                   1.51 kB │ gzip:   0.78 kB
+dist/assets/useAccountQueries-K3C2WWTA.js                       1.52 kB │ gzip:   0.70 kB
+dist/assets/RiShieldCheckLine-C6-VRUFo.js                       1.58 kB │ gzip:   0.87 kB
+dist/assets/DeleteAccountScreen-CtwFAcpf.js                     1.85 kB │ gzip:   0.83 kB
+dist/assets/TrustRulesScreen-CA8IJRPQ.js                        1.88 kB │ gzip:   0.99 kB
+dist/assets/SearchSettingsScreen-DavGYOCZ.js                    2.18 kB │ gzip:   0.99 kB
+dist/assets/useMutation-BcBfSlg1.js                             2.30 kB │ gzip:   0.94 kB
+dist/assets/Haptics-YW5KatHR.js                                 2.32 kB │ gzip:   1.06 kB
+dist/assets/HelpSupportScreen-hAotihIp.js                       2.35 kB │ gzip:   0.87 kB
+dist/assets/ConnectedAppsScreen-BQUxEA9h.js                     2.70 kB │ gzip:   1.36 kB
+dist/assets/Accordion-CAYC1IXD.js                               2.96 kB │ gzip:   1.37 kB
+dist/assets/NotificationsScreen-D0FCNfnD.js                     2.98 kB │ gzip:   1.13 kB
+dist/assets/EditProfileScreen-BoenSnCV.js                       2.98 kB │ gzip:   1.13 kB
+dist/assets/index-BMnYje3R.js                                   3.05 kB │ gzip:   1.31 kB
+dist/assets/SettingsList-Byxflfak.js                            3.05 kB │ gzip:   1.35 kB
+dist/assets/LanguageSelectorScreen-6jgnZzrk.js                  3.08 kB │ gzip:   1.47 kB
+dist/assets/PreferencesScreen-3Wc82pIr.js                       3.25 kB │ gzip:   1.39 kB
+dist/assets/HistoryViewScreen-BVqHdINp.js                       3.37 kB │ gzip:   1.34 kB
+dist/assets/useAccountMutations-CZQRw1Wq.js                     3.37 kB │ gzip:   0.94 kB
+dist/assets/TrustAboutScreen-BCCJML-9.js                        3.57 kB │ gzip:   1.54 kB
+dist/assets/LearnMoreUsernamesScreen-CLrW0wGM.js                3.61 kB │ gzip:   1.58 kB
+dist/assets/Card-_5HTb-9q.js                                    3.73 kB │ gzip:   1.62 kB
+dist/assets/TrustLeaderboardScreen-IKtNoQWV.js                  3.75 kB │ gzip:   1.64 kB
+dist/assets/DomainsScreen-DLOUKu18.js                           3.76 kB │ gzip:   1.44 kB
+dist/assets/TrustCenterScreen-B0t3cca4.js                       3.78 kB │ gzip:   1.58 kB
+dist/assets/LegalDocumentsScreen-Dpxuk_Dc.js                    3.86 kB │ gzip:   1.30 kB
+dist/assets/ChangeAvatarScreen-CtUcVtJd.js                      4.11 kB │ gzip:   1.75 kB
+dist/assets/AccountSettingsScreen-I8UnKlDm.js                   5.25 kB │ gzip:   2.13 kB
+dist/assets/AccountVerificationScreen-Dm9LQ-9b.js               6.38 kB │ gzip:   2.65 kB
+dist/assets/CreateAccountScreen-B5Jav_5g.js                     6.53 kB │ gzip:   2.52 kB
+dist/assets/ImagePicker-rghB1lf4.js                             7.43 kB │ gzip:   2.89 kB
+dist/assets/WelcomeNewUserScreen-D3tbZ-lx.js                    7.81 kB │ gzip:   2.83 kB
+dist/assets/ProfileScreen-DOUexHF9.js                           7.97 kB │ gzip:   2.88 kB
+dist/assets/WebBrowser-vlGxJ0wb.js                              8.22 kB │ gzip:   3.23 kB
+dist/assets/TrustRewardsScreen-B5BHno--.js                      8.80 kB │ gzip:   2.74 kB
+dist/assets/index-DBc0rjSm.js                                   8.83 kB │ gzip:   2.64 kB
+dist/assets/index-BtGZOz4m.js                                   8.92 kB │ gzip:   3.34 kB
+dist/assets/AccountMembersScreen-Dv2qX5ED.js                    9.14 kB │ gzip:   2.85 kB
+dist/assets/AppInfoScreen-BV_Aui6l.js                           9.60 kB │ gzip:   3.45 kB
+dist/assets/ChipRow-VyOBOy8j.js                                10.06 kB │ gzip:   4.27 kB
+dist/assets/PrivacySettingsScreen-BuW8l4Kt.js                  10.34 kB │ gzip:   2.74 kB
+dist/assets/UserListScreen-BheYcpWJ.js                         11.30 kB │ gzip:   4.56 kB
+dist/assets/zh-CN-Bu0Jc3XL.js                                  11.87 kB │ gzip:   4.99 kB
+dist/assets/it-IT-BfK6yGiC.js                                  12.62 kB │ gzip:   4.62 kB
+dist/assets/AvatarCropScreen-Cfv3nqhi.js                       12.73 kB │ gzip:   4.91 kB
+dist/assets/ca-ES-BGTBLzgX.js                                  12.93 kB │ gzip:   4.68 kB
+dist/assets/pt-PT-BCGT_CGY.js                                  13.04 kB │ gzip:   4.65 kB
+dist/assets/de-DE-B5Zro_ay.js                                  13.40 kB │ gzip:   4.88 kB
+dist/assets/fr-FR-BIDMo6MC.js                                  13.73 kB │ gzip:   4.86 kB
+dist/assets/ko-KR-DD1rzDkZ.js                                  13.83 kB │ gzip:   4.91 kB
+dist/assets/ja-JP-B4jKxxqQ.js                                  15.93 kB │ gzip:   5.11 kB
+dist/assets/ar-SA-DPmE_AU4.js                                  16.10 kB │ gzip:   5.16 kB
+dist/assets/ManageAccountScreen-CqijwH6O.js                    18.53 kB │ gzip:   5.66 kB
+dist/assets/validationUtils-CKwkrDlc.js                        21.17 kB │ gzip:   5.60 kB
+dist/assets/FollowButton-BIXLamHr.js                           21.21 kB │ gzip:   8.02 kB
+dist/assets/recoveryPhrase-ClxrCD6u.js                         21.99 kB │ gzip:  10.14 kB
+dist/assets/EditProfileFieldScreen-Cb4_PnqU.js                 22.96 kB │ gzip:   7.99 kB
+dist/assets/PaymentGatewayScreen-DY6T88Me.js                   23.22 kB │ gzip:   5.83 kB
+dist/assets/internal-B87QkzRJ.js                               41.39 kB │ gzip:  14.22 kB
+dist/assets/index-RX_Ug9J2.js                                  42.60 kB │ gzip:  13.35 kB
+dist/assets/OxyAccountDialogScreen-C46Mqn4S.js                 52.00 kB │ gzip:  19.41 kB
+dist/assets/zh-DMa2wdKP.js                                     57.48 kB │ gzip:  24.34 kB
+dist/assets/id-NF2sLcZZ.js                                     60.54 kB │ gzip:  22.55 kB
+dist/assets/tr-DLMIp_9g.js                                     62.45 kB │ gzip:  23.95 kB
+dist/assets/it-CHQQJ7xo.js                                     64.61 kB │ gzip:  23.74 kB
+dist/assets/pt-DVl7U918.js                                     64.75 kB │ gzip:  23.95 kB
+dist/assets/de-BEwJTGgC.js                                     64.87 kB │ gzip:  24.24 kB
+dist/assets/ca-lkxRoFu3.js                                     64.99 kB │ gzip:  24.14 kB
+dist/assets/es-D9PRElqS.js                                     65.20 kB │ gzip:  24.08 kB
+dist/assets/es-ES-Dr8IGRiM.js                                  65.38 kB │ gzip:  20.58 kB
+dist/assets/fr-tgYKym9Y.js                                     67.08 kB │ gzip:  24.65 kB
+dist/assets/ja--G5el9-h.js                                     68.81 kB │ gzip:  25.77 kB
+dist/assets/FileManagementScreen-uRfukRcl.js                   81.61 kB │ gzip:  25.94 kB
+dist/assets/ar-Cx0DGc-R.js                                     85.65 kB │ gzip:  27.48 kB
+dist/assets/ru-B9QJQJTx.js                                     92.26 kB │ gzip:  28.87 kB
+dist/assets/hi-DTP92AKt.js                                    102.85 kB │ gzip:  27.86 kB
+dist/assets/bn-BPoRf83E.js                                    105.00 kB │ gzip:  27.47 kB
+dist/assets/index-ByVQotug.js                               2,125.26 kB │ gzip: 603.11 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.48s

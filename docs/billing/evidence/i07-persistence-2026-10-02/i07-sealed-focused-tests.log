@@ -1,0 +1,14 @@
+$ jest --runInBand src/services/__tests__/productAccessPersistence.test.ts src/services/__tests__/productAccessClosure.test.ts src/routes/__tests__/productAccess.test.ts src/services/__tests__/productAccess.test.ts src/services/__tests__/accountFinancialHolds.service.test.ts src/db/schema/__tests__/foreignKeys.test.ts src/db/schema/__tests__/schemaInvariants.test.ts
+{"level":30,"time":1790961953870,"pid":3021241,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790961955672,"pid":3021241,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790961956179,"pid":3021241,"hostname":"SuperPC","sessionId":"a839c7d6","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1790961956179,"pid":3021241,"hostname":"SuperPC","sessionId":"a839c7d6","operatorId":"01a0fda6-b4fc-7bd9-bbb0-53e56cd634e9","accountId":"01a0fda6-b4d3-77c3-bf68-50f6d0638de5","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":30,"time":1790961956760,"pid":3021241,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790961957724,"pid":3021241,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790961958253,"pid":3021241,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 7 passed, 7 total
+Tests:       68 passed, 68 total
+Snapshots:   0 total
+Time:        5.023 s
+Ran all test suites matching src/services/__tests__/productAccessPersistence.test.ts|src/services/__tests__/productAccessClosure.test.ts|src/routes/__tests__/productAccess.test.ts|src/services/__tests__/productAccess.test.ts|src/services/__tests__/accountFinancialHolds.service.test.ts|src/db/schema/__tests__/foreignKeys.test.ts|src/db/schema/__tests__/schemaInvariants.test.ts.

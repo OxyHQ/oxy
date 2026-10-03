@@ -1,0 +1,27 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/productProviderEvidence.test.ts
+{"level":30,"time":1790978703768,"pid":3177376,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/services/__tests__/productProviderEvidence.test.ts
+  ● same provider invoice line cannot double additive quota by replacing the segment ID
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 10
+    Received: 20
+
+      18 |   await recordProductAccessPeriod({ ...input, segment: { ...input.segment, id: randomUUID() } });
+      19 |   const access = await readSubjectProductAccess(f.beneficiary, f.products[0].id, f.now);
+    > 20 |   expect(access.quotas[0].included).toBe(10);
+         |                                     ^
+      21 |   expect(access.quotas[0].grantIds).toHaveLength(1);
+      22 | });
+      23 |
+
+      at src/services/__tests__/productProviderEvidence.test.ts:20:37
+      at fulfilled (src/services/__tests__/productProviderEvidence.test.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        1.531 s
+Ran all test suites within paths "src/services/__tests__/productProviderEvidence.test.ts".
+error: script "test" exited with code 1

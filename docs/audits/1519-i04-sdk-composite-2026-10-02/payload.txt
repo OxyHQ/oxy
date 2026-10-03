@@ -1,0 +1,1 @@
+Payload-persistence guard passed — 215 tables / 2534 columns inspected, 1525 of them free-shaped; 41 declared open-shaped or payload-named columns all still present; 4 required tables reached.

@@ -4,10 +4,8 @@ import type { AuthRequest } from '../middleware/auth';
 import { getDb } from '../config/postgres';
 import { billingSubscriptions } from '../db/schema/billingSubscriptions';
 import { subscriptions } from '../db/schema/subscriptions';
-import { users } from '../db/schema/users';
 import { logger } from '../utils/logger';
 import { ForbiddenError, UnauthorizedError } from '../utils/error';
-import userCache from '../utils/userCache';
 import { formatSubscriptionResponse } from '../utils/subscriptionResponse';
 import { getStripe } from '../utils/stripeClient';
 
@@ -100,11 +98,10 @@ export const cancelSubscription = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Subscription not found' });
     }
 
-    await db
-      .update(users)
-      .set({ privacyAnalyticsSharing: false })
-      .where(eq(users.id, userId));
-    userCache.invalidate(userId);
+    // Cancelling a plan is a COMMERCIAL act and changes nothing about the
+    // account's privacy choices. This used to force `privacyAnalyticsSharing`
+    // off as a side effect — a preference the person never touched, flipped by
+    // a billing action. The preference changes only through its own setting.
 
     res.json(
       formatSubscriptionResponse(cancelledBilling, legacySubscription ?? null)

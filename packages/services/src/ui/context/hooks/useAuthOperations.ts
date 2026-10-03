@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { logoutIsolatedOAuthSession, readIsolatedOAuthSession } from '../isolatedOAuthSession';
 import type { ApiError, User } from '@oxy.so/core';
 import type { AuthStateStore, IdentityBinding, SessionClient } from '@oxy.so/core/session';
 import type { ClientSession, SessionLoginResponse } from '@oxy.so/core';
@@ -13,6 +14,7 @@ import { SignatureService } from '@oxy.so/core/crypto';
 
 export interface UseAuthOperationsOptions {
   oxyServices: OxyServices;
+  ensureDeviceSessionLane: () => void | Promise<void>;
   storage: StorageInterface | null;
   /**
    * The device-first persisted auth-state store. On EXPLICIT full sign-out the
@@ -91,6 +93,7 @@ export function clearPersistedAuthSafe(
  */
 export const useAuthOperations = ({
   oxyServices,
+  ensureDeviceSessionLane,
   store,
   runtime,
   saveActiveSessionId,
@@ -109,6 +112,7 @@ export const useAuthOperations = ({
    */
   const performSignIn = useCallback(
     async (publicKey: string): Promise<User> => {
+      await ensureDeviceSessionLane();
       const deviceFingerprintObj = DeviceManager.getDeviceFingerprint();
       const deviceFingerprint = JSON.stringify(deviceFingerprintObj);
       const deviceInfo = await DeviceManager.getDeviceInfo();
@@ -247,6 +251,7 @@ export const useAuthOperations = ({
       return fullUser;
     },
     [
+      ensureDeviceSessionLane,
       logger,
       onAuthStateChange,
       oxyServices,
@@ -297,6 +302,23 @@ export const useAuthOperations = ({
     async (targetSessionId?: string): Promise<LogoutResult> => {
       const activeSessionId = runtime.getSnapshot().activeSessionId;
       if (!activeSessionId) return { status: 'signed-out' };
+
+      const isolated = readIsolatedOAuthSession(runtime);
+      if (isolated) {
+        const result = await logoutIsolatedOAuthSession({
+          session: isolated,
+          targetSessionId,
+          revokeSelf: (sessionId) => oxyServices.session.logout(sessionId),
+          clearSessionState,
+        });
+        if (result.status === 'failed') {
+          handleAuthError(result.error, {
+            defaultMessage: 'Logout failed', code: LOGOUT_ERROR_CODE, onError,
+            setAuthError: (message) => runtime.setError(message), logger,
+          });
+        }
+        return result;
+      }
 
       const sessionToLogout = targetSessionId || activeSessionId;
 
@@ -358,6 +380,7 @@ export const useAuthOperations = ({
     },
     [
       clearSessionState,
+      oxyServices,
       store,
       logger,
       onError,
@@ -371,6 +394,9 @@ export const useAuthOperations = ({
    * Logout from all sessions
    */
   const logoutAll = useCallback(async (): Promise<void> => {
+    if (readIsolatedOAuthSession(runtime)) {
+      throw new Error('An isolated OAuth session cannot sign out other sessions');
+    }
     const activeSessionId = runtime.getSnapshot().activeSessionId;
     if (!activeSessionId) {
       const error = new Error('No active session found');

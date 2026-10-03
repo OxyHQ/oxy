@@ -158,6 +158,7 @@ const BANNED_NAME_PATTERNS = [
  * completions Oxy would be storing on its own initiative.
  */
 const DECLARED_FREE_SHAPED_COLUMNS = [
+  { table: 'inference_deployments', column: 'scopedExecution', holds: 'closed scopedExecutionAudienceSchema authority metadata: permit and idempotency identifiers, fixture SHA-256, principal and exact route/policy bindings, expiry and grant-only cost limits; no fixture state, question, prompt, completion, tool arguments, provider credential or bearer token' },
   // ---- external account identity evidence ------------------------------------
   { table: 'external_identities', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings, each at most 2048 characters; no actor document, biography, inference request or response' },
   {
@@ -248,6 +249,10 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
   { table: 'verifiable_credentials', column: 'claims', holds: 'the claims of a verifiable credential' },
 
   // ---- misc -------------------------------------------------------------------
+  { table: 'access_provider_periods', column: 'payload', holds: 'strict whitelisted normalized paid-line access projection: provider/account/live/environment, invoice/line/price IDs, subscription/source/segment IDs, payer/beneficiary, offer/version/origin, quantity one and period; no raw provider event, inference content or financial balance' },
+  { table: 'access_provider_periods', column: 'payloadSha256', holds: 'SHA-256 of that canonical normalized paid-line access projection, never its raw provider payload' },
+  { table: 'access_provider_events', column: 'payload', holds: 'strict normalized delivery mapping: schema version, provider/account/live/environment, event ID/time, source/evidence IDs and paid-line projection SHA-256; no raw provider event, inference content or financial balance' },
+  { table: 'access_provider_events', column: 'payloadSha256', holds: 'SHA-256 of that canonical normalized delivery mapping, never raw provider content' },
   { table: 'topics', column: 'translations', holds: 'per-locale topic labels' },
   { table: 'user_analytics', column: 'demographicsCountries', holds: 'aggregate audience counts per country; no per-user location and no IP' },
   { table: 'user_analytics', column: 'demographicsLanguages', holds: 'aggregate audience counts per language' },

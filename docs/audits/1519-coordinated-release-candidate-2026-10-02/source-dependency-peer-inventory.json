@@ -1,0 +1,509 @@
+[
+  {
+    "package": "@oxy.so/contracts",
+    "sourceVersion": "4.8.0",
+    "unboundedPeers": [],
+    "peers": [],
+    "changedSourcesFromMain": [
+      "packages/contracts/CHANGELOG.md",
+      "packages/contracts/src/__tests__/accountSubject.test.ts",
+      "packages/contracts/src/__tests__/agency.test.ts",
+      "packages/contracts/src/__tests__/capabilityBindings.test.ts",
+      "packages/contracts/src/__tests__/inference.compatibility.test.ts",
+      "packages/contracts/src/__tests__/inference.decisions.test.ts",
+      "packages/contracts/src/__tests__/inference.economics.test.ts",
+      "packages/contracts/src/__tests__/usernamePolicySingleSource.test.ts",
+      "packages/contracts/src/accountGraph.ts",
+      "packages/contracts/src/accountSubject.ts",
+      "packages/contracts/src/agency.ts",
+      "packages/contracts/src/capabilityBindings.ts",
+      "packages/contracts/src/index.ts",
+      "packages/contracts/src/inference/economics.ts",
+      "packages/contracts/src/products/access.ts"
+    ]
+  },
+  {
+    "package": "@oxy.so/core",
+    "sourceVersion": "4.1.0",
+    "unboundedPeers": [
+      "@react-native-async-storage/async-storage",
+      "expo-crypto",
+      "expo-secure-store"
+    ],
+    "peers": [
+      {
+        "name": "@react-native-async-storage/async-storage",
+        "declared": "*",
+        "resolved": "*",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "2.2.0"
+      },
+      {
+        "name": "expo-crypto",
+        "declared": "*",
+        "resolved": "*",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "56.0.5"
+      },
+      {
+        "name": "expo-secure-store",
+        "declared": "*",
+        "resolved": "*",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "56.0.4"
+      },
+      {
+        "name": "express",
+        "declared": "^4.0.0",
+        "resolved": "^4.0.0",
+        "hasUpperBound": true,
+        "optional": true,
+        "installedVersionObservation": "4.22.2"
+      }
+    ],
+    "changedSourcesFromMain": [
+      "packages/core/CHANGELOG.md",
+      "packages/core/src/api/__tests__/apps.test.ts",
+      "packages/core/src/api/__tests__/billing.test.ts",
+      "packages/core/src/api/apps.ts",
+      "packages/core/src/api/billing.ts",
+      "packages/core/src/api/session.ts",
+      "packages/core/src/inference/OxyInferenceClient.ts",
+      "packages/core/src/inference/__tests__/OxyInferenceClient.test.ts",
+      "packages/core/src/inference/index.ts",
+      "packages/core/src/server/OxyServer.ts",
+      "packages/core/src/server/__tests__/actingAsFreshness.test.ts",
+      "packages/core/src/server/__tests__/agencyAuthority.test.ts",
+      "packages/core/src/server/__tests__/liveCapabilityTicket.test.ts",
+      "packages/core/src/server/__tests__/middlewareActorChain.test.ts",
+      "packages/core/src/server/auth.ts",
+      "packages/core/src/server/capabilityTicket.ts",
+      "packages/core/src/server/index.ts",
+      "packages/core/src/server/liveCapabilityTicket.ts",
+      "packages/core/src/server/middleware.ts",
+      "packages/core/src/server/namespaces.ts",
+      "packages/core/src/session/SessionClient.ts",
+      "packages/core/src/session/__tests__/SessionClient.directory.test.ts",
+      "packages/core/src/session/__tests__/SessionClient.rest.test.ts",
+      "packages/core/src/session/__tests__/SessionClient.socket.test.ts",
+      "packages/core/src/utils/officialOrigins.ts"
+    ]
+  },
+  {
+    "package": "@oxy.so/services",
+    "sourceVersion": "11.0.0",
+    "unboundedPeers": [
+      "@react-native-community/netinfo",
+      "@types/react",
+      "@types/react-native",
+      "expo",
+      "expo-constants",
+      "expo-document-picker",
+      "expo-file-system",
+      "expo-haptics",
+      "expo-image",
+      "expo-image-manipulator",
+      "expo-image-picker",
+      "expo-linear-gradient",
+      "expo-modules-core",
+      "expo-notifications",
+      "expo-web-browser",
+      "nativewind",
+      "react",
+      "react-native",
+      "react-native-gesture-handler",
+      "react-native-keyboard-controller",
+      "react-native-reanimated",
+      "react-native-safe-area-context",
+      "react-native-svg"
+    ],
+    "peers": [
+      {
+        "name": "@expo/vector-icons",
+        "declared": "^15.0.3",
+        "resolved": "^15.0.3",
+        "hasUpperBound": true,
+        "optional": false,
+        "installedVersionObservation": "15.1.1"
+      },
+      {
+        "name": "@oxy.so/bloom",
+        "declared": "^6.0.0",
+        "resolved": "^6.0.0",
+        "hasUpperBound": true,
+        "optional": false,
+        "installedVersionObservation": "6.2.0"
+      },
+      {
+        "name": "@oxy.so/core",
+        "declared": "^4.0.0",
+        "resolved": "^4.0.0",
+        "hasUpperBound": true,
+        "optional": false,
+        "installedVersionObservation": "4.1.0"
+      },
+      {
+        "name": "@react-native-async-storage/async-storage",
+        "declared": "^2.0.0",
+        "resolved": "^2.0.0",
+        "hasUpperBound": true,
+        "optional": false,
+        "installedVersionObservation": "2.2.0"
+      },
+      {
+        "name": "@react-native-community/netinfo",
+        "declared": ">=11.4.1",
+        "resolved": ">=11.4.1",
+        "hasUpperBound": false,
+        "optional": false,
+        "installedVersionObservation": "12.0.1"
+      },
+      {
+        "name": "@tanstack/query-async-storage-persister",
+        "declared": "catalog:",
+        "resolved": "^5.101",
+        "hasUpperBound": true,
+        "optional": false,
+        "installedVersionObservation": "5.102.8"
+      },
+      {
+        "name": "@tanstack/query-sync-storage-persister",
+        "declared": "catalog:",
+        "resolved": "^5.101",
+        "hasUpperBound": true,
+        "optional": true,
+        "installedVersionObservation": "5.102.8"
+      },
+      {
+        "name": "@tanstack/react-query",
+        "declared": "catalog:",
+        "resolved": "^5.101",
+        "hasUpperBound": true,
+        "optional": false,
+        "installedVersionObservation": "5.102.8"
+      },
+      {
+        "name": "@tanstack/react-query-persist-client",
+        "declared": "catalog:",
+        "resolved": "^5.101",
+        "hasUpperBound": true,
+        "optional": false,
+        "installedVersionObservation": "5.102.8"
+      },
+      {
+        "name": "@types/react",
+        "declared": "*",
+        "resolved": "*",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "19.3.0"
+      },
+      {
+        "name": "@types/react-native",
+        "declared": "*",
+        "resolved": "*",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": null
+      },
+      {
+        "name": "expo",
+        "declared": ">=56.0.0",
+        "resolved": ">=56.0.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "57.0.21"
+      },
+      {
+        "name": "expo-clipboard",
+        "declared": ">=56.0.0 <59.0.0",
+        "resolved": ">=56.0.0 <59.0.0",
+        "hasUpperBound": true,
+        "optional": true,
+        "installedVersionObservation": "57.0.2"
+      },
+      {
+        "name": "expo-constants",
+        "declared": ">=56.0.0",
+        "resolved": ">=56.0.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "57.0.17"
+      },
+      {
+        "name": "expo-document-picker",
+        "declared": ">=56.0.0",
+        "resolved": ">=56.0.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "57.0.1"
+      },
+      {
+        "name": "expo-file-system",
+        "declared": ">=56.0.0",
+        "resolved": ">=56.0.0",
+        "hasUpperBound": false,
+        "optional": false,
+        "installedVersionObservation": "57.0.6"
+      },
+      {
+        "name": "expo-haptics",
+        "declared": ">=56.0.0",
+        "resolved": ">=56.0.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "57.0.2"
+      },
+      {
+        "name": "expo-image",
+        "declared": ">=2.0.0",
+        "resolved": ">=2.0.0",
+        "hasUpperBound": false,
+        "optional": false,
+        "installedVersionObservation": "57.0.4"
+      },
+      {
+        "name": "expo-image-manipulator",
+        "declared": ">=56.0.0",
+        "resolved": ">=56.0.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "57.0.16"
+      },
+      {
+        "name": "expo-image-picker",
+        "declared": ">=56.0.0",
+        "resolved": ">=56.0.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "57.0.16"
+      },
+      {
+        "name": "expo-linear-gradient",
+        "declared": ">=56.0.0",
+        "resolved": ">=56.0.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "57.0.1"
+      },
+      {
+        "name": "expo-modules-core",
+        "declared": "*",
+        "resolved": "*",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "57.0.17"
+      },
+      {
+        "name": "expo-notifications",
+        "declared": ">=56.0.0",
+        "resolved": ">=56.0.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "57.0.17"
+      },
+      {
+        "name": "expo-web-browser",
+        "declared": ">=56.0.0",
+        "resolved": ">=56.0.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "57.0.2"
+      },
+      {
+        "name": "nativewind",
+        "declared": ">=5.0.0",
+        "resolved": ">=5.0.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "5.0.0-preview.3"
+      },
+      {
+        "name": "react-native-css",
+        "declared": "^3.0.6",
+        "resolved": "^3.0.6",
+        "hasUpperBound": true,
+        "optional": false,
+        "installedVersionObservation": "3.0.7"
+      },
+      {
+        "name": "react",
+        "declared": ">=18.0.0",
+        "resolved": ">=18.0.0",
+        "hasUpperBound": false,
+        "optional": false,
+        "installedVersionObservation": "19.2.3"
+      },
+      {
+        "name": "react-native",
+        "declared": ">=0.85.0",
+        "resolved": ">=0.85.0",
+        "hasUpperBound": false,
+        "optional": false,
+        "installedVersionObservation": "0.86.0"
+      },
+      {
+        "name": "react-native-gesture-handler",
+        "declared": ">=2.31.1",
+        "resolved": ">=2.31.1",
+        "hasUpperBound": false,
+        "optional": false,
+        "installedVersionObservation": "2.32.0"
+      },
+      {
+        "name": "react-native-keyboard-controller",
+        "declared": ">=1.21.0",
+        "resolved": ">=1.21.0",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "1.21.13"
+      },
+      {
+        "name": "react-native-qrcode-svg",
+        "declared": "catalog:",
+        "resolved": "^6.3.0",
+        "hasUpperBound": true,
+        "optional": false,
+        "installedVersionObservation": "6.3.24"
+      },
+      {
+        "name": "react-native-reanimated",
+        "declared": ">=4.3.0",
+        "resolved": ">=4.3.0",
+        "hasUpperBound": false,
+        "optional": false,
+        "installedVersionObservation": "4.5.0"
+      },
+      {
+        "name": "react-native-safe-area-context",
+        "declared": ">=5.7.0",
+        "resolved": ">=5.7.0",
+        "hasUpperBound": false,
+        "optional": false,
+        "installedVersionObservation": "5.8.1"
+      },
+      {
+        "name": "react-native-svg",
+        "declared": ">=15.15.0",
+        "resolved": ">=15.15.0",
+        "hasUpperBound": false,
+        "optional": false,
+        "installedVersionObservation": "15.15.5"
+      },
+      {
+        "name": "zustand",
+        "declared": "^5.0.0",
+        "resolved": "^5.0.0",
+        "hasUpperBound": true,
+        "optional": false,
+        "installedVersionObservation": "5.0.15"
+      }
+    ],
+    "changedSourcesFromMain": [
+      "packages/services/__tests__/boot/runProviderColdBoot.test.ts",
+      "packages/services/__tests__/components/OxySignInButton.test.tsx",
+      "packages/services/__tests__/context/browserBridge.test.tsx",
+      "packages/services/__tests__/context/coldBoot.test.tsx",
+      "packages/services/__tests__/context/identitySessionMode.test.tsx",
+      "packages/services/__tests__/context/mutationsSessionClient.test.tsx",
+      "packages/services/__tests__/context/sessionClientSocket.test.tsx",
+      "packages/services/__tests__/context/tokenLossKeepsSession.test.tsx",
+      "packages/services/src/index.ts",
+      "packages/services/src/ui/boot/__tests__/coldBootNoIdpRedirect.test.ts",
+      "packages/services/src/ui/boot/runProviderColdBoot.ts",
+      "packages/services/src/ui/components/OxySignInButton.tsx",
+      "packages/services/src/ui/context/OxyContext.tsx",
+      "packages/services/src/ui/context/__tests__/commitSessionFlow.test.ts",
+      "packages/services/src/ui/context/__tests__/isolatedOAuthSession.test.ts",
+      "packages/services/src/ui/context/commitSessionFlow.ts",
+      "packages/services/src/ui/context/hooks/useAuthOperations.ts",
+      "packages/services/src/ui/context/isolatedOAuthSession.ts",
+      "packages/services/src/ui/context/oxyContextTypes.ts",
+      "packages/services/src/ui/context/useOxyAccountGraph.ts",
+      "packages/services/src/ui/oauth/__tests__/nativeAuthTransport.test.ts",
+      "packages/services/src/ui/oauth/applicationSessionLane.ts",
+      "packages/services/src/ui/oauth/nativeAuthTransport.ts",
+      "packages/services/src/ui/session/createSessionClient.ts"
+    ]
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "sourceVersion": "1.0.0",
+    "unboundedPeers": [],
+    "peers": [],
+    "changedSourcesFromMain": [
+      "packages/mcp/scripts/verify-internal-packed.mjs",
+      "packages/mcp/src/__tests__/consumerAccountBinding.test.ts",
+      "packages/mcp/src/__tests__/internalTransport.test.ts",
+      "packages/mcp/src/catalogAdapter.ts",
+      "packages/mcp/src/httpTransport.ts",
+      "packages/mcp/src/index.ts",
+      "packages/mcp/src/internalClient.ts",
+      "packages/mcp/src/internalTransport.ts",
+      "packages/mcp/src/invocationAdapter.ts"
+    ]
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "sourceVersion": "1.2.1",
+    "unboundedPeers": [
+      "@react-native-async-storage/async-storage",
+      "expo-crypto",
+      "expo-secure-store",
+      "expo-modules-core"
+    ],
+    "peers": [
+      {
+        "name": "@react-native-async-storage/async-storage",
+        "declared": "*",
+        "resolved": "*",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "2.2.0"
+      },
+      {
+        "name": "expo-crypto",
+        "declared": "*",
+        "resolved": "*",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "56.0.5"
+      },
+      {
+        "name": "expo-secure-store",
+        "declared": "*",
+        "resolved": "*",
+        "hasUpperBound": false,
+        "optional": true,
+        "installedVersionObservation": "56.0.4"
+      },
+      {
+        "name": "express",
+        "declared": "^4.18.0 || ^5.0.0",
+        "resolved": "^4.18.0 || ^5.0.0",
+        "hasUpperBound": true,
+        "optional": true,
+        "installedVersionObservation": "4.22.2"
+      },
+      {
+        "name": "expo-modules-core",
+        "declared": "*",
+        "resolved": "*",
+        "hasUpperBound": false,
+        "optional": false,
+        "installedVersionObservation": "57.0.17"
+      }
+    ],
+    "changedSourcesFromMain": []
+  },
+  {
+    "package": "@oxy.so/telemetry",
+    "sourceVersion": "1.2.0",
+    "unboundedPeers": [],
+    "peers": [],
+    "changedSourcesFromMain": []
+  }
+]
