@@ -1,0 +1,36 @@
+[
+  {
+    "at": "2026-10-03T12:43:50.102262+00:00",
+    "label": "allo-wire-signout",
+    "states": [
+      "resolved:true",
+      "authenticated:true",
+      "private-ready:true",
+      "user:01a10153-b291-7d5b-b543-aa703189494e",
+      "profile:none",
+      "operation:idle",
+      "provider-error:false"
+    ]
+  },
+  {
+    "at": "2026-10-03T12:43:52.424888+00:00",
+    "label": "allo-wire-signedout",
+    "states": [
+      "resolved:true",
+      "authenticated:false",
+      "private-ready:false",
+      "user:none",
+      "profile:none",
+      "operation:signed-out",
+      "provider-error:false"
+    ]
+  },
+  {
+    "at": "2026-10-03T12:43:52.538212+00:00",
+    "action": "force-stop Allo"
+  },
+  {
+    "at": "2026-10-03T12:43:52.618169+00:00",
+    "action": "start Allo"
+  }
+]

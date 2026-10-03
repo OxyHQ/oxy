@@ -1,0 +1,121 @@
+{
+  "recordedAt": "2026-10-03T12:37:52.030734+00:00",
+  "device": "emulator-5580",
+  "kind": "native-siblings-candidate-incomplete-observation",
+  "bloom": "6.2.1 registry",
+  "resumeSource": "6cacee275ac59ed6715b3199cbf86bba69d12646",
+  "inputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-cold.xml",
+      "sha256": "7f0c1dcb67ae455318c7638dd8b1cc7560eb3e25a70a1ed7f00265df8ac20fe7",
+      "mtime": "2026-10-03T12:24:54.852208+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-open-dialog.xml",
+      "sha256": "393efe28f6000b72cbf660fb567f81971e819ff16c23bccab415fb20f2590921",
+      "mtime": "2026-10-03T12:25:59.181768+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-password-option-retry.xml",
+      "sha256": "057ec2fb47afb3ca36012e1b9799dc2ce81a992dc2516ad6fa490a53cc9bf66f",
+      "mtime": "2026-10-03T12:29:36.247275+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-password-field.xml",
+      "sha256": "057ec2fb47afb3ca36012e1b9799dc2ce81a992dc2516ad6fa490a53cc9bf66f",
+      "mtime": "2026-10-03T12:29:58.540906+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-password-option-touch2.xml",
+      "sha256": "0faf63ea67592f6b0105406316bd15439e9a0c6f2275464c3297b15b9c8c1842",
+      "mtime": "2026-10-03T12:30:45.241378+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-password-after-keyboard-dismiss.xml",
+      "sha256": "0faf63ea67592f6b0105406316bd15439e9a0c6f2275464c3297b15b9c8c1842",
+      "mtime": "2026-10-03T12:31:47.972774+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-password-after-tap-state.xml",
+      "sha256": "0faf63ea67592f6b0105406316bd15439e9a0c6f2275464c3297b15b9c8c1842",
+      "mtime": "2026-10-03T12:31:58.920999+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-tab-4.xml",
+      "sha256": "c9007bf003e470350a606f68837bd451fa7e09ff980de7dfa62948d5acefca85",
+      "mtime": "2026-10-03T12:32:29.795476+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-password-keyboard-selected.xml",
+      "sha256": "3f757536cb61ea048405d8778adef9b6d1c9eb592038b0d4b1607695c161496b",
+      "mtime": "2026-10-03T12:33:09.182926+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-password-submit-touch-correct.xml",
+      "sha256": "593888b1415f2c390189538c0aac21dddd3a5bcdb37c14921b23c1966e3f2df6",
+      "mtime": "2026-10-03T12:33:53.582462+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-password-after-submit.xml",
+      "sha256": "a77f6662e154f1eb71db7544d6f683718db1db763b5da1bc1d7527838bd71e11",
+      "mtime": "2026-10-03T12:34:06.083776+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-person-profile.xml",
+      "sha256": "abe4d945c3e3d704e3e9ae532121efc6a65aaee7182fc9b2d8dc78dd06927c6b",
+      "mtime": "2026-10-03T12:34:34.343920+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-allo-cold.xml",
+      "sha256": "a4c34f9d6805dc13eca9e12d449a01e2c4eb6d186b0e07baf217940088d51c03",
+      "mtime": "2026-10-03T12:34:48.154118+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-allo-cold-profile.xml",
+      "sha256": "13b1bb7edaaffbc1611e6ea3ba751a2ddd0dc653dc93254d49cc3db91aced717",
+      "mtime": "2026-10-03T12:35:28.131510+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-allo-old-session-signedout.xml",
+      "sha256": "66feca539db04ac8a256a54d5bb3083fbce8c730f55c86e59a6e72212f222b6c",
+      "mtime": "2026-10-03T12:36:16.746576+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-allo-after-old-session-cold.xml",
+      "sha256": "a4c34f9d6805dc13eca9e12d449a01e2c4eb6d186b0e07baf217940088d51c03",
+      "mtime": "2026-10-03T12:36:29.961129+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-resume-after-allo-old-signout.xml",
+      "sha256": "abe4d945c3e3d704e3e9ae532121efc6a65aaee7182fc9b2d8dc78dd06927c6b",
+      "mtime": "2026-10-03T12:36:43.269515+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-mention-current-profile.xml",
+      "sha256": "abe4d945c3e3d704e3e9ae532121efc6a65aaee7182fc9b2d8dc78dd06927c6b",
+      "mtime": "2026-10-03T12:37:09.704971+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/mention-current.png",
+      "sha256": "25ac5cfcdb5e2388698bf6c1f631c1525421d069f5a0d721a98f8c735bd4bfd7",
+      "mtime": "2026-10-03T12:30:55.252545+00:00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/native-auth-log-1238.txt",
+      "sha256": "a248c6130969bae11a8735d763a97ab46eed4885bd1b3b657be5abc93c357de7",
+      "mtime": "2026-10-03T12:35:28.227278+00:00"
+    }
+  ],
+  "findings": [
+    "Initial Mention restored owned synthetic Commons owner; signed out through SDK before password fixture test.",
+    "Identifier Continue touch advanced. Password option three taps at fresh UI bounds did not advance, including after Android Back keyboard dismissal. Tab/Enter on same focused button advanced immediately.",
+    "Root operational error: initial username fast typing reloaded developer runtime; slow typing did not. Root also typed synthetic password before checking failed Password selector and submitted invalid digits to code step; retained separately, not a runtime negative.",
+    "Actual password step reached by keyboard; verified Password selector then slow entry and Continue touch succeeded. Mention UI and fresh users.me returned fixture person.",
+    "Allo cold retained former Commons account, fresh users.me agreed. Allo signOut returned signedout, but force-stop/relaunch restored same Commons account again. Mention foreground/fresh users.me still person.",
+    "No manual SDK refresh used, no source/bundle/APK mutation, no identity key or storage deletion. AND02 not complete; comparing existing cross-app sessions/Commons fallback with source contract."
+  ],
+  "limits": [
+    "Touches tested with emulator developer build and existing Commons synthetic identity. Registry Oxy repeat pending.",
+    "No claim of organization switching/fallback in this run, no claim signout persistence or touch fixed."
+  ]
+}
