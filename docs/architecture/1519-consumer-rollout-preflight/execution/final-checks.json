@@ -49,7 +49,7 @@
     },
     {
       "repository": "OxyHQ/Alia",
-      "preparedHead": "4bd1ee83b84226d3b7bd5e87851dfd45561b4251",
+      "preparedHead": "b7aaf00495c55d542007109328bc891233b807d6",
       "worktree": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
       "commands": [
         {
@@ -182,7 +182,7 @@
     },
     {
       "repository": "OxyHQ/Mention",
-      "preparedHead": "3b84e28b80ed9db13d345fa8e580c67ce7cfb33d",
+      "preparedHead": "c90a52fbb8b84e9e5996d1c96d9f6ef7e940162a",
       "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
       "commands": [
         {
@@ -1141,7 +1141,7 @@
     },
     {
       "repository": "OxyHQ/CrowdSource",
-      "preparedHead": "0ede661fa5e4e79fc601e5a7a456f7f814e85e0d",
+      "preparedHead": "57e122d7a8419a58889870d07afe4373f0289e41",
       "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
       "commands": [
         {
@@ -1319,5 +1319,14 @@
       "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
       "status": "planned, not run against final registry"
     }
-  ]
+  ],
+  "resourceBounds": {
+    "installs": 2,
+    "frontendBuilds": 1,
+    "backendTypesOrBuilds": 2,
+    "runtimeSuites": 2,
+    "fullApiSuites": 1,
+    "perRepository": 1,
+    "rule": "Limits are maxima, not additive capacity: run at most three heavy jobs total. Pause new starts on memory pressure or disk shortage; preserve running task ownership."
+  }
 }

@@ -13,6 +13,18 @@ scripts already encode most shared-package ordering. Alia's API full run remains
 required for the composed I05/I10 changes. Required PR/main CI remains required;
 these local focals do not replace it.
 
+Start at most two installs, one frontend export, two backend type/build tasks,
+or two runtime suites, with at most three heavy jobs in total. Run only one full
+API suite at a time and one command per repository. These are maximums, not a
+requirement to fill capacity; stop starting work under memory or disk pressure.
+Retain each command's exit status and log, including interrupted executions.
+
+Mention's browser CI gate uses the live Mention API. Its 2026-10-03 run
+37156268676 was inconclusive with HTTP 503 while the fleet was deliberately held
+at count zero. Repeat that gate after the reviewed backend is restored. This
+dependency is separate from source/build checks and must not be relabeled as a
+candidate failure or bypassed to claim browser acceptance.
+
 A command marked `requiresOwnedPostgres` requires that repository's accepted
 harness and a disposable owned database, with retained teardown evidence. It is
 not permission to point TEST_DATABASE_URL at another fixture or production.

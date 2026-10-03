@@ -10,14 +10,14 @@
     },
     {
       "repository": "OxyHQ/Alia",
-      "head": "4bd1ee83b84226d3b7bd5e87851dfd45561b4251",
+      "head": "b7aaf00495c55d542007109328bc891233b807d6",
       "url": "https://github.com/OxyHQ/Alia/pull/663",
       "registryInstalled": false,
       "deployed": false
     },
     {
       "repository": "OxyHQ/Mention",
-      "head": "3b84e28b80ed9db13d345fa8e580c67ce7cfb33d",
+      "head": "c90a52fbb8b84e9e5996d1c96d9f6ef7e940162a",
       "url": "https://github.com/OxyHQ/Mention/pull/1309",
       "registryInstalled": false,
       "deployed": false
@@ -101,7 +101,7 @@
     },
     {
       "repository": "OxyHQ/CrowdSource",
-      "head": "0ede661fa5e4e79fc601e5a7a456f7f814e85e0d",
+      "head": "57e122d7a8419a58889870d07afe4373f0289e41",
       "url": "https://github.com/OxyHQ/CrowdSource/pull/220",
       "registryInstalled": false,
       "deployed": false

@@ -136,7 +136,7 @@
       "repository": "OxyHQ/Alia",
       "worktree": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
       "branch": "task/1519-alia-final-sdk-pins-20261003",
-      "preparedHead": "4bd1ee83b84226d3b7bd5e87851dfd45561b4251",
+      "preparedHead": "b7aaf00495c55d542007109328bc891233b807d6",
       "lot": 2,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -498,7 +498,7 @@
       "repository": "OxyHQ/Mention",
       "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
       "branch": "task/1519-mention-final-sdk-pins-20261003",
-      "preparedHead": "3b84e28b80ed9db13d345fa8e580c67ce7cfb33d",
+      "preparedHead": "c90a52fbb8b84e9e5996d1c96d9f6ef7e940162a",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -625,7 +625,7 @@
         },
         {
           "path": ".github/workflows/deploy-frontends.yml",
-          "sha256": "1e9561790f4a18c63ceb7cf50e2a4e91847bd447e5171ed6ff427fa2d80bc19d",
+          "sha256": "3eaea221082f2333220a45f989ac0b2caa45e01c7ad43f30ffe4adee9764fc05",
           "manualDispatch": true,
           "operatorCommand": [
             "gh",
@@ -3479,7 +3479,7 @@
       "repository": "OxyHQ/CrowdSource",
       "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "0ede661fa5e4e79fc601e5a7a456f7f814e85e0d",
+      "preparedHead": "57e122d7a8419a58889870d07afe4373f0289e41",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -3593,7 +3593,7 @@
         },
         {
           "path": ".github/workflows/deploy-frontends.yml",
-          "sha256": "ef9e3b33524674f0f5d5b6bec6c3e45db5576a304f3b7518de75c208d69ad362",
+          "sha256": "14981ed38461d2dbb53cc7f4e9c7c7272ecfeab2e089e7764bcb829d6404b64f",
           "manualDispatch": true,
           "operatorCommand": [
             "gh",
