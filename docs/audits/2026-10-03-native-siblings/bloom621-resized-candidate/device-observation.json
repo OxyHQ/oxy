@@ -1,0 +1,108 @@
+{
+  "recordedAt": "2026-10-03T11:41:07.506966+00:00",
+  "device": "emulator-5580 Oxy1519Root20261003",
+  "package": "so.oxy.acceptance1519",
+  "bloomSource": "16a98eca8c62136af8f49ccce76c34f5def892a0",
+  "fixture": "34977ff26",
+  "bundleSha256": "7ce6a218ca935276a659584a647c492e0b5e8548f89d2707becebc74d36768f2",
+  "inputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-back-veto.xml",
+      "bytes": 20261,
+      "sha256": "f4bb85b8577a5b6ff0fd5eb7fd9aef16d950b72a7c24aad97e4b5d878de3fb12"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-bloom-click.xml",
+      "bytes": 22903,
+      "sha256": "e497a1cde38b57e84e0dac73d5b4238b419925ff8a9443bf247b10ada48277b7"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-closed.xml",
+      "bytes": 7082,
+      "sha256": "7949784046a0741316bcb9997497a09c5c230decbc5aea8ec834e92b5550f2f1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-counters.xml",
+      "bytes": 22903,
+      "sha256": "575d1ba4ca6e42e130b82e018bf26294f0a68bbf7aabc1867b9c835deed8ea01"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-disable-morph.xml",
+      "bytes": 7082,
+      "sha256": "e8d38716201ec8eea615795b83770216efed3eb212055e3933b6ae308089be25"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-native-click.xml",
+      "bytes": 22903,
+      "sha256": "34694c9c53232b50ab82befe19c72a54d79a4d9e92589cf14437fc48c392bbb4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-nomorph-open.xml",
+      "bytes": 7084,
+      "sha256": "5e89278af2eec2ad5713a5f725e5a6d88a74960c264b942612eda69cee23fcfe"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-nomorph-result.xml",
+      "bytes": 22904,
+      "sha256": "26731aa09b756eb7585f450f0ad1d1f10c7b376a3224060c80d56eaf845d5f14"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-nomorph-short.xml",
+      "bytes": 20262,
+      "sha256": "2baa1c52379daa29c1e55e761c812af789ed5c7cbe1a9c1b0ce780cae1fe974e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-open-click.xml",
+      "bytes": 7082,
+      "sha256": "02bb5f179364f36cdf746d5289a9363d80a60426234d3ccd85d6c5263b3201ba"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-open.xml",
+      "bytes": 7082,
+      "sha256": "02bb5f179364f36cdf746d5289a9363d80a60426234d3ccd85d6c5263b3201ba"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-reopened.xml",
+      "bytes": 20261,
+      "sha256": "f4bb85b8577a5b6ff0fd5eb7fd9aef16d950b72a7c24aad97e4b5d878de3fb12"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-short.xml",
+      "bytes": 20261,
+      "sha256": "f4bb85b8577a5b6ff0fd5eb7fd9aef16d950b72a7c24aad97e4b5d878de3fb12"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/ui-resized-tall.xml",
+      "bytes": 22903,
+      "sha256": "34694c9c53232b50ab82befe19c72a54d79a4d9e92589cf14437fc48c392bbb4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/resized-tall.png",
+      "bytes": 160711,
+      "sha256": "b10b189c14162a23a823f7a367bc1aca5ec3254bfb87aaeff49b294577d5731a"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/resized-nomorph.png",
+      "bytes": 161983,
+      "sha256": "b1df5b450c4b1bc5b548e6f19e88b065f5dca74067c30cd7e938716687d769b9"
+    }
+  ],
+  "results": {
+    "initialMarker": "6.2.1 resize candidate closed:0",
+    "backVeto": "PASS remains step0",
+    "growMorphEnabled": "PASS full painted height345\u2192790dp; prior abrupt cutoff absent",
+    "nativeCounter": "PASS1",
+    "bloomCounter": "PASS1",
+    "explicitClose": "PASS closed1",
+    "reopen": "PASS step0 countersreset",
+    "secondClose": "PASS closed2",
+    "growMorphDisabled": "PASS full painted height345\u2192790dp"
+  },
+  "limits": [
+    "Diagnostic Dialog fixture without OxyProvider/auth/network; does not certify original sign-in keyboard touch flow.",
+    "Surface material remains uniformly translucent; observation concerns full backing geometry, not opacity redesign.",
+    "Physical Pixel untouched; no reinstall, data clear or key changes.",
+    "App force-stopped after final screenshot; Metro unchanged.",
+    "CI shard4 adoption-matrix doc freshness remains pending; native verification does not replace CI."
+  ]
+}

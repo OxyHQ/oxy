@@ -75,6 +75,17 @@
     }
   ],
   "checks": "20,940files identical in both resolvers; TS/lintPASS, MetroHTTP200; EXPO_NO_DOTENV=1",
-  "device": "PENDING root ADB only",
-  "scope": "Same diagnostic APK/package, no auth/network; earlier paint failure remains in prior proof"
+  "device": "Root-operated emulator5580: lifecycle and full-height paint PASS with morph enabled/disabled; see device-observation.json",
+  "scope": "Same diagnostic APK/package, no auth/network; earlier paint failure remains in prior proof",
+  "deviceReceipt": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-touch-1056/resized-observation.json",
+    "sha256": "8c4e8c83265c14f7534a782bf4ae78643b30bd6005c0041801740b8319a2b390",
+    "bytes": 4937
+  },
+  "deviceInputsIndependentlyVerified": 16,
+  "limits": [
+    "Diagnostic fixture, not original auth keyboard touch acceptance.",
+    "Uniform surface translucency remains; only cutoff corrected.",
+    "Candidate runtime16a98eca; current maintenance docs-only head2e5a5d9e requires fresh final release package."
+  ]
 }
