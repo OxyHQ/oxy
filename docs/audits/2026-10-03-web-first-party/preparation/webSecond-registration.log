@@ -1,0 +1,2 @@
+{"level":30,"time":1791026293271,"pid":3782832,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+{"registered":true,"lane":"webSecond","appId":"01a1017c-6a1e-7918-a8ed-537c61a108a4","clientId":"oxy_dk_d4d30d7c3ae93c3d0883862378eb25df516ee87da513a785","redirectUri":"http://127.0.0.1:17973/","trusted":true,"fixtureOnly":true}

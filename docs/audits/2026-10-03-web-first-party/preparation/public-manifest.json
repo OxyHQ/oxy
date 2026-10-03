@@ -1,0 +1,21 @@
+{
+  "fixtureOnly": true,
+  "origins": {
+    "api": "http://127.0.0.1:17960",
+    "idp": "http://127.0.0.1:17961"
+  },
+  "clients": {
+    "webFirst": {
+      "appId": "01a1017c-6979-79a4-9b53-96742e24bb5e",
+      "clientId": "oxy_dk_3bfeeca1a31235c47d04b89cf2d70649dd71235baffa5e7f",
+      "origin": "http://127.0.0.1:17972",
+      "redirectUri": "http://127.0.0.1:17972/"
+    },
+    "webSecond": {
+      "appId": "01a1017c-6a1e-7918-a8ed-537c61a108a4",
+      "clientId": "oxy_dk_d4d30d7c3ae93c3d0883862378eb25df516ee87da513a785",
+      "origin": "http://127.0.0.1:17973",
+      "redirectUri": "http://127.0.0.1:17973/"
+    }
+  }
+}
