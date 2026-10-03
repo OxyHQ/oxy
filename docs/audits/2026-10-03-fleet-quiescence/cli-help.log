@@ -1,0 +1,17 @@
+usage: fleet-quiescence.py [-h] --plan PLAN [--execute] [--observe]
+                           [--hold-api] [--attempt ATTEMPT] [--output OUTPUT]
+                           [--deployment-checkout DEPLOYMENT_CHECKOUT]
+                           [--deployment-source DEPLOYMENT_SOURCE]
+                           [--final-image FINAL_IMAGE]
+
+options:
+  -h, --help            show this help message and exit
+  --plan PLAN
+  --execute
+  --observe
+  --hold-api
+  --attempt ATTEMPT
+  --output OUTPUT
+  --deployment-checkout DEPLOYMENT_CHECKOUT
+  --deployment-source DEPLOYMENT_SOURCE
+  --final-image FINAL_IMAGE

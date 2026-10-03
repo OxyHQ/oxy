@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "kind": "external-fleet-quiescence-preparation",
+  "sourceHead": "898a8bbfaff75509ac1a03d869d0f7c4b6fa3116",
+  "capturedAt": "2026-10-03T19:54:57.129233+00:00",
+  "sourceInputs": [
+    {
+      "path": "scripts/operations/fleet-quiescence.py",
+      "sourceCommit": "898a8bbfaff75509ac1a03d869d0f7c4b6fa3116",
+      "sha256": "cdae19d45074c00a51fb2a35468aeacb45ca6004fc686278d8f7063f1ec11632"
+    },
+    {
+      "path": "scripts/operations/tests/test-fleet-quiescence.py",
+      "sourceCommit": "898a8bbfaff75509ac1a03d869d0f7c4b6fa3116",
+      "sha256": "44c598f0a02993727dee8694cd5a77cd8dff81285d713e67f680c403637a426b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-fleet-quiescence/README.md",
+      "sourceCommit": "898a8bbfaff75509ac1a03d869d0f7c4b6fa3116",
+      "sha256": "6c6c8fe96ebe53ad96b640de3de58e655711addad70f0b1b2e497f6d889ed9c3"
+    },
+    {
+      "path": ".github/scripts/guard-quiesced-deploy.mjs",
+      "sourceCommit": "8c8163755abddd1046ebea65b290634676759112",
+      "sha256": "83f0c0129e07cef65f433e2439a307ee683d447cb7533c2d0c2b0c51b760cc92",
+      "usage": "Reviewed external deployment checkout binding; source is not copied into helper tree"
+    },
+    {
+      "path": ".github/scripts/deploy-ecs-image.sh",
+      "sourceCommit": "8c8163755abddd1046ebea65b290634676759112",
+      "sha256": "c01562c7cda939d284b792889262430fe8762e6b51f557609d40ec86f732e1a9",
+      "usage": "Reviewed external deployment checkout binding; source is not copied into helper tree"
+    },
+    {
+      "path": ".github/scripts/deploy-quiesced-image.sh",
+      "sourceCommit": "8c8163755abddd1046ebea65b290634676759112",
+      "sha256": "ed41d4281583debb4b819f111f98482dc6662f930462eeb83bf9ba440219c301",
+      "usage": "Reviewed external deployment checkout binding; source is not copied into helper tree"
+    },
+    {
+      "path": ".github/scripts/deploy-asset-variant-worker.sh",
+      "sourceCommit": "8c8163755abddd1046ebea65b290634676759112",
+      "sha256": "3d2d86e1d8d4d26b969526dd377b92476af059438a5d65ee627d231356d8e525",
+      "usage": "Reviewed external deployment checkout binding; source is not copied into helper tree"
+    },
+    {
+      "path": ".github/workflows/deploy-aws.yml",
+      "sourceCommit": "8c8163755abddd1046ebea65b290634676759112",
+      "sha256": "0a1ca1132d65459be53a7e7d846a8dc19400d495173943474cd0f887e5556ca8",
+      "usage": "Reviewed external deployment checkout binding; source is not copied into helper tree"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-fleet-quiescence/offline-fixtures.log",
+      "command": [
+        "python3",
+        "-B",
+        "scripts/operations/tests/test-fleet-quiescence.py"
+      ],
+      "exitCode": 0,
+      "bytes": 3137,
+      "sha256": "c22930decae19032a2a8711440b0e0882de6009f8b0c438cad1e821461e0a1f8"
+    },
+    {
+      "path": "docs/audits/2026-10-03-fleet-quiescence/cli-help.log",
+      "command": [
+        "python3",
+        "-B",
+        "scripts/operations/fleet-quiescence.py",
+        "--help"
+      ],
+      "exitCode": 0,
+      "bytes": 606,
+      "sha256": "90083636feae36b72dde79ca50fff8ada15c332928526cb6cccc14fcfaba8513"
+    }
+  ],
+  "privateContextInputs": [
+    {
+      "privatePath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-cutover-preparation-1840.json",
+      "sha256": "da88a8954d28d7bfdd65a83d5c0b8499190001d507a21866727ce2b22c9ecf9c",
+      "bytes": 28708,
+      "scope": "Historical root metadata context only; not a fresh write plan"
+    },
+    {
+      "privatePath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-operation-snapshot-1758/snapshot.json",
+      "sha256": "72a54a3eb1bdebb2f26ae6fff30b37b985742e22bd3cec404e17b0fc475d8f9e",
+      "bytes": 47616,
+      "scope": "Historical root metadata context only; not a fresh write plan"
+    },
+    {
+      "privatePath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/auth-only-recovery-task-preparation/registered-receipt.json",
+      "sha256": "b0d852079e89a77bc2d49627e4eca4b01e9d18079f4344a504f98f48e91ab168",
+      "bytes": 913,
+      "scope": "Historical root metadata context only; not a fresh write plan"
+    }
+  ],
+  "result": {
+    "offlineTests": 24,
+    "cliHelpExit": 0,
+    "serviceScope": 33,
+    "quiescenceScope": 25,
+    "realAwsReads": 0,
+    "realAwsWrites": 0,
+    "databaseMutations": 0,
+    "productFilesChanged": false,
+    "deploymentImageChanged": false
+  },
+  "limits": [
+    "Synthetic AWS protocol fixtures plus actual file intents/fsync and imported exact pure Node guard.",
+    "No live fleet capture, quiescence, rollout, recovery, scaler restoration or IAM permission proof.",
+    "Root must review fresh exact plan/final image; no automatic retry/restoration after unknown ACK.",
+    "Hold permits baseline or only hash-pinned canonical deployment configuration delta; no old bootstrap recovery is launched."
+  ]
+}
