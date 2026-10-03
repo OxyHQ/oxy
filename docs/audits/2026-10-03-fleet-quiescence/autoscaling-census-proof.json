@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "kind": "fleet-autoscaling-census-correction",
+  "sourceHead": "697edf0fc5ca4e435b6da91dd34c33551dd848f2",
+  "sourceInputs": [
+    {
+      "path": "scripts/operations/fleet-quiescence.py",
+      "sourceCommit": "697edf0fc5ca4e435b6da91dd34c33551dd848f2",
+      "sha256": "4a4c6e85d8aa26c61938c49430063b04e07cb5bf7a72554366a7324080092025"
+    },
+    {
+      "path": "scripts/operations/tests/test-fleet-quiescence.py",
+      "sourceCommit": "697edf0fc5ca4e435b6da91dd34c33551dd848f2",
+      "sha256": "0dad471be41678314346596683c04ffe281bc2969c80504a941338dee0056868"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-fleet-quiescence/autoscaling-census-fixtures.log",
+      "command": [
+        "python3",
+        "-B",
+        "scripts/operations/tests/test-fleet-quiescence.py"
+      ],
+      "exitCode": 0,
+      "bytes": 3292,
+      "sha256": "7c5cb2074129cfc6a4211a003b3eb21c99e03964e02dcf216ab1fec9180ced28"
+    }
+  ],
+  "priorRealReadFailure": {
+    "privatePath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-readonly-helper-rehearsal-1958/failure.json",
+    "sha256": "91eebbd6483273cabad3b290131cbda7e5515b064a515089670e7149b581d4b5",
+    "cause": "AWS rejects scalable-dimension on namespace-wide requests without resource IDs. Both read requests corrected; matching cluster rows require exact namespace/dimension."
+  },
+  "result": {
+    "offlineTests": 25,
+    "thisAgentAwsReads": 0,
+    "thisAgentAwsWrites": 0,
+    "productChanges": false
+  },
+  "limits": [
+    "Root prior readonly capture failed before writes; this evidence preserves that failure rather than attributing a live PASS.",
+    "Root must repeat readonly capture against actual AWS responses; no quiescence or promotion performed."
+  ]
+}
