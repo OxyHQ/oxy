@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "fed6a103e8810cbd227e5b07fc90723d5e5e9e24",
+  "sourceCommit": "dc000d8d6db9d26bcb2ad19a53fbb436b86c7b1c",
   "sources": [
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/README.md",
@@ -7,7 +7,7 @@
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/goway-rollback.sql",
-      "sha256": "453845148509db487b87f73f863138b0621041d298e8f36bc70cc1ee175517d8"
+      "sha256": "b59459acfb8842842dd3f3a7526ce6ef4b8ca288404235d64ea1b416965f7755"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/public-client-query.sql",
@@ -92,7 +92,8 @@
     "registryAndPlannerTests": 66,
     "rollbackSqlTests": 4,
     "scopedEslintExit": 0,
-    "postgres": "owned local 127.0.0.1:5593; databases dropped; cluster stopped"
+    "postgres": "owned local 127.0.0.1:5593; databases dropped; cluster stopped",
+    "commentOnlyFollowup": "Corrected SQL comment after executed test; statements unchanged."
   },
   "liveEffects": {
     "GoWay": "none",
