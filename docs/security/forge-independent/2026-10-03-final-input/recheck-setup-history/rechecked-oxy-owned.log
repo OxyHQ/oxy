@@ -1,0 +1,48 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default database encoding has accordingly been set to "SQL_ASCII".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/.agent-evidence/coverage-final-freeze-20261003/final-proof-temp/oxy-forge-final-pg-jd0a509x/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/coverage-final-freeze-20261003/final-proof-temp/oxy-forge-final-pg-jd0a509x/data -l logfile start
+
+
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/scripts/rehearsal/test-forge-final-input-1519.py", line 106, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/scripts/rehearsal/test-forge-final-input-1519.py", line 43, in main
+    print(run([PG / 'pg_ctl', '-D', data, '-l', owned / 'server.log', '-w',
+          ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+               '-o', f'-h 127.0.0.1 -p {PORT} -k {owned}', 'start']))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/scripts/rehearsal/test-forge-final-input-1519.py", line 28, in run
+    return subprocess.check_output([str(x) for x in args], env=clean_env(),
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                   text=True, stderr=subprocess.STDOUT, **kwargs)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 472, in check_output
+    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+               **kwargs).stdout
+               ^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['/usr/lib/postgresql/17/bin/pg_ctl', '-D', '/home/nate/Oxy/.agent-evidence/coverage-final-freeze-20261003/final-proof-temp/oxy-forge-final-pg-jd0a509x/data', '-l', '/home/nate/Oxy/.agent-evidence/coverage-final-freeze-20261003/final-proof-temp/oxy-forge-final-pg-jd0a509x/server.log', '-w', '-o', '-h 127.0.0.1 -p 5578 -k /home/nate/Oxy/.agent-evidence/coverage-final-freeze-20261003/final-proof-temp/oxy-forge-final-pg-jd0a509x', 'start']' returned non-zero exit status 1.

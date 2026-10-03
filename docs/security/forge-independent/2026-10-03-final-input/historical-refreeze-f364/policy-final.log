@@ -7,7 +7,7 @@ Historical independent inputs: 43 assertions passed; clean squash clone lacks hi
 13 isolated real-collector clock/layout assertions pass; stale-clock mutation accepts expired facts and corrected collector rejects. No live API, authority or publication.
 .............
 ----------------------------------------------------------------------
-Ran 13 tests in 0.019s
+Ran 13 tests in 0.022s
 
 OK
 Forge audit policy: 144 structural and isolated policy assertions passed; no live or human authorization claimed.
