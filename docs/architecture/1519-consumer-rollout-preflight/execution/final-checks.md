@@ -1,7 +1,7 @@
 # Final installed-consumer checks
 
 `final-checks.json` is a prepared command list, not execution evidence. It binds
-17 worktrees/heads to 99 existing package-script invocations (or Willo's locally
+18 worktrees/heads to 107 existing package-script invocations (or Willo's locally
 installed Expo export, because it has no export script). Each script and every
 explicit test path was checked against the worktree. Execute only after root's
 registry-ready signal and the registry runner's installed-byte verification.
@@ -47,3 +47,5 @@ artifacts and verifies exact digest/config/count. The frontend manual templates
 require current-main CI. ECS restoration uses rollback=false and exact new TD
 plus captured count; a failure returns to hold0, not an old strict-incompatible
 receiver. Worker process readiness does not establish delegated authorization.
+
+Move adds its owned-PG receiver/pipeline harness, frontend tests and typechecks, backend build, frontend export and workflow gates. Its frontend export is a remaining final-registry check; the candidate amendment only passed tests/types.

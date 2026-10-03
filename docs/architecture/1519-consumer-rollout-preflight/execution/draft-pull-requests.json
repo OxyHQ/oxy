@@ -119,6 +119,13 @@
       "url": "https://github.com/OxyHQ/Syra/pull/182",
       "registryInstalled": false,
       "deployed": false
+    },
+    {
+      "repository": "OxyHQ/Move",
+      "head": "81c2eae49d41a18504bfd2161235a1de2bd0f32c",
+      "url": "https://github.com/OxyHQ/Move/pull/10",
+      "registryInstalled": false,
+      "deployed": false
     }
   ]
 }

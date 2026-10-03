@@ -2565,7 +2565,8 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "No activation in this consumer restoration: DNS is a telemetry caller, excluded by root fleet classification.",
+          "deploymentScope": "inventory_only_excluded_from_this_restoration"
         }
       ],
       "mergeSequenceTemplates": [
@@ -3926,6 +3927,240 @@
         "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
         "noRollout": true
       }
+    },
+    {
+      "repository": "OxyHQ/Move",
+      "worktree": "/home/nate/Oxy/Move/.worktrees/1519-strict-receiver-20261004",
+      "branch": "task/1519-move-strict-receiver-20261004",
+      "preparedHead": "81c2eae49d41a18504bfd2161235a1de2bd0f32c",
+      "lot": 1,
+      "bloom": "6.2.1",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Move.patch",
+        "sha256": "f5cd8524c5cb2e50e6b387d81a2e5174d35f4394d4f64b696d333a5aac959179",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "d146adf0bc847b50a41d11595e02c24fe8cf4a7d984cc73ffbee12af87a1b227",
+            "after": "e96b7c1ce7c21c48cd69161f49ccdd353eb297d313675557a82772fc4eafc324"
+          },
+          {
+            "path": "packages/backend/package.json",
+            "before": "45be72228495b9b86bb05860c7add8ac48761594b281e9764952c4b11eba114d",
+            "after": "07af8736d2243826716e081edc141da22dd84e3be40f3c23fd79a46ae1179025"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "f23409adde3bbb713c136c9b7f40c638cacc602da2216e05bbd40868cfb465e3",
+            "after": "6b236df4655e74dd135ced8bb50e796290cc75141ce87ac3c39ca3e7d53e52ee"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Move.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Move.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@move/shared-types",
+          "cwd": "/home/nate/Oxy/Move/.worktrees/1519-strict-receiver-20261004/packages/shared-types",
+          "scripts": {
+            "build": "tsc -p tsconfig.json",
+            "clean": "rm -rf dist"
+          }
+        },
+        {
+          "package": "@move/backend",
+          "cwd": "/home/nate/Oxy/Move/.worktrees/1519-strict-receiver-20261004/packages/backend",
+          "scripts": {
+            "dev": "bun --watch server.ts",
+            "build": "tsc -p tsconfig.json",
+            "start": "bun dist/server.js",
+            "db:generate": "drizzle-kit generate",
+            "db:migrate": "bun run src/db/migrate.ts",
+            "typecheck": "tsc -p tsconfig.typecheck.json",
+            "test": "NODE_ENV=test bun test"
+          }
+        },
+        {
+          "package": "@move/frontend",
+          "cwd": "/home/nate/Oxy/Move/.worktrees/1519-strict-receiver-20261004/packages/frontend",
+          "scripts": {
+            "start": "expo start",
+            "android": "expo start --android",
+            "ios": "expo start --ios",
+            "web": "expo start --web",
+            "export:web": "expo export --platform web --clear",
+            "prebuild": "expo prebuild",
+            "lint": "expo lint",
+            "typecheck": "bun ../../scripts/generate-router-types.mjs && tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+            "test": "bun test __tests__"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "9e4c1c0eaf669c2a01aff8ade8a3afeb8f34b243c5bc18aeb807e2253c6a7b79",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-aws.yml",
+            "--repo",
+            "OxyHQ/Move",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "combined_image_and_live_deploy_do_not_dispatch_blindly_at_zero"
+        },
+        {
+          "path": ".github/workflows/deploy-frontends.yml",
+          "sha256": "07ea80c00aa2f87ffdc1ce40118e6f10a730b01900d101345ff56013d05e24f1",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-frontends.yml",
+            "--repo",
+            "OxyHQ/Move",
+            "--ref",
+            "main",
+            "-f",
+            "expected_sha=<reviewed-current-main>",
+            "-f",
+            "ci_run_id=<exact-successful-push-CI-run>"
+          ],
+          "requiredInputNames": [
+            "expected_sha",
+            "ci_run_id"
+          ],
+          "role": "frontend_after_matching_backend"
+        },
+        {
+          "path": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "32e6abf92b93c7b8bd74be17e23840da1965f364daf38404f1a641990b6bffeb",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "publish-reviewed-images.yml",
+            "--repo",
+            "OxyHQ/Move",
+            "--ref",
+            "main",
+            "-f",
+            "expected_source_sha=<reviewed-current-main>"
+          ],
+          "requiredInputNames": [
+            "expected_source_sha"
+          ],
+          "role": "image_only_publisher"
+        }
+      ],
+      "pausedDeploymentSemantics": "root only: new digest + captured count with rollback:false; old Move receiver forbidden",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [
+        {
+          "service": "move",
+          "ecrRepository": "oxy/move",
+          "context": "fresh clean checkout of reviewed merged SHA",
+          "dockerfile": "packages/backend/Dockerfile",
+          "dockerfileSha256": "0dd64c236688e07404fd3a2a4e5d76a7a7ca37ffd1cbdf55a120c12c62c40004",
+          "target": null,
+          "commandTemplate": [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--provenance=false",
+            "--label",
+            "org.opencontainers.image.revision=<merged-full-SHA>",
+            "--label",
+            "org.opencontainers.image.source=https://github.com/OxyHQ/Move",
+            "--file",
+            "packages/backend/Dockerfile",
+            "--tag",
+            "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/move:<merged-full-SHA>",
+            "--metadata-file",
+            "<private-evidence>/move-image.json",
+            "--push",
+            "."
+          ],
+          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+        }
+      ],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Move",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Move",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Move/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "Move source/proof and existing-role operational review required before dispatch",
+        "sourceCommit": "fbe081ad2209b55dc21498ad835ffa7e21589d4f",
+        "noRollout": true
+      },
+      "operationNotes": [
+        "Root sets OXY_1519_ROLLOUT_HOLD=true and holds deployment workflows before merge.",
+        "Manual frontend requires exact current-main and push-CI proof both before build and effect; held until root releases after backend readiness.",
+        "No grant/resume inferred: destination refusal preserves terminal failed jobs and intent.",
+        "Candidate amendment reviewed separately; final public registry, local checks, CI and image/runtime receipts remain pending."
+      ]
     }
   ],
   "imageBuildLimit": "Recipes are prepared, never executed. Root chooses existing reviewed publisher or equivalent image-only operator build; no combined workflow is assumed safe while paused. Never move latest. Exact CI/source/registry/runtime descriptor checks precede activation."

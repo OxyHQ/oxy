@@ -1318,6 +1318,98 @@
       ],
       "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
       "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Move",
+      "preparedHead": "81c2eae49d41a18504bfd2161235a1de2bd0f32c",
+      "worktree": "/home/nate/Oxy/Move/.worktrees/1519-strict-receiver-20261004",
+      "commands": [
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:shared-types"
+          ],
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "python3",
+            "scripts/test-strict-receiver-pg.py"
+          ],
+          "phase": "test",
+          "requiresOwnedPostgres": true
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "test"
+          ],
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "validate:gates"
+          ],
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [
+        "Owned PG port5613; preserved denied migration intent is not an automatic resume.",
+        "Final frontend export is required; candidate types/tests did not include a new export."
+      ],
+      "requiredRemoteCheck": "All required PR and exact merged-main CI; root-only image and promotion.",
+      "status": "planned, not run against final registry"
     }
   ],
   "resourceBounds": {

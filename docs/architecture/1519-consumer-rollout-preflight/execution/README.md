@@ -1,6 +1,6 @@
 # Final adoption and operational batches
 
-Prepared only. Root owns live operations, merges, workflow state and image promotion. No service had been paused when this plan was prepared. The acceptance inventory now has 18 consumers: `additional-consumers.json` records Move’s newly required strict-receiver repair and its pending frontend peer amendment. Until that amendment is accepted, the registry runner retains the previous 17 exact rows. `lots.json` fixes those 17 worktrees/heads, exact manifest patches (all `git apply --check` passed), package scripts, workflow hashes and 21 image/service recipes. `fleet-handoff.json` preserves the 33-service classification snapshot; it is not a fresh desired-count receipt. `internal-consumers.json` identifies Console, accounts, Commons and the Expo example in the Oxy workspace. Native Metros17967/17968 remain frozen.
+Prepared only. Root owns live operations, merges, workflow state and image promotion. `lots.json` now fixes 18 worktrees/heads and exact manifest patches; all fresh main/HEAD/input/git-apply preflights passed. The 22 image/service recipes include 21 promotion targets plus the preserved TNP DNS inventory-only recipe, which is excluded from this restoration. `additional-consumers.json` preserves the reason Move became necessary: its old core receiver accepted a service/user-header request without a grant. Its candidate frontend amendment is included; no old Move image restoration is authorized. `fleet-handoff.json` is historical classification, not a fresh desired-count receipt. `internal-consumers.json` identifies Console, accounts, Commons and the Expo example. Native Metros 17967/17968 remain frozen.
 
 ## Registry → source → image, prepared before maintenance
 
@@ -30,7 +30,7 @@ Root supplies exact live ARNs/counts/new TD IDs at execution, from authenticated
 | Batch | Members and order | Ready boundary / remaining gate |
 | --- | --- | --- |
 | 0 | Oxy issuer + asset worker under existing maintenance/watch plan; registry publication | Final CI/image/root receipts; no old-bootstrap automatic rollback. Console/accounts can ship from the same workspace source after issuer readiness. Commons/Expo require registry/native acceptance separately; do not equate web export with Android runtime. |
-| 1 | Mention backend + MCP, Allo, Noted, Homiio API/worker, CrowdSource, Syra, Willo, Moovo, Nilo, TNP API, website API | Prepared source compatibility; final registry locks/CI/images and precise receiver/protocol smoke. Mention catalog authority/pilot remains independently gated. Nilo public client variable already verified. Syra notification denial predates strict and does not hold the rest of Syra. |
+| 1 | Mention backend + MCP, Allo, Move, Noted, Homiio API/worker, CrowdSource, Syra, Willo, Moovo, Nilo, TNP API, website API | Prepared source compatibility; final registry locks/CI/images and precise receiver/protocol smoke. Mention catalog authority/pilot remains independently gated. Nilo public client variable already verified. Syra notification denial predates strict and does not hold the rest of Syra. |
 | 2 | Alia after Mention's required receiver; Mercaria and Peable; Clarity frontend/foreground separately from worker | Alia recognized-result/retirement P2 fixed locally in#663, registry CI pending. Mercaria1043+1044 source composed; Peable SDK0.2.2 already installed/verified. Billing cohort remains absent. Clarity service+user-header calls lack offline grant; no implicit consent. |
 | 3 | GoWay after exact canonical seed/public-client readback | Source seed/rollback already reviewed, but app absent in last fresh authority inventory. Final image seed dry-run, canonical owner/absence/CAS checks, selected app-only apply, unique public credential metadata and GitHub public variable remain operations. No new user grants. |
 | Frontends | Per-repository frontend workflows listed in `lots.json`, after matching backend/protocol is ready | Public client IDs must resolve to their registered app/redirects. Do not deploy a broken client while its backend is held. Publish only the reviewed source; preserve existing demos and product surfaces. |
@@ -67,7 +67,7 @@ This separates software readiness from the remaining exact config/namespace oper
 reviewed package patches. `--repository OxyHQ/name` can repeat to select a lot.
 Without `--execute`, it validates local HEAD/branch, exact before-manifest and
 patch hashes, and `git apply --check`; it makes no registry request or consumer
-change. All 17 prepared worktrees passed this preflight.
+change. The historical 17 and the added Move worktree passed fresh preflight separately; execution repeats all checks.
 
 At the root's registry-ready signal, `--execute` additionally reads authenticated
 Git remote main ancestry through each configured origin, fetches its exact object

@@ -1,18 +1,18 @@
 {
   "consumerCount": 18,
-  "runnerRowsReadyForRegistryGate": 17,
+  "runnerRowsReadyForRegistryGate": 18,
   "pending": [
     {
       "repository": "OxyHQ/Move",
       "worktree": "/home/nate/Oxy/Move/.worktrees/1519-strict-receiver-20261004",
       "branch": "task/1519-move-strict-receiver-20261004",
-      "preparedHead": "d9afca478b25d8ff7df3f28403ab981292f5bf84",
+      "preparedHead": "81c2eae49d41a18504bfd2161235a1de2bd0f32c",
       "sourceCommit": "fbe081ad2209b55dc21498ad835ffa7e21589d4f",
       "proofCommit": "4bf3967",
       "requirement": "Exact live core4 receiver accepts strict-format internal service JWT plus user header without grant. Final core4.2 is required before restoration. No unchanged old image restoration.",
       "patchInput": {
         "path": "/home/nate/Oxy/Move/.worktrees/1519-strict-receiver-20261004/docs/audits/2026-10-04-move-strict/manifest-patch.json",
-        "sha256": "c035ca0d87ed02f3036fd46efb3572c1a3220bf31659c41b1ad1ca299a08aab9"
+        "sha256": "12d6a4544ccda8ce1a29be4777abb13f217931a0ac4cdca0028164509a46d976"
       },
       "imagePublisher": {
         "repository": "OxyHQ/Move",
@@ -45,7 +45,7 @@
         "--phase=post"
       ],
       "smoke": "/ready plus exact new image/count and HTTP/socket authority denial. Queue startup is not evidence of a grant; failed denied jobs retain intent but have no resume.",
-      "remaining": "Integration is validating Services11.1 + corrected Bloom line in the unapplied patch. Promote this row into lots only after that source/proof amendment; do not install historical peer-conflicting frontend patch.",
+      "remaining": "Frontend candidate amendment complete; included in lots with exact reviewed structured-patch output hashes. Final root review/registry/CI/image/runtime remain pending.",
       "registryInstalled": false,
       "merged": false,
       "deployed": false

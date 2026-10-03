@@ -3,7 +3,7 @@
   "sources": [
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
-      "sha256": "b3b7a573e313bc34cf2be4ad391eaee6ac4d5bc647f99d260a1cb1a730245c0a"
+      "sha256": "c6cbf43482bd5f17574226af745b65d658fdd191e82d5416cc7529774dd1708d"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/publisher-composition.json",
@@ -15,15 +15,15 @@
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-checks.json",
-      "sha256": "f087b18328510d48d6b6673c7714a9c8c111d476852f74788dd3991fd8f00d7f"
+      "sha256": "5e20f847887197ce7d071835bfa7b74aec6f87742b387214d88cb667709a05fb"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-checks.md",
-      "sha256": "255e6b8c48efda5306cd956bf648894eabfc7142d16fa6e7edaa0ff83e4af4fb"
+      "sha256": "17fce3d8eb7cb9c6a95c6ac0d50d1d368f3459a1eb9fcb5fe99911fdb67c28b7"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/draft-pull-requests.json",
-      "sha256": "e3c162d086a0bb4f50aee8583f358952198c21c522c929abdb44f1791b371f93"
+      "sha256": "b5375dcadc39c94a879b967b72f9ffa98e205eddd75b37f342d7fe9c95fdb55d"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/post-workflow-preflight.json",
@@ -35,24 +35,32 @@
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/additional-consumers.json",
-      "sha256": "562c6dd529d54628457d7157deea87fb5d7c09323309b410ee981b3bd14c8419"
+      "sha256": "181125ef7fc226df3a803fbba5290b452fe652ce1b08e91d76455f89664530c4"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/README.md",
-      "sha256": "87c9bcb3fca8df9765c941cc2b367b4544fe7f532dd609888012807573f57be7"
+      "sha256": "b0bef879aad83dea2a312bcc355b36559cbd6ccba448e888e2057276d6e82f73"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/baseline-patches/proof.json",
       "sha256": "784c33254aa32c5bb70600655125028a5e58546f0766821063da08daf52261ae"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Move.patch",
+      "sha256": "f5cd8524c5cb2e50e6b387d81a2e5174d35f4394d4f64b696d333a5aac959179"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/move-preflight.json",
+      "sha256": "6f52e22c29710ec7044d706ef5a711ba13d3bb835c34fa90a6330b069ebf0f5d"
     }
   ],
   "checks": {
-    "repositories": 17,
+    "repositories": 18,
     "publisherFiles": 51,
     "frontendFiles": 12,
-    "plannedCommands": 99,
+    "plannedCommands": 107,
     "acceptanceConsumers": 18,
-    "pendingMovePeerAmendment": 1
+    "pendingMovePeerAmendment": 0
   },
-  "note": "Historical all-17 main preflight preserved. Current source heads include reviewed inactive Crowd correction and Mercaria census fix. Move is the required eighteenth consumer, pending its corrected frontend peer patch before runner inclusion. No registry install."
+  "note": "18 prepared rows: historical 17 plus Move amendment with exact structured-patch after-hashes. Fresh main/HEAD/input/git-apply checks passed; no registry install. 21 operational service recipes plus one excluded DNS inventory recipe."
 }
