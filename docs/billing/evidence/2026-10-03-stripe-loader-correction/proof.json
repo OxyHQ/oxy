@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "4756fc367525e71f274091385c7f602e5a18828d",
+  "sourceSha256": {
+    "packages/api/scripts/stripe-billing-sandbox-rehearsal.ts": "5b3e324d030cf5365aed69b14519f5856395c45b80aec5430712cefd4c2aaeeb",
+    "scripts/billing/stripe-oxy-sandbox.py": "30f0a4c247a1bcda100413e08a2e9165ce0231d243792b2cbd2a608637c58646",
+    "scripts/billing/test-stripe-oxy-sandbox.py": "70367c88d4750e4f72f79480e82a4a292007b5b459d46b3274779fb9b404fd11",
+    "docs/billing/stripe-sandbox-rehearsal.md": "29a234bf406ba0e596c140686aab9926b92df9c9fadd5fc7d6a8b3967dae84e0"
+  },
+  "records": {
+    "docs/billing/evidence/2026-10-03-stripe-loader-correction/first-attempt-summary.json": {
+      "sha256": "f5b00b22e366f7a083352959424dda23bb208047365f568d9654621c18002e49",
+      "bytes": 1893,
+      "exitCode": null
+    },
+    "docs/billing/evidence/2026-10-03-stripe-loader-correction/offline-tests.log": {
+      "sha256": "7e113b113e1db9866d5ea976b1b02d1c4310179a8a159221c60df97359a3552d",
+      "bytes": 912,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-loader-correction/router-bootstrap.log": {
+      "sha256": "5cb8bc1e314a819e9e87b4c7ce2d120ac94f0c310d02105abdecfeb66ed814b7",
+      "bytes": 63,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-loader-correction/scoped-biome.log": {
+      "sha256": "7d732a79fb196f6d1d40a5adaf0c281271e325e8d3169bcf1dc370e21636d6b9",
+      "bytes": 41,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-loader-correction/scripts-typecheck.log": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31,
+      "exitCode": 0
+    }
+  },
+  "commands": [
+    "PYTHONDONTWRITEBYTECODE=1 python3 scripts/billing/test-stripe-oxy-sandbox.py",
+    "cd packages/api && bun run typecheck:scripts",
+    "bunx @biomejs/biome@1.9.4 lint --error-on-warnings packages/api/scripts/stripe-billing-sandbox-rehearsal.ts"
+  ],
+  "acceptance": {
+    "offlineTests": 7,
+    "sameRuntimeLoaderExecuted": true,
+    "scriptsTypecheckExit": 0,
+    "scopedBiomeDiagnostics": 0,
+    "providerRequestsDuringCorrection": 0,
+    "keyReadDuringCorrection": false,
+    "realStripeBillingAcceptance": false
+  },
+  "limits": [
+    "First attempt failed before subscriptions or billing assertions; successful cleanup is not billing acceptance.",
+    "The first-attempt private records are retained without exposing financial object IDs or secrets.",
+    "Corrected runtime remains unexecuted against Stripe until a new frozen plan is technically reviewed.",
+    "Same-loader regression measures Bun source loading, not a published package consumer."
+  ]
+}
