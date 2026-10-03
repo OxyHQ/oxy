@@ -43,7 +43,7 @@ function Probe() {
   const [closed, setClosed] = useState(0);
   return <SafeAreaView style={{ flex: 1, padding: 24, gap: 18 }}>
     <Text style={{ fontSize: 24 }}>Isolated native touch diagnostic</Text>
-    <Text>installed-bloom:6.2.1 candidate closed:{closed}</Text>
+    <Text>installed-bloom:6.2.1 resize candidate closed:{closed}</Text>
     <Text>No auth provider or network operations.</Text>
     <Button title={`Morph ${morph ? 'enabled' : 'disabled'} (diagnostic)`} onPress={() => setMorph(!morph)} />
     <Button title="Open probe dialog" onPress={() => control.open()} />
