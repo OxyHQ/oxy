@@ -1,0 +1,28 @@
+{
+  "sourceHead": "12d8cbb866641bb4c321089c652209f533373179",
+  "sourceSha256": {
+    "packages/api/src/routes/billing.ts": "7c0b648ff426a15547cd983be1f9a1b3558eccba83da221db6e87877e06298cc",
+    "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts": "c0f552be9a2193054216a0bf487cfacb44141bfb7e8a1fe02f33987be92e5e00",
+    "scripts/rehearsal/test-billing-renewal-1519.py": "aa04bc46cdc4c0d063b76b1bdd0e1733dd9c597e3ad1ee41308241e0c57be4e7"
+  },
+  "records": {
+    "docs/billing/evidence/2026-10-03-empty-bundle-maintenance/api-177.log": {
+      "sha256": "0386ac53e5b58ed3d9cb89bf099c3f958bab12c01604dc6189d1d38f6dba5314",
+      "bytes": 25519
+    },
+    "docs/billing/evidence/2026-10-03-empty-bundle-maintenance/owned-pg.log": {
+      "sha256": "c207c594eeabd88d981b926cdc28b17db2a70e6332dd8c3973f01f0eca940a7d",
+      "bytes": 3021
+    }
+  },
+  "tests": {
+    "suites": 11,
+    "passed": 177,
+    "realProvider": false
+  },
+  "ownedPostgres": {
+    "pid": 3475630,
+    "stopped": true
+  },
+  "scope": "Exact paid source/segment evidence permits empty-bundle financial maintenance; no grants or credits are introduced."
+}
