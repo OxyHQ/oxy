@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "dryRun": true,
+  "profiles": {
+    "oxy": {
+      "observedAt": "2026-10-03 03:28:20.306602+00",
+      "runtime": {
+        "node": "v24.21.0",
+        "postgresVersion": "3.4.9",
+        "postgresEntrySha256": "d8fea1a5311c47e65004646bc81f57305ac64d48f99004a5b3ca27bcfc6babf8"
+      },
+      "tables": {
+        "billing_subscriptions": {
+          "status": "complete",
+          "count": 0
+        },
+        "subscriptions": {
+          "status": "complete",
+          "count": 0
+        },
+        "user_credits": {
+          "status": "complete",
+          "count": 0
+        },
+        "billing_transactions": {
+          "status": "complete",
+          "count": 0,
+          "schemaProfile": "oxy_pre_subscription_credit_ledger",
+          "unavailableColumns": [
+            "stripe_invoice_id"
+          ]
+        }
+      },
+      "absentNewTables": [
+        "access_grants",
+        "access_offer_benefits",
+        "access_offer_segments",
+        "access_offers",
+        "access_products",
+        "access_subscription_sources",
+        "billing_credit_grants"
+      ],
+      "status": "verified_no_existing_rows",
+      "existingProjectedRows": 0,
+      "existingRowsPreserved": true,
+      "plannedBackfillWrites": 0,
+      "plannedCharges": 0,
+      "plannedCreditReconstruction": 0,
+      "currentReadComparison": "existing_sql_projection_empty_and_planned_grants_empty"
+    },
+    "clarity": {
+      "observedAt": "2026-10-03 03:30:26.374555+00",
+      "runtime": {
+        "node": "v22.23.3",
+        "postgresVersion": "3.4.9",
+        "postgresEntrySha256": "d8fea1a5311c47e65004646bc81f57305ac64d48f99004a5b3ca27bcfc6babf8"
+      },
+      "tables": {
+        "clarity_subscriptions": {
+          "status": "complete",
+          "count": 0
+        },
+        "clarity_billing_customers": {
+          "status": "complete",
+          "count": 0
+        }
+      },
+      "absentNewTables": [],
+      "status": "verified_no_existing_rows",
+      "existingProjectedRows": 0,
+      "existingRowsPreserved": true,
+      "plannedBackfillWrites": 0,
+      "plannedCharges": 0,
+      "plannedCreditReconstruction": 0,
+      "currentReadComparison": "existing_sql_projection_empty_and_planned_grants_empty"
+    },
+    "mercaria": {
+      "observedAt": "2026-10-03 03:10:12.57214+00",
+      "runtime": {
+        "node": "v24.21.0",
+        "postgresVersion": "3.4.9",
+        "postgresEntrySha256": "d8fea1a5311c47e65004646bc81f57305ac64d48f99004a5b3ca27bcfc6babf8"
+      },
+      "tables": {
+        "merchant_plans": {
+          "status": "complete",
+          "count": 0
+        },
+        "merchant_plan_prices": {
+          "status": "complete",
+          "count": 0
+        },
+        "plan_entitlements": {
+          "status": "complete",
+          "count": 0
+        },
+        "billing_customers": {
+          "status": "complete",
+          "count": 0
+        },
+        "merchant_subscriptions": {
+          "status": "complete",
+          "count": 0
+        },
+        "store_members": {
+          "status": "complete",
+          "count": 0
+        }
+      },
+      "absentNewTables": [],
+      "status": "verified_no_existing_rows",
+      "existingProjectedRows": 0,
+      "existingRowsPreserved": true,
+      "plannedBackfillWrites": 0,
+      "plannedCharges": 0,
+      "plannedCreditReconstruction": 0,
+      "currentReadComparison": "existing_sql_projection_empty_and_planned_grants_empty"
+    }
+  },
+  "actualDatabaseWrites": false,
+  "providerInventoryClaimed": false,
+  "backfillStatus": "no_existing_rows_to_backfill",
+  "catalogueDecision": "No existing subscription/offer is inferred; no Oxy One sale or price is introduced.",
+  "targetMigrationRequired": true
+}
