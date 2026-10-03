@@ -1,0 +1,8 @@
+
+/home/nate/Oxy/oxy/.worktrees/i01-i03-bot-authority-20261003/packages/api/src/services/session.service.ts
+    24:3   warning  'DeviceFingerprint' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  1284:16  warning  'tokenError' is defined but never used                                               @typescript-eslint/no-unused-vars
+
+✖ 2 problems (0 errors, 2 warnings)
+
+ESLint found too many warnings (maximum: 0).

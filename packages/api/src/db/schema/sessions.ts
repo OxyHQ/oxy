@@ -58,12 +58,13 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { boolean, check, foreignKey, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { applications } from './applications';
 import { deviceAccountContexts } from './deviceAccountContexts';
 import { deviceSessions } from './deviceSessions';
 import { users } from './users';
+import { userAuthMethods } from './userAuthMethods';
 
 export const sessions = pgTable(
   'sessions',
@@ -121,6 +122,10 @@ export const sessions = pgTable(
      * operator must kill the session, not launder it.
      */
     operatedByUserId: text().references(() => users.id, { onDelete: 'cascade' }),
+    /** Autonomous signer, retained through OAuth exchange; never SET NULL on deletion. */
+    authMethodId: text(),
+    /** Signer account, which may differ from the effective subject after switching. */
+    authMethodOwnerId: text(),
 
     // ---- access token v2 binding (issue #937, Phase 6) ---------------------
     // What the token minted for this session is allowed to SAY, and what its
@@ -177,6 +182,14 @@ export const sessions = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    foreignKey({
+      name: 'sessions_auth_method_owner_fk',
+      columns: [t.authMethodId, t.authMethodOwnerId],
+      foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
+    }).onDelete('restrict'),
+    check('sessions_auth_method_owner_check', sql`(${t.authMethodId} is null) = (${t.authMethodOwnerId} is null) and (${t.authMethodOwnerId} is null or ${t.authMethodOwnerId} = coalesce(${t.operatedByUserId}, ${t.userId}))`),
+    // Revoke every session/code rooted in one runtime key without scanning all rows.
+    index('sessions_auth_method_id_idx').on(t.authMethodId).where(sql`${t.authMethodId} is not null`),
     unique('sessions_session_id_key').on(t.sessionId),
     // Mongo's `{accessToken:1}` / `{refreshToken:1}` were unique + SPARSE, but
     // both fields are `required: true`, so nothing was ever sparse about them —

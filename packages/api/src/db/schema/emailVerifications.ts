@@ -67,7 +67,7 @@ export const emailVerifications = pgTable(
     check('email_verifications_attempts_check', sql`${t.attempts} >= 0`),
     check(
       'email_verifications_reauth_action_check',
-      sql`(${t.purpose} = 'reauth') = (${t.reauthAction} is not null) and (${t.reauthAction} is null or ${t.reauthAction} in ('change_password', 'totp', 'link_commons', 'delete_account'))`,
+      sql`(${t.purpose} = 'reauth') = (${t.reauthAction} is not null) and (${t.reauthAction} is null or ${t.reauthAction} in (${sql.raw(REAUTH_ACTIONS.map((value) => `'${value}'`).join(', '))}))`,
     ),
   ],
 );

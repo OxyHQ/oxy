@@ -1,0 +1,148 @@
+{
+  "parent": "6d13f7ecca19c5e063746060643c40da86192603",
+  "source": [
+    {
+      "path": "packages/api/drizzle/meta/_journal.json",
+      "sha256": "361a75938f5c73a7d4b421c54aa2c3392a77cf02eff7f89e0d08246d9f05d4bf",
+      "bytes": 20992
+    },
+    {
+      "path": "packages/api/src/db/schema/authChallenges.ts",
+      "sha256": "f11fc31a6c5378e0dd0622878e813359c285ebda8be73203f775a26aaee7008f",
+      "bytes": 3851
+    },
+    {
+      "path": "packages/api/src/db/schema/authCodes.ts",
+      "sha256": "c3a4eece4cc79619f856a8da6c0a6ae7c79e97ba3c895e5d99b2742c3bedc944",
+      "bytes": 6228
+    },
+    {
+      "path": "packages/api/src/db/schema/emailVerifications.ts",
+      "sha256": "dc4741f3bd19823eb0ca2c758af1b0148bfda492033e7ee3bb3263e2153394ed",
+      "bytes": 3638
+    },
+    {
+      "path": "packages/api/src/db/schema/index.ts",
+      "sha256": "1f81b471b3558c5697ba51cf83f5f3a6b560540b7b9f984a73744db94466747e",
+      "bytes": 7423
+    },
+    {
+      "path": "packages/api/src/db/schema/sessions.ts",
+      "sha256": "06400f9679bff72e4bb955d19fc6dbc1eb29d9464ae4251536350e4811a929cc",
+      "bytes": 12181
+    },
+    {
+      "path": "packages/api/src/db/schema/userAuthMethods.ts",
+      "sha256": "6a96d63a6942f96e61813409a47f639c0edb60720e1a2a6de5cffa05b8753f9e",
+      "bytes": 3883
+    },
+    {
+      "path": "packages/api/src/services/accountEmail.mail.ts",
+      "sha256": "1a55bf2ad295609f15b685889d729087c943be91b6d767e4be89d0c6f1b5cf64",
+      "bytes": 7151
+    },
+    {
+      "path": "packages/api/src/services/session.service.ts",
+      "sha256": "5b741b440d89a47f12b79943f0ffd7500de3d0b1ae457b7ca40b922f068f09a6",
+      "bytes": 57836
+    },
+    {
+      "path": "packages/contracts/src/signIn.ts",
+      "sha256": "a9606315051f001980cd63085a7e786f0f76816d3639f61c5cfdf8a46b0a428e",
+      "bytes": 16849
+    },
+    {
+      "path": "packages/api/drizzle/0137_public_albert_cleary.sql",
+      "sha256": "8ffd6396f7a3093f7df87fe8e65661d9d3d0b721f967d3be8a49de43e4228c57",
+      "bytes": 6785
+    },
+    {
+      "path": "packages/api/drizzle/meta/0137_snapshot.json",
+      "sha256": "5ad8fe68cf0585fa1bcd3957876e32294e92672a8f23fe506a703e47d1725d16",
+      "bytes": 1130582
+    },
+    {
+      "path": "packages/api/src/db/schema/__tests__/agentAuthoritySchema.test.ts",
+      "sha256": "15d3dc6b3e033bc3b2aed18edcdafb7f34d345120b37ac0e0c34abc953a10f78",
+      "bytes": 5839
+    },
+    {
+      "path": "packages/api/src/db/schema/serviceActingAsAuthorityEpochs.ts",
+      "sha256": "91d0cb412156bbe402fe2b3ab89b8c1ccf5d4d1247151a80c3879fed176290ea",
+      "bytes": 1203
+    }
+  ],
+  "logs": [
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-generate-final.log",
+      "sha256": "0f8cef41097fcb6e538f5709c82b1f5fc362b4ff7ebc6f51794db062aebdc1ed",
+      "bytes": 10838
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/contracts-schema-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce",
+      "bytes": 201
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-ts-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-schema-tests-final.log",
+      "sha256": "a8f9ab57d20cf66227519af486c89effd403ec12620be6f391657f2782d501e2",
+      "bytes": 708
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-migrate-fresh.log",
+      "sha256": "9954bcd2336b71371b31440f8c2a7ede2f48bd2797287ee00129406a708d6e79",
+      "bytes": 8613
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-migrate-repeat.log",
+      "sha256": "bec3874eb7d3c6847795998bb5781943d8d003e28fbf33be2d2fe65721205fbd",
+      "bytes": 173
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-census.log",
+      "sha256": "389b6e75625cb25d8c7236bca684385bf1c54fcc674b3179416eb48d5affb384",
+      "bytes": 8
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-cleanup.log",
+      "sha256": "267da420142b5118ab7eebb2795810ac63c9d455068283a504ea458413abd14c",
+      "bytes": 9
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-eslint-schema.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-eslint.log",
+      "sha256": "98eee5a6b774f096e9f73c8a4b079f1cff32cec2fd51712c34c2097b5577ab3c",
+      "bytes": 470
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-eslint-session-baseline.log",
+      "sha256": "98eee5a6b774f096e9f73c8a4b079f1cff32cec2fd51712c34c2097b5577ab3c",
+      "bytes": 470
+    },
+    {
+      "path": "docs/audits/2026-10-03-i01-i03-schema/0137-biome-new.log",
+      "sha256": "ace5c0c3103827aba36487824492eb256bcd665e91bc76bb3cd644596432b10f",
+      "bytes": 44
+    }
+  ],
+  "scope": "Additive schema and projections only; agent authentication and epoch authority runtime pending.",
+  "postgres": {
+    "server": "PostgreSQL17 loopback5574",
+    "owner": "i04_handoff",
+    "role": "oxy_i01",
+    "freshDatabase": "oxy_i01_migration_0137 (dropped)",
+    "jestDatabases": "oxy_test_<16hex> (harness dropped)",
+    "finalCensus": [
+      "postgres"
+    ]
+  }
+}

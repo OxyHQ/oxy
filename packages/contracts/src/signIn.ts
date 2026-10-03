@@ -269,7 +269,7 @@ export function isSecondFactorRequired(result: SignInStepResult | EmailSignInPen
  * What a re-verification email code confirms. The code is bound to it: a code
  * asked for one change never authorises another, and the email names it.
  */
-export const REAUTH_ACTIONS = ['change_password', 'totp', 'link_commons', 'delete_account'] as const;
+export const REAUTH_ACTIONS = ['change_password', 'totp', 'link_commons', 'delete_account', 'credentials_manage'] as const;
 export type ReauthAction = (typeof REAUTH_ACTIONS)[number];
 
 /** `POST /users/me/reauth/email` */
