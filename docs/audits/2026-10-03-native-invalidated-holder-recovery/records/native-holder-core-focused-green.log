@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts src/boot/__tests__/nativeSharedHolderCommit.test.ts src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts src/boot/__tests__/nativeSiblingSignOut.test.ts src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts src/boot/__tests__/nativeSiblingSignOutGuards.test.ts src/session/__tests__/refresh.test.ts src/session/__tests__/refresh.identityPin.test.ts src/session/__tests__/sharedDeviceCredential.test.ts src/session/__tests__/authStateStore.test.ts
+
+Test Suites: 10 passed, 10 total
+Tests:       136 passed, 136 total
+Snapshots:   0 total
+Time:        0.669 s, estimated 1 s
+Ran all test suites within paths "src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts", "src/boot/__tests__/nativeSharedHolderCommit.test.ts", "src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts", "src/boot/__tests__/nativeSiblingSignOut.test.ts", "src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts", "src/boot/__tests__/nativeSiblingSignOutGuards.test.ts", "src/session/__tests__/refresh.test.ts", "src/session/__tests__/refresh.identityPin.test.ts", "src/session/__tests__/sharedDeviceCredential.test.ts", "src/session/__tests__/authStateStore.test.ts".

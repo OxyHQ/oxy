@@ -1,0 +1,64 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/nativeHolderLogoutRecovery.test.ts
+{"level":30,"time":1791041773997,"pid":3994243,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":50,"time":1791041774024,"pid":3994243,"hostname":"SuperPC","component":"SessionService","method":"createSession","userId":"01a10268-a1b4-75f3-a523-da6cddb90bce","err":{"type":"Object","message":"Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)","stack":"Error: Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)\n    at generateSessionTokens (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/utils/sessionUtils.ts:93:11)\n    at SessionService.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/session.service.ts:870:66)\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/session.service.ts:38:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"[SessionService] Failed to create session"}
+{"level":50,"time":1791041774035,"pid":3994243,"hostname":"SuperPC","component":"SessionService","method":"createSession","userId":"01a10268-a1ca-792d-a3f4-b9bfdcc9405c","err":{"type":"Object","message":"Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)","stack":"Error: Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)\n    at generateSessionTokens (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/utils/sessionUtils.ts:93:11)\n    at SessionService.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/session.service.ts:870:66)\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/session.service.ts:38:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"[SessionService] Failed to create session"}
+{"level":50,"time":1791041774052,"pid":3994243,"hostname":"SuperPC","component":"SessionService","method":"createSession","userId":"01a10268-a1d4-713c-8a8b-b52429f269a0","err":{"type":"Object","message":"Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)","stack":"Error: Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)\n    at generateSessionTokens (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/utils/sessionUtils.ts:93:11)\n    at SessionService.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/session.service.ts:870:66)\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/session.service.ts:38:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"[SessionService] Failed to create session"}
+FAIL src/routes/__tests__/nativeHolderLogoutRecovery.test.ts
+  ✕ recreated stopped holder remains signed out after full logout without a key challenge (22 ms)
+  ✕ recreated stopped holder remains signed out after last-account logout without a key challenge (9 ms)
+  ✕ partial logout keeps both legitimate holders minting the remaining person and does not set logout intent (17 ms)
+
+  ● recreated stopped holder remains signed out after full logout without a key challenge
+
+    Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)
+
+      91 |   const refreshSecret = process.env.REFRESH_TOKEN_SECRET;
+      92 |   if (!accessSecret || !refreshSecret) {
+    > 93 |     throw new Error('Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)');
+         |           ^
+      94 |   }
+      95 |
+      96 |   const scope = binding.scopes && binding.scopes.length > 0 ? binding.scopes.join(' ') : undefined;
+
+      at generateSessionTokens (src/utils/sessionUtils.ts:93:11)
+      at SessionService.<anonymous> (src/services/session.service.ts:870:66)
+      at fulfilled (src/services/session.service.ts:38:58)
+
+  ● recreated stopped holder remains signed out after last-account logout without a key challenge
+
+    Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)
+
+      91 |   const refreshSecret = process.env.REFRESH_TOKEN_SECRET;
+      92 |   if (!accessSecret || !refreshSecret) {
+    > 93 |     throw new Error('Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)');
+         |           ^
+      94 |   }
+      95 |
+      96 |   const scope = binding.scopes && binding.scopes.length > 0 ? binding.scopes.join(' ') : undefined;
+
+      at generateSessionTokens (src/utils/sessionUtils.ts:93:11)
+      at SessionService.<anonymous> (src/services/session.service.ts:870:66)
+      at fulfilled (src/services/session.service.ts:38:58)
+
+  ● partial logout keeps both legitimate holders minting the remaining person and does not set logout intent
+
+    Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)
+
+      91 |   const refreshSecret = process.env.REFRESH_TOKEN_SECRET;
+      92 |   if (!accessSecret || !refreshSecret) {
+    > 93 |     throw new Error('Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)');
+         |           ^
+      94 |   }
+      95 |
+      96 |   const scope = binding.scopes && binding.scopes.length > 0 ? binding.scopes.join(' ') : undefined;
+
+      at generateSessionTokens (src/utils/sessionUtils.ts:93:11)
+      at SessionService.<anonymous> (src/services/session.service.ts:870:66)
+      at fulfilled (src/services/session.service.ts:38:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 3 total
+Snapshots:   0 total
+Time:        0.774 s
+Ran all test suites within paths "src/routes/__tests__/nativeHolderLogoutRecovery.test.ts".
+error: script "test" exited with code 1

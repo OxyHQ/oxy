@@ -1,0 +1,21 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/nativeHolderLogoutRecovery.test.ts
+{"level":30,"time":1791043090051,"pid":4009888,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791043090163,"pid":4009888,"hostname":"SuperPC","sessionId":"5005d08b","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791043090252,"pid":4009888,"hostname":"SuperPC","sessionId":"1cc39627","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791043090354,"pid":4009888,"hostname":"SuperPC","sessionId":"e12c17b4","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791043090370,"pid":4009888,"hostname":"SuperPC","mint_source":"secret","deviceId":"partial-a46643b6-92e9-4f3f-adde-f3bb67a92200","msg":"device.token.mint"}
+{"level":30,"time":1791043090384,"pid":4009888,"hostname":"SuperPC","mint_source":"secret","deviceId":"partial-a46643b6-92e9-4f3f-adde-f3bb67a92200","msg":"device.token.mint"}
+{"level":30,"time":1791043090455,"pid":4009888,"hostname":"SuperPC","sessionId":"26f866d7","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791043090494,"pid":4009888,"hostname":"SuperPC","mint_source":"secret","deviceId":"relogin-d3232f31-fc0c-4405-9c0a-fe2ec5eb16ec","msg":"device.token.mint"}
+{"level":30,"time":1791043090510,"pid":4009888,"hostname":"SuperPC","mint_source":"secret","deviceId":"relogin-d3232f31-fc0c-4405-9c0a-fe2ec5eb16ec","msg":"device.token.mint"}
+PASS src/routes/__tests__/nativeHolderLogoutRecovery.test.ts
+  ✓ recreated stopped holder remains signed out after full logout without a key challenge (124 ms)
+  ✓ recreated stopped holder remains signed out after last-account logout without a key challenge (80 ms)
+  ✓ partial logout keeps both legitimate holders minting the remaining person and does not set logout intent (124 ms)
+  ✓ a new explicit sign-in publishes a new holder for the same ended device and warm sibling proves it before adoption (126 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        1.038 s, estimated 2 s
+Ran all test suites within paths "src/routes/__tests__/nativeHolderLogoutRecovery.test.ts".

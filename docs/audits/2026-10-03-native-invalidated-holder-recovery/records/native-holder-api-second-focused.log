@@ -1,0 +1,35 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/nativeHolderLogoutRecovery.test.ts
+{"level":30,"time":1791041959641,"pid":3996407,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791041959815,"pid":3996407,"hostname":"SuperPC","sessionId":"0c3a26ac","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791041959950,"pid":3996407,"hostname":"SuperPC","sessionId":"01f2b4e9","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791041959970,"pid":3996407,"hostname":"SuperPC","mint_source":"secret","deviceId":"partial-dd3beee3-b2b2-4aa2-9753-c2330be3a44d","msg":"device.token.mint"}
+{"level":30,"time":1791041959991,"pid":3996407,"hostname":"SuperPC","mint_source":"secret","deviceId":"partial-dd3beee3-b2b2-4aa2-9753-c2330be3a44d","msg":"device.token.mint"}
+FAIL src/routes/__tests__/nativeHolderLogoutRecovery.test.ts
+  ✕ recreated stopped holder remains signed out after full logout without a key challenge (92 ms)
+  ✓ recreated stopped holder remains signed out after last-account logout without a key challenge (92 ms)
+  ✓ partial logout keeps both legitimate holders minting the remaining person and does not set logout intent (162 ms)
+
+  ● recreated stopped holder remains signed out after full logout without a key challenge
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      62 |   // API auth resolves the real signed-in session; no test-only caller identity.
+      63 |   const response = await fetch(`${baseURL}/session/device/signout`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${session.accessToken}`}, body: JSON.stringify(kind === 'full' ? {} : {accountId: userId})});
+    > 64 |   expect(response.status).toBe(200); expect(await holderCount(deviceId)).toBe(0);
+         |                           ^
+      65 |   const raw = await fetch(`${baseURL}/session/device/token`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({deviceId, deviceSecret: secretB})});
+      66 |   expect(raw.status).toBe(401); expect(await raw.json()).toMatchObject({error: 'invalid_device_secret'});
+      67 |   const b = new OxyServices({baseURL}); const commons = jest.spyOn(b.auth, 'signInWithCommonsIdentity'); const restored = createNativeAuthStateStore(kv); requests.length = 0;
+
+      at src/routes/__tests__/nativeHolderLogoutRecovery.test.ts:64:27
+      at fulfilled (src/routes/__tests__/nativeHolderLogoutRecovery.test.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 2 passed, 3 total
+Snapshots:   0 total
+Time:        0.982 s, estimated 1 s
+Ran all test suites within paths "src/routes/__tests__/nativeHolderLogoutRecovery.test.ts".
+error: script "test" exited with code 1
