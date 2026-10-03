@@ -1,0 +1,44 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/pg1519-2f5_nqky/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/pg1519-2f5_nqky/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"command": ["bun", "--no-env-file", "run", "db:migrate"], "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/pg1519-2f5_nqky/migration-fresh.txt"}
+{"command": ["bun", "--no-env-file", "run", "db:migrate"], "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/pg1519-2f5_nqky/migration-repeat.txt"}
+{"newLocalServerPid": 3796764, "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/pg1519-2f5_nqky/data", "database": "oxy_rehearsal_1519_644e6847df69687c", "command": ["bun", "--no-env-file", "run", "test", "--runInBand", "--runTestsByPath", "src/services/__tests__/foregroundCapabilities.db.test.ts", "-t", "retains catalogue discovery"], "exitCode": 1, "log": "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/pg1519-2f5_nqky/foreground-api.txt", "productionAccess": false}
+waiting for server to shut down.... done
+server stopped
+
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/test-ephemeral-registrar-owned.py", line 107, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/test-ephemeral-registrar-owned.py", line 100, in main
+    result.check_returncode()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/subprocess.py", line 508, in check_returncode
+    raise CalledProcessError(self.returncode, self.args, self.stdout,
+                             self.stderr)
+subprocess.CalledProcessError: Command '['bun', '--no-env-file', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/services/__tests__/foregroundCapabilities.db.test.ts', '-t', 'retains catalogue discovery']' returned non-zero exit status 1.

@@ -1,0 +1,39 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/foregroundCapabilities.db.test.ts -t "retains catalogue discovery"
+{"level":30,"time":1791027636826,"pid":3797247,"hostname":"SuperPC","binaryPath":"/usr/bin/ffmpeg","msg":"[VariantService] Using system ffmpeg"}
+{"level":30,"time":1791027636829,"pid":3797247,"hostname":"SuperPC","binaryPath":"/usr/bin/ffprobe","msg":"[VariantService] Using system ffprobe"}
+{"level":30,"time":1791027636829,"pid":3797247,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","msg":"[VariantService] Resolved FFmpeg path"}
+{"level":30,"time":1791027636829,"pid":3797247,"hostname":"SuperPC","ffprobePath":"/usr/bin/ffprobe","msg":"[VariantService] Resolved FFprobe path"}
+{"level":30,"time":1791027636829,"pid":3797247,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","ffprobePath":"/usr/bin/ffprobe","ffmpegExists":true,"ffprobeExists":true,"msg":"FFmpeg/FFprobe paths initialized"}
+{"level":30,"time":1791027637046,"pid":3797247,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791027637071,"pid":3797247,"hostname":"SuperPC","kid":"dev-ephemeral-14f4d1b313d1","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1791027637095,"pid":3797247,"hostname":"SuperPC","credentialId":"01a10190-eb51-7325-aac3-5f27e791d37e","applicationId":"01a10190-eb44-75f6-80b7-bb4532684e01","appName":"Foreground 89fd907f-46c1-4bce-9a68-d8475f57a607","expiresIn":300,"msg":"[ServiceToken] Service token issued"}
+{"level":40,"time":1791027637318,"pid":3797247,"hostname":"SuperPC","apiKey":"[redacted]","msg":"[ServiceToken] Invalid apiKey attempt"}
+PASS src/services/__tests__/foregroundCapabilities.db.test.ts
+  ✓ retains catalogue discovery and requester invocation after retiring its ephemeral registrar credential (251 ms)
+  ○ skipped issues a signed read-only requester ticket, preserves subject graph over HTTP/MCP, and retains historical authorization after session deletion
+  ○ skipped withdraws rotate before private output without granting offline authority
+  ○ skipped withdraws logout before private output without granting offline authority
+  ○ skipped withdraws closure before private output without granting offline authority
+  ○ skipped withdraws credential before private output without granting offline authority
+  ○ skipped withdraws app-owner before private output without granting offline authority
+  ○ skipped withdraws catalog before private output without granting offline authority
+  ○ skipped refuses data when the session is withdrawn while actual audit persistence is awaiting
+  ○ skipped offline grant revoke is separate from foreground signout; canonical session revoke preserves the shared session
+  ○ skipped scope narrowing through the canonical app-bound mint invalidates the old approval binding
+  ○ skipped rejects free ids, standing/automation authority, stale pins and another presenting application
+  ○ skipped a live bot requester retains its real key provenance and rejects a revoked signer
+  ○ skipped real workload mint uses its canonical inert attribution row for catalog and execution FKs
+  ○ skipped private application signals and viewer ranking match the existing domain builder over HTTP and MCP
+  ○ skipped principal A operating subject B stays separate and membership withdrawal cannot switch the ticket subject
+  ○ skipped rechecks the signed ticket expiry after the audit wait, independently of a later authorization deadline
+  ○ skipped retains the approved catalogue pin across legitimate catalogue replacement: explicit-B
+  ○ skipped retains the approved catalogue pin across legitimate catalogue replacement: omitted
+  ○ skipped answers a bounded HTTP refusal when logout happens after initial live validation
+  ○ skipped answers a bounded HTTP refusal when expiry happens after initial live validation
+  ○ skipped does not disguise unexpected requester validation errors as a session denial or leave HTTP pending
+
+Test Suites: 1 passed, 1 total
+Tests:       21 skipped, 1 passed, 22 total
+Snapshots:   0 total
+Time:        1.395 s, estimated 2 s
+Ran all test suites within paths "src/services/__tests__/foregroundCapabilities.db.test.ts".
