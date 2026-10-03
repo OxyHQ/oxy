@@ -11,6 +11,7 @@ import { Button, ScrollView, Text } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { installIdentitySigner } from '../lib/identity-signer';
+import { createPlatformSharedDeviceCredentialStore } from '../../services/src/ui/session/sharedDeviceCredentialStore';
 
 const clientId = process.env.EXPO_PUBLIC_OXY_CLIENT_ID;
 if (!clientId) throw new Error('Identity fixture requires its own registered client');
@@ -44,6 +45,15 @@ function IdentityObservation() {
       setOperation('identity-signed-in');
     } catch { setOperation('identity-sign-in-failed'); }
   }
+  async function readDerivedSlot() {
+    try {
+      // Real SDK broker; Commons.dev reads its own store before later hosts.
+      // Never render, persist or log the returned credential or error payload.
+      const store = createPlatformSharedDeviceCredentialStore();
+      const result = await store?.read();
+      setOperation(`shared-slot-${result?.state ?? 'unsupported'}`);
+    } catch { setOperation('shared-slot-unavailable'); }
+  }
   async function observe() {
     try {
       const key = await KeyManager.getPublicKey();
@@ -76,6 +86,7 @@ function IdentityObservation() {
         <Button title="Create owned synthetic identity" onPress={create} />
         <Button title="Register and sign in through SDK" onPress={registerAndSignIn} />
         <Button title="Read identity and owner through SDK" onPress={observe} />
+        <Button title="Read derived slot through real SDK broker" onPress={readDerivedSlot} />
       </ScrollView>
     </SafeAreaView>
   );
