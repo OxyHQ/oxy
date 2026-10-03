@@ -1,5 +1,5 @@
 {
-  "sourceHead": "f68d6896b0dd0eb07a97eb60c049563cb2067e5f",
+  "sourceHead": "b2c9a32487bc19a52d853a0da003e00fa16a054e",
   "base": "67c09e853db308d102624a2ffd40db19959344f4",
   "changes": [
     {
@@ -238,8 +238,8 @@
     },
     {
       "file": ".github/scripts/guard-quiesced-deploy.mjs",
-      "sha256": "83f0c0129e07cef65f433e2439a307ee683d447cb7533c2d0c2b0c51b760cc92",
-      "gitObject": "435a9a56086ec71d7bfdfcb326a7ebfb05b86b04",
+      "sha256": "b7794b8232b1ab121360cca551fdcd218489ab93d48be222afbc84750aae1ca8",
+      "gitObject": "8d3cce505ba673e32af59e2c010cada291f5a27c",
       "sameAsIssuerMain67c09": false
     },
     {
@@ -250,14 +250,14 @@
     },
     {
       "file": "scripts/test-quiesced-deploy.mjs",
-      "sha256": "2f9556bdfbeceaf5806dfd3c4953fbb59bafcd9e4b3847b1a6ffd8251a2ea996",
-      "gitObject": "a49943eff13cc1046707cb30fa280b91bb8ed62e",
+      "sha256": "d0c870a791816e8bf1740a46206739587202eec78f53921faf5fbaf556b4d979",
+      "gitObject": "ab7975d278d53bf7819b70abf3758d7d3c1d48cc",
       "sameAsIssuerMain67c09": false
     },
     {
       "file": "scripts/test-quiesced-deploy-shell.mjs",
-      "sha256": "5a9d6882ffb0a715c032911a74cbd81c573e7e898327bc01f57db6a811d7df8b",
-      "gitObject": "c1e0b68ac1cb47eef75d946834b426e29081adf0",
+      "sha256": "1d02932c8d5020098f268259591b1ef917f264d4b3bfccd8caf1d8b85b91a321",
+      "gitObject": "7c40f1bc0d858c0d17054333188a2ed0d67ef98c",
       "sameAsIssuerMain67c09": false
     }
   ],

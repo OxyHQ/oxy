@@ -1,7 +1,7 @@
 {
   "status": "INDEPENDENT_REPRODUCTION_COMPLETED_CANDIDATE_UNAPPROVED",
-  "recordedAtUTC": "2026-10-03T19:32:12.993977+00:00",
-  "candidateCommit": "f68d6896b0dd0eb07a97eb60c049563cb2067e5f",
+  "recordedAtUTC": "2026-10-03T19:21:26.991634+00:00",
+  "candidateCommit": "6c9a83deb19ca5a0ff4d62e541866157cf091c83",
   "upstreamTag": "v1.4.0",
   "upstreamCommit": "fa385f92440879601240020f158bed68e444e83a",
   "toolchain": {
@@ -306,19 +306,7 @@
     },
     {
       "file": "framework-inputs.json",
-      "sha256": "e4bbbe7216bce89316ecf144bac8ecdc8db18998152149f2a49172478faaa760"
-    },
-    {
-      "file": "quiesced-census61.log",
-      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca"
-    },
-    {
-      "file": "quiesced-census-shell10.log",
-      "sha256": "44ef42ef01cd322870a3bf2ea4a556b2c5088b3dc067d829f59864a7707b3fb9"
-    },
-    {
-      "file": "quiesced-census-biome3.log",
-      "sha256": "94cf74da15f5f347365d8f075e8b8810699bf75fbd5792ea2824107d092a192d"
+      "sha256": "cddd29bceb39d47891d73a31e7720aeac265a7234426d789a391d98b317054f6"
     }
   ],
   "inputTrees": {
@@ -360,8 +348,8 @@
       "canonicalAuditSha256": "8c6c938a06ddc218daed240793a26d4a0ed55f504b3edbc54cb415468bb0b6b8",
       "canaryApiTests": 58,
       "compiledNodeCanaryChecks": 5,
-      "quiescedGuardChecks": 61,
-      "quiescedShellChecks": 10
+      "quiescedGuardChecks": 45,
+      "quiescedShellChecks": 9
     },
     "limits": [
       "Fresh ARM and authenticated full gate required before declarative ACTIVE; historical ebb fullgreen does not promote new source",
@@ -425,20 +413,6 @@
         "artifact": 11282540708,
         "status": "Historical PASS200134; not provenance for new tree"
       }
-    },
-    "maintenanceCensusRefreeze": {
-      "baselineFreeze": "19539733931a0219b4f817b8aa64fd5826bfc00b",
-      "source": "d2c1315c77e9f36ec3b50c10ced0ed106b9f2d53",
-      "proofCommit": "f68d6896b0dd0eb07a97eb60c049563cb2067e5f",
-      "proofPath": "docs/audits/2026-10-03-quiesced-deploy/current-task-census/proof.json",
-      "proofSha256": "082eb5a46f6a24d5beb70b9eeeec6d64d8faa8bde5718699647ca89e8e32ee8b",
-      "changedFrameworkPaths": [
-        ".github/scripts/guard-quiesced-deploy.mjs",
-        "scripts/test-quiesced-deploy.mjs",
-        "scripts/test-quiesced-deploy-shell.mjs"
-      ],
-      "all10PackageInputObjectsUnchangedFrom195397": true,
-      "recordReuse": "17 crypto records reused byte-identically from200134. Guard3 source inputs changed; fresh61guard/10canonical-shell/Biome3 recorded. Runtime product API/SDK/schema142, patch/toolchain and packages unchanged. New ARM/fullgate/CI required."
     }
   },
   "historicalSupplementalRecords": [
