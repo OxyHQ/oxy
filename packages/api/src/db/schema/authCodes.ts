@@ -28,10 +28,11 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { check, foreignKey, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { applications } from './applications';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
+import { userAuthMethods } from './userAuthMethods';
 
 /** PKCE transforms accepted at issue time. `plain` is refused at the edge. */
 export const AUTH_CODE_CHALLENGE_METHODS = ['S256'] as const;
@@ -61,6 +62,10 @@ export const authCodes = pgTable(
      * lose the `account:act_as` binding that constrains it.
      */
     operatedByUserId: text().references(() => users.id, { onDelete: 'cascade' }),
+    /** Autonomous signer, retained through OAuth exchange; never SET NULL on deletion. */
+    authMethodId: text(),
+    /** Signer account, which may differ from the effective subject after switching. */
+    authMethodOwnerId: text(),
     /**
      * The application the code was issued TO. `CASCADE`, as the deferred-FK
      * ledger decided before `applications` landed: with the application gone
@@ -94,6 +99,14 @@ export const authCodes = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    foreignKey({
+      name: 'auth_codes_auth_method_owner_fk',
+      columns: [t.authMethodId, t.authMethodOwnerId],
+      foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
+    }).onDelete('restrict'),
+    check('auth_codes_auth_method_owner_check', sql`(${t.authMethodId} is null) = (${t.authMethodOwnerId} is null) and (${t.authMethodOwnerId} is null or ${t.authMethodOwnerId} = coalesce(${t.operatedByUserId}, ${t.userId}))`),
+    // Revoke every session/code rooted in one runtime key without scanning all rows.
+    index('auth_codes_auth_method_id_idx').on(t.authMethodId).where(sql`${t.authMethodId} is not null`),
     unique('auth_codes_code_hash_key').on(t.codeHash),
     index('auth_codes_user_id_idx').on(t.userId),
     index('auth_codes_application_id_idx').on(t.applicationId),
