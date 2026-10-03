@@ -41,6 +41,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { resolveOperatorId } from '../middleware/operator';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
@@ -107,7 +108,7 @@ import {
 } from '../services/inferenceReporting.service';
 import { listSpendingLimitAlerts } from '../services/spendingLimit.service';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
+import { ConflictError, ForbiddenError, NotFoundError } from '../utils/error';
 import type { AccountPermission, ApplicationPermission } from '../utils/accountRoles';
 import { serviceRateLimitKey } from '../utils/serviceRateLimitKey';
 
@@ -216,15 +217,13 @@ const reportingPrincipal = (
   void authMiddleware(req, res, next);
 };
 
-function principalOf(req: ReportingRequest): ReportingPrincipal {
+async function principalOf(req: ReportingRequest): Promise<ReportingPrincipal> {
   if (req.serviceApp !== undefined) {
     return { kind: 'service', service: req.serviceApp };
   }
-  const userId = req.user?.id;
-  if (typeof userId !== 'string' || userId.length === 0) {
-    throw new UnauthorizedError('Authentication is required for this operation');
-  }
-  return { kind: 'user', userId };
+  // Account permissions belong to the verified human operator when the
+  // session speaks as a managed account; the subject owns no membership.
+  return { kind: 'user', userId: await resolveOperatorId(req) };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -334,7 +333,7 @@ router.get(
   validate({ params: reportingAccountParams }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+    await authorizeAccount(await principalOf(req), accountId, 'billing:read');
 
     const balance = await readAccountBalance(accountId);
     const dto: AccountBalanceDto =
@@ -386,7 +385,7 @@ router.get(
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
     const query = usageReportQuery.parse(req.query);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+    await authorizeAccount(await principalOf(req), accountId, 'billing:read');
 
     const accountIds = await resolveReportingAccounts(accountId, query.includeDescendants);
     const usage = await aggregateUsage({
@@ -418,7 +417,7 @@ router.get(
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
     const query = spendReportQuery.parse(req.query);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+    await authorizeAccount(await principalOf(req), accountId, 'billing:read');
 
     const accountIds = await resolveReportingAccounts(accountId, query.includeDescendants);
     const spend = await aggregateSpend({
@@ -449,7 +448,7 @@ router.get(
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
     const query = reservationListQuery.parse(req.query);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+    await authorizeAccount(await principalOf(req), accountId, 'billing:read');
 
     const accountIds = await resolveReportingAccounts(accountId, query.includeDescendants);
     const held = await listPendingReservations({ accountIds, limit: query.limit });
@@ -497,7 +496,7 @@ router.get(
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
     const query = chargeListQuery.parse(req.query);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+    await authorizeAccount(await principalOf(req), accountId, 'billing:read');
 
     const accountIds = await resolveReportingAccounts(accountId, query.includeDescendants);
     const charges = await listSettledCharges({
@@ -542,7 +541,7 @@ router.get(
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
     const query = chargeExportQuery.parse(req.query);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+    await authorizeAccount(await principalOf(req), accountId, 'billing:read');
 
     const accountIds = await resolveReportingAccounts(accountId, query.includeDescendants);
     const charges = await listSettledCharges({
@@ -596,7 +595,7 @@ router.get(
   validate({ params: reportingAccountParams }),
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+    await authorizeAccount(await principalOf(req), accountId, 'billing:read');
 
     const rows = await listSpendingLimits(accountId);
     const dto: SpendingLimitsDto = {
@@ -630,7 +629,7 @@ router.get(
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
     const { limit } = spendingLimitAlertsQuery.parse(req.query);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+    await authorizeAccount(await principalOf(req), accountId, 'billing:read');
 
     const rows = await listSpendingLimitAlerts(accountId, limit);
     const dto: SpendingLimitAlertsDto = {
@@ -670,7 +669,7 @@ router.post(
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { accountId } = reportingAccountParams.parse(req.params);
     const body = spendingLimitCreateBody.parse(req.body);
-    const principal = principalOf(req);
+    const principal = await principalOf(req);
     await authorizeAccount(principal, accountId, 'billing:manage');
 
     const owner = await resolveSpendingLimitScopeOwner(body);
@@ -731,7 +730,7 @@ router.patch(
     }
     // Same message a missing budget gets: a 404 whose text differs by reason
     // still tells a stranger which budget ids are real.
-    await authorizeAccount(principalOf(req), ownerAccountId, 'billing:manage', BUDGET_NOT_FOUND);
+    await authorizeAccount(await principalOf(req), ownerAccountId, 'billing:manage', BUDGET_NOT_FOUND);
 
     const updated = await updateSpendingLimit(spendingLimitId, body);
     if (updated.status === 'unknown-limit') {
@@ -765,7 +764,7 @@ router.get(
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { applicationId } = reportingApplicationParams.parse(req.params);
     const query = applicationUsageReportQuery.parse(req.query);
-    await authorizeApplication(principalOf(req), applicationId, 'usage:read');
+    await authorizeApplication(await principalOf(req), applicationId, 'usage:read');
 
     const usage = await aggregateUsage({
       from: query.from,
@@ -796,7 +795,7 @@ router.get(
   asyncHandler(async (req: ReportingRequest, res: Response) => {
     const { applicationId } = reportingApplicationParams.parse(req.params);
     const query = applicationSpendReportQuery.parse(req.query);
-    await authorizeApplication(principalOf(req), applicationId, 'billing:read');
+    await authorizeApplication(await principalOf(req), applicationId, 'billing:read');
 
     const spend = await aggregateSpend({
       from: query.from,

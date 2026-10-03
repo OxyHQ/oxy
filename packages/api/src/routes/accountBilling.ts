@@ -49,6 +49,7 @@
 
 import { Router, type Response } from 'express';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { resolveOperatorId } from '../middleware/operator';
 import { rateLimit } from '../middleware/rateLimiter';
 import { requireStaff, requireStaffCapability } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
@@ -205,7 +206,7 @@ const resolveTopUpPayer = asyncHandler(async (req, _res, next) => {
   const billingRequest = req as BillingRequest;
   const { accountId } = accountBillingParams.parse(req.params);
   billingRequest.topUpPayer = await authorizeBillingProfile(
-    principalOf(billingRequest),
+    await principalOf(billingRequest),
     accountId,
     'billing:manage'
   );
@@ -275,15 +276,13 @@ const billingPrincipal = (
   void authMiddleware(req, res, next);
 };
 
-function principalOf(req: BillingRequest): BillingPrincipal {
+async function principalOf(req: BillingRequest): Promise<BillingPrincipal> {
   if (req.serviceApp !== undefined) {
     return { kind: 'service', service: req.serviceApp };
   }
-  const userId = req.user?.id;
-  if (typeof userId !== 'string' || userId.length === 0) {
-    throw new UnauthorizedError('Authentication is required for this operation');
-  }
-  return { kind: 'user', userId };
+  // Account permissions belong to the verified human operator when the
+  // session speaks as a managed account; the subject owns no membership.
+  return { kind: 'user', userId: await resolveOperatorId(req) };
 }
 
 /**
@@ -297,11 +296,16 @@ function principalOf(req: BillingRequest): BillingPrincipal {
  * is exactly what the `machine` kind is for.
  */
 function staffActorOf(req: BillingRequest): StaffLedgerActor {
-  const principal = principalOf(req);
-  if (principal.kind !== 'user') {
+  // Staff gates and journal authorship remain bound to the authenticated
+  // subject; resolving the operator for account RBAC does not confer staff.
+  if (req.serviceApp !== undefined) {
     throw new ForbiddenError('A service credential may not author a ledger entry');
   }
-  return { kind: 'staff', userId: principal.userId };
+  const userId = req.user?.id;
+  if (typeof userId !== 'string' || userId.length === 0) {
+    throw new UnauthorizedError('Authentication is required for this operation');
+  }
+  return { kind: 'staff', userId };
 }
 
 /**
@@ -437,7 +441,7 @@ router.get(
   validate({ params: accountBillingParams }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+    await authorizeAccount(await principalOf(req), accountId, 'billing:read');
 
     const resolution = await resolveAccountBillingState(accountId);
     switch (resolution.status) {
@@ -471,7 +475,7 @@ router.post(
   validate({ params: accountBillingParams, body: provisionBillingBody }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
-    const principal = principalOf(req);
+    const principal = await principalOf(req);
     await authorizeAccount(principal, accountId, 'billing:manage');
 
     const body = provisionBillingBody.parse(req.body);
@@ -507,7 +511,7 @@ router.patch(
   validate({ params: accountBillingParams, body: updateBillingProfileBody }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
-    const principal = principalOf(req);
+    const principal = await principalOf(req);
     await authorizeAccount(principal, accountId, 'billing:manage');
 
     const body = updateBillingProfileBody.parse(req.body);
@@ -649,7 +653,7 @@ router.post(
     // The portal manages the PAYER's payment methods and invoices, so it opens
     // on the payer's Stripe customer and takes the payer's right.
     const billingAccountId = await authorizeBillingAccount(
-      principalOf(req),
+      await principalOf(req),
       accountId,
       'billing:manage'
     );
@@ -680,7 +684,7 @@ router.get(
     // The payer's charge history, so the payer's right. A project member has no
     // business reading what was charged to the organization's card.
     const billingAccountId = await authorizeBillingAccount(
-      principalOf(req),
+      await principalOf(req),
       accountId,
       'billing:read'
     );
@@ -740,7 +744,7 @@ router.get(
     // An invoice is the payer's whole period of spend across every project, so
     // it takes the payer's right rather than the path account's.
     const billingAccountId = await authorizeBillingAccount(
-      principalOf(req),
+      await principalOf(req),
       accountId,
       'billing:read'
     );
@@ -832,7 +836,7 @@ router.get(
   validate({ params: accountBillingParams }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+    await authorizeAccount(await principalOf(req), accountId, 'billing:read');
 
     const resolution = await resolveProductEntitlement(accountId);
     if (resolution.status === 'unknown-account') {
