@@ -1,6 +1,7 @@
+import { configuredBillingNamespace } from '../config/billingNamespace';
 /** Network-only subscription evidence reconciliation. Never runs inside a DB lock. */
 import type Stripe from 'stripe';
-import { getStripe } from '../utils/stripeClient';
+import { getBillingStripe } from '../utils/billingStripe';
 import type { PaidPeriodEvidence } from './subscriptionPeriodPolicy';
 import { assignPaidPeriodCredits } from './subscriptionPeriodPolicy';
 
@@ -14,11 +15,9 @@ export async function subscriptionProcessorBinding(livemode: boolean, connectedA
   const key = process.env.STRIPE_SECRET_KEY;
   const mode = key?.match(/^(?:sk|rk)_(live|test)_/u)?.[1];
   if (!mode || typeof livemode !== 'boolean' || (mode === 'live') !== livemode) throw new Error('Stripe credential and evidence mode differ');
-  const account = await getStripe().accounts.retrieve();
+  const account = await (await getBillingStripe()).accounts.retrieve();
   if (!/^acct_[a-zA-Z0-9_]+$/u.test(account.id) || (connectedAccount && account.id !== connectedAccount)) throw new Error('Stripe provider account binding differs');
-  const environment = process.env.BILLING_PROCESSOR_ENVIRONMENT ?? (process.env.NODE_ENV === 'production' ? 'production' : process.env.NODE_ENV === 'test' ? 'test' : 'development');
-  if (!['production', 'staging', 'test', 'development'].includes(environment)) throw new Error('Unknown billing processor environment');
-  if (environment === 'production' && !livemode) throw new Error('Production credit evidence requires live Stripe mode');
+  const { environment } = configuredBillingNamespace();
   return JSON.stringify(['stripe', account.id, mode, environment]);
 }
 
@@ -29,7 +28,7 @@ export async function allInvoiceLines(invoice: Stripe.Invoice): Promise<Stripe.I
     const cursor = page.data.at(-1)?.id;
     if (!cursor || seen.has(cursor) || seen.size >= 100) throw new Error('Invoice line pagination is incomplete');
     seen.add(cursor);
-    page = await getStripe().invoices.listLineItems(invoice.id, { limit: 100, starting_after: cursor });
+    page = await (await getBillingStripe()).invoices.listLineItems(invoice.id, { limit: 100, starting_after: cursor });
     lines.push(...page.data);
   }
   if (new Set(lines.map(line => line.id)).size !== lines.length) throw new Error('Invoice line identity is repeated');
@@ -45,7 +44,7 @@ export async function paidPeriodForUpgrade(invoice: Stripe.Invoice, subscription
   const seen = new Set<string>();
   for (let pageNumber = 0; pageNumber <= 100; pageNumber += 1) {
     if (pageNumber === 100) throw new Error('Historical base invoice pagination exceeded its bound');
-    const page = await getStripe().invoices.list({ subscription: subscriptionId, status: 'paid', limit: 100,
+    const page = await (await getBillingStripe()).invoices.list({ subscription: subscriptionId, status: 'paid', limit: 100,
       ...(cursor ? { starting_after: cursor } : {}) });
     for (const base of page.data) {
       if (seen.has(base.id)) throw new Error('Historical paid invoice identity repeated');
@@ -80,7 +79,7 @@ export async function reconcilePaidCreditPeriod(input: { subscriptionId: string;
     const seen = new Set<string>();
     for (let pageNumber = 0; pageNumber <= 100; pageNumber += 1) {
       if (pageNumber === 100) throw new Error('Paid subscription invoice pagination exceeded its bound');
-      const page = await getStripe().invoices.list({ subscription: input.subscriptionId, status: 'paid', limit: 100,
+      const page = await (await getBillingStripe()).invoices.list({ subscription: input.subscriptionId, status: 'paid', limit: 100,
         ...(cursor ? { starting_after: cursor } : {}) });
       for (const invoice of page.data) {
         if (seen.has(invoice.id)) throw new Error('Paid invoice identity is repeated');

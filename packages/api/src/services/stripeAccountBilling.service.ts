@@ -51,7 +51,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { userCredits } from '../db/schema/userCredits';
 import { getOrCreateUserCredits } from '../routes/credits';
-import { getStripe } from '../utils/stripeClient';
+import { getBillingStripe } from '../utils/billingStripe';
 import { logger } from '../utils/logger';
 import {
   exactDecimalToMinorUnits,
@@ -100,14 +100,14 @@ export async function getOrCreateAccountStripeCustomer(
 
   if (credits.stripeCustomerId) {
     try {
-      await getStripe().customers.retrieve(credits.stripeCustomerId);
+      await (await getBillingStripe()).customers.retrieve(credits.stripeCustomerId);
       return credits.stripeCustomerId;
     } catch {
       // Stripe no longer knows this customer; fall through and mint a new one.
     }
   }
 
-  const customer = await getStripe().customers.create({
+  const customer = await (await getBillingStripe()).customers.create({
     email,
     metadata: { accountId },
   });
@@ -159,7 +159,7 @@ export async function createBalanceTopUpCheckout(
 
   const customerId = await getOrCreateAccountStripeCustomer(input.accountId, input.email);
 
-  const session = await getStripe().checkout.sessions.create({
+  const session = await (await getBillingStripe()).checkout.sessions.create({
     customer: customerId,
     payment_method_types: ['card'],
     line_items: [
@@ -195,7 +195,7 @@ export async function createAccountPortalSession(
   email?: string
 ): Promise<string | null> {
   const customerId = await getOrCreateAccountStripeCustomer(accountId, email);
-  const session = await getStripe().billingPortal.sessions.create({
+  const session = await (await getBillingStripe()).billingPortal.sessions.create({
     customer: customerId,
     return_url: returnUrl,
   });
@@ -420,7 +420,7 @@ export async function chargeAutoRecharge(input: {
   }
 
   const customerId = await getOrCreateAccountStripeCustomer(input.accountId);
-  const stripe = getStripe();
+  const stripe = await getBillingStripe();
 
   const methods = await stripe.paymentMethods.list({ customer: customerId, type: 'card' });
   const paymentMethod = methods.data[0];
@@ -509,7 +509,7 @@ export type AutoRechargeSweepResult =
  * ## It disables itself where it cannot work
  *
  * With no `STRIPE_SECRET_KEY` this deployment cannot charge anything and
- * `getStripe()` would throw on the first candidate. `processor-unconfigured` is
+ * `getBillingStripe()` would throw on the first candidate. `processor-unconfigured` is
  * returned instead of a swept-under exception — a status the caller can log
  * once, rather than an error per account per interval.
  */
@@ -594,7 +594,7 @@ export function stripePaymentProcessorLedger(): PaymentProcessorLedger {
   return {
     provider: 'stripe',
     async listSettledPayments(query: ProcessorLedgerQuery): Promise<ProcessorPayment[]> {
-      const stripe = getStripe();
+      const stripe = await getBillingStripe();
       const currency = query.currency.toUpperCase();
       const payments: ProcessorPayment[] = [];
       let startingAfter: string | undefined;

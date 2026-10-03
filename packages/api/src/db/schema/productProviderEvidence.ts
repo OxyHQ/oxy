@@ -24,7 +24,7 @@ export const accessProviderPeriods = pgTable('access_provider_periods', {
   foreignKey({ name: 'access_provider_periods_segment_fk',
     columns: [t.segmentId, t.sourceId, t.beneficiaryAccountId, t.offerId, t.offerVersion, t.origin, t.periodStart, t.periodEnd],
     foreignColumns: [accessOfferSegments.id, accessOfferSegments.subscriptionId, accessOfferSegments.beneficiaryAccountId, accessOfferSegments.offerId, accessOfferSegments.offerVersion, accessOfferSegments.origin, accessOfferSegments.periodStart, accessOfferSegments.periodEnd] }).onDelete('restrict'),
-  check('access_provider_periods_binding_check', sql`${t.mode} = 'live' and ${t.environment} = 'production' and length(${t.providerAccountRef}) between 1 and 160`),
+  check('access_provider_periods_binding_check', sql`((${t.mode} = 'live' and ${t.environment} = 'production') or (${t.mode} = 'test' and ${t.environment} in ('test', 'staging', 'development'))) and length(${t.providerAccountRef}) between 1 and 160`),
   check('access_provider_periods_provider_check', sql`${t.provider} in (${sql.raw(inList(PRODUCT_SUBSCRIPTION_PROVIDERS))})`),
   check('access_provider_periods_identity_check', sql`length(${t.invoiceId}) between 1 and 160 and length(${t.lineId}) between 1 and 160 and length(${t.priceId}) between 1 and 160`),
   check('access_provider_periods_payload_check', sql`jsonb_typeof(${t.payload}) = 'object' and ${t.payloadSha256} ~ '^[0-9a-f]{64}$'`),

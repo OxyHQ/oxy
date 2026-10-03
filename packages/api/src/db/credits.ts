@@ -1,3 +1,4 @@
+import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
 /**
  * Atomic credit mutations. Free refresh and plain top-ups retain their guarded
  * SQL writes; deduction locks the balance and records FIFO subscription-grant
@@ -53,6 +54,7 @@ export async function refreshCreditsIfNeeded(
   db: DatabaseOrTransaction,
   userId: string
 ): Promise<boolean> {
+  await assertBillingDatabaseNamespace(db);
   const [row] = await db
     .update(userCredits)
     .set({
@@ -86,6 +88,7 @@ export async function addCredits(
   amount: number,
   kind: CreditKind
 ): Promise<boolean> {
+  await assertBillingDatabaseNamespace(db);
   // The arithmetic runs in `numeric` and is cast back at the end: the guard has
   // already established the amount is a whole number, so the cast is exact.
   const granted: { creditsFree?: SQL; creditsPaid?: SQL } =
@@ -112,5 +115,6 @@ export async function deductCredits(
   userId: string,
   amount: number
 ): Promise<boolean> {
+  await assertBillingDatabaseNamespace(db);
   return spendSubscriptionTrackedCredits(db, userId, amount);
 }

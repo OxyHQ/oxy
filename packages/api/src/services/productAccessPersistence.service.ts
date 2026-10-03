@@ -1,3 +1,4 @@
+import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import { createHash } from 'node:crypto';
 import {
 	type ProductBenefit,
@@ -27,8 +28,10 @@ import { ApiError, ConflictError } from '../utils/error';
 import { composeSubjectProductAccess } from './productAccess';
 
 export const productProviderBindingSchema = z.object({
-  providerAccountRef: z.string().min(1).max(160), mode: z.literal('live'), environment: z.literal('production'),
-}).strict();
+  providerAccountRef: z.string().min(1).max(160), mode: z.enum(['live', 'test']), environment: z.enum(['production', 'test', 'staging', 'development']),
+}).strict().superRefine((value, context) => {
+  if (!billingNamespaceSchema.safeParse({ mode: value.mode, environment: value.environment }).success) context.addIssue({ code: 'custom', message: 'Provider namespace is incoherent' });
+});
 export const productAccessConfigurationExpectationSchema = z.object({ products: z.array(productDefinitionSchema), offer: productOfferSchema }).strict();
 export type ProductAccessConfigurationExpectation = z.infer<typeof productAccessConfigurationExpectationSchema>;
 export type ProductProviderBinding = z.infer<typeof productProviderBindingSchema>;
@@ -66,6 +69,7 @@ async function lockOpenAccounts(db: DatabaseOrTransaction, accountIds: string[])
   if (fences.length) throw new ConflictError('Account closure prevents product access writes');
 }
 export async function readRegisteredProduct(db: DatabaseOrTransaction, productId: string): Promise<ProductDefinition> {
+  await assertBillingDatabaseNamespace(db);
   const [row] = await db.select({ product: accessProducts, application: applications, ownerStatus: users.accountStatus })
     .from(accessProducts).innerJoin(applications, eq(accessProducts.applicationId, applications.id))
     .innerJoin(users, eq(accessProducts.ownerAccountId, users.id)).where(eq(accessProducts.id, productId));
@@ -102,6 +106,7 @@ async function lockProductApplications(db: DatabaseOrTransaction, products: Prod
 
 /** Explicit trusted configuration only; this function is not mounted as an API. */
 export async function registerProductAccessConfiguration(input: { products: ProductDefinition[]; offers: ProductOffer[] }): Promise<void> {
+  await assertBillingDatabaseNamespace(getDb());
   const products = input.products.map(row => productDefinitionSchema.parse(row));
   const offers = input.offers.map(row => productOfferSchema.parse(row));
   await getDb().transaction(async tx => {
@@ -150,6 +155,7 @@ export async function recordProductAccessPeriod(input: {
 	}, transaction?: Transaction,
 ): Promise<{ status: 'recorded' | 'replayed'; grantIds: string[] }> {
   const binding = productProviderBindingSchema.parse(input.providerBinding);
+  await assertBillingDatabaseNamespace(transaction ?? getDb(), billingNamespaceSchema.parse({ mode: binding.mode, environment: binding.environment }));
   const source = productSubscriptionSourceSchema.parse(input.source);
   const segment = productOfferSegmentSchema.parse(input.segment);
   if (!Number.isFinite(input.providerObservedAt.getTime())) throw new ConflictError('Provider observation is required');
@@ -238,6 +244,8 @@ export async function updateProductAccessSourceState(input: {
   sourceId: string; productId: string; providerObservedAt: Date; providerBinding: ProductProviderBinding;
   status: ProductSubscriptionSource['status']; period: ProductSubscriptionSource['period']; cancelAtPeriodEnd: boolean;
 }): Promise<'updated' | 'stale' | 'replayed'> {
+  const binding = productProviderBindingSchema.parse(input.providerBinding);
+  await assertBillingDatabaseNamespace(getDb(), billingNamespaceSchema.parse({ mode: binding.mode, environment: binding.environment }));
   return getDb().transaction(async tx => {
     const [initial] = await tx.select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, input.sourceId));
     if (!initial) throw new ConflictError('Unknown named source');
@@ -273,6 +281,7 @@ export async function reconcileProductAccessFinancialState(input: {
   status: ProductSubscriptionSource['status']; period: ProductSubscriptionSource['period']; cancelAtPeriodEnd: boolean;
 }): Promise<'updated' | 'stale' | 'replayed'> {
   const binding = productProviderBindingSchema.parse(input.providerBinding);
+  await assertBillingDatabaseNamespace(getDb(), billingNamespaceSchema.parse({ mode: binding.mode, environment: binding.environment }));
   if (!Number.isFinite(input.providerObservedAt.getTime())) throw new ConflictError('Provider observation is required');
   return getDb().transaction(async tx => {
     const ids = [...new Set([input.beneficiaryAccountId, input.payerAccountId])].sort();
@@ -297,6 +306,7 @@ export async function reconcileProductAccessFinancialState(input: {
 }
 
 export async function revokeProductAccessGrant(input: { grantId: string; productId: string; revokedAt: Date }): Promise<boolean> {
+  await assertBillingDatabaseNamespace(getDb());
   if (!Number.isFinite(input.revokedAt.getTime())) throw new ConflictError('Revocation instant is required');
   const rows = await getDb().update(accessGrants).set({ revokedAt: input.revokedAt })
     .where(and(eq(accessGrants.id, input.grantId), eq(accessGrants.productId, input.productId), isNull(accessGrants.revokedAt))).returning({ id: accessGrants.id });
@@ -304,15 +314,18 @@ export async function revokeProductAccessGrant(input: { grantId: string; product
 }
 /** Caller authorization is separate and mandatory at every exposed boundary. */
 export async function readSubjectProductAccess(subjectAccountId: string, productId: string, now = new Date()) {
+  const namespace = await assertBillingDatabaseNamespace(getDb());
   await readRegisteredProduct(getDb(), productId);
   const rows = await getDb().select({ grant: accessGrants, benefit: accessOfferBenefits, segment: accessOfferSegments })
     .from(accessGrants)
     .innerJoin(accessOfferBenefits, and(eq(accessGrants.offerId, accessOfferBenefits.offerId), eq(accessGrants.offerVersion, accessOfferBenefits.offerVersion), eq(accessGrants.benefitIndex, accessOfferBenefits.benefitIndex)))
     .innerJoin(accessOfferSegments, eq(accessGrants.sourceSegmentId, accessOfferSegments.id))
-    .where(and(eq(accessGrants.beneficiaryAccountId, subjectAccountId), eq(accessGrants.productId, productId)));
+    .innerJoin(accessSubscriptionSources, eq(accessOfferSegments.subscriptionId, accessSubscriptionSources.id))
+    .where(and(eq(accessGrants.beneficiaryAccountId, subjectAccountId), eq(accessGrants.productId, productId),
+      eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment)));
   for (const row of rows) await configuredOffer(getDb(), row.segment.offerId, row.segment.offerVersion);
   const sourceIds = [...new Set(rows.map(row => row.segment.subscriptionId))];
-  const sources = sourceIds.length ? await getDb().select().from(accessSubscriptionSources).where(and(inArray(accessSubscriptionSources.id, sourceIds), eq(accessSubscriptionSources.mode, 'live'), eq(accessSubscriptionSources.environment, 'production'))) : [];
+  const sources = sourceIds.length ? await getDb().select().from(accessSubscriptionSources).where(and(inArray(accessSubscriptionSources.id, sourceIds), eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment))) : [];
   const segments = [...new Map(rows.map(row => [row.segment.id, segmentDto(row.segment)])).values()];
   const grants = rows.map(({ grant, benefit }) => productAccessGrantSchema.parse({ schemaVersion: 1, id: grant.id,
     sourceSegmentId: grant.sourceSegmentId, beneficiaryAccountId: grant.beneficiaryAccountId,
