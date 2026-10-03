@@ -39,8 +39,8 @@
     },
     {
       "path": "docs/adr/0031-explicit-oauth-consent-fallback.md",
-      "sha256": "d932789ef63de0000a6781f325448e45cec137de578b76c49fa6c77c248e6102",
-      "bytes": 1974
+      "sha256": "eb67e92d1a0d5ffd0637d3cad3a1e3a0d727ad676b367f0b88f78f9555cf977a",
+      "bytes": 1980
     }
   ],
   "logs": [
