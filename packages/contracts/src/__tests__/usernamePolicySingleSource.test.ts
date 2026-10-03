@@ -92,6 +92,10 @@ const SUBJECT_WINDOW = 6;
  */
 const ALLOWED: ReadonlyMap<string, string> = new Map([
   [
+    'packages/api/src/capabilities/oxy-profile.transport.ts',
+    'Base64url Capability JWS Authorization grammar; the nearby handleMcp invocation names a transport handler, not a local users.username validator or allocator.',
+  ],
+  [
     'packages/mcp/src/internalTransport.ts',
     'Base64url segments in the Capability JWS Authorization header; the nearby handleMcp method name is a transport handler, not a users.username validator or allocator.',
   ],

@@ -187,6 +187,7 @@ describe('deep-link preservation across the authorize round trip', () => {
     expect(result).toBe(true);
     expect(exchangeOAuthCode).toHaveBeenCalledWith(
       expect.objectContaining({ redirectUri }),
+      { plantTokens: false },
     );
     replaceState.mockRestore();
   });
