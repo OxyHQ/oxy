@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "kind": "fleet-readonly-observer-classification",
+  "sourceHead": "a1800801de77cd9fd6011ca5b0d82539552289e1",
+  "sourceInputs": [
+    {
+      "path": "scripts/operations/fleet-quiescence.py",
+      "sourceCommit": "a1800801de77cd9fd6011ca5b0d82539552289e1",
+      "sha256": "56fbe998fc58f2fc473f0622e5b06693f88b75942020f25001bf409d24852959"
+    },
+    {
+      "path": "scripts/operations/tests/test-fleet-quiescence.py",
+      "sourceCommit": "a1800801de77cd9fd6011ca5b0d82539552289e1",
+      "sha256": "ba9833a1965f3b2126475fae6a6988c943cff0f0df889ba99ddb59850a78b615"
+    },
+    {
+      "path": "docs/audits/2026-10-03-fleet-quiescence/README.md",
+      "sourceCommit": "a1800801de77cd9fd6011ca5b0d82539552289e1",
+      "sha256": "627e7539170368507f4c969b06a8dfad0f4b66d8bb440bd2ab07012ebf927988"
+    }
+  ],
+  "privateRootInputs": [
+    {
+      "privatePath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-readonly-helper-rehearsal-2004/schedules.json",
+      "bytes": 848,
+      "sha256": "c58830032e4128a784c2900e25dfe3141d6f134b4f03f772d59b3c80c12edc0e"
+    },
+    {
+      "privatePath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-observer-classification-2010/receipt.json",
+      "bytes": 922,
+      "sha256": "0da2422f97a27c4569c5e59321d15421c59d16b503cedb9552f07dfd43996ae6"
+    },
+    {
+      "privatePath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-observer-classification-2010/policies.json",
+      "bytes": 844,
+      "sha256": "96e4d3b6b7d3093c48d2d05bd7e0c0706402fbeaa7c03c56e9378ddc7feb4950"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-fleet-quiescence/observer-fixtures.log",
+      "command": [
+        "python3",
+        "-B",
+        "scripts/operations/tests/test-fleet-quiescence.py"
+      ],
+      "exitCode": 0,
+      "bytes": 3542,
+      "sha256": "e19b00c38f9fe546ac4c6cc1e3811130cc523462eaa9418849c12db99d828ccd"
+    }
+  ],
+  "result": {
+    "offlineTests": 27,
+    "thisAgentAwsReads": 0,
+    "thisAgentAwsWrites": 0,
+    "lambdaInvocations": 0
+  },
+  "scope": "Exact existing observer only; Lambda CodeSha256 and role plus complete IAM policy pins rechecked fresh. Root previous capture rejected schedule conservatively before writes.",
+  "limits": [
+    "Mocks validate rejection/acceptance paths; real readonly capture remains root-operated.",
+    "No general Lambda or schedule exception. No product/image changes."
+  ]
+}
