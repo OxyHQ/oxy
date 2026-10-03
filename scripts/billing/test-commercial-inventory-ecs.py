@@ -47,6 +47,17 @@ class InventoryFixtures(unittest.TestCase):
         for mutate in variations:
             altered = copy.deepcopy(self.registered); mutate(altered)
             with self.assertRaises(RuntimeError): module.verify_registered(altered, self.definition)
+    def test_cohort_profiles_preserve_exact_deployment_and_only_database_authority(self):
+        for profile, expected in [('mercaria-cohort', 'oxy-mercaria:59'), ('peable-cohort', 'oxy-peable:7')]:
+            self.assertEqual(module.PROFILES[profile]['definition'], expected)
+            self.plan['profile'] = profile
+            definition = module.build_definition(self.plan)
+            self.assertEqual(definition['family'], 'oxy-billing-inventory-'+profile)
+            self.assertEqual(definition['containerDefinitions'][0]['entryPoint'], ['/usr/local/bin/bun' if profile == 'peable-cohort' else '/usr/local/bin/node'])
+            self.assertEqual(definition['containerDefinitions'][0]['command'][0], '--no-env-file' if profile == 'peable-cohort' else '--input-type=module')
+            self.assertEqual(definition['containerDefinitions'][0]['workingDirectory'], '/app/packages/backend')
+            self.assertNotIn('taskRoleArn', definition)
+            self.assertEqual(len(definition['containerDefinitions'][0]['secrets']), 1)
     def test_reader_changed_rejects_before_definition(self):
         self.plan['readerSha256']='0'*64
         with self.assertRaisesRegex(RuntimeError,'Reader source'): module.build_definition(self.plan)

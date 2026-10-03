@@ -4,10 +4,21 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 const require = createRequire(`${process.cwd()}/package.json`);
-const postgres = require('postgres');
+const postgresModule = require('postgres');
+// Node resolves CJS; Bun may return the package's ESM namespace. Both must
+// expose the same installed postgres constructor, never an alternate driver.
+const postgres = typeof postgresModule === 'function' ? postgresModule : postgresModule.default;
+if (typeof postgres !== 'function') throw new Error('Installed postgres export is not callable');
 const MAX_ROWS = 1000;
 const MAX_BYTES = 1024 * 1024;
 const PROJECTIONS = {
+  'mercaria-cohort': {
+    stores: ['id', 'status'],
+    store_members: { columns: ['id', 'store_id', 'oxy_user_id', 'role'], where: "role = 'owner'" },
+  },
+  'peable-cohort': {
+    merchants: { columns: ['id', 'public_id', 'oxy_app_id', 'environment', 'livemode'], where: "oxy_app_id = '6a37d0cc5d4b5f15482a9340'" },
+  },
   oxy: {
     billing_subscriptions: ['id', 'user_id', 'stripe_customer_id', 'stripe_subscription_id', 'stripe_price_id', 'status', 'current_period_start', 'current_period_end', 'cancel_at_period_end', 'plan_name', 'plan_credits_per_month', 'plan_price_minor_units', 'plan_currency'],
     subscriptions: ['id', 'user_id', 'plan', 'status', 'start_date', 'end_date', 'auto_renew', 'latest_invoice'],

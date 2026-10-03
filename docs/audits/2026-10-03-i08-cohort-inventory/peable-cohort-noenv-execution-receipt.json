@@ -1,0 +1,15 @@
+{
+  "planSha256": "18aafd2771734fe9d7cddc77f26cb93e88e735061c586192c6326ec0789df40f",
+  "resultSha256": "298773a14b67d346f496dd4ee0245df3b5d9207e7e7345300e568d90919a2d04",
+  "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/7efc604132304c66927fdc688562a43b",
+  "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-billing-inventory-peable-cohort:2",
+  "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/peable@sha256:a1d8885047280bca60d0ee52ced2f3ad653c0c5b6dc00e29b9c84248afd0c5ca",
+  "profile": "peable-cohort",
+  "readOnly": true,
+  "tables": {
+    "merchants": {
+      "status": "complete",
+      "count": 0
+    }
+  }
+}

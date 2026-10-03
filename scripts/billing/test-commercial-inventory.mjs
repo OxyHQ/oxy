@@ -19,6 +19,21 @@ try {
   assert.equal(complete.tables.clarity_subscriptions.rows[0].product, 'clarity');
   assert.equal(complete.tables.clarity_subscriptions.rows[0].price_minor_units, '1234');
   assert(!JSON.stringify(complete).includes('NEVER_PROJECT_THIS')); passed++;
+  await client`CREATE TABLE stores (id text PRIMARY KEY, status text, private_email text)`;
+  await client`CREATE TABLE store_members (id text, store_id text, oxy_user_id text, role text, secret_note text)`;
+  await client`INSERT INTO stores VALUES ('store-fixture','active','NEVER_PROJECT_THIS')`;
+  await client`INSERT INTO store_members VALUES ('owner-fixture','store-fixture','account-fixture','owner','NEVER_PROJECT_THIS'),('member-fixture','store-fixture','another-account','admin','NEVER_PROJECT_THIS')`;
+  const storeInventory = await readInventory('mercaria-cohort', process.env.DATABASE_URL);
+  assert.deepEqual(storeInventory.tables.stores.rows, [{id:'store-fixture',status:'active'}]);
+  assert.equal(storeInventory.tables.store_members.count, 1);
+  assert(!JSON.stringify(storeInventory).includes('NEVER_PROJECT_THIS')); passed++;
+  await client`CREATE TABLE merchants (id text, public_id text, oxy_app_id text, environment text, livemode boolean, webhook_secret text)`;
+  await client`INSERT INTO merchants VALUES ('merchant-fixture','merch_fixture','6a37d0cc5d4b5f15482a9340','development',false,'NEVER_PROJECT_THIS'),('foreign','merch_foreign','foreign-app','production',true,'NEVER_PROJECT_THIS')`;
+  const merchantInventory = await readInventory('peable-cohort', process.env.DATABASE_URL);
+  assert.equal(merchantInventory.tables.merchants.count, 1);
+  assert.equal(merchantInventory.tables.merchants.rows[0].id, 'merchant-fixture');
+  assert.equal(merchantInventory.tables.merchants.rows[0].livemode, false);
+  assert(!JSON.stringify(merchantInventory).includes('NEVER_PROJECT_THIS')); passed++;
   const absent = await readInventory('oxy', process.env.DATABASE_URL);
   assert.equal(absent.tables.billing_subscriptions.status, 'missing'); assert.equal(absent.tables.billing_subscriptions.count, null); passed++;
   await client`CREATE TABLE billing_transactions (id text, user_id text, stripe_customer_id text, stripe_subscription_id text, stripe_subscription_period_start timestamptz, type text, amount_minor_units integer, currency text, credits integer, status text, private_email text)`;
@@ -50,5 +65,7 @@ try {
   const invocation = `\ntry {const r=await readInventory('clarity',process.env.DATABASE_URL);for(const line of encodeInventory(r,'${'b'.repeat(32)}')) console.log(line);}catch{console.error('OXY_BILLING_INVENTORY_FAILED');process.exitCode=1;}`;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', source + invocation], { encoding: 'utf8', cwd: process.cwd(), env: process.env });
   assert.equal(result.status, 0, result.stderr); assert(result.stdout.startsWith('OXY_BILLING_INVENTORY ')); assert(!result.stdout.includes('NEVER_PROJECT_THIS')); passed++;
+  const bunResult = spawnSync('bun', ['--no-env-file', '-e', source + invocation.replace("catch{console.error('OXY_BILLING_INVENTORY_FAILED');", "catch(error){console.error(error.name + ': ' + error.message);")], { encoding: 'utf8', cwd: process.cwd(), env: process.env });
+  assert.equal(bunResult.status, 0, bunResult.stderr); assert(bunResult.stdout.startsWith('OXY_BILLING_INVENTORY ')); assert(!bunResult.stdout.includes('NEVER_PROJECT_THIS')); passed++;
   console.log(`Commercial inventory SQL/receiver fixtures: ${passed} passed; synthetic owned DB only.`);
 } finally { await client.end({ timeout: 5 }); }

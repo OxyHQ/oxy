@@ -16,6 +16,8 @@ REGION = 'us-west-2'
 CLUSTER = 'oxy-cluster'
 READER = Path(__file__).with_name('read-commercial-inventory.mjs')
 PROFILES = {
+    'mercaria-cohort': {'service': 'mercaria', 'definition': 'oxy-mercaria:59', 'container': 'mercaria', 'cwd': '/app/packages/backend', 'parameter': '/oxy/mercaria/DATABASE_URL'},
+    'peable-cohort': {'runtime': 'bun', 'service': 'peable', 'definition': 'oxy-peable:7', 'container': 'peable', 'cwd': '/app/packages/backend', 'parameter': '/oxy/peable/DATABASE_URL'},
     'oxy': {'service': 'oxy-api', 'definition': 'oxy-oxy-api:691', 'container': 'oxy-api', 'cwd': '/app/packages/api', 'parameter': '/oxy/oxy-api/DATABASE_URL'},
     'clarity': {'service': 'clarity-api', 'definition': 'oxy-clarity-api:44', 'container': 'clarity-api', 'cwd': '/app/packages/backend', 'parameter': '/oxy/clarity/DATABASE_URL'},
     'mercaria': {'service': 'mercaria', 'definition': 'oxy-mercaria:59', 'container': 'mercaria', 'cwd': '/app/packages/backend', 'parameter': '/oxy/mercaria/DATABASE_URL'},
@@ -86,7 +88,7 @@ def build_definition(plan):
     require(hashlib.sha256(source.encode()).hexdigest() == plan['readerSha256'], 'Reader source differs')
     invocation = "\ntry { const result = await readInventory(" + json.dumps(profile) + ", process.env.DATABASE_URL); for (const line of encodeInventory(result, " + json.dumps(plan['nonce']) + ")) console.log(line); } catch { console.error('OXY_BILLING_INVENTORY_FAILED'); process.exitCode = 1; }\n"
     live = plan['live']
-    return {'family': f'oxy-billing-inventory-{profile}', 'executionRoleArn': live['executionRoleArn'], 'networkMode': 'awsvpc', 'requiresCompatibilities': ['FARGATE'], 'cpu': live['cpu'], 'memory': live['memory'], 'runtimePlatform': live['runtimePlatform'], 'volumes': [], 'containerDefinitions': [{'name': 'inventory', 'image': live['image'], 'essential': True, 'entryPoint': ['/usr/local/bin/node'], 'command': ['--input-type=module', '-e', source + invocation], 'workingDirectory': selected['cwd'], 'environment': [], 'secrets': [live['databaseSecret']], 'portMappings': [], 'mountPoints': [], 'volumesFrom': [], 'logConfiguration': {'logDriver': 'awslogs', 'options': {'awslogs-group': live['logGroup'], 'awslogs-region': REGION, 'awslogs-stream-prefix': live['logStreamPrefix']}}}]}
+    return {'family': f'oxy-billing-inventory-{profile}', 'executionRoleArn': live['executionRoleArn'], 'networkMode': 'awsvpc', 'requiresCompatibilities': ['FARGATE'], 'cpu': live['cpu'], 'memory': live['memory'], 'runtimePlatform': live['runtimePlatform'], 'volumes': [], 'containerDefinitions': [{'name': 'inventory', 'image': live['image'], 'essential': True, 'entryPoint': ['/usr/local/bin/bun' if selected.get('runtime') == 'bun' else '/usr/local/bin/node'], 'command': (['--no-env-file', '-e', source + invocation] if selected.get('runtime') == 'bun' else ['--input-type=module', '-e', source + invocation]), 'workingDirectory': selected['cwd'], 'environment': [], 'secrets': [live['databaseSecret']], 'portMappings': [], 'mountPoints': [], 'volumesFrom': [], 'logConfiguration': {'logDriver': 'awslogs', 'options': {'awslogs-group': live['logGroup'], 'awslogs-region': REGION, 'awslogs-stream-prefix': live['logStreamPrefix']}}}]}
 
 
 def verify_registered(actual, expected):

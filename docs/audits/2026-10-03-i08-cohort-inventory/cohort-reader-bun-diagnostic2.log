@@ -1,0 +1,20 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: TypeError: postgres is not a function. (In 'postgres(databaseUrl, { max: 1, connect_timeout: 10, idle_timeout: 5, onnotice: () => {} })', 'postgres' is an instance of Module)
+
+
+1 !== 0
+
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-mercaria-billing-authority-20261003/scripts/billing/test-commercial-inventory.mjs:69:10
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
