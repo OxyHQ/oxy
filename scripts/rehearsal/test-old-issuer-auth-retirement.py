@@ -95,6 +95,16 @@ def main():
                           'database': db, 'command': command, 'exitCode': result.returncode,
                           'log': str(log), 'productionAccess': False}))
         result.check_returncode()
+        node_env = {'DATABASE_URL': env['DATABASE_URL'], 'NODE_ENV': 'production',
+                    'OXY_API_URL': 'https://api.oxy.so'}
+        node_result = subprocess.run([shutil.which('node', path=clean_env().get('PATH')),
+                                     str(ROOT / 'scripts/auth/tests/old-issuer-auth-compiled.mjs')],
+                                    cwd=ROOT, env=node_env, text=True, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, check=False)
+        (owned / 'compiled-node.txt').write_text(node_result.stdout)
+        print(json.dumps({'compiledNodeExitCode': node_result.returncode,
+                          'log': str(owned / 'compiled-node.txt'), 'environmentKeys': sorted(node_env)}))
+        node_result.check_returncode()
     finally:
         if server_started:
             print(run([PG / 'pg_ctl', '-D', data, '-m', 'fast', '-w', 'stop']))
