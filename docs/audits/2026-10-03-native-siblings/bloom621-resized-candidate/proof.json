@@ -1,0 +1,80 @@
+{
+  "fixtureCommit": "34977ff26",
+  "bloomSource": "16a98eca",
+  "bloomProof": "8312eb78",
+  "metro": 17971,
+  "sourceInputs": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-dialog-candidate-20261003/package.json",
+      "sha256": "30e67fb615f13d7f530fe3437d6dd523d4c20fa0fa201c53e28d062acd46c82f",
+      "bytes": 8392
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-dialog-candidate-20261003/bun.lock",
+      "sha256": "60e73defe18661fbf44e66b5e497df9d6e6152b557e5ca4503bd2b4da1b4a06b",
+      "bytes": 801343
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-dialog-candidate-20261003/packages/test-app-expo/acceptance/entry.tsx",
+      "sha256": "d262de694506e290b749fb463829829c67b06e60c183f0357a3dd96720035ac3",
+      "bytes": 3630
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-dialog-candidate-20261003/packages/test-app-expo/app.config.js",
+      "sha256": "66da2075a320035a9f2a5f8a9e08f07a57300b2dace13663d713399f49891654",
+      "bytes": 612
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-dialog-candidate-20261003/packages/test-app-expo/index.js",
+      "sha256": "a523cfe3eebb1525b177b4f2d861d57ec65285d0850e2372531107c046ef1332",
+      "bytes": 182
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-dialog-candidate-20261003/packages/test-app-expo/metro.config.js",
+      "sha256": "28975f8508ea17c4935bd0ac9d5e2304dba801623d58a67d77b514c36be86a27",
+      "bytes": 2256
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-bloom-6.2.1-resized-candidate.tgz",
+      "sha256": "786373e70f9dbf848639643e1ad7a91b3635db8c7b080bee71257178a51aac86",
+      "bytes": 19928286
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-bloom621-resized-bundle-20261003.js",
+      "sha256": "7ce6a218ca935276a659584a647c492e0b5e8548f89d2707becebc74d36768f2",
+      "bytes": 12938185
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-peers-linked-20261003.apk",
+      "sha256": "02d764e2fe92ac4bb2ff8e230f87994d6823a48d8d5052d42346ff814acb8c66",
+      "bytes": 88342738
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/bloom621-resized-candidate/install.log",
+      "sha256": "e91994e1a65101fe5f33f619305aab9fe323b07abf8a31ab81babab01ebb860b",
+      "bytes": 1124
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/bloom621-resized-candidate/installed.json",
+      "sha256": "70478523615e166c55ec79b4c5ebec17c93e9e93387682df50247791e39fe6ea",
+      "bytes": 228
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/bloom621-resized-candidate/lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/bloom621-resized-candidate/types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  ],
+  "checks": "20,940files identical in both resolvers; TS/lintPASS, MetroHTTP200; EXPO_NO_DOTENV=1",
+  "device": "PENDING root ADB only",
+  "scope": "Same diagnostic APK/package, no auth/network; earlier paint failure remains in prior proof"
+}

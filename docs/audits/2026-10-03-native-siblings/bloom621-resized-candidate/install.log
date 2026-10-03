@@ -1,0 +1,33 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [70]
+Saved lockfile
+
++ @types/express@4.17.25 (v5.0.6 available)
++ @types/jest@30.0.0
++ drizzle-orm@0.45.2
++ expo@57.0.21 (v57.0.26 available)
++ expo-constants@57.0.17 (v57.0.20 available)
++ expo-document-picker@57.0.1 (v57.0.3 available)
++ expo-haptics@57.0.2 (v57.0.3 available)
++ expo-image-manipulator@57.0.16 (v57.0.20 available)
++ expo-linear-gradient@57.0.1 (v57.0.2 available)
++ expo-modules-core@57.0.17 (v57.0.20 available)
++ expo-notifications@57.0.17 (v57.0.21 available)
++ expo-web-browser@57.0.2 (v57.0.3 available)
++ jest-environment-jsdom@30.5.1 (v30.5.2 available)
++ react-native-keyboard-controller@1.21.13
++ react-native-web@0.21.2
++ ts-jest@29.4.12
++ turbo@2.10.12
++ typescript@5.9.3
++ vite@7.3.1
++ @expo/metro-runtime@57.0.15
++ @oxy.so/bloom@/home/nate/Oxy/.agent-evidence/i04-bloom-6.2.1-resized-candidate.tgz
++ expo-contacts@57.0.4 (v57.0.6 available)
++ expo-image-picker@57.0.16
++ expo-splash-screen@57.0.8 (v57.0.9 available)
++ is-arrayish@0.3.4
++ react-native-worklets@0.10.0
+
+2265 packages installed [1.68s]
