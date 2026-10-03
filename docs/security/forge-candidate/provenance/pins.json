@@ -1,23 +1,23 @@
 {
-  "sourceSha": "8c8163755abddd1046ebea65b290634676759112",
+  "sourceSha": "27b96e9d6bf4fec78a17af7ab2f88c3cbb406354",
   "pullRequest": 1557,
   "headBranch": "review/1519-approved-integration-20261003",
-  "runId": 37148579465,
+  "runId": 37151155664,
   "runAttempt": 1,
-  "jobId": 111277486019,
-  "workflowMergeSha": "76ea3619ffe58c35afeccdb3729beeae70c1aa6c",
-  "artifactId": 11282769444,
-  "artifactDigest": "sha256:9e7172233b87fc8035959ab4220ea91ff22a1211545c89b66e53381cd340b56d",
+  "jobId": 111285162189,
+  "workflowMergeSha": "e169d12dde9a7b68dae31c9c3ba77757f102bb24",
+  "artifactId": 11283429433,
+  "artifactDigest": "sha256:ad9a5d04448e0d88a6ac60e0d58d8d0de0ef64900faf382cf8df564de48369df",
   "artifactFiles": {
-    "forge-build-metadata.json": "d6a2529f6b44f1f0e71bcade7aea718df4c4ed8deb1ec3c7a1a8593e0ae0a057",
-    "forge-image-identity.txt": "82aedc9f4585d35b1a25e741a968d2264b3b112c32a18d0fa47c4e2f98e2bcb9",
+    "forge-build-metadata.json": "b9ccc00e8c052025a631d0386333c0a856a17eb00eb99662065e8bb7aa00954b",
     "forge-image-dangling-links.json": "4b3c6d088ea21592c6ee683cba3adc348c437591b515bf783e0f39d9ce4525dd",
-    "forge-image-regression-proof.json": "65230ff0747e8a1be73279e3360dd7f76530470aa6b2453a07425c4f00f1de1a",
-    "forge-image-roots.json": "2f375f25a70c77bcaaf16e94b84233c12a3d791029a269f0a65d848ab4661c2b",
-    "forge-image-mount-targets.json": "2eef99b6f7def52c1b91244388be1b056f5c446afd781a3985207af5feeda85a"
+    "forge-image-identity.txt": "2845d6ac39849d1538ebc7e0c71dcbc88af13ff063761cb2d42b5bf83bfe0374",
+    "forge-image-mount-targets.json": "4665d9a458d250b5adbfa6536f88fc4390e56d25a80efe4f51d5a49ba5acacd3",
+    "forge-image-regression-proof.json": "61c54358e87ee2b616d2ec6d7dc61d082cf196e759579d73ef1cda1c4958fae1",
+    "forge-image-roots.json": "2f375f25a70c77bcaaf16e94b84233c12a3d791029a269f0a65d848ab4661c2b"
   },
   "image": {
-    "configId": "sha256:af4ef821e09501a2d5d5ac9c1c831abcd4ded780424e567fe8aba1c31cfe50b7",
-    "manifestDigest": "sha256:c3f8d5122019c8899ba426cd078f1af7c444ff45753dbc263999cd5828dde916"
+    "configId": "sha256:3f0e93592846b4e15e6377557b38766e4767189dc072dc01549ff8eb82754fa8",
+    "manifestDigest": "sha256:371cc3702097a26732455c1c0f0662020c4061dd490ff0a136584adb396b9911"
   }
 }
