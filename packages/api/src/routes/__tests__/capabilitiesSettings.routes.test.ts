@@ -20,18 +20,24 @@ const ORG_ID = 'settings-org';
 /** The account a managed session acts as, when a test switches into one. */
 let mockManagedSubject: string | null = null;
 let mockApprovingSessionId: string | undefined;
+let mockBeforeNext: (() => Promise<void>) | undefined;
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (
+  authMiddleware: async (
     req: { sessionId?: string; user?: { _id: string; id: string }; oxyToken?: { principalUserId: string; subjectAccountId: string } },
     _res: unknown,
-    next: () => void,
+    next: (error?: unknown) => void,
   ) => {
     const subject = mockManagedSubject ?? 'settings-user';
     req.sessionId = mockApprovingSessionId;
     req.user = { _id: subject, id: subject };
     req.oxyToken = { principalUserId: 'settings-user', subjectAccountId: subject };
-    next();
+    try {
+      await mockBeforeNext?.();
+      next();
+    } catch (error) {
+      next(error);
+    }
   },
   serviceAuthMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
@@ -396,7 +402,7 @@ it('asks authority of the person operating a managed account, not of the account
 });
 
 
-it.each(['missing', 'expired', 'revoked'] as const)(
+it.each(['missing', 'unknown', 'expired', 'revoked', 'revoked-after-auth', 'expired-after-auth'] as const)(
   'returns401 without insertion when the approving session is %s after bearer verification',
   async (state) => {
     // Bearer/operator middleware is synthetic here; the second session lookup
@@ -404,7 +410,7 @@ it.each(['missing', 'expired', 'revoked'] as const)(
     // the race where the earlier authentication snapshot is no longer live.
     mockManagedSubject = ORG_ID;
     const sessionId = `settings-denied-${randomUUID()}`;
-    if (state !== 'missing') {
+    if (state !== 'missing' && state !== 'unknown') {
       await getDb().insert(sessions).values({
         sessionId, userId: ORG_ID, operatedByUserId: USER_ID,
         deviceId: `settings-denied-device-${randomUUID()}`, deviceType: 'web', platform: 'web',
@@ -414,6 +420,21 @@ it.each(['missing', 'expired', 'revoked'] as const)(
       });
     }
     mockApprovingSessionId = state === 'missing' ? undefined : sessionId;
+    let changedAfterAuthentication = false;
+    if (state === 'revoked-after-auth' || state === 'expired-after-auth') {
+      // Deterministic seam: the earlier bearer middleware observes a LIVE row;
+      // revoke/expire commits before next() enters the final approval lookup.
+      mockBeforeNext = async () => {
+        const [live] = await getDb().select({ active: sessions.isActive, expiry: sessions.expiresAt })
+          .from(sessions).where(eq(sessions.sessionId, sessionId));
+        expect(live.active).toBe(true);
+        expect(live.expiry.getTime()).toBeGreaterThan(Date.now());
+        await getDb().update(sessions).set(state === 'revoked-after-auth'
+          ? { isActive: false } : { expiresAt: new Date(Date.now() - 1_000) })
+          .where(eq(sessions.sessionId, sessionId));
+        changedAfterAuthentication = true;
+      };
+    }
     const runId = `settings-denied-run-${randomUUID()}`;
     try {
       const denied = await http().post('/capabilities/execution-authorizations')
@@ -425,6 +446,7 @@ it.each(['missing', 'expired', 'revoked'] as const)(
           tool: 'readResource', runId, maximumAutonomy: 'read_only', limits: [],
           expiresAt: new Date(Date.now() + 60_000).toISOString(),
         });
+      expect(changedAfterAuthentication).toBe(state === 'revoked-after-auth' || state === 'expired-after-auth');
       expect(denied.status).toBe(401);
       expect(denied.body).toMatchObject({ error: 'INVALID_SESSION' });
       expect(await getDb().select({ id: capabilityExecutionAuthorizations.id })
@@ -433,6 +455,7 @@ it.each(['missing', 'expired', 'revoked'] as const)(
     } finally {
       mockManagedSubject = null;
       mockApprovingSessionId = managedSessionId;
+      mockBeforeNext = undefined;
     }
   },
 );
