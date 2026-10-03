@@ -16,7 +16,7 @@ function fixture() {
   };
   const session = {sessionId:'new-key-session',user:{id:'commons-owner'},accessToken:'new-key-token',deviceId:'new-device',deviceSecret:'new-secret'} as SessionLoginResponse;
   const signInWithCommonsIdentity = jest.fn(async () => session);
-  const oxy = {baseURL:'https://api.oxy.so',auth:{signInWithCommonsIdentity},session:{setAccessToken:jest.fn()},devices:{mintToken:jest.fn()},http:{getSessionEpoch:()=>0,runSingleFlightDeviceSecretMint:(operation:()=>Promise<unknown>)=>operation()}} as unknown as OxyServices;
+  const oxy = {baseURL:'https://api.oxy.so',auth:{signInWithCommonsIdentity},session:{setAccessToken:jest.fn()},devices:{mintToken:jest.fn()},http:{getSessionEpoch:()=>0,hasSessionEnded:()=>false,runSingleFlightDeviceSecretMint:(operation:()=>Promise<unknown>)=>operation()}} as unknown as OxyServices;
   return {storage, values, oxy, signInWithCommonsIdentity};
 }
 
