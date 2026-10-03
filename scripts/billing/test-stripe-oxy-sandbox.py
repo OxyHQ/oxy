@@ -74,6 +74,8 @@ class FrozenPlanTests(unittest.TestCase):
 
     def test_diagnostics_never_return_arbitrary_provider_messages(self):
         code = """
+          import {createRequire} from 'node:module';
+          const Stripe=createRequire(process.cwd()+'/packages/api/package.json')('stripe');
           import { rehearsalErrorDiagnostic } from './packages/api/scripts/stripe-billing-sandbox-rehearsal.ts';
           import assert from 'node:assert/strict';
           const arbitrary = rehearsalErrorDiagnostic(new Error('secret sk_test_do_not_emit header Bearer token'), 'fixture');
@@ -82,10 +84,43 @@ class FrozenPlanTests(unittest.TestCase):
           assert.equal(JSON.stringify(arbitrary).includes('Bearer'), false);
           assert.equal(rehearsalErrorDiagnostic(new Error('SubtleCryptoProvider cannot be used in a synchronous context.'), 'fixture').reason, 'crypto_sync_provider');
           assert.equal(rehearsalErrorDiagnostic(new Error('Event census exceeds five bounded pages'), 'fixture').reason, 'event_census_bound');
-          console.log(JSON.stringify({passed: 5, remoteRequests: 0, keyRead: false}));
+          const error = new Stripe.errors.StripeInvalidRequestError({type:'invalid_request_error',code:'parameter_unknown',param:'name',statusCode:400,message:'secret_DO_NOT_EMIT'});
+          const diagnosed = rehearsalErrorDiagnostic(error,'fixture');
+          assert.equal(diagnosed.type,'StripeInvalidRequestError');
+          assert.equal(diagnosed.status,400);
+          assert.equal(diagnosed.param,'name');
+          assert.equal(JSON.stringify(diagnosed).includes('secret_DO_NOT_EMIT'),false);
+          console.log(JSON.stringify({passed: 9, remoteRequests: 0, keyRead: false}));
         """
         result = RUNNER.run(['bun', '-e', code], cwd=RUNNER.ROOT)
-        self.assertEqual(json.loads(result), {'passed': 5, 'remoteRequests': 0, 'keyRead': False})
+        self.assertEqual(json.loads(result), {'passed': 9, 'remoteRequests': 0, 'keyRead': False})
+
+    def test_failed_or_unknown_run_always_requires_manifest_review(self):
+        for exit_code, forced, expected in [(0, False, False), (1, False, True),
+                                            (None, False, True), (-15, False, True),
+                                            (0, True, True)]:
+            with self.subTest(exit_code=exit_code, forced=forced):
+                self.assertEqual(RUNNER.cleanup_requires_manifest_review(exit_code, forced), expected)
+
+    def test_zero_invoice_scope_is_exactly_zero_paid_and_one_subscription(self):
+        plan=copy.deepcopy(self.good);plan['scope']=RUNNER.scope(True)
+        self.assertEqual(self.validate(plan),plan)
+        for field,value in [('maximumSyntheticPaidMinorUnits',1),('maximumSubscriptions',2),('scenario','other')]:
+            with self.subTest(field=field):
+                altered=copy.deepcopy(plan);altered['scope'][field]=value
+                with self.assertRaisesRegex(ValueError,'scope'):
+                    self.validate(altered)
+
+    def test_coupon_name_contract_accepts_forty_and_refuses_forty_one_before_intents(self):
+        code = """
+          import { assertSandboxCouponName } from './packages/api/scripts/stripe-billing-sandbox-rehearsal.ts';
+          import assert from 'node:assert/strict';
+          assert.equal(assertSandboxCouponName('x'.repeat(40)).length,40);
+          assert.throws(()=>assertSandboxCouponName('x'.repeat(41)),/Coupon name/);
+          assert.equal(assertSandboxCouponName('No-grant '+'a'.repeat(24)).length,33);
+          console.log(JSON.stringify({passed:3,providerMutations:0}));
+        """
+        self.assertEqual(json.loads(RUNNER.run(['bun','--no-env-file','-e',code],cwd=RUNNER.ROOT)),{'passed':3,'providerMutations':0})
 
     def test_credential_environment_is_not_forwarded(self):
         previous = RUNNER.os.environ.copy()
