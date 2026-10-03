@@ -698,12 +698,13 @@ export class AuthOAuthApi {
    * out, so the app can run the OAuth flow again. It never degrades into a
    * session that looks alive and cannot refresh.
    */
+  /** `plantTokens: false` defers bearer installation to a validated provider commit. */
   async exchangeCode(params: {
     code: string;
     clientId: string;
     redirectUri: string;
     codeVerifier: string;
-  }): Promise<OAuthTokenExchangeResult> {
+  }, options: { plantTokens?: boolean } = {}): Promise<OAuthTokenExchangeResult> {
     const form = new URLSearchParams({
       grant_type: 'authorization_code',
       code: params.code,
@@ -740,7 +741,9 @@ export class AuthOAuthApi {
     const expiresInSec =
       typeof record.expires_in === 'number' ? record.expires_in : DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
     const expiresAt = new Date(Date.now() + expiresInSec * 1000).toISOString();
-    if (accessToken) {
+    // Provider completion validates the expected subject before committing.
+    // Direct callers retain the historical token-planting default.
+    if (accessToken && options.plantTokens !== false) {
       this.ctx.oxy.session.setAccessToken(accessToken);
     }
     if (!deviceId || !deviceSecret) {
