@@ -1,0 +1,6 @@
+
+/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/console/src/hooks/use-account.tsx
+  160:22  error  Unnecessary optional chain on a non-nullish value  @typescript-eslint/no-unnecessary-condition
+
+✖ 1 problem (1 error, 0 warnings)
+
