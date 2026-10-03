@@ -5,7 +5,7 @@
 13 isolated real-collector clock/layout assertions pass; stale-clock mutation accepts expired facts and corrected collector rejects. No live API, authority or publication.
 .............
 ----------------------------------------------------------------------
-Ran 13 tests in 0.018s
+Ran 13 tests in 0.017s
 
 OK
 Forge audit policy: 123 structural and isolated policy assertions passed; no live or human authorization claimed.
