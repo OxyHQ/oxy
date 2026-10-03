@@ -1,0 +1,132 @@
+{
+  "recordedAt": "2026-10-03T01:33:51.044800+00:00",
+  "sourceCommit": "60fa82ac9f60c55c2a7092c6474206bb80f76914",
+  "baseline": "aba5587e1",
+  "runtimeChanges": false,
+  "red": {
+    "failed": 13,
+    "passed": 30,
+    "cause": "applications_pkey conflict for canonical Alia id; secondary undefined-server teardown"
+  },
+  "green": {
+    "inferenceThenNative": 43,
+    "nativeThenInference": 43,
+    "suitesEach": 2,
+    "migrations": 137
+  },
+  "lint": {
+    "exitCode": 0
+  },
+  "runs": [
+    {
+      "name": "red",
+      "pid": 3340472,
+      "exit": 1,
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--testSequencer",
+        "/tmp/oxy1519-i09-f5dur4c0/ordered-sequencer.cjs",
+        "--runTestsByPath",
+        "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+        "src/routes/__tests__/nativeRequesterAssertion.collision-red.test.ts"
+      ],
+      "stopped": true
+    },
+    {
+      "name": "green-inference-native",
+      "pid": 3341292,
+      "exit": 0,
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--testSequencer",
+        "/tmp/oxy1519-i09-l5dcxxr4/ordered-sequencer.cjs",
+        "--runTestsByPath",
+        "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+        "src/routes/__tests__/nativeRequesterAssertion.routes.test.ts"
+      ],
+      "stopped": true
+    },
+    {
+      "name": "green-native-inference",
+      "pid": 3341962,
+      "exit": 0,
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--testSequencer",
+        "/tmp/oxy1519-i09-y7xm3jw8/ordered-sequencer.cjs",
+        "--runTestsByPath",
+        "src/routes/__tests__/nativeRequesterAssertion.routes.test.ts",
+        "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts"
+      ],
+      "stopped": true
+    }
+  ],
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/routes/__tests__/nativeRequesterAssertion.routes.test.ts",
+      "sha256": "2b7e4f8857c5beec2d6bfa0f202f4edd105be079f4576bdeebf407e17bf03ddb"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sha256": "275a1f567bcec9a40f6759f2cd4cbe9bc4d52a615c2c6abd7befd2ab60d3c275"
+    },
+    {
+      "path": "packages/api/src/db/testDatabase.ts",
+      "sha256": "9e1d3327bef9d34244ca5926da97ca1b74b71753c7120f9dc815b9e6ea3d7a12"
+    },
+    {
+      "path": "scripts/rehearsal/test-approved-api-1519.py",
+      "sha256": "465c4b574dae6e517cdf9e284eb0098b89189f5edf3fa37c18d0d5a32a1ffce4"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-requester-fixture-isolation/eslint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-requester-fixture-isolation/green-inference-native-runner.log",
+      "sha256": "41fdc75978ac65358215cf6c62682cc5b60faebacdf34ce0ee610059f2b5fdaf"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-requester-fixture-isolation/green-inference-native.log",
+      "sha256": "a6e4dee02fe98c83fad4401308245a42ba22decf9e7ab9e636371ddc5771d3b0"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-requester-fixture-isolation/green-native-inference-runner.log",
+      "sha256": "5c1d6322b76150f9141f8e4c5b704d309f43a5730cbaf4c2ca8288711da5915a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-requester-fixture-isolation/green-native-inference.log",
+      "sha256": "203b18167710ac1e3cf4a213b931a00aac028026bf9c628d4282e41ad0491cc3"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-requester-fixture-isolation/red-harness.ts",
+      "sha256": "64391415d594a3fe3e9ef52e7071ef5becbb9127d330595dea676c8515b4b281"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-requester-fixture-isolation/red-runner.log",
+      "sha256": "ad0d5768816d6e90c36e1e97962bedc8c643a8961ae097f4f439985e15c98e5d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-requester-fixture-isolation/red.log",
+      "sha256": "735e0d7ff751f42b82ffda58ca9556c29950b2b16b5a4cf76468bfc377460f1f"
+    }
+  ],
+  "limits": [
+    "Real HTTP/native service-token and session authority; fake Kaana data plane remains existing fixture.",
+    "No production/database or provider network operations; each server and fixture database owned and dropped.",
+    "Ordered RED copied original native source verbatim to temporary collision-red test path, removed after run.",
+    "First unordered run passed and did not demonstrate the collision; preliminary sequencer resolution failed before tests, corrected before recorded RED.",
+    "Whole CI still pending; Forge remains INACTIVE for source changes."
+  ]
+}
