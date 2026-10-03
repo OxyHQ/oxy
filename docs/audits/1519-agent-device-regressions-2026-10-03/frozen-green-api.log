@@ -1,0 +1,7 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/deviceDirectory.service.test.ts src/routes/__tests__/agentAutonomousFlow.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       70 passed, 70 total
+Snapshots:   0 total
+Time:        12.797 s
+Ran all test suites within paths "src/services/__tests__/deviceDirectory.service.test.ts", "src/routes/__tests__/agentAutonomousFlow.test.ts".

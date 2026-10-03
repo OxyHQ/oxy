@@ -1,0 +1,72 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/deviceDirectory.service.test.ts src/routes/__tests__/agentAutonomousFlow.test.ts
+FAIL src/services/__tests__/deviceDirectory.service.test.ts (8.173 s)
+  ● #1549 serializes binding writers with background issuance › issuance commit before signout invalidates exactly the retired binding
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "hash": null,
+    +   "hash": "1c26a1711e8b0fb4ba0e8383bd72dd84c8d28c96b503d692ab5172dd4ebe305c",
+        "minted": false,
+      }
+
+      1213 |       const mint = await deviceSessionService.mintFromBackgroundSecret(p.device, credential.secret);
+      1214 |       expect({ hash: (await storedDevice(p.device)).backgroundSecretHash, minted: mint.ok })
+    > 1215 |         .toEqual({ hash: null, minted: false });
+           |          ^
+      1216 |       expect(await sessionService.getAccessToken(p.otherSession)).not.toBeNull();
+      1217 |       expect((await storedContexts(p.device)).find(row => row.accountId === p.other)?.sessionId).toBe(p.otherSession);
+      1218 |       expect(await deviceSessionService.getStateBySecret(p.device, p.holder)).not.toBeNull();
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:1215:10
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+  ● #1549 serializes binding writers with background issuance › issuance commit before detach invalidates exactly the retired binding
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "hash": null,
+    +   "hash": "44a903381b13256e302a948807363a703a2c8c9ecb8b14ac897e937fd9de16d7",
+        "minted": false,
+      }
+
+      1213 |       const mint = await deviceSessionService.mintFromBackgroundSecret(p.device, credential.secret);
+      1214 |       expect({ hash: (await storedDevice(p.device)).backgroundSecretHash, minted: mint.ok })
+    > 1215 |         .toEqual({ hash: null, minted: false });
+           |          ^
+      1216 |       expect(await sessionService.getAccessToken(p.otherSession)).not.toBeNull();
+      1217 |       expect((await storedContexts(p.device)).find(row => row.accountId === p.other)?.sessionId).toBe(p.otherSession);
+      1218 |       expect(await deviceSessionService.getStateBySecret(p.device, p.holder)).not.toBeNull();
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:1215:10
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+FAIL src/routes/__tests__/agentAutonomousFlow.test.ts
+  ● SDK agent signer accepts compressed encoding of the same point against HTTP and SQL
+
+    Agent challenge does not match this account and signer
+
+      21 |   if (claims.action !== 'agent_signin' || claims.accountId !== accountId || claims.actorId !== accountId
+      22 |     || claims.publicKey !== publicKey || !claims.authMethodId || claims.expiresAt <= timestamp) {
+    > 23 |     throw new Error('Agent challenge does not match this account and signer');
+         |           ^
+      24 |   }
+      25 |   const signature = await signer.signMessage(buildAgentProofMessage(claims, timestamp));
+      26 |   return client.auth.agent.verify(publicKey, { challenge: claims.challenge, timestamp, signature });
+
+      at ../core/src/server/agentAccount.ts:23:11
+      at fulfilled (../core/src/server/agentAccount.ts:5:58)
+
+Test Suites: 2 failed, 2 total
+Tests:       3 failed, 60 passed, 63 total
+Snapshots:   0 total
+Time:        10.555 s
+Ran all test suites within paths "src/services/__tests__/deviceDirectory.service.test.ts", "src/routes/__tests__/agentAutonomousFlow.test.ts".
+error: script "test" exited with code 1
