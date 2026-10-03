@@ -1,0 +1,64 @@
+{
+  "recordedAt": "2026-10-03T09:05:59.713739+00:00",
+  "sourceCommit": "f16044d6e21aefeb965852fcf35be2dbe8560c50",
+  "sourceInputs": [
+    {
+      "path": "packages/auth/lib/oauth-redirect.ts",
+      "sha256": "d84a56f8685c3f6a802e184bc72207f452407364c1d2ee966cf3e9d9cba921ae"
+    },
+    {
+      "path": "packages/auth/lib/__tests__/oauth-redirect.test.ts",
+      "sha256": "10f19b252da79a0efe1ed04b912053ea8f5eb39b200231794629019f755d8512"
+    },
+    {
+      "path": "packages/api/src/utils/oauthRedirect.ts",
+      "sha256": "ea286d65b91341cb58c211908bfca4475d0b8f68be12f568723f2a6f99049f4e"
+    },
+    {
+      "path": "packages/api/src/services/oauthCode.service.ts",
+      "sha256": "e87abe8882900da41993fb0af60e5a7e587880e3eb72ea22530db20b5c1434eb"
+    },
+    {
+      "path": "packages/contracts/src/capabilityBindings.ts",
+      "sha256": "3809508d684e25381522c7e3bd911c3943ef0d94f1b9fbc867705f3e25a8b3f8"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/loopback/oauth-loopback-red.log",
+      "sha256": "f9f16d1c9c6e0eba97234139c2fb56c4cbf7cdfc74264c1c308722b7378a4d09"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/loopback/oauth-loopback-red-final.log",
+      "sha256": "c7249841bb58e8c3b394a18b5b92160ad8119a262645452e069ddb11132774dc"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/loopback/oauth-loopback-green.log",
+      "sha256": "19d6b6705fbd84f2a7108cb6004d5895102de9b5a2d97080d1d07e585ef2b217"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/loopback/oauth-loopback-lint.log",
+      "sha256": "245078793168aab11a2778a868323bc26c3d5122cb9f2a74799141d35ded0bb6"
+    }
+  ],
+  "command": "cd packages/auth && bun --no-env-file run test",
+  "results": {
+    "red": {
+      "exitCode": 1,
+      "passed": 149,
+      "failed": 1
+    },
+    "green": {
+      "exitCode": 0,
+      "passed": 150,
+      "failed": 0
+    }
+  },
+  "limits": [
+    "First invocation used the wrong edit path and therefore ran unchanged tests; oauth-loopback-red.log is not RED evidence.",
+    "ESLint ignores both lib files; exit 0 is not a lint acceptance.",
+    "HTTP apex slash normalization is retained because shared backend canonicalizeOAuthRedirectUri and isAllowedRedirectUri already use origin canonicalization. MCP redirect binding remains exact.",
+    "Registered redirect allowlist validation still runs on the server; a valid shape does not authorize a redirect.",
+    "Runtime IdP browser continuation uses the same existing fixture database; no OAuth/SSO gate is claimed by unit tests."
+  ]
+}
