@@ -1,0 +1,151 @@
+{
+  "sourceCommit": "753ec300b3276ac60fac209ff9a48290324ff12a",
+  "baseCommit": "19676aa5d6069a117e0ab5fcd8f1e925fc6106f9",
+  "sources": [
+    {
+      "path": "docs/auth/1519-mercaria-ephemeral-credential/README.md",
+      "sha256": "f537719bb44588dd0199346237b1ba280d65efb9a7baf5ee25d7651621fdcd94"
+    },
+    {
+      "path": "packages/api/scripts/mercaria-ephemeral-credential.ts",
+      "sha256": "da50d390e8735037068ad42a062fa67328c101db6a62feb65bf755e01518b484"
+    },
+    {
+      "path": "packages/api/src/operations/mercariaEphemeralCredential.ts",
+      "sha256": "778a72e22bacf52c52b16409f82535ef0886a38b2373f8c53a3fdbc5c17a1c43"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/serviceTokenCredentials.test.ts",
+      "sha256": "263cce551b4f2fda3f2e82527592d759dab618dfbdb1e330d79fdce81962d407"
+    },
+    {
+      "path": "packages/api/src/routes/applications.ts",
+      "sha256": "a9e9b6b621d42f1e08a1a39aaae9b8356043f6df09c0389018e379cb0b4f1cb0"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mercariaEphemeralCredential.db.test.ts",
+      "sha256": "12888c45deb6639245c37317629a2d09f53cd494e87a829b917e6ae119e39bf9"
+    },
+    {
+      "path": "packages/api/src/services/mercariaEphemeralCredential.contract.ts",
+      "sha256": "c788878f6119fd63ef94c524d01df77b1d15515c83b0234248d1a1cabc7986d0"
+    },
+    {
+      "path": "packages/api/src/services/mercariaEphemeralCredential.service.ts",
+      "sha256": "98a47aa2bfd8b8c5ece1a2495418680d9ba47f5eae619216c4d9a680fa20a184"
+    },
+    {
+      "path": "packages/api/src/utils/__tests__/privateOperatorFiles.test.ts",
+      "sha256": "58658ba6018b09a5900e53a011661459ea593c35937f0c12e089622d9f6ce153"
+    },
+    {
+      "path": "packages/api/src/utils/credentialMaterial.ts",
+      "sha256": "b09af509b2d268789d70e3fdd542cdb1329ec16548b15a78581a1375ab89ad0a"
+    },
+    {
+      "path": "packages/api/src/utils/privateOperatorFiles.ts",
+      "sha256": "b8772c0c73882737baa346f50948be331c3f4466e7fe1c618d954dcb779514c0"
+    },
+    {
+      "path": "scripts/auth/mercaria-ephemeral-ecs.py",
+      "sha256": "5e7aa02c68cbd614ef571981c40a694c639e950713b7de3d03d5eb1318170205"
+    },
+    {
+      "path": "scripts/auth/test-mercaria-ephemeral-ecs.py",
+      "sha256": "f290b536c3c6aa741858d4da3a3ade2ec027ff2b50f30c4924b386457f9e3340"
+    }
+  ],
+  "dependencies": [
+    {
+      "path": "scripts/billing/commercial-inventory-ecs.py",
+      "sha256": "8bff2b39d443914c9ce9281c740705d544821e22b92ec3095cf5c889e1e9564b"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-first.log",
+      "sha256": "68db9f7c829e21d8a8dd637db34a4f7138524dbe313a22a1a52f20d701269800"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-http.log",
+      "sha256": "7f67ff9b42e8e47f4c1db92cd48212fc226268a0973a469f208d74392bd1e146"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-final-complete.log",
+      "sha256": "43cc8e53e7dcba46fa081255009646f96ac0a9a4ff79616e27c109ca74230339"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-transport-final.log",
+      "sha256": "69d3092e799b33eb7dca64bf94a3536ab4fa9fc5969f0629675edb863629b707"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-types-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-script-types-final.log",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-compiled-entry.log",
+      "sha256": "7da6788353dfbcbe7df57427508c65a2f4d0f47f8b451f6364276a37abeefbd5"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-eslint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-biome-final.log",
+      "sha256": "648c3292b84ea81912dcd505c57d4cc9a62d464aabc75d0a266e2fd8276bedf9"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-ephemeral-credential/logs/ephemeral-database-teardown.log",
+      "sha256": "fa30e13c5f44a99801601b81be8127f7d4845af78fe226fb052089d2ab6e9076"
+    }
+  ],
+  "historicalNonFinal": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-handoff-i08-20261003/mercaria-authority/ephemeral-eslint.log",
+      "sha256": "c1b61c18bad875cdbb49fe14149a4ef93bdf8bfcd3098061108a1b57c995548c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-handoff-i08-20261003/mercaria-authority/ephemeral-eslint-scoped.log",
+      "sha256": "dcda0b4ceac319dec89e74a347f67bc878dd883ef0c4ea258f0bfe842c805ed4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-handoff-i08-20261003/mercaria-authority/ephemeral-format.log",
+      "sha256": "e20465e43d1c54f0d3e57a52ce514d583be03447ad2f183bc61ceb641777fb07"
+    }
+  ],
+  "validation": {
+    "apiSuites": 5,
+    "apiPassed": 147,
+    "apiFailed": 0,
+    "awsOfflineTests": 10,
+    "typescript": "PASS API + scripts",
+    "apiBuild": "PASS",
+    "eslint": "PASS 9 source/test files, max-warnings=0",
+    "biome": "PASS 8 new TS files, error-on-warnings",
+    "compiledNodeEntry": "invalid request rejected before DB, sanitized stderr"
+  },
+  "database": {
+    "host": "127.0.0.1",
+    "port": 5575,
+    "owner": "oxy_i08_mercaria",
+    "serverPersistent": true,
+    "fixtureDatabasesRemaining": []
+  },
+  "liveOperationExecuted": false,
+  "imagePrerequisite": "Final reviewed Oxy image containing compiled helper; no separate build/rollout performed",
+  "limits": [
+    "Trusted operator attribution boundary, not authenticated IAM inside container",
+    "No live credential/CAS/merchant/cohort write",
+    "No immediate invalidation of existing JWT; current issuer TTL300 seconds",
+    "No global uniqueness constraint beyond serialized helper operations"
+  ],
+  "runtimeSourceCommit": "487e6bcc058112c0e31d3ad056a9bfbb8cae9740"
+}

@@ -1,3 +1,4 @@
+import { generateCredentialMaterial } from '../utils/credentialMaterial';
 import express from 'express';
 import crypto from 'crypto';
 import { and, count, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
@@ -136,9 +137,6 @@ interface AppContextRequest extends AuthRequest {
   access?: AppAccess;
 }
 
-const CREDENTIAL_PUBLIC_KEY_PREFIX = 'oxy_dk_';
-const PUBLIC_KEY_RANDOM_BYTES = 24;
-const SECRET_RANDOM_BYTES = 32;
 const WEBHOOK_SECRET_RANDOM_BYTES = 24;
 
 /**
@@ -591,15 +589,6 @@ async function getUsageStats(applicationId: string, startDate: Date): Promise<Us
     .limit(USAGE_TOP_ENDPOINTS);
 
   return { summary, byDay, byEndpoint };
-}
-
-/** Generate a fresh credential public key + plaintext secret + its hash. */
-function generateCredentialMaterial(): { publicKey: string; secret: string; secretHash: string } {
-  const publicKey =
-    CREDENTIAL_PUBLIC_KEY_PREFIX + crypto.randomBytes(PUBLIC_KEY_RANDOM_BYTES).toString('hex');
-  const secret = crypto.randomBytes(SECRET_RANDOM_BYTES).toString('hex');
-  const secretHash = crypto.createHash('sha256').update(secret).digest('hex');
-  return { publicKey, secret, secretHash };
 }
 
 /** Build the `callerMembership` projection from resolved access. */

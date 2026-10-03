@@ -1,0 +1,14 @@
+# Mercaria ephemeral credential — local acceptance candidate
+
+Runtime source `487e6bcc058112c0e31d3ad056a9bfbb8cae9740`; documentation follow-up `753ec300b3276ac60fac209ff9a48290324ff12a` on base `19676aa5d6069a117e0ab5fcd8f1e925fc6106f9`. Thirteen changed sources and the reused inventory transport are pinned in [proof.json](proof.json). The [operator procedure](../../auth/1519-mercaria-ephemeral-credential/README.md) defines exact target, input/output handling, recovery, image prerequisites and cleanup.
+
+- Five API package suites: **147 PASS, 0 FAIL**, real PostgreSQL and HTTP mint, including existing application/machine credential regressions. The one-shot input and transactions run against synthetic rows in the owned fixture database. Operator STS is synthetic in CLI tests; no real AWS call or provider effect.
+- Ten Python AWS fixtures PASS: definition authority, private material, input/source identity, lost receipt with one dispatch, and cleanup independence. This is not an AWS operational receipt.
+- API build, strict API/script TS, scoped ESLint9 files with zero warnings and Biome8 new TS files with error-on-warnings pass. Compiled Node entry rejects invalid input with sanitized error before connecting to DB.
+- Existing local PG5575/owner oxy_i08_mercaria remains running; harness-owned worker databases were dropped and the final catalogue readback is empty. No foreign DB cleanup.
+
+Commands were run from this worktree: `bun run --cwd packages/api test --runInBand` with the five paths in the final log; `python3 scripts/auth/test-mercaria-ephemeral-ecs.py`; `bun run --cwd packages/api build`; API tsc noEmit and `bun run --cwd packages/api typecheck:scripts`; scoped local ESLint and Biome binaries. PostgreSQL URL uses only the existing owned local role/server; no production URL override.
+
+Initial development checks are retained: first7 DB tests, then38 DB/HTTP tests. These were green additions, not an invented RED/product failure. A mistakenly broad package lint invocation produced83 existing warnings and no errors; a scoped invocation included the ignored scripts path and therefore one ignored-file warning. Final ESLint excludes that ignored script and Biome+script TS check it explicitly. The first formatting pass reported five fixable diagnostics, corrected before final validation. Historical logs are private hash references; no unrelated source formatting was performed.
+
+No live issue, CAS, merchant registration, token mint, ECS task or cohort activation has been executed. An already-issued JWT retains exp; the current issuer emits300s. Next mint after expiry/revocation fails in actual HTTP tests, without claiming instant receiver revocation. I08/I11 remain open for composed adoption, final image, reviewed authority/namespace/cohort operations and rollout.

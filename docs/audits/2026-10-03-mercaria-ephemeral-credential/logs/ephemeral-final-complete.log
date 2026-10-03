@@ -1,0 +1,8 @@
+$ jest --runInBand src/utils/__tests__/privateOperatorFiles.test.ts src/services/__tests__/mercariaEphemeralCredential.db.test.ts src/routes/__tests__/serviceTokenCredentials.test.ts src/routes/__tests__/machineCredentials.test.ts src/routes/__tests__/applications.test.ts
+{"level":30,"time":1791016669438,"pid":3659697,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 5 passed, 5 total
+Tests:       147 passed, 147 total
+Snapshots:   0 total
+Time:        7.623 s, estimated 9 s
+Ran all test suites matching src/utils/__tests__/privateOperatorFiles.test.ts|src/services/__tests__/mercariaEphemeralCredential.db.test.ts|src/routes/__tests__/serviceTokenCredentials.test.ts|src/routes/__tests__/machineCredentials.test.ts|src/routes/__tests__/applications.test.ts.
