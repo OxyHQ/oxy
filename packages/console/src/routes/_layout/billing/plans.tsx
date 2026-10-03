@@ -161,7 +161,9 @@ function BillingPlansPage() {
             {source.cancelAtPeriodEnd ? <Badge variant="secondary">Cancels at period end</Badge> : source.canCancel &&
               <Button variant="outline" size="sm" disabled={cancelNamed.isPending} onClick={() => {
                 if (window.confirm('Cancel this named product subscription at its period end?'))
-                  void cancelNamed.mutateAsync({ kind: 'product', id: source.sourceId, subject: user?.id ?? '' }).catch(error => toast.error(getErrorMessage(error, 'Cancellation failed')));
+                  void cancelNamed.mutateAsync({ kind: 'product', id: source.sourceId, subject: user?.id ?? '' }).then(result => {
+                    if (result && 'reconciliationPending' in result) toast.info('Cancellation accepted. Your subscription view is still updating; retry to reconcile it.');
+                  }).catch(error => toast.error(getErrorMessage(error, 'Cancellation failed')));
               }}>Cancel this subscription</Button>}
           </div>)}
       </div>

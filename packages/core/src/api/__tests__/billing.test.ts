@@ -70,6 +70,19 @@ describe('oxy.billing', () => {
 			{ cache: false },
 		);
 	});
+  it('distinguishes pending reconciliation and completed cancellation without changing legacy acceptance', async () => {
+    const { oxy, request } = stubbedClient('me');
+    const pending = { sourceId: 'source', reconciliationPending: true };
+    request.mockResolvedValue(pending);
+    await expect(oxy.billing.cancelProductSubscriptionWithStatus('source')).resolves.toEqual(pending);
+    await expect(oxy.billing.cancelProductSubscription('source')).resolves.toBeUndefined();
+    request.mockResolvedValue({ ...pending, cancelAtPeriodEnd: true });
+    await expect(oxy.billing.cancelProductSubscriptionWithStatus('source')).rejects.toThrow();
+    request.mockResolvedValue({ sourceId: 'source', cancelAtPeriodEnd: true });
+    await expect(oxy.billing.cancelProductSubscriptionWithStatus('source')).resolves.toEqual({ sourceId: 'source', cancelAtPeriodEnd: true });
+    request.mockRejectedValue(new Error('Forbidden'));
+    await expect(oxy.billing.cancelProductSubscriptionWithStatus('source')).rejects.toThrow('Forbidden');
+  });
   it('defaults every read to the signed-in user', async () => {
     const { oxy, request } = stubbedClient('me');
     request.mockResolvedValue({ plan: 'basic' });

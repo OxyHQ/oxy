@@ -9,11 +9,12 @@ import { z } from "zod";
 import { type Transaction, getDb } from '../config/postgres';
 import { accessProviderEvents, accessProviderPeriods } from '../db/schema';
 import { ConflictError } from '../utils/error';
-import { productProviderBindingSchema, recordProductAccessPeriod } from './productAccessPersistence.service';
+import { productAccessConfigurationExpectationSchema, productProviderBindingSchema, recordProductAccessPeriod } from './productAccessPersistence.service';
 
 const providerId = z.string().min(1).max(160);
 const inputSchema = z.object({
   binding: productProviderBindingSchema,
+  expectedConfiguration: productAccessConfigurationExpectationSchema.optional(),
   // No caller source/segment/evidence IDs or deduplication namespaces.
   subscription: z.unknown().transform(value => productSubscriptionSourceSchema.omit({ id: true }).parse(value)),
   offer: z.unknown().transform(value => productOfferSegmentSchema.pick({ offerId: true, offerVersion: true, origin: true }).parse(value)),
@@ -83,6 +84,7 @@ export async function recordProductProviderPeriod(raw: ProductProviderPeriodInpu
 				providerBinding: input.binding,
 				providerObservedAt: input.providerObservedAt,
 				advanceSourceSnapshot: true,
+        expectedConfiguration: input.expectedConfiguration,
 				allowHistoricalPaidSegment: options.verifiedHistoricalPaidEvidence,
 			},
 			tx,

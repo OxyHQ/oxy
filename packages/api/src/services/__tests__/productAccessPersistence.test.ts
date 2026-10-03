@@ -3,8 +3,8 @@ import { eq } from 'drizzle-orm';
 import { isCheckViolation, isForeignKeyViolation } from '@oxy.so/db';
 import { productOfferSchema } from '@oxy.so/contracts';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
-import { applications, accessGrants, accessSubscriptionSources, accessOfferSegments, accessOfferBenefits, accessOffers } from '../../db/schema';
-import { recordProductAccessPeriod, readSubjectProductAccess, updateProductAccessSourceState, revokeProductAccessGrant } from '../productAccessPersistence.service';
+import { applications, users, accessGrants, accessSubscriptionSources, accessOfferSegments, accessOfferBenefits, accessOffers } from '../../db/schema';
+import { recordProductAccessPeriod, registerProductAccessConfiguration, reconcileProductAccessFinancialState, readSubjectProductAccess, updateProductAccessSourceState, revokeProductAccessGrant } from '../productAccessPersistence.service';
 import { planProductAccessMapping } from '../productAccessMapping';
 import { productAccessFixture as fixture } from '../__fixtures__/productAccessFixtures';
 
@@ -142,4 +142,31 @@ it('dry-run requires exact provider account/price/parties and reports ambiguity 
 });
 it('missing quota rule rejects explicitly rather than choosing a commercial default', async () => {
   const f = await fixture(); expect(productOfferSchema.safeParse({ ...f.offers[0], benefits: [{ kind: 'quota', productId: f.products[0].id, key: 'quota', unit: 'units', included: 1 }] }).success).toBe(false);
+});
+
+it('compares every frozen quota field at the write boundary without changing the generic writer contract', async () => {
+  const f = await fixture(); const offer = productOfferSchema.parse({ ...f.offers[1], id: randomUUID(), benefits: [{ kind: 'quota', productId: f.products[0].id, key: 'storage', unit: 'byte', included: 100, combination: 'maximum' }] });
+  await registerProductAccessConfiguration({ products: [], offers: [offer] });
+  for (const change of [{ included: 101 }, { unit: 'gigabyte' }, { combination: 'sum' }]) {
+    const input = f.input(offer);
+    const expected = productOfferSchema.parse({ ...offer, benefits: [{ ...offer.benefits[0], ...change }] });
+    await expect(recordProductAccessPeriod({ ...input, expectedConfiguration: { products: [f.products[0]], offer: expected } })).rejects.toThrow('differs');
+    expect(await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, input.source.id))).toEqual([]);
+  }
+  expect((await recordProductAccessPeriod({ ...f.input(offer), expectedConfiguration: { products: [f.products[0]], offer } })).grantIds).toHaveLength(1);
+});
+it('financial maintenance binds every immutable identity, preserves closure history and ignores older observations', async () => {
+  const f = await fixture(); const input = f.input(); await recordProductAccessPeriod(input);
+  const maintenance = { sourceId: input.source.id, beneficiaryAccountId: f.beneficiary, payerAccountId: f.payer,
+    provider: input.source.provider, providerSubscriptionId: input.source.providerSubscriptionId,
+    providerBinding: input.providerBinding, providerObservedAt: new Date(f.now.getTime() + 1000),
+    status: input.source.status, period: input.source.period, cancelAtPeriodEnd: true };
+  for (const change of [{ payerAccountId: f.owner }, { beneficiaryAccountId: f.owner }, { providerSubscriptionId: 'other' }, { providerBinding: { ...input.providerBinding, providerAccountRef: 'other' } }]) {
+    await expect(reconcileProductAccessFinancialState({ ...maintenance, ...change })).rejects.toThrow('differs');
+  }
+  await getDb().update(users).set({ accountStatus: 'archived' }).where(eq(users.id, f.payer));
+  expect(await reconcileProductAccessFinancialState(maintenance)).toBe('updated');
+  expect(await reconcileProductAccessFinancialState({ ...maintenance, providerObservedAt: f.now, cancelAtPeriodEnd: false })).toBe('stale');
+  const [stored] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, input.source.id)); expect(stored.cancelAtPeriodEnd).toBe(true);
+  expect(await getDb().select().from(accessGrants).where(eq(accessGrants.sourceSegmentId, input.segment.id))).toHaveLength(2);
 });

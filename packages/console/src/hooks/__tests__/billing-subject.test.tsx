@@ -6,7 +6,7 @@ import { useProductSubscriptions, useCreditGrants, useCredits, useTransactions, 
 import type { PropsWithChildren } from 'react';
 const mock = vi.hoisted(() => ({ subject: 'A', product: vi.fn(), grants: vi.fn(), request: vi.fn(), cancel: vi.fn() }));
 vi.mock('@oxy.so/services', () => ({ useAuth: () => ({ user: { id: mock.subject }, isAuthenticated: true, isReady: true,
-  oxyServices: { request: mock.request, billing: { productSubscriptions: mock.product, creditGrants: mock.grants, cancelProductSubscription: mock.cancel } } }) }));
+  oxyServices: { request: mock.request, billing: { productSubscriptions: mock.product, creditGrants: mock.grants, cancelProductSubscriptionWithStatus: mock.cancel } } }) }));
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -43,10 +43,21 @@ it('rejects an A selection after switching to B and invalidates only the capture
   await expect(hook.result.current.mutateAsync({ id: 'A-source', kind: 'product', subject: 'A' })).rejects.toThrow('account changed');
   expect(mock.cancel).not.toHaveBeenCalled();
   let release!: () => void; mock.cancel.mockImplementation(() => new Promise<void>(resolve => { release = resolve; }));
-  let pending!: Promise<void>;
+  let pending!: Promise<unknown>;
   await act(async () => { pending = hook.result.current.mutateAsync({ id: 'B-source', kind: 'product', subject: 'B' }); });
   await waitFor(() => expect(mock.cancel).toHaveBeenCalledWith('B-source', 'B'));
   mock.subject = 'A'; hook.rerender(); await act(async () => { release(); await pending; });
   expect(invalidate.mock.calls.map(([input]) => input?.queryKey)).toEqual([['product-subscriptions', 'B'], ['credit-subscriptions', 'B'], ['subscription', 'B']]);
+  client.clear();
+});
+
+it('returns provider-accepted pending reconciliation instead of completed cancellation', async () => {
+  const { wrapper, client } = setup();
+  mock.cancel.mockResolvedValue({ sourceId: 'A-source', reconciliationPending: true });
+  const hook = renderHook(() => useCancelNamedSubscription(), { wrapper });
+  let result: unknown;
+  await act(async () => { result = await hook.result.current.mutateAsync({ id: 'A-source', kind: 'product', subject: 'A' }); });
+  expect(result).toEqual({ sourceId: 'A-source', reconciliationPending: true });
+  expect(result).not.toHaveProperty('cancelAtPeriodEnd');
   client.clear();
 });

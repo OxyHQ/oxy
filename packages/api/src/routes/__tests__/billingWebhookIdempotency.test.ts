@@ -33,7 +33,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 
 import express from "express";
@@ -49,6 +49,8 @@ const currentCharges = new Map<string, Record<string, unknown>>();
 const invoicePayments = new Map<string, Record<string, unknown>>();
 let failNextInvoiceRetrieve = false;
 
+let invalidNextCancellationSnapshot = false;
+const subscriptionUpdateCalls: string[] = [];
 const stripeSubscriptions = new Map<string, Record<string, unknown>>();
 /** When set, the NEXT `subscriptions.retrieve` waits for this before answering. */
 let holdNextRetrieve: Promise<void> | null = null;
@@ -76,6 +78,7 @@ jest.mock('../../utils/stripeClient', () => ({
     },
     subscriptions: {
       update: async (id: string, params: { cancel_at_period_end: boolean }) => {
+				subscriptionUpdateCalls.push(id);
 				const current = stripeSubscriptions.get(id);
 				if (!current) throw new Error("No such subscription");
 				const updated = {
@@ -83,6 +86,7 @@ jest.mock('../../utils/stripeClient', () => ({
 					cancel_at_period_end: params.cancel_at_period_end,
 				};
 				stripeSubscriptions.set(id, updated);
+				if (invalidNextCancellationSnapshot) { invalidNextCancellationSnapshot = false; return { ...structuredClone(updated), items: { has_more: true, data: [] } }; }
 				return structuredClone(updated);
 			},
 			retrieve: async (id: string) => {
@@ -192,6 +196,7 @@ import { closePostgres, connectPostgres, getDb } from "../../config/postgres";
 import { deductCredits } from '../../db/credits';
 import {
 	accessGrants,
+	applications,
 	accessOfferSegments,
 	accessProviderEvents,
 	accessProviderPeriods,
@@ -242,6 +247,8 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
+  invalidNextCancellationSnapshot = false;
+  subscriptionUpdateCalls.length = 0;
   failNextGrant = false;
   invoiceLinePages.clear();
   invoiceLineCalls.length = 0;
@@ -1575,4 +1582,80 @@ it('product-only lifecycle uses a fresh authenticated read and never revives ext
     const body = await read.json() as { subscriptions: Array<{ offers: Array<{ displayName: string; current: boolean; period: { start: string; end: string } }> }> };
     expect(body.subscriptions[0].offers[0]).toMatchObject({ displayName: 'Fixture bundle', current: false, period: { start: new Date(sub.periodStart * 1000).toISOString(), end: new Date((sub.periodStart + MONTH) * 1000).toISOString() } });
   });
+}));
+
+
+it.each(['empty', 'capability', 'quota', 'owner', 'application'] as const)('rejects complete catalogue %s mismatch before either award, then exact configuration retries once', async variant => withProductCatalogue(async f => {
+  const path = process.env.BILLING_PRODUCT_CATALOGUE_FILE; if (!path) throw new Error('fixture catalogue missing');
+  const original = await readFile(path, 'utf8'); const changed = JSON.parse(original);
+  if (variant === 'empty') changed.offers[0].benefits = [];
+  if (variant === 'capability') changed.offers[0].benefits[0].key = 'different';
+  if (variant === 'quota') changed.offers[0].benefits[0] = { kind: 'quota', productId: f.products[0].id, key: 'storage', unit: 'byte', included: 100, combination: 'maximum' };
+  if (variant === 'owner') changed.products[0].ownerAccountId = f.payer;
+  if (variant === 'application') changed.products[0].applicationId = 'different-application';
+  await writeFile(path, JSON.stringify(changed), { mode: 0o600 });
+  const sub = await subscriber(); const paid = invoiceEvent(sub); makeProductEvidenceLive(paid, sub.subscriptionId);
+  expect(await postWebhook(paid)).toBe(500);
+  expect(await paidBalance(sub.userId)).toBe(0); expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(0);
+  expect(await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId))).toHaveLength(0);
+  expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(0);
+  expect(await getDb().select().from(accessProviderPeriods).where(eq(accessProviderPeriods.invoiceId, paid.data.object.id))).toHaveLength(0);
+  await writeFile(path, original, { mode: 0o600 });
+  expect(await postWebhook(paid)).toBe(200); expect(await postWebhook(paid)).toBe(200);
+  expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS); expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(1);
+  expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(2);
+}));
+
+it('financial cancellation and fresh lifecycle recover after application transfer without granting transferred access', async () => withProductCatalogue(async f => {
+  const sub = await subscriber(); const paid = invoiceEvent(sub); makeProductEvidenceLive(paid, sub.subscriptionId); expect(await postWebhook(paid)).toBe(200);
+  const [source] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId));
+  await getDb().update(applications).set({ ownerAccountId: f.payer }).where(eq(applications.id, f.app.id));
+  await withApp(async base => {
+    const response = await fetch(`${base}/billing/product-subscriptions/cancel`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-user': sub.userId }, body: JSON.stringify({ sourceId: source.id }) });
+    expect(response.status).toBe(200); expect(await response.json()).toEqual({ sourceId: source.id, cancelAtPeriodEnd: true });
+  });
+  expect(subscriptionUpdateCalls).toEqual([sub.subscriptionId]);
+  const event = envelope('customer.subscription.updated', { id: sub.subscriptionId, status: 'active' }); event.livemode = true;
+  expect(await postWebhook(event)).toBe(200);
+  const [current] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, source.id));
+  expect(current.cancelAtPeriodEnd).toBe(true); expect(current.payerAccountId).toBe(sub.userId);
+  await expect(readSubjectProductAccess(sub.userId, f.products[0].id)).rejects.toThrow('configuration');
+  expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(2);
+  expect(await paidBalance(sub.userId)).toBe(PRO_CREDITS);
+}));
+
+it('confirmed remote cancellation returns pending after SQL failure and webhook recovery changes no grants', async () => withProductCatalogue(async () => {
+  const sub = await subscriber(); const paid = invoiceEvent(sub); makeProductEvidenceLive(paid, sub.subscriptionId); expect(await postWebhook(paid)).toBe(200);
+  const [source] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId));
+  await getDb().execute(sql`CREATE FUNCTION i07_cancel_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.cancel_at_period_end THEN RAISE EXCEPTION 'fixture persist failure' USING ERRCODE='23514'; END IF; RETURN NEW; END $$`);
+  await getDb().execute(sql`CREATE TRIGGER i07_cancel_failure BEFORE UPDATE ON access_subscription_sources FOR EACH ROW EXECUTE FUNCTION i07_cancel_failure()`);
+  try {
+    await withApp(async base => {
+      const response = await fetch(`${base}/billing/product-subscriptions/cancel`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-user': sub.userId }, body: JSON.stringify({ sourceId: source.id }) });
+      expect(response.status).toBe(202); expect(await response.json()).toEqual({ sourceId: source.id, reconciliationPending: true });
+    });
+    expect(stripeSubscriptions.get(sub.subscriptionId)?.cancel_at_period_end).toBe(true);
+    const [local] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, source.id)); expect(local.cancelAtPeriodEnd).toBe(false);
+  } finally { await getDb().execute(sql`DROP TRIGGER i07_cancel_failure ON access_subscription_sources`); await getDb().execute(sql`DROP FUNCTION i07_cancel_failure()`); }
+  const event = envelope('customer.subscription.updated', { id: sub.subscriptionId, status: 'active' }); event.livemode = true;
+  expect(await postWebhook(event)).toBe(200); expect(await postWebhook(event)).toBe(200);
+  const [local] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, source.id)); expect(local.cancelAtPeriodEnd).toBe(true);
+  expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(2);
+  expect(await receipts(sub.userId, 'subscription_payment')).toHaveLength(1);
+}));
+
+it('reports pending when provider confirms the cancellation effect but returns an unprojectable updated snapshot', async () => withProductCatalogue(async () => {
+  const sub = await subscriber(); const paid = invoiceEvent(sub); makeProductEvidenceLive(paid, sub.subscriptionId); expect(await postWebhook(paid)).toBe(200);
+  const [source] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId, sub.subscriptionId));
+  invalidNextCancellationSnapshot = true;
+  await withApp(async base => {
+    const response = await fetch(`${base}/billing/product-subscriptions/cancel`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-user': sub.userId }, body: JSON.stringify({ sourceId: source.id }) });
+    expect(response.status).toBe(202); expect(await response.json()).toEqual({ sourceId: source.id, reconciliationPending: true });
+  });
+  expect(stripeSubscriptions.get(sub.subscriptionId)?.cancel_at_period_end).toBe(true);
+  const [before] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, source.id)); expect(before.cancelAtPeriodEnd).toBe(false);
+  const event = envelope('customer.subscription.updated', { id: sub.subscriptionId, status: 'active' }); event.livemode = true;
+  expect(await postWebhook(event)).toBe(200);
+  const [after] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, source.id)); expect(after.cancelAtPeriodEnd).toBe(true);
+  expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, sub.userId))).toHaveLength(2);
 }));
