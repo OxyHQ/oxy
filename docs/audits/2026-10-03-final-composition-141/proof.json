@@ -1,0 +1,269 @@
+{
+  "sourceHead": "88ce6b5e37b470818950f4591d505dfbeff409e1",
+  "rehearsalSourceHead": "4648d61d9f3275fb657177c50f78b5cb551727dc",
+  "baseMain": "67c09e853db308d102624a2ffd40db19959344f4",
+  "sourceInputs": [
+    {
+      "path": "docs/adr/0034-present-requester-profile-capabilities.md",
+      "sha256": "8e5f8f4788e84e5465042bd4d3df8428e8f77b881eef04225cdeecb4dc5e578d",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "8e5f8f4788e84e5465042bd4d3df8428e8f77b881eef04225cdeecb4dc5e578d",
+      "identical": true
+    },
+    {
+      "path": "docs/adr/README.md",
+      "sha256": "378626a96e9a32822f096671ea32f18d87a444d1eb717882a761faf03f849672",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "378626a96e9a32822f096671ea32f18d87a444d1eb717882a761faf03f849672",
+      "identical": true
+    },
+    {
+      "path": "packages/api/drizzle/0141_i05_foreground_requester.sql",
+      "sha256": "929fb090f5d61c2b3e58bda7989113daec0b31a7dbe3cd41b77da17c1ce5689a",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "929fb090f5d61c2b3e58bda7989113daec0b31a7dbe3cd41b77da17c1ce5689a",
+      "identical": true
+    },
+    {
+      "path": "packages/api/drizzle/meta/0141_snapshot.json",
+      "sha256": "45c5ebf5d9e8f231cc23ac43b2a81345c9809e138374d09f2dcc66674104974b",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "45c5ebf5d9e8f231cc23ac43b2a81345c9809e138374d09f2dcc66674104974b",
+      "identical": true
+    },
+    {
+      "path": "packages/api/drizzle/meta/_journal.json",
+      "sha256": "a5a3f8aef280f43d32112818d44dbcda435d04431e85bbdb81950e08739327d6",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "a5a3f8aef280f43d32112818d44dbcda435d04431e85bbdb81950e08739327d6",
+      "identical": true
+    },
+    {
+      "path": "packages/api/openapi.json",
+      "sha256": "bf573aaf400e8ecd4195e78c0787f04d81250e8f40fa20bb33593fe91a6c1fe3",
+      "upstreamHead": "7e35b77ff3f5fdf61db2d6b3b838627f8f60bd05",
+      "upstreamSha256": "2a8a9e406d27894c6f3626702f96629f3546487429202fe7db24b4cf1ad95558",
+      "identical": false
+    },
+    {
+      "path": "packages/api/scripts/generate-openapi.ts",
+      "sha256": "1eb350bab70ead0275c2be1c680dc010da750beb2e41fb61c2ac6e8d7c5847cf",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "1eb350bab70ead0275c2be1c680dc010da750beb2e41fb61c2ac6e8d7c5847cf",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/capabilities/oxy-profile.catalog.ts",
+      "sha256": "e70f308b24d00904991556874fb3b004f9f41467b797a0a93b586a93375f5e9a",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "e70f308b24d00904991556874fb3b004f9f41467b797a0a93b586a93375f5e9a",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/capabilities/oxy-profile.handlers.ts",
+      "sha256": "e484d873040027c97dd9d62cdbb02528ab32e1a7ac570de7b350fa2fbdb8a8b0",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "e484d873040027c97dd9d62cdbb02528ab32e1a7ac570de7b350fa2fbdb8a8b0",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/capabilities/oxy-profile.transport.ts",
+      "sha256": "41cd4da3cfc85e5f7e2cbe83285d40acf5c5c013145489b230910b8a203de45a",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "41cd4da3cfc85e5f7e2cbe83285d40acf5c5c013145489b230910b8a203de45a",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/db/schema/agency.ts",
+      "sha256": "f0ce2beb92a4cc00d5ffe66b99198784ad3b6ecc906367b36e91d3bb99a9ebde",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "f0ce2beb92a4cc00d5ffe66b99198784ad3b6ecc906367b36e91d3bb99a9ebde",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/db/schema/deferredForeignKeys.ts",
+      "sha256": "265ccdbb43fa55ddf1de1d8825db01939369a2bd2dfdfca53d055af232a53568",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "265ccdbb43fa55ddf1de1d8825db01939369a2bd2dfdfca53d055af232a53568",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/routes/capabilities.ts",
+      "sha256": "bac702e80c05cf3a08dc2c260cdcb9eb8c2df1241e9cda7ba10581f0d46d1d8d",
+      "upstreamHead": "7e35b77ff3f5fdf61db2d6b3b838627f8f60bd05",
+      "upstreamSha256": "bac702e80c05cf3a08dc2c260cdcb9eb8c2df1241e9cda7ba10581f0d46d1d8d",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/routes/foregroundProfiles.ts",
+      "sha256": "28b2cda00d4c74006d986005ee3270a5fc967c416565b1dc55e9aa98532afa70",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "28b2cda00d4c74006d986005ee3270a5fc967c416565b1dc55e9aa98532afa70",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/routes/profiles.ts",
+      "sha256": "32ed7c707075be79f0d655c971d4e172f9f5a0a07c9d6a32bff5331d05e4b16c",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "32ed7c707075be79f0d655c971d4e172f9f5a0a07c9d6a32bff5331d05e4b16c",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/server.ts",
+      "sha256": "1f1601f64549228b0024fe4c3b33b300dfa6a353d19e431e4efc7f3e9e4ed66a",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "1f1601f64549228b0024fe4c3b33b300dfa6a353d19e431e4efc7f3e9e4ed66a",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts",
+      "sha256": "d8867c2152d47abfc8ad619ba3100de2203d0aac5e5d9d0db3b6e98901b0b948",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "d8867c2152d47abfc8ad619ba3100de2203d0aac5e5d9d0db3b6e98901b0b948",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/services/capabilityAuthority.service.ts",
+      "sha256": "77377fd514153d278083bc3cb8bef25a37d548c8155a0918210fad17dfe7c8c4",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "77377fd514153d278083bc3cb8bef25a37d548c8155a0918210fad17dfe7c8c4",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/services/capabilityRuntimeStore.service.ts",
+      "sha256": "06e891bf4a6908ab68c9552ae189545e1604d894daba3f6e024ffa635e3a5742",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "06e891bf4a6908ab68c9552ae189545e1604d894daba3f6e024ffa635e3a5742",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/services/foregroundCapabilityRequester.service.ts",
+      "sha256": "4912576e436135d1d71d752fb74869a245a2d127a3082846ab0f3e0ba63d6342",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "4912576e436135d1d71d752fb74869a245a2d127a3082846ab0f3e0ba63d6342",
+      "identical": true
+    },
+    {
+      "path": "packages/contracts/src/__tests__/agency.test.ts",
+      "sha256": "860f702d67c588638d752bb3016e25c4e6566ec718594dc217cea9e322b5d7ad",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "860f702d67c588638d752bb3016e25c4e6566ec718594dc217cea9e322b5d7ad",
+      "identical": true
+    },
+    {
+      "path": "packages/contracts/src/agency.ts",
+      "sha256": "80439933c9f12d2d1908b4634b0e062daee165ac7ef197d41947f1f82e368f77",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "80439933c9f12d2d1908b4634b0e062daee165ac7ef197d41947f1f82e368f77",
+      "identical": true
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "d3757bd1dfdb3ffc5c5989fd25a2fca63044a4df85f974ff477b22eb86833d0d",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "d3757bd1dfdb3ffc5c5989fd25a2fca63044a4df85f974ff477b22eb86833d0d",
+      "identical": true
+    },
+    {
+      "path": "packages/core/src/api/agency.ts",
+      "sha256": "4995c585315de19f4cdea39d2c3cb68889516a3f33c49eb39350cce3fa40826a",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "4995c585315de19f4cdea39d2c3cb68889516a3f33c49eb39350cce3fa40826a",
+      "identical": true
+    },
+    {
+      "path": "packages/core/src/server/__tests__/agencyAuthority.test.ts",
+      "sha256": "2f0f309bb8a966bcb75425a3cd3b35e855894fabf89b0a6e1cfc1036eea2200c",
+      "upstreamHead": "7e35b77ff3f5fdf61db2d6b3b838627f8f60bd05",
+      "upstreamSha256": "2f0f309bb8a966bcb75425a3cd3b35e855894fabf89b0a6e1cfc1036eea2200c",
+      "identical": true
+    },
+    {
+      "path": "packages/core/src/server/namespaces.ts",
+      "sha256": "e5f074d4b4a5c5ade7c8cf19f1f2a194282bc3e4dc155df7c85291e5946734c1",
+      "upstreamHead": "7e35b77ff3f5fdf61db2d6b3b838627f8f60bd05",
+      "upstreamSha256": "e5f074d4b4a5c5ade7c8cf19f1f2a194282bc3e4dc155df7c85291e5946734c1",
+      "identical": true
+    },
+    {
+      "path": "scripts/check-openapi-fresh.mjs",
+      "sha256": "09b39a303001a3992527e51fa7e47d2bfd54dd8559de808591a2023fe5cc5798",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "09b39a303001a3992527e51fa7e47d2bfd54dd8559de808591a2023fe5cc5798",
+      "identical": true
+    },
+    {
+      "path": "scripts/rehearsal/test-i05-foreground-authority.py",
+      "sha256": "5273f4fdee8673299ce32f4fa27a1b9b9b74e5345dec600eb91642df32d2b203",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "5273f4fdee8673299ce32f4fa27a1b9b9b74e5345dec600eb91642df32d2b203",
+      "identical": true
+    },
+    {
+      "path": "scripts/test-check-openapi-fresh.mjs",
+      "sha256": "f31e10d7f17f1d97f183f8485601f41bdaceabb0b48ea4471a209ad558fd8372",
+      "upstreamHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+      "upstreamSha256": "f31e10d7f17f1d97f183f8485601f41bdaceabb0b48ea4471a209ad558fd8372",
+      "identical": true
+    },
+    {
+      "path": "scripts/rehearsal/test-final-authority-composite-1519.py",
+      "sha256": "420fc2a8d36fd64c0695a1598bac567534bcb99bf290ac323337a08a88472772",
+      "upstreamHead": null,
+      "upstreamSha256": null,
+      "identical": null
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-final-composition-141/launcher.txt",
+      "sha256": "2e13200d726a0e1b8c3224a88e706f0f81ec18bf28646513db09d53aaaf4642f",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-composition-141/focused.txt",
+      "sha256": "d9ce77ef6e8d20746f87f419a93c166401eb4f6727e82d3957d438057127ca18",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-composition-141/fresh.txt",
+      "sha256": "88e0df012e6c26e0f66212db63fb4ffd6beed697d3d6033aa692ce60fee613d9",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-composition-141/repeat.txt",
+      "sha256": "797306fac68f06fe0beac742a3e16b7b90037ec397be9c7808d8e3131ba87186",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-composition-141/api-build.txt",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-composition-141/openapi-generate.txt",
+      "sha256": "4bd8b411136e08b098bf12a2be86e6dbaf254349ab2148712e6d5d7767d6f3ad",
+      "exitCode": 0
+    }
+  ],
+  "results": {
+    "apiSuites": 8,
+    "apiTests": 182,
+    "freshMigration": 141,
+    "repeat": true,
+    "apiBuild": 0,
+    "openapiGenerate": 0
+  },
+  "ownedPostgres": {
+    "pid": 3716252,
+    "port": 5594,
+    "dataDirectory": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/pg1519-22fiqfa9/data",
+    "stoppedConfirmed": true
+  },
+  "limits": [
+    "The eight API suites ran before the requester revoke SDK followup. That followup changes only SDK plus OpenAPI documentation; its API handler implementation is unchanged. Core combined 16-test proof includes the six revoke tests.",
+    "API source/DDL141 unchanged after this rehearsal; OAuth SDK bearer fix is covered separately by 124 Services and 16 Core tests.",
+    "Other billing/consumer/sandbox counts are upstream evidence, not rerun results.",
+    "No production migration, package publication, I05 adoption or global CI success claimed."
+  ]
+}
