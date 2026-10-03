@@ -74,7 +74,15 @@ def main():
         sql(f'CREATE DATABASE "{db}"')
         env = clean_env() | {'DATABASE_URL': f'postgresql://oxy@127.0.0.1:{PORT}/{db}',
                             'NODE_ENV': 'test'}
+        for stage in ('fresh', 'repeat'):
+            migration = subprocess.run(['bun', 'run', 'db:migrate'], cwd=ROOT / 'packages/api', env=env,
+                                       text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+            migration_log = owned / f'migrate-{stage}.txt'
+            migration_log.write_text(migration.stdout)
+            print(json.dumps({'stage': stage, 'exitCode': migration.returncode, 'log': str(migration_log)}))
+            migration.check_returncode()
         command = ['bun', 'run', 'test', '--runInBand', '--runTestsByPath',
+                   'src/config/__tests__/billingNamespace.test.ts',
                    'src/services/__tests__/productProviderEvidence.test.ts',
                    'src/services/__tests__/productAccessPersistence.test.ts',
                    'src/services/__tests__/subscriptionCreditLedger.test.ts',

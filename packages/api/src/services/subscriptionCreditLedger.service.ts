@@ -1,3 +1,4 @@
+import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
 /** Subscription-credit accounting, separate from monetary account_balances. */
 import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
@@ -44,6 +45,7 @@ function identical(actual: unknown, expected: unknown): void {
  * Locking alone never authorizes an award or prevents historical maintenance.
  */
 export async function lockSubscriptionCreditAccount(tx: Transaction, userId: string) {
+  await assertBillingDatabaseNamespace(tx);
   const [account] = await tx.select({ status: users.accountStatus }).from(users).where(eq(users.id, userId)).for('update');
   const [balance] = await tx.select().from(userCredits).where(eq(userCredits.userId, userId)).for('update');
   if (balance) { count.parse(balance.creditsPaid); count.parse(balance.creditsFree); }

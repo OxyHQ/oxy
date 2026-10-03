@@ -6,7 +6,7 @@ import { subscriptions } from '../db/schema/subscriptions';
 import type { AuthRequest } from '../middleware/auth';
 import { ForbiddenError, UnauthorizedError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { getStripe } from '../utils/stripeClient';
+import { getBillingStripe } from '../utils/billingStripe';
 import { formatSubscriptionResponse } from '../utils/subscriptionResponse';
 
 /** The billing statuses that count as a live subscription. */
@@ -90,7 +90,7 @@ export const cancelSubscription = async (req: AuthRequest, res: Response) => {
 
     let cancelledBilling = billingSubscription ?? null;
     if (billingSubscription) {
-      await getStripe().subscriptions.update(billingSubscription.stripeSubscriptionId, {
+      await (await getBillingStripe()).subscriptions.update(billingSubscription.stripeSubscriptionId, {
         cancel_at_period_end: true,
       },
 			);
