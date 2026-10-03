@@ -74,9 +74,9 @@ async function requireRegistrar(req: AuthRequest): Promise<FollowCapability> {
     .where(eq(applications.id, result.capability.applicationId))
     .limit(1);
   const access = application
-    ? await accountService.resolveEffectiveAccess(operatorId, application.ownerAccountId)
+    ? await accountService.resolveEffectiveAccess(operatorId, application.ownerAccountId, sessionId)
     : null;
-  if (!access || (access.role !== 'owner' && access.role !== 'admin')) {
+  if (!access || (access.source !== 'self' && access.role !== 'owner' && access.role !== 'admin')) {
     throw new ForbiddenError('Application owner or administrator access is required');
   }
 

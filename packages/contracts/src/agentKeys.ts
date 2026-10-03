@@ -70,3 +70,13 @@ export const agentKeyOperationResultSchema = z.object({
   methodId: z.string().nullable(),
   revokedMethodIds: z.array(z.string()),
 }).strict();
+
+
+export const ACCOUNT_AUTH_METHODS = ['identity', 'agent_key'] as const;
+export type AccountAuthMethod = (typeof ACCOUNT_AUTH_METHODS)[number];
+/** Public credential inventory. Never includes a proof, bearer or private key. */
+export const agentKeyListResponseSchema = z.object({ keys: z.array(z.object({
+  id: z.string(), publicKey: z.string(), label: z.string(),
+  enrolledByUserId: z.string().nullable(), enrollmentMethod: z.enum(['governor', 'rotation', 'recovery']),
+  linkedAt: z.string().datetime(), lastUsedAt: z.string().datetime().nullable(), revokedAt: z.string().datetime().nullable(),
+}).strict()) }).strict();

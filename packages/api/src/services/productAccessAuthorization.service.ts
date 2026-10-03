@@ -28,7 +28,7 @@ export async function readAuthorizedSubjectProductAccess(identity: AccessTokenId
   if (!credential || !isCredentialUsable(credential) || credential.environment !== 'production') {
     throw new ForbiddenError('A production application credential is required');
   }
-  const access = await resolveCallerAccountAccess(identity.principalUserId, query.subjectAccountId);
+  const access = await resolveCallerAccountAccess(identity.principalUserId, query.subjectAccountId, current.session.sessionId);
   if (access.status !== 'resolved') throw new NotFoundError('Product access is unavailable');
   if (!access.access.accountPermissions.includes('account:read')) throw new ForbiddenError('This action requires account:read');
   const [fence] = await getDb().select().from(accountClosureFences).where(eq(accountClosureFences.accountId, query.subjectAccountId));

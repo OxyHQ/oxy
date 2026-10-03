@@ -211,3 +211,5 @@ export { canAttestWorkloadIdentity, requestWorkloadServiceToken } from './worklo
 export type { WorkloadServiceToken, WorkloadServiceTokenOptions } from './workloadIdentity';
 
 export { OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS, hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
+export { signInAgentAccount } from './agentAccount';
+export type { AgentAccountSigner } from './agentAccount';

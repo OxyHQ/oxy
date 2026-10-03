@@ -878,7 +878,8 @@ async function resolveAuthorizedRecommendationClientId(
   if (application?.ownerAccountId) {
     const access = await accountService.resolveEffectiveAccess(
       operatorId,
-      application.ownerAccountId
+      application.ownerAccountId,
+    req.sessionId
     );
     if (access) {
       return requestedAppId;

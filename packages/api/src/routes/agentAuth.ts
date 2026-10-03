@@ -21,9 +21,17 @@ const ipLimiter = rateLimit({ prefix: 'rl:agent:ip:', windowMs: 60_000, max: 30,
 const keyLimiter = rateLimit({ prefix: 'rl:agent:key:', windowMs: 60_000, max: 30,
   keyGenerator: (req) => createHash('sha256').update(req.body.publicKey.toLowerCase()).digest('hex'),
   message: 'Too many attempts' });
-router.post('/challenge', ipLimiter, validate({ body: agentChallengeRequestSchema }), keyLimiter,
+/** POST /auth/agent/challenge
+ * Request a single-use autonomous sign-in challenge, bound to account, key and purpose.
+ * Unknown, revoked, archived or closing accounts cannot receive a challenge.
+ */
+router.post('/challenge' , ipLimiter, validate({ body: agentChallengeRequestSchema }), keyLimiter,
   asyncHandler(async (req, res) => { res.json(await requestAgentChallenge(req.body.publicKey)); }));
-router.post('/verify', ipLimiter, validate({ body: agentVerifyRequestSchema }), keyLimiter,
+/** POST /auth/agent/verify
+ * Verify an autonomous key proof and return an ordinary account session and device state.
+ * Proof consumption and session creation are atomic; replay and invalid signatures fail closed.
+ */
+router.post('/verify' , ipLimiter, validate({ body: agentVerifyRequestSchema }), keyLimiter,
   asyncHandler(async (req, res) => {
     const session = await verifyAgentChallenge(req.body.publicKey, req.body, req);
     const [account] = await getDb().select({ id: users.id, username: users.username, avatar: users.avatar })

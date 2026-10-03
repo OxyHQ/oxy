@@ -1,3 +1,4 @@
+import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import { Router, type Response } from 'express';
 import { and, asc, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
@@ -177,8 +178,8 @@ function operatorOf(request: AuthRequest): string {
   return request.oxyToken?.principalUserId ?? idOf(request);
 }
 
-async function canOperate(operatorId: string, accountId: string): Promise<boolean> {
-  const access = await accountService.resolveEffectiveAccess(operatorId, accountId);
+async function canOperate(operatorId: string, accountId: string, sessionId?: string): Promise<boolean> {
+  const access = await accountService.resolveEffectiveAccess(operatorId, accountId, sessionId);
   return access?.permissions.includes('account:act_as') ?? false;
 }
 
@@ -282,7 +283,7 @@ router.post('/grants', authMiddleware, async (request: AuthRequest, response: Re
   }
   const userId = idOf(request);
   const input = parsed.data;
-  if (!await canOperate(operatorOf(request), input.ownerAccountId) || !await canOperate(operatorOf(request), input.resource.effectiveAccountId)) {
+  if (!await canOperate(operatorOf(request), input.ownerAccountId, request.sessionId) || !await canOperate(operatorOf(request), input.resource.effectiveAccountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -366,8 +367,8 @@ router.put('/grants/:grantId', authMiddleware, async (request: AuthRequest, resp
     response.status(409).json({ error: 'grant_revoked' });
     return;
   }
-  if (!await canOperate(operatorOf(request), existing.ownerAccountId)
-    || !await canOperate(operatorOf(request), existing.effectiveAccountId)) {
+  if (!await canOperate(operatorOf(request), existing.ownerAccountId, request.sessionId)
+    || !await canOperate(operatorOf(request), existing.effectiveAccountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -435,7 +436,7 @@ router.put('/grants/:grantId', authMiddleware, async (request: AuthRequest, resp
 router.get('/grants', authMiddleware, async (request: AuthRequest, response: Response) => {
   const userId = idOf(request);
   const ownerAccountId = typeof request.query.ownerAccountId === 'string' ? request.query.ownerAccountId : userId;
-  if (!await canOperate(operatorOf(request), ownerAccountId)) {
+  if (!await canOperate(operatorOf(request), ownerAccountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -457,7 +458,7 @@ router.delete('/grants/:grantId', authMiddleware, async (request: AuthRequest, r
     response.status(404).json({ error: 'grant_not_found' });
     return;
   }
-  if (!await canOperate(operatorOf(request), grant.ownerAccountId)) {
+  if (!await canOperate(operatorOf(request), grant.ownerAccountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -468,7 +469,7 @@ router.delete('/grants/:grantId', authMiddleware, async (request: AuthRequest, r
 router.get('/account-policies', authMiddleware, async (request: AuthRequest, response: Response) => {
   const userId = idOf(request);
   const accountId = typeof request.query.accountId === 'string' ? request.query.accountId : userId;
-  if (!await canOperate(operatorOf(request), accountId)) {
+  if (!await canOperate(operatorOf(request), accountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -487,7 +488,7 @@ router.put('/account-policies/:appId', authMiddleware, async (request: AuthReque
     response.status(400).json({ error: 'invalid_account_capability_policy', details: parsed.error.flatten() });
     return;
   }
-  if (!await canOperate(operatorOf(request), parsed.data.accountId)) {
+  if (!await canOperate(operatorOf(request), parsed.data.accountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -520,7 +521,7 @@ router.put('/account-policies/:appId', authMiddleware, async (request: AuthReque
 
 router.delete('/account-policies/:appId', authMiddleware, async (request: AuthRequest, response: Response) => {
   const accountId = typeof request.query.accountId === 'string' ? request.query.accountId : idOf(request);
-  if (!await canOperate(operatorOf(request), accountId)) {
+  if (!await canOperate(operatorOf(request), accountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -538,7 +539,7 @@ router.delete('/account-policies/:appId', authMiddleware, async (request: AuthRe
 router.get('/execution-authorizations', authMiddleware, async (request: AuthRequest, response: Response) => {
   const userId = idOf(request);
   const ownerAccountId = typeof request.query.ownerAccountId === 'string' ? request.query.ownerAccountId : userId;
-  if (!await canOperate(operatorOf(request), ownerAccountId)) {
+  if (!await canOperate(operatorOf(request), ownerAccountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -557,8 +558,8 @@ router.post('/execution-authorizations', authMiddleware, async (request: AuthReq
   }
   const requesterAccountId = operatorOf(request);
   const input = parsed.data;
-  if (!await canOperate(requesterAccountId, input.ownerAccountId)
-    || !await canOperate(requesterAccountId, input.resource.effectiveAccountId)) {
+  if (!await canOperate(requesterAccountId, input.ownerAccountId, request.sessionId)
+    || !await canOperate(requesterAccountId, input.resource.effectiveAccountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -611,9 +612,11 @@ router.post('/execution-authorizations', authMiddleware, async (request: AuthReq
     response.status(400).json({ error: 'execution_authorization_expiry_out_of_range' });
     return;
   }
+  const requesterAuthMethod = await readSessionAgentBinding(request.sessionId, requesterAccountId);
   const [authorization] = await getDb().insert(capabilityExecutionAuthorizations).values({
     kind: input.kind,
     requesterAccountId,
+    requesterAuthMethodId: requesterAuthMethod?.authMethodId ?? null,
     ownerAccountId: input.ownerAccountId,
     coordinatorApplicationId: coordinator.applicationId,
     coordinatorCredentialId: coordinator.credentialId,
@@ -641,7 +644,7 @@ router.delete('/execution-authorizations/:authorizationId', authMiddleware, asyn
     response.status(404).json({ error: 'execution_authorization_not_found' });
     return;
   }
-  if (!await canOperate(operatorOf(request), authorization.ownerAccountId)) {
+  if (!await canOperate(operatorOf(request), authorization.ownerAccountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -656,7 +659,7 @@ router.get('/catalogs/available', authMiddleware, async (request: AuthRequest, r
     response.status(400).json({ error: 'invalid_available_catalogs_request' });
     return;
   }
-  if (!await canOperate(operatorOf(request), parsed.data.accountId)) {
+  if (!await canOperate(operatorOf(request), parsed.data.accountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
@@ -928,7 +931,7 @@ router.post('/audit', serviceAuthMiddleware, async (request: ServiceAuthRequest,
 router.get('/audit', authMiddleware, async (request: AuthRequest, response: Response) => {
   const userId = idOf(request);
   const accountId = typeof request.query.accountId === 'string' ? request.query.accountId : userId;
-  if (!await canOperate(operatorOf(request), accountId)) {
+  if (!await canOperate(operatorOf(request), accountId, request.sessionId)) {
     response.status(403).json({ error: 'account_authority_required' });
     return;
   }
