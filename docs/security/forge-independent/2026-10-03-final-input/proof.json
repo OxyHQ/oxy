@@ -321,7 +321,7 @@
     },
     {
       "file": "audit-fixtures.log",
-      "sha256": "fc6f0257552320e4cba58359d8a4293c5172f293271dab51473630ef5f5afc02"
+      "sha256": "7a58bf46bbdd442d52778789e68999c475f3331f64ffcd9fd526b166ab8e2bce"
     },
     {
       "file": "proposal131.log",
@@ -357,6 +357,14 @@
     "armProofCollected": false,
     "expiryNotExtended": "2026-10-09T22:00:00Z",
     "firstExpoInvocation": "node --test also treated packages/api as a test; 14 own checks passed but invocation failed; corrected direct runner passed14",
-    "machineInputBindingCorrection": "Policy EVIDENCE_PATH requires this17-record proof. It now names9efa and refreshed Oxy/Expo/PG+Gitinputs. Separate refreeze23-record proof is supplemental, not a bypass/substitute for the policy machine format."
+    "machineInputBindingCorrection": "Policy EVIDENCE_PATH requires this17-record proof. It now names9efa and refreshed Oxy/Expo/PG+Gitinputs. Separate refreeze23-record proof is supplemental, not a bypass/substitute for the policy machine format.",
+    "correctedPolicySuite": {
+      "sourceHead": "afd7cbf24f346dec255dd6e88167c370fa2cc1f9",
+      "command": "bun scripts/test-forge-audit-policy.mjs",
+      "exitCode": 0,
+      "assertions": 123,
+      "auditFixtureCases": 10,
+      "scope": "Only test expected total9\u219210 changed. All runtime policy, package inputs and crypto evidence unchanged; prior refreeze policy log failed and is preserved, never credited."
+    }
   }
 }

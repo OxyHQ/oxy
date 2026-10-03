@@ -1,40 +1,11 @@
-node:internal/modules/run_main:107
-    triggerUncaughtException(
-    ^
+20 real Git SQUASH source-binding assertions pass; metadata is explicitly synthetic, no live approval.
+43 synthetic final-image binding assertions pass; no real image, publication or approval claimed.
+61 final-image collector/real-scan-content assertions pass on DERIVED SYNTHETIC queue context; no authenticated queue or publication claimed.
+82 committed DAG/resolver assertions pass in synthetic owned Git only; authorized:false.
+13 isolated real-collector clock/layout assertions pass; stale-clock mutation accepts expired facts and corrected collector rejects. No live API, authority or publication.
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 0.017s
 
-AssertionError [ERR_ASSERTION]: The input did not match the regular expression /All 9 dependency-audit cases passed/. Input:
-
-'ok   a new high advisory in exactly constrained braces fails\n' +
-  'ok   a payload holding exactly the acknowledged advisories passes\n' +
-  'ok   a high advisory in a package nobody acknowledged FAILS\n' +
-  'ok   a moderate advisory in an unacknowledged package passes\n' +
-  'ok   a NEW critical inside an acknowledged package FAILS\n' +
-  'ok   an acknowledged package with no live advisory FAILS as stale\n' +
-  'ok   an acknowledged package left with only a moderate advisory FAILS as stale\n' +
-  'ok   an empty audit payload FAILS rather than reading as a clean tree\n' +
-  'ok   an unparseable payload FAILS\n' +
-  'ok   a payload that is not an object of arrays FAILS\n' +
-  '\n' +
-  'All 10 dependency-audit cases passed — 2 acknowledged packages and 0 acknowledged criticals, taken from the gate itself.\n'
-
-    at file:///home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/scripts/test-forge-audit-policy.mjs:159:10 {
-  generatedMessage: true,
-  code: 'ERR_ASSERTION',
-  actual: 'ok   a new high advisory in exactly constrained braces fails\n' +
-    'ok   a payload holding exactly the acknowledged advisories passes\n' +
-    'ok   a high advisory in a package nobody acknowledged FAILS\n' +
-    'ok   a moderate advisory in an unacknowledged package passes\n' +
-    'ok   a NEW critical inside an acknowledged package FAILS\n' +
-    'ok   an acknowledged package with no live advisory FAILS as stale\n' +
-    'ok   an acknowledged package left with only a moderate advisory FAILS as stale\n' +
-    'ok   an empty audit payload FAILS rather than reading as a clean tree\n' +
-    'ok   an unparseable payload FAILS\n' +
-    'ok   a payload that is not an object of arrays FAILS\n' +
-    '\n' +
-    'All 10 dependency-audit cases passed — 2 acknowledged packages and 0 acknowledged criticals, taken from the gate itself.\n',
-  expected: /All 9 dependency-audit cases passed/,
-  operator: 'match',
-  diff: 'simple'
-}
-
-Node.js v24.21.0
+OK
+Forge audit policy: 123 structural and isolated policy assertions passed; no live or human authorization claimed.
