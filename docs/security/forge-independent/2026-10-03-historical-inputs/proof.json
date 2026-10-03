@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "f0a52948b543686c2e557ad0a015049c03c967e8",
+  "baseHead": "73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12",
+  "status": "SOURCE_FIX_TESTED_POLICY_INACTIVE_FRESH_ARM_REQUIRED",
+  "securityApprovalClaim": false,
+  "expiryUnchanged": "2026-10-09T22:00:00.000Z",
+  "sourceInputs": [
+    {
+      "file": "scripts/forge-audit-policy.mjs",
+      "sha256": "a8a983bc49caa9ad1ca12167934c5d80fffc53b70ec96f6806910b0467d2b8a4"
+    },
+    {
+      "file": "scripts/forge-remediation-proof-proposal.mjs",
+      "sha256": "1117b40bf73c7a7478f2e5d236d9777f955e53db06f1960f9b3ebd67e6599819"
+    },
+    {
+      "file": "scripts/test-forge-audit-policy.mjs",
+      "sha256": "7e254fe2d5c30fd40ff6037fe9292fd18ffc589090c757fdb84805c2a01c795b"
+    },
+    {
+      "file": "scripts/test-forge-independent-inputs.mjs",
+      "sha256": "21ee61d79da5bca228504322e3e3def3291dee4a5efce786fdd85de333ca28af"
+    },
+    {
+      "file": "docs/security/forge-candidate/provenance/audit-policy-decision.json",
+      "sha256": "1f6548d819af8f247cf599b3c6cbbab98f5fcaad3a911a28d9fa13e6562a518e"
+    }
+  ],
+  "records": [
+    {
+      "file": "audit10.log",
+      "sha256": "7a58bf46bbdd442d52778789e68999c475f3331f64ffcd9fd526b166ab8e2bce",
+      "credited": true
+    },
+    {
+      "file": "authenticated-input-objects.json",
+      "sha256": "1b49b0c8aed46b77fab15f2f4e11617db4bfce85373b599e471ff0fbec5aa0eb",
+      "credited": false
+    },
+    {
+      "file": "ci248-security-audit-red-excerpt.log",
+      "sha256": "1545226c20c646087675b55e4f5b5b089f2f0e59fcc61f4dff5981348ea760f2",
+      "credited": false
+    },
+    {
+      "file": "dag82.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9",
+      "credited": true
+    },
+    {
+      "file": "historical43.log",
+      "sha256": "3a423fcce474396301801c157043b9780360b41ffbfbd26f164512df081499dd",
+      "credited": true
+    },
+    {
+      "file": "legacy14.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3",
+      "credited": true
+    },
+    {
+      "file": "policy144.log",
+      "sha256": "baff46c8108ef5dc67199a385f21f9e69f26aa4a6f89ad2babada03f562cdbaf",
+      "credited": true
+    },
+    {
+      "file": "proposal150.log",
+      "sha256": "b46f4bc183bf111c7ed20a81bb3596bb7676d63f53bece4dbe4c567a7f8d1a52",
+      "credited": true
+    },
+    {
+      "file": "suite-results.json",
+      "sha256": "a4af5291521576dc91dedc8a372ddfae19e3062665be912cfa866e6c2e266070",
+      "credited": false
+    }
+  ],
+  "suiteResults": {
+    "capturedAt": "2026-10-03T07:01:37.676756+00:00",
+    "node": "v24.21.0",
+    "bun": "1.4.2",
+    "results": [
+      {
+        "name": "historical43",
+        "command": [
+          "node",
+          "scripts/test-forge-independent-inputs.mjs"
+        ],
+        "exitCode": 0,
+        "terminalMarker": "43 assertions passed",
+        "markerPresent": true,
+        "seconds": 0.098
+      },
+      {
+        "name": "policy144",
+        "command": [
+          "node",
+          "scripts/test-forge-audit-policy.mjs"
+        ],
+        "exitCode": 0,
+        "terminalMarker": "144 structural and isolated policy assertions passed",
+        "markerPresent": true,
+        "seconds": 1.288
+      },
+      {
+        "name": "proposal150",
+        "command": [
+          "node",
+          "scripts/test-forge-remediation-proof-proposal.mjs"
+        ],
+        "exitCode": 0,
+        "terminalMarker": "150",
+        "markerPresent": true,
+        "seconds": 0.317
+      },
+      {
+        "name": "dag82",
+        "command": [
+          "bun",
+          "scripts/test-forge-future-dag.mjs"
+        ],
+        "exitCode": 0,
+        "terminalMarker": "82 committed",
+        "markerPresent": true,
+        "seconds": 0.353
+      },
+      {
+        "name": "legacy14",
+        "command": [
+          "bash",
+          ".github/scripts/test-resolve-queue-image.sh"
+        ],
+        "exitCode": 0,
+        "terminalMarker": "resolve-queue-image: all cases pass",
+        "markerPresent": true,
+        "seconds": 0.313
+      },
+      {
+        "name": "audit10",
+        "command": [
+          "bun",
+          "scripts/test-check-dependency-audit.mjs"
+        ],
+        "exitCode": 0,
+        "terminalMarker": "All 10 dependency-audit cases passed",
+        "markerPresent": true,
+        "seconds": 0.193
+      }
+    ]
+  },
+  "independentInputEquality": {
+    "capturedAt": "2026-10-03T07:02:01.482Z",
+    "historicalSource": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
+    "repository": "OxyHQ/oxy",
+    "method": "fixed /usr/bin/gh authenticated GET Git Data API; no local historical object required",
+    "reviewed": {
+      "packages": "0dd0ca266d583f50abb62335cff8434aea953cf2",
+      "bun.lock": "266d2176150ca013b673908bb22bc84f20a65b5f",
+      "package.json": "19136677bba961cb17936a52f1262b4d54801a78",
+      "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+      "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
+      "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
+      "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
+      "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
+      "scripts/rehearsal/test-forge-final-input-1519.py": "c61511bc703368530a680bd54bd082406e86a0e7",
+      "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
+    },
+    "target": {
+      "packages": "0dd0ca266d583f50abb62335cff8434aea953cf2",
+      "bun.lock": "266d2176150ca013b673908bb22bc84f20a65b5f",
+      "package.json": "19136677bba961cb17936a52f1262b4d54801a78",
+      "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+      "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
+      "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
+      "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
+      "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
+      "scripts/rehearsal/test-forge-final-input-1519.py": "c61511bc703368530a680bd54bd082406e86a0e7",
+      "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
+    },
+    "allTenMatch": true
+  },
+  "reuse": {
+    "machineEvidencePath": "docs/security/forge-independent/2026-10-03-final-input/proof.json",
+    "machineProofSha256": "d4c9a8c9330b362ff82eb5b4e2368e3abcd73e2f885aa36525b8c0d9d2a8dbcf",
+    "previousFreeze": "d19ff0f255917558c25065faee1ee29d5a7bda5e",
+    "reason": "All ten package/toolchain/patch/suite input objects unchanged. Prior measured Oxy34/Expo14 and historical crypto/build outputs reused explicitly, not rerun."
+  },
+  "limits": [
+    "Real CI248 fails at historical local object resolution; retained excerpt is RED, not a passing check.",
+    "Fixture GitHub responses are synthetic; only separate fixed Git Data API GET record is authenticated.",
+    "Policy structural checks reject each of ten recovered object mismatches. Missing/foreign/malformed/unavailable API evidence fails closed; no fetch or bypass.",
+    "Fresh image/provenance/full gate and technical activation review still required. No queue/publish/deploy or auth/grant/DDL mutation."
+  ]
+}
