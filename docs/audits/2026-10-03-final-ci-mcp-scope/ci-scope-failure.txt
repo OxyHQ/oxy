@@ -1,0 +1,29 @@
+2026-10-03T10:48:08.3720671Z ci-scope.mjs is BROKEN (2 of 39 case(s)):
+2026-10-03T10:48:08.3721180Z 
+2026-10-03T10:48:08.3721803Z - mcp-runs-its-own-platform-suite-and-api-dependents: expected platform=true, got false.
+2026-10-03T10:48:08.3723106Z api=true
+2026-10-03T10:48:08.3723517Z platform=false
+2026-10-03T10:48:08.3723929Z apps=false
+2026-10-03T10:48:08.3724319Z diff: HEAD~1..HEAD
+2026-10-03T10:48:08.3724599Z 
+2026-10-03T10:48:08.3725486Z [api] RUN — roots: packages/api, packages/contracts, packages/core, packages/db, packages/federation, packages/mcp, packages/protocol
+2026-10-03T10:48:08.3726961Z   closure: packages/api, packages/contracts, packages/core, packages/db, packages/federation, packages/mcp, packages/protocol, packages/telemetry, packages/utils
+2026-10-03T10:48:08.3727820Z   Runs because (1):
+2026-10-03T10:48:08.3728318Z     - packages/mcp/src/internalTransport.ts is in packages/mcp, which this suite builds, tests or imports
+2026-10-03T10:48:08.3728776Z 
+2026-10-03T10:48:08.3729560Z [platform] SKIP — roots: packages/contracts, packages/core, packages/db, packages/federation, packages/node, packages/protocol, packages/ship, packages/stickers
+2026-10-03T10:48:08.3730823Z   closure: packages/contracts, packages/core, packages/db, packages/federation, packages/node, packages/protocol, packages/ship, packages/stickers, packages/telemetry
+2026-10-03T10:48:08.3731620Z   Nothing reaches this suite.
+2026-10-03T10:48:08.3731895Z   Outside its reach (1):
+2026-10-03T10:48:08.3732175Z     - packages/mcp/src/internalTransport.ts
+2026-10-03T10:48:08.3732402Z 
+2026-10-03T10:48:08.3733751Z [apps] SKIP — roots: packages/accounts, packages/auth, packages/commons, packages/console, packages/contracts, packages/core, packages/expo-splash, packages/protocol, packages/services, packages/test-app-vite
+2026-10-03T10:48:08.3735539Z   closure: packages/accounts, packages/app-preset, packages/auth, packages/commons, packages/console, packages/contracts, packages/core, packages/expo-splash, packages/protocol, packages/services, packages/telemetry, packages/test-app-vite
+2026-10-03T10:48:08.3736522Z   Nothing reaches this suite.
+2026-10-03T10:48:08.3736775Z   Outside its reach (1):
+2026-10-03T10:48:08.3737029Z     - packages/mcp/src/internalTransport.ts
+2026-10-03T10:48:08.3737234Z 
+2026-10-03T10:48:08.3737239Z 
+2026-10-03T10:48:08.3737862Z - suite-roots: platform does not include packages/mcp (packages/contracts, packages/core, packages/db, packages/federation, packages/node, packages/protocol, packages/ship, packages/stickers).
+2026-10-03T10:48:08.3738572Z 
+2026-10-03T10:48:08.3820463Z ##[error]Process completed with exit code 1.

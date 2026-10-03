@@ -1,0 +1,57 @@
+{
+  "sourceHead": "323208c26296de453b0f967bde751575aa83cf91",
+  "sourceInputs": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "8a0a47127f0c55c2210eea908948c581199adb82f64acd298168c884745661c3"
+    },
+    {
+      "path": "scripts/test-ci-scope.mjs",
+      "sha256": "cf0dfeb513931c4c63dca37bb8d12d04a2ba27f74112fb581c00e0ba65a34fa8"
+    },
+    {
+      "path": "docs/security/forge-candidate/provenance/audit-policy-decision.json",
+      "sha256": "1f6548d819af8f247cf599b3c6cbbab98f5fcaad3a911a28d9fa13e6562a518e"
+    },
+    {
+      "path": "scripts/forge-audit-policy.mjs",
+      "sha256": "a8a983bc49caa9ad1ca12167934c5d80fffc53b70ec96f6806910b0467d2b8a4"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-final-ci-mcp-scope/final-ci-mcp-scope-green.txt",
+      "sha256": "6319566864eeb67678ec006c29ff58a798dba5d168da26b377536e25b0048eed",
+      "exitCode": 0,
+      "scope": "Scope fixture39PASS after restoring original MCP job"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-mcp-scope/final-ci-mcp-own-suite.txt",
+      "sha256": "a4ff5718da95dac42bb09c5fddaa90e290072d0e0fe7ce54d2facc9f1723174e",
+      "exitCode": 0,
+      "scope": "MCP package own command:9suites/49PASS"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-mcp-scope/final-ci-inactive-canonical.txt",
+      "sha256": "7e631bdebefac54b57b4a52527cc25ec38db04bae0f125b22727379e39310f28",
+      "exitCode": 0,
+      "scope": "Committed policy setup reads canonical INACTIVE without evidence claim"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-mcp-scope/ci-scope-failure.txt",
+      "sha256": "1af1a5ddccbdfeed41549f0568cf64d9db009ea5e1d97c9552a8de5a40519247",
+      "scope": "Authenticated Guards111187191632 log excerpt from CI37117556034: MCP step absent after rebase"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-mcp-scope/ci-terminal.json",
+      "sha256": "62712e314e76ec372b7333c5f0846da3b4f812d99a4b5771efb586f28571c5bb",
+      "scope": "Current terminal CI state: all functional/platform/apps/API/Android/Coverage pass; Guards Scope+Forge and aggregate fail"
+    }
+  ],
+  "restoredStepOrigin": "b4c4ae1d9:.github/workflows/ci.yml MCP Tests: test block (exact bytes)",
+  "limits": [
+    "Scope assertions remain exact; MCP really runs its own package suite in platform after built contracts.",
+    "Canonical INACTIVE contains null target/expiry/authorization/evidence. User authorization and fixed2026-10-09T22:00Z expiry remain in retained historical records and will be reapplied only to a validated final image. No policy activation or allowlist widening.",
+    "Full CI result belongs only to38571, not this new workflow head. Ordinary Forge audit remains an intentional failure until final freeze."
+  ]
+}
