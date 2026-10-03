@@ -1,0 +1,874 @@
+{
+  "kind": "consumer-operation-source-map-v1",
+  "scope": "inspected local candidates, not registry/merged image/live DB attestation",
+  "lots": {
+    "path": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
+    "sha256": "0d91e5e5222dd8e7f927f3b0e6dfe95c948dca0fe84e22007ef83bc3ef6b9fc0"
+  },
+  "repositories": [
+    {
+      "repository": "OxyHQ/Alia",
+      "worktree": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
+      "inspectedSourceHead": "ce1baf5c0536bf3b975cc42556d746a60a41c7d8",
+      "recipePreparedHead": "ce1baf5c0536bf3b975cc42556d746a60a41c7d8",
+      "inputs": [
+        {
+          "path": ".github/scripts/deploy-ecs-image.sh",
+          "sha256": "3fa522626d185e72ea219d51b4f7b8440d518f5b684efec1f1549d1f49755fa7"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "cda1d0e2d2463eb920ab2effc6d0ca39e74d270f3a4d44574fdec8357b2c261f"
+        },
+        {
+          "path": ".github/workflows/deploy-integrations.yml",
+          "sha256": "356a26ecb9935b759e7e32a478beb58dc00a08cbcc10987a1eebdf38140badb3"
+        },
+        {
+          "path": "packages/api/Dockerfile",
+          "sha256": "8bffb1983c8f94c5906c8b6859cf68295b8de21a50a360ea1c2a7ae92e2d3108"
+        },
+        {
+          "path": "packages/api/drizzle/0016_jazzy_justin_hammer.sql",
+          "sha256": "2910b87df4463110acba0fb93ebba4b9c6a46a1ff59c337490f0b2132f099397"
+        },
+        {
+          "path": "packages/api/drizzle/0025_opposite_cyclops.sql",
+          "sha256": "d9aae63cd553fbbe22a2f2aecac2f1ba4aa5972f34aa18235a3f0e48db20ffc4"
+        },
+        {
+          "path": "packages/api/drizzle/0029_overrated_stellaris.sql",
+          "sha256": "d045262debbb875b74cce691727946a8beb97e69340edc3d3dc223652e56fdea"
+        },
+        {
+          "path": "packages/api/drizzle/0032_stored_media_is_a_key.sql",
+          "sha256": "f6e9ee266f7d389556a590128ea999722e84c4bee4a803c5b1db586ced9573ac"
+        },
+        {
+          "path": "packages/api/drizzle/0034_shows_move_to_syra.sql",
+          "sha256": "d6f64d66d7d916e077c4b24e44b026a5080875e473f30c1af865af7500dcf215"
+        },
+        {
+          "path": "packages/api/drizzle/0036_alia_stops_storing_agent_identity.sql",
+          "sha256": "713203e808d93f4044a0efef0c78595f766c3b105dba5a6e74b8f20f22f94441"
+        },
+        {
+          "path": "packages/api/drizzle/0039_agent_teams_are_retired.sql",
+          "sha256": "33d8f3e5e34f396a35804142ffae5e2b271e254b23b981da85fbe284155b4905"
+        },
+        {
+          "path": "packages/api/drizzle/0042_the_three_capability_vocabularies_die.sql",
+          "sha256": "142b15064ad364ca3b6e8f0da4bd4e99e5cb5b71c5d81b22578a55f2b71ec5ae"
+        },
+        {
+          "path": "packages/api/drizzle/0044_the_agent_avatar_column_leaves.sql",
+          "sha256": "e340c039651a931eed21a3cc72c75f2055d732217e342ffdc04cf4a5e013302c"
+        },
+        {
+          "path": "packages/api/drizzle/0046_one_thread_per_person_and_agent.sql",
+          "sha256": "eb21d696f619a8f1bc1331fc28ce52f03b2300a3df8e11ec17ecfee8941dcd52"
+        },
+        {
+          "path": "packages/api/drizzle/0047_a_thread_is_searchable.sql",
+          "sha256": "5db45e48d2b2f0de6d472975f11ee6534f40c89345b7dd1b9f544291df73ac2d"
+        },
+        {
+          "path": "packages/api/drizzle/0048_a_thread_is_many_conversations.sql",
+          "sha256": "39a6d3af03c0fcabce3c96b9850839fe4f52e82ba902e4611efae7a5833c327d"
+        },
+        {
+          "path": "packages/api/drizzle/0049_the_tier_column_cannot_be_correct.sql",
+          "sha256": "78607753affc4a9291566daf962dea270318dec41bca9e181cea9d230040e8bb"
+        },
+        {
+          "path": "packages/api/drizzle/0051_allow_hiring_never_authorised_anything.sql",
+          "sha256": "b3a2043a8dd365d4cee71651ee0842d326c20f5d4a014b051f50eef7fea9f526"
+        },
+        {
+          "path": "packages/api/drizzle/0052_the_sidebar_orders_agents_by_activity.sql",
+          "sha256": "1a7ea9fa9150b17b66ebd54c972af6cb61362ca305945dfa457b5faf2d0a7008"
+        },
+        {
+          "path": "packages/api/drizzle/0054_curly_talos.sql",
+          "sha256": "8fa7af04ff722d23511777f0ad7f35e620cd6c7b7a64ecd82087e273f2dd0a66"
+        },
+        {
+          "path": "packages/api/drizzle/0056_tough_synch.sql",
+          "sha256": "5e393881500dabadf573f38b85bf9109c6018e54b509d5f3bd6db83f5d2c54dd"
+        },
+        {
+          "path": "packages/api/drizzle/0061_remove_alia_provider_credentials.sql",
+          "sha256": "c942f6232ecdb633fc7ef76ef55024de6126f62cecee8f050832785bbf0f529d"
+        },
+        {
+          "path": "packages/api/drizzle/0062_clean_routing_vocabulary.sql",
+          "sha256": "d6b3da219f14d66094766bf68aa8ff9ff554c6c9e0ffe5a680979dfca8c431bc"
+        },
+        {
+          "path": "packages/api/drizzle/0063_remove_routing_compatibility.sql",
+          "sha256": "9b945b810b4d0771aa4dea03d4efb86f0b305c195ce845f42d67fdb89a008ea4"
+        },
+        {
+          "path": "packages/api/drizzle/0064_remove_legacy_routing_flag.sql",
+          "sha256": "7870bc1cf8a6434ce63bf87d86bc0786fd65f388d9efa6af0499ea7bf2e2485c"
+        },
+        {
+          "path": "packages/api/drizzle/0070_clean_cut_dormant_tables.sql",
+          "sha256": "d7b717c9f097627e3f016672c3bab8204c9243f627c0422b12e914edeaec4729"
+        },
+        {
+          "path": "packages/api/drizzle/0073_drop_sandbox_containers.sql",
+          "sha256": "382a9bfb93b5506750a78db3457cda6ec8993afb3228bb24a8301f73be1f6b3c"
+        },
+        {
+          "path": "packages/api/drizzle/0074_voice_minutes_retired.sql",
+          "sha256": "fe7e2336a8ccf2b6363546ad06b47c72a3b4771a5289bbf81d0f63d820a5edae"
+        },
+        {
+          "path": "packages/api/drizzle/0075_retire_codea_plans.sql",
+          "sha256": "47e6c66d38d63118d544ee7e87155b6c8e7e6dae91c1195e384366eb88bd62a2"
+        },
+        {
+          "path": "packages/api/drizzle/0079_models_are_real_post.sql",
+          "sha256": "0c755ef7c599fe71f887b6b27d73601ffdf94be5068cdec4a3aae02b682d1d8d"
+        },
+        {
+          "path": "packages/api/src/db/migrate.ts",
+          "sha256": "d09945799c368a0382c26cd58bdc92fd4f6a0ecf311c5f4e89d415749bea71ce"
+        },
+        {
+          "path": "packages/api/src/routes/health.ts",
+          "sha256": "9ce68dff04b2d395d79ebee3b842e109a5fabe690e8a1dbd9f63e852729f02b9"
+        },
+        {
+          "path": "packages/integrations/Dockerfile",
+          "sha256": "c5d96354f8483bd2f70ae118f9e544f865d44f914627ebc2f20dca6f8d0d6bad"
+        },
+        {
+          "path": "packages/integrations/src/db/migrate.ts",
+          "sha256": "de3a23345bd7cc2ec9975c016dd76a1ed36876f29cf2c4ada4c110a5d52bbd3f"
+        },
+        {
+          "path": "packages/integrations/src/index.ts",
+          "sha256": "bc2c692eca0eaadeafbdd0fb70715ae7799addd9072c6861ed9c36dc38728466"
+        }
+      ],
+      "historicalPostFiles": [
+        "packages/api/drizzle/0016_jazzy_justin_hammer.sql",
+        "packages/api/drizzle/0025_opposite_cyclops.sql",
+        "packages/api/drizzle/0029_overrated_stellaris.sql",
+        "packages/api/drizzle/0032_stored_media_is_a_key.sql",
+        "packages/api/drizzle/0034_shows_move_to_syra.sql",
+        "packages/api/drizzle/0036_alia_stops_storing_agent_identity.sql",
+        "packages/api/drizzle/0039_agent_teams_are_retired.sql",
+        "packages/api/drizzle/0042_the_three_capability_vocabularies_die.sql",
+        "packages/api/drizzle/0044_the_agent_avatar_column_leaves.sql",
+        "packages/api/drizzle/0046_one_thread_per_person_and_agent.sql",
+        "packages/api/drizzle/0047_a_thread_is_searchable.sql",
+        "packages/api/drizzle/0048_a_thread_is_many_conversations.sql",
+        "packages/api/drizzle/0049_the_tier_column_cannot_be_correct.sql",
+        "packages/api/drizzle/0051_allow_hiring_never_authorised_anything.sql",
+        "packages/api/drizzle/0052_the_sidebar_orders_agents_by_activity.sql",
+        "packages/api/drizzle/0054_curly_talos.sql",
+        "packages/api/drizzle/0056_tough_synch.sql",
+        "packages/api/drizzle/0061_remove_alia_provider_credentials.sql",
+        "packages/api/drizzle/0062_clean_routing_vocabulary.sql",
+        "packages/api/drizzle/0063_remove_routing_compatibility.sql",
+        "packages/api/drizzle/0064_remove_legacy_routing_flag.sql",
+        "packages/api/drizzle/0070_clean_cut_dormant_tables.sql",
+        "packages/api/drizzle/0073_drop_sandbox_containers.sql",
+        "packages/api/drizzle/0074_voice_minutes_retired.sql",
+        "packages/api/drizzle/0075_retire_codea_plans.sql",
+        "packages/api/drizzle/0079_models_are_real_post.sql"
+      ]
+    },
+    {
+      "repository": "OxyHQ/Mention",
+      "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
+      "inspectedSourceHead": "2765e797f13b0287e8441f6c943116e6dcd6cab5",
+      "recipePreparedHead": "2765e797f13b0287e8441f6c943116e6dcd6cab5",
+      "inputs": [
+        {
+          "path": ".github/scripts/deploy-ecs-image.sh",
+          "sha256": "fd66e3828dae32958db7346d389c8516e118a214d8601c44172f9e5bb9a095eb"
+        },
+        {
+          "path": ".github/scripts/smoke-mcp.sh",
+          "sha256": "2c1a41863e9d29ff0da7ce94f3ab040035bb0cc6c81c44f204c6723182a46753"
+        },
+        {
+          "path": ".github/scripts/smoke-mention.sh",
+          "sha256": "524ed497fbf1b876ec6d22507caf5ed87b034a9b91953de923d3f2062edbabd8"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "30af4f12a0bba70751570ad09add509e6366ebb9fe70dfb2f0176a1d6347f7de"
+        },
+        {
+          "path": ".github/workflows/deploy-mcp-aws.yml",
+          "sha256": "d099c52cb352174ca74f849534b4add797372819fa4a219d28d54851c9cc94a0"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "03fd7ec3c3b5d436fd0e1c5d9471850992d3f32d045b849d98b8bfcb8034a2f8"
+        },
+        {
+          "path": "packages/backend/src/app.ts",
+          "sha256": "eff5e1ed7899ebfbc6c1fd9c9033ba9fd9f67dbbd5de63676649f5de81bcfe55"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "53cc095b6a2db6c0536c6e7346e13c1d3a32d526f4b417218edba7d3230ac348"
+        },
+        {
+          "path": "packages/mcp/Dockerfile",
+          "sha256": "e7fc9a82e29aa54b3b4cb15ffeede58772f4b829874a3961f4593182b2587eae"
+        }
+      ],
+      "historicalPostFiles": []
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "worktree": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003",
+      "inspectedSourceHead": "813755a7333f02ff169b6ceba5bab72d4dd27f81",
+      "recipePreparedHead": "813755a7333f02ff169b6ceba5bab72d4dd27f81",
+      "inputs": [
+        {
+          "path": ".github/scripts/run-migration-task.sh",
+          "sha256": "0a69f60c63bd8cdb7757385a2efc75ab50b9f9862d134a1a412ce3dd2c7231cf"
+        },
+        {
+          "path": ".github/scripts/smoke-mcp.sh",
+          "sha256": "e488b8175d9355a19ec9371d8b65dce16fd64d997204b6369eea0c4cb4116bbb"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "ff1d7a79f3cee6ffcd35f25d732bfe89d1690636628888f4fb94ca2118ce3d61"
+        },
+        {
+          "path": "Dockerfile",
+          "sha256": "5f93c981c46906d9e5cf117566fa173058f15e08023dceea7a2c2fa9c8f6cac2"
+        },
+        {
+          "path": "packages/backend/drizzle/0003_retire_legacy_payment_columns.sql",
+          "sha256": "60312f9a90faa194989e0b64a70c61328dcded1c187123b8de0d5885ff5e4f47"
+        },
+        {
+          "path": "packages/backend/drizzle/0005_drop_empty_string_defaults.sql",
+          "sha256": "1610d713e1d69bfc0074888a4ea3b6e6b67cbf8cbf56b7066bcd9abc9dcac068"
+        },
+        {
+          "path": "packages/backend/drizzle/0025_complex_tattoo.sql",
+          "sha256": "d4a69433427961dede104fdcf5802c5b9794a855beca0e800ace9f257f9c3771"
+        },
+        {
+          "path": "packages/backend/drizzle/0035_many_katie_power.sql",
+          "sha256": "d9b5a508423c7c3084117091683264b8363ea606daeb9e86ee9b7bd8c541624d"
+        },
+        {
+          "path": "packages/backend/drizzle/0044_curly_boomerang.sql",
+          "sha256": "ad867f6f58a331f5f3c5932551e13c50abe549b52b161f7455672f720f351066"
+        },
+        {
+          "path": "packages/backend/drizzle/0070_eminent_peter_parker.sql",
+          "sha256": "d3d6acbec68e3d04355e4d49ec312380d0e4ffcbb09d3493921f7f6f517e4999"
+        },
+        {
+          "path": "packages/backend/drizzle/0071_lively_joseph.sql",
+          "sha256": "bf99195850b71b237f09ce66bf27fefe88037540e22767b9dc25abf024ff95e4"
+        },
+        {
+          "path": "packages/backend/drizzle/0073_right_phantom_reporter.sql",
+          "sha256": "84304eea8cbc9a6452eb8c1e5f1e9866b52c9dc0618c6d464ccf5f82633eb3f3"
+        },
+        {
+          "path": "packages/backend/drizzle/0096_tense_deathbird.sql",
+          "sha256": "614043d20c8ca58aeec1c7bc32405f205cdbca20f63475d77227c140a70a5515"
+        },
+        {
+          "path": "packages/backend/drizzle/0104_axis_assignment_cites_a_resolved_claim.sql",
+          "sha256": "1c8de464cb989fa58b279bdb78b92ebf9ea48c5d96ab34b00ff1a47bda9f6ffd"
+        },
+        {
+          "path": "packages/backend/drizzle/0106_panoramic_patch.sql",
+          "sha256": "8c67bb79ee0d231ae5821d3bf06c2d3c591ef2822c885b770a71a9c12f0cfef4"
+        },
+        {
+          "path": "packages/backend/drizzle/0111_last_sabretooth.sql",
+          "sha256": "08a4f488e9eefe082045261e803d46e689118c4b2ae1204b69fe5f9330ff0bb0"
+        },
+        {
+          "path": "packages/backend/drizzle/0124_cited_claim_stays_resolved.sql",
+          "sha256": "a13d12bb322cf1d9f8e26c2d5bab1f8b2c070081d301371739ce7c1e9cd17426"
+        },
+        {
+          "path": "packages/backend/drizzle/0127_flowery_shriek.sql",
+          "sha256": "d50267bfc697222a357404ae50ef987d8ba5386197b807336ea9d25bb1b8eebf"
+        },
+        {
+          "path": "packages/backend/drizzle/0139_clever_scorpion.sql",
+          "sha256": "24fac81c85a446443a981abbcc4d8154d8e2055253c828bb35b3f5e2b290ac73"
+        },
+        {
+          "path": "packages/backend/drizzle/0147_zippy_karen_page.sql",
+          "sha256": "7804327e3361acb0c003e1d846c9c1261af3a38065b8474602131bb38adbbccf"
+        },
+        {
+          "path": "packages/backend/drizzle/0149_giant_dark_phoenix.sql",
+          "sha256": "8d1f7c5efc0e571ed7099ba9f525c3e3b993786e38d34ce5a3495f9e27d207ef"
+        },
+        {
+          "path": "packages/backend/drizzle/0153_cute_excalibur.sql",
+          "sha256": "d988f125b7fe5e1df17954551dda2f8264920a9404f4a0a7ebf9089a38696e8a"
+        },
+        {
+          "path": "packages/backend/src/app.ts",
+          "sha256": "dfb97ca57a1533d7f067c1e90ecab3212e98274d60329f9f4e36dd194a3c733f"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "a814e6cf268d16c51f8d78d90c2ddc6bb144cf4ac9d6571d8e16b7535b0e1933"
+        },
+        {
+          "path": "packages/backend/src/routes/health.ts",
+          "sha256": "bf0940354333af9eb31207f6ea7d110bc29b36fc285015e917da396a97678250"
+        }
+      ],
+      "historicalPostFiles": [
+        "packages/backend/drizzle/0003_retire_legacy_payment_columns.sql",
+        "packages/backend/drizzle/0005_drop_empty_string_defaults.sql",
+        "packages/backend/drizzle/0025_complex_tattoo.sql",
+        "packages/backend/drizzle/0035_many_katie_power.sql",
+        "packages/backend/drizzle/0044_curly_boomerang.sql",
+        "packages/backend/drizzle/0070_eminent_peter_parker.sql",
+        "packages/backend/drizzle/0071_lively_joseph.sql",
+        "packages/backend/drizzle/0073_right_phantom_reporter.sql",
+        "packages/backend/drizzle/0096_tense_deathbird.sql",
+        "packages/backend/drizzle/0104_axis_assignment_cites_a_resolved_claim.sql",
+        "packages/backend/drizzle/0106_panoramic_patch.sql",
+        "packages/backend/drizzle/0111_last_sabretooth.sql",
+        "packages/backend/drizzle/0124_cited_claim_stays_resolved.sql",
+        "packages/backend/drizzle/0127_flowery_shriek.sql",
+        "packages/backend/drizzle/0139_clever_scorpion.sql",
+        "packages/backend/drizzle/0147_zippy_karen_page.sql",
+        "packages/backend/drizzle/0149_giant_dark_phoenix.sql",
+        "packages/backend/drizzle/0153_cute_excalibur.sql"
+      ]
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "worktree": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "250f035b2d45e7513b03c72e320bb86585f7837d",
+      "recipePreparedHead": "250f035b2d45e7513b03c72e320bb86585f7837d",
+      "inputs": [
+        {
+          "path": ".github/scripts/smoke-clarity.sh",
+          "sha256": "30759365161bea8a91a7974f6830355f1a3b3b1c4177c01addd5b80740fa2ee0"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "76507ae52f6ffaaff871e01801dc58f17c4d3fb1e0ec4b2703e518db84939c33"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "217e119146ee838972eb738b2950c891fa5bb7d389228bcf7b8fbb7132d8a051"
+        },
+        {
+          "path": "packages/backend/drizzle/0005_ambitious_sprite.sql",
+          "sha256": "6b50a2265eedd08827ba243c5a36e34c620895d3320cfbd6f2ca02194635de06"
+        },
+        {
+          "path": "packages/backend/drizzle/0013_drop_search_description_trgm.sql",
+          "sha256": "06501838e681d0fa10d8298dc251dca735c96faf51975d2b4ffd7c3c75a32493"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "e6a63dace589ba7ccc85ed1ec87fc88294423a285f4407ad175865bbf217674d"
+        },
+        {
+          "path": "packages/backend/src/lib/platform-activity.ts",
+          "sha256": "d09687ab1d95fece3e31700aaf1d5dd14ce3aa2cada8c6c0b68cdfbb7aad06db"
+        },
+        {
+          "path": "packages/backend/src/routes/health.ts",
+          "sha256": "75dc5cf2824245bf794d225784c1ee58aadde6dc33bab4b112f6d3ced3b48186"
+        },
+        {
+          "path": "packages/backend/src/worker.ts",
+          "sha256": "c21e7b018259f43a81fd43fe3df535d6497d2c3da9cf48d39af7230321d5a7f5"
+        }
+      ],
+      "historicalPostFiles": [
+        "packages/backend/drizzle/0005_ambitious_sprite.sql",
+        "packages/backend/drizzle/0013_drop_search_description_trgm.sql"
+      ]
+    },
+    {
+      "repository": "OxyHQ/Allo",
+      "worktree": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "5a76eed3270433b883ff6b5a6325ce0a47815a43",
+      "recipePreparedHead": "5a76eed3270433b883ff6b5a6325ce0a47815a43",
+      "inputs": [
+        {
+          "path": ".github/scripts/deploy-ecs-image.sh",
+          "sha256": "4df1ef3f977adbc19b0df07e428dfe160b21a666d041d1bfb31fc3690f15dc71"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "5ecff31e47c9730626523fc45a33b6e43d741c6baf682a355b4134fe40380b8a"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "fc38746c57a018f566a8c45633fffe55393421c67bf7db468564305bebde5a68"
+        },
+        {
+          "path": "packages/backend/drizzle/0003_regular_iron_patriot.sql",
+          "sha256": "4872a5e75a56cf1a782a0e5566892c518592d0b7765fe862366cdd9df472c3b5"
+        },
+        {
+          "path": "packages/backend/drizzle/0005_retire_legacy_messaging.sql",
+          "sha256": "a456d7ac3150d3ff4a5bc14a7722d62867e3351894fa05a1e154921826602add"
+        },
+        {
+          "path": "packages/backend/src/app.ts",
+          "sha256": "ab50cc07ea3d43c52f1d58d0f729da91899e5aa340809f62f77d00a13b43012a"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "a1423899b5724209afc9d5a1c3e5e629cb9fe28eb33a5582e9dcd8b9929f7f9b"
+        }
+      ],
+      "historicalPostFiles": [
+        "packages/backend/drizzle/0003_regular_iron_patriot.sql",
+        "packages/backend/drizzle/0005_retire_legacy_messaging.sql"
+      ]
+    },
+    {
+      "repository": "OxyHQ/Noted",
+      "worktree": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "dedc9eeeb7f024498c353a3459b10842831112e4",
+      "recipePreparedHead": "dedc9eeeb7f024498c353a3459b10842831112e4",
+      "inputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "7a43adfc946065bf8b8e94f3184cd6fe344e96d08be0877297aaa7ba644b2ca9"
+        },
+        {
+          "path": "Dockerfile",
+          "sha256": "c5c723d339f66ff22ff166bb085a3d8e235b43aac1d3bf61f8dc4f615e342757"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "b3febf4f1221012b1c37f22582c78155b6bfb3d78c895a953ef77709b072b650"
+        },
+        {
+          "path": "packages/backend/src/routes/health.ts",
+          "sha256": "de1f22667d0aff83e0ff2dd4a691852f9988a73840ee27e3d13aa96ee05e8bc6"
+        },
+        {
+          "path": "scripts/smoke-mcp.sh",
+          "sha256": "7db3ad3944957884c1735653ee8d31ed3063302945da4c80199074b37fda5a00"
+        }
+      ],
+      "historicalPostFiles": []
+    },
+    {
+      "repository": "OxyHQ/Homiio",
+      "worktree": "/home/nate/Oxy/Homiio/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "7b753949bc17c5787430c0ac3c8411529c5b1c67",
+      "recipePreparedHead": "7b753949bc17c5787430c0ac3c8411529c5b1c67",
+      "inputs": [
+        {
+          "path": ".github/scripts/deploy-ecs-image.sh",
+          "sha256": "ec429235ff001aa62e7e17ba0c753b7897be08b33f397bff64a98a78c2496d1f"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "58726ff5df5319415b95ab07d51da3072b427a8f5e06e10b77630158e9e03a5d"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "5e2dbd0194e858f3efcb6791f3ae2941e5422146f1195a79c2eaca4955986473"
+        },
+        {
+          "path": "packages/backend/db/migrate.ts",
+          "sha256": "f9050e40790b14c2173932e631c21c9ad65789163f2a9688a5174794c7a2e42e"
+        },
+        {
+          "path": "packages/backend/drizzle/0020_review_pseudonym_not_null.sql",
+          "sha256": "18aa614cce14358c04abb6bed9b8ddd92bd6391b08d6148a7fec0c81d509718e"
+        },
+        {
+          "path": "packages/backend/services/healthService.ts",
+          "sha256": "c8e695963ac49ca068ae12d09e6b851b0c8ce1331a8f2e58a8ef586cbc24bf6d"
+        },
+        {
+          "path": "packages/backend/worker.ts",
+          "sha256": "778e347f7848f06cb2471b0b5e68ff789c11786ee838482ae8c2e336ca99428f"
+        }
+      ],
+      "historicalPostFiles": [
+        "packages/backend/drizzle/0020_review_pseudonym_not_null.sql"
+      ]
+    },
+    {
+      "repository": "OxyHQ/website",
+      "worktree": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "2dc4a9013a3bc532697b31e0093c175b52b297b4",
+      "recipePreparedHead": "2dc4a9013a3bc532697b31e0093c175b52b297b4",
+      "inputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "3d4ba3f3edf6f90bda6513a90faa87e65fe555e05341229d446790465f909544"
+        },
+        {
+          "path": "Dockerfile",
+          "sha256": "ed6b14b0f98eb41e4d8cd26f840b585f1d36b8b77b1eafd360fbea18a5528a5d"
+        },
+        {
+          "path": "server/app.ts",
+          "sha256": "5dd6a588e01c300998f79047c367253f24e7bfd560afe773ff1f40b00a5eef37"
+        },
+        {
+          "path": "server/db/migrationLock.ts",
+          "sha256": "ee2db5ac45e35f3ea8624eb5f28dd311abc96201dc550fed0ecf68e933abffb1"
+        },
+        {
+          "path": "server/index.ts",
+          "sha256": "9c3676b7167924f07efe316d1abaa3a27572d1119c44ad384a6c2c1229dd541f"
+        }
+      ],
+      "historicalPostFiles": []
+    },
+    {
+      "repository": "OxyHQ/Peable",
+      "worktree": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003",
+      "inspectedSourceHead": "11b9f19730ed64863ee1fac5bc3c3b4b7d691386",
+      "recipePreparedHead": "11b9f19730ed64863ee1fac5bc3c3b4b7d691386",
+      "inputs": [
+        {
+          "path": ".github/scripts/run-migration-task.sh",
+          "sha256": "037e1c9ad17943e373f59b24232012db74c01f93c93fd4c7a7fe2e3ce74d57fc"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "65cb8c800f9c216582ac6ca9658fd7bd920fe7ecd34174aa59ba5bbbc8fe804b"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "ce92f2eb1e5859dcbc9b8117c0b2cb3b63d7bbad79421f0c9af3f79cc05ce58d"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "997cdccac341ca74785b897355a3abf1e97d3ab8f2b73acb7618a6535af0302f"
+        },
+        {
+          "path": "packages/backend/src/db/migrations/0009_fuzzy_misty_knight.sql",
+          "sha256": "f75e5ffdfeb55a33480086b0a62b4d5f273ba4f6ac8aec9c3cf3290aa34f0bc5"
+        }
+      ],
+      "historicalPostFiles": [
+        "packages/backend/src/db/migrations/0009_fuzzy_misty_knight.sql"
+      ]
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "worktree": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "e5f62c750837f9e6a0b2d73655628a4c53df2bc7",
+      "recipePreparedHead": "e5f62c750837f9e6a0b2d73655628a4c53df2bc7",
+      "inputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "deb6c65f6499c0b631dc061a13a125ecd8b6ade82f282dd08f3c7eea4dca5218"
+        },
+        {
+          "path": "Dockerfile.api",
+          "sha256": "b43478d6f2a876f95b04c9ef1607eb7db8511af9b6847567b39aea7dfa05fc66"
+        },
+        {
+          "path": "Dockerfile.dns",
+          "sha256": "b5806c71d473a31e41729050e874e82c1b94125d9749c2a2f85a6ae4de2217e5"
+        },
+        {
+          "path": "apps/api/src/db/migrate.ts",
+          "sha256": "de66fdf3682deb4dc8e5b731868894436beae0299e4e5de435755babc252b644"
+        },
+        {
+          "path": "apps/api/src/health.ts",
+          "sha256": "39023582336fbf0f5a55b67c73c5d67d5ce16e4f70e83815fd2984eb38b66791"
+        },
+        {
+          "path": "apps/api/src/index.ts",
+          "sha256": "fee1f552331bbb19e07c22c8722bb8076241759e6eab06f64eda9e0e352cdbf8"
+        }
+      ],
+      "historicalPostFiles": []
+    },
+    {
+      "repository": "OxyHQ/Willo",
+      "worktree": "/home/nate/Oxy/Willo/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "1daf3501191ffb82bc4c4b3de3199eebe2bcedd9",
+      "recipePreparedHead": "1daf3501191ffb82bc4c4b3de3199eebe2bcedd9",
+      "inputs": [
+        {
+          "path": ".github/scripts/run-migration-task.sh",
+          "sha256": "0bbf10ed2931231f1cbd564640f0309c6dee5400670182dcced12ee65df0eb5f"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "55c247451df5719b6301ed6f64de0807c97a71e904894e8dc9d38f82148f200f"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "1dd056ad6fa46518be5e32fcb64cf83f9cb2d7d3702d0a43955a0db20d5a9f5b"
+        },
+        {
+          "path": "packages/backend/src/app.ts",
+          "sha256": "c9a1d7d6c00d9ca0723f2ed201b46c665d6940ecf28b2c482d1f16b98a097aff"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "6c11f7b070ea4deecaa53442664e851de0ef09b1f15d04cb08d10f1a874f8235"
+        }
+      ],
+      "historicalPostFiles": []
+    },
+    {
+      "repository": "OxyHQ/GoWay",
+      "worktree": "/home/nate/Oxy/GoWay/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "2f0cd7a4acbe4d37d76c219a20700bef4f41d8f8",
+      "recipePreparedHead": "2f0cd7a4acbe4d37d76c219a20700bef4f41d8f8",
+      "inputs": [
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "496739defe1221b8297b48a5dd437b06e9dca36f17b8bf59ad37ed3ca4f77cb3"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "dd68b79d9dbe8745f4e9f043c9c066ac59ac7bc8a1454716daf1d9250fe9fe8d"
+        },
+        {
+          "path": "packages/backend/src/app.ts",
+          "sha256": "8835e417875f4804d06f4c461bf3af58772f26e3e91ebb52cc86ffa0912efd0e"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "004f1a878234b0bafaf38a6b5a9b8afd083aceb32ecec7e4caff4f11c337f868"
+        },
+        {
+          "path": "packages/backend/src/routes/health.ts",
+          "sha256": "e3127664f2512b3266eba067a13b63789d05460cb845503f538dcda3a99ad3b7"
+        },
+        {
+          "path": "scripts/check-routing.mjs",
+          "sha256": "a164a30ad41f264c8a57828620e81c493d0d742abd9b8aaf6b08513f5e140d5e"
+        }
+      ],
+      "historicalPostFiles": []
+    },
+    {
+      "repository": "OxyHQ/Moovo",
+      "worktree": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "37c16ebbce76eba12ff2c00e37d2b633536961a1",
+      "recipePreparedHead": "37c16ebbce76eba12ff2c00e37d2b633536961a1",
+      "inputs": [
+        {
+          "path": ".github/scripts/run-migration-task.sh",
+          "sha256": "53c6ef38de4809818a8fd79f669482f6e6a3ce2e4e2a88188e9277981e803437"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "2ac1208f690f0db6a51438acd2096f64b1034af22d0c04323f6436544d116177"
+        },
+        {
+          "path": "Dockerfile",
+          "sha256": "7b207fcc60e7804b0e1e8460dd8692e1d56e6a05e2e8193eae61c95c3e7dd9fc"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "bf46f290bf29a9cf93d0f925a920188dd1c1782a89c934606856fb2b416209e4"
+        },
+        {
+          "path": "packages/backend/src/db/migrations/0007_peable_payment_provider.sql",
+          "sha256": "fe8bff3ee1e0b9866737bf20d1dbb79b109ba9799b9b5d86ed74dd98a89eb426"
+        },
+        {
+          "path": "packages/backend/src/routes/health.ts",
+          "sha256": "14f40c3c76f66438801a0919ed754c9948968a122e90e87bb6e9d5986b4328e9"
+        }
+      ],
+      "historicalPostFiles": [
+        "packages/backend/src/db/migrations/0007_peable_payment_provider.sql"
+      ]
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "worktree": "/home/nate/Oxy/Nilo/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "195400b8cd4681684d4bbce4fae8a3dd8003b2e7",
+      "recipePreparedHead": "195400b8cd4681684d4bbce4fae8a3dd8003b2e7",
+      "inputs": [
+        {
+          "path": ".github/scripts/deploy-ecs.sh",
+          "sha256": "1559c958c72415edbf3d4c5ac911fbb3b72784cf8afb75ec8e8e0c8813ff1387"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "4333a74beff859f69c66cafe2dca214ed78a3eeae5defbbf63ae654e273db9b1"
+        },
+        {
+          "path": "apps/api/Dockerfile",
+          "sha256": "0ac7938817baf22c3231330970c55feaaabc98d49db722fccfa36274db82f4db"
+        },
+        {
+          "path": "apps/api/src/db/migrate.ts",
+          "sha256": "6b553632a5a5911a470bedc659b129f35439592d893cca7961277fda95b543ae"
+        },
+        {
+          "path": "apps/api/src/drizzle/0003_chief_mach_iv.sql",
+          "sha256": "6bbd404d9ec621e4a2a8b6f07aeef45d1175857104896e729217a7148eae79e6"
+        },
+        {
+          "path": "apps/api/src/index.ts",
+          "sha256": "e4e124c51cc74190aabe47e2668a9919bc45819ef84ef41c237c7e1037b1586a"
+        },
+        {
+          "path": "apps/api/src/routes/health.ts",
+          "sha256": "1eeaa9db1df7b97159aa8b765f051f27b2309ba4ebaba9ceacb773f4c0a84edd"
+        }
+      ],
+      "historicalPostFiles": [
+        "apps/api/src/drizzle/0003_chief_mach_iv.sql"
+      ]
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "988ad19a3ad363c2cdfee47789cc8daaada1902b",
+      "recipePreparedHead": "988ad19a3ad363c2cdfee47789cc8daaada1902b",
+      "inputs": [
+        {
+          "path": ".github/scripts/deploy-ecs-image.sh",
+          "sha256": "df299b0087da61b25135f70b414d9cea72187b0c3d2b3710de4436a759f9e6d2"
+        },
+        {
+          "path": ".github/scripts/smoke-crowdsource.sh",
+          "sha256": "4ba528a83c1b733599dabc5fe84120c60282c66e49b5d5d176e265ee12deda31"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "466794ea4bab8ce062cb9f8382d600f3c3781c72d2f4f18d0559061a14dc5113"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "03ee825714d7245a4a0eddf5b346fcb2d9c571c96b9f0490375c3267f033cfa4"
+        },
+        {
+          "path": "packages/backend/src/app.ts",
+          "sha256": "fd95ee1cf6b85b54544c07a3ad048c5424d65d7456c0eb292d1c697381c760e4"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "ffaad3f9488b33181bd75b888adb3c597dfc8f16ebde7176a09a07c6bcf7891a"
+        },
+        {
+          "path": "packages/backend/src/db/postgres/migrations/0009_nasty_firedrake.sql",
+          "sha256": "c8e554ee61a41dcea83e20d643f070c205059deb9f1d8d705e00d9bd15682ca1"
+        },
+        {
+          "path": "packages/backend/src/db/postgres/migrations/0012_cooing_blonde_phantom.sql",
+          "sha256": "1192eb07bda85b887e481b3d9ec09c27aa88385ef81e7f0c3f3a38fcc5804f48"
+        },
+        {
+          "path": "packages/backend/src/db/postgres/migrations/0013_ancient_vision.sql",
+          "sha256": "cdc58cec02c46284cc25c0e1ddda87426269a40cf2e43f5957bba4e3ff532535"
+        },
+        {
+          "path": "packages/backend/src/db/postgres/migrations/0014_living_wasp.sql",
+          "sha256": "8b9bdbf40c34bb070bd424acf9582a488a5cfcd52af19317f0e3211efc0cc0b8"
+        }
+      ],
+      "historicalPostFiles": [
+        "packages/backend/src/db/postgres/migrations/0009_nasty_firedrake.sql",
+        "packages/backend/src/db/postgres/migrations/0012_cooing_blonde_phantom.sql",
+        "packages/backend/src/db/postgres/migrations/0013_ancient_vision.sql",
+        "packages/backend/src/db/postgres/migrations/0014_living_wasp.sql"
+      ]
+    },
+    {
+      "repository": "OxyHQ/Syra",
+      "worktree": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003",
+      "inspectedSourceHead": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "recipePreparedHead": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "inputs": [
+        {
+          "path": ".github/scripts/deploy-ecs-image.sh",
+          "sha256": "88cea325a69ddadd2a4d7680860d3a3fa3c69fe062b445bfdedaef7f534ee5d5"
+        },
+        {
+          "path": ".github/workflows/deploy-aws.yml",
+          "sha256": "1bf9f5442bf0b4bcd28c8fffada50bf765a4db295edf0fb946f7f8ab99ea2c8a"
+        },
+        {
+          "path": "packages/backend/Dockerfile",
+          "sha256": "f018fd35b839fdb1e840ca1f0c2a679e80b47d5a209d9997d5e182652717a23f"
+        },
+        {
+          "path": "packages/backend/drizzle/0001_yielding_black_queen.sql",
+          "sha256": "4890cab698a82d15c1eaac9f710c88f980a434bdf223c53d021fc73e9d980fc4"
+        },
+        {
+          "path": "packages/backend/drizzle/0002_wealthy_stepford_cuckoos.sql",
+          "sha256": "d7f66ed1a255b54e1cfe8df315f79fc38a5c4318317883f8bbd9b4fa82538083"
+        },
+        {
+          "path": "packages/backend/drizzle/0004_workable_hellion.sql",
+          "sha256": "37e41c4daaf82cf761f1ca85c29ad66dd4f75ca94ce1b72583a894e38cfec43c"
+        },
+        {
+          "path": "packages/backend/drizzle/0005_public_pepper_potts.sql",
+          "sha256": "5e89be54441f7ecc2e55f0e930e1ad9a7b9552d8a94cb7249c950911473eba3f"
+        },
+        {
+          "path": "packages/backend/drizzle/0008_stiff_the_liberteens.sql",
+          "sha256": "6d34e539e980ef03a422b88d9c657cc7b514506c321efefac336e09ed2d8e2b0"
+        },
+        {
+          "path": "packages/backend/drizzle/0010_pretty_silverclaw.sql",
+          "sha256": "d71273ffb0da79b7024a73aecd71b205721b425176d9cfe03fddba44d16239d3"
+        },
+        {
+          "path": "packages/backend/drizzle/0013_faulty_ares.sql",
+          "sha256": "fc52da9a772f8dc30a0e772547d4b3c1f24573b64df412cdf4cf31db3e69ee63"
+        },
+        {
+          "path": "packages/backend/drizzle/0015_thankful_stick.sql",
+          "sha256": "94ae5a32440d5069333bcb27897f91ac2e40f703cf5da33d2e14786f52585ba9"
+        },
+        {
+          "path": "packages/backend/drizzle/0021_great_the_professor.sql",
+          "sha256": "feb5d3d299e3cbb7317930d17587f075e17325ee649ef81bc2b614fc60544ead"
+        },
+        {
+          "path": "packages/backend/drizzle/0023_nappy_excalibur.sql",
+          "sha256": "f2852119fef4a62a778524dee4aaf843a60f5d1dde5f21c66a8e6adbd0cf5b11"
+        },
+        {
+          "path": "packages/backend/src/db/migrate.ts",
+          "sha256": "ab833a27144ae3b93c1135777f9c14699f55fb7ef3168d8393a5cd5b7a81b4f0"
+        }
+      ],
+      "historicalPostFiles": [
+        "packages/backend/drizzle/0001_yielding_black_queen.sql",
+        "packages/backend/drizzle/0002_wealthy_stepford_cuckoos.sql",
+        "packages/backend/drizzle/0004_workable_hellion.sql",
+        "packages/backend/drizzle/0005_public_pepper_potts.sql",
+        "packages/backend/drizzle/0008_stiff_the_liberteens.sql",
+        "packages/backend/drizzle/0010_pretty_silverclaw.sql",
+        "packages/backend/drizzle/0013_faulty_ares.sql",
+        "packages/backend/drizzle/0015_thankful_stick.sql",
+        "packages/backend/drizzle/0021_great_the_professor.sql",
+        "packages/backend/drizzle/0023_nappy_excalibur.sql"
+      ]
+    }
+  ]
+}
