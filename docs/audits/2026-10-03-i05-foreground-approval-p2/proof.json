@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "1134a419cb8e56b6be00036bfac162bcefa775c4",
+  "sourceSha256": {
+    "packages/api/drizzle/0142_melodic_sister_grimm.sql": "39171c5cfae5c33ba756389cf69741e096a31dc1130684b963efdb46275196e7",
+    "packages/api/drizzle/meta/0142_snapshot.json": "166aaebb4863d617b4002033139ba52e97edd28955b68ec0f21df8d8ec0a42af",
+    "packages/api/drizzle/meta/_journal.json": "e3894d3ecba628dc48762384306624e56dd02aaa3698fac6da9f7940b682ddd6",
+    "packages/api/openapi.json": "85c4935891a8e745718e3ea005e67f68d691db536f22e851552e273e9902f063",
+    "packages/api/src/db/schema/agency.ts": "9de331b4301a3f4c0ed73f655fa5dd12d4d528a934fdfca8d7a3260e95192af2",
+    "packages/api/src/db/schema/foregroundApprovalMigration.ts": "506842572d23b1fe1ffb6abd136cb87965a39b86635fc0577569b0c25311d75b",
+    "packages/api/src/routes/capabilities.ts": "1f78fcf5b9c555385cefc607e19df865ab31621d926a59feb0d05a1c35413cfa",
+    "packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts": "8af8e1045330824e5f39f1d9077c471186f46d1420b5c12363996d4e148ee42f",
+    "packages/api/src/services/capabilityAuthority.service.ts": "8adb1e355abb9eb2effd38a056ca71dad91f9f45e14b833a9678b0371389d46c",
+    "packages/api/src/services/foregroundCapabilityRequester.service.ts": "efcc6ba5d53be0fa3f4e0514b3346c65b995acdd51158f55a9caec0d900bc56a",
+    "scripts/rehearsal/test-i05-foreground-authority.py": "e46c10167988a5ddf3dad1bac727315d42c7a4bfa95b86990e70e4fe0144ee79",
+    "scripts/rehearsal/test-i05-foreground-migration.py": "56b3cdfa9bde912c3bf3d9f6f2a1b98f4b8f4a006fc5b04548f66772438a8c12",
+    "packages/api/src/services/agentKeyAuthority.service.ts": "903c04220b9a13218007a7d72c8910ddadf6f6158c1532c35b93f1c49345f790",
+    "packages/api/src/services/session.service.ts": "924a4ffcfc509d0938072062fa012af70d5fa51fdd7472c43413d6b5345cecab",
+    "packages/api/src/utils/asyncHandler.ts": "9b433a49be632312480c4d4db895040130e1a2f04a95ca2b209c26068dc26277",
+    "packages/api/src/utils/error.ts": "f064457ba1dfd642dccfdb49388a996a4c3cc9a1b206bdf1c6fa36611cc48503",
+    "packages/api/src/middleware/errorHandler.ts": "43f3fded7a5ede7bf1a1852a93cf9be3cb80d473d71ce295ec6689c0fc8792e8",
+    "packages/api/src/db/migrate.ts": "35f66a152a01d01ac145036c1c1b14ee13b7b19edaae84c214913d35a4da4098"
+  },
+  "records": {
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/api-ts.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/biome-scoped.log": {
+      "sha256": "6625e388a807ac0a7f572cd69e40b436162e6ca135c6f6104426329f1dcefc36",
+      "bytes": 42
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/biome-shared.log": {
+      "sha256": "d53ddc0c5e991e7f36c1040ef2fe05575996fa4d537380aae8468ae1c8210dab",
+      "bytes": 43
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/fresh-142.log": {
+      "sha256": "e2db268f7fbc86be8b0ead8b4c895ff38e318c0296c520a4e35b9a5addc33d35",
+      "bytes": 8875
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/generated-0142.sql": {
+      "sha256": "729fa47e2b9934c5fbf4de39539c74be79ce9e09e6d9c2d03cb1351d15a63a89",
+      "bytes": 2112
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/green-71.log": {
+      "sha256": "87aa1730c65c753c9c678aa0b46531d93d6bdd932747e608fd3ba7861be6857a",
+      "bytes": 10019
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/green-run.log": {
+      "sha256": "e54193cd153510a05e1711d632592689906ad706dd2cc9ba267653d4003bfeaf",
+      "bytes": 2267
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/migration-journal.log": {
+      "sha256": "fe693c5d34ba2bddd37231fb9f8dfda02daa9bbeb7c2a74f3213eb99d68fcc69",
+      "bytes": 150
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/migration-phases.log": {
+      "sha256": "00329c88cafc3a4f375497d7710192d306085b9ad356b2c1d850ccb4d2281447",
+      "bytes": 212
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/migration-source-equality.json": {
+      "sha256": "3980f2180e4662d791f77fc0961e975bd941cf5845787d32f6a84458f4367cd4",
+      "bytes": 286
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/openapi.log": {
+      "sha256": "a8a8a561b75049eb0e98574d8f3541d30519feef6c86479a9ab5ee01ec0a1d2c",
+      "bytes": 305
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/red-harness.py": {
+      "sha256": "2077f4ee3f42be2259e9314db87428f881ee4a9fd657c3d85fa67a743d6d37a5",
+      "bytes": 5267
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/red-run.log": {
+      "sha256": "665f9fe614468afd899dbbba1a9c1d36d8b6e971420a699f04cfe5dcf55941c2",
+      "bytes": 2842
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/red-selected.log": {
+      "sha256": "20ae0dd607839b8e5be665754dab1d4bc422d2962916b2ab2a6fda23356fe2ba",
+      "bytes": 9484
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/repeat-142.log": {
+      "sha256": "5473e2ed7ec5d1cdd07c0f68808849d29804e1232979e66bf328423a2ff63353",
+      "bytes": 173
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/scripts-ts.log": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/snapshot-noop.log": {
+      "sha256": "b6ab8a8bb0f1c5854b5d2a14d86b6bde73dcbdd1554bcc237901e2c2527d8883",
+      "bytes": 85
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/upgrade-141.log": {
+      "sha256": "d21bd57fcbe9a730341ce784b054fb47b97ad65f80af2f943a5474d31a6f67b9",
+      "bytes": 28167
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/upgrade-142.log": {
+      "sha256": "48ba7dbf4ec05b5b612fcd7e5239b288252c4048a76a7f0da3d8742b075cb426",
+      "bytes": 697
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/upgrade-fixture-setup-failure.log": {
+      "sha256": "f59fc98e967a9647af5b44c079a8d46d00c7eaf18de082e1303b5ef034cc75e3",
+      "bytes": 3480
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/upgrade-repeat.log": {
+      "sha256": "4cba76e206f85b08a8238fb5b2dd30db2caef76aef6484d53f4b3d2cf6a5f287",
+      "bytes": 173
+    },
+    "docs/audits/2026-10-03-i05-foreground-approval-p2/upgrade-run.log": {
+      "sha256": "e26fcee11d722d85af39b207ab3b6683556c8a8339c7312ffe44ca2ab02b6a14",
+      "bytes": 2141
+    }
+  },
+  "red": {
+    "runtimeHead": "f5804cdb8731fdc6b6f6dc52a1889e629bf7de58",
+    "runtimeSha256": {
+      "packages/api/src/db/schema/agency.ts": "f0ce2beb92a4cc00d5ffe66b99198784ad3b6ecc906367b36e91d3bb99a9ebde",
+      "packages/api/src/routes/capabilities.ts": "bac702e80c05cf3a08dc2c260cdcb9eb8c2df1241e9cda7ba10581f0d46d1d8d",
+      "packages/api/src/services/capabilityAuthority.service.ts": "77377fd514153d278083bc3cb8bef25a37d548c8155a0918210fad17dfe7c8c4",
+      "packages/api/src/services/foregroundCapabilityRequester.service.ts": "4912576e436135d1d71d752fb74869a245a2d127a3082846ab0f3e0ba63d6342"
+    },
+    "failedTests": 5,
+    "unselectedTests": 16,
+    "selectedFixtureFileSha256": "8af8e1045330824e5f39f1d9077c471186f46d1420b5c12363996d4e148ee42f",
+    "sameFiveRegressionFixturesUsedForGreen": true,
+    "runtimeEditsDuringRed": false
+  },
+  "green": {
+    "suites": 7,
+    "tests": 71,
+    "freshMigrationCount": 142,
+    "repeatNoOp": true,
+    "upgradeFrom141": true,
+    "upgradeRetainsHistoryAndAliaAgent": true,
+    "apiTypeScriptExitCode": 0,
+    "scriptsTypeScriptExitCode": 0,
+    "biomeVersion": "1.9.4",
+    "biomeFiles": 6,
+    "biomeExitCode": 0,
+    "openapiExitCode": 0,
+    "snapshotNoOpTables": 223
+  },
+  "localServerPidsStopped": [
+    3778337,
+    3784900,
+    3787488,
+    3786404
+  ],
+  "awsAuthorityWrites": 0,
+  "stripeWrites": 0,
+  "catalogueConfigurationActivated": false
+}

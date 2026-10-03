@@ -1,0 +1,139 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/foregroundCapabilities.db.test.ts -t "retains the approved|answers a bounded|does not disguise"
+{"level":30,"time":1791025863998,"pid":3778421,"hostname":"SuperPC","binaryPath":"/usr/bin/ffmpeg","msg":"[VariantService] Using system ffmpeg"}
+{"level":30,"time":1791025864001,"pid":3778421,"hostname":"SuperPC","binaryPath":"/usr/bin/ffprobe","msg":"[VariantService] Using system ffprobe"}
+{"level":30,"time":1791025864002,"pid":3778421,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","msg":"[VariantService] Resolved FFmpeg path"}
+{"level":30,"time":1791025864002,"pid":3778421,"hostname":"SuperPC","ffprobePath":"/usr/bin/ffprobe","msg":"[VariantService] Resolved FFprobe path"}
+{"level":30,"time":1791025864002,"pid":3778421,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","ffprobePath":"/usr/bin/ffprobe","ffmpegExists":true,"ffprobeExists":true,"msg":"FFmpeg/FFprobe paths initialized"}
+{"level":30,"time":1791025864374,"pid":3778421,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791025864398,"pid":3778421,"hostname":"SuperPC","kid":"dev-ephemeral-3be641c424d1","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+FAIL src/services/__tests__/foregroundCapabilities.db.test.ts (6.415 s)
+  ✕ retains the approved catalogue pin across legitimate catalogue replacement: explicit-B (167 ms)
+  ✕ retains the approved catalogue pin across legitimate catalogue replacement: omitted (138 ms)
+  ✕ answers a bounded HTTP refusal when logout happens after initial live validation (1597 ms)
+  ✕ answers a bounded HTTP refusal when expiry happens after initial live validation (1592 ms)
+  ✕ does not disguise unexpected requester validation errors as a session denial or leave HTTP pending (1594 ms)
+  ○ skipped issues a signed read-only requester ticket, preserves subject graph over HTTP/MCP, and retains historical authorization after session deletion
+  ○ skipped withdraws rotate before private output without granting offline authority
+  ○ skipped withdraws logout before private output without granting offline authority
+  ○ skipped withdraws closure before private output without granting offline authority
+  ○ skipped withdraws credential before private output without granting offline authority
+  ○ skipped withdraws app-owner before private output without granting offline authority
+  ○ skipped withdraws catalog before private output without granting offline authority
+  ○ skipped refuses data when the session is withdrawn while actual audit persistence is awaiting
+  ○ skipped offline grant revoke is separate from foreground signout; canonical session revoke preserves the shared session
+  ○ skipped scope narrowing through the canonical app-bound mint invalidates the old approval binding
+  ○ skipped rejects free ids, standing/automation authority, stale pins and another presenting application
+  ○ skipped a live bot requester retains its real key provenance and rejects a revoked signer
+  ○ skipped real workload mint uses its canonical inert attribution row for catalog and execution FKs
+  ○ skipped private application signals and viewer ranking match the existing domain builder over HTTP and MCP
+  ○ skipped principal A operating subject B stays separate and membership withdrawal cannot switch the ticket subject
+  ○ skipped rechecks the signed ticket expiry after the audit wait, independently of a later authorization deadline
+
+  ● retains the approved catalogue pin across legitimate catalogue replacement: explicit-B
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 201
+
+      314 |   const stale = await request(app).post('/capabilities/tickets').auth(p.token, { type: 'bearer' })
+      315 |     .send({ executionAuthorizationId: issuedA.authorization.id, ...(variant === 'explicit-B' ? { expectedCatalog: pinB } : {}) });
+    > 316 |   expect(stale.status).toBe(403);
+          |                        ^
+      317 |   expect(stale.body).not.toHaveProperty('ticket');
+      318 |   const createdB = await request(app).post('/capabilities/foreground-execution-authorizations').auth(p.token, { type: 'bearer' })
+      319 |     .send({ ...issuedA.input, runId: randomUUID(), expectedCatalog: pinB, subjectToken: r.session.accessToken });
+
+      at src/services/__tests__/foregroundCapabilities.db.test.ts:316:24
+      at fulfilled (src/services/__tests__/foregroundCapabilities.db.test.ts:38:58)
+
+  ● retains the approved catalogue pin across legitimate catalogue replacement: omitted
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 201
+
+      314 |   const stale = await request(app).post('/capabilities/tickets').auth(p.token, { type: 'bearer' })
+      315 |     .send({ executionAuthorizationId: issuedA.authorization.id, ...(variant === 'explicit-B' ? { expectedCatalog: pinB } : {}) });
+    > 316 |   expect(stale.status).toBe(403);
+          |                        ^
+      317 |   expect(stale.body).not.toHaveProperty('ticket');
+      318 |   const createdB = await request(app).post('/capabilities/foreground-execution-authorizations').auth(p.token, { type: 'bearer' })
+      319 |     .send({ ...issuedA.input, runId: randomUUID(), expectedCatalog: pinB, subjectToken: r.session.accessToken });
+
+      at src/services/__tests__/foregroundCapabilities.db.test.ts:316:24
+      at fulfilled (src/services/__tests__/foregroundCapabilities.db.test.ts:38:58)
+
+  ● answers a bounded HTTP refusal when logout happens after initial live validation
+
+    Response timeout of 1500ms exceeded
+
+      at Test.RequestBase._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:748:17)
+      at Timeout._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:771:12)
+
+  ● answers a bounded HTTP refusal when logout happens after initial live validation
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● answers a bounded HTTP refusal when expiry happens after initial live validation
+
+    Response timeout of 1500ms exceeded
+
+      at Test.RequestBase._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:748:17)
+      at Timeout._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:771:12)
+
+  ● answers a bounded HTTP refusal when expiry happens after initial live validation
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● does not disguise unexpected requester validation errors as a session denial or leave HTTP pending
+
+    Response timeout of 1500ms exceeded
+
+      at Test.RequestBase._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:748:17)
+      at Timeout._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:771:12)
+
+  ● does not disguise unexpected requester validation errors as a session denial or leave HTTP pending
+
+    synthetic SQL unavailable
+
+      349 | it('does not disguise unexpected requester validation errors as a session denial or leave HTTP pending', async () => {
+      350 |   const p = await presenter(); const r = await requester(p); const issued = await issue(p, r.session.accessToken);
+    > 351 |   jest.spyOn(sessionService, 'validateSessionById').mockRejectedValueOnce(new Error('synthetic SQL unavailable'));
+          |                                                                           ^
+      352 |   const response = await request(app).post('/capabilities/tickets').auth(p.token, { type: 'bearer' })
+      353 |     .send({ executionAuthorizationId: issued.authorization.id, expectedCatalog: issued.pin })
+      354 |     .timeout({ response: 1500, deadline: 2000 });
+
+      at src/services/__tests__/foregroundCapabilities.db.test.ts:351:75
+      at fulfilled (src/services/__tests__/foregroundCapabilities.db.test.ts:38:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 16 skipped, 21 total
+Snapshots:   0 total
+Time:        6.447 s
+Ran all test suites within paths "src/services/__tests__/foregroundCapabilities.db.test.ts".
+error: script "test" exited with code 1
