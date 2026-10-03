@@ -1,0 +1,933 @@
+{
+  "base": "ad0681f83",
+  "files": 53,
+  "current": [
+    {
+      "file": "packages/api/src/middleware/authUtils.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": "Header && authHeader.startsWith('Bearer ')) {\n"
+    },
+    {
+      "file": "packages/api/src/routes/accountBilling.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": "sWith('Bearer ')) {\n    const verification = verifyS"
+    },
+    {
+      "file": "packages/api/src/routes/accountBilling.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "ncy} top-up would be ` +\n          'charged and then have nowhere to land'\n      );\n    }\n\n    const result = await createBalanceTopUpCh"
+    },
+    {
+      "file": "packages/api/src/routes/accountBilling.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " minor unit; there is no ` +\n          'correct rounding of a top-up, so it is refused rather than adjusted'\n      );\n    }\n    res.json({ data: { sessionId: result.sessi"
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/accountsSwitch.test.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": ";\nimpo"
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/accountsSwitch.test.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "\nimpo"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceRoutingPolicies.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": "!== undefined && header.startsWith('Bearer ')) {\n   "
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/mcpOAuth.routes.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.CAPABILITY_TICKET_SIGNING_KEY_ID"
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/mcpOAuth.routes.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY"
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/mcpOAuth.routes.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.OXY_API_URL"
+    },
+    {
+      "file": "packages/api/src/services/oauthCode.service.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "import {"
+    },
+    {
+      "file": "packages/api/src/routes/applications.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "'crypto'"
+    },
+    {
+      "file": "packages/api/src/services/authSession.service.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "erId: userId,\n      reason: delegatio"
+    },
+    {
+      "file": "packages/api/src/services/authSession.service.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "     applicationId: claimed.applicati"
+    },
+    {
+      "file": "packages/api/src/services/authSession.service.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "elegated: Boolean(subjectAccountId),"
+    },
+    {
+      "file": "packages/api/src/services/authSession.service.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "n: 'issue_failed' };\n  }\n}\n"
+    },
+    {
+      "file": "packages/api/src/services/__tests__/mcpOAuth.service.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.CAPABILITY_TICKET_SIGNING_KEY_ID"
+    },
+    {
+      "file": "packages/api/src/services/__tests__/mcpOAuth.service.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY"
+    },
+    {
+      "file": "packages/api/src/services/__tests__/mcpOAuth.service.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.OXY_API_URL"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "\"http\""
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": " };"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": "ons"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": " re"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": "sta"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": ").j"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": "dei"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": "  ."
+    },
+    {
+      "file": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "category": "lint/complexity/noExtraBooleanCast",
+      "message": "Avoid redundant `Boolean` call",
+      "snippet": "an((req as ProviderRequest).serviceApp),\n});"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "category": "lint/complexity/noExtraBooleanCast",
+      "message": "Avoid redundant `Boolean` call",
+      "snippet": "an((req as ProviderRequest).serviceApp),\n});"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "category": "lint/complexity/noExtraBooleanCast",
+      "message": "Avoid redundant `Boolean` call",
+      "snippet": "an((req as ProviderRequest).serviceApp),\n});"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": "!== undefined && header.startsWith('Bearer ')) {\n   "
+    },
+    {
+      "file": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " each customer to accept its own terms before a third ` +\n          'party may present their credential. BYOK does not override those terms and does not ' +\n          'permit sharing a credential; acknowledge them to continue.',\n        { termsUrl: result"
+    },
+    {
+      "file": "packages/api/src/services/session.service.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "rypto';\n"
+    },
+    {
+      "file": "packages/api/src/services/session.service.ts",
+      "category": "lint/style/noNonNullAssertion",
+      "message": "Forbidden non-null assertion.",
+      "snippet": " 1000);\n\n        if (decoded.exp"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceReporting.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": " undefined && header.startsWith('Bearer ')) {\n    co"
+    },
+    {
+      "file": "packages/api/src/routes/profiles.ts",
+      "category": "lint/suspicious/noGlobalIsNan",
+      "message": "isNaN is unsafe. It attempts a type coercion. Use Number.isNaN instead.",
+      "snippet": "mit) "
+    },
+    {
+      "file": "packages/api/src/routes/profiles.ts",
+      "category": "lint/suspicious/noGlobalIsNan",
+      "message": "isNaN is unsafe. It attempts a type coercion. Use Number.isNaN instead.",
+      "snippet": "fset)"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "yaml: unsupported block scalar header \"${rest}\" for key \"${key}\". `\n          + 'This minimal parser understands >, >-, >+, |, |- and |+ only \u2014 an explicit '\n          + 'indentation indicator (e.g. \">2\") is not supported. Rewrite the value or extend '\n          + 'parseYaml; do NOT leave it, because the fallback would read the header as a '\n          + 'string and silently swallow the keys that follow.',\n        );\n   "
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": " && next.trimStart().startsWith('- ')) {\n          // L"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/suspicious/noAssignInExpressions",
+      "message": "The assignment should not be in an expression.",
+      "snippet": " = match[2];\n    if (specifie"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/suspicious/noAssignInExpressions",
+      "message": "The assignment should not be in an expression.",
+      "snippet": "(token && !found.incl"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/suspicious/noAssignInExpressions",
+      "message": "The assignment should not be in an expression.",
+      "snippet": "useRe.lastIndex);\n    if ("
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/suspicious/noAssignInExpressions",
+      "message": "The assignment should not be in an expression.",
+      "snippet": "    if (!VERB_RE.test(ver"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "        `${missing.map((name) => `  - src/routes/${name}`).join('\\n')}\\n\\n` +\n        '  A stale entry is how a deleted route stays in the published contract. Remove\\n' +\n        '  the entry, or restore the file.\\n'\n    );\n    process.exit(1);\n  }\n  return out;\n}\n\nfunction joinPath(mount: string, route: stri"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/suspicious/noAssignInExpressions",
+      "message": "The assignment should not be in an expression.",
+      "snippet": "ary/descriptio"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": "@route` lines often hold "
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "e from ../schemas/* or @oxy.so/contracts.',\n    });\n    return undefined;\n  }\n\n  const value = loadedSchemaModules.get(moduleSpecifier)?.[id"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "te({ body }) middleware. Keep the middleware and delete the tag \u2014 the tag is '\n        + 'only for routes that validate inside the handler.',\n    });\n  }\n  const bodyReference = validate?.body ?? route.requestBodyTag;\n  if (bodyReference !="
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " the JSDoc above this route in \\`src/routes/${route.filename}\\`, naming a Zod `\n        + 'schema the file imports.',\n    };\n  }\n  if (requestBody || parameters.some((p) => p.in === 'path' || p.in === 'query')) {\n    responses['40"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " ${verb.toUpperCase()} ${pathKey}.\\n\\n`\n          + '  Two operations with one id is invalid OpenAPI, and a generated client would emit\\n'\n          + '  two methods with the same name. Give one of them an explicit `operationId` in an\\n'\n          + '  `@openapi` block.\\n'\n        );\n        process.exit(1);\n      }\n      operationIds.set(operationId, `${verb.toUpperCase()} ${pathKey}`);\n  "
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "o the document would be missing their schemas.\\n',\n    );\n    for (const { filename, error } of schemaImportFailures) {\n      const detail = error instanceof Error ? error.m"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "b`, which resolve through their build output.\\n'\n      + '  Build them first, from the repository root (this is the same sequence\\n'\n      + '  `ci.yml` runs before the api tests, for the same reason):\\n\\n'\n      + '      bun run --filter @oxy.so/contracts build\\n'\n      + '      bun run --filter @oxy.so/protocol build\\n'\n      + '      bun run --filter @oxy.so/core build\\n'\n      + '      bun run --filter @oxy.so/db build\\n\\n'\n      + `  ${OUTPUT_JSON} is UNCHANGED. The previous document is still the committed\\n`\n      + '  contract, which is the correct outcome: a stale document is recoverable,\\n'\n      + '  a silently truncated one that ships to consumers is not.\\n',\n    );\n    process.exit(1);\n  }\n\n  // Same refusal, for a Zod type the converter has no case for. It would have\n  // been pu"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " their schemas would be published as `{}`:\\n'\n      + `${unconvertibleZodTypes.map((name) => `  - ${name}`).join('\\n')}\\n\\n`\n      + '  `{}` is a VALID OpenAPI schema meaning \"any value is acceptable\", so the document\\n'\n      + '  would read as a considered decision to accept anything. Add a case to\\n'\n      + '  `zodToOpenApi` in this file. `ZodAny` and `ZodUnknown` are the only two types for\\n'\n      + `  which \\`{}\\` is the truth.\\n\\n  ${OUTPUT_JSON} is UNCHANGED.\\n`,\n    );\n    process.exit(1);\n  }\n\n  // Same refusal, for a schema a route names but that could not be resolved. The\n  // operatio"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "so their operations would be published as taking\\n'\n      + 'no body and no parameters:\\n',\n    );\n    for (const { filename, identifier, reason } of unresolvedSchemaReferences) {\n      console.error(`  src/routes/${filena"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " else is imported, because a route file\\n'\n      + '  also imports its services and middleware.\\n\\n'\n      + `  ${OUTPUT_JSON} is UNCHANGED.\\n`,\n    );\n    process.exit(1);\n  }\n\n  await writeFile(OUTPUT_JSON, JSON.stringify(merged, null, 2));\n  const totalOps = Object.values(m"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useImportType",
+      "message": "Some named imports are only used as types.",
+      "snippet": "odTypeAny } from 'zod';\nimpo"
+    },
+    {
+      "file": "packages/api/src/services/account.service.ts",
+      "category": "lint/style/useImportType",
+      "message": "Some named imports are only used as types.",
+      "snippet": "TED_COLUMNS_BY_TABLE,\n  USERS_PROTECTED_COLUMNS,\n} from '../db/schema/protectedColumns';\nimport t"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "rypto';\n"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "uthorizeCode: authorizeCode.substrin"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "applicationId: resolvedApp.id,\n  });\n"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "uthenticatedUserId,\n        reason: "
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "henticatedUserId,\n        reason: op"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "atedUserId,\n    applicationId: authS"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "horizedError('invalid_grant');\n    }"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "horizedError('invalid_grant');\n    }"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "horizedUserId,\n      });\n      throw"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "horizedError('invalid_grant');\n    }"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "d,\n      });\n      throw new Unautho"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "\n      userId: authSession.authorize"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "fy the waiting originator on its secr"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "e waiting originator on its secret se"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "ode: outcome.code,\n      redirectUri"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "ator = await resolveApprovalOpera"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "pendently deployed\n    // consume"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": ".\n        throw OAuthError.invali"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "al.applicationId,\n    });\n    t"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useImportType",
+      "message": "All these imports are only used as types.",
+      "snippet": "z } from 'zod';\n"
+    }
+  ],
+  "baseline": [
+    {
+      "file": "packages/api/src/middleware/authUtils.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": "Header && authHeader.startsWith('Bearer ')) {\n"
+    },
+    {
+      "file": "packages/api/src/services/oauthCode.service.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "import {"
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/accountsSwitch.test.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": ";\nimpo"
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/accountsSwitch.test.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "\nimpo"
+    },
+    {
+      "file": "packages/api/src/services/__tests__/mcpOAuth.service.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.CAPABILITY_TICKET_SIGNING_KEY_ID"
+    },
+    {
+      "file": "packages/api/src/services/__tests__/mcpOAuth.service.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY"
+    },
+    {
+      "file": "packages/api/src/services/__tests__/mcpOAuth.service.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.OXY_API_URL"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceRoutingPolicies.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": "!== undefined && header.startsWith('Bearer ')) {\n   "
+    },
+    {
+      "file": "packages/api/src/routes/accountBilling.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": "sWith('Bearer ')) {\n    const verification = verifyS"
+    },
+    {
+      "file": "packages/api/src/routes/accountBilling.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "ncy} top-up would be ` +\n          'charged and then have nowhere to land'\n      );\n    }\n\n    const result = await createBalanceTopUpCh"
+    },
+    {
+      "file": "packages/api/src/routes/accountBilling.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " minor unit; there is no ` +\n          'correct rounding of a top-up, so it is refused rather than adjusted'\n      );\n    }\n    res.json({ data: { sessionId: result.sessi"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceReporting.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": " undefined && header.startsWith('Bearer ')) {\n    co"
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/mcpOAuth.routes.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.CAPABILITY_TICKET_SIGNING_KEY_ID"
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/mcpOAuth.routes.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY"
+    },
+    {
+      "file": "packages/api/src/routes/__tests__/mcpOAuth.routes.test.ts",
+      "category": "lint/performance/noDelete",
+      "message": "Avoid the delete operator which can impact performance.",
+      "snippet": "delete process.env.OXY_API_URL"
+    },
+    {
+      "file": "packages/api/src/services/session.service.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "rypto';\n"
+    },
+    {
+      "file": "packages/api/src/services/session.service.ts",
+      "category": "lint/style/noNonNullAssertion",
+      "message": "Forbidden non-null assertion.",
+      "snippet": " 1000);\n\n        if (decoded.exp"
+    },
+    {
+      "file": "packages/api/src/services/account.service.ts",
+      "category": "lint/style/useImportType",
+      "message": "Some named imports are only used as types.",
+      "snippet": "TED_COLUMNS_BY_TABLE,\n  USERS_PROTECTED_COLUMNS,\n} from '../db/schema/protectedColumns';\nimport t"
+    },
+    {
+      "file": "packages/api/src/routes/applications.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "'crypto'"
+    },
+    {
+      "file": "packages/api/src/routes/profiles.ts",
+      "category": "lint/suspicious/noGlobalIsNan",
+      "message": "isNaN is unsafe. It attempts a type coercion. Use Number.isNaN instead.",
+      "snippet": "mit) "
+    },
+    {
+      "file": "packages/api/src/routes/profiles.ts",
+      "category": "lint/suspicious/noGlobalIsNan",
+      "message": "isNaN is unsafe. It attempts a type coercion. Use Number.isNaN instead.",
+      "snippet": "fset)"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "\"http\""
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": " };"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": "ons"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": " re"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": "sta"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": ").j"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": "dei"
+    },
+    {
+      "file": "packages/api/src/server.ts",
+      "category": "lint/suspicious/noExplicitAny",
+      "message": "Unexpected any. Specify a different type.",
+      "snippet": "  ."
+    },
+    {
+      "file": "packages/api/src/services/authSession.service.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "erId: userId,\n      reason: delegatio"
+    },
+    {
+      "file": "packages/api/src/services/authSession.service.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "     applicationId: claimed.applicati"
+    },
+    {
+      "file": "packages/api/src/services/authSession.service.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "elegated: Boolean(subjectAccountId),"
+    },
+    {
+      "file": "packages/api/src/services/authSession.service.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "n: 'issue_failed' };\n  }\n}\n"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "yaml: unsupported block scalar header \"${rest}\" for key \"${key}\". `\n          + 'This minimal parser understands >, >-, >+, |, |- and |+ only \u2014 an explicit '\n          + 'indentation indicator (e.g. \">2\") is not supported. Rewrite the value or extend '\n          + 'parseYaml; do NOT leave it, because the fallback would read the header as a '\n          + 'string and silently swallow the keys that follow.',\n        );\n   "
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": " && next.trimStart().startsWith('- ')) {\n          // L"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/suspicious/noAssignInExpressions",
+      "message": "The assignment should not be in an expression.",
+      "snippet": " = match[2];\n    if (specifie"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/suspicious/noAssignInExpressions",
+      "message": "The assignment should not be in an expression.",
+      "snippet": "(token && !found.incl"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/suspicious/noAssignInExpressions",
+      "message": "The assignment should not be in an expression.",
+      "snippet": "useRe.lastIndex);\n    if ("
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/suspicious/noAssignInExpressions",
+      "message": "The assignment should not be in an expression.",
+      "snippet": "    if (!VERB_RE.test(ver"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "        `${missing.map((name) => `  - src/routes/${name}`).join('\\n')}\\n\\n` +\n        '  A stale entry is how a deleted route stays in the published contract. Remove\\n' +\n        '  the entry, or restore the file.\\n'\n    );\n    process.exit(1);\n  }\n  return out;\n}\n\nfunction joinPath(mount: string, route: stri"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/suspicious/noAssignInExpressions",
+      "message": "The assignment should not be in an expression.",
+      "snippet": "ary/descriptio"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": "@route` lines often hold "
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "e from ../schemas/* or @oxy.so/contracts.',\n    });\n    return undefined;\n  }\n\n  const value = loadedSchemaModules.get(moduleSpecifier)?.[id"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "te({ body }) middleware. Keep the middleware and delete the tag \u2014 the tag is '\n        + 'only for routes that validate inside the handler.',\n    });\n  }\n  const bodyReference = validate?.body ?? route.requestBodyTag;\n  if (bodyReference !="
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " the JSDoc above this route in \\`src/routes/${route.filename}\\`, naming a Zod `\n        + 'schema the file imports.',\n    };\n  }\n  if (requestBody || parameters.some((p) => p.in === 'path' || p.in === 'query')) {\n    responses['40"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " ${verb.toUpperCase()} ${pathKey}.\\n\\n`\n          + '  Two operations with one id is invalid OpenAPI, and a generated client would emit\\n'\n          + '  two methods with the same name. Give one of them an explicit `operationId` in an\\n'\n          + '  `@openapi` block.\\n'\n        );\n        process.exit(1);\n      }\n      operationIds.set(operationId, `${verb.toUpperCase()} ${pathKey}`);\n  "
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "o the document would be missing their schemas.\\n',\n    );\n    for (const { filename, error } of schemaImportFailures) {\n      const detail = error instanceof Error ? error.m"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "b`, which resolve through their build output.\\n'\n      + '  Build them first, from the repository root (this is the same sequence\\n'\n      + '  `ci.yml` runs before the api tests, for the same reason):\\n\\n'\n      + '      bun run --filter @oxy.so/contracts build\\n'\n      + '      bun run --filter @oxy.so/protocol build\\n'\n      + '      bun run --filter @oxy.so/core build\\n'\n      + '      bun run --filter @oxy.so/db build\\n\\n'\n      + `  ${OUTPUT_JSON} is UNCHANGED. The previous document is still the committed\\n`\n      + '  contract, which is the correct outcome: a stale document is recoverable,\\n'\n      + '  a silently truncated one that ships to consumers is not.\\n',\n    );\n    process.exit(1);\n  }\n\n  // Same refusal, for a Zod type the converter has no case for. It would have\n  // been pu"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " their schemas would be published as `{}`:\\n'\n      + `${unconvertibleZodTypes.map((name) => `  - ${name}`).join('\\n')}\\n\\n`\n      + '  `{}` is a VALID OpenAPI schema meaning \"any value is acceptable\", so the document\\n'\n      + '  would read as a considered decision to accept anything. Add a case to\\n'\n      + '  `zodToOpenApi` in this file. `ZodAny` and `ZodUnknown` are the only two types for\\n'\n      + `  which \\`{}\\` is the truth.\\n\\n  ${OUTPUT_JSON} is UNCHANGED.\\n`,\n    );\n    process.exit(1);\n  }\n\n  // Same refusal, for a schema a route names but that could not be resolved. The\n  // operatio"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "so their operations would be published as taking\\n'\n      + 'no body and no parameters:\\n',\n    );\n    for (const { filename, identifier, reason } of unresolvedSchemaReferences) {\n      console.error(`  src/routes/${filena"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " else is imported, because a route file\\n'\n      + '  also imports its services and middleware.\\n\\n'\n      + `  ${OUTPUT_JSON} is UNCHANGED.\\n`,\n    );\n    process.exit(1);\n  }\n\n  await writeFile(OUTPUT_JSON, JSON.stringify(merged, null, 2));\n  const totalOps = Object.values(m"
+    },
+    {
+      "file": "packages/api/scripts/generate-openapi.ts",
+      "category": "lint/style/useImportType",
+      "message": "Some named imports are only used as types.",
+      "snippet": "odTypeAny } from 'zod';\nimpo"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "category": "lint/complexity/noExtraBooleanCast",
+      "message": "Avoid redundant `Boolean` call",
+      "snippet": "an((req as ProviderRequest).serviceApp),\n});"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "category": "lint/complexity/noExtraBooleanCast",
+      "message": "Avoid redundant `Boolean` call",
+      "snippet": "an((req as ProviderRequest).serviceApp),\n});"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "category": "lint/complexity/noExtraBooleanCast",
+      "message": "Avoid redundant `Boolean` call",
+      "snippet": "an((req as ProviderRequest).serviceApp),\n});"
+    },
+    {
+      "file": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "category": "lint/complexity/useOptionalChain",
+      "message": "Change to an optional chain.",
+      "snippet": "!== undefined && header.startsWith('Bearer ')) {\n   "
+    },
+    {
+      "file": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": " each customer to accept its own terms before a third ` +\n          'party may present their credential. BYOK does not override those terms and does not ' +\n          'permit sharing a credential; acknowledge them to continue.',\n        { termsUrl: result"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useNodejsImportProtocol",
+      "message": "A Node.js builtin module should be imported with the node: protocol.",
+      "snippet": "rypto';\n"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "uthorizeCode: authorizeCode.substrin"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "applicationId: resolvedApp.id,\n  });\n"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "uthenticatedUserId,\n        reason: "
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "henticatedUserId,\n        reason: op"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "atedUserId,\n    applicationId: authS"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "horizedError('invalid_grant');\n    }"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "horizedError('invalid_grant');\n    }"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "horizedUserId,\n      });\n      throw"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "horizedError('invalid_grant');\n    }"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "d,\n      });\n      throw new Unautho"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "\n      userId: authSession.authorize"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "fy the waiting originator on its secr"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "e waiting originator on its secret se"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "ode: outcome.code,\n      redirectUri"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "ator = await resolveApprovalOpera"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "pendently deployed\n    // consume"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": ".\n        throw OAuthError.invali"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useTemplate",
+      "message": "Template literals are preferred over string concatenation.",
+      "snippet": "al.applicationId,\n    });\n    t"
+    },
+    {
+      "file": "packages/api/src/routes/auth.ts",
+      "category": "lint/style/useImportType",
+      "message": "All these imports are only used as types.",
+      "snippet": "z } from 'zod';\n"
+    }
+  ],
+  "new": []
+}
