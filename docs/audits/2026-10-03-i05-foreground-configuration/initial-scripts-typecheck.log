@@ -1,0 +1,3 @@
+$ tsc -p tsconfig.scripts.json
+scripts/seed-oxy-applications.ts(450,7): error TS2322: Type 'string | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.
