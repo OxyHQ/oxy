@@ -585,6 +585,7 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
     });
 
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      epoch: '0',
       authorized: true,
       scopes: ['user:read', 'acting-as:offline'],
     });
@@ -595,6 +596,7 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
     expect(await storedGrant(userId, applicationId)).toBeUndefined();
     expect(await storedRevocation(userId, applicationId)).toBeDefined();
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      epoch: '1',
       authorized: false,
       scopes: [],
     });
@@ -692,6 +694,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
     ]);
     expect(await storedRevocation(userId, applicationId)).toBeDefined();
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      epoch: '2',
       authorized: false,
       scopes: [],
     });
@@ -716,6 +719,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
     expect(res.status).toBe(200);
     expect(await storedRevocation(userId, applicationId)).toBeDefined();
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      epoch: '1',
       authorized: false,
       scopes: [],
     });
