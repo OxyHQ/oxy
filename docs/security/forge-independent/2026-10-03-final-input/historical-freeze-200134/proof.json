@@ -1,7 +1,7 @@
 {
   "status": "INDEPENDENT_REPRODUCTION_COMPLETED_CANDIDATE_UNAPPROVED",
-  "recordedAtUTC": "2026-10-03T19:21:26.991634+00:00",
-  "candidateCommit": "6c9a83deb19ca5a0ff4d62e541866157cf091c83",
+  "recordedAtUTC": "2026-10-03T19:02:21.700370+00:00",
+  "candidateCommit": "b2c9a32487bc19a52d853a0da003e00fa16a054e",
   "upstreamTag": "v1.4.0",
   "upstreamCommit": "fa385f92440879601240020f158bed68e444e83a",
   "toolchain": {
@@ -170,7 +170,7 @@
       "completedFileMtimeUTC": "2026-10-03T19:02:21.698760+00:00",
       "command": "node scripts/forge-independent-expo-compat.cjs packages/api",
       "exitCode": 0,
-      "reusedHistorical": true
+      "reusedHistorical": false
     },
     {
       "file": "oxy-34.log",
@@ -178,7 +178,7 @@
       "completedFileMtimeUTC": "2026-10-03T19:02:21.699847+00:00",
       "command": "python3 scripts/rehearsal/test-forge-final-input-1519.py; normal142 fresh/repeat; ownPG4170519 stopped",
       "exitCode": 0,
-      "reusedHistorical": true
+      "reusedHistorical": false
     },
     {
       "file": "oxy-db-build.log",
@@ -186,7 +186,7 @@
       "completedFileMtimeUTC": "2026-10-03T19:02:21.698575+00:00",
       "command": "bun run build (packages/api; workspace dependency order then API tsc)",
       "exitCode": 0,
-      "reusedHistorical": true
+      "reusedHistorical": false
     },
     {
       "file": "stock-install-pinned.log",
@@ -210,7 +210,7 @@
       "completedFileMtimeUTC": "2026-10-03T19:02:21.698637+00:00",
       "command": "bun --no-env-file install --frozen-lockfile --minimum-release-age=0",
       "exitCode": 0,
-      "reusedHistorical": true
+      "reusedHistorical": false
     },
     {
       "file": "stock-controls.json",
@@ -226,7 +226,7 @@
       "completedFileMtimeUTC": "2026-10-03T19:02:21.699000+00:00",
       "command": "node scripts/forge-candidate-regression.cjs node_modules/.bun/node-forge@1.4.0/node_modules/node-forge candidate",
       "exitCode": 0,
-      "reusedHistorical": true
+      "reusedHistorical": false
     },
     {
       "file": "hashes-after-build-2.json",
@@ -310,7 +310,7 @@
     }
   ],
   "inputTrees": {
-    "packages": "4d5e4192ce80e390658175f72f80fdf60751a007",
+    "packages": "0462a578c3d44795c4d0f75f6a50521561f6af31",
     "bun.lock": "b3a19f253e2a9f1944ca373f1866507d8130be17",
     "package.json": "81684a59a64778423aa390dcd748b771d581c96e",
     "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
@@ -355,8 +355,7 @@
       "Fresh ARM and authenticated full gate required before declarative ACTIVE; historical ebb fullgreen does not promote new source",
       "Native9e07 candidate3PASS is historical bounded; final registry replay/consumer adoption remains pending",
       "Live two-process revocation and cutover watcher are operational acceptance gates, not this local proof",
-      "Root-reviewed session authorization persists; same expiry2026-10-09T22:00Z",
-      "Crypto results and ownedPG4170519 lifecycle are measured on200134 and explicitly reused for test-only refreeze; own RED/GREEN processes4186959/4187728 stopped. New full CI/ARM remains pending."
+      "Root-reviewed session authorization persists; same expiry2026-10-09T22:00Z"
     ],
     "historicalIssuerProofCandidate": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
     "currentNativeSdkSource": "9e07f55c522655e52c805244799d86dd7cffeb7c",
@@ -387,33 +386,7 @@
         "sha256": "382df29c02220c7b223097ebb0a5098554c45fffdd7b4b436a628f20ab6cead2",
         "exitCode": 1
       }
-    ],
-    "fixtureOnlyRefreeze": {
-      "baselineFreeze": "20013421a4cc07545a7685931db68f4ee55f1773",
-      "baselineProofSha256": "96afe44ff8652a8e71f3213563786449ec528f7b8f4c2e763e9b64b9f8598b0e",
-      "source": "8a646ebd90639f61bf36c3ffd0aaaec21586ae52",
-      "proofCommit": "6c9a83deb19ca5a0ff4d62e541866157cf091c83",
-      "proofPath": "docs/audits/2026-10-03-registrar-fixture-isolation/proof.json",
-      "proofSha256": "b2586d3594d26273d5042a2033506d1685a5e536ac32ec142fb903d2d74c6968",
-      "packageDiff": [
-        "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts"
-      ],
-      "changedInputObjects": [
-        "packages"
-      ],
-      "RED": "Same ordered suites23PASS/3FAIL; I05 registrar no longer absent",
-      "GREEN": "Same immutable runner/sequencer26PASS, compiled Node3, normal142 fresh/repeat, Biome1",
-      "reusedCryptoEvidence": "All17 records reused byte-identically from200134. Test fixture setup/teardown only; patch, lock, toolchain, runtime shipping sources and43 framework inputs unchanged. No Oxy34/Expo14/build/control rerun or current-PID claim. Fresh new ARM/fullgate/CI required.",
-      "ciBaseline": {
-        "run": 37146494447,
-        "functional": "API1 fails3 registrar fixture tests; other5shards passed; Forge INACTIVE guard expected"
-      },
-      "armBaseline": {
-        "run": 37146494476,
-        "artifact": 11282540708,
-        "status": "Historical PASS200134; not provenance for new tree"
-      }
-    }
+    ]
   },
   "historicalSupplementalRecords": [
     {
