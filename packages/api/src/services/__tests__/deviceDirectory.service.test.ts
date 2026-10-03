@@ -1177,6 +1177,73 @@ describe('#1549 serializes binding writers with background issuance', () => {
     if (!holder) throw new Error('Expected holder');
     return { device, bot, other, first: first.sessionId, replacement: replacement.sessionId, otherSession, holder };
   }
+
+  it.each(['replace', 'signout', 'detach'] as const)('%s rollback preserves prior binding, sessions, holder and other account', async operation => {
+    const p = await pair(); const db = getDb();
+    const credential = await deviceSessionService.issueBackgroundCredential(p.device, p.bot);
+    if (!credential) throw new Error('Expected old binding');
+    const before = await storedDevice(p.device); const contexts = await storedContexts(p.device);
+    const name = `bg_rollback_${randomUUID().replaceAll('-', '')}`;
+    await db.execute(sql.raw(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF OLD.device_id = '${p.device}' THEN RAISE EXCEPTION 'synthetic binding writer rollback'; END IF;
+      RETURN NEW; END $$; CREATE TRIGGER ${name} BEFORE UPDATE OF background_secret_hash ON device_sessions
+        FOR EACH ROW EXECUTE FUNCTION ${name}();`));
+    try {
+      const failed = operation === 'replace' ? deviceSessionService.addAccount(p.device, { accountId: p.bot, sessionId: p.replacement })
+        : operation === 'signout' ? deviceSessionService.signout(p.device, { accountId: p.bot })
+        : deviceSessionService.detachMigratedAccount(p.device, p.bot, p.first);
+      const error = await failed.then(() => null, (reason: unknown) => reason);
+      function sqlStates(value: unknown): unknown[] {
+        return value && typeof value === 'object' ? [Reflect.get(value, 'code'), ...sqlStates(Reflect.get(value, 'cause'))] : [];
+      }
+      expect(sqlStates(error)).toContain('P0001');
+      const after = await storedDevice(p.device);
+      expect({ hash: after.backgroundSecretHash, revision: after.revision, active: after.activeContextId })
+        .toEqual({ hash: before.backgroundSecretHash, revision: before.revision, active: before.activeContextId });
+      expect(await storedContexts(p.device)).toEqual(contexts);
+      expect(await sessionService.getAccessToken(p.first)).not.toBeNull();
+      expect(await sessionService.getAccessToken(p.otherSession)).not.toBeNull();
+      expect(await deviceSessionService.getStateBySecret(p.device, p.holder)).not.toBeNull();
+    } finally { await db.execute(sql.raw(`DROP TRIGGER ${name} ON device_sessions; DROP FUNCTION ${name}();`)); }
+    expect((await deviceSessionService.mintFromBackgroundSecret(p.device, credential.secret)).ok).toBe(true);
+  });
+  it('replacing one account preserves another account background credential', async () => {
+    const p = await pair(); const credential = await deviceSessionService.issueBackgroundCredential(p.device, p.other);
+    if (!credential) throw new Error('Expected other account binding');
+    await deviceSessionService.addAccount(p.device, { accountId: p.bot, sessionId: p.replacement });
+    const minted = await deviceSessionService.mintFromBackgroundSecret(p.device, credential.secret);
+    expect(minted.ok).toBe(true);
+    if (!minted.ok) throw new Error('Other account binding must survive');
+    expect(validateAccessToken(minted.accessToken).payload?.sub).toBe(p.other);
+  });
+  it('directory rechecks an unused projection after a real activation before its transaction', async () => {
+    const device = newDeviceId(); const principal = await account(); const org = await organization(principal);
+    await signIn(device, principal);
+    const target = contextFor(await deviceSessionService.getDirectory(device), principal, org)?.id;
+    if (!target) throw new Error('Expected unused organization context');
+    await getDb().delete(accountMembers).where(and(eq(accountMembers.accountId, org), eq(accountMembers.memberUserId, principal)));
+    let entered!: () => void; let release!: () => void;
+    const reached = new Promise<void>(resolve => { entered = resolve; });
+    const resume = new Promise<void>(resolve => { release = resolve; });
+    const db = getDb(); const original = db.transaction.bind(db); let paused = false;
+    const spy = jest.spyOn(db, 'transaction').mockImplementation(async (callback, ...rest) => {
+      if (tags.getStore() === 'stale-directory' && !paused) { paused = true; entered(); await resume; }
+      return original(callback, ...rest);
+    });
+    let pending: Promise<Awaited<ReturnType<typeof deviceSessionService.getDirectory>>> | undefined;
+    try {
+      pending = tags.run('stale-directory', () => deviceSessionService.getDirectory(device));
+      await reached;
+      await db.insert(accountMembers).values({ accountId: org, memberUserId: principal, role: 'admin', status: 'active' });
+      expect((await deviceSessionService.activateContext(device, target, request())).ok).toBe(true);
+      const credential = await deviceSessionService.issueBackgroundCredential(device, org);
+      if (!credential) throw new Error('Expected live activated binding');
+      const used = (await storedContexts(device)).find(row => row.id === target);
+      release(); await pending;
+      expect((await storedContexts(device)).find(row => row.id === target)?.sessionId).toBe(used?.sessionId);
+      expect((await deviceSessionService.mintFromBackgroundSecret(device, credential.secret)).ok).toBe(true);
+    } finally { release(); if (pending) await pending; spy.mockRestore(); }
+  });
   it('replacement paused after its initial read cannot carry concurrent issuance into the new session', async () => {
     const p = await pair(); const db = getDb(); const nonce = randomUUID().replaceAll('-', '');
     const issuer = `bg-issue-${nonce}`; const writer = `bg-write-${nonce}`;
