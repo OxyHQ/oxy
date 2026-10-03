@@ -3,7 +3,7 @@
   "sources": [
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
-      "sha256": "c86ab7f47c83886fa413be1f9b3be07c46f431116dc807d5014d83d8563f6f52"
+      "sha256": "019da6bfb0ae0a3fb9e7f26f604f8516b9ac5b7aec82f3111bb5dce540e2b7fe"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/publisher-composition.json",
@@ -15,7 +15,7 @@
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-checks.json",
-      "sha256": "5e474a6b43c34390be42786c6475a880de9479f49412aeb2f03fd167f07d64ac"
+      "sha256": "87af0ba2cab1c891a206622ecc06b2cfb896a0a773eb10b5416a8eaedf8f1d36"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-checks.md",
@@ -23,7 +23,7 @@
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/draft-pull-requests.json",
-      "sha256": "82f9328238125beb111e33fa1e8ea5cdd6bcce2075abdca2159ed81d2cca7ec6"
+      "sha256": "9fc85c298543680119298101ff0e71bba87083e4cd63d7ba28e96d00f4452d27"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/post-workflow-preflight.json",

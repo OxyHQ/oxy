@@ -498,7 +498,7 @@
       "repository": "OxyHQ/Mention",
       "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
       "branch": "task/1519-mention-final-sdk-pins-20261003",
-      "preparedHead": "c90a52fbb8b84e9e5996d1c96d9f6ef7e940162a",
+      "preparedHead": "69a8659d8f4c9e1a94c46b62f458649ce2ebaa1b",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -625,7 +625,7 @@
         },
         {
           "path": ".github/workflows/deploy-frontends.yml",
-          "sha256": "3eaea221082f2333220a45f989ac0b2caa45e01c7ad43f30ffe4adee9764fc05",
+          "sha256": "f0ec710a6ccbd6b0827abf17a996b3739610ffce41415c63a6cd10d93bab7d54",
           "manualDispatch": true,
           "operatorCommand": [
             "gh",
@@ -3479,7 +3479,7 @@
       "repository": "OxyHQ/CrowdSource",
       "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "57e122d7a8419a58889870d07afe4373f0289e41",
+      "preparedHead": "64d8e145014f1faee659b0173fb4c0746c155f50",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -3593,7 +3593,7 @@
         },
         {
           "path": ".github/workflows/deploy-frontends.yml",
-          "sha256": "14981ed38461d2dbb53cc7f4e9c7c7272ecfeab2e089e7764bcb829d6404b64f",
+          "sha256": "cea1d026b6aee126ccb92d8f6fcf2c15f0752c570c922db1d3e5a472ac1d7cff",
           "manualDispatch": true,
           "operatorCommand": [
             "gh",

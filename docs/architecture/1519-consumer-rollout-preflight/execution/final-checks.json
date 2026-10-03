@@ -182,7 +182,7 @@
     },
     {
       "repository": "OxyHQ/Mention",
-      "preparedHead": "c90a52fbb8b84e9e5996d1c96d9f6ef7e940162a",
+      "preparedHead": "69a8659d8f4c9e1a94c46b62f458649ce2ebaa1b",
       "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
       "commands": [
         {
@@ -1141,7 +1141,7 @@
     },
     {
       "repository": "OxyHQ/CrowdSource",
-      "preparedHead": "57e122d7a8419a58889870d07afe4373f0289e41",
+      "preparedHead": "64d8e145014f1faee659b0173fb4c0746c155f50",
       "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
       "commands": [
         {
