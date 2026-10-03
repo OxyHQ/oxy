@@ -1,0 +1,127 @@
+{
+  "sourceHead": "9c7168095d96efe1dc4b925d850a728d4d1561b8",
+  "baseHead": "2d1072329fb2f37754c7351c74faa50a184b87d1",
+  "sourceInputs": [
+    {
+      "path": "scripts/rehearsal/android-device-session/.gitignore",
+      "sha256": "1f3211605f8326bd0de828cb10d7d2f7de8deef61b4b4c7f6b9e2990132d7cfb"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/README.md",
+      "sha256": "dd31d5fedc67ce9d1dc613d17b9c266bfe795a06a53427829dbb2d44fce2d7a5"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/build.gradle.kts",
+      "sha256": "8a14e759f7ddcfa54b4a045dbf059b1c575c24872378533d311d8ad9ef9b45c7"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/build.py",
+      "sha256": "80eba36a691681f066266fede96aa05f6a85e600ce5363f18354df235ca17277"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/foreign/build.gradle.kts",
+      "sha256": "ddf485278d3ce20d458c0e72c3ae54daf19e99e8c2e4e88bcee83b5521a6be8b"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/foreign/src/main/AndroidManifest.xml",
+      "sha256": "f02eba359c7d6c6c354179b9a1e8a2a1a73e74e0967a1938dee4c7cbc0d25f94"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/gradle.properties",
+      "sha256": "96f244d2ea01ab75a01e2c25f09c9922589cfc9a72363a18c21e0f69cb6981bc"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/host/build.gradle.kts",
+      "sha256": "3c9fc352ccb0afa2edf4578d88225b06e10f6d30e07907b64e7b01b283c2dee8"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/host/src/main/AndroidManifest.xml",
+      "sha256": "d7012540485e4ce972865a7add9f78ff6488d3d67ba42079c1a19fbea87c43fb"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/peer/build.gradle.kts",
+      "sha256": "ed67f4d4775d2265ff76ab8027772596ec3616ab5729df493a360d38610c35e9"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/peer/src/main/AndroidManifest.xml",
+      "sha256": "99a69a8483adb0595c6db3f39ad4182be0dfa11552d03fd165b11b048887b7cf"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/probe-src/so/oxy/fixture/ProbeInstrumentation.java",
+      "sha256": "62b9389bafdbf2ce0383e4f86e0d68981feb5456dc60ec5ce12205268bc80d9d"
+    },
+    {
+      "path": "scripts/rehearsal/android-device-session/settings.gradle.kts",
+      "sha256": "bd58649eb0cfd0b9dda95e0e6b8c6626873fe54d2c4637a70ef5ac62d7226f6f"
+    },
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt",
+      "sha256": "f97847d291882b236e00aef09134a80d5cdaf5300d4d9683d9acb48f910a75c9"
+    },
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/devicesession/OxyDeviceSessionStore.kt",
+      "sha256": "20e792fd28716530cc705b64a8ee4a952f35a862d0d1bc064fdb4f722769bbe6"
+    },
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/security/OxyCallerPolicy.kt",
+      "sha256": "a623bf66b2277b9405e3c55be39b388166dac80ff7d59c593bde261f016325b4"
+    },
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/storage/OxyEncryptedPrefs.kt",
+      "sha256": "9fa79c5b78120ec7c482f6f8ad9d57bfbd6061acaee861d31f4f111da0623781"
+    }
+  ],
+  "records": [
+    {
+      "file": "apk-proof.json",
+      "sha256": "d669ea3c23b7af516467e72f3e575e4cf747a16c3746b7e0ee8bbdef09f2dc60"
+    },
+    {
+      "file": "build-final.log",
+      "sha256": "1ca4761b0bd5df6b63cd245263211160140ae5518cb5fce1d344ed81016962f2"
+    },
+    {
+      "file": "build-initial.log",
+      "sha256": "d80de4b71068934992076c0ca41292323e571a994e529480546904167c796bc2"
+    },
+    {
+      "file": "foreign-manifest.txt",
+      "sha256": "f11c66c2c0758ee4c3de5fe5e61d272c6c620977293bdb6da2a29b8337827d12"
+    },
+    {
+      "file": "host-manifest.txt",
+      "sha256": "ad2dc62a672efa8adec18731e90662ab3053b32dafaedf0be01ae9c03ef1b743"
+    },
+    {
+      "file": "peer-manifest.txt",
+      "sha256": "efbd3561fc55f96b087fbb27653815047eee77269cb3e26c2391ee9da734c236"
+    }
+  ],
+  "results": {
+    "buildExit": 0,
+    "initialBuildSuccess": true,
+    "finalBuilderSuccess": true,
+    "apks": 3,
+    "separateUidManifests": true,
+    "hostPeerSameCertificate": true,
+    "foreignCertificateDifferent": true,
+    "actualProviderSourcesCopiedByteIdentical": 4,
+    "instrumentationRun": false,
+    "adbInvoked": false
+  },
+  "operationalScope": {
+    "operator": "root",
+    "reservedDisposableAvd": "Oxy1519Root20261003",
+    "serial": "emulator-5580",
+    "expectedChecks": [
+      5,
+      4,
+      8
+    ]
+  },
+  "limits": [
+    "Build and native slot primitives only; installation/instrumentation await root source review and exact AVD checks.",
+    "No SDK React/Expo UI, registered-app OAuth, backend account-switch/logout, published SDK adoption or SSO result claimed.",
+    "Physical Pixel/Commons identities/other AVDs untouched. Test fixture credentials have no backend sessions."
+  ]
+}

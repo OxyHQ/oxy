@@ -1,0 +1,65 @@
+{
+  "buildOnly": true,
+  "adbInvoked": false,
+  "gradleArchiveSha256": "20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78",
+  "java": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)",
+  "command": [
+    "/home/nate/Oxy/oxy/.worktrees/1519-native-provider-instrumentation-20261003/scripts/rehearsal/android-device-session/.tooling/gradle-8.13/bin/gradle",
+    "--no-daemon",
+    "-Djava.io.tmpdir=/home/nate/Oxy/oxy/.worktrees/1519-native-provider-instrumentation-20261003/scripts/rehearsal/android-device-session/.tooling/tmp",
+    ":host:assembleDebug",
+    ":peer:assembleDebug",
+    ":foreign:assembleDebug"
+  ],
+  "apks": [
+    {
+      "module": "host",
+      "applicationId": "so.oxy.accounts.dev",
+      "apk": "/home/nate/Oxy/oxy/.worktrees/1519-native-provider-instrumentation-20261003/scripts/rehearsal/android-device-session/host/build/outputs/apk/debug/host-debug.apk",
+      "sha256": "e0dd5b1cbfd468d0665b766c04dfa13afcbf8f9dd9d385877dd27b0a360f5b79",
+      "certificateSha256": "0114ce567a3be9b87dcbb0ef1083bba5f6e38ebf6733b29df93be1acfd7fbb55",
+      "sharedUidDeclared": false,
+      "manifestSha256": "ad2dc62a672efa8adec18731e90662ab3053b32dafaedf0be01ae9c03ef1b743"
+    },
+    {
+      "module": "peer",
+      "applicationId": "earth.mention.app.dev",
+      "apk": "/home/nate/Oxy/oxy/.worktrees/1519-native-provider-instrumentation-20261003/scripts/rehearsal/android-device-session/peer/build/outputs/apk/debug/peer-debug.apk",
+      "sha256": "125e786051cd99a5a6a8aed9662363be019f6b0779a9f0ecb9d8a68b6f898241",
+      "certificateSha256": "0114ce567a3be9b87dcbb0ef1083bba5f6e38ebf6733b29df93be1acfd7fbb55",
+      "sharedUidDeclared": false,
+      "manifestSha256": "efbd3561fc55f96b087fbb27653815047eee77269cb3e26c2391ee9da734c236"
+    },
+    {
+      "module": "foreign",
+      "applicationId": "onl.alia.app.dev",
+      "apk": "/home/nate/Oxy/oxy/.worktrees/1519-native-provider-instrumentation-20261003/scripts/rehearsal/android-device-session/foreign/build/outputs/apk/debug/foreign-debug.apk",
+      "sha256": "9d47d27e23802b5651ebf4fc33f137c70d40a7102523106ebc1ccf31f4142235",
+      "certificateSha256": "ca4f972a6e1a00298eb888b1c74d2580402b93a9b9c5ff4d7db8ddaaac34b066",
+      "sharedUidDeclared": false,
+      "manifestSha256": "f11c66c2c0758ee4c3de5fe5e61d272c6c620977293bdb6da2a29b8337827d12"
+    }
+  ],
+  "providerSources": [
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt",
+      "sha256": "f97847d291882b236e00aef09134a80d5cdaf5300d4d9683d9acb48f910a75c9",
+      "copiedByteIdentical": true
+    },
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/devicesession/OxyDeviceSessionStore.kt",
+      "sha256": "20e792fd28716530cc705b64a8ee4a952f35a862d0d1bc064fdb4f722769bbe6",
+      "copiedByteIdentical": true
+    },
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/security/OxyCallerPolicy.kt",
+      "sha256": "a623bf66b2277b9405e3c55be39b388166dac80ff7d59c593bde261f016325b4",
+      "copiedByteIdentical": true
+    },
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/storage/OxyEncryptedPrefs.kt",
+      "sha256": "9fa79c5b78120ec7c482f6f8ad9d57bfbd6061acaee861d31f4f111da0623781",
+      "copiedByteIdentical": true
+    }
+  ]
+}

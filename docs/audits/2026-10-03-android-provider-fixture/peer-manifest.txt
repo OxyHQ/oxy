@@ -1,0 +1,26 @@
+N: android=http://schemas.android.com/apk/res/android (line=2)
+  E: manifest (line=2)
+    A: http://schemas.android.com/apk/res/android:versionCode(0x0101021b)=1
+    A: http://schemas.android.com/apk/res/android:versionName(0x0101021c)="1519-fixture" (Raw: "1519-fixture")
+    A: http://schemas.android.com/apk/res/android:compileSdkVersion(0x01010572)=36
+    A: http://schemas.android.com/apk/res/android:compileSdkVersionCodename(0x01010573)="16" (Raw: "16")
+    A: package="earth.mention.app.dev" (Raw: "earth.mention.app.dev")
+    A: platformBuildVersionCode=36
+    A: platformBuildVersionName=16
+      E: uses-sdk (line=7)
+        A: http://schemas.android.com/apk/res/android:minSdkVersion(0x0101020c)=28
+        A: http://schemas.android.com/apk/res/android:targetSdkVersion(0x01010270)=36
+      E: uses-permission (line=11)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="so.oxy.permission.DEVICE_SESSION" (Raw: "so.oxy.permission.DEVICE_SESSION")
+      E: queries (line=13)
+          E: provider (line=14)
+            A: http://schemas.android.com/apk/res/android:authorities(0x01010018)="so.oxy.accounts.dev.devicesession" (Raw: "so.oxy.accounts.dev.devicesession")
+      E: instrumentation (line=17)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="so.oxy.fixture.ProbeInstrumentation" (Raw: "so.oxy.fixture.ProbeInstrumentation")
+        A: http://schemas.android.com/apk/res/android:targetPackage(0x01010021)="earth.mention.app.dev" (Raw: "earth.mention.app.dev")
+        A: http://schemas.android.com/apk/res/android:functionalTest(0x01010023)=true
+      E: application (line=22)
+        A: http://schemas.android.com/apk/res/android:label(0x01010001)="Oxy1519 peer fixture" (Raw: "Oxy1519 peer fixture")
+        A: http://schemas.android.com/apk/res/android:debuggable(0x0101000f)=true
+        A: http://schemas.android.com/apk/res/android:allowBackup(0x01010280)=false
+        A: http://schemas.android.com/apk/res/android:extractNativeLibs(0x010104ea)=false
