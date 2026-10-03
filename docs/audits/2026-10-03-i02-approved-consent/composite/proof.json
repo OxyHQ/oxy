@@ -1,0 +1,30 @@
+{
+  "sourceHead": "06f841af5bb0e728a6a39198d93cdc339c2da8da",
+  "upstreamHead": "6d13f7ecca19c5e063746060643c40da86192603",
+  "result": {
+    "suites": 5,
+    "tests": 152,
+    "exitCode": 0
+  },
+  "records": [
+    {
+      "path": "scripts/rehearsal/test-approved-api-1519.py",
+      "sha256": "93e128c9afc501036574f32b3a5038b11366ab574c4b36b2b7a4c920f04b5b01"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i02-approved-consent/composite/focal.log",
+      "sha256": "69d9cf6232bd3dc3a9069b6567389294d4b1d78e78c3f71d0ba24eaa893228a0"
+    }
+  ],
+  "database": {
+    "pid": 3283823,
+    "port": 5576,
+    "ownedProcessVerified": true,
+    "fullMigrations": 136,
+    "stopped": true
+  },
+  "limits": [
+    "HTTP authentication/rate/socket boundaries mocked as in original suites; consent/code/grant/revocation SQL real",
+    "No deploy, SDK publish or parent completion claim"
+  ]
+}
