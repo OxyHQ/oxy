@@ -1,0 +1,167 @@
+{
+  "sourceCommit": "a887db7bec8aa3e0ea75d111a04f616c62c903bd",
+  "candidateSdkSourceCommit": "1e719545f290cfb6308c2648cabc10d311136716",
+  "sources": [
+    {
+      "path": "packages/test-app-expo/acceptance/README.md",
+      "sha256": "2e78a2309b0a9fd4d1ebb143df7cef343fe46e89c6755322afe56699ae1d9a1c",
+      "bytes": 3110
+    },
+    {
+      "path": "packages/test-app-expo/acceptance/entry.tsx",
+      "sha256": "f068ff3081e64fae80c8c5625a2170577dba3a131700351d525231a559ddc5e4",
+      "bytes": 3351
+    },
+    {
+      "path": "packages/test-app-expo/acceptance/tsconfig.json",
+      "sha256": "c8c6f564161c65fdb1d245db0439e3106681dcaaa92d7f60f32b019f54d6088f",
+      "bytes": 197
+    },
+    {
+      "path": "packages/test-app-expo/app.config.js",
+      "sha256": "d1ff280ee25b69d27b39f04c81224568bb0020c55578ebcc041024095fa75745",
+      "bytes": 541
+    },
+    {
+      "path": "packages/test-app-expo/index.js",
+      "sha256": "92f445c9e3e3a1fca8deb3fc6528b08ef6227ce581e3f36b4222b409c8c989ac",
+      "bytes": 222
+    },
+    {
+      "path": "packages/test-app-expo/package.json",
+      "sha256": "a97131e5f786528862cbf19bafb1beda3f86d8c1e7e522ab4f0bbc42a8de49ed",
+      "bytes": 2737
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/install.log",
+      "sha256": "3a0f09eba8e3bc6e2ad989f167054b0e0ec534c71334ee75813d7a307ad33f38",
+      "bytes": 784
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/install-entry.log",
+      "sha256": "dc019a0328c2cb39f1f6730ac5396d75a130c46f7bd45e95bd1db910d18b4b69",
+      "bytes": 160
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/contracts-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce",
+      "bytes": 201
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/protocol-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce",
+      "bytes": 201
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/core-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc",
+      "bytes": 570
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/prebuild-astro.log",
+      "sha256": "bbcd4e3c899124688db88b2fdda3f9012e31d95a0d082fe04eac96f6adb2ac62",
+      "bytes": 402
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/gradle-astro.log",
+      "sha256": "c8bb5f1bcff83824c13ef9732d2d268e8f700ccb7370c1c68027e350d66a3902",
+      "bytes": 80063
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/types-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/config.log",
+      "sha256": "ce3dafb973cd7d6e81b82ca73e429b768d1f1d05e64b1115d47a7a3534bc5f11",
+      "bytes": 99
+    }
+  ],
+  "inputs": [
+    {
+      "path": "bun.lock",
+      "sha256": "d778e714a4a49a0f814a49513eb7a5ff8c164a217c0ac9989f6a6eb5785c1b06",
+      "bytes": 800911
+    },
+    {
+      "path": "packages/services/package.json",
+      "sha256": "3310fc62939c19b64d3ff1e88a9c1bf4177b6e4ecf540780b3c27475e131e956",
+      "bytes": 16019
+    },
+    {
+      "path": "packages/core/package.json",
+      "sha256": "cafe284430f4bf30392b90f75e0693fe0491ae31035d8b2a870b05dd4e8bb2e6",
+      "bytes": 6578
+    },
+    {
+      "path": "packages/contracts/package.json",
+      "sha256": "fbff525612eab798d50948c8e56590e1434721bd780b6ab48faa8cc96b0e11a2",
+      "bytes": 2388
+    },
+    {
+      "path": "packages/test-app-expo/app.json",
+      "sha256": "2166a35df755fd3e656522569674a8a6fa2f970ed6ef69919f93eb1c094c0b58",
+      "bytes": 1346
+    },
+    {
+      "path": "packages/test-app-expo/metro.config.js",
+      "sha256": "28975f8508ea17c4935bd0ac9d5e2304dba801623d58a67d77b514c36be86a27",
+      "bytes": 2256
+    },
+    {
+      "path": "packages/test-app-expo/babel.config.js",
+      "sha256": "f0846b3cbee62fb0aa6b68030e2317854c65d9ec21e96de03e5506c43256546a",
+      "bytes": 784
+    }
+  ],
+  "localArtifacts": [
+    {
+      "path": "packages/test-app-expo/android/app/build/outputs/apk/debug/app-debug.apk",
+      "sha256": "233cc39af64dbf6d693a4425ea28f0f384912d528a9c05e25d5ede9368c55407",
+      "bytes": 86495245
+    },
+    {
+      "path": "packages/test-app-expo/android/app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml",
+      "sha256": "8f85d0a2573c010a880c9269704d275a3ec174e968fa4a03812ca0462a904db6",
+      "bytes": 8126
+    }
+  ],
+  "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "package": "so.oxy.acceptance1519",
+  "callback": "astro://oauth/callback",
+  "androidAbi": "x86_64",
+  "adbInvoked": false,
+  "deviceValidated": false,
+  "registrySdkInstalled": false,
+  "pending": [
+    "registered fixture client ID",
+    "Metro bundle verification",
+    "root-operated isolated AVD checks",
+    "final registry SDK installation and repeat"
+  ],
+  "historicalFailures": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-gradle-20261003.log",
+      "sha256": "1ddfb600a78f983be3325d8af0b57297d2fdb71a8beae2fa2cbdb2ebe76e565a",
+      "bytes": 8130
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-types-20261003.log",
+      "sha256": "cef13e217218167bda21ff9588479729f7b500db97de6e2e56ecf0e3ad0f4edd",
+      "bytes": 193802
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-lint-20261003.log",
+      "sha256": "f509ee105d5d8ed4ae4f7075a262e1dee7929cc22769068fa53de79c460f32bf",
+      "bytes": 77
+    }
+  ]
+}
