@@ -13,7 +13,28 @@ execution role, network and the single existing DATABASE_URL reference. Its
 inventory task has no task role, other secret, sidecar, port or environment
 value. It verifies returned and described task definitions before dispatch.
 Prepare is read-only AWS metadata; execute is a separate operator step after
-review of that exact plan. Cleanup verifies STOPPED task and INACTIVE definition.
+review of that exact plan. Cleanup verifies STOPPED task and INACTIVE definition. Before RunTask, a private,
+fsynced `dispatch-attempt.json` records the exact registered definition, plan
+commitment, full startedBy nonce and stable ECS client token. An uncertain ACK
+never causes a second dispatch: bounded metadata reconciliation searches RUNNING
+by startedBy and STOPPED by our own family, then verifies exact startedBy and
+definition on DescribeTasks. All identified exact tasks are cleaned up; even a
+successful cleanup leaves an explicit review error. Absence from eventually
+consistent listings does not prove that no task launched. Preserve the attempt
+and reconcile its exact handles before any later execution.
+
+The initial preparation with SHA
+`1a957487524a9282313fa65bffc44e82f05cd259260ec2be5513800c2ed7e4bf`
+is invalidated by this launcher correction. No AWS write used that plan. The
+reader produces `mention-foreground-preflight`, which the launcher now requires;
+it rejects the predecessor service-authority protocol. Offline tests execute the
+actual Node packet encoder and launcher path with synthetic AWS responses, not
+an ECS task or SQL query. They do not establish live dispatch or IAM success.
+
+AWS documents [RunTask client-token idempotency](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ECS_Idempotency.html)
+and the [ListTasks filter contract](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ListTasks.html).
+The recovery uses the startedBy filter alone, then a separate family/STOPPED query;
+this avoids combining incompatible filters.
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -B scripts/agency/mention-foreground-preflight-ecs.py oxy --plan /private/mention-foreground-plan.json

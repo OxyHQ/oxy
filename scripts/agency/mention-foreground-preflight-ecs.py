@@ -82,7 +82,10 @@ def private_json(path, value):
     path = Path(path); path.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, 'w') as output:
-        json.dump(value, output, indent=2); output.write('\n')
+        json.dump(value, output, indent=2); output.write('\n'); output.flush(); os.fsync(output.fileno())
+    parent_descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try: os.fsync(parent_descriptor)
+    finally: os.close(parent_descriptor)
 
 
 def build_definition(plan):
@@ -158,6 +161,50 @@ def collect_result(log_group, stream, nonce):
     raise RuntimeError('Inventory log delivery timeout')
 
 
+
+def validate_result(result, profile):
+    require(isinstance(result, dict) and result.get('schemaVersion') == 1
+            and result.get('kind') == 'mention-foreground-preflight'
+            and result.get('profile') == profile and result.get('readOnly') is True
+            and result.get('isolation') == 'repeatable read'
+            and isinstance(result.get('tables'), dict), 'Invalid result projection')
+
+
+def find_dispatched_tasks(registered, started_by):
+    """Bounded metadata only. startedBy cannot be combined with other filters.
+
+    Search its default RUNNING set, plus our own family's STOPPED set, and
+    verify both exact bindings with DescribeTasks. Absence is not proof that
+    an eventually consistent dispatch never occurred.
+    """
+    arns = set()
+    family = registered.rsplit('/', 1)[1].rsplit(':', 1)[0]
+    for filters in [('--started-by', started_by), ('--family', family, '--desired-status', 'STOPPED')]:
+        token = None
+        for _ in range(8):
+            args = ['ecs', 'list-tasks', '--cluster', CLUSTER, *filters, '--max-results', '100', '--no-paginate']
+            if token: args += ['--next-token', token]
+            page = aws(*args)
+            require(isinstance(page.get('taskArns'), list) and len(page['taskArns']) <= 100, 'Dispatch census malformed')
+            arns.update(page['taskArns'])
+            next_token = page.get('nextToken')
+            if not next_token: break
+            require(next_token != token, 'Dispatch census pagination repeated')
+            token = next_token
+        else: raise RuntimeError('Dispatch census exceeded bound')
+    matched = []
+    ordered = sorted(arns)
+    for offset in range(0, len(ordered), 100):
+        batch = ordered[offset:offset+100]
+        described = aws('ecs', 'describe-tasks', '--cluster', CLUSTER, '--tasks', *batch)
+        require(not described.get('failures') and {t['taskArn'] for t in described.get('tasks', [])} == set(batch), 'Dispatch census incomplete')
+        for task in described['tasks']:
+            if task.get('startedBy') != started_by: continue
+            require(task.get('taskDefinitionArn') == registered, 'Dispatch identity has another definition')
+            matched.append(task['taskArn'])
+    return matched
+
+
 def execute(plan, directory):
     require(hashlib.sha256(Path(__file__).read_bytes()).hexdigest() == plan['launcherSha256'], 'Launcher source differs from reviewed plan')
     require(plan['schemaVersion'] == 1 and plan['profile'] in PROFILES and re.fullmatch('[a-f0-9]{32}', plan['nonce']), 'Invalid plan')
@@ -166,7 +213,7 @@ def execute(plan, directory):
     require(digest(build_definition(plan)) == plan['taskDefinitionSha256'], 'Definition differs from reviewed plan')
     directory = Path(directory); directory.mkdir(parents=True, exist_ok=False); os.chmod(directory, 0o700)
     definition = build_definition(plan); private_json(directory/'definition.json', definition)
-    registered = None; task_arn = None; launched_arns = []; cleanup = {'taskStopped': False, 'definitionInactive': False}
+    registered = None; task_arn = None; launched_arns = []; dispatch_unknown = False; cleanup = {'taskStopped': False, 'definitionInactive': False}
     try:
         registration = aws('ecs', 'register-task-definition', '--cli-input-json', 'file://' + str((directory/'definition.json').resolve()))['taskDefinition']
         registered = registration['taskDefinitionArn']
@@ -174,7 +221,22 @@ def execute(plan, directory):
         readback = aws('ecs', 'describe-task-definition', '--task-definition', registered)['taskDefinition']
         verify_registered(readback, definition)
         private_json(directory/'registered-readback.json', {'taskDefinitionArn': registered, 'executableDefinitionSha256': digest(definition), 'returnedAndReadbackVerified': True})
-        launched = aws('ecs', 'run-task', '--cluster', CLUSTER, '--launch-type', 'FARGATE', '--task-definition', registered, '--network-configuration', json.dumps(plan['live']['network']), '--count', '1', '--started-by', 'billing-inventory-'+plan['nonce'][:12])
+        started_by = 'mention-preflight-' + plan['nonce']
+        # Flush the private intent before dispatch. A new output directory is
+        # required, and the plan nonce remains the stable ECS client token.
+        private_json(directory/'dispatch-attempt.json', {'planSha256': digest(plan), 'taskDefinitionArn': registered, 'startedBy': started_by, 'clientToken': plan['nonce'], 'recordedAt': int(time.time()), 'state': 'intent_before_dispatch'})
+        try:
+            launched = aws('ecs', 'run-task', '--cluster', CLUSTER, '--launch-type', 'FARGATE', '--task-definition', registered, '--network-configuration', json.dumps(plan['live']['network']), '--count', '1', '--started-by', started_by, '--client-token', plan['nonce'])
+        except Exception:
+            dispatch_unknown = True
+            # Never retry RunTask after an uncertain acknowledgement. Reconcile
+            # bounded eventual metadata and clean up every exact matching task.
+            for attempt in range(6):
+                launched_arns = find_dispatched_tasks(registered, started_by)
+                if launched_arns: break
+                if attempt < 5: time.sleep(5)
+            private_json(directory/'dispatch-unknown.json', {'acknowledgementUnknown': True, 'matchedTaskArns': launched_arns, 'noRedispatch': True, 'absenceDoesNotProveNoTask': not bool(launched_arns)})
+            raise RuntimeError('Dispatch acknowledgement unknown; reconcile durable attempt before any later execution')
         launched_arns = [task['taskArn'] for task in launched.get('tasks', [])]
         if len(launched_arns) == 1: task_arn = launched_arns[0]
         require(not launched.get('failures') and len(launched_arns) == 1, 'Read-only task failed to launch')
@@ -188,7 +250,7 @@ def execute(plan, directory):
         require(task['taskDefinitionArn'] == registered and len(task['containers']) == 1 and task['containers'][0].get('exitCode') == 0 and task['containers'][0].get('imageDigest') == plan['live']['image'].split('@')[1], 'Stopped task failed or image changed')
         stream = plan['live']['logStreamPrefix'] + '/inventory/' + task_arn.rsplit('/', 1)[1]
         result = collect_result(plan['live']['logGroup'], stream, plan['nonce'])
-        require(result['kind'] == 'service-authority-preflight' and result['profile'] == plan['profile'] and result['readOnly'] is True and result['isolation'] == 'repeatable read', 'Invalid result projection')
+        validate_result(result, plan['profile'])
         private_json(directory/'result.private.json', result)
         private_json(directory/'receipt.json', {'planSha256': digest(plan), 'resultSha256': digest(result), 'taskArn': task_arn, 'taskDefinitionArn': registered, 'runtimeImage': plan['live']['image'], 'profile': plan['profile'], 'readOnly': True, 'tables': {name: {'status': row['status'], 'count': row['count'], **({'schemaProfile': row['schemaProfile'], 'unavailableColumns': row['unavailableColumns']} if 'schemaProfile' in row else {})} for name, row in result['tables'].items()}})
     finally:
@@ -213,6 +275,7 @@ def execute(plan, directory):
                 cleanup['definitionInactive'] = aws('ecs', 'describe-task-definition', '--task-definition', registered, '--query', 'taskDefinition.status') == 'INACTIVE'
             except Exception:
                 failures.append('definition_cleanup_failed')
+        if dispatch_unknown: failures.append('dispatch_acknowledgement_unknown_requires_review')
         cleanup['failures'] = failures
         private_json(directory/'cleanup.json', cleanup)
         require(not failures and (not registered or cleanup['definitionInactive']), 'Cleanup readback incomplete')
@@ -233,4 +296,4 @@ def main():
 if __name__ == '__main__':
     try: main()
     except Exception as error:
-        print('Service authority inventory failed: ' + (str(error) if isinstance(error, RuntimeError) else 'internal error; details withheld'), file=os.sys.stderr); raise SystemExit(1)
+        print('Mention foreground preflight failed: ' + (str(error) if isinstance(error, RuntimeError) else 'internal error; details withheld'), file=os.sys.stderr); raise SystemExit(1)
