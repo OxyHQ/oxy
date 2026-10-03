@@ -1,0 +1,7 @@
+$ jest --passWithNoTests src/boot/__tests__/nativeSiblingSignOut.test.ts src/boot/__tests__/nativeSiblingSignOutGuards.test.ts src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts
+
+Test Suites: 3 passed, 3 total
+Tests:       16 passed, 16 total
+Snapshots:   0 total
+Time:        0.815 s
+Ran all test suites matching src/boot/__tests__/nativeSiblingSignOut.test.ts|src/boot/__tests__/nativeSiblingSignOutGuards.test.ts|src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts.

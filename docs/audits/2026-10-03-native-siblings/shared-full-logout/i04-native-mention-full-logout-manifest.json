@@ -1,0 +1,128 @@
+{
+  "id": "f7274948-a5a8-46f9-a51c-ce101f2a49a3",
+  "createdAt": "2026-10-03T14:44:47.952Z",
+  "runtimeVersion": "exposdk:57.0.0",
+  "launchAsset": {
+    "key": "bundle",
+    "contentType": "application/javascript",
+    "url": "http://127.0.0.1:17967/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable"
+  },
+  "assets": [],
+  "metadata": {},
+  "extra": {
+    "eas": {},
+    "expoClient": {
+      "name": "Oxy 1519 Mention peer",
+      "slug": "oxy-1519-native-mention",
+      "version": "1.0.0",
+      "orientation": "portrait",
+      "icon": "./assets/images/icon.png",
+      "userInterfaceStyle": "automatic",
+      "ios": {
+        "supportsTablet": true
+      },
+      "android": {
+        "adaptiveIcon": {
+          "backgroundColor": "#E6F4FE",
+          "foregroundImage": "./assets/images/android-icon-foreground.png",
+          "backgroundImage": "./assets/images/android-icon-background.png",
+          "monochromeImage": "./assets/images/android-icon-monochrome.png",
+          "foregroundImageUrl": "http://127.0.0.1:17967/assets/./assets/images/android-icon-foreground.png",
+          "monochromeImageUrl": "http://127.0.0.1:17967/assets/./assets/images/android-icon-monochrome.png",
+          "backgroundImageUrl": "http://127.0.0.1:17967/assets/./assets/images/android-icon-background.png"
+        },
+        "predictiveBackGestureEnabled": true,
+        "softwareKeyboardLayoutMode": "resize",
+        "package": "earth.mention.app.dev"
+      },
+      "web": {
+        "output": "static",
+        "favicon": "./assets/images/favicon.png"
+      },
+      "plugins": [
+        "expo-router",
+        [
+          "expo-splash-screen",
+          {
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 200,
+            "resizeMode": "contain",
+            "backgroundColor": "#ffffff",
+            "dark": {
+              "backgroundColor": "#000000"
+            }
+          }
+        ],
+        "expo-font",
+        "expo-image",
+        "expo-status-bar",
+        "expo-web-browser",
+        [
+          "@oxy.so/app-preset",
+          {
+            "keychainGroup": false,
+            "android": {
+              "usesCleartextTraffic": true
+            }
+          }
+        ]
+      ],
+      "experiments": {
+        "typedRoutes": true,
+        "reactCompiler": true
+      },
+      "_internal": {
+        "isDebug": false,
+        "projectRoot": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo",
+        "dynamicConfigPath": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo/app.config.js",
+        "staticConfigPath": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo/app.json",
+        "packageJsonPath": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo/package.json",
+        "pluginHistory": {
+          "expo-splash-screen": {
+            "name": "expo-splash-screen",
+            "version": "57.0.8"
+          },
+          "expo-font": {
+            "name": "expo-font",
+            "version": "57.0.3"
+          },
+          "expo-image": {
+            "name": "expo-image",
+            "version": "57.0.4"
+          },
+          "expo-status-bar": {
+            "name": "expo-status-bar",
+            "version": "57.0.1"
+          },
+          "expo-web-browser": {
+            "name": "expo-web-browser",
+            "version": "57.0.2"
+          }
+        }
+      },
+      "sdkVersion": "57.0.0",
+      "platforms": [
+        "ios",
+        "android",
+        "web"
+      ],
+      "extra": {
+        "router": {}
+      },
+      "iconUrl": "http://127.0.0.1:17967/assets/./assets/images/icon.png",
+      "hostUri": "127.0.0.1:17967"
+    },
+    "expoGo": {
+      "debuggerHost": "127.0.0.1:17967",
+      "developer": {
+        "tool": "expo-cli",
+        "projectRoot": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo"
+      },
+      "packagerOpts": {
+        "dev": true
+      },
+      "mainModuleName": "packages/test-app-expo/index"
+    },
+    "scopeKey": "@anonymous/oxy-1519-native-mention-8c89b9f9-8b04-471d-81da-489f0ac088ac"
+  }
+}

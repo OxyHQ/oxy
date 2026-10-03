@@ -1,0 +1,226 @@
+[
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "package.json",
+    "sha256": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "bun.lock",
+    "sha256": "8b0e9eac5e0565a73430a1ef1340ce47243001322c546fd9f17f1c5f12c2ee87"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/test-app-expo/package.json",
+    "sha256": "857608e3e19311b7997ab59cbee6dc132b3a778f28c28f1232b2a45ba5b3a985"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/test-app-expo/app.config.js",
+    "sha256": "5d7da4f9b597fc71a782a5f7197d991c69429e2d6e693079ad649e2be4497e99"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/test-app-expo/metro.config.js",
+    "sha256": "28975f8508ea17c4935bd0ac9d5e2304dba801623d58a67d77b514c36be86a27"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/test-app-expo/acceptance/entry.tsx",
+    "sha256": "8fd2684a48a9394f4087186f7259044854f425f70aa3a2768f01d25bcd576ab2"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/core/src/boot/sessionColdBoot.ts",
+    "sha256": "e3c71a269eb7fbc01afa062f1f3b4ef3baf04b15bdb7d7ae53d1ce6135706bef"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/core/src/session/authStateStore.ts",
+    "sha256": "6f6beb307f528945db9994bf0de321cb4837d542de49f577a099d49a4af2cc36"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/core/src/session/SessionClient.ts",
+    "sha256": "99192d1703a896bb9766240a61dfb3b89be815aeb2ca92b7c4468dec96d62005"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/core/src/session/refresh.ts",
+    "sha256": "134007e170fbb5212ac36c71657303daad6109643085810fcf179d0aa9cb285f"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/services/src/ui/context/OxyContext.tsx",
+    "sha256": "07ee0d114e82fbd07a5ae8996a40d375e38451f908cf892597799828e8d92b21"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/services/src/ui/context/hooks/useAuthOperations.ts",
+    "sha256": "04c6fb7cbb518c58c0e7521d0b3a6af2978ae50d51bf8b7486a7c2d669b5ab68"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/services/package.json",
+    "sha256": "0eb688398de503ac5a6e9e1aa27b19d6109eb34e47dc7b00b9fa444b97280dfe"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "package.json",
+    "sha256": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "bun.lock",
+    "sha256": "8b0e9eac5e0565a73430a1ef1340ce47243001322c546fd9f17f1c5f12c2ee87"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/test-app-expo/package.json",
+    "sha256": "857608e3e19311b7997ab59cbee6dc132b3a778f28c28f1232b2a45ba5b3a985"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/test-app-expo/app.config.js",
+    "sha256": "5d7da4f9b597fc71a782a5f7197d991c69429e2d6e693079ad649e2be4497e99"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/test-app-expo/metro.config.js",
+    "sha256": "28975f8508ea17c4935bd0ac9d5e2304dba801623d58a67d77b514c36be86a27"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/test-app-expo/acceptance/entry.tsx",
+    "sha256": "8fd2684a48a9394f4087186f7259044854f425f70aa3a2768f01d25bcd576ab2"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/core/src/boot/sessionColdBoot.ts",
+    "sha256": "e3c71a269eb7fbc01afa062f1f3b4ef3baf04b15bdb7d7ae53d1ce6135706bef"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/core/src/session/authStateStore.ts",
+    "sha256": "6f6beb307f528945db9994bf0de321cb4837d542de49f577a099d49a4af2cc36"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/core/src/session/SessionClient.ts",
+    "sha256": "99192d1703a896bb9766240a61dfb3b89be815aeb2ca92b7c4468dec96d62005"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/core/src/session/refresh.ts",
+    "sha256": "134007e170fbb5212ac36c71657303daad6109643085810fcf179d0aa9cb285f"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/services/src/ui/context/OxyContext.tsx",
+    "sha256": "07ee0d114e82fbd07a5ae8996a40d375e38451f908cf892597799828e8d92b21"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/services/src/ui/context/hooks/useAuthOperations.ts",
+    "sha256": "04c6fb7cbb518c58c0e7521d0b3a6af2978ae50d51bf8b7486a7c2d669b5ab68"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/services/package.json",
+    "sha256": "0eb688398de503ac5a6e9e1aa27b19d6109eb34e47dc7b00b9fa444b97280dfe"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/core/src/boot/__tests__/nativeSiblingSignOut.test.ts",
+    "sha256": "08bceb509b49b0c6ec69b83ec555c91b5803e941a13ef326c648a16ae6a1a166"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/core/src/boot/__tests__/nativeSiblingSignOutGuards.test.ts",
+    "sha256": "d15dea44f1edec694738320d7274d7a8737ed296737fe6f141fc77f9e1b998b8"
+  },
+  {
+    "variant": "mention",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "commit": "1bdd81b94449dc5400a410a9990e9505e647975a",
+    "path": "packages/core/src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts",
+    "sha256": "8bd74c815f625008ded49f17024d0a642d51e0271134ad64b6a943ebc0afb8a8"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/core/src/boot/__tests__/nativeSiblingSignOut.test.ts",
+    "sha256": "08bceb509b49b0c6ec69b83ec555c91b5803e941a13ef326c648a16ae6a1a166"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/core/src/boot/__tests__/nativeSiblingSignOutGuards.test.ts",
+    "sha256": "d15dea44f1edec694738320d7274d7a8737ed296737fe6f141fc77f9e1b998b8"
+  },
+  {
+    "variant": "allo",
+    "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "commit": "a194e50a0a8df7a3a4c0bf370a03f71da568ff87",
+    "path": "packages/core/src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts",
+    "sha256": "8bd74c815f625008ded49f17024d0a642d51e0271134ad64b6a943ebc0afb8a8"
+  }
+]

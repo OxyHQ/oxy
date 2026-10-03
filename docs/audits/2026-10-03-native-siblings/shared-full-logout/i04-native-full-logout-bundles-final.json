@@ -1,0 +1,36 @@
+[
+  {
+    "variant": "mention",
+    "port": 17967,
+    "launchUrl": "http://127.0.0.1:17967/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable",
+    "full": {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-mention-full-logout-full.bundle.js",
+      "url": "http://127.0.0.1:17967/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=false&transform.engine=hermes&transform.bytecode=0&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable",
+      "sha256": "957e3722d957a2a5200ff3b74823ade56e1139e6b1b4474df0dc677d5c0714e7",
+      "bytes": 21511806
+    },
+    "launch": {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-mention-full-logout-launch.bundle.js",
+      "url": "http://127.0.0.1:17967/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable",
+      "sha256": "89d4c997339866466fd55ec672ce81a66eccdd2b61a7b1b160e9985454948c91",
+      "bytes": 18441452
+    }
+  },
+  {
+    "variant": "allo",
+    "port": 17968,
+    "launchUrl": "http://127.0.0.1:17968/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable",
+    "full": {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-allo-full-logout-full.bundle.js",
+      "url": "http://127.0.0.1:17968/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=false&transform.engine=hermes&transform.bytecode=0&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable",
+      "sha256": "e6eda80f988115713278884bc54b98855b3ab947eba40232e0506730991e4421",
+      "bytes": 21506251
+    },
+    "launch": {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-allo-full-logout-launch.bundle.js",
+      "url": "http://127.0.0.1:17968/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable",
+      "sha256": "b249bbf370f5cb3cc478f91e6355c0c6d52e8814b73c925a23898c63b2e08b88",
+      "bytes": 18436025
+    }
+  }
+]

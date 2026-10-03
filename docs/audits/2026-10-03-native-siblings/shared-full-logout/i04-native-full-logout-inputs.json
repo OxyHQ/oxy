@@ -1,0 +1,82 @@
+{
+  "sdkSource": "e5a44006aaa998494eac65ced581bbda83f8fd5e",
+  "trees": [
+    {
+      "variant": "mention",
+      "path": "packages/core",
+      "tree": "e4973e963e3fa9b1c7395e9be27836c6d1d08e61"
+    },
+    {
+      "variant": "mention",
+      "path": "packages/contracts",
+      "tree": "6ff8352ea7920065590dceda3fff3ca420b94b69"
+    },
+    {
+      "variant": "mention",
+      "path": "packages/services",
+      "tree": "1a2a90f844a94d246c5c04accfeb4ac803eaa0b3"
+    },
+    {
+      "variant": "allo",
+      "path": "packages/core",
+      "tree": "e4973e963e3fa9b1c7395e9be27836c6d1d08e61"
+    },
+    {
+      "variant": "allo",
+      "path": "packages/contracts",
+      "tree": "6ff8352ea7920065590dceda3fff3ca420b94b69"
+    },
+    {
+      "variant": "allo",
+      "path": "packages/services",
+      "tree": "1a2a90f844a94d246c5c04accfeb4ac803eaa0b3"
+    }
+  ],
+  "telemetry": [
+    {
+      "variant": "mention",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/core/node_modules/@oxy.so/telemetry",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/telemetry",
+      "version": "1.2.0",
+      "packageSha256": "63995086a1c5ef68dba2be0d2d0ed51960a9b5b397d4ce645b3bbc866847bd88"
+    },
+    {
+      "variant": "allo",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/packages/core/node_modules/@oxy.so/telemetry",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/packages/telemetry",
+      "version": "1.2.0",
+      "packageSha256": "63995086a1c5ef68dba2be0d2d0ed51960a9b5b397d4ce645b3bbc866847bd88"
+    }
+  ],
+  "bloom": [
+    {
+      "variant": "mention",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/@oxy.so/bloom",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+      "files": 20940,
+      "allBytesEqual": true
+    },
+    {
+      "variant": "mention",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo/node_modules/@oxy.so/bloom",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+      "files": 20940,
+      "allBytesEqual": true
+    },
+    {
+      "variant": "allo",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/node_modules/@oxy.so/bloom",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+      "files": 20940,
+      "allBytesEqual": true
+    },
+    {
+      "variant": "allo",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/packages/test-app-expo/node_modules/@oxy.so/bloom",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+      "files": 20940,
+      "allBytesEqual": true
+    }
+  ],
+  "bloomTarballSha256": "edf4cfe3d8597e4bf86f997bceacf332f7fce4a8f92c541b3cd375decbce3a0a"
+}
