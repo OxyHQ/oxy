@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-10-03T18:10:17.764147+00:00",
+  "application": {
+    "id": "ed143b1b58d60eab417f7d5c",
+    "name": "Nilo",
+    "type": "first_party",
+    "isOfficial": true,
+    "isInternal": false,
+    "scopes": [
+      "user:read"
+    ],
+    "description": "Official Oxy workspace app.",
+    "websiteUrl": "https://nilo.so"
+  },
+  "before": {
+    "absent": true
+  },
+  "variable": "EXPO_PUBLIC_OXY_CLIENT_ID",
+  "value": "oxy_dk_5a97e4ebc00e5268de90ee19490954b202ecd3ea2117f0e7",
+  "deploymentPerformed": false,
+  "after": {
+    "name": "EXPO_PUBLIC_OXY_CLIENT_ID",
+    "value": "oxy_dk_5a97e4ebc00e5268de90ee19490954b202ecd3ea2117f0e7",
+    "created_at": "2026-10-03T18:10:18Z",
+    "updated_at": "2026-10-03T18:10:18Z"
+  },
+  "verified": true
+}

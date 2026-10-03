@@ -1,0 +1,13 @@
+$ jest --runInBand src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts
+ConfigurationError: Jest: Got error running globalSetup - /home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/packages/api/jest.globalSetup.ts, reason: TEST_DATABASE_URL (or DATABASE_URL) must point at a Postgres server so a throwaway test database can be created on it. Start one with: docker compose -f docker-compose.dev.yml up -d postgres
+    at /home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/packages/api/src/db/testDatabase.ts:114:19
+    at Generator.next (<anonymous>)
+    at /home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/packages/api/src/db/testDatabase.ts:27:71
+    at new Promise (<anonymous>)
+    at __awaiter (/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/packages/api/src/db/testDatabase.ts:23:12)
+    at createTestDatabase (/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/packages/api/src/db/testDatabase.ts:107:12)
+    at /home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/packages/api/src/db/testDatabase.ts:174:29
+    at Generator.next (<anonymous>)
+    at /home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/packages/api/src/db/testDatabase.ts:27:71
+    at new Promise (<anonymous>)
+error: script "test" exited with code 1

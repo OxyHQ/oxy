@@ -1,0 +1,107 @@
+{
+  "sourceCommit": "fed6a103e8810cbd227e5b07fc90723d5e5e9e24",
+  "sources": [
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/README.md",
+      "sha256": "586091a244a05f0dbea484662e7cf6f79f2a784b2e8e66c33dafa84ac4c671b1"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/goway-rollback.sql",
+      "sha256": "453845148509db487b87f73f863138b0621041d298e8f36bc70cc1ee175517d8"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/public-client-query.sql",
+      "sha256": "1c1d00787d1b6359fa7a414aeb1c6e4c30f727d52c2fa0cbb89121ddb5983c4f"
+    },
+    {
+      "path": "packages/api/src/scripts/__tests__/gowaySeedRollback.test.ts",
+      "sha256": "920822ff3dea3c59305f7cdef4d1f581d72f1ac9ed561ff355c1528f6c46ed60"
+    },
+    {
+      "path": "packages/api/src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts",
+      "sha256": "a27739b984024416620577a95bf9f9dfc45100247cf4ba73a5c3d4726284d197"
+    },
+    {
+      "path": "packages/api/src/scripts/seedOxyApplicationsSpecs.ts",
+      "sha256": "42e66f65e8c8a39a346a6be85db7f09e794d132d2350abe1e45aff4b3b26527a"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-seed-install.log",
+      "sha256": "defde1df66ab56f09e853163b2dff7fa999efaf7d07a8746efa536ec05c1a667"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-seed-tests.log",
+      "sha256": "c3ace6c073e15a48f6c0b253b4a6a2ad10ba19e125557520e69294cf4b78dd44"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-seed-package-tests.log",
+      "sha256": "453ff768f2a750c554b6cd28d4eff2390831dfbbd48b185ffc2255bf8aa7194c"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-seed-db-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-seed-pg-start.log",
+      "sha256": "acf6663bfb9ac711bf408caab8ba4de54161af5877454b1e1c4b3abca6050efd"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-seed-green.log",
+      "sha256": "0810ffe4beb79bf8ff0ba17ef6be56d56357a152fe5db28f21c7aa4eaba82b49"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-seed-pg-after.log",
+      "sha256": "4267836511e69117de5e003446eccca7470e11f21d34de1cea45f9a4ba88afb7"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-seed-pg-stop.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-rollback-fixture-incomplete.log",
+      "sha256": "33ddd32e264f5c6f34b6189bbeb0a851461aeb6051ee8aa74e6fd4419d04c635"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-rollback-fixture-warning.log",
+      "sha256": "5933c1d59c4052847c5163379a743c69ae5006ba9e8a2bc2efb1f77c4ac5d625"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-rollback-green.log",
+      "sha256": "3fd2df1125f0c8c0cebbd284d5de783f68e20387edcdcaf9e1a1252e45bebac1"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-rollback-pg-after-green.log",
+      "sha256": "4267836511e69117de5e003446eccca7470e11f21d34de1cea45f9a4ba88afb7"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-rollback-pg-stop-green.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/i04-goway-seed-final-eslint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/evidence/nilo-public-client-variable.json",
+      "sha256": "df360ee6e1bbc929bccf469cd8aa2ec0dc64b6fa49f8b414504a76143cb2bee9"
+    }
+  ],
+  "validation": {
+    "registryAndPlannerTests": 66,
+    "rollbackSqlTests": 4,
+    "scopedEslintExit": 0,
+    "postgres": "owned local 127.0.0.1:5593; databases dropped; cluster stopped"
+  },
+  "liveEffects": {
+    "GoWay": "none",
+    "Nilo": "only public GitHub variable created and read back; no deployment"
+  },
+  "pending": [
+    "Root review and composition into final source/image",
+    "Fresh live absence/owner check and seed dry run",
+    "Root reviewed one-shot GoWay seed and readback",
+    "Final published SDK locks and ordered consumer deployments"
+  ]
+}

@@ -1,0 +1,9 @@
+$ jest --runInBand src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts src/scripts/__tests__/seedOxyApplicationsPlan.test.ts
+PASS src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts
+PASS src/scripts/__tests__/seedOxyApplicationsPlan.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       66 passed, 66 total
+Snapshots:   0 total
+Time:        1.486 s
+Ran all test suites matching src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts|src/scripts/__tests__/seedOxyApplicationsPlan.test.ts.
