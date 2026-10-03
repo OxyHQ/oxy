@@ -13,8 +13,16 @@ describe('safeRedirectUrl', () => {
     );
   });
 
-  test('rejects raw IP hosts', () => {
-    expect(safeRedirectUrl('https://127.0.0.1/callback')).toBeNull();
+  test('accepts registered loopback shapes in every environment', () => {
+    for (const origin of ['http://127.0.0.1:17962', 'https://localhost', 'http://[::1]:17963']) {
+      expect(safeRedirectUrl(`${origin}/callback?fixed=1`)).toBe(`${origin}/callback?fixed=1`);
+      expect(safeRedirectUrl(`${origin}/`)).toBe(origin);
+    }
+  });
+
+  test('rejects remote IPv4 hosts', () => {
+    expect(safeRedirectUrl('https://127.0.0.2/callback')).toBeNull();
+    expect(safeRedirectUrl('http://192.0.2.1/callback')).toBeNull();
   });
 
   test('rejects unknown schemes', () => {

@@ -1,3 +1,5 @@
+import { isLoopbackOrigin } from '@oxy.so/contracts';
+
 // Native app schemes that are allowed as redirect targets.
 const ALLOWED_NATIVE_SCHEMES = ['astro:'];
 
@@ -7,7 +9,10 @@ export function safeRedirectUrl(value?: string | null): string | null {
   try {
     const parsed = new URL(value);
     if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
-      if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(parsed.hostname)) {
+      if (
+        /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(parsed.hostname) &&
+        !isLoopbackOrigin(parsed.origin)
+      ) {
         return null;
       }
       if (parsed.pathname === '/' && !parsed.search && !parsed.hash) {
