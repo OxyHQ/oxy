@@ -42,7 +42,10 @@ def process(pid):
 
 
 def listener(port, pid):
-    sockets = {os.readlink(fd) for fd in Path(f'/proc/{pid}/fd').iterdir()}
+    sockets = set()
+    for fd in Path(f'/proc/{pid}/fd').iterdir():
+        try: sockets.add(os.readlink(fd))
+        except FileNotFoundError: continue  # Bun may close a descriptor during enumeration
     rows = [line.split() for line in Path('/proc/net/tcp').read_text().splitlines()[1:]]
     matches = [row for row in rows if row[1] == f'0100007F:{port:04X}' and row[3] == '0A']
     assert len(matches) == 1 and f'socket:[{matches[0][9]}]' in sockets, 'Listener owner mismatch'
