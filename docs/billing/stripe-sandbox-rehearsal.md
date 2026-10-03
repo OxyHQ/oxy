@@ -77,8 +77,13 @@ payment methods detached, the customer/coupon/clock deleted, and prices/products
 archived, with remote response/readback checks. Refunded/paid invoice history is
 not deletable and remains explicitly identified test history. A request that
 fails before returning an ID remains an unresolved creation intent; it cannot
-be reported as cleaned or accepted. SIGINT/SIGTERM request a graceful exit into
-cleanup. A hard kill or network loss can still require manual reconciliation
+be reported as cleaned or accepted. The launcher receives SIGINT/SIGTERM, forwards
+it once to the child's separate process group and waits for cleanup before
+stopping its owned PostgreSQL. Repeated signals do not skip cleanup. A fixed
+900-second cleanup deadline bounds an unresponsive child; a forced termination
+is recorded as requiring manifest review, never as complete provider cleanup.
+PostgreSQL is also required to live outside the launcher process group.
+A hard kill or network loss can still require manual reconciliation
 using the private intent/nonce manifest; no claim of crash-proof remote cleanup
 is made.
 
@@ -107,3 +112,24 @@ child. The runtime import remains after fixture price configuration because the
 route reads that configuration at module initialization. A retry requires a
 new frozen plan, nonce, owned database and reviewed source; it never resumes the
 first attempt or reuses its remote objects.
+
+### Bun environment and crypto isolation
+
+All direct Bun invocations disable dotenv autoload with `--no-env-file`.
+The scrubbed environment fixes `BUN_OPTIONS=--no-env-file` so the actual
+workspace builder and further Bun package-script descendants retain the same
+boundary. An isolated fixture with harmless dotenv sentinels verifies bootstrap,
+migration/child command forms, the actual shared builder and nested Bun scripts;
+it does not modify ignored dotenv files in this checkout.
+
+Bootstrap now reports measured presence/absence of credential and database
+*environment variables* after the actual loader import. Its older `keyRead:false`
+and `remoteRequests:0` literals were declarations, not instrumented counters.
+The source loader is exercised without invoking the runner main function; this
+check does not independently count network side effects.
+
+The Node/Bun receiver uses the official asynchronous Stripe verification API
+with an explicit SubtleCryptoProvider, preserving default timestamp tolerance.
+Generated request signatures still belong to the local fixture, not Stripe's
+public delivery infrastructure. Earlier loader/crypto failures remain recorded;
+no test failure is described as a completed sandbox billing cycle.

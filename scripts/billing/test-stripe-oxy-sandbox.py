@@ -70,7 +70,7 @@ class FrozenPlanTests(unittest.TestCase):
 
     def test_same_router_loader_bootstraps_without_credentials(self):
         self.assertEqual(json.loads(RUNNER.bootstrap_router()),
-                         {'actualLoader': 'function', 'remoteRequests': 0, 'keyRead': False})
+                         {'actualLoader': 'function', 'providerCredentialEnvPresent': False, 'databaseEnvPresent': False})
 
     def test_diagnostics_never_return_arbitrary_provider_messages(self):
         code = """
