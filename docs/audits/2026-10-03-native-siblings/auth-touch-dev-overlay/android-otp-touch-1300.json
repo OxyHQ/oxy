@@ -1,0 +1,82 @@
+{
+  "time": "2026-10-03T13:03:28.044658+00:00",
+  "source": "a16aecc609e231f8902cc6660cc639ad1a6f5957",
+  "bundleSha256": "65dbe7dd601f651825c07aa43d4dc7ab851647f779df8fbafb99cd548e17b1a9",
+  "device": "emulator-5580",
+  "package": "so.oxy.acceptance1519",
+  "outcome": "Reduced control passes touch twice, native sibling once; auth defect remains unresolved. No visible IME even after OTP focus. Initial app was stale debug host17971, corrected own preference to17976 and verified before observations.",
+  "records": {
+    "before-focus.log": {
+      "sha256": "45b192c0630aa0f02dd8523a0fd25f83bde204b875d08372693120eaaaf461ef",
+      "bytes": 3851
+    },
+    "debug-preferences-before.xml": {
+      "sha256": "a9ae6e764d72a29ea31d49657ce17fae5e7e9cc9c213d179dad297b002baecf7",
+      "bytes": 106
+    },
+    "diagnostic-read.log": {
+      "sha256": "2c3a8fa426dcef6928d96f8b60c51b9eb8607f10c1f66740d3b73e5787a992c2",
+      "bytes": 4039
+    },
+    "diagnostic-scroll.log": {
+      "sha256": "c95210c65c9bc358d7da8ef97ee7f01124f68db75595a76f2c66d719a9e70b21",
+      "bytes": 4660
+    },
+    "focused.log": {
+      "sha256": "7b3ffab6479ab0b463a4c1d250c7454008419050f377b4e1681d7153f2a6a620",
+      "bytes": 3866
+    },
+    "second-tap.log": {
+      "sha256": "5a21650deed492b5112da34cbd1e9c5f82932ecd724c281b7036d042d3e1f61b",
+      "bytes": 3791
+    },
+    "ui-before-focus.xml": {
+      "sha256": "17badcdf5c519ff5f7680abba23be2d5ac6fc05e0304f57e48a88930a94dd6d6",
+      "bytes": 30578
+    },
+    "ui-correct-initial.xml": {
+      "sha256": "efc77d93c0dcdd8608607cede92de920b98c1f1380d73581520d13ede404d1f8",
+      "bytes": 7417
+    },
+    "ui-diagnostic-read.xml": {
+      "sha256": "f24f5ddac5970b0a04a79d18848649ee30207b71715284efbfad4a90ebf35ec8",
+      "bytes": 31321
+    },
+    "ui-diagnostic-scroll.xml": {
+      "sha256": "d99add9bd0901ebbe7ba41291f4218666f04e99b29ac68294646bd17fee1df18",
+      "bytes": 32204
+    },
+    "ui-focused.xml": {
+      "sha256": "17badcdf5c519ff5f7680abba23be2d5ac6fc05e0304f57e48a88930a94dd6d6",
+      "bytes": 30578
+    },
+    "ui-frame0.xml": {
+      "sha256": "838bf6cc27edbd8d7139c46be0b7b71b80281d2873acb38e0cfa8b833058f02d",
+      "bytes": 23855
+    },
+    "ui-frame1.xml": {
+      "sha256": "53f01e0fc919beedea0fd8f1aa761f54db7afec70bfd087c1b91eb58450bcf2c",
+      "bytes": 31321
+    },
+    "ui-fresh.py": {
+      "sha256": "688e237230420bfcdf4e8c6913060f22cd0ad6ec4cb7d45dde56d85637dd7144",
+      "bytes": 1415
+    },
+    "ui-initial.xml": {
+      "sha256": "02bb5f179364f36cdf746d5289a9363d80a60426234d3ccd85d6c5263b3201ba",
+      "bytes": 7082
+    },
+    "ui-native-tapped.xml": {
+      "sha256": "f24f5ddac5970b0a04a79d18848649ee30207b71715284efbfad4a90ebf35ec8",
+      "bytes": 31321
+    },
+    "ui-password-tapped.xml": {
+      "sha256": "f7c2d8b050e561b4d469cee45230d18e0951372ef9d788fdf1df9043e150f27e",
+      "bytes": 31321
+    },
+    "ui-second-tap.xml": {
+      "sha256": "a7f066c6c007afb0d1e756cf53f75aa0ebd7e917dbfa80dc1c88b0e212daff3e",
+      "bytes": 30578
+    }
+  }
+}
