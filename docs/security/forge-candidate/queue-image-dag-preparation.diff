@@ -1,0 +1,339 @@
+--- a/.github/workflows/merge-queue-image.yml
++++ b/.github/workflows/merge-queue-image.yml
+@@ -56,0 +57,13 @@
++  policy:
++    runs-on: ubuntu-latest
++    outputs:
++      active: ${{ steps.policy.outputs.active }}
++    steps:
++      - uses: actions/checkout@v7
++        with:
++          persist-credentials: false
++      - uses: oven-sh/setup-bun@v2
++        with:
++          bun-version-file: package.json
++      - id: policy
++        run: bun -e 'import {readCommittedPolicyStatus} from "./scripts/forge-audit-policy.mjs"; console.log("active=" + (readCommittedPolicyStatus() === "ACTIVE"))' >> "$GITHUB_OUTPUT"
+@@ -57,0 +71 @@
++    needs: policy
+@@ -59 +73 @@
+-    if: github.event_name == 'merge_group' && github.repository == 'OxyHQ/oxy'
++    if: github.event_name == 'merge_group' && github.repository == 'OxyHQ/oxy' && needs.policy.outputs.active != 'true'
+--- /dev/null
++++ b/.github/workflows/forge-queue-image-inspection.yml
+@@ -0,0 +1,234 @@
++# UNAPPLIED preparation: independent image proof; no AWS or registry publication.
++name: Forge queue image inspection
++on:
++  merge_group:
++permissions:
++  contents: read
++jobs:
++  policy:
++    runs-on: ubuntu-latest
++    outputs:
++      active: ${{ steps.policy.outputs.active }}
++    steps:
++      - uses: actions/checkout@v7
++        with:
++          persist-credentials: false
++      - uses: oven-sh/setup-bun@v2
++        with:
++          bun-version-file: package.json
++      - id: policy
++        run: bun -e 'import {readCommittedPolicyStatus} from "./scripts/forge-audit-policy.mjs"; console.log("active=" + (readCommittedPolicyStatus() === "ACTIVE"))' >> "$GITHUB_OUTPUT"
++  inspection:
++    needs: policy
++    if: needs.policy.outputs.active == 'true' && github.repository == 'OxyHQ/oxy'
++    runs-on: ubuntu-24.04-arm
++    timeout-minutes: 45
++    env:
++      SOURCE_SHA: ${{ github.sha }}
++    steps:
++      - uses: actions/checkout@v7
++        with:
++          ref: ${{ github.sha }}
++          persist-credentials: false
++      - name: Verify the exact candidate source
++        run: |
++          set -euo pipefail
++          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
++          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
++          test -z "$(git status --porcelain --untracked-files=no)"
++      - uses: docker/setup-buildx-action@v4
++      - uses: crazy-max/ghaction-github-runtime@v4
++      - name: Build the final production Dockerfile locally on ARM
++        run: |
++          set -euo pipefail
++          sudo apt-get update
++          sudo apt-get install -y skopeo
++          docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
++            --cache-from type=gha,scope=oxy-api-backend \
++            --label "org.opencontainers.image.revision=$SOURCE_SHA" \
++            --metadata-file "$RUNNER_TEMP/forge-build-metadata.json" \
++            --output "type=oci,dest=$RUNNER_TEMP/forge-image.oci.tar" -f Dockerfile .
++          skopeo copy "oci-archive:$RUNNER_TEMP/forge-image.oci.tar" "docker-daemon:oxy-forge-candidate:$SOURCE_SHA"
++          skopeo inspect --raw "oci-archive:$RUNNER_TEMP/forge-image.oci.tar" > "$RUNNER_TEMP/forge-oci-manifest.json"
++          export FORGE_OCI_ARCHIVE_SHA256="$(sha256sum "$RUNNER_TEMP/forge-image.oci.tar" | cut -d ' ' -f 1)"
++          export FORGE_OCI_MANIFEST_DIGEST="sha256:$(sha256sum "$RUNNER_TEMP/forge-oci-manifest.json" | cut -d ' ' -f 1)"
++          config_digest="$(jq -r .config.digest "$RUNNER_TEMP/forge-oci-manifest.json")"
++          [[ "$config_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
++          tar -xOf "$RUNNER_TEMP/forge-image.oci.tar" "blobs/sha256/${config_digest#sha256:}" > "$RUNNER_TEMP/forge-oci-config.json"
++          test "sha256:$(sha256sum "$RUNNER_TEMP/forge-oci-config.json" | cut -d ' ' -f 1)" = "$config_digest"
++          IMAGE_ID="$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Id}}')"
++          test "$IMAGE_ID" = "$config_digest"
++          echo "IMAGE_ID=$IMAGE_ID" >> "$GITHUB_ENV"
++          node -e 'const fs=require("node:fs"); fs.writeFileSync(process.env.RUNNER_TEMP+"/forge-oci-receipt.json", JSON.stringify({schemaVersion:1,sourceSha:process.env.SOURCE_SHA,runId:process.env.GITHUB_RUN_ID,archiveSha256:process.env.FORGE_OCI_ARCHIVE_SHA256,manifestDigest:process.env.FORGE_OCI_MANIFEST_DIGEST,approval:false})+"\n");'
++          docker image inspect "oxy-forge-candidate:$SOURCE_SHA"             --format '{{json .Id}} {{json .Architecture}} {{json .Os}} {{json (index .Config.Labels "org.opencontainers.image.revision")}}'             > "$RUNNER_TEMP/forge-image-identity.txt"
++          test "$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Architecture}}')" = arm64
++      # Before any proof mount: the three bind-mount targets must not exist in the image, so later
++      # mounts cannot hide original image content. No mounts, no network; fails if any target exists.
++      - name: Verify proof mount targets are absent from the unmounted image
++        run: |
++          set -euo pipefail
++          IMAGE_ID="$(docker image inspect "$IMAGE_ID" --format '{{.Id}}')"
++          docker run --rm --network none --read-only --cap-drop ALL \
++            --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
++            --entrypoint node "$IMAGE_ID" -e '
++              const { lstatSync } = require("node:fs");
++              const [sourceSha, imageId] = process.argv.slice(1);
++              const targets = ["/proof/scripts", "/proof/hashes", "/proof/patches"].map(path => {
++                try { lstatSync(path); return { path, present: true }; }
++                catch (error) { if (error.code !== "ENOENT") throw error; return { path, present: false }; }
++              });
++              console.log(JSON.stringify({ diagnosticOnly: true, approval: false, mounts: "none", sourceSha, imageId, targets }));
++              process.exitCode = targets.some(target => target.present) ? 1 : 0;
++            ' "$SOURCE_SHA" "$IMAGE_ID" > "$RUNNER_TEMP/forge-image-mount-targets.json"
++      - name: Record actual final-image dangling links without exemptions
++        run: |
++          set -euo pipefail
++          docker run --rm --network none --read-only --cap-drop ALL \
++            --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
++            --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly" \
++            --entrypoint node "$IMAGE_ID" \
++            /proof/scripts/forge-candidate-dangling-links.mjs /app \
++            > "$RUNNER_TEMP/forge-image-dangling-links.json"
++      # Derives the complete installed-root set: any node-forge copy outside /app fails the evaluator.
++      - name: Discover every installed root in the whole image filesystem
++        run: |
++          set -euo pipefail
++          docker run --rm --network none --read-only --cap-drop ALL \
++            --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
++            --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly" \
++            --entrypoint node "$IMAGE_ID" \
++            /proof/scripts/forge-candidate-image-roots.mjs / \
++            > "$RUNNER_TEMP/forge-image-roots.json"
++      - name: Verify all materialized copies and run own-key controls without network
++        run: |
++          set -euo pipefail
++          docker run --rm --network none --read-only --cap-drop ALL             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m             --tmpfs /tmp:rw,noexec,nosuid,size=32m             --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly"             --mount "type=bind,src=$PWD/docs/security/forge-candidate,dst=/proof/hashes,readonly"             --mount "type=bind,src=$PWD/patches,dst=/proof/patches,readonly"             --entrypoint node "$IMAGE_ID"             /proof/scripts/forge-candidate-image-proof.mjs /app             /proof/hashes/candidate-hashes.json /proof/scripts/forge-candidate-regression.cjs             /proof/patches/node-forge@1.4.0.patch             > "$RUNNER_TEMP/forge-image-regression-proof.json"
++          export IMAGE_ID
++          node -e 'const fs=require("node:fs"),e=process.env,p=e.RUNNER_TEMP+"/"; fs.writeFileSync(p+"forge-scan-image-ids.json",JSON.stringify({dockerConfigId:e.IMAGE_ID,mountProofImageId:e.IMAGE_ID,rootScanImageId:e.IMAGE_ID,regressionImageId:e.IMAGE_ID})+"\n"); fs.writeFileSync(p+"forge-queue-execution.json",JSON.stringify({sourceSha:e.SOURCE_SHA,workflowSha:e.GITHUB_WORKFLOW_SHA,repository:e.GITHUB_REPOSITORY,repositoryId:e.GITHUB_REPOSITORY_ID,event:e.GITHUB_EVENT_NAME,runId:e.GITHUB_RUN_ID,runAttempt:e.GITHUB_RUN_ATTEMPT,job:e.GITHUB_JOB,approval:false})+"\n");'
++      - uses: actions/upload-artifact@v7
++        with:
++          name: forge-queue-proof-${{ github.sha }}-${{ github.run_id }}
++          path: |
++            ${{ runner.temp }}/forge-build-metadata.json
++            ${{ runner.temp }}/forge-image-identity.txt
++            ${{ runner.temp }}/forge-image-dangling-links.json
++            ${{ runner.temp }}/forge-image-regression-proof.json
++            ${{ runner.temp }}/forge-image-roots.json
++            ${{ runner.temp }}/forge-image-mount-targets.json
++            ${{ runner.temp }}/forge-oci-receipt.json
++            ${{ runner.temp }}/forge-oci-manifest.json
++            ${{ runner.temp }}/forge-oci-config.json
++            ${{ runner.temp }}/forge-scan-image-ids.json
++            ${{ runner.temp }}/forge-queue-execution.json
++          if-no-files-found: error
++          retention-days: 7
++      - uses: actions/upload-artifact@v7
++        with:
++          name: forge-queue-oci-${{ github.sha }}-${{ github.run_id }}
++          path: ${{ runner.temp }}/forge-image.oci.tar
++          if-no-files-found: error
++          retention-days: 7
++  authorize:
++    needs: [policy, inspection]
++    if: needs.policy.outputs.active == 'true' && github.repository == 'OxyHQ/oxy'
++    runs-on: ubuntu-24.04-arm
++    timeout-minutes: 30
++    permissions:
++      contents: read
++      actions: read
++    env:
++      GH_TOKEN: ${{ github.token }}
++    steps:
++      # Proof producer completed before this job waits. Guards consumes ONLY
++      # inspection/proof, not this workflow's final conclusion: no cycle.
++      - name: Wait for the exact merge-group CI complete
++        run: |
++          set -euo pipefail
++          deadline=$((SECONDS + 1500))
++          while ((SECONDS < deadline)); do
++            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=merge_group&per_page=20")"
++            run_id="$(jq -r --arg sha "$GITHUB_SHA" --arg repo "$GITHUB_REPOSITORY" '.workflow_runs | map(select(.head_sha == $sha and .event == "merge_group" and .repository.full_name == $repo and .head_repository.full_name == $repo)) | sort_by(.run_number) | last | .id // empty' <<< "$runs")"
++            if [[ -n "$run_id" ]]; then
++              jobs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs")"
++              verdict="$(jq -r '.jobs[] | select(.name == "CI complete") | .conclusion // "pending"' <<< "$jobs")"
++              if [[ "$verdict" == success ]]; then break; fi
++              if [[ "$verdict" != pending && -n "$verdict" ]]; then exit 1; fi
++            fi
++            sleep 20
++          done
++          [[ "${verdict:-pending}" == success ]]
++  publish:
++    needs: [policy, inspection, authorize]
++    if: needs.policy.outputs.active == 'true' && github.repository == 'OxyHQ/oxy'
++    runs-on: ubuntu-24.04-arm
++    permissions:
++      contents: read
++      actions: read
++      id-token: write
++    steps:
++      - uses: actions/checkout@v7
++        with:
++          ref: ${{ github.sha }}
++          fetch-depth: 0
++          persist-credentials: false
++      - uses: oven-sh/setup-bun@v2
++        with:
++          bun-version-file: package.json
++      - name: Validate explicit policy and install exact byte inventory
++        run: |
++          bun -e 'import {readCommittedPolicyStatus} from "./scripts/forge-audit-policy.mjs"; if (readCommittedPolicyStatus() !== "ACTIVE") process.exit(1);'
++          bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
++      - uses: actions/download-artifact@v8
++        with:
++          name: forge-queue-proof-${{ github.sha }}-${{ github.run_id }}
++          path: ${{ runner.temp }}/forge-publish-${{ github.run_id }}/proof
++      - uses: actions/download-artifact@v8
++        with:
++          name: forge-queue-oci-${{ github.sha }}-${{ github.run_id }}
++          path: ${{ runner.temp }}/forge-publish-${{ github.run_id }}/image
++      - name: Verify exact archive and source receipt
++        env:
++          FORGE_TRANSPORT_DIR: ${{ runner.temp }}/forge-publish-${{ github.run_id }}
++        run: |
++          set -euo pipefail
++          jq -e --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" '.schemaVersion == 1 and .sourceSha == $sha and .runId == $run and .approval == false' "$FORGE_TRANSPORT_DIR/proof/forge-oci-receipt.json"
++          expected="$(jq -r .archiveSha256 "$FORGE_TRANSPORT_DIR/proof/forge-oci-receipt.json")"
++          [[ "$expected" =~ ^[a-f0-9]{64}$ ]]
++          test "$(sha256sum "$FORGE_TRANSPORT_DIR/image/forge-image.oci.tar" | cut -d ' ' -f 1)" = "$expected"
++          sudo apt-get update
++          sudo apt-get install -y skopeo
++          test "sha256:$(skopeo inspect --raw oci-archive:"$FORGE_TRANSPORT_DIR/image/forge-image.oci.tar" | sha256sum | cut -d ' ' -f 1)" = "$(jq -r .manifestDigest "$FORGE_TRANSPORT_DIR/proof/forge-oci-receipt.json")"
++          config_digest="$(jq -r .config.digest "$FORGE_TRANSPORT_DIR/proof/forge-oci-manifest.json")"
++          [[ "$config_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
++          test "sha256:$(sha256sum "$FORGE_TRANSPORT_DIR/proof/forge-oci-config.json" | cut -d ' ' -f 1)" = "$config_digest"
++          tar -xOf "$FORGE_TRANSPORT_DIR/image/forge-image.oci.tar" "blobs/sha256/${config_digest#sha256:}" | cmp - "$FORGE_TRANSPORT_DIR/proof/forge-oci-config.json"
++          jq -e --arg digest "$config_digest" 'keys == ["dockerConfigId","mountProofImageId","regressionImageId","rootScanImageId"] and all(.[]; . == $digest)' "$FORGE_TRANSPORT_DIR/proof/forge-scan-image-ids.json"
++      - uses: aws-actions/configure-aws-credentials@v6
++        with:
++          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-queue-image-oxy
++          aws-region: us-west-2
++      - name: Publish the inspected OCI bytes without rebuild
++        env:
++          ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
++          FORGE_PROVENANCE_READ_TOKEN: ${{ github.token }}
++          FORGE_TRANSPORT_DIR: ${{ runner.temp }}/forge-publish-${{ github.run_id }}
++        run: |
++          set -euo pipefail
++          skopeo_auth_dir="$(mktemp -d)"
++          chmod 700 "$skopeo_auth_dir"
++          export REGISTRY_AUTH_FILE="$skopeo_auth_dir/auth.json"
++          forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
++          test -n "$forge_runner_home"
++          trap 'env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth logout --hostname github.com >/dev/null 2>&1 || true; skopeo logout "$ECR_REGISTRY" >/dev/null 2>&1 || true; rm -rf "$skopeo_auth_dir"' EXIT
++          printf '%s' "$FORGE_PROVENANCE_READ_TOKEN" | env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth login --hostname github.com --with-token
++          aws ecr get-login-password --region us-west-2 | skopeo login --username AWS --password-stdin "$ECR_REGISTRY"
++          # CI wait, credential setup and artifact transport may outlive policy.
++          # Fresh source/policy + every applicable artifact check immediately
++          # before the effect; no expiry is extended and no rebuild is permitted.
++          proof="$(bun scripts/check-published-forge-image.mjs prepublish)"
++          expected="$(jq -r .manifestDigest "$FORGE_TRANSPORT_DIR/proof/forge-oci-receipt.json")"
++          jq -e --arg sha "$GITHUB_SHA" --arg digest "$expected" '.authenticatedProvenance == true and .machineChecksPassed == true and .authorized == false and .executionSha == $sha and .manifestDigest == $digest' <<< "$proof" >/dev/null
++          skopeo copy --all --preserve-digests oci-archive:"$FORGE_TRANSPORT_DIR/image/forge-image.oci.tar" "docker://$ECR_REGISTRY/oxy/oxy-api:mq-$GITHUB_SHA"
++          expected="$(jq -r .manifestDigest "$FORGE_TRANSPORT_DIR/proof/forge-oci-receipt.json")"
++          actual="$(aws ecr batch-get-image --repository-name oxy/oxy-api --image-ids "imageTag=mq-$GITHUB_SHA" --query 'images[0].imageId.imageDigest' --output text)"
++          test "$actual" = "$expected"
+--- a/.github/scripts/resolve-queue-image.sh
++++ b/.github/scripts/resolve-queue-image.sh
+@@ -46,0 +47,12 @@
++# Future ACTIVE policies must never fall back to an uninspected rebuild.
++scoped_policy="$(git show HEAD:docs/security/forge-candidate/provenance/audit-policy-decision.json | python3 -c '
++import json,sys
++x=json.load(sys.stdin)
++assert set(x)==set(["schemaVersion","status","targetSourceHead","expiresAt","authorizationRecord","independentEvidence"])
++assert x["schemaVersion"]==1 and x["status"] in ["INACTIVE","ACTIVE"]
++if x["status"]=="INACTIVE": assert all(x[k] is None for k in ["targetSourceHead","expiresAt","authorizationRecord","independentEvidence"])
++print(x["status"])
++')"
++if [[ "$scoped_policy" == ACTIVE ]]; then
++  QUEUE_WORKFLOW=forge-queue-image-inspection.yml
++fi
+@@ -47,0 +60,4 @@
++  if [[ "$scoped_policy" == ACTIVE ]]; then
++    echo "::error::ACTIVE Forge policy requires the inspected image for exact main SHA $SHA ($1); no rebuild or different-SHA reuse." >&2
++    exit 1
++  fi
+@@ -111,0 +128,10 @@
++# The inspection workflow's success includes post-CI publication with the
++# archive/manifest digest comparison. Authenticate the frozen source policy,
++# exact main execution, producer, streamed OCI ZIP and actual ECR manifest again.
++# No caller JSON or tag constitutes evidence; the companion performs fixed GETs.
++if [[ "$scoped_policy" == ACTIVE ]]; then
++  test "$(git rev-parse HEAD)" = "$SHA"
++  test "$REPOSITORY" = oxy/oxy-api
++  proof="$(bun scripts/check-published-forge-image.mjs)"
++  jq -e --arg sha "$SHA" --arg digest "$digest" '.authenticatedProvenance == true and .machineChecksPassed == true and .authorized == false and .executionSha == $sha and .manifestDigest == $digest' <<< "$proof" >/dev/null
++fi
+--- a/.github/workflows/deploy-aws.yml
++++ b/.github/workflows/deploy-aws.yml
+@@ -60,0 +61,17 @@
++        with:
++          fetch-depth: 0
++      - name: Read committed source policy status
++        id: forge_policy
++        run: |
++          set -euo pipefail
++          status="$(git show HEAD:docs/security/forge-candidate/provenance/audit-policy-decision.json | python3 -c 'import json,sys; x=json.load(sys.stdin); assert set(x)==set(["schemaVersion","status","targetSourceHead","expiresAt","authorizationRecord","independentEvidence"]); assert x["schemaVersion"]==1 and x["status"] in ["INACTIVE","ACTIVE"]; print(x["status"])')"
++          echo "active=$([[ "$status" == ACTIVE ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
++      - uses: oven-sh/setup-bun@v2
++        if: steps.forge_policy.outputs.active == 'true'
++        with:
++          bun-version-file: package.json
++      - name: Validate policy before byte inventory or provenance login
++        if: steps.forge_policy.outputs.active == 'true'
++        run: |
++          bun -e 'import { readCommittedPolicyStatus } from "./scripts/forge-audit-policy.mjs"; if (readCommittedPolicyStatus() !== "ACTIVE") process.exit(1);'
++          bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
+@@ -196 +213,9 @@
+-        run: bash .github/scripts/resolve-queue-image.sh
++        run: |
++          set -euo pipefail
++          if [[ '${{ steps.forge_policy.outputs.active }}' == true ]]; then
++            forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
++            test -n "$forge_runner_home"
++            trap 'env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth logout --hostname github.com >/dev/null 2>&1 || true' EXIT
++            printf '%s' "$GH_TOKEN" | env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth login --hostname github.com --with-token
++          fi
++          bash .github/scripts/resolve-queue-image.sh
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -645,0 +646 @@
++      actions: read # Future explicit approval only: provenance GETs.
+@@ -649 +650 @@
+-    timeout-minutes: 25
++    timeout-minutes: 45 # Includes bounded inspection wait and streaming OCI verification.
+@@ -844 +845,3 @@
+-          printf '%s' "$FORGE_PROVENANCE_READ_TOKEN" | gh auth login --hostname github.com --with-token
++          forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
++          test -n "$forge_runner_home"
++          printf '%s' "$FORGE_PROVENANCE_READ_TOKEN" | env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth login --hostname github.com --with-token
+@@ -849,2 +852,4 @@
+-        if: ${{ always() && steps.forge-auth.outcome == 'success' }}
+-        run: gh auth logout --hostname github.com
++        if: ${{ always() && steps.forge-policy.outputs.active == 'true' }}
++        run: |
++          forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
++          env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth logout --hostname github.com

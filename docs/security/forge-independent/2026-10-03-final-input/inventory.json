@@ -1,0 +1,13 @@
+[
+  {
+    "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-forge-final-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge",
+    "version": "1.4.0",
+    "files": {
+      "lib/rsa.js": "425543a09d94457a66d098c490540b2759806dc61236ad3d38610c18d88f1b81",
+      "dist/forge.min.js": "811a6061b91b04955ea1457a7d987f21a496f43304c4a89f870d2d175191a19f",
+      "dist/forge.min.js.map": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3",
+      "dist/forge.all.min.js": "fc2c8c484e3da7608ad5a966a8b747d7fe7c8ea7086b1f76ea8ead544dd7d232",
+      "dist/forge.all.min.js.map": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+    }
+  }
+]
