@@ -1,0 +1,233 @@
+{
+  "sourceCommit": "aa383c5fc6e0afb14442d5bd4effc9cde3557521",
+  "upstreamFixCommit": "82a06bbf8",
+  "sdkCandidate": "1e719545f290cfb6308c2648cabc10d311136716",
+  "package": "so.oxy.commons.dev",
+  "fixtureClientId": "oxy_dk_c1c5a0718e3601ce6a6a22c48e19dc3af8b50dc5efbbdf0c",
+  "certificateSha256": "0114ce567a3be9b87dcbb0ef1083bba5f6e38ebf6733b29df93be1acfd7fbb55",
+  "sources": [
+    {
+      "path": "packages/commons/acceptance-entry.js",
+      "sha256": "66c106f1923a86e6e35e2b722d9f77bf0b5b13f797071c8ae62779eb1f2161b0",
+      "bytes": 137
+    },
+    {
+      "path": "packages/commons/acceptance/ObserverInstrumentation.kt",
+      "sha256": "c569e2f8aa8c40c877a15246e7b020d229c2cbfc9bfcd129928a5e8787796696",
+      "bytes": 1920
+    },
+    {
+      "path": "packages/commons/acceptance/README.md",
+      "sha256": "f6c8f9e5da5932310e8307ff2e5e4f7f1a57c19bbe021fdaf8df333a20715a1c",
+      "bytes": 6081
+    },
+    {
+      "path": "packages/commons/acceptance/app.config.js",
+      "sha256": "a2c4f5ec1ef8b1543ffc7269007fed605497b5765a89ac72aadd3364008d95d8",
+      "bytes": 525
+    },
+    {
+      "path": "packages/commons/acceptance/entry.tsx",
+      "sha256": "39de3c1defdbc7daf11bf9a456df71490d047e811eda7f17776e845cb50b2cca",
+      "bytes": 4676
+    },
+    {
+      "path": "packages/commons/acceptance/prepare-corrupt-slot.py",
+      "sha256": "e99b34fa3464411520fd4b29443f0eb7954941104a70d782de0cb4065b325e73",
+      "bytes": 4550
+    },
+    {
+      "path": "packages/commons/acceptance/test_prepare_corrupt_slot.py",
+      "sha256": "f9a310b7758385220197b33b5fe150492f0a4e1e292810f7d07dca066a05212d",
+      "bytes": 3240
+    },
+    {
+      "path": "packages/commons/acceptance/tsconfig.json",
+      "sha256": "e9b6c9210bb6d46be2b3731f18a3a29a68925d8df1f67e67e9427e7b503df70f",
+      "bytes": 219
+    },
+    {
+      "path": "packages/commons/acceptance/withObserver.js",
+      "sha256": "a13c362d028e74a49568e85087a49f2eb2a0c47ff0050822c22299597092be43",
+      "bytes": 1040
+    },
+    {
+      "path": "packages/commons/app.config.js",
+      "sha256": "56269e129152c51bf86a7cd3b5b834e64afaee34c0670af11ce0e412808f25cd",
+      "bytes": 9601
+    },
+    {
+      "path": "packages/commons/babel.config.js",
+      "sha256": "4b85acf6227054de03e47086a7a60a96bb463d8359e471d7187d6720f0b08b51",
+      "bytes": 883
+    },
+    {
+      "path": "packages/commons/modules/oxy-identity-host/android/build.gradle",
+      "sha256": "f2eb0cb133fadd6465cb57c1f133a6ed83fc4e9e2511e81bbca6c516a6b141e7",
+      "bytes": 1140
+    },
+    {
+      "path": "packages/commons/package.json",
+      "sha256": "b49da9fcb66fff65a6dca270adc8210aeb32c4c58896c5117a0b824652503ca0",
+      "bytes": 3303
+    }
+  ],
+  "preservedInputs": [
+    {
+      "path": "packages/commons/modules/oxy-identity-host/android/src/main/java/so/oxy/commons/identityhost/IdentitySignerStore.kt",
+      "sha256": "b73f7d92e8a43e3b6077e2075e887d05aa9e083a77294bd1e27aaec4c22bf99a",
+      "bytes": 4290
+    },
+    {
+      "path": "packages/commons/modules/oxy-identity-host/android/src/main/java/so/oxy/commons/identityhost/IdentityCrypto.kt",
+      "sha256": "eee54dddb87270f1a984fc0bf542058696b4649a549569f2be63b19c02fbf38a",
+      "bytes": 7651
+    },
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/storage/OxyEncryptedPrefs.kt",
+      "sha256": "9fa79c5b78120ec7c482f6f8ad9d57bfbd6061acaee861d31f4f111da0623781",
+      "bytes": 7982
+    },
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/security/OxyCallerPolicy.kt",
+      "sha256": "a623bf66b2277b9405e3c55be39b388166dac80ff7d59c593bde261f016325b4",
+      "bytes": 3360
+    },
+    {
+      "path": "packages/services/android/src/main/java/so/oxy/devicesession/OxyDeviceSessionStore.kt",
+      "sha256": "20e792fd28716530cc705b64a8ee4a952f35a862d0d1bc064fdb4f722769bbe6",
+      "bytes": 4909
+    },
+    {
+      "path": "packages/core/src/session/identityPin.ts",
+      "sha256": "ed1e49009c52034a65b6a0a8c433597a0b6e357ed0cb94e9aa942538c6df835b",
+      "bytes": 11172
+    },
+    {
+      "path": "packages/services/src/ui/session/identityBinding.ts",
+      "sha256": "9a133878f5fea645a6117e2ddbd7849d8754d96ab97fbbc6fd8279da38d9452f",
+      "bytes": 4658
+    },
+    {
+      "path": "packages/commons/lib/identity-signer/index.ts",
+      "sha256": "179942aefefe103fbebd6590d08e69409c3eee74718609a7320d5ccbc541db72",
+      "bytes": 2493
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "b03e9262914b01b0584c241494ee112fcb154f13a9c4cec20531dc1ff28bd928",
+      "bytes": 801217
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-apk-badging.log",
+      "sha256": "1b8377b3d63e4167deb886785c285b1274254da7477d4fc083a25108aecccd54",
+      "bytes": 9647
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-apk-manifest.log",
+      "sha256": "13e3638436cd5f6cf5018fc9b0c18bcf4f56ef57d3fdfcb48a83d9993b9817af",
+      "bytes": 32400
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-bc-dependencies.log",
+      "sha256": "fbe08e4c99f022186e3d9f00ad67dd810429b4c3511193c05c9cd56ef9d94a93",
+      "bytes": 11829
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-cas-tests.log",
+      "sha256": "1aab4e2d0f5f802018032254097e27131e997d1d75b89986aeaca9d6f0a31e10",
+      "bytes": 1071
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-cert.log",
+      "sha256": "dd8354c541be23361fa7bbb5cbc470b4ddf8855ee14bedbe9b2390550ae23cc9",
+      "bytes": 311
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-entry-install.log",
+      "sha256": "c7af6c5a9026d633e7c9b9abb53bc3f6cf5ec93d1172752d9a395478a9d4ccd2",
+      "bytes": 160
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-final-bc-resolution.log",
+      "sha256": "77210a9f004a7cbba17eb55fc9e572f537d34f453ed001c994d80d89346bc158",
+      "bytes": 10802
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-final-gradle.log",
+      "sha256": "4ab177995be789553e9019c0bdb5168763d47d7abf39964eb6eef91a097c1358",
+      "bytes": 122933
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-final-lint.log",
+      "sha256": "339777f6f42dd01a76f498291b2cf373a19a52d140dbd07581b781b653ae051e",
+      "bytes": 831
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-final-prebuild.log",
+      "sha256": "bbcd4e3c899124688db88b2fdda3f9012e31d95a0d082fe04eac96f6adb2ac62",
+      "bytes": 402
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-final-types.log",
+      "sha256": "13ee7076dc08ef869e71c1796c3e663779cf1bd89aba79b2112852206b69cc43",
+      "bytes": 18
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-gradle.log",
+      "sha256": "7155fbd3eeb5c2dd0142d5ddcd3c0ded8dce5c18e669d979a81c693a97e0f90a",
+      "bytes": 1327827
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-lint-verified.log",
+      "sha256": "698c835e56670a48c20a23580976741d576d4e189eb9a6f6ff1872970b1f0c34",
+      "bytes": 14
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-services-build.log",
+      "sha256": "bcc1b87dc90f5d1807abdaa9d686bfb06016eb713dda1beada7e7789fd4a98ba",
+      "bytes": 1551
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-splash-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce",
+      "bytes": 201
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-identity-recovery/logs/identity-vectors.xml",
+      "sha256": "bc50e097df60c15d403be5ea74031cba3f6eb02dbc810bd36c0ad0d3bb5f087b",
+      "bytes": 896
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-identity-recovery-20261003.apk",
+      "sha256": "5b5b04eb6f65d45c1f2f73e5efca8ff14c500db9c2b8ca06fd0cc437cf33127c",
+      "bytes": 122831815
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-identity-bundle-20261003.js",
+      "sha256": "8e45fbe253b34ac651d33f8f1017a6aec89b5dbf3c7196abd3326a997e2b9a83",
+      "bytes": 25913231
+    }
+  ],
+  "results": {
+    "androidBuild": "PASS657tasks",
+    "jvmVectors": "5PASS0fail",
+    "offlineCAS": "7PASS",
+    "strictTS": "PASS",
+    "eslint": "PASS package-local binary; wrong root-path failed attempt retained",
+    "initialBuild": "RED duplicate providers retained",
+    "device": "NOT EXECUTED",
+    "metro": "17969 HTTP200"
+  },
+  "limitations": [
+    "Candidate SDK, final registry repeat pending",
+    "Root alone operates owned emulator5580",
+    "No ADB or device mutation by agent",
+    "Exact corruption requires root package/UID/cert/filehash CAS preflight",
+    "No identity/Keystore/SecureStore mutation, no plaintext keys in proof"
+  ]
+}

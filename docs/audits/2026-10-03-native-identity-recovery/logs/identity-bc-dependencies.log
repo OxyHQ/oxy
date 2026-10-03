@@ -1,0 +1,193 @@
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:shared:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:processResources NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:compileJava NO-SOURCE
+> Task :gradle-plugin:shared:processResources NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:jar UP-TO-DATE
+> Task :gradle-plugin:shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:jar UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:settings-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-updates-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:processResources UP-TO-DATE
+> Task :expo-updates-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-updates-gradle-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:jar UP-TO-DATE
+> Task :expo-updates-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-updates-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-updates-gradle-plugin:classes UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-updates-gradle-plugin:jar UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-module-gradle-plugin:classes UP-TO-DATE
+> Task :expo-module-gradle-plugin:jar UP-TO-DATE
+
+> Configure project :app
+ ℹ️  [33mApplying gradle plugin[0m '[32mexpo-max-sdk-override-plugin[0m'
+  [expo-max-sdk-override-plugin] This plugin will find all permissions declared with `android:maxSdkVersion`. If there exists a declaration with the `android:maxSdkVersion` annotation and another one without, the plugin will remove the annotation from the final merged manifest. In order to see a log with the changes run a clean build of the app.
+ ℹ️  [33mApplying gradle plugin[0m '[32mexpo-updates-gradle-plugin[0m'
+
+> Configure project :
+[32m[ExpoRootProject][0m Using the following versions:
+  - buildTools:  [32m36.0.0[0m
+  - minSdk:      [32m24[0m
+  - compileSdk:  [32m36[0m
+  - targetSdk:   [32m35[0m
+  - ndk:         [32m27.1.12297006[0m
+  - kotlin:      [32m2.1.20[0m
+  - ksp:         [32m2.1.20-2.0.1[0m
+
+> Configure project :expo-modules-core
+Linking react-native-worklets native libs into expo-modules-core build tasks
+task ':react-native-worklets:mergeDebugNativeLibs'
+task ':react-native-worklets:mergeReleaseNativeLibs'
+
+> Configure project :expo
+
+Using expo modules
+  - [32mexpo-log-box[0m (57.0.4)
+  - [32moxy-so-services[0m (0.1.0)
+  - [32mexpo-constants[0m (57.0.17)
+  - [32mexpo-eas-client[0m (57.0.3)
+  - [32mexpo-json-utils[0m (57.0.1)
+  - [32mexpo-manifests[0m (57.0.1)
+  - [32mexpo-modules-core[0m (57.0.17)
+  - [32mexpo-structured-headers[0m (57.0.0)
+  - [32mexpo-updates[0m (57.0.21)
+  - [32mexpo-updates-interface[0m (57.0.1)
+  - [32moxy-identity-backup[0m (0.1.0)
+  - [32moxy-identity-host[0m (0.1.0)
+  - [33m[📦][0m [32mexpo-dom-webview[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-ui[0m (57.0.17)
+  - [33m[📦][0m [32mexpo-application[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-asset[0m (57.0.16)
+  - [33m[📦][0m [32mexpo-blur[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-camera[0m (57.0.4)
+  - [33m[📦][0m [32mexpo-crypto[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-document-picker[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-file-system[0m (57.0.6)
+  - [33m[📦][0m [32mexpo-font[0m (57.0.3)
+  - [33m[📦][0m [32mexpo-haptics[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-image[0m (57.0.4)
+  - [33m[📦][0m [32mexpo-image-loader[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-image-manipulator[0m (57.0.16)
+  - [33m[📦][0m [32mexpo-keep-awake[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-linear-gradient[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-linking[0m (57.0.9)
+  - [33m[📦][0m [32mexpo-local-authentication[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-network[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-notifications[0m (57.0.17)
+  - [33m[📦][0m [32mexpo-router[0m (57.0.20)
+  - [33m[📦][0m [32mexpo-screen-capture[0m (57.0.3)
+  - [33m[📦][0m [32mexpo-secure-store[0m (57.0.3)
+  - [33m[📦][0m [32mexpo-sensors[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-sharing[0m (57.0.18)
+  - [33m[📦][0m [32mexpo-splash-screen[0m (57.0.8)
+  - [33m[📦][0m [32mexpo-status-bar[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-system-ui[0m (57.0.3)
+  - [33m[📦][0m [32mexpo-web-browser[0m (57.0.2)
+
+
+> Configure project :shopify_react-native-skia
+react-native-skia: SK_GRAPHITE: false
+react-native-skia: Skia libs: /home/nate/Oxy/oxy/.worktrees/1519-native-identity-recovery-20261003/node_modules/.bun/@shopify+react-native-skia@2.6.2/node_modules/@shopify/react-native-skia/android/../libs/android
+react-native-skia: node_modules/ found at: /home/nate/Oxy/oxy/.worktrees/1519-native-identity-recovery-20261003/node_modules/.bun/node_modules
+react-native-skia: RN Version: 86 / 0.86.0
+react-native-skia: isSourceBuild: false
+react-native-skia: PrebuiltDir: /home/nate/Oxy/oxy/.worktrees/1519-native-identity-recovery-20261003/node_modules/.bun/@shopify+react-native-skia@2.6.2/node_modules/@shopify/react-native-skia/android/build/react-native-0*/jni
+react-native-skia: buildType: debug
+react-native-skia: buildDir: /home/nate/Oxy/oxy/.worktrees/1519-native-identity-recovery-20261003/node_modules/.bun/@shopify+react-native-skia@2.6.2/node_modules/@shopify/react-native-skia/android/build
+react-native-skia: node_modules: /home/nate/Oxy/oxy/.worktrees/1519-native-identity-recovery-20261003/node_modules/.bun/node_modules
+react-native-skia: Enable Prefab: true
+react-native-skia: aar state post 70, do nothing
+
+> Task :app:dependencyInsight
+org.bouncycastle:bcprov-jdk15to18:1.81
+  Variant runtime:
+    | Attribute Name                                  | Provided     | Requested    |
+    |-------------------------------------------------|--------------|--------------|
+    | org.gradle.libraryelements                      | jar          |              |
+    | org.gradle.status                               | release      |              |
+    | org.gradle.category                             | library      | library      |
+    | org.gradle.usage                                | java-runtime | java-runtime |
+    | com.android.build.api.attributes.AgpVersionAttr |              | 8.12.0       |
+    | com.android.build.api.attributes.BuildTypeAttr  |              | debug        |
+    | org.gradle.jvm.environment                      |              | android      |
+    | org.jetbrains.kotlin.platform.type              |              | androidJvm   |
+   Selection reasons:
+      - Was requested: didn't match versions 1.86, 1.85.2, 1.85.1, 1.85, 1.84, 1.83, 1.82
+
+org.bouncycastle:bcprov-jdk15to18:[1.81,1.82) -> 1.81
+\--- org.bouncycastle:bcutil-jdk15to18:1.81
+     \--- project :expo-updates
+          \--- project :expo
+               \--- debugRuntimeClasspath
+
+org.bouncycastle:bcprov-jdk18on:1.80
+  Variant runtime:
+    | Attribute Name                                  | Provided     | Requested    |
+    |-------------------------------------------------|--------------|--------------|
+    | org.gradle.libraryelements                      | jar          |              |
+    | org.gradle.status                               | release      |              |
+    | org.gradle.category                             | library      | library      |
+    | org.gradle.usage                                | java-runtime | java-runtime |
+    | com.android.build.api.attributes.AgpVersionAttr |              | 8.12.0       |
+    | com.android.build.api.attributes.BuildTypeAttr  |              | debug        |
+    | org.gradle.jvm.environment                      |              | android      |
+    | org.jetbrains.kotlin.platform.type              |              | androidJvm   |
+
+org.bouncycastle:bcprov-jdk18on:1.80
+\--- project :oxy-identity-host
+     \--- project :expo
+          \--- debugRuntimeClasspath
+
+A web-based, searchable dependency report is available by adding the --scan option.
+
+[Incubating] Problems report is available at: file:///home/nate/Oxy/oxy/.worktrees/1519-native-identity-recovery-20261003/packages/commons/android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 4s
+33 actionable tasks: 1 executed, 32 up-to-date

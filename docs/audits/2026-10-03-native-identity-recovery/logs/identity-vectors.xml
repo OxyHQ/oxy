@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="so.oxy.commons.identityhost.IdentityCryptoTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-03T10:07:32.299Z" hostname="SuperPC" time="0.335">
+  <properties/>
+  <testcase name="scopedSeedsMatch" classname="so.oxy.commons.identityhost.IdentityCryptoTest" time="0.238"/>
+  <testcase name="socialReceiveMatches" classname="so.oxy.commons.identityhost.IdentityCryptoTest" time="0.068"/>
+  <testcase name="rejectsMalformedInput" classname="so.oxy.commons.identityhost.IdentityCryptoTest" time="0.009"/>
+  <testcase name="publicKeysAndProofsMatch" classname="so.oxy.commons.identityhost.IdentityCryptoTest" time="0.015"/>
+  <testcase name="vectorsAreNotEmpty" classname="so.oxy.commons.identityhost.IdentityCryptoTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
