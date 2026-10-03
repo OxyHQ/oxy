@@ -1,0 +1,65 @@
+{
+  "observedAt": "2026-10-03T22:08:23.886185+00:00",
+  "source": "Authenticated GitHub check-runs API",
+  "scope": "Only listed workflow checks; not full application CI, registry adoption or deployment",
+  "records": [
+    {
+      "repository": "OxyHQ/Mention",
+      "source": "69a8659d8f4c9e1a94c46b62f458649ce2ebaa1b",
+      "checks": [
+        {
+          "id": 111302848396,
+          "name": "CodeQL",
+          "headSha": "69a8659d8f4c9e1a94c46b62f458649ce2ebaa1b",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/OxyHQ/Mention/runs/111302848396"
+        },
+        {
+          "id": 111302766747,
+          "name": "Analyze (actions)",
+          "headSha": "69a8659d8f4c9e1a94c46b62f458649ce2ebaa1b",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/OxyHQ/Mention/actions/runs/37157149266/job/111302766747"
+        },
+        {
+          "id": 111302766731,
+          "name": "Analyze (javascript-typescript)",
+          "headSha": "69a8659d8f4c9e1a94c46b62f458649ce2ebaa1b",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/OxyHQ/Mention/actions/runs/37157149266/job/111302766731"
+        },
+        {
+          "id": 111302766647,
+          "name": "Analyze (python)",
+          "headSha": "69a8659d8f4c9e1a94c46b62f458649ce2ebaa1b",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/OxyHQ/Mention/actions/runs/37157149266/job/111302766647"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Alia",
+      "source": "b7aaf00495c55d542007109328bc891233b807d6",
+      "checks": [
+        {
+          "id": 111300165219,
+          "name": "Deploy Script Tests",
+          "headSha": "b7aaf00495c55d542007109328bc891233b807d6",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/OxyHQ/Alia/actions/runs/37156267734/job/111300165219"
+        }
+      ]
+    }
+  ],
+  "remaining": [
+    "CrowdSource audit: three unpatched advisories require reachability review; no exception applied.",
+    "Alia/Mention new SDK APIs remain absent in committed old locks until registry-ready.",
+    "Mention browser gate inconclusive against intentionally stopped live backend.",
+    "Transient GitHub service errors in Changes jobs are separately retained."
+  ]
+}

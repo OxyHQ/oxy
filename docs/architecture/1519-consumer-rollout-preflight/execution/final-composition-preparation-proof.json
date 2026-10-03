@@ -28,6 +28,10 @@
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/post-workflow-preflight.json",
       "sha256": "9b00048ab3e1cca44a17ab544bd970c9af9d684453265d7ad83ec8cbc930c826"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/workflow-ci-followups.json",
+      "sha256": "47dd43531e09ca737dedc4bdbb6f57b0a60b0581d02a0bc4994ac9414b74d203"
     }
   ],
   "checks": {
