@@ -538,6 +538,20 @@ describe('native foreground device-state reconciliation', () => {
     await act(async () => { complete?.(); });
   });
 
+  it('does not bootstrap on initial unknown→active, then heals a real background resume', async () => {
+    Reflect.set(AppState, 'currentState', null);
+    const { stub } = buildStub();
+    renderProvider(stub);
+    await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+    stub.session.setAccessToken('existing-device-token');
+    fakeSessionClient.bootstrap.mockClear();
+    await emit('active');
+    expect(fakeSessionClient.bootstrap).not.toHaveBeenCalled();
+    await emit('background');
+    await emit('active');
+    expect(fakeSessionClient.bootstrap).toHaveBeenCalledTimes(1);
+  });
+
   it('never reads the shared device for a signed-out provider', async () => {
     const { stub } = buildStub();
     renderProvider(stub);
