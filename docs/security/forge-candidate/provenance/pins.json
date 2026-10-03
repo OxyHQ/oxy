@@ -1,23 +1,23 @@
 {
-  "sourceSha": "b64b1d20b9f4c91e487fd31b033d1d268f416636",
+  "sourceSha": "2f1f18d54ced21a89f5d8151555df238f9058b57",
   "pullRequest": 1559,
   "headBranch": "review/1519-service-token-issuer-20261003",
-  "runId": 37099979518,
+  "runId": 37100967092,
   "runAttempt": 1,
-  "jobId": 111137449717,
-  "workflowMergeSha": "85d4c41cb497282fd6b5b9cd7d3296a1b43770c8",
-  "artifactId": 11265698534,
-  "artifactDigest": "sha256:b8ce307627218b3609fc7477063ad5a91f430d3de27bfd7216c3ccc391f32c6b",
+  "jobId": 111140256205,
+  "workflowMergeSha": "84d4a1346e0413058caf38835142f98fb03217a7",
+  "artifactId": 11265817041,
+  "artifactDigest": "sha256:3c6b21c457e5912bb1ba608bf8ebc234a5062c0ba2c9dc6b29d8fd5d920e829a",
   "artifactFiles": {
-    "forge-build-metadata.json": "4d4cd51dfc0d8582f8a6823e81a7aed1af9072cd78856d2338a16c54d35bc593",
-    "forge-image-identity.txt": "53c24bb110d07731127674a36704956a03b798982ff5ee4eeaf47962363d88ed",
+    "forge-build-metadata.json": "8bd949f3516a6fcbb1f887aa7a00d529471fccc8d6cf008c19b27f39e62fcfee",
+    "forge-image-identity.txt": "48ee29566ad993e642170c1618da52cb32500d2a9d3f194e7f2dda881d8b5324",
     "forge-image-dangling-links.json": "4b3c6d088ea21592c6ee683cba3adc348c437591b515bf783e0f39d9ce4525dd",
-    "forge-image-regression-proof.json": "0bb0c637f76f95cfc359020952265da194baff16102f152512fe6edab2eae5a9",
+    "forge-image-regression-proof.json": "c69b944ffa185b426f7e187e6fc156a5b34b2d87ab124cf85a7a922cbb039d22",
     "forge-image-roots.json": "2f375f25a70c77bcaaf16e94b84233c12a3d791029a269f0a65d848ab4661c2b",
-    "forge-image-mount-targets.json": "cd68429eaff226615ef015dab60bac77cf4e53c5dede8cd2a2793a5ed324db5e"
+    "forge-image-mount-targets.json": "9c9bda2b705fdbc86fb9ec09a19e49c22fcc6cf2db10088360717b53422667ad"
   },
   "image": {
-    "configId": "sha256:4b284763745785a8c923e64ca01570b27488217ab27325d95e1f706468118935",
-    "manifestDigest": "sha256:fb31da67f5c0b7613cf4aac566c61036fcdeb21f17b660ffc30afd411eee2127"
+    "configId": "sha256:c6db1e7fb8b561766918c6fac28699f5bdf7537f77fb3c72f91c6746bcc4065b",
+    "manifestDigest": "sha256:0f44582452bc40653d59334947f7ba0c38f9227b092e0233605c24530eee30ed"
   }
 }
