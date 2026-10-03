@@ -1,0 +1,11 @@
+{
+  "generatedStatementCount": 5,
+  "sourceSupplementStatementCount": 1,
+  "preservesEveryGeneratedStatementInOrder": true,
+  "sourceSupplementExact": true,
+  "tables": 223,
+  "changedTables": [
+    "public.capability_execution_authorizations"
+  ],
+  "snapshotsManuallyEdited": false
+}
