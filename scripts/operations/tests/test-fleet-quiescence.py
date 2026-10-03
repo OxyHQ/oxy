@@ -127,6 +127,23 @@ class FleetTests(unittest.TestCase):
         with patch.object(f,'aws',return_value={'services':[service],'failures':[]}),patch.object(f,'tasks_for',return_value=[]),patch.object(f,'scalers')as scalers:
             self.assertIsNone(f.service_row(f.API,{})['scaler']);scalers.assert_not_called()
 
+    def test_namespace_wide_scaler_and_schedule_commands_are_validated(self):
+        calls=[]
+        def aws(*args):
+            calls.append(args)
+            if args[1] in ('describe-scalable-targets','describe-scheduled-actions'):
+                self.assertNotIn('--scalable-dimension',args)
+            if args[1]=='describe-scalable-targets':return {'ScalableTargets':[scaler()]}
+            if args[1]=='describe-scheduled-actions':return {'ScheduledActions':[]}
+            if args[0]=='scheduler':return {'Schedules':[]}
+            return {'Rules':[]}
+        with patch.object(f,'aws',side_effect=aws):
+            self.assertEqual(f.scalers()[f.API],scaler());self.assertEqual(f.schedules()['scaling'],[])
+        invalid={**scaler(),'ScalableDimension':'unreviewed'}
+        for function,key in ((f.scalers,'ScalableTargets'),(f.schedules,'ScheduledActions')):
+            with patch.object(f,'aws',return_value={key:[invalid]}):
+                with self.assertRaisesRegex(RuntimeError,'dimension differs'):function()
+
     def test_repeated_pagination_token_fails(self):
         with patch.object(f,'aws',return_value={'rows':[],'nextToken':'same'}):
             with self.assertRaisesRegex(RuntimeError,'repeated'):f.pages(['fake'],'rows')

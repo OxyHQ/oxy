@@ -154,17 +154,19 @@ def describe_tasks(arns,service=None):
 
 
 def scalers():
-    rows=pages(['application-autoscaling','describe-scalable-targets','--service-namespace','ecs','--scalable-dimension','ecs:service:DesiredCount'],
+    rows=pages(['application-autoscaling','describe-scalable-targets','--service-namespace','ecs'],
         'ScalableTargets','NextToken',bound=500)
     selected=[row for row in rows if row['ResourceId'].startswith('service/'+CLUSTER+'/')]
+    require(all(row.get('ServiceNamespace')=='ecs' and row.get('ScalableDimension')=='ecs:service:DesiredCount'for row in selected), 'Cluster scaler namespace/dimension differs')
     require(len({row['ResourceId']for row in selected})==len(selected),'Duplicate scaler')
     return {row['ResourceId'].rsplit('/',1)[1]:row for row in selected}
 
 
 def schedules():
-    scaling=pages(['application-autoscaling','describe-scheduled-actions','--service-namespace','ecs','--scalable-dimension','ecs:service:DesiredCount'],
+    scaling=pages(['application-autoscaling','describe-scheduled-actions','--service-namespace','ecs'],
         'ScheduledActions','NextToken',bound=500)
     scaling=[row for row in scaling if row['ResourceId'].startswith('service/'+CLUSTER+'/')]
+    require(all(row.get('ServiceNamespace')=='ecs' and row.get('ScalableDimension')=='ecs:service:DesiredCount'for row in scaling), 'Cluster schedule namespace/dimension differs')
     scheduler=pages(['scheduler','list-schedules','--max-results','100'],'Schedules','NextToken',bound=500)
     rules=pages(['events','list-rules','--limit','100'],'Rules','NextToken',bound=500)
     event_rows=[]
