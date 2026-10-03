@@ -1,0 +1,58 @@
+[
+  {
+    "number": 568,
+    "url": "https://github.com/OxyHQ/oxy/security/code-scanning/568",
+    "rule": "js/missing-rate-limiting",
+    "severity": "high",
+    "instance": {
+      "ref": "refs/heads/main",
+      "analysis_key": "dynamic/github-code-scanning/codeql:analyze",
+      "environment": "{\"build-mode\":\"none\",\"category\":\"/language:javascript-typescript\",\"language\":\"javascript-typescript\",\"runner\":\"[\\\"ubuntu-latest\\\"]\"}",
+      "category": "/language:javascript-typescript",
+      "state": "open",
+      "commit_sha": "67c09e853db308d102624a2ffd40db19959344f4",
+      "message": {
+        "text": "This route handler performs authorization, but is not rate-limited.",
+        "markdown": "This route handler performs [authorization](packages/api/src/middleware/auth.ts#L355C23-L355C74), but is not rate-limited."
+      },
+      "location": {
+        "path": "packages/api/src/middleware/__tests__/authIdentity.test.ts",
+        "start_line": 173,
+        "end_line": 173,
+        "start_column": 28,
+        "end_column": 48
+      },
+      "classifications": [
+        "test"
+      ]
+    }
+  },
+  {
+    "number": 569,
+    "url": "https://github.com/OxyHQ/oxy/security/code-scanning/569",
+    "rule": "js/missing-rate-limiting",
+    "severity": "high",
+    "instance": {
+      "ref": "refs/heads/main",
+      "analysis_key": "dynamic/github-code-scanning/codeql:analyze",
+      "environment": "{\"build-mode\":\"none\",\"category\":\"/language:javascript-typescript\",\"language\":\"javascript-typescript\",\"runner\":\"[\\\"ubuntu-latest\\\"]\"}",
+      "category": "/language:javascript-typescript",
+      "state": "open",
+      "commit_sha": "67c09e853db308d102624a2ffd40db19959344f4",
+      "message": {
+        "text": "This route handler performs authorization, but is not rate-limited.",
+        "markdown": "This route handler performs [authorization](packages/api/src/middleware/optionalAuth.ts#L27C36-L27C78), but is not rate-limited."
+      },
+      "location": {
+        "path": "packages/api/src/middleware/__tests__/authIdentity.test.ts",
+        "start_line": 177,
+        "end_line": 177,
+        "start_column": 30,
+        "end_column": 52
+      },
+      "classifications": [
+        "test"
+      ]
+    }
+  }
+]
