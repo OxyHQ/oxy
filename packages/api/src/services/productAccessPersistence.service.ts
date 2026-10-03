@@ -38,9 +38,10 @@ function segmentDto(row: typeof accessOfferSegments.$inferSelect): ProductOfferS
     origin: row.origin, period: { start: row.periodStart.toISOString(), end: row.periodEnd.toISOString() } });
 }
 function benefitDto(row: typeof accessOfferBenefits.$inferSelect): ProductBenefit {
+  if (row.kind === 'quota' && (row.unit === null || row.included === null || row.combination === null)) throw productAccessNotConfigured();
   return row.kind === 'capability'
     ? { kind: 'capability', productId: row.productId, key: row.key }
-    : { kind: 'quota', productId: row.productId, key: row.key, unit: row.unit!, included: row.included!, combination: row.combination! };
+    : { kind: 'quota', productId: row.productId, key: row.key, unit: z.string().parse(row.unit), included: z.number().parse(row.included), combination: z.enum(['maximum','sum','exclusive']).parse(row.combination) };
 }
 /** Serializes with account closure using the existing users row fence. */
 async function lockOpenAccounts(db: DatabaseOrTransaction, accountIds: string[]): Promise<void> {
@@ -128,16 +129,16 @@ export async function registerProductAccessConfiguration(input: { products: Prod
  */
 export async function recordProductAccessPeriod(input: {
   source: ProductSubscriptionSource; segment: ProductOfferSegment; providerObservedAt: Date; providerBinding: ProductProviderBinding;
+  /** Internal provider adapter only; account/app union is locked before source transition. */
+  advanceSourceSnapshot?: boolean;
 }, transaction?: Transaction): Promise<{ status: 'recorded' | 'replayed'; grantIds: string[] }> {
   const binding = productProviderBindingSchema.parse(input.providerBinding);
   const source = productSubscriptionSourceSchema.parse(input.source);
   const segment = productOfferSegmentSchema.parse(input.segment);
   if (!Number.isFinite(input.providerObservedAt.getTime())) throw new ConflictError('Provider observation is required');
-  if (segment.subscriptionId !== source.id || segment.beneficiaryAccountId !== source.beneficiaryAccountId
-    || Date.parse(segment.period.start) < Date.parse(source.period.start) || Date.parse(segment.period.end) > Date.parse(source.period.end)) {
+  if (segment.subscriptionId !== source.id || segment.beneficiaryAccountId !== source.beneficiaryAccountId) {
     throw new ConflictError('Offer segment does not match its subscription source');
   }
-  if (!['active', 'trialing'].includes(source.status)) throw new ConflictError('Inactive source cannot issue an access period');
   const write = async (tx: Transaction): Promise<{ status: 'recorded' | 'replayed'; grantIds: string[] }> => {
     const offer = await configuredOffer(tx, segment.offerId, segment.offerVersion);
     const definitions = await Promise.all([...new Set(offer.benefits.map(benefit => benefit.productId))].map(id => readRegisteredProduct(tx, id)));
@@ -159,7 +160,26 @@ export async function recordProductAccessPeriod(input: {
     same({ id: actualSource.id, beneficiaryAccountId: actualSource.beneficiaryAccountId, payerAccountId: actualSource.payerAccountId, provider: actualSource.provider, providerSubscriptionId: actualSource.providerSubscriptionId },
       { id: source.id, beneficiaryAccountId: source.beneficiaryAccountId, payerAccountId: source.payerAccountId, provider: source.provider, providerSubscriptionId: source.providerSubscriptionId });
     const [historic] = await tx.select().from(accessOfferSegments).where(eq(accessOfferSegments.id, segment.id));
-    if (!historic) same(actualSource, source);
+    if (!historic) {
+      // Current state does not authorize a NEW grant for an old/canceled period.
+      // An immutable existing segment can be acknowledged without rewinding it.
+      if (Date.parse(segment.period.start) < Date.parse(source.period.start)
+        || Date.parse(segment.period.end) > Date.parse(source.period.end)) throw new ConflictError('New offer segment is outside current source period');
+      if (!['active', 'trialing'].includes(source.status)) throw new ConflictError('Inactive source cannot issue an access period');
+    }
+    if (!historic && input.advanceSourceSnapshot) {
+      // Union of every new bundle product owner/application was locked above,
+      // before the source row; no named update acquires another lower lock later.
+      if (input.providerObservedAt.getTime() <= storedSource.providerObservedAt.getTime()) same(actualSource, source);
+      else {
+        if (Date.parse(source.period.start) < storedSource.periodStart.getTime()
+          || Date.parse(source.period.end) < storedSource.periodEnd.getTime()) throw new ConflictError('Provider source period cannot rewind');
+        await tx.update(accessSubscriptionSources).set({ status: source.status,
+          periodStart: new Date(source.period.start), periodEnd: new Date(source.period.end),
+          cancelAtPeriodEnd: source.cancelAtPeriodEnd, providerObservedAt: input.providerObservedAt,
+        }).where(eq(accessSubscriptionSources.id, source.id));
+      }
+    } else if (!historic) same(actualSource, source);
     const inserted = await tx.insert(accessOfferSegments).values({ id: segment.id, subscriptionId: segment.subscriptionId,
       beneficiaryAccountId: segment.beneficiaryAccountId, offerId: segment.offerId, offerVersion: segment.offerVersion,
       origin: segment.origin, periodStart: new Date(segment.period.start), periodEnd: new Date(segment.period.end),

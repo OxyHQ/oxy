@@ -211,3 +211,78 @@ it('database prevents rewriting/deleting either evidence record and rejects cros
   await expectConstraint(getDb().insert(accessProviderEvents).values({ ...event, eventId: `evt_${randomUUID()}`, sourceId: randomUUID() }), isForeignKeyViolation);
   await expectConstraint(getDb().insert(accessProviderPeriods).values({ ...period, id: randomUUID(), invoiceId: `in_${randomUUID()}`, payerAccountId: f.beneficiary }), isForeignKeyViolation);
 });
+
+
+it('provider renewal advances source and grants atomically without a named-update transaction', async () => {
+  const f = await fixture(); const first = await recordProductProviderPeriod(f.input);
+  const later = { start: f.period.end, end: new Date(Date.parse(f.period.end) + 86_400_000).toISOString() };
+  const observed = new Date(f.now.getTime() + 1);
+  const renewal = { ...f.input, subscription: { ...f.input.subscription, period: later },
+    paidLine: { ...f.input.paidLine, invoiceId: `in_${randomUUID()}`, period: later },
+    event: { ...f.input.event, id: `evt_${randomUUID()}` }, providerObservedAt: observed };
+  const second = await recordProductProviderPeriod(renewal);
+  expect(second.sourceId).toBe(first.sourceId); expect(second.segmentId).not.toBe(first.segmentId);
+  const [source] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, first.sourceId));
+  expect(source.periodStart.toISOString()).toBe(later.start);expect(source.periodEnd.toISOString()).toBe(later.end);
+  expect(source.providerObservedAt.getTime()).toBe(observed.getTime());
+  expect((await recordProductProviderPeriod(renewal)).grantIds).toEqual(second.grantIds);
+  await recordProductProviderPeriod(f.input);
+  const [afterReplay] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, first.sourceId));
+  expect(afterReplay.periodStart.toISOString()).toBe(later.start);
+});
+it('a failure after renewal source update rolls back transition, segment, evidence and grants together', async () => {
+  const f = await fixture(); const first = await recordProductProviderPeriod(f.input);
+  const later = { start: f.period.end, end: new Date(Date.parse(f.period.end) + 86_400_000).toISOString() };
+  const renewal = { ...f.input, subscription: { ...f.input.subscription, period: later },
+    paidLine: { ...f.input.paidLine, invoiceId: `in_${randomUUID()}`, period: later },
+    event: { ...f.input.event, id: `evt_failure_${randomUUID()}` }, providerObservedAt: new Date(f.now.getTime() + 1) };
+  await failSyntheticDeliveryInserts();
+  try {
+    await expect(recordProductProviderPeriod(renewal)).rejects.toThrow();
+    const [source] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, first.sourceId));
+    expect(source.periodStart.toISOString()).toBe(f.period.start);expect(source.providerObservedAt.getTime()).toBe(f.now.getTime());
+    expect(await getDb().select().from(accessOfferSegments).where(eq(accessOfferSegments.subscriptionId, first.sourceId))).toHaveLength(1);
+    expect(await getDb().select().from(accessProviderPeriods).where(eq(accessProviderPeriods.sourceId, first.sourceId))).toHaveLength(1);
+  } finally { await restoreDeliveryInserts(); }
+  const second = await recordProductProviderPeriod(renewal);expect(second.status).toBe('recorded');
+  expect((await recordProductProviderPeriod(renewal)).status).toBe('replayed');
+});
+it('a stale new-period snapshot cannot advance or rewind the currently stored source', async () => {
+  const f = await fixture(); const first = await recordProductProviderPeriod(f.input);
+  const later = { start: f.period.end, end: new Date(Date.parse(f.period.end) + 86_400_000).toISOString() };
+  const renewal = { ...f.input, subscription: { ...f.input.subscription, period: later },
+    paidLine: { ...f.input.paidLine, invoiceId: `in_${randomUUID()}`, period: later },
+    event: { ...f.input.event, id: `evt_${randomUUID()}` }, providerObservedAt: new Date(f.now.getTime() + 1) };
+  await recordProductProviderPeriod(renewal);
+  await expect(recordProductProviderPeriod({ ...f.input,
+    paidLine: { ...f.input.paidLine, invoiceId: `in_${randomUUID()}` }, event: { ...f.input.event, id: `evt_${randomUUID()}` } })).rejects.toThrow();
+  const [source] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, first.sourceId));
+  expect(source.periodStart.toISOString()).toBe(later.start);
+  expect(await getDb().select().from(accessOfferSegments).where(eq(accessOfferSegments.subscriptionId, first.sourceId))).toHaveLength(2);
+});
+
+
+it('old paid invoice replay accepts the actual renewed then canceled source without rewinding or new rights', async () => {
+  const f = await fixture(); const first = await recordProductProviderPeriod(f.input);
+  const later = { start: f.period.end, end: new Date(Date.parse(f.period.end) + 86_400_000).toISOString() };
+  const observed = new Date(f.now.getTime() + 1);
+  const current = { ...f.input.subscription, period: later };
+  await recordProductProviderPeriod({ ...f.input, subscription: current,
+    paidLine: { ...f.input.paidLine, invoiceId: `in_${randomUUID()}`, period: later },
+    event: { ...f.input.event, id: `evt_${randomUUID()}` }, providerObservedAt: observed });
+  const renewedReplay = await recordProductProviderPeriod({ ...f.input, subscription: current, providerObservedAt: observed });
+  expect(renewedReplay).toEqual({ ...first, status: 'replayed', eventStatus: 'replayed' });
+  const canceledAt = new Date(observed.getTime() + 1);
+  await updateProductAccessSourceState({ sourceId: first.sourceId, productId: f.products[0].id,
+    providerBinding: f.providerBinding, providerObservedAt: canceledAt, status: 'canceled', period: later, cancelAtPeriodEnd: false });
+  const canceled = { ...current, status: 'canceled' as const };
+  const canceledReplay = await recordProductProviderPeriod({ ...f.input, subscription: canceled, providerObservedAt: canceledAt });
+  expect(canceledReplay.grantIds).toEqual(first.grantIds);
+  await expect(recordProductProviderPeriod({ ...f.input, subscription: canceled, providerObservedAt: canceledAt,
+    paidLine: { ...f.input.paidLine, invoiceId: `in_${randomUUID()}` },
+    event: { ...f.input.event, id: `evt_${randomUUID()}` } })).rejects.toThrow();
+  const [source] = await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, first.sourceId));
+  expect(source.status).toBe('canceled'); expect(source.periodStart.toISOString()).toBe(later.start);
+  expect(source.providerObservedAt.getTime()).toBe(canceledAt.getTime());
+  expect(await getDb().select().from(accessOfferSegments).where(eq(accessOfferSegments.subscriptionId, first.sourceId))).toHaveLength(2);
+});
