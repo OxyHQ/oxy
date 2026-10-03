@@ -37,19 +37,40 @@ export type AccessTokenProvider = () => string | null;
  */
 export type AnonymousAuthProvider = () => Promise<string | null>;
 
+/** Comparison only fences local async work; it never validates token authority. */
+function sameTokenSession(left: string | null, right: string | null): boolean {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  const a = decodeTokenClaims(left);
+  const b = decodeTokenClaims(right);
+  if (!a || !b || !(a.userId || a.id || a.sub) || !(b.userId || b.id || b.sub)) return false;
+  // A refresh may rotate exp/iat/jti while preserving its account and session.
+  // Opaque/malformed context fields cannot establish that equivalence.
+  return ['userId', 'id', 'sub', 'sessionId', 'operatorId', 'clientId', 'appId', 'authMethodId'].every((key) =>
+    (a[key] === undefined || typeof a[key] === 'string') && a[key] === b[key]);
+}
+
+/** A trusted platform transport, for example Expo's streaming fetch. */
+export type ResponseTransport = (input: string, init: RequestInit) => Promise<Response>;
+
 /**
- * A low-level authenticated request whose response body remains unread.
- *
- * This is intended for streaming protocols such as SSE. The body must already
- * be serialised so it can be replayed once after an access-token refresh.
+ * A low-level same-origin request whose response body remains unread.
+ * Only absent/string request bodies can be replayed after a 401. Multipart,
+ * binary and stream bodies are sent once, even if their platform can replay them.
+ * The caller owns response parsing and the AbortSignal for its full lifetime.
  */
-export interface AuthenticatedResponseRequest {
+export interface ResponseRequest {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
-  body?: string;
-  headers?: Record<string, string>;
+  body?: BodyInit;
+  headers?: HeadersInit;
   signal?: AbortSignal;
+  /** Must honour the supplied URL, headers, signal and redirect policy. */
+  fetch?: ResponseTransport;
 }
+
+/** Same response contract, but rejects locally when the SDK has no bearer. */
+export type AuthenticatedResponseRequest = ResponseRequest;
 
 /**
  * Structural type that captures the multipart-write surface every supported
@@ -464,8 +485,7 @@ export class HttpService {
 
     if (providedToken) {
       if (providedToken !== currentToken) {
-        this.tokenStore.setTokens(providedToken);
-        this.notifyTokenChange();
+        this.setTokens(providedToken);
       }
       return providedToken;
     }
@@ -1282,8 +1302,12 @@ export class HttpService {
       this.tokenRefreshPromise = this.authRefreshHandler(reason)
         .then((newToken) => {
           if (epoch !== this.sessionEpoch) {
-            // The session ended while this re-mint was in flight. Not a failure
-            // (no cooldown), and nothing to plant.
+            // A guarded refresh handler can itself adopt a new active context.
+            // Acknowledge only an already-installed, exact result; never plant
+            // a stale return value over a concurrent switch/logout.
+            if (newToken && !this.sessionEnded && this.tokenStore.getAccessToken() === newToken) {
+              return newToken;
+            }
             this.logger.debug('Discarded a token refresh that outlived its session');
             return null;
           }
@@ -1294,8 +1318,7 @@ export class HttpService {
           // A token is planted again, so there is a session again.
           this.sessionEnded = false;
           if (this.tokenStore.getAccessToken() !== newToken) {
-            this.tokenStore.setTokens(newToken);
-            this.notifyTokenChange();
+            this.setTokens(newToken);
           }
           this.noFresherTokenThan = isInsideRefreshLeadWindow(newToken) ? newToken : null;
           // A success clears the failure timestamp so the next refresh is never
@@ -1463,56 +1486,95 @@ export class HttpService {
    * abort signal defines the lifetime of a healthy stream.
    */
   async requestAuthenticatedResponse(config: AuthenticatedResponseRequest): Promise<Response> {
-    const authHeader = await this.getAuthHeader();
-    if (!authHeader) {
-      throw new OxyAuthenticationError(
-        'An active Oxy session is required for this request',
-        'AUTH_REQUIRED',
-      );
-    }
-
-    return this.requestAuthenticatedResponseAttempt(config, authHeader, false);
+    return this.requestRawResponse(config, true);
   }
 
-  private async requestAuthenticatedResponseAttempt(
-    config: AuthenticatedResponseRequest,
-    authHeader: string,
-    isAuthRetry: boolean,
-  ): Promise<Response> {
-    const startTime = Date.now();
-    const headers = new Headers(config.headers);
-    if (!headers.has('Accept')) {
-      headers.set('Accept', 'application/json');
+  /**
+   * Raw response for public or authenticated app endpoints. The SDK supplies
+   * its current bearer when available; caller headers never supply authority.
+   * No caching, envelope transformation or transport-error retry is performed.
+   */
+  async requestResponse(config: ResponseRequest): Promise<Response> {
+    return this.requestRawResponse(config, false);
+  }
+
+  private async requestRawResponse(config: ResponseRequest, requireAuth: boolean): Promise<Response> {
+    // Validate before obtaining a bearer: an unrelated origin must not trigger
+    // an auth mint, even when the trusted transport accepts absolute URLs.
+    const target = new URL(this.buildURL(config.url));
+    const base = new URL(this.baseURL);
+    if (target.origin !== base.origin || !['http:', 'https:'].includes(target.protocol)
+      || target.username || target.password) {
+      throw new Error('Raw response requests must target the configured API origin');
     }
-    // Authentication is owned by this SDK instance. A caller cannot replace
-    // the bearer with a different session or leak one across linked apps.
-    headers.set('Authorization', authHeader);
-    // Never awaited: the PoP is a hint, and waiting on its trace fetch put up
-    // to a second in front of requests.
+    if (config.signal?.aborted) throw createCancelledError();
+    // Snapshot caller-owned options once, including headers, before any await.
+    const request = { ...config, headers: new Headers(config.headers) };
+    const contextToken = this.syncAccessTokenFromProvider();
+    const beforeAuthEpoch = this.sessionEpoch;
+    const authHeader = await this.getAuthHeader();
+    if (beforeAuthEpoch !== this.sessionEpoch || !sameTokenSession(contextToken, this.tokenStore.getAccessToken())) {
+      throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+    }
+    if (config.signal?.aborted) throw createCancelledError();
+    if (requireAuth && !authHeader) {
+      throw new OxyAuthenticationError('An active Oxy session is required for this request', 'AUTH_REQUIRED');
+    }
+    return this.requestResponseAttempt(request, target.href, authHeader, false, this.sessionEpoch, contextToken);
+  }
+
+  private async requestResponseAttempt(
+    config: ResponseRequest,
+    fullUrl: string,
+    authHeader: string | null,
+    isAuthRetry: boolean,
+    epoch: number,
+    contextToken: string | null,
+  ): Promise<Response> {
+    const assertCurrent = (): void => {
+      this.syncAccessTokenFromProvider();
+      if (epoch !== this.sessionEpoch || !sameTokenSession(contextToken, this.tokenStore.getAccessToken())) {
+        throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+      }
+    };
+    const startTime = Date.now();
+    if (config.signal?.aborted) throw createCancelledError();
+    assertCurrent();
+    const headers = new Headers(config.headers);
+    if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+    // Never accept ambient credentials or another authority from a caller.
+    for (const name of ['Authorization', 'Cookie', 'Cookie2', 'Host', 'Proxy-Authorization']) headers.delete(name);
+    if (authHeader) headers.set('Authorization', authHeader);
     const edgeRegionHeader = peekBrowserEdgeRegionHeader();
     for (const [name, value] of Object.entries(edgeRegionHeader)) headers.set(name, value);
     const activityIdHeader = getBrowserActivityIdHeader();
     for (const [name, value] of Object.entries(activityIdHeader)) headers.set(name, value);
 
     try {
-      const fullUrl = this.buildURL(config.url);
-      const response = await fetch(fullUrl, {
+      const body = config.method === 'GET' ? undefined : config.body;
+      const init: RequestInit & { duplex?: 'half' } = {
         method: config.method,
         headers,
-        body: config.method === 'GET' ? undefined : config.body,
+        body,
         signal: config.signal,
-        credentials: this.getCredentialsMode(fullUrl),
-      });
-
-      if (response.status === 401 && !isAuthRetry) {
+        credentials: 'omit',
+        redirect: 'error',
+      };
+      // Node fetch requires this flag for streaming uploads; ordinary and
+      // multipart bodies keep the platform's existing body serialization.
+      if (body && typeof body === 'object' && 'getReader' in body) init.duplex = 'half';
+      const response = await (config.fetch ?? globalThis.fetch)(fullUrl, init);
+      try { assertCurrent(); } catch (error) { await response.body?.cancel(); throw error; }
+      const replayable = body === undefined || typeof body === 'string';
+      if (response.status === 401 && !isAuthRetry && authHeader && replayable && !config.signal?.aborted) {
         const refreshed = await this.refreshAccessToken('response-401');
+        try { assertCurrent(); } catch (error) { await response.body?.cancel(); throw error; }
         if (refreshed) {
           await response.body?.cancel();
-          return this.requestAuthenticatedResponseAttempt(config, `Bearer ${refreshed}`, true);
+          if (config.signal?.aborted) throw createCancelledError();
+          return this.requestResponseAttempt(config, fullUrl, `Bearer ${refreshed}`, true, epoch, contextToken);
         }
-
-        this.tokenStore.clearTokens();
-        this.notifyTokenChange();
+        this.clearTokens();
       }
 
       const duration = Date.now() - startTime;
@@ -1523,8 +1585,11 @@ export class HttpService {
       const duration = Date.now() - startTime;
       this.updateMetrics(false, duration);
       this.config.onRequestEnd?.(config.url, config.method, duration, false);
-      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      const normalizedError = config.signal?.aborted || isCancelledError(error)
+        ? createCancelledError()
+        : error instanceof Error ? error : new Error(String(error));
       this.config.onRequestError?.(config.url, config.method, normalizedError);
+      if (isCancelledError(normalizedError) || normalizedError instanceof OxyAuthenticationError) throw normalizedError;
       throw handleHttpError(normalizedError);
     }
   }
@@ -1552,6 +1617,8 @@ export class HttpService {
 
   // Token management
   setTokens(accessToken: string): void {
+    const current = this.tokenStore.getAccessToken();
+    if (current && !sameTokenSession(current, accessToken)) this.sessionEpoch += 1;
     this.sessionEnded = false;
     this.tokenStore.setTokens(accessToken);
     this.notifyTokenChange();
@@ -1561,18 +1628,19 @@ export class HttpService {
    * End the local session: clear the bearer and abandon every re-mint already
    * in flight, so none of them can plant a token after the sign-out.
    *
-   * {@link clearTokens} alone only drops the bearer, which is right for a
-   * mirror (a linked client following its parent) but not for a sign-out: a
-   * refresh started a moment earlier would finish and plant a new one.
+   * Unlike {@link clearTokens}, this also marks the session as ended and
+   * invalidates pending re-mints even when no bearer is currently present.
    */
   endSession(): void {
-    this.sessionEpoch += 1;
+    if (!this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
     this.sessionEnded = true;
     this.clearTokens();
   }
 
   /**
-   * The current session epoch — see {@link endSession}. A re-mint lane that
+   * The current context epoch: account/session switches and bearer removal
+   * invalidate pending work; rotation within the same context preserves it.
+   * A re-mint lane that
    * plants tokens itself (the device-secret arm) compares it across its awaits.
    */
   getSessionEpoch(): number {
@@ -1604,6 +1672,7 @@ export class HttpService {
   }
 
   clearTokens(): void {
+    if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
     this.tokenStore.clearTokens();
     // Drop the response cache on logout. The cache is identity-scoped, so a
     // different user could never read these entries, but a logged-out client
