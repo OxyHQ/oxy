@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { closePostgres, getDb } from "../config/postgres";
+import { closePostgres, connectPostgres, getDb } from "../config/postgres";
 import sessionService from "../services/session.service";
 
 const id = z.string().min(1).max(256);
@@ -448,6 +448,7 @@ if (require.main === module) {
 					})
 					.strict()
 					.parse(JSON.parse(readFileSync(path, "utf8")));
+				await connectPostgres();
 				process.stdout.write(
 					`${JSON.stringify(await prepareOldIssuerAuthRetirement(input))}\n`,
 				);
