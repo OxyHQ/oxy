@@ -11,7 +11,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { Linking, Platform } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 import { OxyServices } from '@oxy.so/core';
 import type { LoginSessionResult } from '@oxy.so/contracts';
 import type { User, SessionLoginResponse } from '@oxy.so/core';
@@ -1184,30 +1184,47 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     });
   }, [runColdBoot, storage, initialized, logger]);
 
-  // Reconcile device state when the tab returns to foreground (background tabs may
-  // miss socket pushes or have stale bearer tokens).
+  // Reconcile device state on foreground: suspended native apps and background
+  // tabs may miss a sibling's active-context switch or socket pushes.
   useEffect(() => {
-    if (!isWebBrowser()) return;
-    const onVisibility = (): void => {
-      if (document.visibilityState !== 'visible') return;
-      const reconcile = async (): Promise<void> => {
-        if (hasIsolatedOAuthSession(runtime)) return;
+    let disposed = false;
+    let pending: Promise<void> | null = null;
+    const reconcile = (): void => {
+      if (disposed || pending || hasIsolatedOAuthSession(runtime)) return;
+      pending = (async (): Promise<void> => {
         if (!oxyServices.session.accessToken && sessionClientHost.getDeviceCredential()) {
-          // Route through the ONE shared single-flight the scheduler/preflight/401
-          // use — never a private mint lane — so a tab-focus reconcile can't
-          // double-rotate the device secret against them.
+          // The scheduler/preflight/401 paths own the same mint single-flight.
           await oxyServices.http.refreshAccessToken('preflight');
         }
+        if (disposed || hasIsolatedOAuthSession(runtime)) return;
         if (!oxyServices.session.accessToken && !sessionClientHost.getDeviceCredential()) {
           return;
         }
         await sessionClient.bootstrap();
+        if (disposed || hasIsolatedOAuthSession(runtime)) return;
         await syncFromClient();
-      };
-      void reconcile().catch(() => undefined);
+      })().catch(() => undefined).finally(() => { pending = null; });
     };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
+    if (isWebBrowser()) {
+      const onVisibility = (): void => {
+        if (document.visibilityState === 'visible') reconcile();
+      };
+      document.addEventListener('visibilitychange', onVisibility);
+      return () => {
+        disposed = true;
+        document.removeEventListener('visibilitychange', onVisibility);
+      };
+    }
+    let previousState = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (state) => {
+      const resumed = state === 'active' && (previousState === 'inactive' || previousState === 'background');
+      previousState = state;
+      if (resumed) reconcile();
+    });
+    return () => {
+      disposed = true;
+      subscription.remove();
+    };
   }, [oxyServices, sessionClient, sessionClientHost, syncFromClient, runtime]);
 
   // Reconnect heal: when connectivity transitions offline→online while there is
