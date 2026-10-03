@@ -1,6 +1,6 @@
 /** Live autonomous signer checks shared by session validation and account RBAC. */
 import { and, eq, gt, isNull } from 'drizzle-orm';
-import { getDb, type DatabaseOrTransaction } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
 import { sessions } from '../db/schema/sessions';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
@@ -8,6 +8,21 @@ import { users } from '../db/schema/users';
 import { ApiError } from '../utils/error';
 
 export interface AgentKeyBinding { authMethodId: string; authMethodOwnerId: string }
+
+/** Linearize a standing grant/write with key revocation and account closure. */
+export async function lockLiveAgentKeyForAuthorization(
+  tx: Transaction, binding: AgentKeyBinding, actorId: string,
+): Promise<void> {
+  if (binding.authMethodOwnerId !== actorId) {
+    throw new ApiError(401, 'Autonomous signer does not match principal', 'INVALID_SESSION');
+  }
+  await tx.select({ id: users.id }).from(users).where(eq(users.id, actorId)).for('share');
+  await tx.select({ id: userAuthMethods.id }).from(userAuthMethods)
+    .where(eq(userAuthMethods.id, binding.authMethodId)).for('update');
+  if (!await readLiveAgentKey(binding, tx)) {
+    throw new ApiError(401, 'Autonomous credential unavailable', 'INVALID_SESSION');
+  }
+}
 
 /** Carry the credential of the principal, even when the subject is an organization. */
 export async function readSessionAgentBinding(sessionId: string | undefined, actorId: string,
