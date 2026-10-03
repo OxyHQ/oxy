@@ -1,0 +1,116 @@
+{
+  "capturedAt": "2026-10-03T01:10:11.833153+00:00",
+  "candidate": "c2d047ab444054c90b812167a27c5d2a94a0e29b",
+  "services": [
+    {
+      "service": "kaana",
+      "present": true,
+      "serviceState": {
+        "name": "kaana",
+        "status": "ACTIVE",
+        "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:83",
+        "desired": 1,
+        "running": 1,
+        "pending": 0,
+        "deployments": [
+          {
+            "status": "PRIMARY",
+            "rolloutState": "COMPLETED",
+            "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:83"
+          }
+        ]
+      },
+      "liveTaskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:83",
+      "latestTaskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:83",
+      "liveImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/kaana@sha256:95dce6863cf662678236608f982dc05e8a4a3aca70ede9789f6c59c2a82b2d92",
+      "latestImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/kaana@sha256:95dce6863cf662678236608f982dc05e8a4a3aca70ede9789f6c59c2a82b2d92",
+      "liveShapeSha256": "b336269f2a8973248b74eac4aefb59907c47cbce3e993a91d9a665b0a470d3c0",
+      "latestShapeSha256": "b336269f2a8973248b74eac4aefb59907c47cbce3e993a91d9a665b0a470d3c0",
+      "shapeDifferencesExcludingReviewedImage": [],
+      "taskRoles": {
+        "live": "arn:aws:iam::237343248947:role/oxy-kaana-task",
+        "latest": "arn:aws:iam::237343248947:role/oxy-kaana-task"
+      },
+      "executionRoles": {
+        "live": "arn:aws:iam::237343248947:role/oxy-kaana-execution",
+        "latest": "arn:aws:iam::237343248947:role/oxy-kaana-execution"
+      }
+    },
+    {
+      "service": "kaana-publisher",
+      "present": true,
+      "serviceState": {
+        "name": "kaana-publisher",
+        "status": "ACTIVE",
+        "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:87",
+        "desired": 1,
+        "running": 1,
+        "pending": 0,
+        "deployments": [
+          {
+            "status": "PRIMARY",
+            "rolloutState": "COMPLETED",
+            "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:87"
+          }
+        ]
+      },
+      "liveTaskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:87",
+      "latestTaskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:87",
+      "liveImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/kaana@sha256:95dce6863cf662678236608f982dc05e8a4a3aca70ede9789f6c59c2a82b2d92",
+      "latestImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/kaana@sha256:95dce6863cf662678236608f982dc05e8a4a3aca70ede9789f6c59c2a82b2d92",
+      "liveShapeSha256": "bbf4f3fecdaf549a0fb54340db4a8feb95c51a53492433f1dbc7a49485a2bef4",
+      "latestShapeSha256": "bbf4f3fecdaf549a0fb54340db4a8feb95c51a53492433f1dbc7a49485a2bef4",
+      "shapeDifferencesExcludingReviewedImage": [],
+      "taskRoles": {
+        "live": "arn:aws:iam::237343248947:role/oxy-kaana-publisher",
+        "latest": "arn:aws:iam::237343248947:role/oxy-kaana-publisher"
+      },
+      "executionRoles": {
+        "live": "arn:aws:iam::237343248947:role/oxy-kaana-execution",
+        "latest": "arn:aws:iam::237343248947:role/oxy-kaana-execution"
+      },
+      "discoveryIds": {
+        "live": {
+          "KAANA_PROVIDER_XAI_REALTIME_DISCOVERY_KEY_ID": "05a6139b-5009-4d8f-b07c-4abccc79e349",
+          "KAANA_PROVIDER_CEREBRAS_DISCOVERY_KEY_ID": "43405cea-a7d1-49c2-ba73-5a84536d3abf",
+          "KAANA_PROVIDER_XAI_DISCOVERY_KEY_ID": "1d72d527-81ca-41e5-9644-2d81a4b126ec",
+          "KAANA_PROVIDER_GROQ_DISCOVERY_KEY_ID": "8295090b-86cf-4f1d-ab22-0ceeaf0ba0e1",
+          "KAANA_PROVIDER_OPENROUTER_DISCOVERY_KEY_ID": "b8090dce-82f2-4077-9fc1-fd831a53ca27",
+          "KAANA_PROVIDER_SILICONFLOW_DISCOVERY_KEY_ID": "455b2535-a58a-41f9-8b70-51dbf1861333"
+        },
+        "latest": {
+          "KAANA_PROVIDER_XAI_REALTIME_DISCOVERY_KEY_ID": "05a6139b-5009-4d8f-b07c-4abccc79e349",
+          "KAANA_PROVIDER_CEREBRAS_DISCOVERY_KEY_ID": "43405cea-a7d1-49c2-ba73-5a84536d3abf",
+          "KAANA_PROVIDER_XAI_DISCOVERY_KEY_ID": "1d72d527-81ca-41e5-9644-2d81a4b126ec",
+          "KAANA_PROVIDER_GROQ_DISCOVERY_KEY_ID": "8295090b-86cf-4f1d-ab22-0ceeaf0ba0e1",
+          "KAANA_PROVIDER_OPENROUTER_DISCOVERY_KEY_ID": "b8090dce-82f2-4077-9fc1-fd831a53ca27",
+          "KAANA_PROVIDER_SILICONFLOW_DISCOVERY_KEY_ID": "455b2535-a58a-41f9-8b70-51dbf1861333"
+        },
+        "manifest": {
+          "KAANA_PROVIDER_CEREBRAS_DISCOVERY_KEY_ID": "43405cea-a7d1-49c2-ba73-5a84536d3abf",
+          "KAANA_PROVIDER_GROQ_DISCOVERY_KEY_ID": "8295090b-86cf-4f1d-ab22-0ceeaf0ba0e1",
+          "KAANA_PROVIDER_OPENROUTER_DISCOVERY_KEY_ID": "b8090dce-82f2-4077-9fc1-fd831a53ca27",
+          "KAANA_PROVIDER_SILICONFLOW_DISCOVERY_KEY_ID": "455b2535-a58a-41f9-8b70-51dbf1861333",
+          "KAANA_PROVIDER_XAI_DISCOVERY_KEY_ID": "1d72d527-81ca-41e5-9644-2d81a4b126ec",
+          "KAANA_PROVIDER_XAI_REALTIME_DISCOVERY_KEY_ID": "05a6139b-5009-4d8f-b07c-4abccc79e349"
+        },
+        "liveEqualsManifest": true,
+        "latestEqualsManifest": true
+      }
+    },
+    {
+      "service": "kaana-credential-control",
+      "present": false,
+      "workflowBehavior": "skip; do not create service",
+      "latestFamilyExists": false
+    },
+    {
+      "service": "kaana-platform-credential-control",
+      "present": false,
+      "workflowBehavior": "skip; do not create service",
+      "latestFamilyExists": false
+    }
+  ],
+  "rawSecretEnvironmentValuesRetained": false,
+  "imageOnlyShape": true
+}

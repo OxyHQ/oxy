@@ -1,0 +1,44 @@
+{
+    "services": [
+        {
+            "name": "kaana",
+            "status": "ACTIVE",
+            "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:83",
+            "desired": 1,
+            "running": 1,
+            "pending": 0,
+            "deployments": [
+                {
+                    "status": "PRIMARY",
+                    "rolloutState": "COMPLETED",
+                    "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:83"
+                }
+            ]
+        },
+        {
+            "name": "kaana-publisher",
+            "status": "ACTIVE",
+            "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:87",
+            "desired": 1,
+            "running": 1,
+            "pending": 0,
+            "deployments": [
+                {
+                    "status": "PRIMARY",
+                    "rolloutState": "COMPLETED",
+                    "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:87"
+                }
+            ]
+        }
+    ],
+    "failures": [
+        {
+            "arn": "arn:aws:ecs:us-west-2:237343248947:service/oxy-cluster/kaana-credential-control",
+            "reason": "MISSING"
+        },
+        {
+            "arn": "arn:aws:ecs:us-west-2:237343248947:service/oxy-cluster/kaana-platform-credential-control",
+            "reason": "MISSING"
+        }
+    ]
+}
