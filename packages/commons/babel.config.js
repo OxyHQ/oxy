@@ -1,3 +1,6 @@
+if (process.env.EXPO_PUBLIC_OXY_IDENTITY_RECOVERY === '1') {
+  module.exports = require('@oxy.so/app-preset/babel');
+} else {
 module.exports = function (api) {
   api.cache(true);
   return {
@@ -27,3 +30,5 @@ module.exports = function (api) {
   };
 };
 
+
+}

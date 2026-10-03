@@ -1,3 +1,6 @@
+if (process.env.EXPO_PUBLIC_OXY_IDENTITY_RECOVERY === '1') {
+  module.exports = require('./acceptance/app.config');
+} else {
 const { oxySplashScreenPlugin } = require('@oxy.so/expo-splash/config');
 
 // App variant — lets a development build sit next to the production app on the
@@ -197,3 +200,5 @@ module.exports = {
     owner: 'oxyhq',
   },
 };
+
+}

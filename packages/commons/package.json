@@ -1,6 +1,6 @@
 {
   "name": "commons",
-  "main": "expo-router/entry",
+  "main": "acceptance-entry.js",
   "version": "1.2.0",
   "scripts": {
     "android": "RCT_METRO_PORT=8101 expo run:android",
