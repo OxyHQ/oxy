@@ -1,0 +1,32 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default database encoding has accordingly been set to "SQL_ASCII".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/.billing-evidence/pg1519-44368bbl/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/.billing-evidence/pg1519-44368bbl/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"newLocalServerPid": 3404470, "dataDirectory": "/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/.billing-evidence/pg1519-44368bbl/data", "database": "oxy_rehearsal_1519_8ffa4f39ec390131", "command": ["bun", "run", "test", "--runInBand", "--runTestsByPath", "src/services/__tests__/productProviderEvidence.test.ts", "src/services/__tests__/productAccessPersistence.test.ts", "src/services/__tests__/subscriptionCreditLedger.test.ts", "src/services/__tests__/subscriptionCreditLockOrder.test.ts", "src/services/__tests__/subscriptionPeriodPolicy.test.ts", "src/services/__tests__/subscriptionPromotionPolicy.test.ts", "src/services/__tests__/productBillingCatalogue.test.ts", "src/controllers/__tests__/subscription.controller.test.ts", "src/db/__tests__/credits.test.ts", "src/db/schema/__tests__/foreignKeys.test.ts", "src/routes/__tests__/billingWebhookIdempotency.test.ts"], "exitCode": 0, "log": "/home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/.billing-evidence/pg1519-44368bbl/api-focused.txt", "productionAccess": false, "suitesAndCounts": " 11 passed, 11 total\nTests:       166 passed, 166 total\nSnapshots:   0 total\nTime:        12.554 s, estimated 16 s\nRan all test suites within paths \"src/services/__tests__/productProviderEvidence.test.ts\", \"src/services/__tests__/productAccessPersistence.test.ts\", \"src/services/__tests__/subscriptionCreditLedger.test.ts\", \"src/services/__tests__/subscriptionCreditLockOrder.test.ts\", \"src/services/__tests__/subscriptionPeriodPolicy.test.ts\", \"src/services/__tests__/subscriptionPromotionPolicy.test.ts\", \"src/services/__tests__/productBillingCatalogue.test.ts\", \"src/controllers/__tests__/subscription.controller.test.ts\", \"src/db/__tests__/credits.test.ts\", \"src/db/schema/__tests__/foreignKeys.test.ts\", \"src/routes/__tests__/billingWebhookIdempotency.test.ts\".\n"}
+waiting for server to shut down.... done
+server stopped
+

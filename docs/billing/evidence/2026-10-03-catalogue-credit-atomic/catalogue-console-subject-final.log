@@ -1,0 +1,20 @@
+$ node --test worker/edge-checks.mjs && vitest run src/hooks/__tests__/billing-subject.test.tsx
+✔ frontend keeps asset streams, headers and errors when telemetry is disabled (19.191389ms)
+✔ enabled edge producer publishes actual media operations without a dashboard viewer (3.759337ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 68.177806
+
+ RUN  v4.1.11 /home/nate/Oxy/oxy/.worktrees/1519-billing-completion-20261003/packages/console
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  05:28:13
+   Duration  726ms (transform 107ms, setup 0ms, import 199ms, tests 77ms, environment 365ms)
+
