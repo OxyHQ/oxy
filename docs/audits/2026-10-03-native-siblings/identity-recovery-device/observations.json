@@ -1,0 +1,107 @@
+{
+  "operator": "root only; emulator-5580, synthetic owned so.oxy.commons.dev identity",
+  "attempt1": {
+    "result": "NO HEAL; metadata changed, ciphertext intact",
+    "rollback": {
+      "at": "2026-10-03T10:54:15.516979+00:00",
+      "reason": "Attempt1 metadata mutation did not make encrypted keyset unreadable; actual SDK read present, no heal observed",
+      "before": {
+        "oxy_shared_device_session.xml": "f52f21723404bc1fd4917263ee3d1c3df561ca0e532f066fce9983d5b8aac98f",
+        "oxy_identity_signer.xml": "ac3f50c9b7b0f8c7ce5bf329741ed05ffa750bb9d06963e549279e0082d3b9d5",
+        "SecureStore.xml": "d2a438d5c237ad8a064db16d8024020e2e122360e5e45bfb3d349959b0dd0ccc"
+      },
+      "restoredSha256": "da36cfb4bd8b8802dbbc98fff21479ee1a0eb9fcf712cf7ee04c1cbd76c37509",
+      "after": {
+        "oxy_shared_device_session.xml": "da36cfb4bd8b8802dbbc98fff21479ee1a0eb9fcf712cf7ee04c1cbd76c37509",
+        "oxy_identity_signer.xml": "ac3f50c9b7b0f8c7ce5bf329741ed05ffa750bb9d06963e549279e0082d3b9d5",
+        "SecureStore.xml": "d2a438d5c237ad8a064db16d8024020e2e122360e5e45bfb3d349959b0dd0ccc"
+      },
+      "completedAt": "2026-10-03T10:54:46.947816+00:00",
+      "priorCommandFailedBeforeWrite": true
+    }
+  },
+  "attempt2": {
+    "applied": {
+      "at": "2026-10-03T11:00:51.998534+00:00",
+      "after": {
+        "oxy_shared_device_session.xml": "f62dc127f3b77452dd33b48154e145fd43bdd70c7f8ed049ed7f15969203b394",
+        "oxy_identity_signer.xml": "ac3f50c9b7b0f8c7ce5bf329741ed05ffa750bb9d06963e549279e0082d3b9d5",
+        "SecureStore.xml": "d2a438d5c237ad8a064db16d8024020e2e122360e5e45bfb3d349959b0dd0ccc"
+      }
+    },
+    "after": {
+      "at": "2026-10-03T11:01:33.260035+00:00",
+      "files": {
+        "oxy_shared_device_session.xml": {
+          "bytes": 1136,
+          "sha256": "ae17ff04b981166d9ea78520e5ba8236c4f0978f5a69e3eab5458de873ff4645"
+        },
+        "oxy_identity_signer.xml": {
+          "bytes": 1632,
+          "sha256": "ac3f50c9b7b0f8c7ce5bf329741ed05ffa750bb9d06963e549279e0082d3b9d5"
+        },
+        "SecureStore.xml": {
+          "bytes": 5116,
+          "sha256": "d2a438d5c237ad8a064db16d8024020e2e122360e5e45bfb3d349959b0dd0ccc"
+        }
+      }
+    },
+    "observer": {
+      "SecureStore.xml_backupPresent": "false",
+      "SecureStore.xml_present": "true",
+      "SecureStore.xml_sha256": "d2a438d5c237ad8a064db16d8024020e2e122360e5e45bfb3d349959b0dd0ccc",
+      "fixtureStatus": "PASS",
+      "keystoreAliases": "[AES/GCM/NoPadding:key_v1:keystoreUnauthenticated, AES/GCM/NoPadding:oxy_identity:keystoreUnauthenticated, AES/GCM/NoPadding:oxy_identity_backup:keystoreUnauthenticated, _androidx_security_master_key_]",
+      "oxy_identity_signer.xml_backupPresent": "false",
+      "oxy_identity_signer.xml_present": "true",
+      "oxy_identity_signer.xml_sha256": "ac3f50c9b7b0f8c7ce5bf329741ed05ffa750bb9d06963e549279e0082d3b9d5",
+      "oxy_shared_device_session.xml_backupPresent": "false",
+      "oxy_shared_device_session.xml_present": "true",
+      "oxy_shared_device_session.xml_sha256": "ae17ff04b981166d9ea78520e5ba8236c4f0978f5a69e3eab5458de873ff4645",
+      "uid": "10224"
+    },
+    "aliasesUnchanged": true,
+    "identitySignerBytesUnchanged": true,
+    "secureStoreBytesUnchangedDuringRecovery": true,
+    "canonicalPublicKeyUnchanged": true,
+    "publicKeySha256": "1073b2c87284387aae239d49d5c80ac97c4b567b2aff16538a23cb881962943a",
+    "nativeLogs": {
+      "unreadable": true,
+      "regenerated": true
+    },
+    "ui": {
+      "ui-owner-after-broker.xml": [
+        "authenticated:true",
+        "private-ready:true",
+        "owner:01a10153-b291-7d5b-b543-aa703189494e",
+        "profile:01a10153-b291-7d5b-b543-aa703189494e",
+        "pin:01a10153-b291-7d5b-b543-aa703189494e:key-match:owner-match",
+        "operation:identity-observed",
+        "provider-error:false"
+      ],
+      "ui-attempt2-owner-result.xml": [
+        "authenticated:true",
+        "private-ready:true",
+        "owner:01a10153-b291-7d5b-b543-aa703189494e",
+        "profile:01a10153-b291-7d5b-b543-aa703189494e",
+        "pin:01a10153-b291-7d5b-b543-aa703189494e:key-match:owner-match",
+        "operation:identity-observed",
+        "provider-error:false"
+      ],
+      "ui-attempt2-sibling-profile-result.xml": [
+        "authenticated:true",
+        "private-ready:true",
+        "user:01a10153-b291-7d5b-b543-aa703189494e",
+        "profile:01a10153-b291-7d5b-b543-aa703189494e",
+        "operation:profile-read",
+        "provider-error:false"
+      ]
+    }
+  },
+  "limits": [
+    "SecureStore changed during earlier normal bootstrap; only attempt2 before/after is claimed byte-identical.",
+    "Broker present can come from Accounts after Commons file recovery; native log plus changed file proves recovery, not present status alone.",
+    "Mention sibling already had durable credentials; this is not fresh-UID adoption after recovery.",
+    "No Keystore alias deletion, identity wipe, rollback over healed file, physical device operation or production identity."
+  ]
+}
