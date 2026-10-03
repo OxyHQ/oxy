@@ -1,0 +1,29 @@
+{
+  "version": "6.2.1",
+  "dist": {
+    "shasum": "663e4d688e9d35ff71b3cd49a1704341177a69c4",
+    "tarball": "https://registry.npmjs.org/@oxy.so/bloom/-/bloom-6.2.1.tgz",
+    "fileCount": 20940,
+    "integrity": "sha512-oVNfAkQFNjdQWH3U4Wx/R2oF7JE3wBBJBC8dbjWHqvQaxUUA/DsFWX99Ld58Dl6mYvS7Jt7NU4OWPfZLuzuOpg==",
+    "signatures": [
+      {
+        "sig": "MEYCIQDsr65WNAxd/LGzmP/8pFF2OF7/uoyMy9CC9tVlv55sRgIhAKOJz5OQM7XxSKZzRgwPEMwLtbLDzKV5tlCAgNwZiLIJ",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      },
+      {
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+        "sig": "MEYCIQCJw/S1tlW07QEaoQ7wTxEGQanonuXiHkpbKKWfIRfqIQIhAJ91BVjec+0lanO16Bbs9qjtopFay+BqYs9ZKbgRlgU3"
+      }
+    ],
+    "unpackedSize": 69266709
+  },
+  "dist-tags": {
+    "inbox-maintenance": "4.34.5",
+    "latest": "7.1.1",
+    "maintenance-6": "6.2.1"
+  },
+  "downloadByteEqual": true,
+  "head": "a35ef1b2f7daeeb5f13e7a77e648289cac6be20d",
+  "initialReadback": "metadata initially absent then tarball404; no republish",
+  "readbackAt": 1791028695.4447217
+}
