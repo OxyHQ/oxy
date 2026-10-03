@@ -1,0 +1,7 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-6shz2rct/ordered-sequencer.cjs" --runTestsByPath src/routes/__tests__/capabilitiesSettings.routes.test.ts
+{"level":30,"time":1790999248599,"pid":3470098,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+Test Suites: 1 passed, 1 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        0.723 s
+Ran all test suites within paths "src/routes/__tests__/capabilitiesSettings.routes.test.ts".
