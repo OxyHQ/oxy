@@ -1,0 +1,128 @@
+$ jest --runInBand src/services/__tests__/mercariaBillingAuthority.db.test.ts
+{"level":30,"time":1791009245686,"pid":3577957,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/services/__tests__/mercariaBillingAuthority.db.test.ts
+  ● canonical Mercaria ceiling changes only the approved payments additions
+
+    TypeError: Cannot read properties of undefined (reading 'find')
+
+      30 | }
+      31 | it('canonical Mercaria ceiling changes only the approved payments additions', () => {
+    > 32 |   expect(OXY_APPLICATION_SPECS.find((x) => x.name === 'Mercaria')?.scopes).toEqual(NEXT);
+         |                                ^
+      33 | });
+      34 | it('prepare is read-only; apply and exact rollback preserve every unrelated field and credential', async () => {
+      35 |   const f = await fixture(); const original = await rows(f);
+
+      at Object.<anonymous> (src/services/__tests__/mercariaBillingAuthority.db.test.ts:32:32)
+
+  ● prepare is read-only; apply and exact rollback preserve every unrelated field and credential
+
+    Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default) returning "id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at"
+    params: 01a10078-4a0a-7493-8940-9ee0c2272ec7,01a10078-4a05-714d-ad2f-2843106dfb1a,acc42af6-add7-4b30-b634-47c82a48841a,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: null value in column "name" of relation "application_credentials" violates not-null constraint
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● two concurrent applies linearize once, with no partial second change
+
+    Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default) returning "id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at"
+    params: 01a10078-4a15-7e8a-9b23-0de0aedc3c3c,01a10078-4a12-7a7f-b4b3-eedd23ab88bd,0154f30b-dc12-405c-b04a-bd3bc9734cce,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: null value in column "name" of relation "application_credentials" violates not-null constraint
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● ABA with scopes and updatedAt restored still rejects through PostgreSQL row version
+
+    Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default) returning "id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at"
+    params: 01a10078-4a20-7a11-9a18-a07fbcd7cbc8,01a10078-4a1d-7311-8f02-5cc212c87a93,1d05c7a1-1981-4441-81e5-2687e73bf2d1,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: null value in column "name" of relation "application_credentials" violates not-null constraint
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● rollback refuses a subsequent operator change without overwriting either row
+
+    Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default) returning "id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at"
+    params: 01a10078-4a28-70bd-bda7-43cb8aa252cc,01a10078-4a25-7be6-b31b-b9b4640c1ddf,fdd163d0-1fc7-4246-adbf-5e4814d75c21,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: null value in column "name" of relation "application_credentials" violates not-null constraint
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● wrong owner, public credential, nonstaff and closure fence refuse before mutations
+
+    Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default) returning "id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at"
+    params: 01a10078-4a32-7d75-af6f-dd03435a9338,01a10078-4a2f-75a0-90a0-54effe2f1578,cdcc337b-c959-4332-a4c9-529360f7cf39,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: null value in column "name" of relation "application_credentials" violates not-null constraint
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● revoked credential after preparation refuses and preserves application ceiling
+
+    Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default) returning "id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at"
+    params: 01a10078-4a3b-75d8-9aa0-4b9be0e5a5ec,01a10078-4a38-7fa9-8007-535ce48f0662,d59ba46b-ebcf-4725-b423-aff788ff8b36,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: null value in column "name" of relation "application_credentials" violates not-null constraint
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● constraint failure at second update rolls the first update back
+
+    Failed query: insert into "application_credentials" ("id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at") values ($1, $2, default, $3, $4, default, default, $5, $6, $7, $8, default, default, default, default, default, default, default) returning "id", "application_id", "name", "public_key", "secret_hash", "token_prefix", "token_hash", "type", "environment", "scopes", "status", "last_used_at", "expires_at", "rotated_from_credential_id", "created_by_user_id", "workload_identity_id", "created_at", "updated_at"
+    params: 01a10078-4a43-702d-b84c-61321b62fd16,01a10078-4a41-7f7c-87a1-ab1a54af8287,9b4b1615-f3a2-40f8-a99b-dbdb4349cb0e,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,service,production,{"user:read","catalogs:write","capabilities:read","capability-audit:write"},active
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: null value in column "name" of relation "application_credentials" violates not-null constraint
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+Test Suites: 1 failed, 1 total
+Tests:       8 failed, 8 total
+Snapshots:   0 total
+Time:        1.33 s
+Ran all test suites matching src/services/__tests__/mercariaBillingAuthority.db.test.ts.
+error: script "test" exited with code 1
