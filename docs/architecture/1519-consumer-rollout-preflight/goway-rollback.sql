@@ -8,7 +8,7 @@ CREATE TEMP TABLE goway_rollback_expected ON COMMIT DROP AS SELECT
   :'owner_id'::text owner_id, :'credential_id'::text credential_id,
   :'public_client_id'::text public_client_id, :'app_xmin'::text app_xmin,
   :'credential_xmin'::text credential_xmin;
--- Match the seed lock order. Holding both locks prevents a change between CAS
+-- Lock the application before its credentials. Holding both locks prevents a change between CAS
 -- validation and the two writes. Any exception rolls back both writes.
 SELECT a.id FROM public.applications a
 WHERE a.id = '73176d04c3654667138c23ec' FOR UPDATE;
