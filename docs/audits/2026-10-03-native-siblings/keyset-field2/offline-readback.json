@@ -1,0 +1,20 @@
+{
+  "inputSha256": "da36cfb4bd8b8802dbbc98fff21479ee1a0eb9fcf712cf7ee04c1cbd76c37509",
+  "oldMutationSha256": "f52f21723404bc1fd4917263ee3d1c3df561ca0e532f066fce9983d5b8aac98f",
+  "newOfflineMutationSha256": "f62dc127f3b77452dd33b48154e145fd43bdd70c7f8ed049ed7f15969203b394",
+  "protobufBytes": 242,
+  "encryptedKeysetSpan": [
+    3,
+    172
+  ],
+  "previousChangedOffsets": [
+    241
+  ],
+  "newChangedOffsets": [
+    171
+  ],
+  "priorCiphertextIntact": true,
+  "newCiphertextChanged": true,
+  "newOtherBytesIdentical": true,
+  "deviceMutated": false
+}

@@ -1,0 +1,48 @@
+{
+  "sourcesAndRecords": [
+    {
+      "path": "scripts/rehearsal/android-keyset-corruption/prepare-corrupt-slot.py",
+      "sha256": "50df50b06b0d51688f830155417046c86d70ef46da6fd7122c4c8bb140c63a78",
+      "bytes": 7198
+    },
+    {
+      "path": "scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py",
+      "sha256": "fefaad867ddcbe997254b30204c6be6d7a80bedd32f1a572946d3cdd9d084cb0",
+      "bytes": 4739
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/keyset-field2/README.md",
+      "sha256": "b7c423d52939096d36c49119655a0dbbc7b27dc9b5011b7da9f01627c900d459",
+      "bytes": 1693
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/keyset-field2/green.log",
+      "sha256": "eee8681361fe5abf7d960483b3d88385ceb9bf87d2d902574bff1771d7a04ef9",
+      "bytes": 1648
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/keyset-field2/offline-readback.json",
+      "sha256": "eb5f714ecff02efc18dea986c1cc551e3d3e3016b76c96740251dc216cf47c1c",
+      "bytes": 554
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/keyset-field2/red.log",
+      "sha256": "fbb3ff103c2e97355eaf84bd7f649f7c7a88e8950e0ad043849bdf06c3d546ea",
+      "bytes": 16388
+    }
+  ],
+  "privateReceipts": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/cas-attempt/receipt.json",
+      "sha256": "7a0f5d231329415f9df38d97878e35acd4918403a6ec85ba8fa03bfc3625bd74",
+      "bytes": 929
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-identity-1031/cas-attempt/rollback-complete.json",
+      "sha256": "1a65189685e3551cedf74b8cf096d608a1c2cb82c1f0e52aee1978cd1b43e938",
+      "bytes": 979
+    }
+  ],
+  "androidAttempt2": "NOT EXECUTED",
+  "watchedMetroSourcesChanged": false
+}
