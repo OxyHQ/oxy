@@ -41,12 +41,13 @@ def main():
     p=argparse.ArgumentParser();p.add_argument('--kind',choices=['native','web'],required=True);p.add_argument('--lane',required=True)
     p.add_argument('--fixture',type=Path,required=True);p.add_argument('--manifest',type=Path,required=True);p.add_argument('--verified-receipt',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True);p.add_argument('--launch',action='store_true');a=p.parse_args()
-    fixture=a.fixture.resolve();receipt=json.loads(a.verified_receipt.read_text())
+    fixture=a.fixture.resolve();receipt_bytes=a.verified_receipt.read_bytes();receipt=json.loads(receipt_bytes)
+    manifest_bytes=a.manifest.read_bytes()
     if receipt['fixture']!=str(fixture) or receipt['lockSha256']!=hashlib.sha256((fixture/'bun.lock').read_bytes()).hexdigest():raise ValueError('Verified installation changed')
-    args,env,port=command_for(a.kind,a.lane,fixture,json.loads(a.manifest.read_text()))
+    args,env,port=command_for(a.kind,a.lane,fixture,json.loads(manifest_bytes))
     with socket.socket() as probe:probe.bind(('127.0.0.1',port))
     a.output.mkdir(mode=0o700,parents=False,exist_ok=False)
-    intent={'kind':a.kind,'lane':a.lane,'fixture':str(fixture),'port':port,'command':args,'manifestSha256':hashlib.sha256(a.manifest.read_bytes()).hexdigest(),'verifiedReceiptSha256':hashlib.sha256(a.verified_receipt.read_bytes()).hexdigest(),'launch':a.launch}
+    intent={'kind':a.kind,'lane':a.lane,'fixture':str(fixture),'port':port,'command':args,'manifestSha256':hashlib.sha256(manifest_bytes).hexdigest(),'verifiedReceiptSha256':hashlib.sha256(receipt_bytes).hexdigest(),'launch':a.launch}
     def write(name,value):
         fd=os.open(a.output/name,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
         with os.fdopen(fd,'w') as stream:json.dump(value,stream,indent=2);stream.write('\n')
@@ -69,10 +70,14 @@ def main():
         finally:
             forced=False
             if child and child.poll() is None:
-                os.killpg(child.pid,signal.SIGTERM)
+                try:os.killpg(child.pid,signal.SIGTERM)
+                except ProcessLookupError:pass
                 try:child.wait(timeout=15)
                 except subprocess.TimeoutExpired:
-                    forced=True;os.killpg(child.pid,signal.SIGKILL);child.wait(timeout=10)
+                    forced=True
+                    try:os.killpg(child.pid,signal.SIGKILL)
+                    except ProcessLookupError:pass
+                    child.wait(timeout=10)
             write('stopped.json',{'pid':child.pid if child else None,'forced':forced,'apiIdpDatabaseDeviceUntouched':True})
 
 if __name__=='__main__':main()

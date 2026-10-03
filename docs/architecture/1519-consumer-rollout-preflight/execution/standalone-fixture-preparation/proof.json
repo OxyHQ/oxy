@@ -10,7 +10,7 @@
     },
     {
       "path": "scripts/adoption/launch-registry-fixture.py",
-      "sha256": "4b4fbe4d90c921e6e14be72465ebc570cb1be92b66339ad7102077617c2d98a9"
+      "sha256": "0d54d3ee94f45a5ee804670e1d5c0328baf48c5fae5a3dc9191c345e766591fc"
     },
     {
       "path": "scripts/adoption/test-registry-fixtures.py",
@@ -140,7 +140,7 @@
   "records": [
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/standalone-fixture-preparation/offline-tests.log",
-      "sha256": "13b96ed43ad62b23c6812e318f100b156de88f41891dfeb3b15c976596356e17"
+      "sha256": "6853edce80334b9b94a335b74e665876b9a2d568266d5bde4e5c53cb63612507"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/standalone-fixture-preparation/materialized.json",
