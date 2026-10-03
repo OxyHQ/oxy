@@ -266,19 +266,24 @@ export async function refreshDeviceSecretArm(deps: {
     };
     if (!isCurrent()) return {status: 'session-ended'};
     if (oxy.http.getSessionEpoch() !== epoch) {
-      // Signed out while minting. A store that still holds the presented
-      // secret takes the server's `nextDeviceSecret` (the token-null lane keeps
-      // the store so a reload can restore); a store the sign-out cleared must
-      // NOT be refilled. Either way, plant nothing.
+      // A logout or account/session switch invalidated this mint. Preserve
+      // only credential rotation for an otherwise unchanged retained context;
+      // never transplant the old mint's account, session or bearer. Compare
+      // the entire snapshot inside the store queue: same holder bytes alone
+      // cannot distinguish an account switch, nor a queued save of that switch.
+      const retainedEpoch = oxy.http.getSessionEpoch();
       const current = await store.load();
-      if (current?.deviceId === persisted.deviceId && current.deviceSecret === persisted.deviceSecret) {
-        await store.save(next);
+      if (store.saveIfCurrent && current && matchesAuthState(current, persisted)) {
+        await store.saveIfCurrent({...current, deviceSecret: mint.nextDeviceSecret}, {
+          expectedState: current,
+          isCurrent: () => isCurrent() && oxy.http.getSessionEpoch() === retainedEpoch,
+        });
       }
       return { status: 'session-ended' };
     }
     // Persist nextDeviceSecret (read-back-verified) BEFORE planting the token.
     // A failed durable persist must NOT plant.
-    const persistedOk = deps.isCurrent && store.saveIfCurrent
+    const persistedOk = store.saveIfCurrent
       ? await store.saveIfCurrent(next, {expectedState: persisted, isCurrent: () => isCurrent() && oxy.http.getSessionEpoch() === epoch})
       : await store.save(next);
     if (!persistedOk) {
