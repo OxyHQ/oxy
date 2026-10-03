@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2",
+  "sourceInputs": [
+    {
+      "path": ".github/workflows/forge-candidate-image-proof.yml",
+      "bytes": 13049,
+      "sha256": "b38f117f37a6e6e742c89ff42f1ca83cffb10c979933f763eb835de6f44bf466",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/archive-proof.py",
+      "bytes": 7447,
+      "sha256": "b4fd005baff4e0aa582877706f44747d6272e4e34461831b31d52c6e28c2b91c",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/host.mjs",
+      "bytes": 2209,
+      "sha256": "6156eeb972d3fe3c83be46a53357b8ca632dc01019348cdae15e017e7e63d4c9",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/image-bootstrap.py",
+      "bytes": 4848,
+      "sha256": "22236499d90f0f17c84820c974c2610a850b8ea443af090df7b21eb0e946d853",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/io-guard.mjs",
+      "bytes": 1225,
+      "sha256": "9d10edfb35c98df77fcfb99437fe8739678b4726b77f8bee9248e348fc910cc3",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/probe.mjs",
+      "bytes": 12432,
+      "sha256": "8cc07db5650ecd4e327185c150c79c7b1b5bab923c9fa8b94027792375835468",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/run.py",
+      "bytes": 15341,
+      "sha256": "7252605b080f7a933529df32207e7ef6290d0e8b04fb99124f284c4a75a0939f",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/seed-preserved.mjs",
+      "bytes": 3312,
+      "sha256": "44e00ecd17933520ab009548f2d7fed885aad17742958d0a3f5c56a140d6a891",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/seed.mjs",
+      "bytes": 5331,
+      "sha256": "d3b38dbeed664453db24ee6f91707a09ee61ff94b5ac06ac44386578b42e94e0",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/test-archive-proof.py",
+      "bytes": 5643,
+      "sha256": "3e6d14098732ac871b87377a86d8f4c7d54b41423e7ed34fe203390b71bb6c37",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    },
+    {
+      "path": "scripts/rehearsal/old-auth-only/test-image-bootstrap.py",
+      "bytes": 5543,
+      "sha256": "e6089b7a6dbd1e9e7c3f4981658f3006b8c03dbeaeb2a690ec42eaed4be7f7b6",
+      "sourceHead": "595d2ce4652c8ffe58f599ed509f9e97456f4db2"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-bootstrap/archive-fixtures.log",
+      "bytes": 117,
+      "sha256": "2ca01b395e1430576463ddf19b56bd5b58c56406e3ba46218be355b043a4e24d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-bootstrap/image-fixtures.log",
+      "bytes": 107,
+      "sha256": "d9d734ee1c2de67b748aeef1c4126433aa438ad8375ca953916f12b1df11414d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-bootstrap/local-admission-unit.log",
+      "bytes": 1292,
+      "sha256": "bd7369a5cd28948415b224c857c5bf7768f5e561918305c5781f810575079c28"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-bootstrap/local-control.log",
+      "bytes": 182,
+      "sha256": "8328ce67f02ea7d240cb06395401eb99be4ab0804de3aaeec71267c2ca97fe29"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-bootstrap/local-http-sql-probe.log",
+      "bytes": 1231,
+      "sha256": "4317777577c1e11ee3cb9cd12b11313cbe35419925e39f70ef86a34fadeb25c3"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-bootstrap/local-migrate-fresh.log",
+      "bytes": 40,
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-bootstrap/local-migrate-repeat.log",
+      "bytes": 40,
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-bootstrap/local-receipt.json",
+      "bytes": 11232,
+      "sha256": "1cbd5976880fb7750dbbded91b468c367e1548ea48dbabfd97f66f49bfc17a1d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/arm-bootstrap/workflow-validation.log",
+      "bytes": 122,
+      "sha256": "89d394242d2b1a6e6d318d4f11295ff0e6b5be65b43620f8b8c9fc3e5dbe6965"
+    }
+  ],
+  "localImageConstructionFixtures": 9,
+  "archiveAndBootstrapBindingFixtures": 18,
+  "localCompiledProductionCheckpoints": 14,
+  "localNonemptyPreservedTables": 14,
+  "localRunDirectory": "/home/nate/Oxy/.agent-evidence/integration-old-auth-only-20261003/rollback-ul9w50d6",
+  "localRunGitHead": "ed288ed86e2539f7a789b0f64f75cdd434401920",
+  "localHarnessWasWipNowCommitted": true,
+  "schemaHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+  "dockerImageExecutedLocally": false,
+  "reason": "Local Docker daemon unavailable; actual exact-image bootstrap is the new Actions step, not these construction fixtures.",
+  "armBootstrapVerified": false,
+  "securityApproved": false,
+  "productionReady": false
+}
