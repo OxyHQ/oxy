@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "2d629d92d8eaed2e287c5bd5a9e5617ee01001bb",
+  "sourceSha256": {
+    "scripts/agency/foreground-pilot-ecs.py": "b9fc5d2649c2875c5745ea94fcf5edf2ea17c614d856df78a9570eb235839e8d",
+    "scripts/agency/tests/foreground-pilot-compiled.mjs": "c7cfeaf8a192675ba66c7ce9d344b850070b6e160f0e40d9e4915832f53aae17",
+    "scripts/agency/tests/test_foreground_pilot_transport.py": "3df0d5f61d63b856f4419b26356e45cfdd967c6b5582cf5da37de6b0b7058e96",
+    "scripts/rehearsal/test-i05-foreground-configuration.py": "b8de4f86f0d3fa87b14046e5c903bc2320737ed0c323dbf8cc97933230031595",
+    "scripts/agency/oxy-profile-registrar-preflight-ecs.py": "881cdf42e575e6bf3b0164ea4765ffadfb2277fc647e365293f89e10495375d0",
+    "packages/api/src/scripts/foregroundPilotConfiguration.ts": "27bde7dbc14be8ef9b9f34378b1a29d06645e554e7978bdc3f50f4563a06de28",
+    "packages/api/src/scripts/foregroundPilotExecutor.ts": "0910786552e9930bbca87512448d5ca91a45a2a8de6b796a53820d7f3a78b327",
+    "packages/api/src/scripts/foregroundPilotHttps.ts": "5d7478f43752e5026d028f74394c180d4e17c7113b08ad50b5db0d739c74fcbb",
+    "packages/api/src/scripts/seedOxyApplicationsSpecs.ts": "4223d6275cdd98f45af9f256b0ea473e007caad0e2adb79ab0a26c7768aaecf2",
+    "packages/api/src/scripts/seedOxyApplicationsPlan.ts": "240cb3c3ba5f3fb38e5c63ae7abf4017009ea9e089300734b3ec2740c2123f21",
+    "packages/api/src/capabilities/oxy-profile.catalog.ts": "e70f308b24d00904991556874fb3b004f9f41467b797a0a93b586a93375f5e9a",
+    "packages/api/src/services/capabilityCatalog.service.ts": "382ff1f6d9fe06f4692bc895c030f35e2612f952e78d15b6a8ef2c5640452dce",
+    "packages/api/src/services/applicationCredentialAudit.service.ts": "66afb8ad59123ccfa75ef33404df2dbe42a74939e08fd3cc5aa6dcc4d7305996",
+    "packages/api/src/config/postgres.ts": "cde261995eb5c66710a977b164bb0b72208d41528c6bfc9520b48d866e15793f",
+    "packages/api/src/services/workloadIdentityBinding.service.ts": "6ecec1524d410fa4d10217273c17a0d5d30f0ecd80fda84a09960e8b40de38bb"
+  },
+  "records": {
+    "docs/audits/2026-10-03-i05-foreground-transport/api-build.log": {
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    "docs/audits/2026-10-03-i05-foreground-transport/offline-tests.log": {
+      "sha256": "86957db5acea453befd84038ccd284de12918f41b981b0ffd1b398a8e6e3eb5c",
+      "bytes": 110
+    },
+    "docs/audits/2026-10-03-i05-foreground-transport/cli-help.log": {
+      "sha256": "24878ed9466a1dc4ec0a4bcbecc5ae9016dd262457be673fc6571c1177d0a6f5",
+      "bytes": 477
+    },
+    "docs/audits/2026-10-03-i05-foreground-transport/owned-run.log": {
+      "sha256": "cb3ad7fccbb5a9e6c93a902ff015cf93458988117cc11c83f4aadd862d0cc669",
+      "bytes": 2101
+    },
+    "docs/audits/2026-10-03-i05-foreground-transport/migration-fresh.log": {
+      "sha256": "672d0087e9de5ac71cc7df1722a546012f0a831f2626645d6497b636c8c7ff6e",
+      "bytes": 8875
+    },
+    "docs/audits/2026-10-03-i05-foreground-transport/migration-repeat.log": {
+      "sha256": "3cb8ccf15b7ed93ae8fd3ad4caf211692d24aea016e8850a4f8a6d78c6732b7c",
+      "bytes": 173
+    },
+    "docs/audits/2026-10-03-i05-foreground-transport/api-tests.log": {
+      "sha256": "35075a86ec33b0faf0b5a5f4bdbaa730d5fda2502fe433599a9502894c81c85f",
+      "bytes": 1018
+    },
+    "docs/audits/2026-10-03-i05-foreground-transport/compiled-node.log": {
+      "sha256": "e98be54a72899d3360e07f2e03aedf7b140cf44a2d37f59c8d6549bfaa13290a",
+      "bytes": 395
+    },
+    "docs/audits/2026-10-03-i05-foreground-transport/initial-node-path-failure.log": {
+      "sha256": "f24dd4d7842f80a53548df8f03a56f488e3b1fc9ee5d8d36dfd4bcf40c4c9a44",
+      "bytes": 3450
+    },
+    "docs/audits/2026-10-03-i05-foreground-transport/compiled-artifacts.json": {
+      "sha256": "d0d1acd78a635feeb7c0e35bf812c3f3794bc2995f8f179d41ef1e05d9dd0c05",
+      "bytes": 1669
+    }
+  },
+  "compiledArtifacts": {
+    "packages/api/dist/scripts/foregroundPilotExecutor.js": {
+      "sha256": "c0fcbf7d875cc5e61311ffc43f08d92fea5b1646fd65731f482df777019e686e",
+      "bytes": 8662
+    },
+    "packages/api/dist/scripts/foregroundPilotConfiguration.js": {
+      "sha256": "4a660acffa3c0e2a3ce3e704e0207954fc04bb0aa54979d0c485fcc167bd3662",
+      "bytes": 45317
+    },
+    "packages/api/dist/scripts/foregroundPilotHttps.js": {
+      "sha256": "1d35c4f60130ee04585e55501ad9279b392b706d89d409faf801e88d18da4830",
+      "bytes": 5014
+    },
+    "packages/api/dist/scripts/seedOxyApplicationsSpecs.js": {
+      "sha256": "61b809ba07f222f1c37d11013a20b945576c140cb0f7e089fca09687a2b8968d",
+      "bytes": 33760
+    },
+    "packages/api/dist/scripts/seedOxyApplicationsPlan.js": {
+      "sha256": "fe6c9a748f0474b5afefbd251943a38491ee1bcbda18014f59d6191051b0d74f",
+      "bytes": 8362
+    },
+    "packages/api/dist/capabilities/oxy-profile.catalog.js": {
+      "sha256": "88fb81ed5cb011d1a66b2927e87cb33a1b014ebcb40a215450c2cbe00f98e6c0",
+      "bytes": 2840
+    },
+    "packages/api/dist/services/capabilityCatalog.service.js": {
+      "sha256": "7468bcf99ed37fb1962a996df7622b8976aebcdda2e0b41dd821723b58afe53e",
+      "bytes": 6233
+    },
+    "packages/api/dist/services/applicationCredentialAudit.service.js": {
+      "sha256": "8cebbea60a927e9a5e9d7d821bb95bbfa069b453568aebcaf068ffb4dcefe01f",
+      "bytes": 12033
+    },
+    "packages/api/dist/config/postgres.js": {
+      "sha256": "d71c6f13be5ef0c6c9aa9d7b9878a1488dd5a85523755243aaf0972b6480cea2",
+      "bytes": 9080
+    },
+    "packages/api/dist/services/workloadIdentityBinding.service.js": {
+      "sha256": "fc11f3a1393ca008ab1844f606d8e619a546e11b79d34a50a3811138860d40c4",
+      "bytes": 33026
+    }
+  },
+  "checks": {
+    "offlineTestsPassed": 11,
+    "apiBuildExitCode": 0,
+    "apiSuitesPassed": 4,
+    "apiTestsPassed": 73,
+    "freshMigrations": 142,
+    "repeatMigrations": 142,
+    "compiledNodeChecks": 3,
+    "nodeRuntime": "v24.21.0",
+    "exactNodeEnvironment": [
+      "DATABASE_URL",
+      "NODE_ENV",
+      "OXY_API_URL"
+    ],
+    "compiledOperations": [
+      "retire",
+      "rollback",
+      "execute expired before effect"
+    ],
+    "externalHttpRequests": 0,
+    "awsRequests": 0,
+    "liveAuthorityWrites": 0,
+    "stripeWrites": 0
+  },
+  "localPostgresPidsStopped": [
+    3849015,
+    3850273
+  ],
+  "sourceCheckoutCleanForLivePrepareRequired": true,
+  "livePlanPrepared": false,
+  "runtimeImageEvidence": null,
+  "limitations": [
+    "Offline AWS responses are protocol fixtures, not authenticated AWS dispatch or CloudWatch proof.",
+    "Signal handler is a direct offline fixture, not black-box AWS/process-group termination proof.",
+    "Node executes local emitted artifacts, not an OCI/Fargate image. Root must verify final live image/source and exact prepared plan.",
+    "A task STOPPED or cleanup JSON with no infrastructure failures does not prove operation success; operationConfirmed=false and missing receipt require SQL reconciliation.",
+    "No final-image/source-bound live authority write yet."
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "packages/api/dist/scripts/foregroundPilotExecutor.js": {
+    "sha256": "c0fcbf7d875cc5e61311ffc43f08d92fea5b1646fd65731f482df777019e686e",
+    "bytes": 8662
+  },
+  "packages/api/dist/scripts/foregroundPilotConfiguration.js": {
+    "sha256": "4a660acffa3c0e2a3ce3e704e0207954fc04bb0aa54979d0c485fcc167bd3662",
+    "bytes": 45317
+  },
+  "packages/api/dist/scripts/foregroundPilotHttps.js": {
+    "sha256": "1d35c4f60130ee04585e55501ad9279b392b706d89d409faf801e88d18da4830",
+    "bytes": 5014
+  },
+  "packages/api/dist/scripts/seedOxyApplicationsSpecs.js": {
+    "sha256": "61b809ba07f222f1c37d11013a20b945576c140cb0f7e089fca09687a2b8968d",
+    "bytes": 33760
+  },
+  "packages/api/dist/scripts/seedOxyApplicationsPlan.js": {
+    "sha256": "fe6c9a748f0474b5afefbd251943a38491ee1bcbda18014f59d6191051b0d74f",
+    "bytes": 8362
+  },
+  "packages/api/dist/capabilities/oxy-profile.catalog.js": {
+    "sha256": "88fb81ed5cb011d1a66b2927e87cb33a1b014ebcb40a215450c2cbe00f98e6c0",
+    "bytes": 2840
+  },
+  "packages/api/dist/services/capabilityCatalog.service.js": {
+    "sha256": "7468bcf99ed37fb1962a996df7622b8976aebcdda2e0b41dd821723b58afe53e",
+    "bytes": 6233
+  },
+  "packages/api/dist/services/applicationCredentialAudit.service.js": {
+    "sha256": "8cebbea60a927e9a5e9d7d821bb95bbfa069b453568aebcaf068ffb4dcefe01f",
+    "bytes": 12033
+  },
+  "packages/api/dist/config/postgres.js": {
+    "sha256": "d71c6f13be5ef0c6c9aa9d7b9878a1488dd5a85523755243aaf0972b6480cea2",
+    "bytes": 9080
+  },
+  "packages/api/dist/services/workloadIdentityBinding.service.js": {
+    "sha256": "fc11f3a1393ca008ab1844f606d8e619a546e11b79d34a50a3811138860d40c4",
+    "bytes": 33026
+  }
+}

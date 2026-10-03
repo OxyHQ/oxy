@@ -1,0 +1,13 @@
+usage: foreground-pilot-ecs.py [-h] --plan PLAN [--execute] [--output OUTPUT]
+                               [--configuration CONFIGURATION]
+                               [--definition DEFINITION]
+                               [--operation {execute,rollback,retire}]
+
+options:
+  -h, --help            show this help message and exit
+  --plan PLAN
+  --execute
+  --output OUTPUT
+  --configuration CONFIGURATION
+  --definition DEFINITION
+  --operation {execute,rollback,retire}
