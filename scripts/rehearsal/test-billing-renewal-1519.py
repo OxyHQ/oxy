@@ -76,7 +76,13 @@ def main():
                             'NODE_ENV': 'test'}
         command = ['bun', 'run', 'test', '--runInBand', '--runTestsByPath',
                    'src/services/__tests__/productProviderEvidence.test.ts',
-                   'src/services/__tests__/productAccessPersistence.test.ts']
+                   'src/services/__tests__/productAccessPersistence.test.ts',
+                   'src/services/__tests__/subscriptionCreditLedger.test.ts',
+                   'src/services/__tests__/subscriptionPeriodPolicy.test.ts',
+                   'src/services/__tests__/subscriptionPromotionPolicy.test.ts',
+                   'src/db/__tests__/credits.test.ts',
+                   'src/db/schema/__tests__/foreignKeys.test.ts',
+                   'src/routes/__tests__/billingWebhookIdempotency.test.ts']
         result = subprocess.run(command, cwd=ROOT / 'packages/api', env=env,
                                 text=True, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, check=False)
