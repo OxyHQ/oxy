@@ -29,9 +29,13 @@ function App() {
         .catch(() => setObservation('API subject: denied'));
     }}>Read API subject</button>
     <p>{observation}</p>
-  </> : <><p>Signed out</p><OxySignInButton oauthRedirectUri={`${location.origin}/`} /></>;
+  </> : <><p>Signed out</p><OxySignInButton
+    {...(firstPartyFixture ? {} : { oauthRedirectUri: `${location.origin}/` })} /></>;
 }
 const clientId = import.meta.env.VITE_OXY_CLIENT_ID;
+// Public fixture configuration only controls the optional OAuth callback prop;
+// the SDK still resolves and validates the registered application's lane.
+const firstPartyFixture = ['webFirst', 'webSecond'].includes(import.meta.env.VITE_FIXTURE_LANE);
 if (!clientId) throw new Error('Registered fixture clientId required');
 createRoot(document.getElementById('root')!).render(<BloomProvider>
   <OxyProvider baseURL="http://127.0.0.1:17960" clientId={clientId}
