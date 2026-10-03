@@ -63,6 +63,9 @@ import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import authRouter from '../auth';
+import { generateCredentialMaterial } from '../../utils/credentialMaterial';
+import { MERCARIA_BILLING_SCOPES } from '../../services/mercariaBillingAuthority.service';
+import { prepareEphemeralCredential, issueEphemeralCredential, inspectEphemeralCredential, revokeEphemeralCredential } from '../../services/mercariaEphemeralCredential.service';
 import { serviceTokenPublicJwks } from '../../config/serviceTokenSigning';
 
 interface JsonResponse {
@@ -163,6 +166,8 @@ async function serviceClient(
 }
 
 interface ServiceClaims {
+  iat: number;
+  exp: number;
   type?: string;
   appId?: string;
   appName?: string;
@@ -616,5 +621,44 @@ describe('POST /auth/service-token — bookkeeping', () => {
       .where(eq(applicationCredentials.id, client.credentialId))
       .limit(1);
     expect(credential.lastUsedAt).toBeNull();
+  });
+});
+
+
+describe('operator ephemeral credential through the real HTTP mint route', () => {
+  const actor = { isPlatformStaff: true, describedAs: 'synthetic operator HTTP fixture' };
+  async function ephemeral() {
+    const client = await serviceClient({}, { type: 'first_party', scopes: [...MERCARIA_BILLING_SCOPES] });
+    const plan = await prepareEphemeralCredential({ applicationId: client.applicationId, ownerAccountId: client.ownerAccountId }, actor);
+    return { client, plan, material: generateCredentialMaterial() };
+  }
+  it('real elapsed expiration stops new mint; an already signed JWT retains its bounded exp', async () => {
+    const { client, plan, material } = await ephemeral();
+    plan.expiresAt = new Date(Date.now() + 1500).toISOString();
+    await issueEphemeralCredential(plan, material, actor);
+    const credentials = { apiKey: material.publicKey, apiSecret: material.secret };
+    const minted = await post(credentials);
+    expect(minted.status).toBe(200);
+    const token = (minted.body.data as { token: string }).token;
+    const claims = decodeServiceJwt(token);
+    expect(claims).toMatchObject({ appId: client.applicationId, credentialId: plan.credentialId,
+      ownerAccountId: client.ownerAccountId, environment: 'development', scopes: ['payments:read', 'payments:write'] });
+    expect(claims.exp - claims.iat).toBe(300);
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, Date.parse(plan.expiresAt) - Date.now()) + 30));
+    expect((await post(credentials)).status).toBe(401);
+    expect(decodeServiceJwt(token).exp).toBe(claims.exp); // Signature verification alone is not live revocation.
+    const fresh = await inspectEphemeralCredential(plan, material, actor);
+    expect((await revokeEphemeralCredential(plan, material, fresh.state, actor)).state.status).toBe('revoked');
+  });
+  it('mint writes require fresh cleanup CAS; exact revocation blocks the next HTTP mint', async () => {
+    const { client, plan, material } = await ephemeral();
+    const issued = await issueEphemeralCredential(plan, material, actor);
+    const credentials = { apiKey: material.publicKey, apiSecret: material.secret };
+    expect((await post(credentials)).status).toBe(200);
+    await expect(revokeEphemeralCredential(plan, material, issued.state, actor)).rejects.toThrow('precondition');
+    const current = await inspectEphemeralCredential(plan, material, actor);
+    expect((await revokeEphemeralCredential(plan, material, current.state, actor)).state.status).toBe('revoked');
+    expect((await post(credentials)).status).toBe(401);
+    expect((await post({ apiKey: client.apiKey, apiSecret: client.apiSecret })).status).toBe(200);
   });
 });
