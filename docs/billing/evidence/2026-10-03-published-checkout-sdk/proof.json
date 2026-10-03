@@ -1,0 +1,70 @@
+{
+  "capturedAt": "2026-10-03T08:41:07.040517+00:00",
+  "releaseSource": "6f671437b7e7c28c646c03afa9e47483ba04333a",
+  "registryVersion": "0.2.2",
+  "records": [
+    {
+      "path": "docs/billing/evidence/2026-10-03-published-checkout-sdk/README.md",
+      "sha256": "f52e78ac2e19b216e1f8b75ac79f28ad04e04073bfbc081332dd8aafec8344a2",
+      "bytes": 2010
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-published-checkout-sdk/bun.lock",
+      "sha256": "659a799b67902860976f4265c87d9363702567816d65b6587968873bde529b28",
+      "bytes": 2852
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-published-checkout-sdk/checkout-registry.log",
+      "sha256": "7ede52db3886b8a84814a8bc2edb0f442722883e4d6eb3d21aa11ee998cf5f18",
+      "bytes": 623
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-published-checkout-sdk/checkout-registry.mjs",
+      "sha256": "1eb9fec9eb1400ca784115904cc5d42401dd757fbeff8154ddc6702b6a37bedb",
+      "bytes": 3846
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-published-checkout-sdk/install.log",
+      "sha256": "9d8aa7e3f62248467a4cf7c53942006b7c842ae9b06a52e47a6294e84def4fae",
+      "bytes": 167
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-published-checkout-sdk/installed-sdk-files.json",
+      "sha256": "d5f09a470c88e2387a24b44f42c7fb8ede05ca1b62aa7fe2ace825d7766da6a8",
+      "bytes": 8340
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-published-checkout-sdk/package.json",
+      "sha256": "a921fe483c00bb615bf2e3c841962fc8d6fcff22e24843cd0fcceb63aac1473d",
+      "bytes": 201
+    }
+  ],
+  "externalInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-handoff-i08-20261003/sdk-0.2.2-published/installed-byte-comparison.json",
+      "sha256": "06493db9fbffb8b92e87794ffefda6326b9e0d994ad60db51da37b31cb5205a0",
+      "bytes": 16929
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-handoff-i08-20261003/sdk-0.2.2-published/registry-sdk-0.2.2.tgz",
+      "sha256": "68687dabc8caddcdb3f60d846d720f5103d29c4d2a0eacb774ebc08ca37f4494",
+      "bytes": 49225
+    }
+  ],
+  "installedSdkFiles": 53,
+  "moduleFormats": [
+    "ESM",
+    "CJS"
+  ],
+  "behaviorGroups": [
+    "lost HTTP response after synthetic commit",
+    "same-key retry returns same session",
+    "same-key replay returns same session",
+    "changed parameters with same key returns409"
+  ],
+  "providerRequests": 0,
+  "realGateway": false,
+  "monetaryEffects": false,
+  "commandExit": 0,
+  "fixtureDirectory": "/home/nate/Oxy/.agent-evidence/integration-i06-registry-checkout-20261003"
+}

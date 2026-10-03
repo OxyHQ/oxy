@@ -1,0 +1,4 @@
+$ node checkout-registry.mjs
+{"format":"ESM","registryVersion":"0.2.2","path":"checkout.sessions.create /v1/checkout_sessions","lostResponse":true,"stableKey":true,"retryReplaySameSession":true,"parameterConflict":409,"fixtureCreates":1,"providerRequests":0}
+{"format":"CJS","registryVersion":"0.2.2","path":"checkout.sessions.create /v1/checkout_sessions","lostResponse":true,"stableKey":true,"retryReplaySameSession":true,"parameterConflict":409,"fixtureCreates":1,"providerRequests":0}
+{"installedRegistrySdkFilesEqual":53,"formats":2,"behaviorGroups":4,"providerRequests":0,"realGateway":false,"monetaryEffects":false}

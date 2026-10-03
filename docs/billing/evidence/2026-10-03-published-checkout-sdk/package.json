@@ -1,0 +1,11 @@
+{
+  "name": "i06-checkout-registry-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node checkout-registry.mjs"
+  },
+  "dependencies": {
+    "@peable.to/sdk": "0.2.2"
+  }
+}
