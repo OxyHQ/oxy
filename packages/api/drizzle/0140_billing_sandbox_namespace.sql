@@ -1,0 +1,5 @@
+-- oxy:deploy-phase=pre
+ALTER TABLE "access_subscription_sources" DROP CONSTRAINT "access_subscription_sources_live_check";--> statement-breakpoint
+ALTER TABLE "access_provider_periods" DROP CONSTRAINT "access_provider_periods_binding_check";--> statement-breakpoint
+ALTER TABLE "access_subscription_sources" ADD CONSTRAINT "access_subscription_sources_live_check" CHECK ((("access_subscription_sources"."mode" = 'live' and "access_subscription_sources"."environment" = 'production') or ("access_subscription_sources"."mode" = 'test' and "access_subscription_sources"."environment" in ('test', 'staging', 'development'))) and length("access_subscription_sources"."provider_account_ref") > 0);--> statement-breakpoint
+ALTER TABLE "access_provider_periods" ADD CONSTRAINT "access_provider_periods_binding_check" CHECK ((("access_provider_periods"."mode" = 'live' and "access_provider_periods"."environment" = 'production') or ("access_provider_periods"."mode" = 'test' and "access_provider_periods"."environment" in ('test', 'staging', 'development'))) and length("access_provider_periods"."provider_account_ref") between 1 and 160);

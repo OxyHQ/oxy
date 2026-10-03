@@ -1,3 +1,4 @@
+import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import { cancelProductSubscriptionSchema, productSubscriptionsResponseSchema, subscriptionCreditGrantsResponseSchema,
 } from "@oxy.so/contracts";
 import { and, count, desc, eq, inArray, isNull, lte, or ,
@@ -75,7 +76,7 @@ import {
 } from "../utils/billingResponse";
 import { logger } from "../utils/logger";
 import { isAllowedRedirect } from "../utils/redirectAllowlist";
-import { getStripe } from "../utils/stripeClient";
+import { getBillingStripe } from "../utils/billingStripe";
 import {
   getOrCreateUserCredits } from "./credits";
 
@@ -226,7 +227,7 @@ router.post('/checkout/credits', authMiddleware, validate({ body: checkoutCredit
     const email = req.user?.email;
     const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
-    const session = await getStripe().checkout.sessions.create({
+    const session = await (await getBillingStripe()).checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [{
@@ -259,8 +260,9 @@ router.post('/checkout/credits', authMiddleware, validate({ body: checkoutCredit
 router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, res: Response) => {
   const userId = req.user?._id?.toString(); if (!userId) return res.status(401).json({ error: 'Authentication required' });
   try {
+    const namespace = await assertBillingDatabaseNamespace(getDb());
     const catalogue = await loadProductBillingCatalogue(); const now = Date.now();
-    const sources = await getDb().select().from(accessSubscriptionSources).where(or(eq(accessSubscriptionSources.payerAccountId, userId), eq(accessSubscriptionSources.beneficiaryAccountId, userId)));
+    const sources = await getDb().select().from(accessSubscriptionSources).where(and(eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment), or(eq(accessSubscriptionSources.payerAccountId, userId), eq(accessSubscriptionSources.beneficiaryAccountId, userId))));
     const subscriptions = await Promise.all(sources.map(async source => {
       const segments = await getDb().select().from(accessOfferSegments).where(eq(accessOfferSegments.subscriptionId, source.id)).orderBy(accessOfferSegments.periodStart, accessOfferSegments.id);
       const offers = await Promise.all(segments.map(async segment => {
@@ -273,7 +275,7 @@ router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, re
       }));
       return { sourceId: source.id, status: source.status, period: { start: source.periodStart.toISOString(), end: source.periodEnd.toISOString() },
         cancelAtPeriodEnd: source.cancelAtPeriodEnd, canCancel: source.payerAccountId === userId && source.provider === 'stripe'
-          && source.mode === 'live' && source.environment === 'production' && ['active','trialing'].includes(source.status), offers };
+          && source.mode === namespace.mode && source.environment === namespace.environment && ['active','trialing'].includes(source.status), offers };
     }));
     res.set('Cache-Control', 'no-store'); return res.json(productSubscriptionsResponseSchema.parse({ subscriptions }));
   } catch (error) { logger.error('Product source read failed', error); return res.status(500).json({ error: 'Product source read failed' }); }
@@ -339,6 +341,7 @@ router.post(
 		if (parsed.success && parsed.data.expectedSubjectAccountId && parsed.data.expectedSubjectAccountId !== userId) return res.status(403).json({ error: 'Signed-in subject changed' });
     let providerConfirmed = false;
 	try {
+      const namespace = await assertBillingDatabaseNamespace(getDb());
 			const [source] = await getDb()
 				.select()
 				.from(accessSubscriptionSources)
@@ -351,15 +354,15 @@ router.post(
 			if (
 				!source ||
 				source.provider !== "stripe" ||
-				source.mode !== "live" ||
-				source.environment !== "production"
+				source.mode !== namespace.mode ||
+				source.environment !== namespace.environment
 			)
 				return res.status(404)
 					.json({ error: "Named subscription source unavailable" });
 			await assertProductSourceEvidence(source);
 
 			const observed = new Date();
-			const current = await getStripe().subscriptions.retrieve(
+			const current = await (await getBillingStripe()).subscriptions.retrieve(
 				source.providerSubscriptionId,
 			);
 			const binding = await subscriptionProcessorBinding(current.livemode);
@@ -381,7 +384,7 @@ router.post(
 					)[0]?.customer
 			)
 				throw new Error("Named subscription provider or payer differs");
-			const updated = await getStripe().subscriptions.update(
+			const updated = await (await getBillingStripe()).subscriptions.update(
 				source.providerSubscriptionId,
 				{ cancel_at_period_end: true },
 			);
@@ -401,8 +404,8 @@ router.post(
         provider: source.provider, providerSubscriptionId: source.providerSubscriptionId,
 				providerBinding: {
 					providerAccountRef: source.providerAccountRef,
-					mode: "live",
-					environment: "production",
+					mode: namespace.mode,
+					environment: namespace.environment,
 				},
 				providerObservedAt: observed,
 				status: updated.status,
@@ -466,7 +469,7 @@ router.post(
 			const email = req.user?.email;
 			const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
-			const session = await getStripe().checkout.sessions.create(
+			const session = await (await getBillingStripe()).checkout.sessions.create(
 				{
 					customer: customerId,
 					payment_method_types: ["card"],
@@ -543,7 +546,7 @@ router.post(
 				);
 			if (!row)
 				return res.status(404).json({ error: "Subscription not found" });
-			const current = await getStripe().subscriptions.retrieve(
+			const current = await (await getBillingStripe()).subscriptions.retrieve(
 				row.stripeSubscriptionId,
 			);
 			const customer = (
@@ -558,7 +561,7 @@ router.post(
 			)
 				throw new Error("Provider subscription payer differs");
 			await subscriptionProcessorBinding(current.livemode);
-			const updated = await getStripe().subscriptions.update(
+			const updated = await (await getBillingStripe()).subscriptions.update(
 				row.stripeSubscriptionId,
 				{ cancel_at_period_end: true },
 			);
@@ -665,7 +668,7 @@ router.post(
 			if (!subscription)
 				return res.status(404).json({ error: "No active subscription found" });
 
-			await getStripe().subscriptions.update(
+			await (await getBillingStripe()).subscriptions.update(
 				subscription.stripeSubscriptionId,
 				{
 					cancel_at_period_end: true,
@@ -763,7 +766,7 @@ router.post(
 			const email = req.user?.email;
 			const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
-			const session = await getStripe().billingPortal.sessions.create({
+			const session = await (await getBillingStripe()).billingPortal.sessions.create({
 				customer: customerId,
 				return_url: returnUrl,
 			});
@@ -800,7 +803,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
 
 	let event: Stripe.Event;
 	try {
-		event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
+		event = (await getBillingStripe()).webhooks.constructEvent(req.body, sig, webhookSecret);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		logger.error("Webhook verification failed:", message);
@@ -1049,7 +1052,7 @@ async function syncSubscriptionFromProvider(
 ): Promise<StripeEventResult> {
   // Taken BEFORE the request: whatever Stripe answers is at least as new as this.
   const readStartedAt = new Date();
-  const subscription = await getStripe().subscriptions.retrieve(eventSubscription.id);
+  const subscription = await (await getBillingStripe()).subscriptions.retrieve(eventSubscription.id);
 
   const customerId = stripeIdOf(subscription.customer);
   const userId = customerId ? await accountForStripeCustomer(customerId) : null;
@@ -1068,12 +1071,12 @@ async function syncSubscriptionFromProvider(
   const subscriptionItem = subscription.items.data[0];
   let productState: 'updated' | 'stale' | 'replayed' | undefined;
   for (const source of productSources) {
-    if (source.payerAccountId !== userId || mode !== 'live' || environment !== 'production') throw new Error('Product lifecycle payer or binding differs');
+    if (source.payerAccountId !== userId) throw new Error('Product lifecycle payer or binding differs');
     await assertProductSourceEvidence(source);
     productState = await reconcileProductAccessFinancialState({ sourceId: source.id,
       beneficiaryAccountId: source.beneficiaryAccountId, payerAccountId: source.payerAccountId,
       provider: source.provider, providerSubscriptionId: source.providerSubscriptionId,
-      providerBinding: { providerAccountRef, mode: 'live', environment: 'production' }, providerObservedAt: readStartedAt,
+      providerBinding: { providerAccountRef, ...billingNamespaceSchema.parse({ mode, environment }) }, providerObservedAt: readStartedAt,
       status: subscription.status, period: { start: new Date(subscriptionItem.current_period_start * 1000).toISOString(), end: new Date(subscriptionItem.current_period_end * 1000).toISOString() },
       cancelAtPeriodEnd: subscription.cancel_at_period_end });
   }
@@ -1166,7 +1169,7 @@ async function currentInvoiceEvidence(event: Stripe.Event): Promise<Stripe.Invoi
   const legacyInvoice = invoice.parent === undefined && 'subscription' in historical;
   if (!legacyInvoice && !invoice.lines.data.some(legacyLine)) return invoice;
 
-  const current = await getStripe().invoices.retrieve(invoice.id);
+  const current = await (await getBillingStripe()).invoices.retrieve(invoice.id);
   const expectedSubscription = stripeIdOf(historical.subscription)
     ?? stripeIdOf(invoice.parent?.subscription_details?.subscription);
   const actualSubscription = stripeIdOf(current.parent?.subscription_details?.subscription);
@@ -1262,7 +1265,7 @@ async function handleInvoicePaid(
       throw new Error('Invoice line pagination made no progress; refusing incomplete evidence');
     }
     seenCursors.add(cursor);
-    page = await getStripe().invoices.listLineItems(invoice.id, { limit: 100, starting_after: cursor });
+    page = await (await getBillingStripe()).invoices.listLineItems(invoice.id, { limit: 100, starting_after: cursor });
     lines.push(...page.data);
   }
 	const candidates = lines.filter((candidate) => {
@@ -1415,14 +1418,14 @@ async function handleFreeSubscriptionPeriod(
 		invoice.currency !== plan.currency
 	)
 		throw new Error("Promotion plan currency differs");
-	const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
+	const subscription = await (await getBillingStripe()).subscriptions.retrieve(subscriptionId);
 	if (
 		subscription.id !== subscriptionId ||
 		subscription.livemode !== invoice.livemode ||
 		stripeIdOf(subscription.customer) !== customerId
 	)
 		throw new Error("Promotion subscription attribution differs");
-	const expanded = await getStripe().invoices.retrieve(invoice.id, {
+	const expanded = await (await getBillingStripe()).invoices.retrieve(invoice.id, {
 		expand: ["discounts"],
 	});
 	if (
@@ -1633,7 +1636,7 @@ async function handlePaidSubscriptionChange(
 				"historical upgrade receipt was already granted; current source unchanged",
 		};
 	}
-	const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
+	const subscription = await (await getBillingStripe()).subscriptions.retrieve(subscriptionId);
 	if (
 		subscription.id !== subscriptionId ||
 		subscription.livemode !== invoice.livemode ||
@@ -1671,23 +1674,23 @@ async function handlePaidSubscriptionChange(
 /** P3 supports one fully allocated charge per invoice; split payments fail closed. */
 async function handleSubscriptionCreditRefund(event: Stripe.Event): Promise<StripeEventResult> {
   const delivered = event.data.object as Stripe.Charge;
-  const charge = await getStripe().charges.retrieve(delivered.id);
+  const charge = await (await getBillingStripe()).charges.retrieve(delivered.id);
   if (charge.id !== delivered.id || charge.livemode !== event.livemode) throw new Error('Refund charge identity or mode differs');
   const intentId = stripeIdOf(charge.payment_intent);
   if (!intentId) return { outcome: 'ignored', detail: 'refund has no invoice payment intent; legacy/purchased credits are unchanged' };
   const providerAccountRef = await subscriptionProcessorBinding(charge.livemode, event.account);
-  const allocations = await getStripe().invoicePayments.list({ payment: { type: 'payment_intent', payment_intent: intentId }, status: 'paid', limit: 100 });
+  const allocations = await (await getBillingStripe()).invoicePayments.list({ payment: { type: 'payment_intent', payment_intent: intentId }, status: 'paid', limit: 100 });
   if (allocations.has_more || allocations.data.length > 1) throw new Error('Refund invoice payment allocation is ambiguous');
   if (allocations.data.length === 0) return { outcome: 'ignored', detail: 'charge has no invoice allocation; purchased/legacy credits unchanged' };
   const payment = allocations.data[0]; const invoiceId = stripeIdOf(payment.invoice);
   if (!invoiceId || stripeIdOf(payment.payment.payment_intent) !== intentId || payment.livemode !== charge.livemode
     || payment.status !== 'paid' || payment.amount_paid !== charge.amount || payment.currency !== charge.currency) throw new Error('Refund invoice payment attribution differs');
-  const invoice = await getStripe().invoices.retrieve(invoiceId);
+  const invoice = await (await getBillingStripe()).invoices.retrieve(invoiceId);
   if (invoice.id !== invoiceId || invoice.livemode !== charge.livemode || invoice.status !== 'paid'
     || invoice.amount_paid !== charge.amount || invoice.currency !== charge.currency
     || stripeIdOf(invoice.customer) !== stripeIdOf(charge.customer)) throw new Error('Refund payment does not fully cover the paid invoice');
   if (!stripeIdOf(invoice.parent?.subscription_details?.subscription)) return { outcome: 'ignored', detail: 'refund is not a subscription credit invoice' };
-  const payments = await getStripe().invoicePayments.list({ invoice: invoiceId, status: 'paid', limit: 100 });
+  const payments = await (await getBillingStripe()).invoicePayments.list({ invoice: invoiceId, status: 'paid', limit: 100 });
   if (payments.has_more || payments.data.length !== 1 || payments.data[0].id !== payment.id) throw new Error('Multiple invoice payments are unsupported for credit refunds');
   const customerId = stripeIdOf(invoice.customer); const userId = customerId ? await accountForStripeCustomer(customerId) : null;
   if (!userId || !charge.paid || !charge.captured) throw new Error('Refund account or captured payment is unavailable');
