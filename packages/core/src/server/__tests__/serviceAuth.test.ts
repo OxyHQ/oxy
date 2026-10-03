@@ -48,9 +48,11 @@ const SIGNING_KEY = createSigningKey('service-test-a');
 // Same kid, different private key: a forgery the published key cannot verify.
 const IMPOSTER_KEY = createSigningKey('service-test-a');
 
-const servicePayload = (claims: ServiceTokenClaims): ServiceTokenClaims => ({
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 300,
+const servicePayload = (claims: ServiceTokenClaims): ServiceTokenClaims => {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  return {
+    iat: issuedAt,
+    exp: issuedAt + 300,
     type: 'service',
     aud: 'oxy-api',
     iss: 'oxy-auth',
@@ -59,7 +61,8 @@ const servicePayload = (claims: ServiceTokenClaims): ServiceTokenClaims => ({
     environment: 'production',
     scopes: [],
     ...claims,
-});
+  };
+};
 
 const signServiceToken = (claims: ServiceTokenClaims, key = SIGNING_KEY): string =>
   signEdDSA(servicePayload(claims), key);

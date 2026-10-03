@@ -536,6 +536,7 @@ function signServiceToken(input: {
   credentialId: string;
   scopes?: string[];
 }): string {
+  const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
       type: 'service',
       appId: input.applicationId,
@@ -546,7 +547,8 @@ function signServiceToken(input: {
       scopes: input.scopes ?? ['inference:invoke'],
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 3_600,
+      iat: issuedAt,
+      exp: issuedAt + 300,
     });
 }
 

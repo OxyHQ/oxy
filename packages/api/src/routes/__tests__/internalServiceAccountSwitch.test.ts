@@ -153,7 +153,7 @@ async function seedApp(
 ): Promise<SeededApp> {
   const type = options.type ?? 'internal';
   const status = options.status ?? 'active';
-  const scopes = options.scopes ?? ['user:read', SERVICE_ACCOUNT_SWITCH_SCOPE];
+  const scopes = options.scopes ?? ['user:read', SERVICE_ACCOUNT_SWITCH_SCOPE, SERVICE_ACTING_AS_SCOPE];
   const ownerAccountId = await human();
   const [app] = await getDb()
     .insert(applications)
@@ -173,6 +173,7 @@ async function seedApp(
 }
 
 function serviceToken(app: SeededApp): string {
+  const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
       type: 'service',
       appId: app.appId,
@@ -183,7 +184,8 @@ function serviceToken(app: SeededApp): string {
       scopes: app.scopes,
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 3_600,
+      iat: issuedAt,
+      exp: issuedAt + 300,
     });
 }
 

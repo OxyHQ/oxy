@@ -438,6 +438,7 @@ function signServiceToken(input: {
   credentialId?: string;
   forged?: boolean;
 }): string {
+  const tokenIssuedAt = Math.floor(Date.now() / 1_000);
   const token = signServiceTokenEd25519({
       type: 'service',
       appId: input.appId,
@@ -448,7 +449,8 @@ function signServiceToken(input: {
       scopes: ['inference:invoke'],
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 3_600,
+      iat: tokenIssuedAt,
+      exp: tokenIssuedAt + 300,
     });
   // Same header and claims, a signature no Oxy key produced.
   return input.forged
