@@ -6,6 +6,7 @@ import {
 	assertFinalDefinition,
 	assertQuiesced,
 	assertRecoveryStopped,
+	readSnapshot,
 	recordAttemptTasks,
 	shapeHash,
 	validatePlan,
@@ -74,6 +75,7 @@ const state = {
 		],
 	},
 	running: { taskArns: [] },
+	stopped: { taskArns: [] },
 	tasks: {
 		failures: [],
 		tasks: [
@@ -230,8 +232,113 @@ for (const change of [
 ])
 	deny(change, plan, (value) => validatePlan(value, context));
 
+// An omitted old task may already have desired STOPPED while still executing.
+// Exercise the actual reader, rather than a plan-only synthetic snapshot.
+const omittedTask = task.replace("a".repeat(32), "e".repeat(32));
+function censusRead({ status = "STOPPING", revision = old, fault } = {}) {
+	return (...args) => {
+		const route = `${args[0]} ${args[1]}`;
+		if (route === "ecs describe-services") return state.service;
+		if (route === "ecs describe-task-definition")
+			return { taskDefinition: definition };
+		if (route === "elbv2 describe-target-health") return state.targets[group];
+		if (route === "application-autoscaling describe-scalable-targets")
+			return state.scalers;
+		if (route === "application-autoscaling describe-scheduled-actions")
+			return state.scheduled;
+		if (route === "ecs list-tasks") {
+			if (fault === "read") throw new Error("Synthetic incomplete AWS read");
+			return {
+				taskArns: args.includes("STOPPED") ? [omittedTask] : [],
+				...(fault === "page" ? { nextToken: "more" } : {}),
+			};
+		}
+		if (route === "ecs describe-tasks") {
+			const requested = args.slice(args.indexOf("--tasks") + 1);
+			return {
+				failures:
+					fault === "failure" ? [{ arn: omittedTask, reason: "MISSING" }] : [],
+				tasks: requested
+					.filter((arn) => !(fault === "missing" && arn === omittedTask))
+					.map((arn) =>
+						arn === task
+							? state.tasks.tasks[0]
+							: {
+									taskArn: fault === "identity" ? newTask : arn,
+									group: "service:oxy-api",
+									taskDefinitionArn: revision,
+									lastStatus: status,
+								},
+					),
+			};
+		}
+		throw new Error("Unknown synthetic AWS request");
+	};
+}
+ok(() =>
+	assert.throws(() => assertQuiesced(plan, readSnapshot(plan, censusRead()))),
+);
+ok(() =>
+	assertQuiesced(plan, readSnapshot(plan, censusRead({ status: "STOPPED" }))),
+);
+ok(() =>
+	assertQuiesced(
+		plan,
+		readSnapshot(
+			plan,
+			censusRead({ status: "STOPPED", revision: old.replace(":692", ":690") }),
+		),
+	),
+);
+ok(() =>
+	assert.throws(() =>
+		assertQuiesced(
+			plan,
+			readSnapshot(plan, censusRead({ revision: old.replace(":692", ":694") })),
+		),
+	),
+);
+for (const fault of ["page", "read", "failure", "missing", "identity"])
+	ok(() =>
+		assert.throws(() =>
+			assertQuiesced(plan, readSnapshot(plan, censusRead({ fault }))),
+		),
+	);
+
 const scratch = mkdtempSync(join(tmpdir(), "quiesced-deploy-"));
 try {
+	const omittedPath = join(scratch, "omitted-tasks.json");
+	ok(() =>
+		assert.deepEqual(
+			recordAttemptTasks(plan, next, omittedPath, censusRead()),
+			[task, omittedTask],
+		),
+	);
+	ok(() =>
+		assert.throws(() =>
+			assertRecoveryStopped(plan, next, [task, omittedTask], censusRead()),
+		),
+	);
+	ok(() =>
+		assertRecoveryStopped(
+			plan,
+			next,
+			[task, omittedTask],
+			censusRead({ status: "STOPPED" }),
+		),
+	);
+	for (const fault of ["failure", "missing", "identity"])
+		ok(() =>
+			assert.throws(() =>
+				recordAttemptTasks(plan, next, omittedPath, censusRead({ fault })),
+			),
+		);
+	ok(() =>
+		assert.deepEqual(JSON.parse(readFileSync(omittedPath)), [
+			task,
+			omittedTask,
+		]),
+	);
 	let recovery = structuredClone(state);
 	recovery.service.services[0].taskDefinition = next;
 	let newStatus = "STOPPING";

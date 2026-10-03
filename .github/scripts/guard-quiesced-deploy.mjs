@@ -150,15 +150,16 @@ export function assertQuiesced(plan, snapshot) {
 	}
 	assert.deepEqual(snapshot.running.taskArns, []);
 	assert.equal(snapshot.running.nextToken, undefined);
+	assert.equal(snapshot.stopped.nextToken, undefined);
 	assert.deepEqual(snapshot.tasks.failures, []);
-	assert.equal(snapshot.tasks.tasks.length, plan.previousTasks.length);
 	assert.deepEqual(
 		snapshot.tasks.tasks.map((task) => task.taskArn).sort(),
-		[...plan.previousTasks].sort(),
+		[...new Set([...plan.previousTasks, ...snapshot.stopped.taskArns])].sort(),
 	);
 	for (const task of snapshot.tasks.tasks) {
 		assert.equal(task.group, `service:${plan.service}`);
-		assert.equal(task.taskDefinitionArn, plan.previousTaskDefinition);
+		if (plan.previousTasks.includes(task.taskArn))
+			assert.equal(task.taskDefinitionArn, plan.previousTaskDefinition);
 		assert.equal(task.lastStatus, "STOPPED");
 	}
 	assert.equal(
@@ -217,6 +218,49 @@ function aws(...args) {
 }
 export function readSnapshot(plan, read = aws) {
 	const resource = `service/${plan.cluster}/${plan.service}`;
+	const lists = {};
+	for (const status of ["RUNNING", "STOPPED"]) {
+		const page = read(
+			"ecs",
+			"list-tasks",
+			"--cluster",
+			plan.cluster,
+			"--service-name",
+			plan.service,
+			"--desired-status",
+			status,
+		);
+		assert.equal(page.nextToken, undefined);
+		assert.ok(Array.isArray(page.taskArns));
+		assert.equal(new Set(page.taskArns).size, page.taskArns.length);
+		lists[status] = page;
+	}
+	const arns = [
+		...new Set([
+			...plan.previousTasks,
+			...lists.RUNNING.taskArns,
+			...lists.STOPPED.taskArns,
+		]),
+	];
+	assert.ok(arns.length <= 500);
+	const tasks = { failures: [], tasks: [] };
+	for (let offset = 0; offset < arns.length; offset += 100) {
+		const requested = arns.slice(offset, offset + 100);
+		const page = read(
+			"ecs",
+			"describe-tasks",
+			"--cluster",
+			plan.cluster,
+			"--tasks",
+			...requested,
+		);
+		assert.deepEqual(page.failures, []);
+		assert.deepEqual(
+			page.tasks.map((task) => task.taskArn).sort(),
+			[...requested].sort(),
+		);
+		tasks.tasks.push(...page.tasks);
+	}
 	return {
 		service: read(
 			"ecs",
@@ -226,24 +270,9 @@ export function readSnapshot(plan, read = aws) {
 			"--services",
 			plan.service,
 		),
-		running: read(
-			"ecs",
-			"list-tasks",
-			"--cluster",
-			plan.cluster,
-			"--service-name",
-			plan.service,
-			"--desired-status",
-			"RUNNING",
-		),
-		tasks: read(
-			"ecs",
-			"describe-tasks",
-			"--cluster",
-			plan.cluster,
-			"--tasks",
-			...plan.previousTasks,
-		),
+		running: lists.RUNNING,
+		stopped: lists.STOPPED,
+		tasks,
 		definition: read(
 			"ecs",
 			"describe-task-definition",
@@ -313,7 +342,10 @@ export function recordAttemptTasks(plan, newDefinition, file, read = aws) {
 			...arns.slice(offset, offset + 100),
 		);
 		assert.deepEqual(page.failures, []);
-		assert.equal(page.tasks.length, arns.slice(offset, offset + 100).length);
+		assert.deepEqual(
+			page.tasks.map((task) => task.taskArn).sort(),
+			arns.slice(offset, offset + 100).sort(),
+		);
 		for (const task of page.tasks) {
 			assert.equal(task.group, `service:${plan.service}`);
 			if (task.lastStatus !== "STOPPED")
@@ -322,7 +354,11 @@ export function recordAttemptTasks(plan, newDefinition, file, read = aws) {
 						task.taskDefinitionArn,
 					),
 				);
-			if (task.taskDefinitionArn === newDefinition)
+			if (
+				[plan.previousTaskDefinition, newDefinition].includes(
+					task.taskDefinitionArn,
+				)
+			)
 				remembered.push(task.taskArn);
 		}
 	}
@@ -464,7 +500,7 @@ if (
 		process.stdout.write(`${plan.restoreCount}\n`);
 	} catch {
 		process.stderr.write(
-			"Quiesced deployment preflight failed; service remains stopped.\n",
+			"Quiesced deployment check failed; shutdown/readback is not confirmed.\n",
 		);
 		process.exitCode = 1;
 	}

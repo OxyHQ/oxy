@@ -66,6 +66,7 @@ const emit=x=>process.stdout.write(typeof x==='string'?x:JSON.stringify(x));
 const event=x=>fs.appendFileSync(dir+'/events.jsonl',JSON.stringify(x)+'\\n');
 const save=()=>fs.writeFileSync(dir+'/state.json',JSON.stringify(s));
 const newArn=p.previousTasks[0].replace('a'.repeat(32),'b'.repeat(32));
+const omittedArn=p.previousTasks[0].replace('a'.repeat(32),'e'.repeat(32));
 const service=()=>({failures:[],services:[{serviceName:p.service,status:'ACTIVE',taskDefinition:s.td,
 desiredCount:s.count,runningCount:s.count,pendingCount:0,loadBalancers:[{targetGroupArn:p.targetGroups[0]}],
 networkConfiguration:{awsvpcConfiguration:{subnets:['fixture'],securityGroups:['fixture'],assignPublicIp:'DISABLED'}},
@@ -77,11 +78,11 @@ case 'ecs describe-task-definition':{
  const requested=value('--task-definition');
  const result=requested===next?{...JSON.parse(fs.readFileSync(dir+'/registered.json')),taskDefinitionArn:next}:def;
  emit(args.includes('--query')?result:{taskDefinition:result});break;}
-case 'ecs list-tasks':emit({taskArns:value('--desired-status')==='RUNNING'?(s.count?[newArn]:[]):s.started?[...p.previousTasks,newArn]:p.previousTasks});break;
+case 'ecs list-tasks':emit({taskArns:value('--desired-status')==='RUNNING'?(s.count?[newArn]:[]):process.env.FIXTURE_OLD_STOPPING==='true'?[...p.previousTasks,omittedArn]:s.started?[...p.previousTasks,newArn]:p.previousTasks});break;
 case 'ecs describe-tasks':{
  const ids=args.slice(args.indexOf('--tasks')+1).filter(x=>x.startsWith('arn:'));
  emit({failures:[],tasks:ids.map(arn=>({taskArn:arn,group:'service:'+p.service,
- taskDefinitionArn:arn===newArn?next:p.previousTaskDefinition,lastStatus:arn===newArn&&s.count?'RUNNING':'STOPPED',
+ taskDefinitionArn:arn===newArn?next:p.previousTaskDefinition,lastStatus:arn===omittedArn?'STOPPING':arn===newArn&&s.count?'RUNNING':'STOPPED',
  containers:[{name:p.container,lastStatus:'STOPPED',exitCode:0}]}))});break;}
 case 'elbv2 describe-target-health':emit({TargetHealthDescriptions:[]});break;
 case 'application-autoscaling describe-scalable-targets':emit({ScalableTargets:[]});break;
@@ -105,7 +106,12 @@ writeFileSync(guard, "#!/usr/bin/env bash\nexit 0\n");
 let count = 0;
 function run(
 	name,
-	{ maintenance = true, failure = false, drift = false } = {},
+	{
+		maintenance = true,
+		failure = false,
+		drift = false,
+		omittedStopping = false,
+	} = {},
 ) {
 	const dir = join(scratch, name);
 	mkdirSync(dir);
@@ -131,6 +137,7 @@ function run(
 		IMAGE_URI: finalImage,
 		FIXTURE_DIR: dir,
 		FIXTURE_FAIL: String(failure),
+		FIXTURE_OLD_STOPPING: String(omittedStopping),
 		MAX_WAIT_SECS: "2",
 		POLL_INTERVAL: "1",
 		RUN_MIGRATIONS: "true",
@@ -186,6 +193,11 @@ try {
 	assert.ok(
 		failure.events.filter((x) => x.op === "update").every((x) => x.td !== old),
 	);
+	count++;
+	const omitted = run("omitted-old-stopping", { omittedStopping: true });
+	assert.notEqual(omitted.result.status, 0);
+	assert.deepEqual(omitted.events, []);
+	assert.equal(omitted.final.count, 0);
 	count++;
 	const normal = run("normal0", { maintenance: false });
 	assert.notEqual(normal.result.status, 0);
