@@ -1,0 +1,148 @@
+{
+  "sourceCommit": "960ec7191a1d8bcc7313f11d5d233300e59e3a26",
+  "recordedAt": "2026-10-03T01:01:59.440818+00:00",
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/config/inferenceEconomicPolicy.ts",
+      "sha256": "da6ae5038f825f726b2994dab73cf3d17adff552c8e4bee6f009ae7d4d7e6d5a",
+      "bytes": 7726
+    },
+    {
+      "path": "packages/api/src/services/inferenceInternalPilot.ts",
+      "sha256": "113b998e18e48ccd82e5f36e33d0172ffc4cb6520191090cf34623639ea6a1a8",
+      "bytes": 1696
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "6dc3c28ebe75aea9ed7c78f5acb9f2451661a933be625db1cbd546b70b29c569",
+      "bytes": 193429
+    },
+    {
+      "path": "packages/api/src/services/__tests__/inferenceInternalPilot.test.ts",
+      "sha256": "194729d83a12763ead6afff07642cc9a29735cd9fd0f96a6d3ba8e2d9a30af5b",
+      "bytes": 2708
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sha256": "275a1f567bcec9a40f6759f2cd4cbe9bc4d52a615c2c6abd7befd2ab60d3c275",
+      "bytes": 53549
+    },
+    {
+      "path": "docs/inference/internal-metering.md",
+      "sha256": "ae7ff733124932bf3c475273c8fc087f313f4f2d8b6a426b0e70cc62e00dc3de",
+      "bytes": 16843
+    },
+    {
+      "path": "scripts/rehearsal/test-approved-api-1519.py",
+      "sha256": "93e128c9afc501036574f32b3a5038b11366ab574c4b36b2b7a4c920f04b5b01",
+      "bytes": 4265
+    },
+    {
+      "path": "package.json",
+      "sha256": "d6f32aa518540adceb7c793f708c565e08d3d7a99ff14dd0a433a5d9aaf9b95e",
+      "bytes": 8325
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "d778e714a4a49a0f814a49513eb7a5ff8c164a217c0ac9989f6a6eb5785c1b06",
+      "bytes": 800911
+    },
+    {
+      "path": "packages/api/jest.globalSetup.ts",
+      "sha256": "fac28745836e9a52f791a9b317ac0f1aae8677765426a042f1b29629a471f440",
+      "bytes": 3614
+    },
+    {
+      "path": "packages/api/src/db/testDatabase.ts",
+      "sha256": "9e1d3327bef9d34244ca5926da97ca1b74b71753c7120f9dc815b9e6ea3d7a12",
+      "bytes": 6857
+    },
+    {
+      "path": "packages/api/drizzle/meta/_journal.json",
+      "sha256": "1671dd8acd01997bdd01a79a49cb9b87aa8303bfd11f2eefbccd00edc2a1de6e",
+      "bytes": 20842
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/red-harness.ts",
+      "sha256": "26867e3c2edd670b7be378170f0c97f6fe7548483e61084b469e2ac9826ec08b",
+      "bytes": 48274
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/red.log",
+      "sha256": "cc619b08f8e997fb384ee3718afc276abe793600b08a6d7caab0fcf2bd9a5e9b",
+      "bytes": 3067
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/focal.log",
+      "sha256": "6c051db178addb8707c2cc8de1a84701ad30427a3dbeb69110afc8dd32ba6f4b",
+      "bytes": 782
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/api-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/api-ts.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/eslint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/README.md",
+      "sha256": "299b257e0d82acc1134835efac255c01ad278817c65c7793e1e1e1051067d6b0",
+      "bytes": 3357
+    }
+  ],
+  "results": {
+    "red": {
+      "failed": 3,
+      "passed": 16
+    },
+    "final": {
+      "suites": 5,
+      "passed": 79,
+      "failed": 0,
+      "skipped": 0
+    },
+    "apiBuild": 0,
+    "apiNoEmit": 0,
+    "scopedESLint": 0
+  },
+  "toolchain": {
+    "bun": "1.4.2",
+    "node": "v24.21.0",
+    "postgres": "postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)"
+  },
+  "database": {
+    "ownedPid": 3300289,
+    "port": 5576,
+    "database": "oxy_rehearsal_1519_1f49802b666f0bab",
+    "dataDirectory": "/tmp/oxy1519-i09-98pie62k/pg1519-09h95rdz/data",
+    "ownerChecks": [
+      "pid",
+      "uid",
+      "executable",
+      "dataDirectory",
+      "socketInode"
+    ],
+    "scrubbedInheritedURLs": true,
+    "normalMigrator": true,
+    "journalEntries": 136,
+    "stopped": true
+  },
+  "limits": [
+    "Conservative controlled-payload input budget, not certified provider tokens/framing/hidden prompts/billable usage",
+    "Actual relationship unmocked for production-pilot cases; Kaana execution and deployment attestation synthetic",
+    "Catalogue altered only in explicit tuple/alternate negatives; fixtures use synthetic prices and usage",
+    "Metering mechanisms/Auto/scoped tests use explicitly synthetic no-pilot relationship",
+    "No provider monetary tariff approval, live inference, production deploy or SDK publication",
+    "Signed live registry preflight pending run37084334795; Kaana NULL producer remains OPEN PR150 exactc2d047ab"
+  ]
+}

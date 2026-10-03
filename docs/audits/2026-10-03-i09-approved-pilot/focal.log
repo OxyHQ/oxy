@@ -1,0 +1,7 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/config/__tests__/inferenceEconomicPolicy.test.ts src/services/__tests__/inferenceInternalPilot.test.ts src/services/__tests__/inferenceMeteredUsage.service.test.ts src/services/__tests__/kaanaProviderCostFeed.service.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       79 passed, 79 total
+Snapshots:   0 total
+Time:        10.934 s, estimated 12 s
+Ran all test suites within paths "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts", "src/config/__tests__/inferenceEconomicPolicy.test.ts", "src/services/__tests__/inferenceInternalPilot.test.ts", "src/services/__tests__/inferenceMeteredUsage.service.test.ts", "src/services/__tests__/kaanaProviderCostFeed.service.test.ts".
