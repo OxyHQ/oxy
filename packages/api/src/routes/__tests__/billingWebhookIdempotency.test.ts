@@ -76,7 +76,7 @@ jest.mock('../../utils/stripeClient', () => ({
     charges: { retrieve: async (id: string) => structuredClone(currentCharges.get(id) ?? { id, livemode: false, payment_intent: null }) },
     invoicePayments: { list: async (params: { invoice?: string; payment?: { payment_intent?: string } }) => ({ has_more: false, data: [...invoicePayments.values()].filter(p => params.invoice ? p.invoice === params.invoice : (p.payment as { payment_intent: string }).payment_intent === params.payment?.payment_intent) }) },
     webhooks: {
-      constructEvent: (body: Buffer) => JSON.parse(body.toString()),
+      constructEventAsync: async (body: Buffer) => JSON.parse(body.toString()),
     },
     subscriptions: {
       update: async (id: string, params: { cancel_at_period_end: boolean }) => {
@@ -295,7 +295,7 @@ function envelope(type: string, object: unknown, options: { id?: string; created
 
 async function withApp<T>(run: (baseUrl: string) => Promise<T>): Promise<T> {
   const app = express();
-  // The real server mounts a raw body parser for the webhook; `constructEvent`
+  // The real server mounts a raw body parser for the webhook; `constructEventAsync`
   // is stubbed, so any body reaches the handler intact.
   app.use('/billing/webhook', express.raw({ type: '*/*' }));
   app.use(express.json());

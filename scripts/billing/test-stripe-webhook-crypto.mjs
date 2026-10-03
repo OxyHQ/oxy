@@ -39,8 +39,8 @@ try{
  assert.equal((await send(raw.replace('seti_offline_fixture','seti_tampered_fixture'),sign(raw))).status,400);checked++;
  assert.equal((await send(raw,sign(raw,'whsec_wrong_fixture'))).status,400);checked++;
  assert.equal((await send(raw,sign(raw,secret,Math.floor(Date.now()/1000)-1000))).status,400);checked++;
- const generated=getStripe().webhooks.generateTestHeaderString({payload:raw,secret,cryptoProvider:Stripe.createNodeCryptoProvider()});
- assert.equal(getStripe().webhooks.constructEvent(raw,generated,secret,undefined,Stripe.createNodeCryptoProvider()).id,id);checked++;
+ const generated=await getStripe().webhooks.generateTestHeaderStringAsync({payload:raw,secret,cryptoProvider:Stripe.createSubtleCryptoProvider()});
+ assert.equal((await getStripe().webhooks.constructEventAsync(raw,generated,secret,undefined,Stripe.createSubtleCryptoProvider())).id,id);checked++;
  const {sql}=require('drizzle-orm');
  const rows=await pg.getDb().execute(sql`select stripe_event_id,outcome,attempts from billing_stripe_events where stripe_event_id=${id}`);
  assert.equal(rows.length,1);assert.equal(rows[0].outcome,'ignored');assert.equal(rows[0].attempts,2);checked++;

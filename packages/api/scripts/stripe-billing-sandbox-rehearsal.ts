@@ -92,6 +92,42 @@ export async function loadBillingRouter(
 	return (req, res, next) => realRouter(req, res, next);
 }
 
+/** No arbitrary Error.message, provider response or headers enter diagnostics. */
+export function rehearsalErrorDiagnostic(error: unknown, phase: string) {
+	const source =
+		error instanceof Error
+			? error.stack?.match(
+					/packages\/api\/scripts\/stripe-billing-sandbox-rehearsal\.ts:(\d+):(\d+)/,
+				)
+			: undefined;
+	const reason =
+		error instanceof Error &&
+		error.message ===
+			"SubtleCryptoProvider cannot be used in a synchronous context."
+			? "crypto_sync_provider"
+			: error instanceof Error &&
+					error.message === "Event census exceeds five bounded pages"
+				? "event_census_bound"
+				: error instanceof Error && error.message.startsWith("Timed out: own ")
+					? "own_event_timeout"
+					: "unclassified";
+	return {
+		phase,
+		name: error instanceof Error ? error.name : "UnknownError",
+		reason,
+		...(source
+			? {
+					sourceLocation: `packages/api/scripts/stripe-billing-sandbox-rehearsal.ts:${source[1]}:${source[2]}`,
+				}
+			: {}),
+		...(error instanceof Stripe.errors.StripeError &&
+		typeof error.code === "string" &&
+		/^[a-z0-9_]{1,80}$/.test(error.code)
+			? { code: error.code }
+			: {}),
+	};
+}
+
 async function main() {
 	assert.equal(
 		process.argv.length,
@@ -181,7 +217,10 @@ async function main() {
 	process.env.STRIPE_WEBHOOK_SECRET = `whsec_${randomBytes(32).toString("hex")}`;
 	process.env.ACCESS_TOKEN_SECRET = randomBytes(32).toString("hex");
 	process.env.REFRESH_TOKEN_SECRET = randomBytes(32).toString("hex");
-	const stripe = new Stripe(key, { maxNetworkRetries: 0, timeout: 30000 });
+	const stripe = new Stripe(key, {
+		maxNetworkRetries: 0,
+		timeout: 30000,
+	});
 	assert.equal(
 		(await stripe.accounts.retrieve()).id,
 		ACCOUNT,
@@ -224,8 +263,7 @@ async function main() {
 	};
 	process.on("SIGINT", stop);
 	process.on("SIGTERM", stop);
-	let primaryError: { name: string; code?: string; phase: string } | null =
-		null;
+	let primaryError: ReturnType<typeof rehearsalErrorDiagnostic> | null = null;
 	const paidInvoiceIds = new Set<string>();
 	const metadata = {
 		oxy_fixture_scope: "1519_i06_i07",
@@ -364,9 +402,10 @@ async function main() {
 		assert.equal(event.livemode, false);
 		assert.ok(server);
 		const payload = JSON.stringify(event);
-		const signature = stripe.webhooks.generateTestHeaderString({
+		const signature = await stripe.webhooks.generateTestHeaderStringAsync({
 			payload,
 			secret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
+			cryptoProvider: Stripe.createSubtleCryptoProvider(),
 		});
 		const port = (server.address() as AddressInfo).port;
 		const response = await fetch(`http://127.0.0.1:${port}/billing/webhook`, {
@@ -1028,11 +1067,7 @@ async function main() {
 			activePromotionRegistry: 0,
 		});
 	} catch (error) {
-		primaryError = {
-			phase,
-			name: error instanceof Error ? error.name : "UnknownError",
-			code: error instanceof Stripe.errors.StripeError ? error.code : undefined,
-		};
+		primaryError = rehearsalErrorDiagnostic(error, phase);
 	} finally {
 		// No cleanup failure aborts later cleanup. Every mutation is limited to IDs returned by this run.
 		if (server) {

@@ -5,7 +5,7 @@ import { and, count, desc, eq, inArray, isNull, lte, or ,
 	sql,
 } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
-import type Stripe from 'stripe';
+import Stripe from 'stripe';
 import { z } from "zod";
 import { getDb } from '../config/postgres';
 import { addCredits } from '../db/credits';
@@ -803,7 +803,13 @@ router.post("/webhook", async (req: Request, res: Response) => {
 
 	let event: Stripe.Event;
 	try {
-		event = (await getBillingStripe()).webhooks.constructEvent(req.body, sig, webhookSecret);
+		event = await (await getBillingStripe()).webhooks.constructEventAsync(
+      req.body,
+      sig,
+      webhookSecret,
+      undefined,
+      Stripe.createSubtleCryptoProvider(),
+    );
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		logger.error("Webhook verification failed:", message);

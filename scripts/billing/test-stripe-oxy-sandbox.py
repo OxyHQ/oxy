@@ -72,6 +72,21 @@ class FrozenPlanTests(unittest.TestCase):
         self.assertEqual(json.loads(RUNNER.bootstrap_router()),
                          {'actualLoader': 'function', 'remoteRequests': 0, 'keyRead': False})
 
+    def test_diagnostics_never_return_arbitrary_provider_messages(self):
+        code = """
+          import { rehearsalErrorDiagnostic } from './packages/api/scripts/stripe-billing-sandbox-rehearsal.ts';
+          import assert from 'node:assert/strict';
+          const arbitrary = rehearsalErrorDiagnostic(new Error('secret sk_test_do_not_emit header Bearer token'), 'fixture');
+          assert.equal(arbitrary.reason, 'unclassified');
+          assert.equal(JSON.stringify(arbitrary).includes('do_not_emit'), false);
+          assert.equal(JSON.stringify(arbitrary).includes('Bearer'), false);
+          assert.equal(rehearsalErrorDiagnostic(new Error('SubtleCryptoProvider cannot be used in a synchronous context.'), 'fixture').reason, 'crypto_sync_provider');
+          assert.equal(rehearsalErrorDiagnostic(new Error('Event census exceeds five bounded pages'), 'fixture').reason, 'event_census_bound');
+          console.log(JSON.stringify({passed: 5, remoteRequests: 0, keyRead: false}));
+        """
+        result = RUNNER.run(['bun', '-e', code], cwd=RUNNER.ROOT)
+        self.assertEqual(json.loads(result), {'passed': 5, 'remoteRequests': 0, 'keyRead': False})
+
     def test_credential_environment_is_not_forwarded(self):
         previous = RUNNER.os.environ.copy()
         try:
