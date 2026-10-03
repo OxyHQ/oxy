@@ -41,7 +41,7 @@ Each relationship declares `maxConcurrentRequests` and `maxRequestsPerUtcDay`
 per application + environment. Running out of capacity answers `rate_limited`
 (concurrency) or `quota_exceeded` (daily) and never asks for a top-up.
 
-**Alia → Kaana limits are a proposal pending approval (#1526), not policy.**
+**Nate approved the documented pilot on 2026-10-03 (#1526). Source implementation and rollout evidence remain separate.**
 Measured from production `inference_usage_events`, Alia, 2026-09-02..10-02
 (read-only aggregates, charging off, 7 distinct subjects):
 
@@ -55,12 +55,56 @@ Measured from production `inference_usage_events`, Alia, 2026-09-02..10-02
 | Tokens per request | ~4,029 in, ~70 out (82 % on `openai/gpt-oss-120b`) |
 | Published tariff, 30 days (estimate at the highest active gpt-oss-120b card) | ≈ USD 1.65 |
 
-Proposed: 32 in flight (~10x the measured peak) and 5,000 a day (~27x the
-busiest day). Both are estimates with headroom, not measured capacity. Counts
-do not bound cost: the worst case of 5,000 requests a day is ≈ USD 96 at
-gpt-oss-120b prices with a 46k-token prompt, but far more on the most
-expensive active card, so model eligibility (the routing policy) or a daily
-tariff ceiling is what bounds spend — the second is a proposal, not built.
+Approved pilot: 32 in flight and 5,000 admissions per UTC day. These are
+configured limits with historical headroom, not measurements of current capacity.
+Version `oxy-inference-economics/2026-10-03.3` additionally restricts every signed
+route (including failovers) to the exact deployment/model/provider tuples in
+`config/inferenceEconomicPolicy.ts`, all at
+`openai/gpt-oss-120b@observed-2026-09-01`:
+
+- `dep_cerebras_gpt_oss_120b_observed_2026_09_01` / `cerebras`;
+- `dep_groq_openai_gpt_oss_120b_observed_2026_09_01` / `groq`;
+- `dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01` / `openrouter`.
+
+This is exact identity matching; publication, signed fresh attestation, ordinary
+model/provider/privacy gates and permission checks still apply. The pilot does
+not open decisions, Jev, Auto or a provider outside that set.
+
+The controlled-input budget is at most **8192**: UTF-8 serialized normalized
+input, tools, tool choice and response format, plus explicit local allowances
+of 256 base, 32 per message and 32 per tool. It includes roles, tool arguments
+and schemas. Only text completions can satisfy this guard; unsupported modalities
+and operations fail before claims or execution. This is a conservative budget
+of content Oxy controls, **not** a certified maximum of provider tokens, hidden
+prompts, framing or billable usage. No tokenizer or upstream consumption guarantee
+is inferred. Strict provider-token enforcement requires a verified Kaana/provider
+contract and tokenizer evidence.
+
+Output uses `min(requested maxOutputTokens, 2048)`, or 2048 if omitted, before
+capacity, price quotation and the signed attempt. An older Alia client requesting
+4096 remains compatible; smaller requests keep their upper bound. Commercial
+callers retain existing behavior. Real usage and cost provenance remain measured
+separately; these controls do not establish a monetary provider-spend ceiling or
+approve a tariff.
+
+### Deployment order and reversal
+
+1. Deploy and verify Kaana #150's SQL NULL preservation before enabling the signed
+   provider-attempt ingestion. NULL is unmeasured, never an empty measured array.
+2. Apply Oxy migrations with the existing migrator, then deploy the reviewed backend
+   and read back policy version, signed registry identities and durable usage/cost
+   correlation before live pilot acceptance. No SDK publication precedes backend.
+3. Keep Alia's current 4096 default safe through the backend cap; independently
+   deploy reviewed Alia snapshot changes only after its backend dependencies exist.
+4. Publish the final coordinated SDK package set, then adopt consumers and verify
+   integration. Never use source candidates as proof of publication.
+
+Rollback uses the previous reviewed backend image/task definition and disables
+new ingestion through its existing rollout controls; retain migration data and
+history. Do not erase measured records or rewrite unknown costs as zero. A prior
+image lacking pilot guards is not a safe live pilot target; stop that workload
+before reverting. Current model presence and endpoint readiness must be checked
+via signed operator readback, not inferred from this configuration.
 
 ## Durable records
 
