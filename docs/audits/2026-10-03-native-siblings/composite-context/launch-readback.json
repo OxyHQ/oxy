@@ -1,0 +1,14 @@
+[
+  {
+    "variant": "mention",
+    "status": 200,
+    "sha256": "0cc3523e6117362686b353fac256b1cd5d35e21c5d5fc5109c085ef7278481e8",
+    "bytes": 18453225
+  },
+  {
+    "variant": "allo",
+    "status": 200,
+    "sha256": "10c29178e0df9ed46eec5e2bb6035b75bb0179a00e7f21a096cd97b58f3b86bd",
+    "bytes": 18447798
+  }
+]

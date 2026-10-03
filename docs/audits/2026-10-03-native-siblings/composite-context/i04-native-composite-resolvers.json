@@ -1,0 +1,30 @@
+[
+  {
+    "variant": "mention",
+    "importer": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+    "resolved": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+    "version": "6.2.1",
+    "comparedFiles": 20940
+  },
+  {
+    "variant": "mention",
+    "importer": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo",
+    "resolved": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+    "version": "6.2.1",
+    "comparedFiles": 20940
+  },
+  {
+    "variant": "allo",
+    "importer": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+    "resolved": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+    "version": "6.2.1",
+    "comparedFiles": 20940
+  },
+  {
+    "variant": "allo",
+    "importer": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/packages/test-app-expo",
+    "resolved": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+    "version": "6.2.1",
+    "comparedFiles": 20940
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "variant": "mention",
+    "path": "packages/contracts",
+    "tree": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+    "target": "9e07f55c5"
+  },
+  {
+    "variant": "mention",
+    "path": "packages/core",
+    "tree": "3937031b8c95a6b8feff65720905de1ad651689d",
+    "target": "9e07f55c5"
+  },
+  {
+    "variant": "mention",
+    "path": "packages/services",
+    "tree": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+    "target": "9e07f55c5"
+  },
+  {
+    "variant": "allo",
+    "path": "packages/contracts",
+    "tree": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+    "target": "9e07f55c5"
+  },
+  {
+    "variant": "allo",
+    "path": "packages/core",
+    "tree": "3937031b8c95a6b8feff65720905de1ad651689d",
+    "target": "9e07f55c5"
+  },
+  {
+    "variant": "allo",
+    "path": "packages/services",
+    "tree": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+    "target": "9e07f55c5"
+  }
+]
