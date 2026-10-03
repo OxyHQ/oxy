@@ -54,3 +54,8 @@ Gradle447 tasks, native autolinking, strictTypeScript and scopedESLint pass.
 folder. The earlier APK hashes remain historical, independently verified by root
 before installation; rebuilding replaced their original output paths. Device
 acceptance of the corrected APK remains pending root's operation.
+
+Correction: the initial peer followup TypeScript6 log failed because the harness
+config omitted existing styles.d.ts (the earlier rootTypeScript5.9 run passed).
+The config now includes that existing declaration; corrected packageTypeScript6
+run exits0. Both logs remain in the proof. This changes only harness types.

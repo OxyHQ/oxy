@@ -37,6 +37,11 @@
       "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/peers-lint.log",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/peers-types-corrected.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
     }
   ],
   "artifact": {
@@ -53,5 +58,13 @@
   ],
   "priorArtifacts": "Root verified before install; mutable Gradle output directory replaced by rebuild. Prior proof remains historical. New APK retained outside that directory.",
   "devicePass": false,
-  "pending": "Root update-install and real native UI/auth acceptance"
+  "pending": "Root update-install and real native UI/auth acceptance",
+  "followupSources": [
+    {
+      "path": "packages/test-app-expo/acceptance/tsconfig.json",
+      "sha256": "e9b6c9210bb6d46be2b3731f18a3a29a68925d8df1f67e67e9427e7b503df70f",
+      "bytes": 219
+    }
+  ],
+  "typescriptCorrection": "Prior rootTS5.9 passed; packageTS6 initially failed missing existing CSS declaration in harness includes. Added ../styles.d.ts and reran packageTS6: exit0. Previous failed log preserved."
 }
