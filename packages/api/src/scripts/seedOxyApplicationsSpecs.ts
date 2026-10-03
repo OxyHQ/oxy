@@ -290,6 +290,8 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
 export const ALIA_OWNER_ACCOUNT_USERNAME = 'alia-production-chat';
 
 /** New identities: seed these exact entries before provisioning their activity lanes. */
+/** GoWay public sign-in identity; registration is an explicit operator step. */
+export const GOWAY_APPLICATION_ID = '73176d04c3654667138c23ec';
 export const NILO_APPLICATION_ID = 'ed143b1b58d60eab417f7d5c';
 export const MEDIA_WORKER_APPLICATION_ID = '71ea45cf97451563762ead13';
 
@@ -645,6 +647,15 @@ export const SEED_APPS: SeedAppSpec[] = [
       'notifications:write',
       'federation:instance-fetch',
     ],
+  },
+  {
+    id: GOWAY_APPLICATION_ID,
+    name: 'GoWay',
+    description: 'Official Oxy maps and navigation app.',
+    websiteUrl: 'https://goway.to',
+    type: 'first_party',
+    redirectUris: ['https://goway.to'],
+    scopes: ['user:read'],
   },
   {
     id: NILO_APPLICATION_ID,
