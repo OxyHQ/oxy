@@ -3,7 +3,7 @@
   "sources": [
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
-      "sha256": "d54eb546d68f3bd4d7678e2715028200b4425a786e032d87a5745bd5a8bd5fe6"
+      "sha256": "f2f45137316b4c13bbc629575822bf729fc099d5839cbe319e19e9a86212176f"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/publisher-composition.json",
@@ -15,11 +15,19 @@
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-checks.json",
-      "sha256": "0b823e85b2fceb7c5fb24bf0ab987ffa72d33887fb1362c6797746182be5a29b"
+      "sha256": "f1c8825faff7c088183b5b37c1aa06b6b77c5f23cfbb7947d9badb8ead571fcf"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-checks.md",
       "sha256": "52f880fb55e5a111142cacc725892923e6c3b058f5173fbc7a7f1312b2a3c471"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/draft-pull-requests.json",
+      "sha256": "de2c4e08cc6f97b273d8cccde97567116e4b7b6ef467664d143c185b711a340a"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/post-workflow-preflight.json",
+      "sha256": "9b00048ab3e1cca44a17ab544bd970c9af9d684453265d7ad83ec8cbc930c826"
     }
   ],
   "checks": {
@@ -27,5 +35,6 @@
     "publisherFiles": 51,
     "frontendFiles": 12,
     "plannedCommands": 99
-  }
+  },
+  "note": "17 fresh-main preflights precede the two validator-only followups; all published package/runtime bytes remain unchanged by these commits."
 }

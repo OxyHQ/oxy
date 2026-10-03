@@ -1,0 +1,107 @@
+{
+  "mode": "read-only fresh remote main ancestry and manifest patch validation",
+  "rows": [
+    {
+      "repository": "OxyHQ/Atlas",
+      "head": "b725e9edf6c02eb1f3adebba9bca48a27d092a31",
+      "currentMain": "530f6fea31fb6ba089026855646c4be9a73d91ac",
+      "patchSha256": "9e35d67ad1af0530f6b9159996f578bb2598b4facda2ce24c462231e1007a11b"
+    },
+    {
+      "repository": "OxyHQ/Alia",
+      "head": "4bd1ee83b84226d3b7bd5e87851dfd45561b4251",
+      "currentMain": "2927daa376cb37e25f3d021d880efc48e650ce7f",
+      "patchSha256": "b3185c65c17956b6b38323ef680b27cb12e2dcdd6158366e144734f773b3f9f2"
+    },
+    {
+      "repository": "OxyHQ/Mention",
+      "head": "89987bdd2c09178361148e273c898bd7baba5c98",
+      "currentMain": "80b03fb2d11d36f89ee608f05d4c5375f1ff0f8b",
+      "patchSha256": "f181a0869e3cdfcc68a718eeef114b6b1426c6926bdbabfe4932883a2e53e9a9"
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "head": "cf7de686f4b55b55299385b6a8f0175495b98137",
+      "currentMain": "9e546e66b36b8050bfe07a37f53ee436444688cf",
+      "patchSha256": "8b85d3bdc4ea78c043c98892c6175bbaf90b6e073bf01c67abe18c47d43ba393"
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "head": "1b1d5212b1fbaa3f401089e0518c18cd682c2d94",
+      "currentMain": "b1e0054a7734f2e57d46b20d82f593a4be547738",
+      "patchSha256": "e3f6ac69dfa02e12e3b2cea6b1fcb9b8a78915610c0bcd8d15ecde431cbdcf6d"
+    },
+    {
+      "repository": "OxyHQ/Allo",
+      "head": "9cfb00426a603f936daedca182eeb4528fce1ed8",
+      "currentMain": "b75a4b2c7fd050892731f0fcaf9bfcc864abc263",
+      "patchSha256": "92553e28689c59af21867d161d096c2d05091f6458a5c1aa22af2e72c01de513"
+    },
+    {
+      "repository": "OxyHQ/Noted",
+      "head": "f825219674cbd7e59b22f8f3f2aba81b65f0053e",
+      "currentMain": "806e9cae040a7d9446557e7ce9eda64069116056",
+      "patchSha256": "5fea5fa4338f30e9b1dd3226cc70debabd28946f56e0592c4daa74f3cbc2b831"
+    },
+    {
+      "repository": "OxyHQ/Homiio",
+      "head": "086c90b636c7898b9d20d3fa145ddf5c8a651d92",
+      "currentMain": "64d458c542fcb0980c28c0c338dd2d600def0dae",
+      "patchSha256": "9df7004b37092e62be8416470585ad1ed4516d5743ef40ebc000dd0cc0214969"
+    },
+    {
+      "repository": "OxyHQ/website",
+      "head": "3f821153ceca5b542cf53a62d89ebdfae1f2d050",
+      "currentMain": "a53531ee471304b390e4be5ec1322e0672c9b08e",
+      "patchSha256": "adacb3a3e04b236292bf131621fa8b33a3da59b27be67132fcc07839551444f6"
+    },
+    {
+      "repository": "OxyHQ/Peable",
+      "head": "9a70ddedcf29ba4b4986f4b4c259f05f735b545b",
+      "currentMain": "6f671437b7e7c28c646c03afa9e47483ba04333a",
+      "patchSha256": "6973c193d3ab9a4abeaa000964f00d7c2de9eed451270a77cd8286eb1b51c18e"
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "head": "0f42e3b6d5885bbb7ec18bcfba408f095004ff83",
+      "currentMain": "8ee271e576ce618ba7511c44ddabcd170b4dd1fe",
+      "patchSha256": "7888ca6de148cf5604116fa4e954c8629c2ca24ef988810f6d8d47ee36d0f707"
+    },
+    {
+      "repository": "OxyHQ/Willo",
+      "head": "9d5b9959723bbb78e3f55c8f2713327eef621944",
+      "currentMain": "6d059d7e133c4d3d6c22a008b16f51b0e78fbc96",
+      "patchSha256": "af521d772883f08b84e0de1f00c7404ffa2521c199df64be5b71e542650238f7"
+    },
+    {
+      "repository": "OxyHQ/GoWay",
+      "head": "4745e4ab85a3981d6d26e310c2318a96265a639c",
+      "currentMain": "c696e80d420212d3c899963681c421d5cf3b56d0",
+      "patchSha256": "d8e5c764eadb525701c465857f378991ccb316ada9741e0eca0ba6657f62eb8a"
+    },
+    {
+      "repository": "OxyHQ/Moovo",
+      "head": "706ed699d0122a868df7910afd07f60017988e3a",
+      "currentMain": "dde4ab8bce332e2e971866483530f8f6754c2f94",
+      "patchSha256": "48a35e7636fd8b45dd9309b6084177386ae2c9ce20410dff2ddbfc0698fbf83f"
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "head": "a44bdfa19fb3dfd0d3e98bed2ecc072c512c900b",
+      "currentMain": "a8d903d0da2a8c8fd409bf97998424273c372f85",
+      "patchSha256": "55249e879fb70caff6ff8dbdcf653ceff74069c091b0f8ccf82eecb4eeb1ec4c"
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "head": "42e8c720d51b5cb4d4574fe72fbe19d6b2e84059",
+      "currentMain": "63b9f49eeab8b96ce1ac4cfec1f5b6768f3f4ae7",
+      "patchSha256": "b5a35fd62f9d4900fb52cc245d4e3e2eadf5be468c05acb4982dca27781cff0b"
+    },
+    {
+      "repository": "OxyHQ/Syra",
+      "head": "a86ef872060dbf125ef6c29f3be342de88ea6dbf",
+      "currentMain": "7804e1f1c1be89edf802e92ef41c81a4fb91eeae",
+      "patchSha256": "866bd0007087d4bbfaf740c868aee527a1b65dad392fd62a4d0c5c912ec07327"
+    }
+  ]
+}
