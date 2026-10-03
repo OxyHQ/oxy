@@ -44,17 +44,14 @@ import { runColdBoot, type ColdBootOutcome, type ColdBootStep } from '../utils/c
 import { isNative as detectNative } from '../utils/platform';
 import { logger } from '../logger';
 import { computeIdentityTag } from '../utils/cacheKey';
-import { TOKEN_REFRESH_LEAD_MS, refreshDeviceSecretArm } from '../session/refresh';
+import { TOKEN_REFRESH_LEAD_MS, refreshDeviceSecretArm, refreshSharedDeviceArm } from '../session/refresh';
 import {
   establishIdentitySession,
   resolveIdentityPin,
   type IdentityBinding,
 } from '../session/identitySession';
 import type { IdentityPin } from '../session/identityPin';
-import {
-  decideSharedDeviceJoin,
-  type SharedDeviceCredentialStore,
-} from '../session/sharedDeviceCredential';
+import type { SharedDeviceCredentialStore } from '../session/sharedDeviceCredential';
 import type { OxyServices } from '../OxyServices';
 import type { AuthStateStore, PersistedAuthState } from '../session/authStateStore';
 import type { DeviceSessionState } from '@oxy.so/contracts';
@@ -178,6 +175,7 @@ export async function runSessionColdBoot(
   // Boot-local (not module-level) so it cannot leak across boots or break under
   // bundler re-evaluation.
   let signedOutReason: SignedOutReason = 'no_session';
+  let rejectedLocalHolder = false;
   let accountRecoverySuperseded = false;
 
   // Boot-local memo for the identity pin. Resolved lazily INSIDE a step so the
@@ -289,6 +287,11 @@ export async function runSessionColdBoot(
             },
           };
         case 'invalid-secret': {
+          if (identityBinding === null && store.setAutomaticIdentitySignInSuppressed && await store.isAutomaticIdentitySignInSuppressed?.()) {
+            rejectedLocalHolder = true;
+            signedOutReason = 'no_session';
+            return {kind: 'skip'};
+          }
           // Stale/diverged secret — drop it so the mint lane stops firing. On
           // native the Commons-proof step below can still recover; on web this ends
           // signed out. Setting it undefined drops the key on the store's JSON
@@ -300,6 +303,7 @@ export async function runSessionColdBoot(
           return { kind: 'skip' };
         }
         case 'no-session':
+          rejectedLocalHolder = identityBinding === null;
           // Device known, no live session — authoritative signed-out. Keep the
           // secret (the device may sign in again).
           signedOutReason = 'no_session';
@@ -400,71 +404,14 @@ export async function runSessionColdBoot(
       // like every other network step.
       enabled: () => isNative && !isOffline() && !accountRecoverySuperseded,
       run: async () => {
-        const before = await store.load();
-        const decision = decideSharedDeviceJoin(before, await sharedSlot.read());
-        if (decision.action === 'skip') {
-          logger.debug(
-            `shared device credential not adopted (${decision.reason})`,
-            { component: 'sessionColdBoot', method: 'shared-device-adopt' },
-          );
-          return { kind: 'skip' };
-        }
-
-        // Restore the store to exactly what it held before this lane touched it.
-        // A credential we adopted and could not prove must not be left behind for
-        // the next boot's mint lane to keep retrying.
-        const revert = async (): Promise<void> => {
-          if (before) {
-            await store.save(before);
-          } else {
-            await store.clear();
-          }
-        };
-
-        const adopted: PersistedAuthState = {
-          // The mint fills both in from the device's live state; carrying the
-          // previous session's ids into a different device session would be a
-          // lie for however long the mint takes.
-          sessionId: '',
-          userId: '',
-          deviceId: decision.credential.deviceId,
-          deviceSecret: decision.credential.deviceSecret,
-        };
-        if (!(await store.save(adopted))) {
-          logger.error(
-            'adopted the shared device credential but it could not be durably persisted — reverting',
-            undefined,
-            { component: 'sessionColdBoot', method: 'shared-device-adopt' },
-          );
-          await revert();
-          return { kind: 'skip' };
-        }
-
-        const result = await refreshDeviceSecretArm({ oxy, store, pin: null });
+        const result = await refreshSharedDeviceArm({oxy, store, shared: sharedSlot, rejectedLocalHolder});
         if (result.status === 'ok') {
-          return {
-            kind: 'session',
-            session: {
-              sessionId: result.sessionId,
-              userId: result.userId,
-              accessToken: result.token,
-            },
-          };
+          return {kind: 'session', session: {
+            sessionId: result.sessionId, userId: result.userId, accessToken: result.token, state: result.state,
+          }};
         }
-
-        if (result.status === 'invalid-secret') {
-          // The one place we hold POSITIVE proof that the exact bytes in the
-          // shared slot are dead — the server rejected them by name. Clearing it
-          // signs nobody out (a credential the server does not recognise cannot
-          // be minting for anyone) and it is what stops a dead credential from
-          // blocking every future install: a stale slot owned by a different
-          // `deviceId` is otherwise never overwritten, by design.
-          await sharedSlot.clear();
-        } else if (result.status === 'no-session') {
-          signedOutReason = 'no_session';
-        }
-        await revert();
-        return { kind: 'skip' };
+        if (result.status === 'no-session') signedOutReason = 'no_session';
+        return {kind: 'skip'};
       },
     });
   }

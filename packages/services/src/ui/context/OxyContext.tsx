@@ -30,6 +30,7 @@ import {
 } from '../oauth/browserAuthTransport';
 import type { WebOAuthSignInResult } from '../oauth/types';
 import { openBridgeWindow, resolveBridgeOrigin, runBrowserBridge } from '../oauth/browserBridge';
+import { createPlatformSharedDeviceCredentialStore } from '../session/sharedDeviceCredentialStore';
 import { trackDeviceCredential, type CredentialTrackingAuthStateStore } from '../session/deviceCredentialTracker';
 import {
   requestOAuthConsent,
@@ -673,15 +674,19 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // account instead of the device's active one, and its recovery arm becomes the
   // PRIMARY-key identity sign-in rather than the cross-app shared keychain.
   useEffect(() => {
+    let disposed = false;
     const refresh = createAuthRefreshHandler({
       oxy: oxyServices,
       store: authStore,
+      isCurrent: () => !disposed && registeredLaneRef.current.lane === 'device' && !hasIsolatedOAuthSession(runtime),
       ...(identity ? { identity: identity.binding } : {}),
+      ...(!identity && !isWebBrowser() ? {allowCommonsIdentityFallback: false, sharedDeviceCredential: createPlatformSharedDeviceCredentialStore() ?? undefined} : {}),
     });
     oxyServices.http.setAuthRefreshHandler((reason) =>
       registeredLaneRef.current.lane !== 'device' || hasIsolatedOAuthSession(runtime) ? Promise.resolve(null) : refresh(reason));
     const scheduler = startTokenRefreshScheduler(oxyServices);
     return () => {
+      disposed = true;
       scheduler.dispose();
       oxyServices.http.setAuthRefreshHandler(null);
     };
@@ -1199,11 +1204,12 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     const reconcile = (): void => {
       if (disposed || pending || hasIsolatedOAuthSession(runtime)) return;
       pending = (async (): Promise<void> => {
-        if (!oxyServices.session.accessToken && sessionClientHost.getDeviceCredential()) {
+        if ((!isWebBrowser() && !identity) || (!oxyServices.session.accessToken && sessionClientHost.getDeviceCredential())) {
           // The scheduler/preflight/401 paths own the same mint single-flight.
           await oxyServices.http.refreshAccessToken('preflight');
         }
         if (disposed || hasIsolatedOAuthSession(runtime)) return;
+        if (!isWebBrowser() && !identity) await syncDeviceCredentialToHost();
         if (!oxyServices.session.accessToken && !sessionClientHost.getDeviceCredential()) {
           return;
         }
@@ -1232,7 +1238,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       disposed = true;
       subscription.remove();
     };
-  }, [oxyServices, sessionClient, sessionClientHost, syncFromClient, runtime]);
+  }, [oxyServices, sessionClient, sessionClientHost, syncFromClient, syncDeviceCredentialToHost, identity, runtime]);
 
   // Reconnect heal: when connectivity transitions offline→online while there is
   // no live access token but a persisted device credential exists, re-mint ONCE

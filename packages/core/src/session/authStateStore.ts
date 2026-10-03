@@ -84,6 +84,8 @@ export interface AuthStateStore {
    * session built on a secret that will not survive a reload.
    */
   save(state: PersistedAuthState): Promise<boolean>;
+  /** Compare inside the storage queue before committing a proven shared holder. */
+  saveIfCurrent?(state: PersistedAuthState, guard: AuthStateWriteGuard): Promise<boolean>;
   clear(): Promise<void>;
   /** Durable local intent only: never authority or a mutation of an identity key. */
   isAutomaticIdentitySignInSuppressed?(): Promise<boolean>;
@@ -92,6 +94,18 @@ export interface AuthStateStore {
     expectedState: PersistedAuthState;
     isCurrent: () => boolean;
   }): Promise<boolean>;
+}
+
+export interface AuthStateWriteGuard {
+  expectedState: PersistedAuthState | null;
+  isCurrent: () => boolean;
+}
+
+export function matchesAuthState(actual: PersistedAuthState | null, expected: PersistedAuthState | null): boolean {
+  if (!actual || !expected) return actual === expected;
+  return actual.deviceId === expected.deviceId && actual.deviceSecret === expected.deviceSecret &&
+    actual.sessionId === expected.sessionId && actual.userId === expected.userId &&
+    actual.accessToken === expected.accessToken && actual.expiresAt === expected.expiresAt;
 }
 
 /**
@@ -302,6 +316,11 @@ export function createMemoryAuthStateStore(): AuthStateStore {
       current = state;
       return true;
     },
+    saveIfCurrent: async (state, guard) => {
+      if (!guard.isCurrent() || !matchesAuthState(current, guard.expectedState)) return false;
+      current = state;
+      return true;
+    },
     clear: async () => {
       current = null;
     },
@@ -443,6 +462,56 @@ export function createNativeAuthStateStore(storage: NativeKeyValueStorage): Auth
     pending = result.then(() => undefined, () => undefined);
     return result;
   };
+  const readCurrent = async (): Promise<PersistedAuthState | null> => {
+    if (sessionMirror !== undefined) return sessionMirror;
+    const [durable, warm] = await Promise.all([
+      storage.getItem(AUTH_STATE_STORAGE_KEY), storage.getItem(AUTH_STATE_TOKEN_STORAGE_KEY),
+    ]);
+    return composeState(durable, warm);
+  };
+  const persistState = async (state: PersistedAuthState): Promise<boolean> => {
+    sessionMirror = state;
+    // Durable credential FIRST, then VERIFY. On Android SecureStore an
+    // oversize/failed write can resolve WITHOUT throwing, so a read-back is the
+    // only reliable proof. The mirror keeps the session live for this app run,
+    // but a failed DURABLE write means the mint credential will NOT survive a
+    // cold restart — surface it, never swallow.
+    let durablePersisted = false;
+    try {
+      const durableJson = serializeDurable(state);
+      await storage.setItem(AUTH_STATE_STORAGE_KEY, durableJson);
+      durablePersisted = (await storage.getItem(AUTH_STATE_STORAGE_KEY)) === durableJson;
+      if (!durablePersisted) {
+        logger.error(
+          '[authStateStore] durable credential read-back mismatch after save — the device credential did not persist (likely oversize SecureStore value); the session survives this app run via the in-memory mirror but will be lost on cold restart',
+          undefined,
+          { component: 'authStateStore' },
+        );
+      }
+    } catch (error) {
+      logger.error(
+        '[authStateStore] durable credential persist threw — the device credential did not persist; the session survives this app run via the in-memory mirror but will be lost on cold restart',
+        error,
+        { component: 'authStateStore' },
+      );
+    }
+    // Warm token AFTER, best-effort. Its failure is genuinely non-fatal (the
+    // durable credential re-mints a fresh token) and must never abort or
+    // corrupt the durable write above.
+    try {
+      const warmJson = serializeWarmToken(state);
+      if (warmJson) {
+        await storage.setItem(AUTH_STATE_TOKEN_STORAGE_KEY, warmJson);
+      } else {
+        await storage.removeItem(AUTH_STATE_TOKEN_STORAGE_KEY);
+      }
+    } catch {
+      // Locked / oversize keychain — non-fatal warm-boot loss only.
+    }
+    // Report ONLY the durable-credential landing; the warm-token outcome above
+    // is intentionally excluded (it is a best-effort optimization).
+    return durablePersisted;
+  };
   return {
     isAutomaticIdentitySignInSuppressed: () => serialize(async () => {
       if (suppressedMirror !== undefined) return suppressedMirror;
@@ -493,48 +562,13 @@ export function createNativeAuthStateStore(storage: NativeKeyValueStorage): Auth
         return null;
       }
     }),
-    save: (state) => serialize(async () => {
-      sessionMirror = state;
-      // Durable credential FIRST, then VERIFY. On Android SecureStore an
-      // oversize/failed write can resolve WITHOUT throwing, so a read-back is the
-      // only reliable proof. The mirror keeps the session live for this app run,
-      // but a failed DURABLE write means the mint credential will NOT survive a
-      // cold restart — surface it, never swallow.
-      let durablePersisted = false;
+    save: (state) => serialize(() => persistState(state)),
+    saveIfCurrent: (state, guard) => serialize(async () => {
       try {
-        const durableJson = serializeDurable(state);
-        await storage.setItem(AUTH_STATE_STORAGE_KEY, durableJson);
-        durablePersisted = (await storage.getItem(AUTH_STATE_STORAGE_KEY)) === durableJson;
-        if (!durablePersisted) {
-          logger.error(
-            '[authStateStore] durable credential read-back mismatch after save — the device credential did not persist (likely oversize SecureStore value); the session survives this app run via the in-memory mirror but will be lost on cold restart',
-            undefined,
-            { component: 'authStateStore' },
-          );
-        }
-      } catch (error) {
-        logger.error(
-          '[authStateStore] durable credential persist threw — the device credential did not persist; the session survives this app run via the in-memory mirror but will be lost on cold restart',
-          error,
-          { component: 'authStateStore' },
-        );
-      }
-      // Warm token AFTER, best-effort. Its failure is genuinely non-fatal (the
-      // durable credential re-mints a fresh token) and must never abort or
-      // corrupt the durable write above.
-      try {
-        const warmJson = serializeWarmToken(state);
-        if (warmJson) {
-          await storage.setItem(AUTH_STATE_TOKEN_STORAGE_KEY, warmJson);
-        } else {
-          await storage.removeItem(AUTH_STATE_TOKEN_STORAGE_KEY);
-        }
-      } catch {
-        // Locked / oversize keychain — non-fatal warm-boot loss only.
-      }
-      // Report ONLY the durable-credential landing; the warm-token outcome above
-      // is intentionally excluded (it is a best-effort optimization).
-      return durablePersisted;
+        const current = await readCurrent();
+        if (!guard.isCurrent() || !matchesAuthState(current, guard.expectedState)) return false;
+      } catch { return false; }
+      return persistState(state);
     }),
     clear: () => serialize(async () => {
       sessionMirror = null;

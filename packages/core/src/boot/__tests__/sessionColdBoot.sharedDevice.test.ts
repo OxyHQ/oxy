@@ -225,10 +225,10 @@ describe('cold boot — shared-device-adopt', () => {
     expect(outcome).toEqual({ kind: 'unauthenticated' });
   });
 
-  test('a rejected shared credential is reverted locally and cleared from the slot', async () => {
+  test('a rejected shared credential leaves local bytes and the non-CAS shared slot unchanged', async () => {
     // `invalid_device_secret` is the one positive proof that the exact shared
-    // bytes are dead. Reverting keeps this app where it was; clearing the slot is
-    // what stops a dead credential from blocking every future install.
+    // bytes were dead when checked. Without a cross-app CAS, clearing later
+    // could delete a newer credential; failed adoption never mutates the slot.
     const store = createMemoryAuthStateStore();
     const before: PersistedAuthState = { sessionId: 'sess-stale', userId: 'user-stale' };
     await store.save(before);
@@ -247,7 +247,7 @@ describe('cold boot — shared-device-adopt', () => {
     });
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
-    expect(slot.clear).toHaveBeenCalledTimes(1);
+    expect(slot.clear).not.toHaveBeenCalled();
     expect(await store.load()).toEqual(before);
   });
 
