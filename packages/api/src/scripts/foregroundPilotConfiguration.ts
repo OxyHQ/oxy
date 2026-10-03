@@ -413,12 +413,7 @@ export async function applyForegroundPilotConfiguration(
 				row_revision: sql<string>`xmin::text`,
 			})
 			.from(applicationCredentials)
-			.where(
-				and(
-					eq(applicationCredentials.applicationId, MENTION_APPLICATION_ID),
-					eq(applicationCredentials.type, "workload"),
-				),
-			)
+			.where(eq(applicationCredentials.applicationId, MENTION_APPLICATION_ID))
 			.orderBy(applicationCredentials.id)
 			.for("update");
 		exact(
@@ -758,11 +753,37 @@ export async function rollbackForegroundPilotConfiguration(
 			},
 			"rollback application",
 		);
-		const alreadyRestored =
-			canonicalCapabilityJson(app.scopes) ===
-				canonicalCapabilityJson(plan.expectedApplication.scopes) &&
-			canonicalCapabilityJson(app.capabilities) ===
-				canonicalCapabilityJson(plan.expectedApplication.capabilities);
+		const [registrar] = await tx
+			.select({
+				owner: applications.ownerAccountId,
+				scopes: applications.scopes,
+				status: applications.status,
+				isInternal: applications.isInternal,
+				redirectUris: applications.redirectUris,
+				capabilities: applications.capabilities,
+				type: applications.type,
+			})
+			.from(applications)
+			.where(eq(applications.id, OXY_PROFILE_REGISTRAR_APPLICATION_ID))
+			.for("update");
+		if (!registrar || !["active", "suspended"].includes(registrar.status))
+			throw new Error("I05 rollback registrar state changed");
+		// Scope equality alone cannot identify the phase: the reviewed baseline may
+		// already contain every grant. Registrar suspension is committed atomically
+		// with restoration; compare all component authority against that phase.
+		const alreadyRestored = registrar.status === "suspended";
+		if (alreadyRestored) {
+			exact(
+				app.scopes,
+				plan.expectedApplication.scopes,
+				"restored application scopes",
+			);
+			exact(
+				app.capabilities,
+				plan.expectedApplication.capabilities,
+				"restored application capabilities",
+			);
+		}
 		if (!alreadyRestored) {
 			exact(app.scopes, plan.afterScopes, "rollback application scopes");
 			exact(
@@ -825,12 +846,7 @@ export async function rollbackForegroundPilotConfiguration(
 				row_revision: sql<string>`xmin::text`,
 			})
 			.from(applicationCredentials)
-			.where(
-				and(
-					eq(applicationCredentials.applicationId, MENTION_APPLICATION_ID),
-					eq(applicationCredentials.type, "workload"),
-				),
-			)
+			.where(eq(applicationCredentials.applicationId, MENTION_APPLICATION_ID))
 			.orderBy(applicationCredentials.id)
 			.for("update");
 		exact(
@@ -840,19 +856,6 @@ export async function rollbackForegroundPilotConfiguration(
 			),
 			"rollback canonical attribution identity",
 		);
-		const [registrar] = await tx
-			.select({
-				owner: applications.ownerAccountId,
-				scopes: applications.scopes,
-				status: applications.status,
-				isInternal: applications.isInternal,
-				redirectUris: applications.redirectUris,
-				capabilities: applications.capabilities,
-				type: applications.type,
-			})
-			.from(applications)
-			.where(eq(applications.id, OXY_PROFILE_REGISTRAR_APPLICATION_ID))
-			.for("update");
 		exact(
 			registrar,
 			{
