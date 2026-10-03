@@ -63,6 +63,7 @@ import {
 } from '@oxy.so/contracts';
 import {
   effectivePermissionsForMember,
+  autonomousOperationalPermissions,
   permissionsForAccountRole,
   type AccountPermission,
   type AccountRole,
@@ -82,6 +83,7 @@ import {
 import { violatesUniqueIndex } from '../utils/postgresErrors';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
+import { liveAgentSessionOwns } from './agentKeyAuthority.service';
 import { archiveAccountForRetention } from './accountFinancialHolds.service';
 import { recordAccountDeletedEvent, type RecordedAccountEvent } from './accountEvents.service';
 import {
@@ -228,7 +230,7 @@ export interface EffectiveAccess {
    * would otherwise be a permanently-false check that reads as a working gate.
    */
   permissions: AccountPermission[];
-  /** `self` = implicit ownership of one's own personal account. */
+  /** `self` = personal ownership or authenticated autonomous operation. */
   source: 'self' | 'direct' | 'inherited';
   /** The concrete membership row, when the access came from one. */
   membership: AccountMemberRow | null;
@@ -850,7 +852,8 @@ export class AccountService {
    */
   async resolveEffectiveAccess(
     userId: string,
-    accountId: string
+    accountId: string,
+    sessionId?: string,
   ): Promise<EffectiveAccess | null> {
     const db = getDb();
     const [account] = await db
@@ -861,7 +864,7 @@ export class AccountService {
     if (!account || account.accountStatus === 'archived') {
       return null;
     }
-    return this.effectiveAccessForAccount(userId, account);
+    return this.effectiveAccessForAccount(userId, account, sessionId);
   }
 
   /**
@@ -873,7 +876,8 @@ export class AccountService {
    */
   async effectiveAccessForAccount(
     userId: string,
-    account: { id?: unknown; _id?: unknown; kind?: unknown }
+    account: { id?: unknown; _id?: unknown; kind?: unknown },
+    sessionId?: string,
   ): Promise<EffectiveAccess | null> {
     const raw = account.id ?? account._id;
     const accountId = typeof raw === 'string' ? raw : String(raw ?? '');
@@ -906,6 +910,15 @@ export class AccountService {
       );
 
     const resolved = resolveEffectiveMembership(rows, accountId, ancestors);
+    if (accountId === userId && account.kind === 'bot' && sessionId
+      && await liveAgentSessionOwns(sessionId, userId)) {
+      // Self operation owns resources/funds. Only explicit current membership
+      // adds governance; possession of a runtime key never appoints an owner.
+      const governed = resolved && (resolved.row.role === 'owner' || resolved.row.role === 'admin')
+        ? effectivePermissionsForMember(resolved.row) : [];
+      return { role: resolved?.row.role ?? 'viewer', source: 'self', membership: resolved?.row ?? null,
+        permissions: [...new Set([...autonomousOperationalPermissions(), ...governed])] };
+    }
     if (!resolved) {
       return null;
     }

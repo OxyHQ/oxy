@@ -51,6 +51,7 @@ import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import SignatureService from './signature.service';
 import sessionService from './session.service';
+import { readSessionAgentBinding, type AgentKeyBinding } from './agentKeyAuthority.service';
 import { AUTH_CODE_TTL_MS } from './oauthCode.service';
 import { decideOAuthConsent, persistOAuthAuthorization, resolveOAuthScopes } from './oauthConsent.service';
 import { isAllowedRedirectUri } from '../utils/oauthRedirect';
@@ -246,7 +247,7 @@ export function approvalMintsSession(authSession: Pick<PublicAuthSession, 'purpo
 }
 
 export type ApprovalOperatorOutcome =
-  | { ok: true; operatedByUserId: string | null }
+  | { ok: true; operatedByUserId: string | null; authMethod?: AgentKeyBinding }
   | { ok: false; reason: 'approving_session_unreadable' | 'seat_not_assumable' };
 
 /**
@@ -289,8 +290,11 @@ export async function resolveApprovalOperator(
   if (!approving || approving.userId !== subjectAccountId) {
     return { ok: false, reason: 'approving_session_unreadable' };
   }
+  let authMethod: AgentKeyBinding | undefined;
+  try { authMethod = await readSessionAgentBinding(approvingSessionId, approving.operatedByUserId ?? approving.userId); }
+  catch { return { ok: false, reason: 'approving_session_unreadable' }; }
   if (!approving.operatedByUserId) {
-    return { ok: true, operatedByUserId: null };
+    return { ok: true, operatedByUserId: null, ...(authMethod ? { authMethod } : {}) };
   }
   const [subject] = await db
     .select({ kind: users.kind })
@@ -304,7 +308,7 @@ export async function resolveApprovalOperator(
   }
   const delegation = await verifyDelegatedSubject(approving.operatedByUserId, subjectAccountId);
   if (!delegation.ok) return { ok: false, reason: 'approving_session_unreadable' };
-  return { ok: true, operatedByUserId: approving.operatedByUserId };
+  return { ok: true, operatedByUserId: approving.operatedByUserId, ...(authMethod ? { authMethod } : {}) };
 }
 
 /**
@@ -649,6 +653,7 @@ export async function authorizeSessionWithBearer(
     .set({
       status: 'authorized',
       authorizedUserId: oauthApproval ? approvingActorId : authenticatedUserId,
+      ...(oauthApproval ? { approvedBySessionId: approvingSessionId } : {}),
       ...(oauthApproval && operatedByUserId && !existing.oauthSubjectAccountId
         ? { oauthSubjectAccountId: authenticatedUserId } : {}),
       ...(authenticatedPublicKey ? { authorizedBy: authenticatedPublicKey } : {}),
@@ -698,6 +703,7 @@ export async function authorizeSessionWithBearer(
     // durable restore secret it will receive from `/auth/session/claim`.
     deviceId: uuidv7(),
     ...(operatedByUserId ? { operatedByUserId } : {}),
+    ...(operator.authMethod ? { authMethod: operator.authMethod } : {}),
   });
 
   // Only the winner of the atomic claim above ever reaches here, so this
@@ -792,6 +798,19 @@ export async function finalizeOAuthAuthorization(
     return { ok: false, reason: 'not_authorized' };
   }
 
+  // Bearer approvals keep the exact principal session. Commons personal proof
+  // has no bearer; bot approval never falls back to that legacy personal lane.
+  let authMethod: AgentKeyBinding | undefined;
+  if (existing.approvedBySessionId) {
+    const live = await sessionService.validateSessionById(existing.approvedBySessionId, false, { useCache: false });
+    if (!live) return { ok: false, reason: 'not_authorized' };
+    try { authMethod = await readSessionAgentBinding(existing.approvedBySessionId, identityUserId); }
+    catch { return { ok: false, reason: 'not_authorized' }; }
+  } else {
+    const [actor] = await db.select({ kind: users.kind }).from(users).where(eq(users.id, identityUserId));
+    if (!actor || actor.kind !== 'personal') return { ok: false, reason: 'not_authorized' };
+  }
+
   const [app] = await db
     .select({
       id: applications.id,
@@ -877,6 +896,7 @@ export async function finalizeOAuthAuthorization(
         codeChallengeMethod: 'S256',
         scopes: effectiveScopes,
         ...(subjectAccountId ? { operatedByUserId: identityUserId } : {}),
+        ...(authMethod ? { authMethod } : {}),
         // Thread the originating RP device so the token exchange lands on the
         // same DeviceSession the flow started from instead of sprawling a new
         // device.

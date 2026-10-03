@@ -1,0 +1,32 @@
+$ jest --runInBand src/db/schema/__tests__/workloadAttributionCredential.test.ts
+{"level":30,"time":1790995015021,"pid":3412988,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/db/schema/__tests__/workloadAttributionCredential.test.ts
+  ● its attribution holds remain valid when a later global expiry sweep reaches them
+
+    Failed query: 
+        update "account_balances"
+        set reserved_balance = "account_balances"."reserved_balance" - $1::numeric,
+            promotional_balance = "account_balances"."promotional_balance" + $2::numeric,
+            purchased_balance = "account_balances"."purchased_balance" + $3::numeric,
+            invoiced_outstanding = "account_balances"."invoiced_outstanding" - $4::numeric,
+            updated_at = date_trunc('milliseconds', now())
+        where "account_balances"."account_id" = $5
+          and "account_balances"."currency" = $6
+      
+    params: 1.000000000000,0,0,0,01a0ff9f-256f-762a-a0ed-b7d2922a2739,USD
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+
+    Cause:
+        PostgresError: new row for relation "account_balances" violates check constraint "account_balances_reserved_check"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 14 passed, 15 total
+Snapshots:   0 total
+Time:        0.645 s
+Ran all test suites matching src/db/schema/__tests__/workloadAttributionCredential.test.ts.
+error: script "test" exited with code 1

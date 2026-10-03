@@ -24,10 +24,11 @@ export async function optionalAuthMiddleware(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { user, source } = await authenticateRequestNonBlocking(req, false);
+    const { user, source, sessionId } = await authenticateRequestNonBlocking(req, false);
     
     if (user) {
       req.user = user;
+      req.sessionId = sessionId;
       logger.debug('Optional auth: User authenticated', { 
         userId: user._id, 
         source: source || 'unknown'
@@ -164,9 +165,10 @@ export async function optionalUserOrServiceAuth(
       // safely yields anonymous when the token is not a valid session token.
     }
 
-    const { user, source } = await authenticateRequestNonBlocking(req, false);
+    const { user, source, sessionId } = await authenticateRequestNonBlocking(req, false);
     if (user) {
       req.user = user;
+      req.sessionId = sessionId;
       logger.debug('Optional dual auth: user authenticated', {
         userId: user._id,
         source: source || 'unknown',

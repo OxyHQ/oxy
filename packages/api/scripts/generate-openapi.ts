@@ -625,6 +625,8 @@ interface RouteEntry {
  */
 const MOUNT_MAP: Record<string, readonly string[]> = {
   'auth.ts': ['/auth'],
+  'agentAuth.ts': ['/auth/agent'],
+  'agentKeys.ts': ['/accounts'],
   'authLinking.ts': ['/auth'],
   'assets.ts': ['/assets'],
   'cdn.ts': ['/cdn'],

@@ -561,13 +561,14 @@ export type CallerAccountAccessResolution =
  */
 export async function resolveCallerAccountAccess(
   userId: string,
-  accountId: string
+  accountId: string,
+  sessionId?: string
 ): Promise<CallerAccountAccessResolution> {
   if (!userId || !accountId) {
     return { status: 'no-access', accountId };
   }
 
-  const access = await accountService.resolveEffectiveAccess(userId, accountId);
+  const access = await accountService.resolveEffectiveAccess(userId, accountId, sessionId);
   if (!access) {
     return { status: 'no-access', accountId };
   }
@@ -615,7 +616,7 @@ export type CallerApplicationAccessResolution =
 export async function resolveCallerApplicationAccess(
   userId: string,
   applicationId: string,
-  options: { includeDeleted?: boolean } = {}
+  options: { includeDeleted?: boolean; sessionId?: string } = {}
 ): Promise<CallerApplicationAccessResolution> {
   const resolved = await resolveApplicationOwnerAccount(applicationId);
   if (resolved.status === 'unknown-application') {
@@ -627,7 +628,7 @@ export async function resolveCallerApplicationAccess(
     return { status: 'unknown-application', applicationId };
   }
 
-  const accountAccess = await resolveCallerAccountAccess(userId, application.ownerAccountId);
+  const accountAccess = await resolveCallerAccountAccess(userId, application.ownerAccountId, options.sessionId);
   if (accountAccess.status === 'no-access') {
     return {
       status: 'no-access',

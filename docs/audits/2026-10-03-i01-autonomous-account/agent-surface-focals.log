@@ -1,0 +1,11 @@
+$ jest --runInBand src/services/__tests__/agentKeyGovernance.test.ts src/routes/__tests__/agentAutonomousFlow.test.ts src/services/__tests__/mcpOAuth.service.test.ts src/services/__tests__/mcpConnection.service.test.ts src/routes/__tests__/mcpOAuth.routes.test.ts src/routes/__tests__/accountBillingAuthorization.test.ts src/routes/__tests__/inferenceProviderConnections.test.ts src/routes/__tests__/inferenceRoutingPolicies.test.ts src/routes/__tests__/inferenceReporting.test.ts src/services/__tests__/attribution.service.test.ts
+{"level":30,"time":1790994051915,"pid":3397922,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790994056192,"pid":3397922,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790994060075,"pid":3397922,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790994060595,"pid":3397922,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 10 passed, 10 total
+Tests:       179 passed, 179 total
+Snapshots:   0 total
+Time:        9.732 s
+Ran all test suites matching src/services/__tests__/agentKeyGovernance.test.ts|src/routes/__tests__/agentAutonomousFlow.test.ts|src/services/__tests__/mcpOAuth.service.test.ts|src/services/__tests__/mcpConnection.service.test.ts|src/routes/__tests__/mcpOAuth.routes.test.ts|src/routes/__tests__/accountBillingAuthorization.test.ts|src/routes/__tests__/inferenceProviderConnections.test.ts|src/routes/__tests__/inferenceRoutingPolicies.test.ts|src/routes/__tests__/inferenceReporting.test.ts|src/services/__tests__/attribution.service.test.ts.

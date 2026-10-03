@@ -42,6 +42,8 @@ export interface NormalizedUser {
 }
 
 export interface AuthenticatedRequest extends Request {
+  /** Session already verified by optional auth. */
+  sessionId?: string;
   user?: NormalizedUser;
 }
 
@@ -157,7 +159,7 @@ export async function validateSessionToken(token: string): Promise<NormalizedUse
 export async function authenticateRequestNonBlocking(
   req: Request,
   requireAuth = false
-): Promise<{ user: NormalizedUser | null; source: 'header' | null }> {
+): Promise<{ user: NormalizedUser | null; source: 'header' | null; sessionId?: string }> {
   const token = extractTokenFromRequest(req);
   const source = req.headers.authorization ? 'header' : null;
   
@@ -176,5 +178,5 @@ export async function authenticateRequestNonBlocking(
   }
   
   const user = await validateSessionToken(token);
-  return { user, source };
+  return { user, source, ...(user ? { sessionId: decoded.sessionId } : {}) };
 }

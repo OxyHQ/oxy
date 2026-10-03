@@ -967,6 +967,13 @@
       "when": 1790989069905,
       "tag": "0138_eminent_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1790993586102,
+      "tag": "0139_condemned_cloak",
+      "breakpoints": true
     }
   ]
 }

@@ -22,6 +22,8 @@ import storeRoutes from './routes/store';
 import stickerRoutes from './routes/stickers';
 import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
+import agentAuthRoutes from './routes/agentAuth';
+import agentKeysRoutes from './routes/agentKeys';
 import accountSecurityRoutes from './routes/accountSecurity';
 import resourceIntrospectionRoutes from './routes/resourceIntrospection';
 import productCatalogueRoutes from './routes/productCatalogue';
@@ -702,6 +704,7 @@ app.use(bruteForceProtection);
 app.use(mcpOAuthDiscoveryRouter);
 app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
 app.use("/auth", authRateLimiter, authRoutes);
+app.use('/auth/agent', authRateLimiter, agentAuthRoutes);
 app.use('/auth/resources', authRateLimiter, resourceIntrospectionRoutes);
 app.use('/v1/products', productAccessRoutes);
 app.use('/v1/products', productCatalogueRoutes);
@@ -782,6 +785,7 @@ app.use('/internal', internalRoutes);
 app.use('/account-events', accountEventRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
+app.use('/accounts', agentKeysRoutes);
 app.use('/accounts', accountRoutes);
 // Oxy Family membership (organizer + member personal accounts). Per-route
 // rate limiters (rl:families:*) live inside the router, same as `/accounts`.

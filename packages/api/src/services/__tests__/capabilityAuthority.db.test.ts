@@ -20,6 +20,13 @@ import {
   delegationGrants,
 } from '../../db/schema/agency';
 import { users } from '../../db/schema/users';
+import { userAuthMethods } from '../../db/schema/userAuthMethods';
+import { accountClosureFences } from '../../db/schema/accountClosureFences';
+import { deriveSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
+import sessionService from '../session.service';
+import type { Request } from 'express';
+jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
+jest.mock('../securityActivityService', () => ({ __esModule: true, default: { logDeviceAdded: jest.fn() } }));
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 import capabilitiesRouter from '../../routes/capabilities';
 import {
@@ -462,4 +469,78 @@ it('serializes pinned issuance and live introspection through HTTP with real ser
   const changed = await introspect();
   expect(changed.body.active).toBe(false);
   expect(changed.body.decision.reason).toBe('ticket_catalog_no_longer_current');
+});
+
+
+async function autonomousSelfFixture() {
+  const f = await fixture('execute_on_request');
+  await getDb().update(users).set({ kind: 'bot' }).where(eq(users.id, f.ownerId));
+  const privateKey = randomUUID().replace(/-/g, '').padStart(64, '0');
+  const [method] = await getDb().insert(userAuthMethods).values({ userId: f.ownerId, type: 'agent_key',
+    methodPublicKey: deriveSecp256k1PublicKey(privateKey), label: 'self', enrollmentMethod: 'governor',
+  }).returning({ id: userAuthMethods.id });
+  await getDb().update(capabilityExecutionAuthorizations).set({ actorType: 'agent', actorAccountId: f.ownerId,
+    requesterAuthMethodId: method.id }).where(eq(capabilityExecutionAuthorizations.id, f.authorizationId));
+  return { ...f, methodId: method.id };
+}
+
+it('D4: a live bot key owns its resources without a DelegationGrant; a bare bot id does not', async () => {
+  const f = await autonomousSelfFixture();
+  expect((await evaluateCapabilityAuthority({ executionAuthorizationId: f.authorizationId, coordinator: f.coordinator })).decision.allowed).toBe(true);
+  await getDb().update(capabilityExecutionAuthorizations).set({ requesterAuthMethodId: null })
+    .where(eq(capabilityExecutionAuthorizations.id, f.authorizationId));
+  expect((await evaluateCapabilityAuthority({ executionAuthorizationId: f.authorizationId, coordinator: f.coordinator })).decision.allowed).toBe(false);
+});
+
+it.each(['revoke', 'closure'])('D4: %s denies both issuance and live execution of an already signed self ticket', async (change) => {
+  const f = await autonomousSelfFixture();
+  const authority = { executionAuthorizationId: f.authorizationId, coordinator: f.coordinator };
+  const issued = await evaluateCapabilityAuthority(authority, { issueTicket: true });
+  expect(issued.decision.allowed).toBe(true);
+  expect(issued.claims?.grantId).toBeUndefined();
+  if (change === 'revoke') await getDb().update(userAuthMethods).set({ revokedAt: new Date() }).where(eq(userAuthMethods.id, f.methodId));
+  else await getDb().insert(accountClosureFences).values({ accountId: f.ownerId });
+  expect((await evaluateCapabilityAuthority(authority, { issueTicket: true })).decision.allowed).toBe(false);
+  if (!issued.claims) throw new Error('Expected issued ticket claims');
+  expect(await reauthorizeCapabilityTicket(issued.claims)).toMatchObject({ allowed: false });
+});
+
+it('D4: requester credential ownership is enforced by the composite SQL foreign key', async () => {
+  const first = await autonomousSelfFixture(); const second = await autonomousSelfFixture();
+  await expect(getDb().update(capabilityExecutionAuthorizations).set({ requesterAuthMethodId: second.methodId })
+    .where(eq(capabilityExecutionAuthorizations.id, first.authorizationId))).rejects.toMatchObject({ cause: { code: '23503' } });
+});
+
+it('D4: catalogue pins and account limits still constrain autonomous self authority', async () => {
+  const f = await autonomousSelfFixture();
+  const authority = { executionAuthorizationId: f.authorizationId, coordinator: f.coordinator };
+  expect((await evaluateCapabilityAuthority({ ...authority, expectedCatalog: {
+    registrationId: f.catalogRegistrationId, version: 'wrong', digest: '0'.repeat(64),
+  } })).decision.allowed).toBe(false);
+  await getDb().insert(accountCapabilityPolicies).values({ accountId: f.ownerId, appSlug: f.appSlug,
+    maximumAutonomy: 'read_only', deniedCapabilities: [] });
+  expect((await evaluateCapabilityAuthority(authority)).decision.allowed).toBe(false);
+});
+
+it('D4: HTTP derives provenance from the live session and rejects a caller supplied method id', async () => {
+  const f = await autonomousSelfFixture();
+  process.env.ACCESS_TOKEN_SECRET ??= 'test-agent-self-access-secret';
+  process.env.REFRESH_TOKEN_SECRET ??= 'test-agent-self-refresh-secret';
+  const session = await sessionService.createSession(f.ownerId, { headers: {} } as Request,
+    { authMethod: { authMethodId: f.methodId, authMethodOwnerId: f.ownerId }, deviceId: randomUUID() });
+  const app = express(); app.use(express.json()); app.use('/capabilities', capabilitiesRouter);
+  const body = { kind: 'direct_request', ownerAccountId: f.ownerId,
+    coordinatorApplicationId: f.coordinator.applicationId, coordinatorCredentialId: f.coordinator.credentialId,
+    actor: { type: 'agent', accountId: f.ownerId },
+    resource: { appId: f.appSlug, effectiveAccountId: f.ownerId, resourceType: 'account', resourceId: f.ownerId },
+    tool: 'publishEffect', runId: randomUUID(), maximumAutonomy: 'execute_on_request', limits: [],
+    expiresAt: new Date(Date.now() + 60_000).toISOString() };
+  const fabricated = await request(app).post('/capabilities/execution-authorizations').auth(session.accessToken, { type: 'bearer' })
+    .send({ ...body, requesterAuthMethodId: 'foreign-key' });
+  expect(fabricated.status).toBe(400);
+  const created = await request(app).post('/capabilities/execution-authorizations').auth(session.accessToken, { type: 'bearer' }).send(body);
+  expect(created.status).toBe(201);
+  const [stored] = await getDb().select({ method: capabilityExecutionAuthorizations.requesterAuthMethodId })
+    .from(capabilityExecutionAuthorizations).where(eq(capabilityExecutionAuthorizations.runId, body.runId));
+  expect(stored.method).toBe(f.methodId);
 });

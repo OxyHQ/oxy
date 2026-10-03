@@ -1508,3 +1508,5 @@ export type {
 export { meteredGenerationSchema, type MeteredGeneration } from "./inference/economics";
 
 export { canonicalCapabilityJson, inputSatisfiesCapabilityLimits, isLoopbackOrigin } from './capabilityBindings';
+
+export * from './agentKeys';

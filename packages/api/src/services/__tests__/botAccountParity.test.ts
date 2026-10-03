@@ -23,14 +23,18 @@ import { eq, sql } from 'drizzle-orm';
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../securityActivityService', () => ({
   __esModule: true,
-  default: { logDeviceAdded: jest.fn().mockResolvedValue(undefined) },
+  default: { logDeviceAdded: jest.fn().mockResolvedValue(undefined), logSignIn: jest.fn().mockResolvedValue(undefined) },
 }));
 jest.mock('../../server', () => ({ __esModule: true, emitSessionUpdate: jest.fn() }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { accountActorChainSchema } from '@oxy.so/contracts';
+import { accountActorChainSchema, buildAgentProofMessage } from '@oxy.so/contracts';
+import { deriveSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
+import { userAuthMethods } from '../../db/schema/userAuthMethods';
+import { requestAgentChallenge, verifyAgentChallenge } from '../agentKeyAuth.service';
+import SignatureService from '../signature.service';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
@@ -83,6 +87,27 @@ async function botOwnedBy(ownerId: string): Promise<string> {
     .insert(accountMembers)
     .values({ accountId: botId, memberUserId: ownerId, role: 'owner', status: 'active' });
   return botId;
+}
+
+/** Real agent proof; no session is seeded for autonomous parity cases. */
+async function autonomousLogin(botId: string) {
+  const privateKey = randomUUID().replace(/-/g, '').padStart(64, '0');
+  const publicKey = SignatureService.canonicalizePublicKey(deriveSecp256k1PublicKey(privateKey));
+  await getDb().insert(userAuthMethods).values({ userId: botId, type: 'agent_key', methodPublicKey: publicKey,
+    label: 'parity', enrollmentMethod: 'governor' });
+  const claims = await requestAgentChallenge(publicKey); const timestamp = Date.now();
+  return verifyAgentChallenge(publicKey, { challenge: claims.challenge, timestamp,
+    signature: SignatureService.signMessage(buildAgentProofMessage(claims, timestamp), privateKey) }, request());
+}
+
+async function financialSubject(sessionId: string): Promise<string> {
+  const live = await sessionService.validateSessionById(sessionId, false, { useCache: false });
+  if (!live) throw new Error('Financial fixture requires a live session');
+  const subject = live.session.userId;
+  const actor = live.session.operatedByUserId ?? subject;
+  const access = await accountService.resolveEffectiveAccess(actor, subject, sessionId);
+  if (!access?.permissions.includes('billing:manage')) throw new Error('Financial authority denied');
+  return subject;
 }
 
 interface CapturedResponse {
@@ -203,9 +228,7 @@ describe('the session authority reports the actor off the row', () => {
   it('records a bot acting with nobody operating it as its own actor — never its owner', async () => {
     const owner = await account();
     const bot = await botOwnedBy(owner);
-    const session = await sessionService.createSession(bot, request(), {
-      deviceId: `dev-${randomUUID()}`,
-    });
+    const session = await autonomousLogin(bot);
 
     const res = await validate(session.sessionId);
 
@@ -242,9 +265,7 @@ describe('the session authority reports the actor off the row', () => {
     const owner = await account();
     const intruder = await account();
     const bot = await botOwnedBy(owner);
-    const session = await sessionService.createSession(bot, request(), {
-      deviceId: `dev-${randomUUID()}`,
-    });
+    const session = await autonomousLogin(bot);
 
     const res = await validate(session.sessionId, {
       'x-oxy-user-id': intruder,
@@ -357,7 +378,8 @@ describe('a bot holds, receives and spends its own money like a person', () => {
     await provisionBillingProfile({ accountId: owner });
     const bot = await botOwnedBy(owner);
 
-    await fundedSubject(bot);
+    const botSession = await autonomousLogin(bot);
+    await fundedSubject(await financialSubject(botSession.sessionId));
 
     const botBalance = await getAccountBalance(getDb(), bot, 'USD');
     const ownerBalance = await getAccountBalance(getDb(), owner, 'USD');
@@ -371,11 +393,13 @@ describe('a bot holds, receives and spends its own money like a person', () => {
     const bot = await botOwnedBy(owner);
     const person = await account();
 
-    const botSubject = await fundedSubject(bot);
-    const personSubject = await fundedSubject(person);
+    const botSession = await autonomousLogin(bot);
+    const personSession = await sessionService.createSession(person, request(), { deviceId: randomUUID() });
+    const botSubject = await fundedSubject(await financialSubject(botSession.sessionId));
+    const personSubject = await fundedSubject(await financialSubject(personSession.sessionId));
 
-    const botSpend = await spend(bot, botSubject);
-    const personSpend = await spend(person, personSubject);
+    const botSpend = await spend(await financialSubject(botSession.sessionId), botSubject);
+    const personSpend = await spend(await financialSubject(personSession.sessionId), personSubject);
 
     // Same price, same units: the kind changes nothing commercial.
     expect(botSpend.settled.receipt.billedAmount).toBe(personSpend.settled.receipt.billedAmount);

@@ -185,6 +185,7 @@ describe('user-bearer authorization', () => {
   function authAs(userId: string): void {
     mockAuthMiddleware.mockImplementation((req: express.Request, _res: express.Response, next: () => void) => {
       (req as express.Request & { user?: unknown }).user = { _id: { toString: () => userId } };
+      (req as express.Request & { sessionId?: string }).sessionId = `validated-session-${userId}`;
       next();
     });
   }
@@ -216,7 +217,7 @@ describe('user-bearer authorization', () => {
     expect(mockCreateUpdate).toHaveBeenCalledTimes(1);
     // Access is resolved against the OWNING ACCOUNT read from the row, never
     // against an id the request supplied.
-    expect(mockResolveAccess).toHaveBeenCalledWith('user1', ownerAccountId);
+    expect(mockResolveAccess).toHaveBeenCalledWith('user1', ownerAccountId, 'validated-session-user1');
   });
 
   test('owner role → publishes', async () => {

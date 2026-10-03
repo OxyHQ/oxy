@@ -1,3 +1,4 @@
+import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import express, { type Request, type Response } from 'express';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
@@ -322,6 +323,7 @@ router.get('/consent', publicReadLimiter, authMiddleware, async (request: AuthRe
     const scopes = normalizeMcpScopes(query.scope);
     response.json(mcpOAuthConsentResponseSchema.parse(await mcpConsentDetails({
       ...current,
+      authMethod: await readSessionAgentBinding(request.sessionId, current.principalUserId),
       client,
       descriptor,
       scopes,
@@ -345,6 +347,7 @@ router.post('/authorize', authorizeLimiter, authMiddleware, async (request: Auth
     if (!client) throw new McpOAuthError('invalid_client', 'MCP client is unknown or inactive', 404);
     const issued = await authorizeMcpConnection({
       ...current,
+      authMethod: await readSessionAgentBinding(request.sessionId, current.principalUserId),
       client,
       descriptor,
       redirectUri: body.redirectUri,
@@ -605,7 +608,8 @@ router.post('/connections/link/approve', authorizeLimiter, authMiddleware, async
     const body = linkIntentSchema.parse(request.body);
     const current = identity(request);
     response.set('cache-control', 'no-store');
-    response.json(await approveMcpAccountLink({ secret: body.intent, ...current }));
+    response.json(await approveMcpAccountLink({ secret: body.intent, ...current,
+      authMethod: await readSessionAgentBinding(request.sessionId, current.principalUserId) }));
   } catch (error) {
     sendMcpOAuthError(response, error);
   }

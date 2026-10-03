@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -23,6 +24,7 @@ import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import { users } from './users';
+import { userAuthMethods } from './userAuthMethods';
 
 export const delegationGrants = pgTable(
   'delegation_grants',
@@ -115,6 +117,8 @@ export const capabilityExecutionAuthorizations = pgTable(
     id: generatedId(),
     kind: text({ enum: ['direct_request', 'automation'] }).notNull(),
     requesterAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    /** Autonomous approval provenance; revocation is live, never SET NULL. */
+    requesterAuthMethodId: text(),
     ownerAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
     coordinatorApplicationId: text().notNull().references(() => applications.id, { onDelete: 'cascade' }),
     coordinatorCredentialId: text().notNull().references(() => applicationCredentials.id, { onDelete: 'cascade' }),
@@ -137,6 +141,10 @@ export const capabilityExecutionAuthorizations = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    foreignKey({ name: 'capability_execution_requester_method_fk',
+      columns: [t.requesterAuthMethodId, t.requesterAccountId], foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
+    }).onDelete('restrict'),
+    index('capability_execution_requester_method_idx').on(t.requesterAuthMethodId).where(sql`${t.requesterAuthMethodId} is not null`),
     check('capability_execution_authorizations_kind_check', sql`${t.kind} in ('direct_request', 'automation')`),
     check('capability_execution_authorizations_actor_check', sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} = 'agent' and ${t.actorAccountId} is not null)`),
     check('capability_execution_authorizations_automation_check', sql`(${t.kind} = 'automation') = (${t.automationId} is not null)`),

@@ -186,7 +186,7 @@ const reportingServiceBudgetLimiter = rateLimit({
 /* -------------------------------------------------------------------------- */
 
 type ReportingPrincipal =
-  | { readonly kind: 'user'; readonly userId: string }
+  | { readonly kind: 'user'; readonly userId: string; readonly sessionId?: string }
   | { readonly kind: 'service'; readonly service: ServiceTokenPayload };
 
 interface ReportingRequest extends AuthRequest {
@@ -220,11 +220,11 @@ function principalOf(req: ReportingRequest): ReportingPrincipal {
   if (req.serviceApp !== undefined) {
     return { kind: 'service', service: req.serviceApp };
   }
-  const userId = req.user?.id;
+  const userId = req.oxyToken?.principalUserId ?? req.user?.id;
   if (typeof userId !== 'string' || userId.length === 0) {
     throw new UnauthorizedError('Authentication is required for this operation');
   }
-  return { kind: 'user', userId };
+  return { kind: 'user', userId, ...(req.sessionId ? { sessionId: req.sessionId } : {}) };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -270,7 +270,7 @@ async function authorizeAccount(
     throw new NotFoundError(notFound);
   }
 
-  const access = await resolveCallerAccountAccess(principal.userId, accountId);
+  const access = await resolveCallerAccountAccess(principal.userId, accountId, principal.sessionId);
   if (access.status === 'no-access') {
     // Same answer as an unknown account: distinguishing them would make this an
     // existence oracle for other tenants' accounts.
@@ -303,6 +303,7 @@ async function authorizeApplication(
   // spend, so the caller's access is resolved WITH deleted applications
   // included; access itself still comes from the owning account.
   const access = await resolveCallerApplicationAccess(principal.userId, applicationId, {
+    sessionId: principal.sessionId,
     includeDeleted: true,
   });
   if (access.status !== 'resolved') {

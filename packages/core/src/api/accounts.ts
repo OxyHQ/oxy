@@ -17,6 +17,8 @@
  * no per-request "acting-as" header. Identity is carried by the session/token,
  * so a switch propagates through reload and cross-domain exactly like a login.
  */
+import { agentKeyOperationSchema, executeAgentKeyOperationSchema, agentKeyOperationChallengeSchema,
+  agentKeyOperationResultSchema, agentKeyListResponseSchema, type AgentKeyOperation, type AgentKeyOperationProof } from '@oxy.so/contracts';
 import type { User } from '../models/interfaces';
 import type { AccountCategoryId, AccountKind, ChildAccountKind } from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../models/session';
@@ -413,12 +415,32 @@ export class AccountMembersApi {
   }
 }
 
+/** Current account governors and autonomous rotation use action-bound proofs. */
+export class AccountAgentKeysApi {
+  constructor(private readonly ctx: OxyContext) {}
+  async list(accountId: string) {
+    return agentKeyListResponseSchema.parse(await this.ctx.request<unknown>('GET', `/accounts/${enc(accountId)}/agent-keys`, undefined, { cache: false }));
+  }
+  async requestChallenge(accountId: string, operation: AgentKeyOperation) {
+    const response = await this.ctx.request<unknown>('POST', `/accounts/${enc(accountId)}/agent-keys/challenge`,
+      agentKeyOperationSchema.parse(operation), { cache: false });
+    return agentKeyOperationChallengeSchema.parse(response);
+  }
+  async execute(accountId: string, operation: AgentKeyOperation, proof: AgentKeyOperationProof) {
+    const response = await this.ctx.request<unknown>('POST', `/accounts/${enc(accountId)}/agent-keys/execute`,
+      executeAgentKeyOperationSchema.parse({ operation, proof }), { cache: false });
+    return agentKeyOperationResultSchema.parse(response);
+  }
+}
+
 export class AccountsApi {
   /** Who can act on an account, and with what role. */
   readonly members: AccountMembersApi;
+  readonly agentKeys: AccountAgentKeysApi;
 
   constructor(private readonly ctx: OxyContext) {
     this.members = new AccountMembersApi(ctx);
+    this.agentKeys = new AccountAgentKeysApi(ctx);
   }
 
   /**
