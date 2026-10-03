@@ -1,3 +1,4 @@
+import { billingCreditInvoices, billingCreditGrants, billingCreditSpends, billingCreditRefundObservations } from './billingCreditGrants';
 import { accessSubscriptionSources } from './productAccess';
 import { accessProviderPeriods, accessProviderEvents } from './productProviderEvidence';
 import { emailSignInRequests } from './emailSignInRequests';
@@ -115,6 +116,14 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  { table: billingCreditInvoices, column: billingCreditInvoices.invoiceId, reason: 'Opaque provider invoice, keyed by verified processor account/mode/environment binding; no local provider invoice table.' },
+  { table: billingCreditGrants, column: billingCreditGrants.subscriptionId, reason: 'Opaque subscription identity owned by the bound provider, not the local subscription mirror primary key.' },
+  { table: billingCreditGrants, column: billingCreditGrants.promotionId, reason: 'Explicit versioned promotion registry identifier, not a database identity.' },
+  { table: billingCreditGrants, column: billingCreditGrants.oncePerAccountPromotionId, reason: 'Same versioned registry identifier used solely to enforce once-per-account policy.' },
+  { table: billingCreditSpends, column: billingCreditSpends.operationId, reason: 'Stable internal deduction intent supplied by an authorized backend caller, not a database row.' },
+  { table: billingCreditRefundObservations, column: billingCreditRefundObservations.eventId, reason: 'Opaque provider delivery ID scoped to its verified processor binding.' },
+  { table: billingCreditRefundObservations, column: billingCreditRefundObservations.chargeId, reason: 'Opaque provider charge identity verified against the associated invoice payment.' },
+  { table: billingTransactions, column: billingTransactions.promotionId, reason: 'Versioned promotion registry provenance, not a local record identifier.' },
   { table: accessSubscriptionSources, column: accessSubscriptionSources.providerSubscriptionId, reason: 'Opaque subscription ID owned by Stripe or Peable; no local provider-subscription table exists.' },
   { table: accessProviderPeriods, column: accessProviderPeriods.invoiceId, reason: 'Opaque invoice identity owned by the explicitly bound provider/account/mode/environment; not a local billing invoice ID.' },
   { table: accessProviderPeriods, column: accessProviderPeriods.lineId, reason: 'Opaque recurring invoice line owned by the provider, combined with its invoice and provider binding; no local provider-line table exists.' },

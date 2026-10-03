@@ -1,4 +1,7 @@
 import { Router, type Request, type Response } from 'express';
+import { grantSubscriptionCredits, recordCreditRefundSnapshot } from '../services/subscriptionCreditLedger.service';
+import { subscriptionProcessorBinding, reconcilePaidCreditPeriod, allInvoiceLines, paidPeriodForUpgrade } from '../services/stripeSubscriptionEvidence.service';
+import { applyReconciledPeriodInvoice } from '../services/applySubscriptionPeriodCredits.service';
 import { and, count, desc, eq, inArray, isNull, lte, or } from 'drizzle-orm';
 import type Stripe from 'stripe';
 import { getStripe } from '../utils/stripeClient';
@@ -12,6 +15,8 @@ import {
   subscriptionPeriodIdempotencyPredicate,
 } from '../db/schema/billingTransactions';
 import { userCredits } from '../db/schema/userCredits';
+import { users } from '../db/schema/users';
+import { billingCreditGrants } from '../db/schema/billingCreditGrants';
 import { getOrCreateUserCredits } from './credits';
 import {
   getOrCreateAccountStripeCustomer,
@@ -467,17 +472,14 @@ async function dispatchStripeEvent(event: Stripe.Event): Promise<StripeEventResu
     case 'customer.subscription.deleted':
       return syncSubscriptionFromProvider(event.data.object as Stripe.Subscription);
     case 'invoice.paid':
-      return handleInvoicePaid(await currentInvoiceEvidence(event));
+      return handleInvoicePaid(await currentInvoiceEvidence(event), event);
     case 'invoice.payment_failed':
       // The subscription's own `past_due`/`unpaid` transition arrives as a
       // `customer.subscription.updated` and is mirrored there. A failed invoice
       // is evidence of NO payment, so it grants nothing.
       return { outcome: 'not_granted', detail: 'invoice payment failed' };
     case 'charge.refunded':
-      // A refund never grants and never charges. Whether it should claw back
-      // credits already granted for the period is a commercial decision that
-      // has not been made (issue #1524), so it is recorded and nothing else.
-      return { outcome: 'ignored', detail: 'refund recorded; no credit clawback is defined' };
+      return handleSubscriptionCreditRefund(event);
     case 'payment_intent.succeeded': {
       // The off-session auto-recharge path creates a PaymentIntent directly,
       // so no checkout session ever completes for it. A hosted checkout emits
@@ -811,14 +813,16 @@ function linePriceId(line: Stripe.InvoiceLineItem): string | null {
  * period granted by the old path before this deploy is recognised as granted and
  * is not granted again.
  */
-async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventResult> {
+async function handleInvoicePaid(invoice: Stripe.Invoice, event: Stripe.Event): Promise<StripeEventResult> {
   const subscriptionId = stripeIdOf(invoice.parent?.subscription_details?.subscription);
+  if (invoice.livemode !== event.livemode) throw new Error('Invoice mode differs from authenticated delivery');
   if (!subscriptionId) {
     return { outcome: 'ignored', detail: 'invoice is not for a subscription' };
   }
   if (invoice.status !== 'paid') {
     return { outcome: 'not_granted', detail: `invoice status is ${invoice.status ?? 'null'}` };
   }
+  if (invoice.billing_reason === 'subscription_update') return handlePaidSubscriptionChange(invoice, event);
   if (!invoice.billing_reason || !PERIOD_OPENING_BILLING_REASONS.has(invoice.billing_reason)) {
     return {
       outcome: 'not_granted',
@@ -833,8 +837,8 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventRe
   }
 
   if (invoice.amount_paid <= 0) {
-    // Zero-amount trials/discounts await a declared commercial rule.
-    return { outcome: 'not_granted', detail: 'invoice collected no money' };
+    // Approved P2 starts with an empty registry; no illustrative promotion is active.
+    return { outcome: 'not_granted', detail: 'zero-amount invoice without a declared promotion' };
   }
 
   // Stripe embeds only the first page. Inspect every line before accepting a
@@ -870,7 +874,8 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventRe
     return { outcome: 'not_granted', detail: 'ambiguous recurring invoice lines or periods' };
   }
   const [line] = planLines;
-  const plan = SUBSCRIPTION_PLANS.find((entry) => entry.stripePriceId === linePriceId(line))!;
+  const plan = SUBSCRIPTION_PLANS.find((entry) => entry.stripePriceId === linePriceId(line));
+  if (!plan) throw new Error('Validated plan line has no configured plan');
   if (line.currency !== invoice.currency || line.quantity !== 1 || line.amount <= 0
     || !Number.isSafeInteger(line.period.start) || !Number.isSafeInteger(line.period.end)
     || line.period.start <= 0 || line.period.end <= line.period.start) {
@@ -884,6 +889,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventRe
   }
 
 
+  const providerAccountRef = await subscriptionProcessorBinding(invoice.livemode, event.account);
   const periodStart = new Date(line.period.start * 1000);
   const amountDetail =
     invoice.amount_paid === plan.price
@@ -893,6 +899,8 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventRe
   const planName = plan.name;
 
   return getDb().transaction(async (tx): Promise<StripeEventResult> => {
+    // Lock the account before a receipt FK obtains a weaker parent lock.
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update');
     // Same shape as `handleCheckoutCompleted`: the receipt is the idempotency
     // claim, `billing_transactions_subscription_period_key` makes winning it
     // atomic, and the grant is conditional on having won.
@@ -939,11 +947,82 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<StripeEventRe
     // The receipt suppresses every replay, so a silently-failed grant would
     // never be retried. Throw: the transaction rolls back, the claim is
     // released, and Stripe's redelivery tries again.
-    if (!(await addCredits(tx, userId, credits, 'paid'))) {
-      throw new Error(`Renewal credit grant did not apply for user ${userId} (invoice ${invoice.id})`);
-    }
+    await grantSubscriptionCredits(tx, { userId, transactionId: receipt.id, providerAccountRef,
+      invoiceId: invoice.id, subscriptionId, sourceType: 'subscription_payment',
+      periodStart, periodEnd: new Date(line.period.end * 1000), currency: invoice.currency,
+      amountPaid: invoice.amount_paid, granted: credits });
     return { outcome: 'granted', detail: amountDetail };
   });
+}
+
+/** P1: verified full period evidence before locks; mutable delivery order is irrelevant. */
+async function handlePaidSubscriptionChange(invoice: Stripe.Invoice, event: Stripe.Event): Promise<StripeEventResult> {
+  if (invoice.amount_paid <= 0) return { outcome: 'not_granted', detail: 'unpaid or zero-amount plan change grants no credits' };
+  const subscriptionId = stripeIdOf(invoice.parent?.subscription_details?.subscription);
+  const customerId = stripeIdOf(invoice.customer);
+  const userId = customerId ? await accountForStripeCustomer(customerId) : null;
+  if (!subscriptionId || !customerId || !userId) return { outcome: 'not_granted', detail: 'subscription invoice attribution is unavailable' };
+  const providerAccountRef = await subscriptionProcessorBinding(invoice.livemode, event.account);
+  const [frozen] = await getDb().select({ receipt: billingTransactions, grant: billingCreditGrants })
+    .from(billingTransactions).innerJoin(billingCreditGrants, eq(billingCreditGrants.transactionId, billingTransactions.id))
+    .where(and(eq(billingTransactions.stripeInvoiceId, invoice.id), eq(billingTransactions.type, 'subscription_proration')));
+  if (frozen) {
+    const lines = await allInvoiceLines(invoice);
+    const recurring = lines.filter(line => line.parent?.subscription_item_details?.subscription === subscriptionId);
+    if (frozen.receipt.userId !== userId || frozen.receipt.stripeSubscriptionId !== subscriptionId
+      || frozen.receipt.amountMinorUnits !== invoice.amount_paid || frozen.receipt.currency !== invoice.currency
+      || frozen.grant.providerAccountRef !== providerAccountRef || recurring.length !== 2
+      || recurring.some(line => line.quantity !== 1 || line.currency !== invoice.currency
+        || line.parent?.subscription_item_details?.proration !== true
+        || line.period.end * 1000 !== frozen.grant.periodEnd.getTime()
+        || line.period.start * 1000 < frozen.grant.periodStart.getTime()
+        || !SUBSCRIPTION_PLANS.some(plan => plan.stripePriceId && plan.stripePriceId === linePriceId(line)))) {
+      throw new Error('Historical upgrade invoice differs from its frozen financial receipt');
+    }
+    return { outcome: 'duplicate', detail: 'historical upgrade receipt was already granted; current source unchanged' };
+  }
+  const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
+  if (subscription.id !== subscriptionId || subscription.livemode !== invoice.livemode
+    || stripeIdOf(subscription.customer) !== customerId || subscription.items.has_more || subscription.items.data.length !== 1) throw new Error('Current subscription evidence is ambiguous');
+  const period = await paidPeriodForUpgrade(invoice, subscriptionId, SUBSCRIPTION_PLANS);
+  const assignments = await reconcilePaidCreditPeriod({ subscriptionId, customerId, livemode: invoice.livemode,
+    ...period, plans: SUBSCRIPTION_PLANS });
+  // Mirror synchronization is outside the financial transaction and grants nothing.
+  await syncSubscriptionFromProvider(subscription);
+  return applyReconciledPeriodInvoice({ userId, customerId, subscriptionId, providerAccountRef,
+    ...period, invoiceId: invoice.id, assignments });
+}
+
+/** P3 supports one fully allocated charge per invoice; split payments fail closed. */
+async function handleSubscriptionCreditRefund(event: Stripe.Event): Promise<StripeEventResult> {
+  const delivered = event.data.object as Stripe.Charge;
+  const charge = await getStripe().charges.retrieve(delivered.id);
+  if (charge.id !== delivered.id || charge.livemode !== event.livemode) throw new Error('Refund charge identity or mode differs');
+  const intentId = stripeIdOf(charge.payment_intent);
+  if (!intentId) return { outcome: 'ignored', detail: 'refund has no invoice payment intent; legacy/purchased credits are unchanged' };
+  const providerAccountRef = await subscriptionProcessorBinding(charge.livemode, event.account);
+  const allocations = await getStripe().invoicePayments.list({ payment: { type: 'payment_intent', payment_intent: intentId }, status: 'paid', limit: 100 });
+  if (allocations.has_more || allocations.data.length > 1) throw new Error('Refund invoice payment allocation is ambiguous');
+  if (allocations.data.length === 0) return { outcome: 'ignored', detail: 'charge has no invoice allocation; purchased/legacy credits unchanged' };
+  const payment = allocations.data[0]; const invoiceId = stripeIdOf(payment.invoice);
+  if (!invoiceId || stripeIdOf(payment.payment.payment_intent) !== intentId || payment.livemode !== charge.livemode
+    || payment.status !== 'paid' || payment.amount_paid !== charge.amount || payment.currency !== charge.currency) throw new Error('Refund invoice payment attribution differs');
+  const invoice = await getStripe().invoices.retrieve(invoiceId);
+  if (invoice.id !== invoiceId || invoice.livemode !== charge.livemode || invoice.status !== 'paid'
+    || invoice.amount_paid !== charge.amount || invoice.currency !== charge.currency
+    || stripeIdOf(invoice.customer) !== stripeIdOf(charge.customer)) throw new Error('Refund payment does not fully cover the paid invoice');
+  if (!stripeIdOf(invoice.parent?.subscription_details?.subscription)) return { outcome: 'ignored', detail: 'refund is not a subscription credit invoice' };
+  const payments = await getStripe().invoicePayments.list({ invoice: invoiceId, status: 'paid', limit: 100 });
+  if (payments.has_more || payments.data.length !== 1 || payments.data[0].id !== payment.id) throw new Error('Multiple invoice payments are unsupported for credit refunds');
+  const customerId = stripeIdOf(invoice.customer); const userId = customerId ? await accountForStripeCustomer(customerId) : null;
+  if (!userId || !charge.paid || !charge.captured) throw new Error('Refund account or captured payment is unavailable');
+  if (delivered.amount !== charge.amount || delivered.currency !== charge.currency
+    || stripeIdOf(delivered.customer) !== customerId || stripeIdOf(delivered.payment_intent) !== intentId
+    || !Number.isSafeInteger(delivered.amount_refunded) || delivered.amount_refunded < 0
+    || delivered.amount_refunded > charge.amount_refunded) throw new Error('Signed refund snapshot contradicts the current captured payment');
+  const result = await recordCreditRefundSnapshot(getDb(), { userId, providerAccountRef, invoiceId, eventId: event.id,
+    chargeId: charge.id, currency: charge.currency, amountPaid: charge.amount, amountRefunded: delivered.amount_refunded });
+  return { outcome: 'processed', detail: `subscription refund removed ${result.removed} unconsumed tracked credits; legacy/purchased credits unchanged` };
 }
 
 export default router;

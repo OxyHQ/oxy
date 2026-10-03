@@ -7,6 +7,7 @@ import { userCredits } from '../../db/schema/userCredits';
 import { billingTransactions } from '../../db/schema/billingTransactions';
 import { billingCreditGrants, billingCreditSpends, billingCreditInvoices, billingCreditRefundObservations } from '../../db/schema/billingCreditGrants';
 import { deductCredits } from '../../db/credits';
+import { describeAccountFinancialHolds, resetRestrictingReferenceCache } from '../accountFinancialHolds.service';
 import { grantSubscriptionCredits, recordCreditRefundSnapshot, refundCreditTarget, spendSubscriptionTrackedCredits, type SubscriptionCreditGrantInput } from '../subscriptionCreditLedger.service';
 
 beforeAll(async () => { await connectPostgres(); });
@@ -114,7 +115,7 @@ it('wrong payment amount/currency/charge identity refuses and preserves balances
   const user = await account(); const g = await grant(user); const r = refund(g, 1000);
   await recordCreditRefundSnapshot(getDb(), r);
   for (const change of [{ currency: 'eur' }, { amountPaid: 3000 }, { chargeId: 'ch_other' }]) {
-    await expect(recordCreditRefundSnapshot(getDb(), { ...refund(g, 1000), ...change })).rejects.toThrow('identity differs');
+    await expect(recordCreditRefundSnapshot(getDb(), { ...refund(g, 1000), ...change })).rejects.toThrow('differs');
   }
   expect(await paid(user)).toBe(11666);
 });
@@ -165,4 +166,44 @@ it('concurrent pre-grant refunds cannot bind one financial invoice to two users'
   await expect(grant(other, 10000, invoiceId)).rejects.toThrow('differs');
   expect(await ledger(other)).toEqual([]);
   await grant(bound.userId, 10000, invoiceId); expect(await paid(bound.userId)).toBe(11666);
+});
+
+
+it('new invoice/refund history alone makes deletion retain the account before any grant exists', async () => {
+  const user = await account();
+  await recordCreditRefundSnapshot(getDb(), { userId: user, providerAccountRef: 'synthetic-processor-account',
+    invoiceId: `in_${user}`, eventId: `evt_${user}`, chargeId: `ch_${user}`, currency: 'usd', amountPaid: 2999, amountRefunded: 1000 });
+  resetRestrictingReferenceCache();
+  const holds = await describeAccountFinancialHolds(user);
+  expect(holds.blocksHardDelete).toBe(true);
+  expect(holds.retainedRecords.map(row => row.table).sort()).toEqual(['billing_credit_invoices','billing_credit_refund_observations']);
+  await expect(getDb().delete(users).where(eq(users.id, user))).rejects.toMatchObject({ cause: expect.objectContaining({ code: '23503' }) });
+  expect(await getDb().select().from(billingCreditRefundObservations).where(eq(billingCreditRefundObservations.userId, user))).toHaveLength(1);
+});
+it('a deduction intent alone is discovered by deletion retention after introspection restart', async () => {
+  const user = await account(); expect(await spendSubscriptionTrackedCredits(getDb(), user, 100, 'retained-spend')).toBe(true);
+  resetRestrictingReferenceCache();
+  const holds = await describeAccountFinancialHolds(user);
+  expect(holds.blocksHardDelete).toBe(true);
+  expect(holds.retainedRecords.map(row => row.table)).toEqual(['billing_credit_spends']);
+});
+
+
+it('a declared once-per-account promotion cannot be granted through a second subscription or period', async () => {
+  const user = await account(0);
+  const promotion = 'synthetic-trial@v1';
+  const award = async (suffix: string) => getDb().transaction(async tx => {
+    const invoiceId = `in_promo_${suffix}_${user}`; const subscriptionId = `sub_promo_${suffix}_${user}`;
+    const [receipt] = await tx.insert(billingTransactions).values({ userId: user, stripeInvoiceId: invoiceId,
+      stripeSubscriptionId: subscriptionId, stripeSubscriptionPeriodStart: new Date('2026-10-01T00:00:00Z'),
+      type: 'subscription_promotional_grant', promotionId: promotion, amountMinorUnits: 0, currency: 'usd', credits: 2000, status: 'completed' }).returning();
+    return grantSubscriptionCredits(tx, { userId: user, transactionId: receipt.id, providerAccountRef: 'synthetic-processor-account',
+      invoiceId, subscriptionId, sourceType: 'subscription_promotional_grant', promotionId: promotion, oncePerAccountPromotionId: promotion,
+      periodStart: new Date('2026-10-01T00:00:00Z'), periodEnd: new Date('2026-11-01T00:00:00Z'),
+      currency: 'usd', amountPaid: 0, granted: 2000 });
+  });
+  expect((await award('first')).issued).toBe(2000);
+  await expect(award('second')).rejects.toThrow(); expect(await paid(user)).toBe(2000);
+  expect(await getDb().select().from(billingTransactions).where(eq(billingTransactions.userId, user))).toHaveLength(1);
+  expect(await getDb().select().from(billingCreditInvoices).where(eq(billingCreditInvoices.userId, user))).toHaveLength(1);
 });
