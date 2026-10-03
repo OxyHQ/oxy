@@ -1,0 +1,26 @@
+{
+  "repository": "tnp",
+  "publicClientId": "oxy_dk_0a96126c6cf3e879c3df369b78ccc0471d66b3adeb4ede4d",
+  "observedAt": "2026-10-03T17:54:24.323515+00:00",
+  "method": "GET",
+  "authenticated": false,
+  "status": 200,
+  "application": {
+    "id": "6a2f851751b784a86fd0e946",
+    "name": "TNP",
+    "type": "first_party",
+    "isOfficial": true,
+    "isInternal": false
+  },
+  "applicationKeys": [
+    "id",
+    "name",
+    "type",
+    "isOfficial",
+    "isInternal",
+    "scopes",
+    "description",
+    "icon",
+    "websiteUrl"
+  ]
+}

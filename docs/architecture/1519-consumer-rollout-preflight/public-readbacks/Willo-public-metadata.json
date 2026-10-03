@@ -1,0 +1,13 @@
+{
+  "repository": "Willo",
+  "publicClientId": "oxy_dk_fb8d8c425643f2bd3983386674e9704d81746295d0a3345b",
+  "status": 200,
+  "observedAt": "2026-10-03T17:55:14.400879+00:00",
+  "application": {
+    "id": "b043569d14d358371cb545b5",
+    "name": "Willo",
+    "type": "first_party",
+    "isOfficial": true,
+    "isInternal": false
+  }
+}

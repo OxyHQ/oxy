@@ -1,0 +1,25 @@
+{
+  "repository": "CrowdSource",
+  "publicClientId": "oxy_dk_609770191a2478cda9dd190a338b1f7a827375634a589cb8",
+  "observedAt": "2026-10-03T17:54:26.213773+00:00",
+  "method": "GET",
+  "authenticated": false,
+  "status": 200,
+  "application": {
+    "id": "6a6947b30fe72510b411252f",
+    "name": "CrowdSource",
+    "type": "first_party",
+    "isOfficial": true,
+    "isInternal": false
+  },
+  "applicationKeys": [
+    "id",
+    "name",
+    "type",
+    "isOfficial",
+    "isInternal",
+    "scopes",
+    "description",
+    "websiteUrl"
+  ]
+}

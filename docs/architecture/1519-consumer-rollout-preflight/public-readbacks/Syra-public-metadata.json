@@ -1,0 +1,26 @@
+{
+  "repository": "Syra",
+  "publicClientId": "oxy_dk_f80a32569e750851299568718ce518cb0d9a05a962285f3e",
+  "observedAt": "2026-10-03T17:54:25.043773+00:00",
+  "method": "GET",
+  "authenticated": false,
+  "status": 200,
+  "application": {
+    "id": "6a2f851751b784a86fd0e93d",
+    "name": "Syra",
+    "type": "first_party",
+    "isOfficial": true,
+    "isInternal": false
+  },
+  "applicationKeys": [
+    "id",
+    "name",
+    "type",
+    "isOfficial",
+    "isInternal",
+    "scopes",
+    "description",
+    "icon",
+    "websiteUrl"
+  ]
+}
