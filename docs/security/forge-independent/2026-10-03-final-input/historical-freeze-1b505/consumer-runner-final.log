@@ -7,7 +7,7 @@ The default text search configuration will be set to "english".
 
 Data page checksums are disabled.
 
-creating directory /home/nate/Oxy/.agent-evidence/fc3/oxy-forge-final-pg-li6bsdvt/data ... ok
+creating directory /home/nate/Oxy/.agent-evidence/fp1519/oxy-forge-final-pg-b1s_1r4d/data ... ok
 creating subdirectories ... ok
 selecting dynamic shared memory implementation ... posix
 selecting default "max_connections" ... 100
@@ -20,13 +20,13 @@ syncing data to disk ... ok
 
 Success. You can now start the database server using:
 
-    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/fc3/oxy-forge-final-pg-li6bsdvt/data -l logfile start
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/fp1519/oxy-forge-final-pg-b1s_1r4d/data -l logfile start
 
 
 waiting for server to start.... done
 server started
 
-{"newLocalServerPid": 4170519, "dataDirectory": "/home/nate/Oxy/.agent-evidence/fc3/oxy-forge-final-pg-li6bsdvt/data", "database": "oxy_rehearsal_1519_c190ae830476590f", "command": ["bun", "--no-env-file", "run", "test", "--runInBand", "--runTestsByPath", "src/services/updates/__tests__/signing.service.test.ts", "src/services/updates/__tests__/manifest.service.test.ts", "src/routes/__tests__/updatesManifest.test.ts"], "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/fc3/oxy-forge-final-evidence-_tcsp93u/consumer-input/oxy-34.log", "productionAccess": false}
+{"newLocalServerPid": 4040788, "dataDirectory": "/home/nate/Oxy/.agent-evidence/fp1519/oxy-forge-final-pg-b1s_1r4d/data", "database": "oxy_rehearsal_1519_6e2216ecd028a1be", "command": ["bun", "--no-env-file", "run", "test", "--runInBand", "--runTestsByPath", "src/services/updates/__tests__/signing.service.test.ts", "src/services/updates/__tests__/manifest.service.test.ts", "src/routes/__tests__/updatesManifest.test.ts"], "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/fp1519/oxy-forge-final-evidence-wd1f5xtj/consumer-input/oxy-34.log", "productionAccess": false}
 waiting for server to shut down.... done
 server stopped
 

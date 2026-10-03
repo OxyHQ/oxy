@@ -1,14 +1,14 @@
 {
-  "mode": "candidate",
+  "mode": "stock",
   "node": "v24.21.0",
   "openssl": "3.5.8",
   "packageVersion": "1.4.0",
   "packageFiles": {
-    "lib/rsa.js": "425543a09d94457a66d098c490540b2759806dc61236ad3d38610c18d88f1b81",
-    "dist/forge.min.js": "811a6061b91b04955ea1457a7d987f21a496f43304c4a89f870d2d175191a19f",
-    "dist/forge.all.min.js": "fc2c8c484e3da7608ad5a966a8b747d7fe7c8ea7086b1f76ea8ead544dd7d232"
+    "lib/rsa.js": "fd4740238145ec26470eb3f06a627c72039538ce1307dbdce40521f94dfd0a50",
+    "dist/forge.min.js": "d9b9074e6861200d676e25dcfe97889db5e8f4150bb766d29c491ad709a51b58",
+    "dist/forge.all.min.js": "cb9ba4045a81825f8edb646c38d53a1ac30ce07665bf26042c8dea86d7208642"
   },
-  "publicKeySha256": "cb020fc80a736b8c4a97870415d5cf8eda39713c8810e0bd64926f2e19cba0cb",
+  "publicKeySha256": "212ebcd25b0295f326c02d44df6a37a75a9ce3ebaf529b6f86c6eb4dc643b3d6",
   "knownKeyControlsOnly": true,
   "count": 321,
   "rows": [
@@ -79,42 +79,42 @@
       "algorithm": "sha1",
       "variant": "extra-nested",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha1",
       "variant": "extra-nested",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha1",
       "variant": "extra-nested",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha1",
       "variant": "nonempty-null",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha1",
       "variant": "nonempty-null",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha1",
       "variant": "nonempty-null",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
@@ -331,42 +331,42 @@
       "algorithm": "sha224",
       "variant": "extra-nested",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha224",
       "variant": "extra-nested",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha224",
       "variant": "extra-nested",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha224",
       "variant": "nonempty-null",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha224",
       "variant": "nonempty-null",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha224",
       "variant": "nonempty-null",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
@@ -583,42 +583,42 @@
       "algorithm": "sha256",
       "variant": "extra-nested",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha256",
       "variant": "extra-nested",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha256",
       "variant": "extra-nested",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha256",
       "variant": "nonempty-null",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha256",
       "variant": "nonempty-null",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha256",
       "variant": "nonempty-null",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
@@ -835,42 +835,42 @@
       "algorithm": "sha384",
       "variant": "extra-nested",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha384",
       "variant": "extra-nested",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha384",
       "variant": "extra-nested",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha384",
       "variant": "nonempty-null",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha384",
       "variant": "nonempty-null",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha384",
       "variant": "nonempty-null",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
@@ -1087,42 +1087,42 @@
       "algorithm": "sha512",
       "variant": "extra-nested",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512",
       "variant": "extra-nested",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512",
       "variant": "extra-nested",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512",
       "variant": "nonempty-null",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512",
       "variant": "nonempty-null",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512",
       "variant": "nonempty-null",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
@@ -1339,42 +1339,42 @@
       "algorithm": "sha512-224",
       "variant": "extra-nested",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512-224",
       "variant": "extra-nested",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512-224",
       "variant": "extra-nested",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512-224",
       "variant": "nonempty-null",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512-224",
       "variant": "nonempty-null",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512-224",
       "variant": "nonempty-null",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
@@ -1591,42 +1591,42 @@
       "algorithm": "sha512-256",
       "variant": "extra-nested",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512-256",
       "variant": "extra-nested",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512-256",
       "variant": "extra-nested",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512-256",
       "variant": "nonempty-null",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512-256",
       "variant": "nonempty-null",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "sha512-256",
       "variant": "nonempty-null",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
@@ -1843,42 +1843,42 @@
       "algorithm": "md5",
       "variant": "extra-nested",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "md5",
       "variant": "extra-nested",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "md5",
       "variant": "extra-nested",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "md5",
       "variant": "nonempty-null",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "md5",
       "variant": "nonempty-null",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
       "algorithm": "md5",
       "variant": "nonempty-null",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": false
     },
     {
@@ -2074,42 +2074,42 @@
       "algorithm": "md2",
       "variant": "extra-nested",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": null
     },
     {
       "algorithm": "md2",
       "variant": "extra-nested",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": null
     },
     {
       "algorithm": "md2",
       "variant": "extra-nested",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": null
     },
     {
       "algorithm": "md2",
       "variant": "nonempty-null",
       "distribution": "lib",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": null
     },
     {
       "algorithm": "md2",
       "variant": "nonempty-null",
       "distribution": "forge.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": null
     },
     {
       "algorithm": "md2",
       "variant": "nonempty-null",
       "distribution": "forge.all.min.js",
-      "forgeAccepted": false,
+      "forgeAccepted": true,
       "nodeAccepted": null
     },
     {

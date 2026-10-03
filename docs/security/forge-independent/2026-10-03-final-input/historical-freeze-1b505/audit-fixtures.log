@@ -1,0 +1,12 @@
+ok   a new high advisory in exactly constrained braces fails
+ok   a payload holding exactly the acknowledged advisories passes
+ok   a high advisory in a package nobody acknowledged FAILS
+ok   a moderate advisory in an unacknowledged package passes
+ok   a NEW critical inside an acknowledged package FAILS
+ok   an acknowledged package with no live advisory FAILS as stale
+ok   an acknowledged package left with only a moderate advisory FAILS as stale
+ok   an empty audit payload FAILS rather than reading as a clean tree
+ok   an unparseable payload FAILS
+ok   a payload that is not an object of arrays FAILS
+
+All 10 dependency-audit cases passed — 2 acknowledged packages and 0 acknowledged criticals, taken from the gate itself.

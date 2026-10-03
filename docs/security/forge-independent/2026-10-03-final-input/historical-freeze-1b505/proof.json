@@ -1,7 +1,7 @@
 {
   "status": "INDEPENDENT_REPRODUCTION_COMPLETED_CANDIDATE_UNAPPROVED",
-  "recordedAtUTC": "2026-10-03T19:02:21.700370+00:00",
-  "candidateCommit": "b2c9a32487bc19a52d853a0da003e00fa16a054e",
+  "recordedAtUTC": "2026-10-03T16:42:27.673153+00:00",
+  "candidateCommit": "13a6b37505a04f812884b647bd1297f260491bfa",
   "upstreamTag": "v1.4.0",
   "upstreamCommit": "fa385f92440879601240020f158bed68e444e83a",
   "toolchain": {
@@ -86,12 +86,12 @@
   "oxyTests": {
     "suitesPassing": 3,
     "testsPassing": 34,
-    "ownedPostgresPid": 4170519,
+    "ownedPostgresPid": 4040788,
     "ownedPostgresMajor": 17,
     "ownedPostgresPort": 5578,
-    "ownedPostgresDataDirectory": "/home/nate/Oxy/.agent-evidence/fc3/oxy-forge-final-pg-li6bsdvt/data",
-    "database": "oxy_rehearsal_1519_c190ae830476590f",
-    "databaseLifecycle": "New owned PostgreSQL17/port5578 verified PID/UID/exe/data/socket; normal142 fresh and repeat;34PASS. pg_ctl fast stop, PID/postmaster.pid absent."
+    "ownedPostgresDataDirectory": "/home/nate/Oxy/.agent-evidence/fp1519/oxy-forge-final-pg-b1s_1r4d/data",
+    "database": "oxy_rehearsal_1519_6e2216ecd028a1be",
+    "databaseLifecycle": "Fresh initdb on owned workspace-backed scratch; PID/UID/data/executable/listening socket verified. Normal migrator142 fresh+repeat,34 passed, server stopped finally; PID and postmaster.pid absent."
   },
   "knownKeyControls": {
     "stock": {
@@ -166,24 +166,24 @@
     },
     {
       "file": "expo-14-final.log",
-      "sha256": "05f317216049707a6f26db2ab93cc9c39be3f684ecad4c0e87bca8168e4e0c48",
-      "completedFileMtimeUTC": "2026-10-03T19:02:21.698760+00:00",
+      "sha256": "3e3305c232c27ae145fdcad299d47aedc39190ad05cdc8901d8a794e07825ce1",
+      "completedFileMtimeUTC": "2026-10-03T16:42:27.675765+00:00",
       "command": "node scripts/forge-independent-expo-compat.cjs packages/api",
       "exitCode": 0,
       "reusedHistorical": false
     },
     {
       "file": "oxy-34.log",
-      "sha256": "dc79a0bb97acacfad143afe2266240e4fbc53ea2b10ecda2bc8e98d1cd509238",
-      "completedFileMtimeUTC": "2026-10-03T19:02:21.699847+00:00",
-      "command": "python3 scripts/rehearsal/test-forge-final-input-1519.py; normal142 fresh/repeat; ownPG4170519 stopped",
+      "sha256": "4de39add7be725953e5b525f4d2b9e393ac569bb321e021c76e5cabe2698b11d",
+      "completedFileMtimeUTC": "2026-10-03T16:42:27.675689+00:00",
+      "command": "python3 scripts/rehearsal/test-forge-final-input-1519.py; normal142 fresh/repeat; ownedPG4040788 stopped",
       "exitCode": 0,
       "reusedHistorical": false
     },
     {
       "file": "oxy-db-build.log",
       "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
-      "completedFileMtimeUTC": "2026-10-03T19:02:21.698575+00:00",
+      "completedFileMtimeUTC": "2026-10-03T16:42:27.675825+00:00",
       "command": "bun run build (packages/api; workspace dependency order then API tsc)",
       "exitCode": 0,
       "reusedHistorical": false
@@ -206,8 +206,8 @@
     },
     {
       "file": "oxy-install.log",
-      "sha256": "075d9b2008777216763c4e131bffaab5f44df95192cdb577e6d035507397b803",
-      "completedFileMtimeUTC": "2026-10-03T19:02:21.698637+00:00",
+      "sha256": "9dca76e8dd0cc5d2b83351064770793b55cd288311f90cab746ba013efb7385d",
+      "completedFileMtimeUTC": "2026-10-03T16:42:27.675881+00:00",
       "command": "bun --no-env-file install --frozen-lockfile --minimum-release-age=0",
       "exitCode": 0,
       "reusedHistorical": false
@@ -222,8 +222,8 @@
     },
     {
       "file": "candidate-controls.json",
-      "sha256": "363475799ad0f3c687298909e5ecfaf270e321b423c000ffafbee6f6af11f6f2",
-      "completedFileMtimeUTC": "2026-10-03T19:02:21.699000+00:00",
+      "sha256": "1c56da52c5eeaf242e6b9b6ae79aa933d6cd55ffb4ee9d0b6349eb65520a1886",
+      "completedFileMtimeUTC": "2026-10-03T16:42:27.675950+00:00",
       "command": "node scripts/forge-candidate-regression.cjs node_modules/.bun/node-forge@1.4.0/node_modules/node-forge candidate",
       "exitCode": 0,
       "reusedHistorical": false
@@ -269,24 +269,24 @@
       "hashes-after-build-2.json",
       "candidate-build-repeat.json"
     ],
-    "scope": "Unchanged Forge source/patch/pinned toolchain stock/candidate828+4pending builds and stock321 controls are historical. All15 files checked now. Current installed321, Expo14, Oxy34 normal142, API build and frozen install are fresh; canary3/58+compiledNode5 are a separate composed proof."
+    "scope": "Only unchanged Forge source/patch/pinned toolchain, historical stock/candidate reproducible builds828+4pending and stock known-key controls321 are reused. All15 stock/candidate/installed files were checked now. Installed candidate321, final Oxy34 on normal schema142, Expo14, frozen install and dependency/API build are fresh. Historical issuer130 inputs do not certify the final package tree."
   },
   "supplementalRecords": [
     {
       "file": "consumer-runner-final.log",
-      "sha256": "1af7f2e6ae70efbee630a1a30416e38038433d2da9007c3de843850e5d957e41"
+      "sha256": "ad640ae24e637124b7135ca8af4c0c860053a73e431789caa358c4254a642a49"
     },
     {
       "file": "migrate-fresh.txt",
-      "sha256": "eb04eedbc6290ca12475ffd5058fdc5151268bd5c0be93ab7d776e3ebf6e0ef6"
+      "sha256": "04813c7b203d7d21e8c26b83da0bcd7f04adf84e810173764d5279860b78e46e"
     },
     {
       "file": "migrate-repeat.txt",
-      "sha256": "30fbb36a141fcff679ee4b8dc4b99d62a918e75a2fd804542cf2a00653185a51"
+      "sha256": "e434238ddc392935acb4c8a07def3143612a894ac7f31828d9f7917199724516"
     },
     {
       "file": "inventory.json",
-      "sha256": "aeb662c679e3b3b371bc5da771d247257fddb33aede784789e9cad08d2b65f0c"
+      "sha256": "e396ad183e7d03d11525ae853605d2310da93cfd7bdfa6fc486072a318c1e623"
     },
     {
       "file": "policy-final.log",
@@ -306,11 +306,11 @@
     },
     {
       "file": "framework-inputs.json",
-      "sha256": "cddd29bceb39d47891d73a31e7720aeac265a7234426d789a391d98b317054f6"
+      "sha256": "94d6f89c3f03bbc9e1495cbe0c1f60106b6a44b0055cc24981488bf3ca2d0695"
     }
   ],
   "inputTrees": {
-    "packages": "0462a578c3d44795c4d0f75f6a50521561f6af31",
+    "packages": "c512e6f836ad848b8e29a49571df453c19e8056f",
     "bun.lock": "b3a19f253e2a9f1944ca373f1866507d8130be17",
     "package.json": "81684a59a64778423aa390dcd748b771d581c96e",
     "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
@@ -323,7 +323,7 @@
   },
   "stage": {
     "base": "67c09e853db308d102624a2ffd40db19959344f4",
-    "runtimeChange": "Final auth/billing/schema142 plus reviewed same-holder context CAS, narrow canary API shared DELETE/operator audit, GoWay public seed and explicit quiesced deployment. No new migration since142.",
+    "runtimeChange": "Final auth/billing/schema142 plus native invalidated-holder recovery, raw response/session epoch/AbortSignal and two verified Bloom peer lines; issuer-only130 is historical.",
     "normalMigrationCount": 142,
     "ownPGStopped": true,
     "policyStatus": "INACTIVE",
@@ -345,25 +345,20 @@
       "apiBuildExit": 0,
       "frozenInstallExit": 0,
       "rawAuditExit": 1,
-      "canonicalAuditSha256": "8c6c938a06ddc218daed240793a26d4a0ed55f504b3edbc54cb415468bb0b6b8",
-      "canaryApiTests": 58,
-      "compiledNodeCanaryChecks": 5,
-      "quiescedGuardChecks": 45,
-      "quiescedShellChecks": 9
+      "canonicalAuditSha256": "8c6c938a06ddc218daed240793a26d4a0ed55f504b3edbc54cb415468bb0b6b8"
     },
     "limits": [
-      "Fresh ARM and authenticated full gate required before declarative ACTIVE; historical ebb fullgreen does not promote new source",
-      "Native9e07 candidate3PASS is historical bounded; final registry replay/consumer adoption remains pending",
-      "Live two-process revocation and cutover watcher are operational acceptance gates, not this local proof",
-      "Root-reviewed session authorization persists; same expiry2026-10-09T22:00Z"
+      "Fresh ARM and authenticated full gate still required before declarative ACTIVE",
+      "Local policy assertions are synthetic; no live approval inferred from tests",
+      "Root-approved session authorization persists; expiry fixed",
+      "Native Android GREEN/registry/production rollout are separate acceptances"
     ],
     "historicalIssuerProofCandidate": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
     "currentNativeSdkSource": "9e07f55c522655e52c805244799d86dd7cffeb7c",
     "currentNativeSdkProof": "7ab2c891d",
     "historicalSetupFailures": [
       "Recheck initial scratch Unix socket path exceeded107bytes; PG terminated before migration/test. Retried with short owned workspace scratch, no source change.",
-      "DAG initial Node invocation failed Bun.YAML before assertions; final bun --no-env-file invocation passes82. Separate collector61 PASS was not counted as resolver14.",
-      "Current short-scratch retry passed after initial UNIX socket path was too long; first failed launcher retained. Wrong DAG filename was an invocation error; corrected discovered Bun script passed82."
+      "DAG initial Node invocation failed Bun.YAML before assertions; final bun --no-env-file invocation passes82. Separate collector61 PASS was not counted as resolver14."
     ],
     "historicalSetupRecords": [
       {
@@ -374,16 +369,6 @@
       {
         "file": "recheck-setup-history/rechecked-dag82.log",
         "sha256": "bc0c50bf014fce5f0ac521329dd50fb25bdfede3412050b643ed18ac44cbf49b",
-        "exitCode": 1
-      },
-      {
-        "file": "recheck-setup-history/canary-maintenance-forge-oxy34.log",
-        "sha256": "3fcd3d15fa3f7cb905795f8df824c78668dd391e4053118ba0008c2fc1e032f8",
-        "exitCode": 1
-      },
-      {
-        "file": "recheck-setup-history/canary-maintenance-dag82-invocation-error.log",
-        "sha256": "382df29c02220c7b223097ebb0a5098554c45fffdd7b4b436a628f20ab6cead2",
         "exitCode": 1
       }
     ]
