@@ -40,7 +40,10 @@ globalThis.fetch=(input,options)=>{
 let server;
 try{
  await pg.connectPostgres();const db=pg.getDb();
- const [payer]=await db.insert(schema.users).values({kind:'personal',color:'teal'}).returning({id:schema.users.id});
+ const mapped=broken.subscriptions.find(x=>x.providerSubscriptionId===invoice.parent.subscription_details.subscription);
+ assert.ok(mapped);
+ const [payer]=await db.insert(schema.users).values({id:mapped.payerAccountId,kind:'personal',color:'teal'}).returning({id:schema.users.id});
+ assert.equal(payer.id,mapped.payerAccountId);
  await db.insert(credits.userCredits).values({userId:payer.id,creditsFree:0,creditsFreeLimit:0,creditsPaid:0,stripeCustomerId:invoice.customer});
  const app=express();app.use('/billing/webhook',express.raw({type:'application/json'}));app.use('/billing',await loadBillingRouter(process.cwd()));
  server=http.createServer(app);await new Promise(r=>server.listen(0,'127.0.0.1',r));
@@ -59,7 +62,7 @@ try{
  const [counts]=await db.execute(sql`select (select count(*) from billing_credit_grants) as credits, (select count(*) from access_grants) as access, (select count(*) from billing_transactions) as transactions`);
  assert.equal(Number(counts.credits),0);assert.equal(Number(counts.access),0);assert.equal(Number(counts.transactions),0);
  assert.equal(rejectedExternalRequests,0);
- console.log(JSON.stringify({sameAuthenticatedOwnEvent:true,sameInvoiceCustomerBinding:true,realRawBodyRoute:true,invalidPaidCatalogueStatus:500,validNoPaidMappingStatus:200,replayStatus:200,receiptAttempts:3,outcome:'not_granted',creditGrants:0,accessGrants:0,balance:0,providerRequests:0,providerMutations:0,providerSignedDelivery:false}));
+ console.log(JSON.stringify({sameAuthenticatedOwnEvent:true,sameInvoiceCustomerBinding:true,sameFixturePayerBinding:true,realRawBodyRoute:true,invalidPaidCatalogueStatus:500,validNoPaidMappingStatus:200,replayStatus:200,receiptAttempts:3,outcome:'not_granted',creditGrants:0,accessGrants:0,balance:0,providerRequests:0,providerMutations:0,providerSignedDelivery:false}));
 }finally{
  if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await pg.closePostgres();globalThis.fetch=realFetch;await rm(directory,{recursive:true,force:true});
 }
