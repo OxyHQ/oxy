@@ -26,7 +26,8 @@ dependencies {
   implementation "androidx.security:security-crypto:1.1.0-alpha06"
   // secp256k1 ECDSA with RFC 6979 nonces (HMacDSAKCalculator), byte-identical
   // to @noble/curves. See docs/identity/phase-2-shared-uid-migration.md.
-  implementation "org.bouncycastle:bcprov-jdk18on:1.80"
+  // Match Expo Updates' Android provider family to avoid duplicate org.bouncycastle classes.
+  implementation "org.bouncycastle:bcprov-jdk15to18:1.81"
 
   testImplementation "junit:junit:4.13.2"
   // android.jar's org.json is a stub that throws in JVM unit tests.
