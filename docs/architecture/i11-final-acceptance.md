@@ -57,7 +57,7 @@ Each executed gate must record repository/PR and exact head, packed package inte
 - [ ] PAY01 Peable published SDK has equivalent stable customer/checkout/portal/retrieveSubscription/cancelAtPeriodEnd/payment/refund/status/payout interfaces, exact request/response error DTOs and the consumers' required recurring semantics.
 - [ ] PAY02 Mercaria custom client is replaced only after retry/idempotency/scopes/workload authentication and commercial-domain separation pass against the published SDK. Homiio rent flows retain equivalent payer/payee/owner/refund authority.
 - [ ] PAY03 Provider errors/timeouts/retries and reconciliation have parity with the previous implementation; no silent provider switch or lost commercial state. Test/sandbox and live provider objects/modes cannot be mixed.
-- [ ] PAY04 TNP's future Peable adoption remains planned and purchase blocked until a separately approved integration exists. This issue grants no registrar/fulfillment or purchase capability.
+- [x] PAY04 TNP's future Peable adoption remains planned and purchase blocked until a separately implemented and verified integration exists. This issue grants no registrar/fulfillment or purchase capability. Source/docs accepted in [TNP76](https://github.com/OxyHQ/TNP/pull/76), [review5967731824](https://github.com/OxyHQ/TNP/pull/76#issuecomment-5967731824); main `8ee271e576ce618ba7511c44ddabcd170b4dd1fe` preserves the reviewed tree and [main CI37112903494](https://github.com/OxyHQ/TNP/actions/runs/37112903494) passed. This closes planned classification and purchase blocking, not a billing deployment.
 
 ## Internal inference, usage and no double charge (I09–I10)
 
