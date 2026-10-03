@@ -1,0 +1,30 @@
+$ jest --runInBand --runTestsByPath src/scripts/__tests__/foregroundPilotHttps.test.ts
+FAIL src/scripts/__tests__/foregroundPilotHttps.test.ts
+  ✕ sends key/secret only to canonical Oxy mint, bearer only to registration, refusing redirects (3 ms)
+  ✓ rejects HTTP 302 without reflecting response secrets or arbitrary diagnostics (1 ms)
+  ✓ rejects HTTP 401 without reflecting response secrets or arbitrary diagnostics
+  ✓ rejects HTTP 500 without reflecting response secrets or arbitrary diagnostics
+  ✓ bounds streamed bytes and rejects abort before dispatch (1 ms)
+  ✓ uses a bounded abort deadline while waiting for an HTTP ACK (3 ms)
+
+  ● sends key/secret only to canonical Oxy mint, bearer only to registration, refusing redirects
+
+    I05 canonical HTTPS operation failed; reconcile persisted intent
+
+      69 | 		} catch {
+      70 | 			// Never expose response bodies, fetch diagnostics, bearer, API key or secret.
+    > 71 | 			throw new Error(
+         | 			      ^
+      72 | 				"I05 canonical HTTPS operation failed; reconcile persisted intent",
+      73 | 			);
+      74 | 		} finally {
+
+      at ForegroundPilotHttps.<anonymous> (src/scripts/foregroundPilotHttps.ts:71:10)
+      at fulfilled (src/scripts/foregroundPilotHttps.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 5 passed, 6 total
+Snapshots:   0 total
+Time:        0.168 s
+Ran all test suites within paths "src/scripts/__tests__/foregroundPilotHttps.test.ts".
+error: script "test" exited with code 1

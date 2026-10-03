@@ -1,0 +1,80 @@
+$ jest --runInBand --runTestsByPath src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts src/scripts/__tests__/seedOxyApplicationsPlan.test.ts
+FAIL src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts
+  ● the canonical official-application registry › Mercaria owns only its catalog execution authority › declares the scopes used by catalog registration, ticket introspection and audit
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 0
+    + Received  + 2
+
+      Array [
+        "user:read",
+        "catalogs:write",
+        "capabilities:read",
+        "capability-audit:write",
+    +   "payments:read",
+    +   "payments:write",
+      ]
+
+      541 |   describe('Mercaria owns only its catalog execution authority', () => {
+      542 |     it('declares the scopes used by catalog registration, ticket introspection and audit', () => {
+    > 543 |       expect(specNamed('Mercaria').scopes).toEqual([
+          |                                            ^
+      544 |         'user:read',
+      545 |         'catalogs:write',
+      546 |         'capabilities:read',
+
+      at Object.<anonymous> (src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts:543:44)
+
+FAIL src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts
+  ● applies only the reviewed delta, rejects drift/fences, rolls back partial SQL, and retains audited ephemeral history
+
+    ZodError: [
+      {
+        "received": "development",
+        "code": "invalid_literal",
+        "expected": "production",
+        "path": [
+          "environment"
+        ],
+        "message": "Invalid literal value, expected \"production\""
+      }
+    ]
+
+      81 |   const expectedApplication = application.parse(mention.tables.applications.rows[0]);
+      82 |   const expectedWorkloads = mention.tables.application_workload_identities.rows.map(row => workload.parse(row)).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    > 83 |   const expectedCredentials = mention.tables.application_credentials.rows.map(row => credential.parse(row)).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+         |                                                                                                 ^
+      84 |   const owner = account.strict().parse(mention.tables.users.rows[0]);
+      85 |   const registrarOwner = rootAccount.parse(registrar.tables.users.rows[0]);
+      86 |   if (owner.id !== expectedApplication.owner_account_id || expectedWorkloads.length !== 2 || expectedCredentials.length !== 2
+
+      at Object.get error [as error] (../../node_modules/.bun/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodObject.parse (../../node_modules/.bun/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at src/scripts/foregroundPilotConfiguration.ts:83:97
+          at Array.map (<anonymous>)
+      at prepareForegroundPilotPlan (src/scripts/foregroundPilotConfiguration.ts:83:75)
+      at src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:56:105
+      at fulfilled (src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:5:58)
+
+    Errors contained in AggregateError:
+        thrown: Object {
+
+            "code": "invalid_literal",
+            "expected": "production",
+            "message": "Invalid literal value, expected \"production\"",
+            "path": Array [
+              "environment",
+            ],
+            "received": "development",
+          }
+
+{"level":30,"time":1791029111162,"pid":3811417,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/scripts/__tests__/seedOxyApplicationsPlan.test.ts
+
+Test Suites: 2 failed, 1 passed, 3 total
+Tests:       2 failed, 64 passed, 66 total
+Snapshots:   0 total
+Time:        1.004 s
+Ran all test suites within paths "src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts", "src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts", "src/scripts/__tests__/seedOxyApplicationsPlan.test.ts".
+error: script "test" exited with code 1

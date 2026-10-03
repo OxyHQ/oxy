@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "68ba56deef769a9df9b96fb7f3ea290b5bea743d",
+  "sourceSha256": {
+    "packages/api/scripts/seed-oxy-applications.ts": "49f2318d4b1fb773423e8f0e55438f25908392b45a8b78adcea1a88a73e4d010",
+    "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts": "5952a86468a0a566dc7c3f38bdeb719415b031fcfe5e5e22a44868cc4546fb69",
+    "packages/api/src/scripts/__tests__/foregroundPilotHttps.test.ts": "781ce33440ee9a089430e48c48d7599c80a172306dd084d7b9b25909cb3bbf10",
+    "packages/api/src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts": "88f864a2457c9922137680fefda822ddc68133f99ca4b72cc11d9e784e52176a",
+    "packages/api/src/scripts/foregroundPilotConfiguration.ts": "27bde7dbc14be8ef9b9f34378b1a29d06645e554e7978bdc3f50f4563a06de28",
+    "packages/api/src/scripts/foregroundPilotExecutor.ts": "0910786552e9930bbca87512448d5ca91a45a2a8de6b796a53820d7f3a78b327",
+    "packages/api/src/scripts/foregroundPilotHttps.ts": "5d7478f43752e5026d028f74394c180d4e17c7113b08ad50b5db0d739c74fcbb",
+    "packages/api/src/scripts/seedOxyApplicationsSpecs.ts": "4223d6275cdd98f45af9f256b0ea473e007caad0e2adb79ab0a26c7768aaecf2",
+    "scripts/rehearsal/test-i05-foreground-configuration.py": "4321b348a5f2af669b7b65ab272c896cadace3635f8a15b4c364761923a870e5",
+    "packages/api/src/scripts/seedOxyApplicationsPlan.ts": "240cb3c3ba5f3fb38e5c63ae7abf4017009ea9e089300734b3ec2740c2123f21",
+    "packages/api/src/capabilities/oxy-profile.catalog.ts": "e70f308b24d00904991556874fb3b004f9f41467b797a0a93b586a93375f5e9a",
+    "packages/api/src/services/capabilityCatalog.service.ts": "382ff1f6d9fe06f4692bc895c030f35e2612f952e78d15b6a8ef2c5640452dce",
+    "packages/api/src/services/applicationCredentialAudit.service.ts": "66afb8ad59123ccfa75ef33404df2dbe42a74939e08fd3cc5aa6dcc4d7305996",
+    "packages/api/src/services/workloadIdentityBinding.service.ts": "6ecec1524d410fa4d10217273c17a0d5d30f0ecd80fda84a09960e8b40de38bb"
+  },
+  "records": {
+    "docs/audits/2026-10-03-i05-foreground-configuration/owned-run.log": {
+      "sha256": "ccda4ce4183586851c00bba07fccd9ae2ec02483e48ca899e83315747e39889e",
+      "bytes": 1929
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/migration-fresh.log": {
+      "sha256": "8a84e9eaf80188d1564f3f44592d1d68614197041e8f351aa1560a1924b6e09f",
+      "bytes": 8875
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/migration-repeat.log": {
+      "sha256": "f8213c51f1c21c675c4e65cd0e73c36d07d14c549ca4e26d6f9aeb0feb1532e9",
+      "bytes": 173
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/configuration-tests.log": {
+      "sha256": "0fb66ff845cdff8b8ec2b92e7fbfa4e754958799dcb7e774062c378e0018efa2",
+      "bytes": 1019
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/api-ts.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/scripts-ts.log": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/biome-scoped.log": {
+      "sha256": "472fe0a2935de9bcabffa4c593b3a741b08e5e8acd4ae0da12c72185e1a976ca",
+      "bytes": 43
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/format-final.log": {
+      "sha256": "063e66d20e1e9478e3936f3f83fa8ffb6f11cdb1d7e7fd768c042fa788d3419a",
+      "bytes": 39
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/initial-configuration-fixture.log": {
+      "sha256": "d68a2d77846e6707d67a6f5bf5919b5ca03055f9dda8f85b944fa0296a745f08",
+      "bytes": 4056
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/initial-https-fixture.log": {
+      "sha256": "dceb3d732b8703e4c039bb19373bb7252740e22bcba9ea7d19595bb481a90ad3",
+      "bytes": 1506
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/initial-scripts-typecheck.log": {
+      "sha256": "b674098b8a8b237a264478006cc118bec7fd7267dbdcf5b29bf4faf3e95e86a5",
+      "bytes": 193
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/seed-cli-current-lint.log": {
+      "sha256": "041d68900c1029d10552ae7c0e84d0611788f094de7a936e4509f2e97c7ba06e",
+      "bytes": 12030
+    },
+    "docs/audits/2026-10-03-i05-foreground-configuration/seed-cli-baseline-lint.log": {
+      "sha256": "8fd0af49b001617c1c7c35f7e29e1dd8e10947fa878bc959f02ae19705f84481",
+      "bytes": 12348
+    }
+  },
+  "baselineSource": {
+    "head": "8458daef4",
+    "path": "packages/api/scripts/seed-oxy-applications.ts",
+    "sha256": "c184b8f46a87e2dd8028b983bccd4842de12bf46a2949ba02e8844d6a1f2b862"
+  },
+  "checks": {
+    "suitesPassed": 4,
+    "testsPassed": 73,
+    "freshMigrations": 142,
+    "repeatMigrations": 142,
+    "apiTypeScriptExitCode": 0,
+    "scriptsTypeScriptExitCode": 0,
+    "biomeScopedFiles": 7,
+    "biomeScopedExitCode": 0,
+    "seedCliBaselineDiagnostics": 9,
+    "seedCliCurrentDiagnostics": 9,
+    "configuration": "real SQL CAS, rollback, drift/fence refusal; canonical workload writer creates inert attribution rows",
+    "network": "controlled Fetch responses; HTTPS target/headers/redirect/size/deadline and TTL300 asserted; zero external HTTP requests",
+    "unknownAck": "controlled fetch abort with real SQL ephemeral creation and final retirement; one network attempt; no retry",
+    "rollback": "wrong digest rejects, exact canonical bytes/creator permits active=false and only own scope deltas restored; repeated maintenance; FK/credential history retained"
+  },
+  "localPostgresPidsStopped": [
+    3832253,
+    3830563,
+    3827049,
+    3825944,
+    3824907,
+    3814317,
+    3811303
+  ],
+  "liveAuthorityWrites": 0,
+  "awsWrites": 0,
+  "stripeWrites": 0,
+  "limits": [
+    "No ECS dispatch/plan or final image proof yet.",
+    "SQL registration fixture signature is synthetic; actual canonical mint/register/revoke discovery proof is separate 8f0aa/8458.",
+    "No full seed execution or unrelated application changes.",
+    "No published SDK/consumer adoption claim.",
+    "No black-box OS-signal/end-to-end publisher proof: abort is a controlled HTTPS transport failure."
+  ]
+}
