@@ -1,0 +1,15 @@
+{
+  "sourceHead": "3bb276262f4df033f6fc1be3ff574d0e6a3595ac",
+  "compiledBeforeSha256": "6e46e08c653d8155cf86c0a7ad0456035671515d074d0e1171340231579ad14f",
+  "probeSha256": "8cc07db5650ecd4e327185c150c79c7b1b5bab923c9fa8b94027792375835468",
+  "mutation": "restore ordinary throttle inside managed authorization by omitting restricted-mode condition",
+  "command": [
+    "python3",
+    "-B",
+    "scripts/rehearsal/old-auth-only/run.py",
+    "--production-bootstrap"
+  ],
+  "compiledMutantSha256": "4a1d0e519261fd1b68d312c4d408cbe4c195dfeac28a14c7e40e3b92bcf5bd68",
+  "exitCode": 1,
+  "compiledRestoredSha256": "6e46e08c653d8155cf86c0a7ad0456035671515d074d0e1171340231579ad14f"
+}

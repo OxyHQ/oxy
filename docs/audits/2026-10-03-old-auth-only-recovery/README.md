@@ -1,0 +1,30 @@
+# Old-derived authentication recovery: local bootstrap proof
+
+Source `9fed455fa7f26329f4564795c8f82f619928c18b`, derived from `67c09e853db308d102624a2ffd40db19959344f4`. This is a separate runtime candidate. No image promotion, AWS action or deployment ran. It does not modify the final integration freeze. **Production ready: false**, pending execution in the immutable ARM image, its own security/provenance gate and operational quiescence/transport proof.
+
+The actual compiled `server.bootstrap()` ran against a freshly initialized, verified owned PostgreSQL 17 server and Redis. The additive fixture schema came from `38d5ce28c0a5ec0338775810d5681e2834416f25`: 142 normal migrations, then an unchanged repeat. Seed helpers from that distinct source populated 14 financial/provider/access tables. Their complete JSON row hashes were equal before and after every successful probe. All databases were dropped; PostgreSQL, Redis, server and child processes stopped with no cleanup errors. No production DB or provider credential was used.
+
+The production control used `NODE_ENV=production`, `OXY_RUNTIME_MODE=rollback-auth-only`, and synthetic production service/public credentials. SQL seeding, package tests and the probe controller used `NODE_ENV=test`; the server receiving their HTTP requests used production. The original test-environment control also passed. Do not attribute the probe controller's import behavior to a production process. Neither control substitutes for running the resulting ARM container.
+
+The 14 actual HTTP/SQL checkpoints cover health/JWKS; admission before malformed parsers and real polling/upgrade; scrypt password and session validation; PKCE join of two different holders plus replay rejection; authorized organization switching and denied unrelated/bot subjects; both holders converging through switch and organization signout to personal fallback; warm membership withdrawal; app-only TTL 300 and attribution-header rejection before data; workload binding/nonce replay; existing bot and bot-operated organization sessions; device token refusal for bots; key challenge/signature; full device signout withdrawing both holders; and signed reauthentication followed by canonical SQL session deactivation without restart. The workload attestation verifier alone was synthetic: this proves the actual SQL binding, nonce, mint and TTL seams, not remote STS attestation. No cookies were returned.
+
+The package's own Jest command passed 43 tests: 41 mode/admission tests and two normal-mode DB-before-listen controls. Their test worker provisions its separate old schema, while the restricted compiled host uses schema 142. The allowlist is not evidence that every email/TOTP/other admitted route works. Email was not delivered. Five actual intervals remain: user/session cache expiry, login lockout memory cleanup, HTTP limiter MemoryStore cleanup and Redis keepalive. Instrumentation observed registrations and invoked original timer functions; it did not replace their callbacks. Seed, probe and host IO guards recorded zero non-loopback attempts.
+
+A matching production GREEN and compiled runtime mutant both used source `3bb276262f4df033f6fc1be3ff574d0e6a3595ac` and the same probe/fixture bytes. Removing the restricted-mode force-recheck condition produced HTTP 200 after membership withdrawal where the same fixture requires 401. The mutant failed and the compiled file was restored to its original SHA. Final source 9fed only additionally pins synthetic credential environment to the production bootstrap; its independent final production control passes all 14 checkpoints. The compiled runtime and probe bytes remain identical. An earlier holder run passed 13 checkpoints and then rejected password sign-in after the fixture had acquired a key; the harness now uses canonical signed reauthentication. This was a fixture correction, not a product relaxation.
+
+API emission and scripts strict typecheck exited 0. Biome reports zero diagnostics for four new source files. The wider changed-source scan retains exactly 19 pre-existing diagnostic identities and adds zero; it is not a globally clean lint result. Compiler output hashes cover the listed changed runtime files. Source hashes cover the changed candidate files and listed direct schema/helper inputs, not an exhaustive dependency closure. Source cce already contained the emitted final runtime; subsequent commits changed harness/tests only.
+
+Commands:
+
+```sh
+bun --no-env-file packages/api/node_modules/typescript/bin/tsc -p packages/api/tsconfig.json
+bun --no-env-file packages/api/node_modules/typescript/bin/tsc -p packages/api/tsconfig.scripts.json --noEmit
+cd packages/api && bun --no-env-file run test --runInBand --runTestsByPath src/middleware/__tests__/rollbackAuthAdmission.test.ts src/__tests__/bootGate.test.ts
+# From the candidate root, after returning from packages/api:
+python3 -B scripts/rehearsal/old-auth-only/run.py
+python3 -B scripts/rehearsal/old-auth-only/run.py --production-bootstrap
+```
+
+`proof.json` pins 47 source inputs, 14 emitted runtime files and 19 durable records. The receipts contain synthetic row counts/hashes and process metadata only. Private fixture files contain the generated credentials and are intentionally excluded. Prior harness failures and cleanup records remain externally under `/home/nate/Oxy/.agent-evidence/integration-old-auth-only-20261003/`.
+
+For image delivery, the current candidate job only retains image config/build metadata. It cannot deliver a runnable fallback archive. The next separate candidate step must preserve the exact built image as an authenticated archive with archive/config/layer identities; root can load that archive on ARM and execute these restricted-bootstrap controls before its own tree/image security decision. Promotion must reuse the inspected archive/image, never rebuild after approval. This branch's default normal mode and old TD 692 are not safe fallback deployments. No old issuer/final Forge exception is inherited by the new tree.

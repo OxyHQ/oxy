@@ -1,0 +1,479 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+  "derivedFrom": "67c09e853db308d102624a2ffd40db19959344f4",
+  "schemaFixtureHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+  "productionReady": false,
+  "remoteEffects": false,
+  "results": {
+    "packageOwnTests": 43,
+    "httpSqlCheckpoints": 14,
+    "freshMigrations": 142,
+    "repeatNoOp": true,
+    "preservedNonemptyTables": 14,
+    "externalAttempts": 0,
+    "newSourceBiome": 0,
+    "wideBiomeBaseline": 19,
+    "wideBiomeCurrent": 19,
+    "wideBiomeNew": 0,
+    "apiEmitExit": 0,
+    "scriptsTypecheckExit": 0,
+    "mutantExit": 1,
+    "mutantActual": 200,
+    "mutantExpected": 401,
+    "compiledRestored": true
+  },
+  "sources": [
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": ".github/workflows/forge-candidate-image-proof.yml",
+      "role": "variant",
+      "sha256": "bc4602f877013d73635fb71225ac8217a9cbeef75e5eb136409b6e69fce8c2f6"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "docs/architecture/rollback/old-auth-only-proposed-scope.json",
+      "role": "variant",
+      "sha256": "b45232a8bfd8ba0c1e2302381359c62d42666db74497d09d1ae61010e2b70830"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "docs/architecture/rollback/old-auth-only.md",
+      "role": "variant",
+      "sha256": "a3ee919cd56ba0f0d48c9c882367a812d04ddc04e747614b38a248c1d39d8525"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/__tests__/bootGate.test.ts",
+      "role": "variant",
+      "sha256": "c17aa4f9bd1adebf8ad59a66c3bbd3a0fa4cb93f358f4aba22aae4c611a85794"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/config/dynamicOriginRegistry.ts",
+      "role": "variant",
+      "sha256": "39240a97e482e993ad676ad2c579ed5cb46b9fe2a4c37c3167a1f3ba32c9ebf2"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/config/runtimeMode.ts",
+      "role": "variant",
+      "sha256": "ac9f9abe478fed5ee30dd7b12485b8696be130b5092e25549cff19f7ee5fafdd"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/controllers/emailProxy.controller.ts",
+      "role": "variant",
+      "sha256": "7a136411f32aec827d54f05cb235a28bc9c4a21a0a8bdc3c10d23d88eb50593c"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/controllers/session.controller.ts",
+      "role": "variant",
+      "sha256": "814fa70d921aa850e90994f162b99cf2fb0a27fe0dcd711276e1664eef1a8a19"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/middleware/__tests__/rollbackAuthAdmission.test.ts",
+      "role": "variant",
+      "sha256": "c91ff1750520272089685b3e8370ac3c08e3a098f4c469725442fe69a0d52bc8"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/middleware/rollbackAuthAdmission.ts",
+      "role": "variant",
+      "sha256": "0d66ba5789a33e83a7aac90bfbd2f5544b72bad6099c9309373531c22f101fdd"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/server.ts",
+      "role": "variant",
+      "sha256": "f48051c67cb356a5f861008ee89af123c3c0d491e43ccee8d4db8a10b6867019"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/services/rollbackAuthBoundary.ts",
+      "role": "variant",
+      "sha256": "02e7ebb74ccfebbe605e95446286c3b90f8226eb1397b4d7c5047bb23b427f01"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/services/session.service.ts",
+      "role": "variant",
+      "sha256": "30ed9d147625d2464eac89f64d95ae93fb69992b2f538f5e35ce948d18bfcbd5"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/telemetry.ts",
+      "role": "variant",
+      "sha256": "d39002232fdd21faa8ccbf48f44b0acfeadbae2c9fc13e73ea716618d99f08ac"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/utils/blockCache.ts",
+      "role": "variant",
+      "sha256": "d5b08bdd70480423a99eb7d761d2301a8117ddfdfc98dc0cd3cf6e181d240d27"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/utils/credentialDomainCache.ts",
+      "role": "variant",
+      "sha256": "901b1216eb83ba3afae4134be99011d3d701421cc78dd30e55839b97be76a005"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/utils/fileCache.ts",
+      "role": "variant",
+      "sha256": "c0a5b02a2c6235d56446e7f8d096ff5dcf553dde67d059f28faa988a2f0bb3fc"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/utils/locationCache.ts",
+      "role": "variant",
+      "sha256": "65932263158da4b76dd0b49f3764eeb16fc6426b17afa7d269c84c0069364aad"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/src/utils/performanceMonitor.ts",
+      "role": "variant",
+      "sha256": "217669c43067aae2613284cfa254132e8a97f0df4ab407e7579e087639d7d15d"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "scripts/rehearsal/old-auth-only/host.mjs",
+      "role": "variant",
+      "sha256": "6156eeb972d3fe3c83be46a53357b8ca632dc01019348cdae15e017e7e63d4c9"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "scripts/rehearsal/old-auth-only/io-guard.mjs",
+      "role": "variant",
+      "sha256": "9d10edfb35c98df77fcfb99437fe8739678b4726b77f8bee9248e348fc910cc3"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "scripts/rehearsal/old-auth-only/probe.mjs",
+      "role": "variant",
+      "sha256": "8cc07db5650ecd4e327185c150c79c7b1b5bab923c9fa8b94027792375835468"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "scripts/rehearsal/old-auth-only/run.py",
+      "role": "variant",
+      "sha256": "12dceba04e57262d2bae18476497647892ef2389cd4333ff533a7c183a96f8fe"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "scripts/rehearsal/old-auth-only/seed-preserved.mjs",
+      "role": "variant",
+      "sha256": "44e00ecd17933520ab009548f2d7fed885aad17742958d0a3f5c56a140d6a891"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "scripts/rehearsal/old-auth-only/seed.mjs",
+      "role": "variant",
+      "sha256": "d3b38dbeed664453db24ee6f91707a09ee61ff94b5ac06ac44386578b42e94e0"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "Dockerfile",
+      "role": "variant",
+      "sha256": "10d9955e2707296de35febb7e0083911e75184360ff99e154cc676ba2f9545f9"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "bun.lock",
+      "role": "variant",
+      "sha256": "864b175c3684fa10fb62769363a2128faeede5fb8f766ec34e232d853f9e206d"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "package.json",
+      "role": "variant",
+      "sha256": "bc2aac184dd2f80e25ce69ab52843ce9a29da7a11a04b5677bf0a6bc3a9ae889"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/package.json",
+      "role": "variant",
+      "sha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/tsconfig.json",
+      "role": "variant",
+      "sha256": "a82d22a710671c11c1db3f3f72cc2b2c1ceb0d8867566d6d6851174573b9ce5d"
+    },
+    {
+      "sourceHead": "9fed455fa7f26329f4564795c8f82f619928c18b",
+      "path": "packages/api/tsconfig.scripts.json",
+      "role": "variant",
+      "sha256": "3db8ac99006c4a1e7d6d408afd4a53642a5cea8884925c3c14b1ef4c1912aec8"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/drizzle/0142_melodic_sister_grimm.sql",
+      "role": "separate schema/financial fixture source",
+      "sha256": "39171c5cfae5c33ba756389cf69741e096a31dc1130684b963efdb46275196e7"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/drizzle/meta/0142_snapshot.json",
+      "role": "separate schema/financial fixture source",
+      "sha256": "166aaebb4863d617b4002033139ba52e97edd28955b68ec0f21df8d8ec0a42af"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/drizzle/meta/_journal.json",
+      "role": "separate schema/financial fixture source",
+      "sha256": "e3894d3ecba628dc48762384306624e56dd02aaa3698fac6da9f7940b682ddd6"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/config/postgres.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "cde261995eb5c66710a977b164bb0b72208d41528c6bfc9520b48d866e15793f"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/db/migrate.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "35f66a152a01d01ac145036c1c1b14ee13b7b19edaae84c214913d35a4da4098"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/db/schema/users.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "61581412c5ef802bfe06cbc35f383900853cccdbc749f12ba49ccaf0f826ee85"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/db/schema/userAuthMethods.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "6a96d63a6942f96e61813409a47f639c0edb60720e1a2a6de5cffa05b8753f9e"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/db/schema/billingTransactions.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "b351acc7a00578fe2457aac1a4d9e55687474a40add602956d7a141096a222a8"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/db/schema/billingCreditGrants.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "3596f22f907618c77ecc0985d9b6d4ac8f73a7dd6f5acda4a19da5abf9f33548"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/db/schema/userCredits.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "a11913970c0cec403b9bc493c78de57f88d522da467926240b5b94503ec58ffd"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/services/password.service.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "da3dd71b6799b3441562f7feb897968589c2bedd7f2ceee0793dd3324d9a98fb"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/services/subscriptionCreditLedger.service.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "9ca3a8a93798552adad467f1a2d0355d869d491a202a95e1d85583ca1efc25e7"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/services/productProviderEvidence.service.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "76a6d9f9a4e99f18a9a4be924069956bd24593682156dd6023c11266e5406087"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/services/productAccessPersistence.service.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "9802500e994126c3e8b9b834b54b9cbe7a8e52335061bf4436e8401e10a3c3fd"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/services/__fixtures__/productAccessFixtures.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "bae5e1ec8de9b99325b8d8297f3704a96b39660488a8fb9dafb76c64173a6d57"
+    },
+    {
+      "sourceHead": "38d5ce28c0a5ec0338775810d5681e2834416f25",
+      "path": "packages/api/src/db/schema/inferenceProviderCostAttempts.ts",
+      "role": "separate schema/financial fixture source",
+      "sha256": "9f792752c207f3dec5b2a31b6389b9208c8c48772d210fccb6b795fb22cec606"
+    }
+  ],
+  "compiledOutputs": [
+    {
+      "path": "packages/api/dist/config/dynamicOriginRegistry.js",
+      "sha256": "feb60d66f27366dfac497dc9edf835228936afb4b62a2a8354f5a067e8dfc882",
+      "bytes": 12592
+    },
+    {
+      "path": "packages/api/dist/config/runtimeMode.js",
+      "sha256": "fd82e4da20a18f255d4f98c12c889821832d289d37a501cbea2f2ff53d0d6419",
+      "bytes": 900
+    },
+    {
+      "path": "packages/api/dist/controllers/emailProxy.controller.js",
+      "sha256": "84bc6811a1a0a9236d99cac461ac93a679e3cf47e9c26c05f9551e3527506043",
+      "bytes": 12369
+    },
+    {
+      "path": "packages/api/dist/controllers/session.controller.js",
+      "sha256": "5aa6ac5b62c5b44b2c893a46a4e5b23a47940225cc569364456705b5b0ab7ed1",
+      "bytes": 52604
+    },
+    {
+      "path": "packages/api/dist/middleware/rollbackAuthAdmission.js",
+      "sha256": "25b848a0e235270a6b3e63a3b3c29b974c3ec2a89d6c059219709baca071206a",
+      "bytes": 2901
+    },
+    {
+      "path": "packages/api/dist/server.js",
+      "sha256": "2750d420f6aa5b3e162e933c0b6235b24adb4d4d67733b750323260514ebff5d",
+      "bytes": 77838
+    },
+    {
+      "path": "packages/api/dist/services/rollbackAuthBoundary.js",
+      "sha256": "623bebcfaaabaa4ccbf993776b9e74fad7d13e7726bf55b244f6fdb7ed464adb",
+      "bytes": 2188
+    },
+    {
+      "path": "packages/api/dist/services/session.service.js",
+      "sha256": "6e46e08c653d8155cf86c0a7ad0456035671515d074d0e1171340231579ad14f",
+      "bytes": 70402
+    },
+    {
+      "path": "packages/api/dist/telemetry.js",
+      "sha256": "ce5857fed83badac757e9e3e00ae0ef749e7eb48207ed623b3295f97cb2931cc",
+      "bytes": 2470
+    },
+    {
+      "path": "packages/api/dist/utils/blockCache.js",
+      "sha256": "7d014e15a162bd4d58a1aded22fc83a04595abf1640c526fb8bda74e3230bbc7",
+      "bytes": 3955
+    },
+    {
+      "path": "packages/api/dist/utils/credentialDomainCache.js",
+      "sha256": "d66a053c9f4ac377e8889d44e3d2ae1db0380b46c716487c8aa630ffd8fa8944",
+      "bytes": 4859
+    },
+    {
+      "path": "packages/api/dist/utils/fileCache.js",
+      "sha256": "f8a01c4d8cfd563f0479c02cb1d3266fd46164bef253682441119a98c379f796",
+      "bytes": 3244
+    },
+    {
+      "path": "packages/api/dist/utils/locationCache.js",
+      "sha256": "297de447d1eba6c4f4b91276654950487c758a67545c8259c8c297cd91e765ba",
+      "bytes": 4050
+    },
+    {
+      "path": "packages/api/dist/utils/performanceMonitor.js",
+      "sha256": "66fca23d82c0c22f478023e0bd0fca81c08271fedf006cf18375dfc2daffb163",
+      "bytes": 7985
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/test-receipt.json",
+      "sha256": "fe54b616bf270311336008a9e29fd4a55f7ea6136d45141fa340b94902c87232",
+      "bytes": 10185
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/test-http-sql.log",
+      "sha256": "4317777577c1e11ee3cb9cd12b11313cbe35419925e39f70ef86a34fadeb25c3",
+      "bytes": 1231
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/test-bootstrap-census.json",
+      "sha256": "1eb9730756e6a2becfe718de66d1672b88e8613b041f5e6183c43a9a2382a37b",
+      "bytes": 3579
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/production-original-fixture-receipt.json",
+      "sha256": "ea212c0fcc2fa63078056afe90ec9a57e2a161dec99b05c96694322c9963e498",
+      "bytes": 10250
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/production-original-fixture-http-sql.log",
+      "sha256": "4317777577c1e11ee3cb9cd12b11313cbe35419925e39f70ef86a34fadeb25c3",
+      "bytes": 1231
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/production-original-fixture-bootstrap-census.json",
+      "sha256": "927c05b6f953825e2adab0a31b1281c4d0778cf29c8ca20e1a904ade039eabf5",
+      "bytes": 3602
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/production-coherent-fixture-receipt.json",
+      "sha256": "f3dd6f8fa497d79e140b65ebd9fc3e1e5fb31e42c25adf43e759f13fbdc19451",
+      "bytes": 10250
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/production-coherent-fixture-http-sql.log",
+      "sha256": "4317777577c1e11ee3cb9cd12b11313cbe35419925e39f70ef86a34fadeb25c3",
+      "bytes": 1231
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/production-coherent-fixture-bootstrap-census.json",
+      "sha256": "a8a3fe8ac33a67efdf88d816f6b9b3e604aa445f7dd6132401c79703fbd2309d",
+      "bytes": 3602
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/production-mutant-receipt.json",
+      "sha256": "0be35836c52641748b2b6575527a597937e2504c706aa6dbbc8a253faf60e906",
+      "bytes": 8206
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/production-mutant-http-sql.log",
+      "sha256": "7c81f1c181f015a508c67a15fdfd5bbcbccfb1f8795d432c42ca03695c7e3ce7",
+      "bytes": 745
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/package-test-43.log",
+      "sha256": "9c589d95704c933674389792e75f41fa214fd3b637ec3de5d2b109eb425879ba",
+      "bytes": 1308
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/mutant.json",
+      "sha256": "15b0ef5150f01dbf74c60290df5c7c780a59ca2d440f5d9a8575efca650a8d8f",
+      "bytes": 679
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/mutant-command.log",
+      "sha256": "bbdf6cdf77515fb72c4422e138a5a5e3406d087702487552ff6b9aa0c69d77ba",
+      "bytes": 1159
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/api-emit.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/scripts-typecheck.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/wide-lint-current.json",
+      "sha256": "9ff5ed9db86c3601131410592241de32dd9f8d625fc3949de9047da9cb8b509c",
+      "bytes": 891468
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/wide-lint-baseline.json",
+      "sha256": "a15511b76544e69752b8062fe0d3aa9841f9c5ecfb7a89229e9983b9ef77c635",
+      "bytes": 882489
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/new-source-lint.log",
+      "sha256": "600dc09917c4e65a2c3d517a39d3d69e98cb2523f6d5f6a642c02f275fb3097c",
+      "bytes": 46
+    }
+  ]
+}
