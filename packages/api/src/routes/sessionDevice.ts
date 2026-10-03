@@ -120,7 +120,7 @@ router.post(
       return;
     }
 
-    const state = await deviceSessionService.getStateBySecret(deviceId, deviceSecret);
+    let state = await deviceSessionService.getStateBySecret(deviceId, deviceSecret);
     if (!state) {
       res.status(401).json({ error: 'invalid_device_secret' });
       return;
@@ -135,9 +135,25 @@ router.post(
     // device and when its session is dead — deliberately indistinguishable: the
     // secret is already proven at this point, so a pinned miss must not become
     // an account-existence oracle.
-    const mintedToken = accountId
+    let mintedToken = accountId
       ? await deviceSessionService.resolveTokenForAccount(state, accountId)
       : await deviceSessionService.resolveActiveToken(state);
+    if (!mintedToken && !accountId) {
+      // A different holder may have switched or signed out the active context
+      // after our snapshot. Reauthenticate this SAME holder before following
+      // exactly one newer revision. The resolver still rechecks token/state
+      // coherence, and a second transition fails closed without another retry.
+      // Pins never follow a replacement account.
+      const refreshed = await deviceSessionService.getStateBySecret(deviceId, deviceSecret);
+      if (!refreshed) {
+        res.status(401).json({ error: 'invalid_device_secret' });
+        return;
+      }
+      if (refreshed.revision !== state.revision) {
+        state = refreshed;
+        mintedToken = await deviceSessionService.resolveActiveToken(state);
+      }
+    }
     if (!mintedToken) {
       // Known device, but nothing live to mint for. The client re-authenticates
       // (or drops its pin) and keeps its still-valid secret.

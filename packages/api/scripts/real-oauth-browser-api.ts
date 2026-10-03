@@ -1,6 +1,8 @@
 /** Disposable full API host for I11. No auth path is mocked or replaced. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
+import { z } from 'zod';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { SMTPServer } from 'smtp-server';
@@ -13,8 +15,9 @@ import { storePassword } from '../src/services/password.service';
 import { refreshOriginRegistry, stopOriginRegistry } from '../src/config/dynamicOriginRegistry';
 
 async function main(): Promise<void> {
-  const [manifestPath] = process.argv.slice(2);
-  assert(manifestPath && process.argv.length === 3, 'One owned manifest path required');
+  const [manifestPath, mode] = process.argv.slice(2);
+  const resume = mode === '--resume';
+  assert(manifestPath && ((!mode && process.argv.length === 3) || (resume && process.argv.length === 4)), 'Owned manifest path and optional --resume required');
   const database = new URL(process.env.DATABASE_URL ?? '');
   assert(database.hostname === '127.0.0.1' && database.port === '5589');
   assert(/^\/oxy_browser_1519_[a-f0-9]{16}$/.test(database.pathname));
@@ -36,7 +39,7 @@ async function main(): Promise<void> {
   // Real loopback SMTP transport: auth generates/verifies its own code and
   // password proofs. Only external delivery ends at this owned mail sink.
   const mailDirectory = join(dirname(manifestPath), 'mail');
-  await mkdir(mailDirectory, { mode: 0o700 });
+  await mkdir(mailDirectory, { mode: 0o700, recursive: true });
   const smtp = new SMTPServer({
     authOptional: true, disabledCommands: ['AUTH', 'STARTTLS'], size: 65_536,
     onRcptTo(address, _session, callback) {
@@ -58,40 +61,67 @@ async function main(): Promise<void> {
   await new Promise<void>((done) => smtp.listen(17964, '127.0.0.1', done));
 
   await connectPostgres();
-  const suffix = randomBytes(5).toString('hex');
-  const password = 'Oxy1519-Disposable-Fixture-Password!';
-  const [person] = await getDb().insert(users).values({
-    username: `browser${suffix}`, email: `browser${suffix}@fixture.invalid`, kind: 'personal',
-  }).returning({ id: users.id, username: users.username });
-  const [stranger] = await getDb().insert(users).values({
-    username: `stranger${suffix}`, email: `stranger${suffix}@fixture.invalid`, kind: 'personal',
-  }).returning({ id: users.id, username: users.username });
-  const [organization] = await getDb().insert(users).values({
-    username: `group${suffix}`, kind: 'organization',
-  }).returning({ id: users.id, username: users.username });
-  await storePassword(person.id, password);
-  await storePassword(stranger.id, password);
-  await getDb().insert(accountMembers).values({
-    accountId: organization.id, memberUserId: person.id, role: 'admin', status: 'active',
-  });
-
-  const origins = { api: 'http://127.0.0.1:17960', idp: 'http://127.0.0.1:17961',
-    a: 'http://127.0.0.1:17962', b: 'http://127.0.0.1:17963' };
-  const clients: Record<string, { appId: string; clientId: string; origin: string }> = {};
-  for (const lane of ['idp', 'a', 'b'] as const) {
-    const origin = origins[lane];
-    const [app] = await getDb().insert(applications).values({
-      name: `I11 disposable ${lane} ${suffix}`, ownerAccountId: person.id,
-      createdByUserId: person.id, type: lane === 'idp' ? 'internal' : 'third_party',
-      isOfficial: lane === 'idp', isInternal: lane === 'idp', status: 'active',
-      scopes: ['user:read'], redirectUris: [`${origin}/`], websiteUrl: origin,
-    }).returning({ id: applications.id });
-    const clientId = `oxy_dk_${randomBytes(24).toString('hex')}`;
-    await getDb().insert(applicationCredentials).values({
-      applicationId: app.id, name: `I11 fixture ${lane}`, publicKey: clientId,
-      type: 'public', environment: 'development', status: 'active',
+  let fixtureManifest: unknown;
+  if (resume) {
+    const saved = z.object({
+      fixtureOnly: z.literal(true),
+      origins: z.object({ api: z.literal('http://127.0.0.1:17960'), idp: z.literal('http://127.0.0.1:17961') }),
+      person: z.object({ id: z.string().min(1), username: z.string().min(1) }),
+      stranger: z.object({ id: z.string().min(1), username: z.string().min(1) }),
+      organization: z.object({ id: z.string().min(1), username: z.string().min(1) }),
+      clients: z.record(z.object({ appId: z.string().min(1), clientId: z.string().min(1), origin: z.string().min(1) })),
+    }).passthrough().parse(JSON.parse(await readFile(manifestPath, 'utf8')));
+    for (const [subject, kind] of [[saved.person, 'personal'], [saved.stranger, 'personal'], [saved.organization, 'organization']] as const) {
+      const [row] = await getDb().select({ id: users.id }).from(users)
+        .where(and(eq(users.id, subject.id), eq(users.username, subject.username), eq(users.kind, kind)));
+      assert(row, 'Existing fixture subject mismatch');
+    }
+    for (const client of Object.values(saved.clients)) {
+      const [row] = await getDb().select({ id: applications.id }).from(applications)
+        .innerJoin(applicationCredentials, eq(applicationCredentials.applicationId, applications.id))
+        .where(and(eq(applications.id, client.appId), eq(applications.ownerAccountId, saved.person.id),
+          eq(applications.status, 'active'), eq(applicationCredentials.publicKey, client.clientId),
+          eq(applicationCredentials.type, 'public'), eq(applicationCredentials.status, 'active')));
+      assert(row, 'Existing fixture application/public credential mismatch');
+    }
+    fixtureManifest = saved;
+  } else {
+    const suffix = randomBytes(5).toString('hex');
+    const password = 'Oxy1519-Disposable-Fixture-Password!';
+    const [person] = await getDb().insert(users).values({
+      username: `browser${suffix}`, email: `browser${suffix}@fixture.invalid`, kind: 'personal',
+    }).returning({ id: users.id, username: users.username });
+    const [stranger] = await getDb().insert(users).values({
+      username: `stranger${suffix}`, email: `stranger${suffix}@fixture.invalid`, kind: 'personal',
+    }).returning({ id: users.id, username: users.username });
+    const [organization] = await getDb().insert(users).values({
+      username: `group${suffix}`, kind: 'organization',
+    }).returning({ id: users.id, username: users.username });
+    await storePassword(person.id, password);
+    await storePassword(stranger.id, password);
+    await getDb().insert(accountMembers).values({
+      accountId: organization.id, memberUserId: person.id, role: 'admin', status: 'active',
     });
-    clients[lane] = { appId: app.id, clientId, origin };
+
+    const origins = { api: 'http://127.0.0.1:17960', idp: 'http://127.0.0.1:17961',
+      a: 'http://127.0.0.1:17962', b: 'http://127.0.0.1:17963' };
+    const clients: Record<string, { appId: string; clientId: string; origin: string }> = {};
+    for (const lane of ['idp', 'a', 'b'] as const) {
+      const origin = origins[lane];
+      const [app] = await getDb().insert(applications).values({
+        name: `I11 disposable ${lane} ${suffix}`, ownerAccountId: person.id,
+        createdByUserId: person.id, type: lane === 'idp' ? 'internal' : 'third_party',
+        isOfficial: lane === 'idp', isInternal: lane === 'idp', status: 'active',
+        scopes: ['user:read'], redirectUris: [`${origin}/`], websiteUrl: origin,
+      }).returning({ id: applications.id });
+      const clientId = `oxy_dk_${randomBytes(24).toString('hex')}`;
+      await getDb().insert(applicationCredentials).values({
+        applicationId: app.id, name: `I11 fixture ${lane}`, publicKey: clientId,
+        type: 'public', environment: 'development', status: 'active',
+      });
+      clients[lane] = { appId: app.id, clientId, origin };
+    }
+    fixtureManifest = { origins, clients, person, stranger, organization, password, fixtureOnly: true };
   }
   await refreshOriginRegistry({ required: true });
 
@@ -101,9 +131,8 @@ async function main(): Promise<void> {
   // rate-limiters, CORS, security headers, error handlers and Socket.IO auth.
   const { default: server } = require('../src/server') as typeof import('../src/server');
   await new Promise<void>((done) => server.listen(17960, '127.0.0.1', done));
-  await writeFile(manifestPath, `${JSON.stringify({ origins, clients, person, stranger,
-    organization, password, fixtureOnly: true }, null, 2)}\n`, { mode: 0o600 });
-  console.log(JSON.stringify({ fixtureReady: true, manifestPath, port: 17960 }));
+  if (!resume) await writeFile(manifestPath, `${JSON.stringify(fixtureManifest, null, 2)}\n`, { mode: 0o600 });
+  console.log(JSON.stringify({ fixtureReady: true, manifestPath, port: 17960, resumed: resume }));
 
   let stopping = false;
   async function stop() {
@@ -124,6 +153,5 @@ async function main(): Promise<void> {
 }
 void main().catch((error: unknown) => {
   console.error(error);
-  process.exitCode = 1;
-  void closePostgres();
+  void closePostgres().finally(() => process.exit(1));
 });
