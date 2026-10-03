@@ -1,5 +1,16 @@
 # I07 product access candidate — 2026-10-02
 
+**Current status, 2026-10-03:** Nate approved implementation of the documented
+rules in #1519. [ADR 0033](../../adr/0033-subscription-credit-and-product-billing.md)
+and the billing checkpoint evidence supersede this initial partial-state table.
+The generic catalogue/combination rules, per-grant credit ledger, atomic verified
+provider award and SDK/Console source now exist. Actual Oxy/Clarity/Mercaria
+read-only inventory and dry-run counts are recorded separately; neither this
+proposal nor empty configuration launches a new Oxy One sale or reconstructs
+legacy credits. Illustrative amounts do not populate the promotion registry.
+
+**Historical initial proposal below.**
+
 **Structural followup (2026-10-02):** the independent persistence, authorized query and SDK source are now implemented and locally verified in [i07-product-access-persistence.md](i07-product-access-persistence.md). This earlier contract snapshot records the initial partial state; it does not override the newer source evidence or claim catalogue activation/publication.
 
 
