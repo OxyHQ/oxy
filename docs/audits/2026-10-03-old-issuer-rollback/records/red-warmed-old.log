@@ -1,0 +1,21 @@
+90 |   assert.equal(await require('./src/services/session.service.ts').default.deactivateSession(agent.sessionId),true);
+91 |   const stoppedCurrent=await http(current,'/users/me',undefined,agent.accessToken);
+92 |   const stoppedOld=await http(old,'/users/me',undefined,agent.accessToken);
+93 |   const [retained]=await getDb().select().from(sessions).where(eq(sessions.sessionId,agent.sessionId));
+94 |   assert(retained && retained.authMethodId===f.key.id && !retained.isActive);
+95 |   assert.equal(stoppedCurrent.status,401);assert.equal(stoppedOld.status,401);
+                                                      ^
+AssertionError: Expected values to be strictly equal:
+
+200 !== 401
+
+ generatedMessage: true,
+     actual: 200,
+   expected: 401,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/scripts/rehearsal/old-issuer/probe.mjs:95:50
+
+Bun v1.4.2 (Linux x64)
