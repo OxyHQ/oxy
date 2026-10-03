@@ -1,6 +1,6 @@
 {
   "status": "INDEPENDENT_REPRODUCTION_COMPLETED_CANDIDATE_UNAPPROVED",
-  "recordedAtUTC": "2026-10-03T04:09:46.059119+00:00",
+  "recordedAtUTC": "2026-10-03T04:13:45.803168+00:00",
   "candidateCommit": "15cf6b6e5a2743e15486df4943c9b6eda1909ece",
   "upstreamTag": "v1.4.0",
   "upstreamCommit": "fa385f92440879601240020f158bed68e444e83a",
@@ -62,17 +62,28 @@
     "packageVersion": "0.0.6",
     "ownPublicApiChecksPassing": 14,
     "upstreamExpoSuiteExecuted": false,
-    "initialHarnessChecksPassing": 12,
-    "initialHarnessChecksFailing": 2
+    "historicalInitialHarness": {
+      "sourceHead": "b09309b62e0eb60ad9d2e43726d8fd11749180c7",
+      "passing": 12,
+      "failing": 2,
+      "meaning": "historical b093 harness correction; not the current issuer-stage command"
+    },
+    "stageInitialInvocation": {
+      "command": "node --test scripts/forge-independent-expo-compat.cjs packages/api",
+      "ownChecksPassing": 14,
+      "extraneousPackageEntryFailing": 1,
+      "correctedCommand": "node scripts/forge-independent-expo-compat.cjs packages/api",
+      "correctedChecksPassing": 14
+    }
   },
   "oxyTests": {
     "suitesPassing": 3,
     "testsPassing": 34,
-    "ownedPostgresPid": 3211653,
+    "ownedPostgresPid": 3482519,
     "ownedPostgresMajor": 17,
-    "ownedPostgresPort": 5570,
-    "ownedPostgresDataDirectory": "/tmp/oxy-forge-final-pg-q8_a2wr2/data",
-    "databaseLifecycle": "fresh initdb owned PID/UID/data/executable/listening socket verified; normal migrator136+repeat; Jest random databases migrated/dropped; server stopped finally"
+    "ownedPostgresPort": 5578,
+    "ownedPostgresDataDirectory": "/tmp/oxy-forge-final-pg-wetexg_h/data",
+    "databaseLifecycle": "fresh initdb owned PID/UID/data/executable/listening socket verified; normal migrator130+repeat; Jest random databases migrated/dropped; server stopped finally"
   },
   "knownKeyControls": {
     "stock": {
