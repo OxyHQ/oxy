@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "path": "scripts/adoption/final-registry-consumers.py",
+      "sha256": "fc6b7d0a5cb8f88dd8311ea2b7727d26b8cab3fbc9ca813cd41494f4a6500c34"
+    },
+    {
+      "path": "scripts/adoption/test-final-registry-consumers.py",
+      "sha256": "8fc1d009a4bb7f96524af33b183f4838ee07bf2207d662e47dc0a67a44475647"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/README.md",
+      "sha256": "f8e401c56bee2e55a3fd74c55365827f7f8904e1aa4bd550df1b7f931619c63a"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
+      "sha256": "a2f56efe760af75d80b38dc64509b0b58b609155813e5f5386d4538e4bd52ba2"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Alia.patch",
+      "sha256": "b3185c65c17956b6b38323ef680b27cb12e2dcdd6158366e144734f773b3f9f2"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Allo.patch",
+      "sha256": "92553e28689c59af21867d161d096c2d05091f6458a5c1aa22af2e72c01de513"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Atlas.patch",
+      "sha256": "9e35d67ad1af0530f6b9159996f578bb2598b4facda2ce24c462231e1007a11b"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Clarity.patch",
+      "sha256": "e3f6ac69dfa02e12e3b2cea6b1fcb9b8a78915610c0bcd8d15ecde431cbdcf6d"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/CrowdSource.patch",
+      "sha256": "b5a35fd62f9d4900fb52cc245d4e3e2eadf5be468c05acb4982dca27781cff0b"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/GoWay.patch",
+      "sha256": "d8e5c764eadb525701c465857f378991ccb316ada9741e0eca0ba6657f62eb8a"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Homiio.patch",
+      "sha256": "9df7004b37092e62be8416470585ad1ed4516d5743ef40ebc000dd0cc0214969"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Mention.patch",
+      "sha256": "f181a0869e3cdfcc68a718eeef114b6b1426c6926bdbabfe4932883a2e53e9a9"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Mercaria.patch",
+      "sha256": "8b85d3bdc4ea78c043c98892c6175bbaf90b6e073bf01c67abe18c47d43ba393"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Moovo.patch",
+      "sha256": "48a35e7636fd8b45dd9309b6084177386ae2c9ce20410dff2ddbfc0698fbf83f"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Nilo.patch",
+      "sha256": "55249e879fb70caff6ff8dbdcf653ceff74069c091b0f8ccf82eecb4eeb1ec4c"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Noted.patch",
+      "sha256": "5fea5fa4338f30e9b1dd3226cc70debabd28946f56e0592c4daa74f3cbc2b831"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Peable.patch",
+      "sha256": "6973c193d3ab9a4abeaa000964f00d7c2de9eed451270a77cd8286eb1b51c18e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Syra.patch",
+      "sha256": "866bd0007087d4bbfaf740c868aee527a1b65dad392fd62a4d0c5c912ec07327"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Willo.patch",
+      "sha256": "af521d772883f08b84e0de1f00c7404ffa2521c199df64be5b71e542650238f7"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/tnp.patch",
+      "sha256": "7888ca6de148cf5604116fa4e954c8629c2ca24ef988810f6d8d47ee36d0f707"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/website.patch",
+      "sha256": "adacb3a3e04b236292bf131621fa8b33a3da59b27be67132fcc07839551444f6"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/all17-check.log",
+      "sha256": "8287902ec1f75ce217f7f527e3635603e4d6fc948e00baddbd1511fbc74dbee2"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/all17-preflight.json",
+      "sha256": "655292070214b0d0917b9585fa44efa4fa70ebab72a59dee3e1ac172dcd5b6b8"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/tests.log",
+      "sha256": "7cb0201692aeff8d2f96bb1f05ab6aa0a5dd7d8314d20509992e5946ba2ac3e7"
+    }
+  ],
+  "validation": {
+    "offlineTests": 11,
+    "consumerPreflights": 17,
+    "consumerManifestMutations": 0,
+    "registryRequests": 0,
+    "installs": 0,
+    "deployments": 0
+  },
+  "limits": [
+    "Registry execution waits root registry-ready signal.",
+    "Current main ancestry and exact package archives checked at execution, not claimed by offline preflight.",
+    "Install does not imply acceptance: package checks and root rollout remain separate."
+  ]
+}

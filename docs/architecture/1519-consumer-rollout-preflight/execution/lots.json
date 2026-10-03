@@ -13,6 +13,126 @@
   "bloomPolicy": "exact reviewed per-consumer published line; 6.2.1 maintenance or 7.1.2; no broad range change",
   "consumers": [
     {
+      "repository": "OxyHQ/Atlas",
+      "worktree": "/home/nate/Oxy/Atlas/.worktrees/1519-final-sdk-adoption-20261003",
+      "branch": "task/1519-atlas-final-sdk-20261003",
+      "preparedHead": "b725e9edf6c02eb1f3adebba9bca48a27d092a31",
+      "lot": 1,
+      "bloom": "7.1.2",
+      "manifestPatch": {
+        "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Atlas.patch",
+        "sha256": "9e35d67ad1af0530f6b9159996f578bb2598b4facda2ce24c462231e1007a11b",
+        "changes": [
+          {
+            "path": "package.json",
+            "before": "444e3020f7aa2e48712afab0aac63046af633d284e03a35077a8cc3e88a918e6",
+            "after": "0d9f6216db39eb15aa4036572e2392af2a39667e2b1a323dbb8854b044c029f2"
+          },
+          {
+            "path": "packages/frontend/package.json",
+            "before": "a9fb7ac8d9203160021ce3fa6a39e6b965f139bcbe7d73b453e4145caea2d0d8",
+            "after": "ac90309679d777ab9209f53596d330a6479dddcb615c9e96eb2d2531a8a13f25"
+          }
+        ],
+        "gitApplyCheckPassed": true
+      },
+      "localSequence": [
+        [
+          "git",
+          "apply",
+          "--check",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Atlas.patch"
+        ],
+        [
+          "git",
+          "apply",
+          "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Atlas.patch"
+        ],
+        [
+          "bun",
+          "install",
+          "--minimum-release-age=0"
+        ],
+        [
+          "bun",
+          "install",
+          "--frozen-lockfile",
+          "--minimum-release-age=0"
+        ]
+      ],
+      "packageScripts": [
+        {
+          "package": "@atlas/frontend",
+          "cwd": "/home/nate/Oxy/Atlas/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend",
+          "scripts": {
+            "typecheck": "tsc --noEmit",
+            "lint": "expo lint"
+          }
+        },
+        {
+          "package": "@atlas/shared-types",
+          "cwd": "/home/nate/Oxy/Atlas/.worktrees/1519-final-sdk-adoption-20261003/packages/shared-types",
+          "scripts": {
+            "build": "tsc -p tsconfig.json"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "path": ".github/workflows/deploy.yml",
+          "sha256": "d66cfdb810693e0ed3b55a30b7d73ec498ec529a022b4d8ca74128f3e98628ee",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy.yml",
+            "--repo",
+            "OxyHQ/Atlas",
+            "--ref",
+            "main"
+          ],
+          "requiredInputNames": [],
+          "role": "frontend_after_matching_backend"
+        }
+      ],
+      "pausedDeploymentSemantics": "not_applicable_or_unreviewed",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false,
+      "imageRecipes": [],
+      "mergeSequenceTemplates": [
+        [
+          "gh",
+          "pr",
+          "checks",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Atlas",
+          "--watch"
+        ],
+        [
+          "gh",
+          "pr",
+          "merge",
+          "<PR>",
+          "--repo",
+          "OxyHQ/Atlas",
+          "--squash",
+          "--match-head-commit",
+          "<reviewed-head>"
+        ],
+        [
+          "gh",
+          "api",
+          "repos/OxyHQ/Atlas/commits/main",
+          "--jq",
+          ".sha"
+        ]
+      ],
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+    },
+    {
       "repository": "OxyHQ/Alia",
       "worktree": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
       "branch": "task/1519-alia-final-sdk-pins-20261003",

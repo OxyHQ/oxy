@@ -1,6 +1,6 @@
 # Final adoption and operational batches
 
-Prepared only. Root owns live operations, merges, workflow state and image promotion. No service had been paused when this plan was prepared. `lots.json` fixes 16 worktrees/heads, exact manifest patches (all `git apply --check` passed), package scripts, workflow hashes and 21 image/service recipes. `fleet-handoff.json` preserves the 33-service classification snapshot; it is not a fresh desired-count receipt. `internal-consumers.json` identifies Console, accounts, Commons and the Expo example in the Oxy workspace. Native Metros17967/17968 remain frozen.
+Prepared only. Root owns live operations, merges, workflow state and image promotion. No service had been paused when this plan was prepared. `lots.json` fixes 17 worktrees/heads, exact manifest patches (all `git apply --check` passed), package scripts, workflow hashes and 21 image/service recipes. `fleet-handoff.json` preserves the 33-service classification snapshot; it is not a fresh desired-count receipt. `internal-consumers.json` identifies Console, accounts, Commons and the Expo example in the Oxy workspace. Native Metros17967/17968 remain frozen.
 
 ## Registry → source → image, prepared before maintenance
 
@@ -36,7 +36,7 @@ Root supplies exact live ARNs/counts/new TD IDs at execution, from authenticated
 | Frontends | Per-repository frontend workflows listed in `lots.json`, after matching backend/protocol is ready | Public client IDs must resolve to their registered app/redirects. Do not deploy a broken client while its backend is held. Publish only the reviewed source; preserve existing demos and product surfaces. |
 | Held/dependent fleet | Move delegated jobs, Clarity delegated worker/proxies, legacy relay/publishers, Matrix and integration protocol lanes, routing sidecar | Exact per-lane gates remain in fleet snapshot. No broad scopes/grants. Matrix/GWJ are separate authority graphs; do not apply an Oxy acting-as claim to them. Preserve existing zero-count services. |
 
-Atlas is listed by I11 but has no row in the live33 ECS cohort and no reviewed1519 adoption branch in this checkpoint. Its repository inventory still needs classification before claiming product adoption; it is not silently counted among these16 prepared consumers. Move is deliberately held by the existing consent constraint, not omitted. Non-owned Kaana/relay/worker/Matrix operator receipts remain root/coverage's fleet work, rather than invented package changes here.
+Atlas is the 17th prepared consumer: Cloudflare frontend only, existing public client independently verified, candidate type/edge/export checks accepted. It adds no ECS service or receiver count. Move remains deliberately held by the existing consent constraint. Kaana/relay/worker/Matrix operational receipts remain root/coverage ownership.
 
 ## I05: exact existing administrative/pilot path
 
@@ -52,7 +52,7 @@ Use final migrator142, `docs/adr/0033-subscription-credit-and-product-billing.md
 
 Published PeableSDK0.2.2/shared-types0.3.0 and backendTD7 are existing evidence; Mercaria final Oxy dependencies and coordinated adoption still need release. Historical SQL inventory showed zero commercial rows, two stores/two owners, and no matching Peable merchant/development credential; it does not prove Stripe empty or select a commercial offer.
 
-1. Reconcile only the reviewed existing Mercaria application/production credential scopes via `mercariaBillingAuthority.service` CAS (app6a37d0cc5d4b5f15482a9340, credential01a061cd-39a9-7bd6-ba31-70ef7590c953, owner69b2d3df5d12f58c9800d651; four existing scopes plus payments:read/write). The direct CLI currently assumes local STS+DB. A DB-only ECS transport using the same reviewed root STS-receipt boundary is being prepared; **no local production DB access or aws executable inside the image is assumed**.
+1. Reconcile only the reviewed existing Mercaria application/production credential scopes via `mercariaBillingAuthority.service` CAS (app6a37d0cc5d4b5f15482a9340, credential01a061cd-39a9-7bd6-ba31-70ef7590c953, owner69b2d3df5d12f58c9800d651; four existing scopes plus payments:read/write). The external DB-only ECS transport is now reviewed in [PR1568](https://github.com/OxyHQ/oxy/pull/1568), source0120223c9 + logs eee6afbd6. It uses compiled existing exports and STS only on the root launcher; 12 offline/4 real-SQL controls passed. Final-image plan/live apply and readbacks remain pending.
 2. Use `scripts/auth/mercaria-ephemeral-ecs.py` for one <=1h development service credential after that CAS: prepare→local0600 material→issue→exact inspect→revoke/readback. Root attribution is real STS, no fictional user. Lost ACK keeps the same ID/nonce/material. Already-minted JWT TTL drains separately; cleanup does not assert instant receiver invalidation.
 3. Use normal published SDK `merchants.register({})` to initialize only the technical development namespace for that existing app. Read back merchant/app/environment. This is not new merchant terms, MoR, price or user consent. No persistent SSM test credential.
 4. Before cohort configuration, read actual Stripe account/mode from the exact deployed secret references on both sides. Peable previously had no Stripe/cohort config; referencing the existing authorized platform secret must be a separate reviewed infrastructure/config change, preserving the same account/MoR and leaving one-off/global rails disabled. Local TEST proof does not attest production mode/account.
@@ -60,3 +60,48 @@ Published PeableSDK0.2.2/shared-types0.3.0 and backendTD7 are existing evidence;
 6. Pause actions with the action flag on failure **while retaining durable cohort routing**. Never remove the cohort and fall through to a legacy mutator for an existing cohort object. Store receipt subject is not an invented Oxy payer. Retire the ephemeral credential and reconcile tasks/material independently.
 
 This separates software readiness from the remaining exact config/namespace operations. It adds no new acceptance criterion beyond the original migration, authority, billing and runtime requirements.
+
+## Registry adoption runner (no deployment)
+
+`scripts/adoption/final-registry-consumers.py` prepares or applies only the
+reviewed package patches. `--repository OxyHQ/name` can repeat to select a lot.
+Without `--execute`, it validates local HEAD/branch, exact before-manifest and
+patch hashes, and `git apply --check`; it makes no registry request or consumer
+change. All 17 prepared worktrees passed this preflight.
+
+At the root's registry-ready signal, `--execute` additionally reads authenticated
+Git main ancestry through each configured origin, fetches its exact object
+without updating FETCH_HEAD, and refuses an unpreserved main change. It checks
+all five published Oxy versions via the canonical npm registry, SHA512 and
+**every shipping file** against the reviewed comparison packs before editing
+any consumer. A missing version, incompatible archive, changed source or new
+main stops the lot. Public registry requests carry no auth credential.
+
+Example shape after the registry-ready signal:
+
+```sh
+python3 scripts/adoption/final-registry-consumers.py \
+  --repository OxyHQ/Atlas --repository OxyHQ/Mention \
+  --candidate-manifest /home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/manifest.json \
+  --execute --output <new-private-parent>/adoption-lot
+```
+
+Each consumer is rechecked immediately before patching. Install regenerates its
+lock with `--minimum-release-age=0`, then verifies a frozen install. Actual Node
+resolution from each direct importer must match every file of the downloaded
+registry packages. The runner records package checks still pending; install is
+not acceptance. The package's reviewed install lifecycle scripts run normally;
+no release/publish/build/deploy command is guessed or invoked by this runner.
+
+There is no commit/push/merge or production operation here. Failure preserves
+partial state and private logs and never silently rolls back or retries. Resume
+requires reviewing that state and refreshing the exact prepared manifest input
+if it already changed. Root separately captures/pauses active deploy and package
+publisher workflows before merges and applies the digest/count protocol above.
+
+Offline controls: 11 PASS, including actual temporary-Git main advancement,
+registry missing/integrity/member differences, malicious archive paths, no
+receipt overwrite, and actual Node importer resolution/member mismatch. No
+registry-dependent execution has occurred. `registry-runner-proof.json` records
+source/log hashes and the all-17 preflight receipt. Atlas remains candidate-only
+until the same registry procedure is completed.
