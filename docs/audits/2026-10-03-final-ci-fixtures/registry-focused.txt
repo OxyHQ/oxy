@@ -1,0 +1,77 @@
+$ jest --runInBand --runTestsByPath src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts
+PASS src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts
+  the canonical official-application registry
+    ✓ registers Nilo by exact identity with only public user-read authority (2 ms)
+    ✓ pins a separate media worker with no sign-in redirects or write grants (1 ms)
+    Kaana has one exact machine identity
+      ✓ pins the opaque id, origin, narrow scope and validator capability
+      ✓ does not infer Kaana from display-name order
+    Homiio is reconciled by its deployed opaque identity
+      ✓ pins the exact id and the narrow scopes its service credential needs
+      ✓ drives the production seed lookup by id, never by the Homiio display name
+      ✓ pins only the exact web and PKCE-bound native consent redirects
+    Alia keeps its internal tier while catalogue routes are platform-wide
+      ✓ pins the exact active production application primary key (1 ms)
+      ✓ is registered as an application the catalogue treats as internal
+      ✓ gets there through `type` alone — the seed declares no `isInternal` (1 ms)
+      ✓ also grants the platform audience to a staff-controlled first-party app
+      ✓ does not grant the platform audience to a third-party app
+      ✓ the fixture contains both an internal and a first-party app (1 ms)
+    Alia holds exactly the inference, delegation and coordination scopes it needs
+      ✓ declares the argued set and nothing else
+      ✓ carries the inference and capability read scopes the integration is built on
+      ✓ can read the capability registry used to build its service tools and context
+      ✓ carries `inference:usage:read`, which the entitlement interface requires
+      ✓ carries both delegation scopes the service lane is built on
+      ✓ holds exactly the four argued staff-gated scopes and no others
+      ✓ every delegation and coordination name is a REAL privileged scope, so pinning it means something (1 ms)
+      ✓ withholds inference:routing:write
+      ✓ withholds inference:providers:write
+      ✓ withholds inference:providers:read
+      ✓ every withheld name is a REAL scope, so its absence means something
+      ✓ searches and reads pages through Clarity, and registers no site there
+      ✓ grants nothing outside inference, `user:read`, capability read, Clarity search and reads, delegation and coordination
+      ✓ that scan can see an outsider at all (1 ms)
+    Alia is the ADR 0018 coordinator, and holds both halves of that authority
+      ✓ carries `agency:coordinate` and no other platform capability
+      ✓ carries the ticket-issuing scope the capability is paired with
+      ✓ the pinned name is the REAL built-in capability, so its presence means something
+      ✓ is the ONLY seeded application that may coordinate or issue tickets (1 ms)
+    no application self-grants an inference WRITE scope
+      ✓ no seeded application carries inference:routing:write
+      ✓ no seeded application carries inference:providers:write
+      ✓ the scan can see a granted scope at all
+    Oxy Website owns only its catalog registration and job-search authority
+      ✓ can register a catalog, read users and search Clarity Jobs, nothing more
+      ✓ is bound to the website catalog namespace and no other platform capability
+    Noted owns only its catalog service authority
+      ✓ declares the scopes used by catalog registration, introspection, audit and events
+      ✓ is bound to the Noted catalog namespace and no other platform capability
+      ✓ refuses malformed catalog namespace identifiers (8 ms)
+    Oxy Inbox owns its catalog and authenticated app events
+      ✓ has only the scopes its deployed backend uses
+      ✓ pins the measured production application id
+      ✓ cannot register a catalog outside the Inbox namespace
+    Mention owns its canonical catalog namespace
+      ✓ pins the production application identity instead of selecting by name
+      ✓ can register, reauthorize and audit its catalog, and reach Clarity, without coordinator authority (1 ms)
+    relying parties that hold account data receive account.deleted (OxyHQ/Mention#1178)
+      ✓ Mention declares its account-events webhook and is a recipient of every event
+      ✓ CrowdSource declares its account-events webhook and is a recipient of every event
+    Mercaria owns its catalog and approved merchant billing authority
+      ✓ declares the scopes used by catalog registration, ticket introspection, audit and merchant billing (1 ms)
+      ✓ is bound to the Mercaria catalog namespace without coordinator authority
+    the dedicated owner account is one this platform actually seeds
+      ✓ Alia is owned by its own account, not by the platform owner
+      ✓ that account is a registered cost centre — the two files cannot drift
+      ✓ no other seeded application claims a dedicated owner account (1 ms)
+    registry hygiene
+      ✓ every declared scope is a recognised application scope
+      ✓ application names are unique — `name` is the idempotency key
+      ✓ the scope vocabulary the specs are checked against is non-empty
+
+Test Suites: 1 passed, 1 total
+Tests:       54 passed, 54 total
+Snapshots:   0 total
+Time:        0.693 s
+Ran all test suites within paths "src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts".

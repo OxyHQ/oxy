@@ -1,0 +1,102 @@
+{
+  "sourceHead": "eda4e5f490e4d232bba14b26caa098434b27b60b",
+  "fixtureCommit": "eda4e5f490e4d232bba14b26caa098434b27b60b",
+  "failedCI": {
+    "runId": 37115817191,
+    "head": "d8f87a675e176d107b0ac0bc45317e33ca3903db",
+    "jobs": {
+      "apps": 111182340387,
+      "platform": 111182340379,
+      "guards": 111182312329,
+      "api4": 111182340490
+    },
+    "scaffoldRun": 37115817199
+  },
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts",
+      "sha256": "b1cd7ae1f9797707c62f2ca70e4709b8c65f3b2314704c700581568c541b8566"
+    },
+    {
+      "path": "packages/contracts/src/__tests__/usernamePolicySingleSource.test.ts",
+      "sha256": "7e49eee630fb8e535ab40693c285a7709a3b6152855af1843f303b5133cafbde"
+    },
+    {
+      "path": "packages/services/__tests__/utils/oauthReturn.test.ts",
+      "sha256": "e90b249dd32796452d091921c8e1ea1412e79d2e79b4878f4d5740ec7fced53c"
+    },
+    {
+      "path": "packages/services/src/ui/oauth/__tests__/oauthBearerCommit.http.test.ts",
+      "sha256": "093479ce1a7316fed8df1a645ddc5b63de4ab1217271b3f7a8aacde57e6f36de"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-final-ci-fixtures/final-ci-oauth-fixtures.txt",
+      "sha256": "1f88a7f4cd3546d04e7cd0e13109d3ee90442d949d37800d4bb468009c8f31ca",
+      "exitCode": 0,
+      "scope": "2 suites, 13 tests: exchange option and HTTP subject checks"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-fixtures/final-ci-username-namespace.txt",
+      "sha256": "aba529912123ae1580b85e6578acfdcc2ff460da7875d9952f620cf2c50fa833",
+      "exitCode": 0,
+      "scope": "1 suite, 5 tests: exact Capability namespace exception, remaining validator census"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-fixtures/final-ci-icon-subsets.txt",
+      "sha256": "72413551ee16e879e30942d390e8306c34d3ea8d814cf52fa6dfadd542143450",
+      "exitCode": 0,
+      "scope": "Icon font subset gate; no glyph or font change"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-fixtures/final-ci-services-build.txt",
+      "sha256": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a",
+      "exitCode": 0,
+      "scope": "Full Services build before native change; subsequent native build recorded separately"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-fixtures/final-ci-registry-owned.txt",
+      "sha256": "fa57b99719166087bc479c187d55b47c37a040aa7b8bbae66bf912984a236278",
+      "exitCode": 0,
+      "scope": "Owned launcher fresh141/repeat and scoped registry test; read detailed stdout below"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-fixtures/final-ci-scoped-lint.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0,
+      "scope": "Three CI test fixtures scoped installed Biome"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-fixtures/final-ci-seed-lint.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0,
+      "scope": "Registry fixture scoped installed Biome"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-fixtures/registry-focused.txt",
+      "sha256": "b3f73dca1528e6216a2cb0017fe6210182af3265ab9008016a01574d588933cb",
+      "exitCode": 0,
+      "scope": "Registry exact stdout: 54 tests pass"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-ci-fixtures/owned-registry.py",
+      "sha256": "cde0014b8be5a3af891ba8b1a021025c1b85fa39aedb5275153ca9803933dbcf",
+      "scope": "Exact scoped launcher; source ROOT points at this original worktree. Derived from reviewed owned runner only fixed worktree and narrowed Jest command list; min environment/no dotenv/PID guards/normal migrator/stop unchanged."
+    }
+  ],
+  "ownedPostgres": {
+    "pid": 3747116,
+    "stopped": true,
+    "dataDirectory": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/pg1519-_i8d62cl/data",
+    "migrator": "normal fresh141 and repeat",
+    "focusedSuites": 1,
+    "focusedTests": 54
+  },
+  "limits": [
+    "These checks repair fixture assumptions, not runtime enforcement: OAuth plantTokens false is expected, Capability Base64url grammar is not a username allocator, accepted Mercaria billing scopes total six.",
+    "Ionicons scanner examines all quoted source/test strings; fixture-person avoids introducing the unrelated person icon. No generated font/subset changed.",
+    "These scoped checks ran before native resume source except the complete Services test/build in the linked native proof. This is not a new full CI result.",
+    "Forge security audit remains INACTIVE by design until final immutable source/image proof."
+  ]
+}
