@@ -1,0 +1,44 @@
+{
+  "kind": "mention-foreground-preflight",
+  "readOnly": true,
+  "isolation": "repeatable read",
+  "runtime": {
+    "node": "v24.21.0",
+    "postgresVersion": "3.4.9",
+    "postgresEntrySha256": "d8fea1a5311c47e65004646bc81f57305ac64d48f99004a5b3ca27bcfc6babf8"
+  },
+  "tables": {
+    "applications": {
+      "status": "complete",
+      "count": 1
+    },
+    "application_workload_identities": {
+      "status": "complete",
+      "count": 2
+    },
+    "application_credentials": {
+      "status": "complete",
+      "count": 2
+    },
+    "users": {
+      "status": "complete",
+      "count": 1
+    },
+    "account_closure_fences": {
+      "status": "complete",
+      "count": 0
+    },
+    "app_capability_catalog_registrations": {
+      "status": "complete",
+      "count": 0
+    }
+  },
+  "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/1f46e97b8bd943ef944a6d600bbe07be",
+  "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-mention-foreground-preflight-oxy:1",
+  "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:4512fc8d29abedf67caa2a77194e6fa351c38ebe2201e57bf320276e105da38a",
+  "cleanup": {
+    "taskStopped": true,
+    "definitionInactive": true,
+    "failures": []
+  }
+}

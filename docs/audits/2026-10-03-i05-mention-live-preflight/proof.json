@@ -1,0 +1,54 @@
+{
+  "sourceHead": "4d24c47088aea65bc65d71297205055f54d6fba6",
+  "sourceSha256": {
+    "scripts/agency/read-mention-foreground-preflight.mjs": "8328dc238a75a11577d4706d0d4c19a39f08eedcf211a03a0413dab44cf6e2d5",
+    "scripts/agency/mention-foreground-preflight-ecs.py": "17a740a7a43bb878998385fe1479d9885b80de9bb34a59d7b94de40d3b6f6ee5",
+    "scripts/agency/test-mention-foreground-preflight.py": "e4d46fc6b8b6eadc66bf9a6cfc5934d39a1ba5d61fa5c3f1899ba60de4e86dbe"
+  },
+  "privateInputs": {
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mention-foreground-preflight-1012/cleanup.json": {
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058",
+      "bytes": 74
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mention-foreground-preflight-1012/definition.json": {
+      "sha256": "01035da57ec946d72c08303365970028720e4c6c9602ecba2877ce9ffdcb3d5e",
+      "bytes": 9861
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mention-foreground-preflight-1012/dispatch-attempt.json": {
+      "sha256": "1b44e6bec2d53970682d76b96d29be65dff753c8b02829b757b14188cce28644",
+      "bytes": 390
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mention-foreground-preflight-1012/launch.json": {
+      "sha256": "4a73f3d3189e3406198036fd4e877ace6cf0bee940b2f39155bacf7a0242c2d1",
+      "bytes": 304
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mention-foreground-preflight-1012/receipt.json": {
+      "sha256": "1702a50d3a3130948577ea492e0906654ab415e03d4ae0b9915b201cf3edc83d",
+      "bytes": 1099
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mention-foreground-preflight-1012/registered-readback.json": {
+      "sha256": "dc7913c2a81e9a3233ea55135c72650fcdbca54a3873e92664fd102f3df88a06",
+      "bytes": 258
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mention-foreground-preflight-1012/result.private.json": {
+      "sha256": "f58f1e8835e90513af602143b24cad5bbfacadb258083daee8dac6d63385109c",
+      "bytes": 4063
+    },
+    "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/mention-foreground-plan-protocol-v2.json": {
+      "sha256": "445c27f50fa7c915b5886af54dd8b47d5819de73b96cdd8e8a55cf2e1150b831",
+      "bytes": 1391
+    }
+  },
+  "records": {
+    "projection.json": {
+      "sha256": "0ee340beb7d4e0c8cea41de9036a1c9787ab9db0e04580559bbb827c4a8f45ac",
+      "bytes": 1251
+    }
+  },
+  "executedBy": "root operator, exact reviewed protocol-v2 plan",
+  "limits": [
+    "Read-only observation; no application/workload scopes or capability registry were mutated",
+    "No capability catalogue registered for oxy; no catalog:oxy registrar candidate in fixed selector",
+    "Row identifiers, provider subjects and revisions remain in the private inputs"
+  ]
+}
