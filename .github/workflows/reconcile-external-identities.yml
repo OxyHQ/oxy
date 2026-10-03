@@ -141,7 +141,7 @@ jobs:
           aws ecs deregister-task-definition --task-definition "$definition" >/dev/null || echo '::warning::Transient definition could not be deregistered.'
       - name: Retain reconciliation report and task logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: external-identity-reconciliation-${{ github.run_id }}
           path: identity-reconciliation-report/

@@ -69,7 +69,7 @@ jobs:
         run: bash .github/scripts/collect-external-identity-task.sh
       - name: Retain recovered evidence even for failed or incomplete tasks
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: external-identity-recovery-${{ inputs.prior_run_id }}-${{ github.run_id }}
           path: identity-reconciliation-report/
