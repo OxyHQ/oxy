@@ -49,7 +49,7 @@ function signServiceToken(claims: Claims = {}, key: ServiceTokenSigningKey = SIG
   const now = Math.floor(Date.now() / 1000);
   const payload: Claims = {
     iat: now,
-    exp: now + 3600,
+    exp: now + 300,
     type: 'service',
     aud: 'oxy-api',
     iss: 'oxy-auth',
@@ -289,7 +289,7 @@ describe('signature verification is mandatory before any claim is trusted', () =
     const tamperedPayload = b64url(
       JSON.stringify({
         iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + 3600,
+        exp: Math.floor(Date.now() / 1000) + 300,
         type: 'service',
         aud: 'oxy-api',
         iss: 'oxy-auth',
@@ -320,7 +320,7 @@ describe('signature verification is mandatory before any claim is trusted', () =
         credentialId: 'cred-1',
         ownerAccountId: OWNER_ACCOUNT,
         environment: 'production',
-        exp: Math.floor(Date.now() / 1000) + 3600,
+        exp: Math.floor(Date.now() / 1000) + 300,
         aud: 'oxy-api',
         iss: 'oxy-auth',
       }),

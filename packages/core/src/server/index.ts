@@ -209,3 +209,5 @@ export { observeNodeHttp, withoutNodeHttpObservation } from './trafficNodeHttp';
  */
 export { canAttestWorkloadIdentity, requestWorkloadServiceToken } from './workloadIdentity';
 export type { WorkloadServiceToken, WorkloadServiceTokenOptions } from './workloadIdentity';
+
+export { OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS, hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';

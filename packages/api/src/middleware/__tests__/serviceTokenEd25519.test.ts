@@ -8,6 +8,7 @@ import {
   signServiceTokenEd25519,
 } from '../../config/serviceTokenSigning';
 import { verifyServiceToken } from '../serviceToken';
+import { mintServiceToken } from '../../services/serviceTokenMint.service';
 
 const keyPair = generateKeyPairSync('ed25519');
 const privatePem = keyPair.privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
@@ -51,12 +52,19 @@ function claims(overrides: Record<string, unknown> = {}) {
     iss: 'oxy-auth',
     aud: 'oxy-api',
     iat: now,
-    exp: now + 3_600,
+    exp: now + 300,
     ...overrides,
   };
 }
 
 describe('Oxy API Ed25519 service tokens', () => {
+  it('the common issuer produces exactly a five-minute credential or workload token', () => {
+    const token = mintServiceToken({ appId: 'app', appName: 'test', credentialId: 'key', ownerAccountId: 'owner', environment: 'production', tier: 'internal', scopes: ['user:read'] });
+    const payload = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString('utf8'));
+    expect(payload.exp - payload.iat).toBe(300);
+    expect(verifyServiceToken(token)).toMatchObject({ ok: true });
+  });
+
   it('mints a kid-bound token and verifies its whole service principal', () => {
     const token = signServiceTokenEd25519(claims());
     expect(token).not.toBeNull();
@@ -90,6 +98,10 @@ describe('Oxy API Ed25519 service tokens', () => {
   });
 
   it.each([
+    ['legacy hour lifetime', { exp: Math.floor(Date.now() / 1000) + 3600 }],
+    ['over ceiling', { exp: Math.floor(Date.now() / 1000) + 301 }],
+    ['missing issued-at', { iat: undefined }],
+    ['future issued-at', { iat: Math.floor(Date.now() / 1000) + 1 }],
     ['wrong issuer', { iss: 'attacker' }],
     ['wrong audience', { aud: 'attacker' }],
     ['future nbf', { nbf: Math.floor(Date.now() / 1_000) + 600 }],

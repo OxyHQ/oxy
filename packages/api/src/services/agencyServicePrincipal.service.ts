@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import type { ServiceTokenPayload } from '../middleware/serviceToken';
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
 import { applications } from '../db/schema/applications';
 import { applicationWorkloadIdentities } from '../db/schema/applicationWorkloadIdentities';
@@ -266,8 +266,9 @@ export async function resolveLiveAgencyWorkload(
   provider: string,
   subject: string,
   now: Date = new Date(),
+  db: DatabaseOrTransaction = getDb(),
 ): Promise<LiveAgencyWorkloadPrincipal | null> {
-  const [row] = await getDb()
+  const [row] = await db
     .select({
       applicationId: applications.id,
       ownerAccountId: applications.ownerAccountId,
@@ -374,13 +375,14 @@ export async function resolveLiveAgencyWorkloadByHandle(
   applicationId: string,
   handle: string,
   now: Date = new Date(),
+  db: DatabaseOrTransaction = getDb(),
 ): Promise<LiveAgencyWorkloadPrincipal | null> {
   // Cheap and total: the handle space and the credential-id space are disjoint
   // (`isWorkloadAttestationHandle`), so this refuses a credential id without a
   // query rather than looking for a binding that could never exist.
   if (!isWorkloadAttestationHandle(handle)) return null;
 
-  const candidates = await getDb()
+  const candidates = await db
     .select({
       provider: applicationWorkloadIdentities.provider,
       subject: applicationWorkloadIdentities.subject,
@@ -401,7 +403,7 @@ export async function resolveLiveAgencyWorkloadByHandle(
   );
   if (match === undefined) return null;
 
-  return resolveLiveAgencyWorkload(applicationId, match.provider, match.subject, now);
+  return resolveLiveAgencyWorkload(applicationId, match.provider, match.subject, now, db);
 }
 
 export function principalHasCatalogCapability(

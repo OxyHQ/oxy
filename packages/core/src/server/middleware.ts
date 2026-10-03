@@ -1,3 +1,4 @@
+import { hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
 /**
  * The Express and Socket.IO middleware `OxyServer` mounts
  * (`server.middleware.auth()`, `.socket()`, `.service()`, `.requireScope()`),
@@ -55,6 +56,8 @@ interface JwtPayload {
  * authoritative store stays server-side.
  */
 export interface ServiceActingAsVerification {
+  /** Decimal durable generation, never lossy JS number. */
+  epoch?: string;
   authorized: boolean;
   scopes: string[];
 }
@@ -149,11 +152,10 @@ export interface ServiceApp {
   appName: string;
   scopes: string[];
   /**
-   * `internal` when the caller is one of Oxy's own applications: app to app it
-   * is trusted outright — {@link requireScope} passes and it may act for a user
-   * without a delegation grant. `external` keeps every scope and grant rule.
-   * What the USER may do (their accounts, plan, limits) is still for the
-   * receiving service to decide. A token without the claim reads as `external`.
+   * Classification only. Both tiers obey scope ceilings and live offline
+   * delegation; neither a brand nor a header proves a user's authority.
+   * Resource authorization remains with the receiving service. A missing
+   * claim reads as external.
    */
   tier: 'internal' | 'external';
   /** The credentialId of the specific service credential that minted this token. */
@@ -301,7 +303,9 @@ export interface OxyMiddlewareHost {
     sessionId: string,
     options?: { deviceFingerprint?: string; useHeaderValidation?: boolean },
   ): Promise<{ valid: boolean; user?: User; actor?: unknown } | null>;
-  verifyActingAs(appId: string, userId: string): Promise<ServiceActingAsVerification | null>;
+  verifyActingAs(appId: string, userId: string, options?: {
+    cache?: boolean; credentialId?: string; ownerAccountId?: string; environment?: string;
+  }): Promise<ServiceActingAsVerification | null>;
 }
 
 /** Build the middleware set for one server. See `OxyServer.middleware`. */
@@ -681,21 +685,18 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             return res.status(401).json(error);
           }
 
-          // One of Oxy's own applications acts for a user without a grant:
-          // inside the ecosystem that is trust, not consent. It still acts
-          // with the USER's authority only — what that user may do is for the
-          // receiving service to check.
-          if (oxyUserId && tier === 'internal') {
-            req.userId = oxyUserId;
-            req.user = { id: oxyUserId };
-            req.serviceActingAs = { userId: oxyUserId, scopes: [] };
-          } else if (oxyUserId) {
-            // C3: an EXTERNAL service may only act as a user when an explicit
+          // A service credential plus a user header is never a present user
+          // session, even for an internal tier. Offline delegation is explicit.
+          if (oxyUserId) {
+            // C3: every service may only act as a user when an explicit
             // ServiceActingAs grant exists for that (appId, userId) pair.
             // Without the grant we MUST refuse — silently attaching
             // `req.userId = oxyUserId` would let any service impersonate
             // any user simply by setting the header.
-            const grant = await host.verifyActingAs(appId, oxyUserId);
+            const grant = await host.verifyActingAs(appId, oxyUserId, {
+              cache: false, credentialId: decoded.credentialId as string,
+              ownerAccountId: decoded.ownerAccountId as string, environment: decoded.environment as string,
+            });
             if (!grant || !grant.authorized) {
               logger.warn('[oxy.auth] Service token rejected — no delegation grant', {
                 component: 'auth',
@@ -1254,13 +1255,6 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         return;
       }
 
-      // Oxy's own applications are trusted app to app; scopes are the
-      // external lane.
-      if (req.serviceApp.tier === 'internal') {
-        next();
-        return;
-      }
-
       const appHasScope = appScopes.includes(scope);
       const delegationHasScope = delegatedScopes.includes(scope);
       const hasRequiredScope = req.serviceActingAs
@@ -1506,6 +1500,9 @@ function verifyServiceTokenClaims(
   decoded: JwtPayload,
   expected: { audience: string; issuer: string },
 ): void {
+  if (!hasBoundedServiceTokenLifetime(decoded)) {
+    throw new ServiceTokenClaimError('Service token lifetime must be positive and at most 300 seconds');
+  }
   if (decoded.type !== 'service') {
     throw new ServiceTokenClaimError(`Service token has unexpected type '${String(decoded.type)}'`);
   }
