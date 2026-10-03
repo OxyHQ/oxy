@@ -1,0 +1,19 @@
+{
+  "operation": "retain reviewed AUTH-only image; no ECS deploy",
+  "source": "28e3d3d755199c977d3992e9479e1321cf60083b",
+  "tag": "rollback-auth-only-28e3d3d755199c977d3992e9479e1321cf60083b",
+  "imageConfigId": "sha256:fa729d4f1760d3aaeb938d01755da93636502a89cdd5cecf8a39d090a87b402c",
+  "archiveSha256": "aa538a3ce9b174d958bf4fc143e110f8516e0e86395bae256ca75c5ff14fdda0",
+  "operatorArn": "arn:aws:iam::237343248947:user/PC-CLAUDE-CHATGPT",
+  "authorizedBy": "explicit session completion authorization e4051d0 + exact security revalidation",
+  "policyExpiresAt": "2026-10-09T22:00:00.000Z",
+  "recordedAt": "2026-10-03T18:28:24.022403+00:00",
+  "imageUri": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:b67f5e93de5b845804ece97a3965b95af7255f9cbcd5756d7969ee811546f684",
+  "registryManifestDigest": "sha256:b67f5e93de5b845804ece97a3965b95af7255f9cbcd5756d7969ee811546f684",
+  "manifestMayBeReserialized": true,
+  "configAndRootfsEqualReviewedArchive": true,
+  "layers": 25,
+  "containersExecuted": 0,
+  "ecsMutations": 0,
+  "retainedAt": "2026-10-03T18:32:38.533401+00:00"
+}

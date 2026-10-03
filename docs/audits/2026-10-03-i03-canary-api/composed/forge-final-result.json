@@ -1,0 +1,11 @@
+{
+  "name": "forge-oxy34-final",
+  "exitCode": 0,
+  "seconds": 10.790091731993016,
+  "argv": [
+    "python3",
+    "scripts/rehearsal/test-forge-final-input-1519.py"
+  ],
+  "scratch": "/home/nate/Oxy/.agent-evidence/fc3",
+  "note": "initial socket path exceeded UNIX path length; no server started"
+}

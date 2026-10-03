@@ -1,0 +1,125 @@
+{
+  "sourceHead": "ca79aee947126558b757a91139dd95e26669ef4d",
+  "upstream": "fa5113ac9cab820111c8805090511879574381db",
+  "inputs": [
+    {
+      "path": "docs/inference/observability.md",
+      "sha256": "480e5d39ef93735ac668fad2fda78edcaa5908d59c15ec31c8224c3a6330a3d2",
+      "gitObject": "1933b4e2d0252ea0ff17c6f5258c05f13160c12e"
+    },
+    {
+      "path": "packages/api/src/db/schema/applicationCredentialAuditEvents.ts",
+      "sha256": "7e0fad3a5aa05a085342eab9f307c1e190f5530b094510b38334098627531c55",
+      "gitObject": "ba3c807b46fc9196b983edaa860ee2192bb6c023"
+    },
+    {
+      "path": "packages/api/src/routes/applications.ts",
+      "sha256": "a0531f51b3793536720d6d3a242e80729e9d44efc57e7661c1c69ac5f2fbe0f6",
+      "gitObject": "44c735dbf20048fe95b4532291f90a0cff6ee182"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/aliaRevocationCanary.db.test.ts",
+      "sha256": "ed076db33f41912be38d11cb0b329e2b2d3fd6c32b1b5a46ab8d50fd7b738043",
+      "gitObject": "0bbebaa139433aa901244b9d563e013620433b4b"
+    },
+    {
+      "path": "packages/api/src/services/aliaRevocationCanary.service.ts",
+      "sha256": "11649e498c6c9cda82b4b94f25cfe26668586ed45abf2cbfa4b87b8fb2bf2175",
+      "gitObject": "95608ec43fc6c7fcc7d1e739fc881667b3fb0a1a"
+    },
+    {
+      "path": "packages/api/src/services/applicationCredentialAudit.service.ts",
+      "sha256": "880db9dc51caba7cbc3fcf4c04429c7474d31f92c2df3cacf1c159e9d253cc32",
+      "gitObject": "0bbdf5e610ba48fd725e3316bbf26fdde7c7b011"
+    },
+    {
+      "path": "packages/api/src/services/applicationCredentialRevocation.service.ts",
+      "sha256": "ceff282607b58635cad7c819cafd3c2bcb610d09c2cceec4914ed3999679a3c1",
+      "gitObject": "1bf898c013109533a1698682a45a77bf0966b7b0"
+    },
+    {
+      "path": "scripts/agency/tests/alia-canary-compiled.mjs",
+      "sha256": "e54d7ad1ee0a0265e3e72891f3d5f615777d206da6e165535ca62866851ad088",
+      "gitObject": "912644ccf4666f429158776e126b68984ed6a1ae"
+    },
+    {
+      "path": "scripts/rehearsal/test-alia-revocation-canary.py",
+      "sha256": "d13827a1a0bbe415050bb3d016899548427ef1cbaf4a45c0ed0bf1bfd87a5163",
+      "gitObject": "e57868b8aabab31c40b5e3a7e17ab862870ac6a5"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/composed/api-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/composed/canary-api58-node5.log",
+      "sha256": "a4ed18c8e274a99dcff552c8a244d5e8059350172568deaa514a92d5d401383f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/composed/forge-oxy34.log",
+      "sha256": "3fcd3d15fa3f7cb905795f8df824c78668dd391e4053118ba0008c2fc1e032f8"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/composed/forge-oxy34-final.log",
+      "sha256": "1af7f2e6ae70efbee630a1a30416e38038433d2da9007c3de843850e5d957e41"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/composed/results.json",
+      "sha256": "eb33bbd84a41cc9908c60dfb31fd7e62297443a4e48920cd3b45a0f142c91229"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/composed/forge-final-result.json",
+      "sha256": "6066360a85568a64553495fb869fb86ff733032c08338f1f6108c6aac3bf1e34"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/composed/migrate-fresh.txt",
+      "sha256": "eb04eedbc6290ca12475ffd5058fdc5151268bd5c0be93ab7d776e3ebf6e0ef6"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i03-canary-api/composed/migrate-repeat.txt",
+      "sha256": "30fbb36a141fcff679ee4b8dc4b99d62a918e75a2fd804542cf2a00653185a51"
+    }
+  ],
+  "compiledInputs": [
+    {
+      "path": "packages/api/dist/services/aliaRevocationCanary.service.js",
+      "sha256": "363cba14df14761139aea3f21ffd7a60eb1394f386380e9de24eeee0f150e098"
+    },
+    {
+      "path": "packages/api/dist/services/applicationCredentialRevocation.service.js",
+      "sha256": "6dcb62483c3206888483111ad95952176945360f3fdd301f20ae202ca3bd47a4"
+    },
+    {
+      "path": "packages/api/dist/services/applicationCredentialAudit.service.js",
+      "sha256": "13f6c78be7031244712771e4801f0dce393fcf25da95381635fbee28f6c907e5"
+    },
+    {
+      "path": "packages/api/dist/routes/applications.js",
+      "sha256": "d172a12be1d3a7a4df705480ea185ded601c469bf00e40536dfbd33a6aae650d"
+    },
+    {
+      "path": "packages/api/dist/db/schema/applicationCredentialAuditEvents.js",
+      "sha256": "41a4cbcff6eb1576839813ef89bd36741ff152e6e3c40cce10e7fdd858682631"
+    }
+  ],
+  "results": {
+    "apiBuildExit": 0,
+    "canarySuites": 3,
+    "canaryTests": 58,
+    "compiledNodeChecks": 5,
+    "forgeOxyTests": 34,
+    "migrationCount": 142,
+    "normalFreshRepeat": true,
+    "ownedPGPidsAbsent": [
+      4169362,
+      4170519
+    ]
+  },
+  "limits": [
+    "No core/SDK/DDL delta from canary API helper. Shared DELETE remains canonical. Local synthetic authority/ownPG only; live two-process deadline is not yet measured.",
+    "Initial Forge socket path was too long and server did not start. Full failed launcher log is retained; short owned scratch final run passed.",
+    "Worker source closure has10 files byteequal live c807; mocks do not certify startup/migration/transitive SDK behavior."
+  ]
+}

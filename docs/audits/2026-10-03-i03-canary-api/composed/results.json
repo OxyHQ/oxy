@@ -1,0 +1,34 @@
+[
+  {
+    "name": "api-build",
+    "argv": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "build"
+    ],
+    "cwd": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api",
+    "exitCode": 0,
+    "seconds": 44.798
+  },
+  {
+    "name": "canary-api58-node5",
+    "argv": [
+      "python3",
+      "scripts/rehearsal/test-alia-revocation-canary.py"
+    ],
+    "cwd": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003",
+    "exitCode": 0,
+    "seconds": 15.77
+  },
+  {
+    "name": "forge-oxy34",
+    "argv": [
+      "python3",
+      "scripts/rehearsal/test-forge-final-input-1519.py"
+    ],
+    "cwd": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003",
+    "exitCode": 1,
+    "seconds": 1.009
+  }
+]

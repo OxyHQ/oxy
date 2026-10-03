@@ -1,0 +1,60 @@
+{
+  "reviewedAt": "2026-10-03T18:36:02.576602+00:00",
+  "oldWorkerSource": "c807c2b5e48cb1ee108cc9c9b45d13e639eeacaa",
+  "candidateSource": "fac621324d0721e9121ca9d3c96a25ff71c97326",
+  "sourceFiles": [
+    {
+      "path": "packages/api/src/asset-variant-worker.ts",
+      "sha256": "d973b22407f004d138249c18df1e697e10eef5e3a3bd0e96dcefb767a490f56d",
+      "unchanged": true
+    },
+    {
+      "path": "packages/api/src/queue/assetVariants.queue.ts",
+      "sha256": "06fb04c0d7dd37a753ec517b834ce26ab31af4ec8076d3b166c91fd929557fae",
+      "unchanged": true
+    },
+    {
+      "path": "packages/api/src/queue/connection.ts",
+      "sha256": "69f85cba45a5624c51af977cec90870b16c5eb90ee1059d28d3decfa4383bc3a",
+      "unchanged": true
+    },
+    {
+      "path": "packages/api/src/queue/constants.ts",
+      "sha256": "8d649e98e3e99cfe503b07c54eb028d76338cde2bd0af810b8fe6c41a605a24f",
+      "unchanged": true
+    },
+    {
+      "path": "packages/api/src/services/variantService.ts",
+      "sha256": "d2bd3db109e352f5463001c9603ff2807b4fc441947c0589483ae3c8f754b720",
+      "unchanged": true
+    },
+    {
+      "path": "packages/api/src/services/assetService.ts",
+      "sha256": "8ac7c61784239f3d555511fb720f4d4a455bea0a6b0b7a48fe7ce7d0e551d4f4",
+      "unchanged": true
+    },
+    {
+      "path": "packages/api/src/services/fileRepository.ts",
+      "sha256": "57c4e3e46f68fe3651e78f2448a9e7eff45c4e00f81ceedcb37cf8eb688d341a",
+      "unchanged": true
+    },
+    {
+      "path": "packages/api/src/services/workerActivity.service.ts",
+      "sha256": "d94b63d7f99b9abaa4e31e55b8dbddbea84fe44ebef0d613b3bcd1e90c0f06e6",
+      "unchanged": true
+    },
+    {
+      "path": "packages/api/src/db/schema/files.ts",
+      "sha256": "c9c71999f65d2bb9ae3677b82b451bde3dff91af4cf79ffbecaf5ec8417dcf6f",
+      "unchanged": true
+    },
+    {
+      "path": "packages/api/src/config/redis.ts",
+      "sha256": "15499b94b70df92623314b78cb24f170dcc5e84cfe157c98447494303e432269",
+      "unchanged": true
+    }
+  ],
+  "scope": "queue payload, names, options, worker, rendition implementation and relevant file schema unchanged; SDK transitive behavior and actual migration/worker startup require final acceptance",
+  "workerRestoreRule": "At zero, root watcher must verify exact registered candidate image/config, old tasks STOPPED, migration task exact --phase=pre STOPPED exit0 and suspended scaler; restore captured count4 with automatic rollback disabled in same update; serialize operation and monitor to final deployment success",
+  "executed": false
+}
