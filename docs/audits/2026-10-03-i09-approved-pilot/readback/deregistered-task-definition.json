@@ -1,0 +1,4 @@
+{
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api-kaana-readback:15",
+    "status": "INACTIVE"
+}

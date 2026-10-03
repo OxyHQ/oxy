@@ -1,0 +1,15 @@
+{
+    "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/284bea945e4b438385be5125d82999dd",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api-kaana-readback:15",
+    "lastStatus": "STOPPED",
+    "stopCode": "EssentialContainerExited",
+    "stoppedAt": "2026-10-03T04:00:55.639000+03:00",
+    "containers": [
+        {
+            "name": "oxy-api",
+            "lastStatus": "STOPPED",
+            "exitCode": 0,
+            "imageDigest": "sha256:29502ab56460ed8261b5dd747d93fd36e345f28e633a17c865c34d4fae7b653a"
+        }
+    ]
+}
