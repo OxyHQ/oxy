@@ -23,6 +23,7 @@ READER = Path(__file__).with_name('read-internal-pilot-readiness.mjs')
 PROFILES = {
     'oxy': {'service': 'oxy-api', 'definition': 'oxy-oxy-api:692', 'container': 'oxy-api', 'cwd': '/app/packages/api', 'parameter': '/oxy/oxy-api/DATABASE_URL'},
 }
+PROFILES['oxy_related'] = PROFILES['oxy'].copy()
 DEFINITION_QUERY = 'taskDefinition.{arn:taskDefinitionArn,family:family,status:status,executionRoleArn:executionRoleArn,cpu:cpu,memory:memory,networkMode:networkMode,requiresCompatibilities:requiresCompatibilities,runtimePlatform:runtimePlatform,containers:containerDefinitions[].{name:name,image:image,secrets:secrets,environmentNames:environment[].name,logConfiguration:logConfiguration}}'
 
 def aws(*args):

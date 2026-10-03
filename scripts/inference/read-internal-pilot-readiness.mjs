@@ -16,7 +16,7 @@ const DEPLOYMENT_IDS = [
 	"dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
 ];
 // These constants name the already-authorized pilot, never caller-supplied SQL.
-const selectedDeployments = `id IN (${DEPLOYMENT_IDS.map((id) => `'${id}'`).join(", ")})`;
+const selectedDeployments = `internal_route_id IN (${DEPLOYMENT_IDS.map((id) => `'${id}'`).join(", ")})`;
 const selectedPrices = `((model_reference IN ('openai/gpt-oss-120b','openai/gpt-oss-120b@observed-2026-09-01') AND provider IN ('cerebras','groq','openrouter')) OR id IN (SELECT price_version_id FROM public.inference_deployments WHERE ${selectedDeployments}) OR id IN (SELECT platform_fee_price_version_id FROM public.inference_deployments WHERE ${selectedDeployments}))`;
 const PROJECTIONS = {
 	oxy: {
@@ -123,6 +123,42 @@ const PROJECTIONS = {
 		},
 	},
 };
+// Diagnostic profile correlates rows through the model/revision FK, never provider labels.
+const relatedDeployments =
+	"model_revision_id IN (SELECT id FROM public.inference_model_revisions WHERE model_id IN (SELECT id FROM public.inference_models WHERE model_id = 'openai/gpt-oss-120b') AND revision = 'observed-2026-09-01')";
+const relatedPrices = `id IN (SELECT price_version_id FROM public.inference_deployments WHERE ${relatedDeployments}) OR id IN (SELECT platform_fee_price_version_id FROM public.inference_deployments WHERE ${relatedDeployments})`;
+PROJECTIONS.oxy_related = {
+	inference_models: PROJECTIONS.oxy.inference_models,
+	inference_model_revisions: PROJECTIONS.oxy.inference_model_revisions,
+	inference_deployments: {
+		...PROJECTIONS.oxy.inference_deployments,
+		dependsOn: ["inference_models", "inference_model_revisions"],
+		where: relatedDeployments,
+		extra: [
+			...PROJECTIONS.oxy.inference_deployments.extra,
+			`(${selectedDeployments}) AS exact_pilot_route_match`,
+		],
+	},
+	price_versions: {
+		...PROJECTIONS.oxy.price_versions,
+		dependsOn: [
+			"inference_models",
+			"inference_model_revisions",
+			"inference_deployments",
+		],
+		where: relatedPrices,
+	},
+	price_version_unit_prices: {
+		...PROJECTIONS.oxy.price_version_unit_prices,
+		dependsOn: [
+			"inference_models",
+			"inference_model_revisions",
+			"inference_deployments",
+			"price_versions",
+		],
+		where: `price_version_id IN (SELECT id FROM public.price_versions WHERE ${relatedPrices})`,
+	},
+};
 function hash(value) {
 	return createHash("sha256").update(value).digest("hex");
 }
@@ -181,11 +217,26 @@ export async function readInventory(profile, databaseUrl) {
 						? descriptor.columns.filter((column) => !missing.includes(column))
 						: descriptor.columns;
 					if (descriptor.dependsOn) {
-						const [dependency] =
-							await tx`SELECT to_regclass(${`public.${descriptor.dependsOn}`})::text AS name`;
-						if (!dependency.name) {
+						const dependencies = Array.isArray(descriptor.dependsOn)
+							? descriptor.dependsOn
+							: [descriptor.dependsOn];
+						let dependencyMissing = false;
+						let dependencyUnavailable = false;
+						for (const dependencyName of dependencies) {
+							const [dependency] =
+								await tx`SELECT to_regclass(${`public.${dependencyName}`})::text AS name`;
+							if (!dependency.name) dependencyMissing = true;
+							else if (
+								tables[dependencyName] &&
+								tables[dependencyName].status !== "complete"
+							)
+								dependencyUnavailable = true;
+						}
+						if (dependencyMissing || dependencyUnavailable) {
 							tables[table] = {
-								status: "dependency_missing",
+								status: dependencyMissing
+									? "dependency_missing"
+									: "dependency_unavailable",
 								count: null,
 								rows: [],
 							};
