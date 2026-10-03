@@ -122,6 +122,21 @@ class FrozenPlanTests(unittest.TestCase):
         """
         self.assertEqual(json.loads(RUNNER.run(['bun','--no-env-file','-e',code],cwd=RUNNER.ROOT)),{'passed':3,'providerMutations':0})
 
+    def test_receiver_diagnostic_reports_status_and_fixed_code_without_body_text(self):
+        code = """
+          import {receiverFailureDiagnostic,rehearsalErrorDiagnostic} from './packages/api/scripts/stripe-billing-sandbox-rehearsal.ts';
+          import assert from 'node:assert/strict';
+          const known=await receiverFailureDiagnostic(new Response(JSON.stringify({error:'Webhook handler error'}),{status:500}));
+          assert.deepEqual(known,{receiverStatus:500,receiverCode:'webhook_handler_failed'});
+          const unknown=await receiverFailureDiagnostic(new Response(JSON.stringify({error:'secret_DO_NOT_EMIT'}),{status:503}));
+          assert.deepEqual(unknown,{receiverStatus:503,receiverCode:'unclassified_receiver_failure'});
+          const diag=rehearsalErrorDiagnostic(Object.assign(new Error('secret_DO_NOT_EMIT'),known),'fixture');
+          assert.equal(diag.receiverStatus,500);assert.equal(diag.receiverCode,'webhook_handler_failed');
+          assert.equal(JSON.stringify(diag).includes('secret_DO_NOT_EMIT'),false);
+          console.log(JSON.stringify({passed:5,providerMutations:0}));
+        """
+        self.assertEqual(json.loads(RUNNER.run(['bun','--no-env-file','-e',code],cwd=RUNNER.ROOT)),{'passed':5,'providerMutations':0})
+
     def test_credential_environment_is_not_forwarded(self):
         previous = RUNNER.os.environ.copy()
         try:

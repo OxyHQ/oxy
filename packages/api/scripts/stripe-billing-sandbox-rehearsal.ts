@@ -16,8 +16,8 @@ import { eq, sql } from "drizzle-orm";
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import Stripe from "stripe";
-import { closePostgres, connectPostgres, getDb } from "../src/config/postgres";
 import { assertBillingDatabaseNamespace } from "../src/config/billingNamespace";
+import { closePostgres, connectPostgres, getDb } from "../src/config/postgres";
 import { accountMembers } from "../src/db/schema/accountMembers";
 import { applications } from "../src/db/schema/applications";
 import { billingCreditGrants } from "../src/db/schema/billingCreditGrants";
@@ -33,8 +33,9 @@ import {
 	readSubjectProductAccess,
 	registerProductAccessConfiguration,
 } from "../src/services/productAccessPersistence.service";
-import { FREE_PERIOD_PROMOTIONS } from "../src/services/subscriptionPromotionPolicy";
+import { productBillingCatalogueSchema } from "../src/services/productBillingCatalogue.service";
 import { spendSubscriptionTrackedCredits } from "../src/services/subscriptionCreditLedger.service";
+import { FREE_PERIOD_PROMOTIONS } from "../src/services/subscriptionPromotionPolicy";
 import { generateSessionTokens } from "../src/utils/sessionUtils";
 
 const ACCOUNT = "acct_1TnXkUQWiCE02OnU";
@@ -135,8 +136,25 @@ export function rehearsalErrorDiagnostic(error: unknown, phase: string) {
 	const param =
 		error instanceof Error ? Reflect.get(error, "param") : undefined;
 
+	const receiverStatus =
+		error instanceof Error ? Reflect.get(error, "receiverStatus") : undefined;
+	const receiverCode =
+		error instanceof Error ? Reflect.get(error, "receiverCode") : undefined;
 	return {
 		phase,
+		...(Number.isInteger(receiverStatus) &&
+		receiverStatus >= 400 &&
+		receiverStatus <= 599
+			? { receiverStatus }
+			: {}),
+		...([
+			"webhook_handler_failed",
+			"webhook_signature_rejected",
+			"webhook_not_configured",
+			"unclassified_receiver_failure",
+		].includes(receiverCode)
+			? { receiverCode }
+			: {}),
 		name: error instanceof Error ? error.name : "UnknownError",
 		reason,
 		...(source
@@ -157,6 +175,21 @@ export function rehearsalErrorDiagnostic(error: unknown, phase: string) {
 				}
 			: {}),
 	};
+}
+
+export async function receiverFailureDiagnostic(response: Response) {
+	const body: unknown = await response.json().catch(() => null);
+	const error =
+		body && typeof body === "object" ? Reflect.get(body, "error") : undefined;
+	const receiverCode =
+		error === "Webhook handler error"
+			? "webhook_handler_failed"
+			: error === "Webhook not configured"
+				? "webhook_not_configured"
+				: response.status === 400
+					? "webhook_signature_rejected"
+					: "unclassified_receiver_failure";
+	return { receiverStatus: response.status, receiverCode };
 }
 
 export function assertSandboxCouponName(name: string): string {
@@ -660,20 +693,25 @@ async function main() {
 			assert.equal(retrieved.metadata.oxy_fixture_nonce, plan.nonce);
 			prices.push(price);
 			const offer = offers[index === 2 ? 1 : 0];
-			catalogue.prices.push({
-				priceId: price.id,
-				providerAccountId: ACCOUNT,
-				mode: "test",
-				environment: "test",
-				offerId: offer.id,
-				offerVersion: 1,
-				offerKind: offer.kind,
-				kind: "existing_product",
-				validFrom: new Date(clock.frozen_time * 1000 - 86400000).toISOString(),
-				validUntil: null,
-				currency: "usd",
-				amountMinorUnits: amount,
-			});
+			// The catalogue describes paid access offers. A free test price is not an
+			// undeclared paid offer or promotion and must not violate its positive amount.
+			if (amount > 0)
+				catalogue.prices.push({
+					priceId: price.id,
+					providerAccountId: ACCOUNT,
+					mode: "test",
+					environment: "test",
+					offerId: offer.id,
+					offerVersion: 1,
+					offerKind: offer.kind,
+					kind: "existing_product",
+					validFrom: new Date(
+						clock.frozen_time * 1000 - 86400000,
+					).toISOString(),
+					validUntil: null,
+					currency: "usd",
+					amountMinorUnits: amount,
+				});
 		}
 		process.env.STRIPE_PRO_PRICE_ID = prices[0].id;
 		if (!zeroOnly) process.env.STRIPE_BUSINESS_PRICE_ID = prices[1].id;
@@ -682,7 +720,10 @@ async function main() {
 			"catalogue.private.json",
 		);
 		const saveCatalogue = () =>
-			privateJson(process.env.BILLING_PRODUCT_CATALOGUE_FILE ?? "", catalogue);
+			privateJson(
+				process.env.BILLING_PRODUCT_CATALOGUE_FILE ?? "",
+				productBillingCatalogueSchema.parse(catalogue),
+			);
 		await saveCatalogue();
 		const app = express();
 		app.use(
