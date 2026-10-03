@@ -1,0 +1,85 @@
+{
+  "sourceHead": "c0382851fc22c230b2034ede8a7fe4a1adbe2f96",
+  "planSha256": "a8e8692e856fadafe6a87ccd6010c49909b33d058cac340d8af8fa8d39f0df71",
+  "exitCode": 1,
+  "providerEffectsAttempted": true,
+  "postgresPid": 3555279,
+  "postgresStopped": true,
+  "ownedFixtureObjects": 12,
+  "cleanupOperationsSucceeded": 12,
+  "unresolvedCleanupOperations": 0,
+  "unresolvedCreationIntents": [],
+  "completedChecks": 0,
+  "observedPaidMinorUnits": 2999,
+  "primaryError": {
+    "phase": "initialPaidInvoice",
+    "name": "Error"
+  },
+  "diagnosedReason": "crypto_sync_provider",
+  "cause": "Bun uses Stripe web platform by package exports. Sync fixture signature generation rejected SubtleCryptoProvider; real raw-body route also reproduced valid-signature failure offline.",
+  "ownInvoicePaidEventFound": true,
+  "providerSignedDelivery": false,
+  "limits": [
+    "The own paid invoice was found by a read-only authenticated Events API query, not public provider delivery.",
+    "No refund/renewal/product cycle acceptance: failure occurred before the first completed check.",
+    "No third remote attempt has run.",
+    "Environment autoload and signal coordination review remain separate requirements before plan3."
+  ],
+  "privateRecords": {
+    "plan.json": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/plan.json",
+      "bytes": 268733,
+      "sha256": "a8e8692e856fadafe6a87ccd6010c49909b33d058cac340d8af8fa8d39f0df71"
+    },
+    "event-diagnostic.private.json": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/event-diagnostic.private.json",
+      "bytes": 628,
+      "sha256": "5a360087f0838d8e4950b3a11e6e1682b5d28358388f33813873ade14e5c0bff"
+    },
+    "bootstrap.log": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/bootstrap.log",
+      "bytes": 63,
+      "sha256": "5cb8bc1e314a819e9e87b4c7ce2d120ac94f0c310d02105abdecfeb66ed814b7"
+    },
+    "build.log": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/build.log",
+      "bytes": 4181,
+      "sha256": "b11dacbe4b4b4f9f4df3cbd7f691b6276effe8bcfb575a8114c3814d2070a14e"
+    },
+    "catalogue.private.json": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/catalogue.private.json",
+      "bytes": 3936,
+      "sha256": "426088cfe631a302b121a18fe40040a52ee572bd191637572785ac2c5c8c43f8"
+    },
+    "migrate.log": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/migrate.log",
+      "bytes": 40,
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2"
+    },
+    "manifest.private.json": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/manifest.private.json",
+      "bytes": 4653,
+      "sha256": "04aae18096996fc8cbdc66add888ce533c02fd5de48ef519e601065fe0dd57c5"
+    },
+    "runner.json": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/runner.json",
+      "bytes": 168,
+      "sha256": "f50beefa8c298ff638eb0962b33bb6fac2852fb9459714654670e753d71c10ca"
+    },
+    "initdb.log": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/initdb.log",
+      "bytes": 1047,
+      "sha256": "75b50f14617a860471a878e57c05d5074b81807ba75c49e7ad2542e913661a2c"
+    },
+    "child.private.log": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/child.private.log",
+      "bytes": 152,
+      "sha256": "894a2f7537b154ceaa9e613e85c6bc37207afc7d3d558ddab8c4c30d5201247a"
+    },
+    "owner.json": {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-stripe-1519-20261003/aad55eb92715721038adabca/owner.json",
+      "bytes": 300,
+      "sha256": "278f723342dabc2f35f0827bccd285cd6e31ca3d5b69d9dbe02b73aa3488574c"
+    }
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "sourceHead": "bae958ff654fa2aa5bd7872afe79c85918db337a",
+  "sourceSha256": {
+    "packages/api/src/routes/billing.ts": "52dca1754fb0a139b3c127154834ad4a4c3db22ae2337bbfcd74d29386667422",
+    "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts": "01a7d529149726a911f39a576c9681e78168e22e39e0378cb0767511d648ce62",
+    "packages/api/scripts/stripe-billing-sandbox-rehearsal.ts": "7a13ac76a86265939c12479c614f06bc6d663db63ad2070ac180f9f2d3efcf8b",
+    "scripts/billing/test-stripe-webhook-crypto.mjs": "82b93eb698be6d2fb466f7463b2bfec58f381546bd1c274c3b5ebd6979769c17",
+    "scripts/billing/test-stripe-webhook-crypto.py": "424185fad4b6d25f73b771d1bc7aa6c72c5f124411857e1f32ae8a858a48b1ed",
+    "scripts/billing/test-stripe-oxy-sandbox.py": "5408471e780a6d8c32c9de2b8ca7b5d82139bd2715b70ffdd4cbd1a370cfd0cf",
+    "packages/api/src/utils/stripeClient.ts": "552d3122c1201daf11447df38f96b7976af3ab23c5935f5144b1144fbab0ce3b",
+    "packages/api/src/utils/billingStripe.ts": "9e959a019b59f034c902a758ab8fe705d9f9c8419678751546e4dd5f27981977",
+    "packages/api/src/config/billingNamespace.ts": "9fdd62ecb26569f0781ef02acbe4d2239cc80b1b4853f79890b4f7830a171fc4"
+  },
+  "baselineRouteHead": "5105617578598118d67073d7d26abaf401caab89",
+  "records": {
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/red-final.log": {
+      "sha256": "72e222dec51a1f50f2496f4be2a37d6f9c864a4a0bdba62b4e1d8b5c3e429180",
+      "bytes": 3169,
+      "exitCode": 1
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/green-final.log": {
+      "sha256": "2493c79f9d99af51d415b45b6a491fb2a971823ca078343e462d504914a34bd9",
+      "bytes": 2260,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/green-api-compile.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/scripts-types.log": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/billing-regression.log": {
+      "sha256": "3d598777e4f324ab9b1b0abf3dc1a46214eeff875106f98437089135ce3d0d5d",
+      "bytes": 3489,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/plan-and-diagnostics-tests.log": {
+      "sha256": "03d868bedf5ebf6410defaa01397e06d4857422949671b52012c9dfcb1ae4f04",
+      "bytes": 1062,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/runner-lint.log": {
+      "sha256": "f8ef864cea6b720c9abed6728973c7319a9effb231e31d65fa35c8ff0dd6e191",
+      "bytes": 42,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/route-fixture-lint.log": {
+      "sha256": "db3ff696c120e6e991be5dbd53f2c0fa81d9d61a119809ec65d14bc5dc128078",
+      "bytes": 43,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/node-provider-attempt.log": {
+      "sha256": "cea774d0eb7bcb2f2377f02346e7af20afd3bf8f9beb32ac593b6ce3c06f1189",
+      "bytes": 3169,
+      "exitCode": 1
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/node-crypto.log": {
+      "sha256": "99f8f7d194b129f135134fc21d3cc3fb451603976c0130d064061e3d2fa7704f",
+      "bytes": 127,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/bun-crypto.log": {
+      "sha256": "a6bdc74c4fbb5434c99df414cbb82b82b86b6e3f493ace015756bef9f37093ee",
+      "bytes": 126,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-async-crypto/api-focused.txt": {
+      "sha256": "745e9e164d65b2509c46890a41d7f7c88f3c71eebe4289804018f111513d8758",
+      "bytes": 25849,
+      "exitCode": 0
+    }
+  },
+  "results": {
+    "nodeAssertions": 7,
+    "bunAssertions": 7,
+    "billingSuites": 12,
+    "billingTests": 186,
+    "planTests": 8,
+    "remoteRequestsDuringFixtures": 0,
+    "ownedGreenPgPids": [
+      3578411,
+      3579247
+    ],
+    "postgresStopped": true
+  },
+  "limits": [
+    "Locally generated fixture signatures; no provider-signed webhook delivery claim.",
+    "NodeProvider attempt failed under Bun and is retained; final uses official async Webhooks APIs and explicit SubtleCryptoProvider.",
+    "The same final crypto fixture was executed against baseline route and final route; mocked provider billing suite tests downstream behavior separately.",
+    "Two remote rehearsal attempts remain incomplete and cleaned; no third attempt authorized by this proof.",
+    "Runner dotenv and signal review fixes are pending separately before another plan."
+  ]
+}
