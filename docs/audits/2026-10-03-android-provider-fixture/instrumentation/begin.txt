@@ -1,0 +1,6 @@
+INSTRUMENTATION_RESULT: checks=5
+INSTRUMENTATION_RESULT: fixtureStatus=PASS
+INSTRUMENTATION_RESULT: limitation=Shared credential slot only; no backend session/account switch/SDK SSO claim
+INSTRUMENTATION_RESULT: package=earth.mention.app.dev
+INSTRUMENTATION_RESULT: uid=10220
+INSTRUMENTATION_CODE: -1

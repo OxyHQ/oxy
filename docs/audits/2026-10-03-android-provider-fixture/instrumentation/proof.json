@@ -1,0 +1,85 @@
+{
+  "sourceHead": "9c7168095d96efe1dc4b925d850a728d4d1561b8",
+  "operationOwner": "root",
+  "device": {
+    "serial": "emulator-5580",
+    "avd": "Oxy1519Root20261003",
+    "physicalDeviceTouched": false
+  },
+  "sourceReviewedAgainstComposite": "19676aa5d6069a117e0ab5fcd8f1e925fc6106f9",
+  "results": {
+    "begin": 5,
+    "foreign": 4,
+    "finish": 8,
+    "total": 17,
+    "uids": {
+      "onl.alia.app.dev": 10221,
+      "so.oxy.accounts.dev": 10219,
+      "earth.mention.app.dev": 10220
+    },
+    "finalFixtureSlot": "absent"
+  },
+  "records": [
+    {
+      "file": "begin.txt",
+      "sha256": "a834c5af9628304fe530419e3ef55f916a78a8c4c575ea24de1f0f7e11a7a510"
+    },
+    {
+      "file": "foreign.txt",
+      "sha256": "dcbde6fe9279f6af52eef9d7d8d6641652bc18bc6bf2071d08a8fc9c0bb5a858"
+    },
+    {
+      "file": "finish.txt",
+      "sha256": "6dedc7cf18d29091facd8d8a10f26c74e77e4552e09995c7f65adf5f32b0d82c"
+    },
+    {
+      "file": "installed-uids.json",
+      "sha256": "43181a524ca4052ae22fe5182458db5611e07dd62fbf5fd5d4475227a145ba1c"
+    },
+    {
+      "file": "readback-correction.json",
+      "sha256": "c7aabeebe9c507ab87b12738cfd88837396c7b09cdea7875249752508fbf40f4"
+    },
+    {
+      "file": "reviewed-apk-proof.json",
+      "sha256": "8473cf715029aa5d13c91be9ee33ef8458a924f4646ef91f893f2c1c7a11826c"
+    },
+    {
+      "file": "host-manifest.txt",
+      "sha256": "ad2dc62a672efa8adec18731e90662ab3053b32dafaedf0be01ae9c03ef1b743"
+    },
+    {
+      "file": "peer-manifest.txt",
+      "sha256": "efbd3561fc55f96b087fbb27653815047eee77269cb3e26c2391ee9da734c236"
+    },
+    {
+      "file": "foreign-manifest.txt",
+      "sha256": "f11c66c2c0758ee4c3de5fe5e61d272c6c620977293bdb6da2a29b8337827d12"
+    },
+    {
+      "file": "avd-before.txt",
+      "sha256": "9cad520f1b6913bd47ade8056d47acde4484fcad14880ff1d37f3089f92232c5"
+    },
+    {
+      "file": "host-install.txt",
+      "sha256": "781a31c82430c97897af612ece5e0ca2205e301cb5ff121ce2660541ea5182c7"
+    },
+    {
+      "file": "peer-install.txt",
+      "sha256": "781a31c82430c97897af612ece5e0ca2205e301cb5ff121ce2660541ea5182c7"
+    },
+    {
+      "file": "foreign-install.txt",
+      "sha256": "781a31c82430c97897af612ece5e0ca2205e301cb5ff121ce2660541ea5182c7"
+    },
+    {
+      "file": "installed-packages.txt",
+      "sha256": "6770d87f9faf39cc70f39a7f934fb54323cb02223d6615d25005edda952e8517"
+    }
+  ],
+  "limitations": [
+    "Native ContentProvider signature boundary and shared encrypted credential-slot primitives only.",
+    "No backend identity, OAuth consent, SDK callback, session logout/account switch or published SDK SSO acceptance.",
+    "First UID readback expected userId; Android16 uses appId. Corrected pm -U readback before instrumentation, no APK replacement."
+  ]
+}

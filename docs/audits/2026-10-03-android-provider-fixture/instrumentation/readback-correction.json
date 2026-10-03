@@ -1,0 +1,1 @@
+{"initialReadback": "dumpsys userId field absent on Android16; no instrument phase executed", "resolved": "pm list packages -3 -U gives real UIDs; no APK replacement"}
