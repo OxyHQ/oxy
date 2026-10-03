@@ -1,0 +1,283 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+/** I09 fixed read-only pilot catalogue/price/caller/cursor snapshot.
+ * Never provider credentials, legal-review references or a route eligibility verdict.
+ * Missing/unpriced facts remain explicit; no quote, mint, inference or feed ingestion.
+ * Reuses the reviewed readInventory transaction/packet mechanism. */
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+const require = createRequire(`${process.cwd()}/package.json`);
+const postgres = require("postgres");
+const MAX_ROWS = 1000;
+const MAX_BYTES = 1024 * 1024;
+const DEPLOYMENT_IDS = [
+	"dep_cerebras_gpt_oss_120b_observed_2026_09_01",
+	"dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+	"dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+];
+// These constants name the already-authorized pilot, never caller-supplied SQL.
+const selectedDeployments = `id IN (${DEPLOYMENT_IDS.map((id) => `'${id}'`).join(", ")})`;
+const selectedPrices = `((model_reference IN ('openai/gpt-oss-120b','openai/gpt-oss-120b@observed-2026-09-01') AND provider IN ('cerebras','groq','openrouter')) OR id IN (SELECT price_version_id FROM public.inference_deployments WHERE ${selectedDeployments}) OR id IN (SELECT platform_fee_price_version_id FROM public.inference_deployments WHERE ${selectedDeployments}))`;
+const PROJECTIONS = {
+	oxy: {
+		inference_models: {
+			columns: [
+				"id",
+				"model_id",
+				"input_modalities",
+				"output_modalities",
+				"max_context_tokens",
+				"max_output_tokens",
+				"supports_streaming",
+				"api_formats",
+				"deprecation_status",
+			],
+			where: "model_id = 'openai/gpt-oss-120b'",
+		},
+		inference_model_revisions: {
+			columns: [
+				"id",
+				"model_id",
+				"revision",
+				"is_current",
+				"released_at",
+				"retired_at",
+			],
+			dependsOn: "inference_models",
+			where:
+				"model_id IN (SELECT id FROM public.inference_models WHERE model_id = 'openai/gpt-oss-120b') AND revision = 'observed-2026-09-01'",
+		},
+		inference_deployments: {
+			columns: [
+				"id",
+				"model_revision_id",
+				"provider_slug",
+				"regions",
+				"availability_scope",
+				"commercial_permission",
+				"permission_state",
+				"legal_review_status",
+				"status",
+				"price_version_id",
+				"platform_fee_price_version_id",
+				"accepted_parameters",
+				"retains_payloads",
+				"retention_days",
+				"trains_on_customer_data",
+				"zero_data_retention_available",
+			],
+			required: ["internal_route_id"],
+			where: selectedDeployments,
+			extra: [
+				"encode(sha256(convert_to(internal_route_id,'UTF8')),'hex') AS internal_route_id_digest",
+			],
+		},
+		price_versions: {
+			dependsOn: "inference_deployments",
+			columns: [
+				"id",
+				"status",
+				"model_reference",
+				"provider",
+				"currency",
+				"effective_from",
+				"effective_until",
+			],
+			where: selectedPrices,
+		},
+		price_version_unit_prices: {
+			columns: ["price_version_id", "unit", "amount", "per"],
+			dependsOn: "price_versions",
+			where: `price_version_id IN (SELECT id FROM public.price_versions WHERE ${selectedPrices})`,
+		},
+		applications: {
+			columns: ["id", "owner_account_id", "type", "status", "scopes"],
+			where: "id = '6a2f851751b784a86fd0e934'",
+		},
+		application_credentials: {
+			columns: [
+				"id",
+				"application_id",
+				"type",
+				"environment",
+				"status",
+				"expires_at",
+				"scopes",
+			],
+			where: "application_id = '6a2f851751b784a86fd0e934'",
+		},
+		application_workload_identities: {
+			columns: [
+				"id",
+				"application_id",
+				"provider",
+				"subject",
+				"scopes",
+				"expires_at",
+			],
+			where: "application_id = '6a2f851751b784a86fd0e934'",
+		},
+		inference_provider_cost_feed_cursors: {
+			columns: ["feed", "cursor", "updated_at"],
+			where: "feed = 'kaana-provider-attempts'",
+		},
+	},
+};
+function hash(value) {
+	return createHash("sha256").update(value).digest("hex");
+}
+export async function readInventory(profile, databaseUrl) {
+	if (!Object.hasOwn(PROJECTIONS, profile) || !databaseUrl)
+		throw new Error("Invalid fixed inventory profile");
+	const client = postgres(databaseUrl, {
+		max: 1,
+		connect_timeout: 10,
+		idle_timeout: 5,
+		onnotice: () => {},
+	});
+	try {
+		return await client.begin(
+			"isolation level repeatable read read only",
+			async (tx) => {
+				await tx`SET LOCAL statement_timeout = '15000'`;
+				await tx`SET LOCAL lock_timeout = '3000'`;
+				await tx`SET LOCAL idle_in_transaction_session_timeout = '30000'`;
+				const [safety] =
+					await tx`SELECT current_setting('transaction_read_only') AS read_only, current_setting('transaction_isolation') AS isolation, transaction_timestamp()::text AS observed_at`;
+				if (safety.read_only !== "on" || safety.isolation !== "repeatable read")
+					throw new Error("Required SQL read-only snapshot absent");
+				const tables = {};
+				for (const [table, spec] of Object.entries(PROJECTIONS[profile])) {
+					const descriptor = Array.isArray(spec) ? { columns: spec } : spec;
+					const [presence] =
+						await tx`SELECT to_regclass(${`public.${table}`})::text AS name`;
+					if (!presence.name) {
+						tables[table] = { status: "missing", count: null, rows: [] };
+						continue;
+					}
+					const columns =
+						await tx`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${table}`;
+					const names = new Set(columns.map((row) => row.column_name));
+					const missing = [
+						...descriptor.columns,
+						...(descriptor.required ?? []),
+					].filter((column) => !names.has(column));
+					const legacy =
+						descriptor.legacyProfile &&
+						missing.length === descriptor.legacyProfile.absentColumns.length &&
+						descriptor.legacyProfile.absentColumns.every((column) =>
+							missing.includes(column),
+						);
+					if (missing.length && !legacy) {
+						tables[table] = {
+							status: "schema_mismatch",
+							count: null,
+							missing,
+							rows: [],
+						};
+						continue;
+					}
+					const selectedColumns = legacy
+						? descriptor.columns.filter((column) => !missing.includes(column))
+						: descriptor.columns;
+					if (descriptor.dependsOn) {
+						const [dependency] =
+							await tx`SELECT to_regclass(${`public.${descriptor.dependsOn}`})::text AS name`;
+						if (!dependency.name) {
+							tables[table] = {
+								status: "dependency_missing",
+								count: null,
+								rows: [],
+							};
+							continue;
+						}
+					}
+					// SQL identifiers, expressions and filters originate exclusively in the fixed map above.
+					const where = descriptor.where ? ` WHERE ${descriptor.where}` : "";
+					const [total] = await tx.unsafe(
+						`SELECT count(*)::text AS n FROM public.${table}${where}`,
+					);
+					const count = Number(total.n);
+					if (!Number.isSafeInteger(count) || count < 0)
+						throw new Error("Invalid inventory count");
+					if (count > MAX_ROWS) {
+						tables[table] = { status: "row_limit", count, rows: [] };
+						continue;
+					}
+					const selected = [
+						...selectedColumns.map((column) => `"${column}"`),
+						...(descriptor.extra ?? []),
+					].join(", ");
+					const rows = await tx.unsafe(
+						`SELECT ${selected} FROM public.${table}${where} ORDER BY ${selectedColumns.map((column) => `"${column}"`).join(", ")} LIMIT ${MAX_ROWS + 1}`,
+					);
+					if (rows.length !== count)
+						throw new Error("Inventory snapshot count differs");
+					tables[table] = {
+						status: "complete",
+						count,
+						rows: Array.from(rows),
+						...(legacy
+							? {
+									schemaProfile: descriptor.legacyProfile.name,
+									unavailableColumns: missing,
+								}
+							: {}),
+					};
+				}
+				const dependency = require.resolve("postgres");
+				let packageDirectory = dirname(dependency);
+				let packageMetadata;
+				for (let depth = 0; depth < 6; depth++) {
+					try {
+						const metadata = JSON.parse(
+							readFileSync(join(packageDirectory, "package.json"), "utf8"),
+						);
+						if (metadata.name === "postgres") {
+							packageMetadata = metadata;
+							break;
+						}
+					} catch {}
+					packageDirectory = dirname(packageDirectory);
+				}
+				if (!packageMetadata || typeof packageMetadata.version !== "string")
+					throw new Error("Resolved postgres package lacks metadata");
+				const result = {
+					schemaVersion: 1,
+					kind: "inference-pilot-readiness",
+					profile,
+					readOnly: true,
+					isolation: safety.isolation,
+					observedAt: safety.observed_at,
+					runtime: {
+						node: process.version,
+						postgresVersion: packageMetadata.version,
+						postgresEntrySha256: hash(readFileSync(dependency)),
+					},
+					tables,
+				};
+				if (Buffer.byteLength(JSON.stringify(result)) > MAX_BYTES)
+					throw new Error("Inventory output exceeds fixed byte bound");
+				return result;
+			},
+		);
+	} finally {
+		await client.end({ timeout: 5 });
+	}
+}
+export function encodeInventory(result, nonce) {
+	if (!/^[a-f0-9]{32}$/.test(nonce)) throw new Error("Invalid result nonce");
+	const bytes = Buffer.from(JSON.stringify(result));
+	if (bytes.length > MAX_BYTES)
+		throw new Error("Inventory output exceeds fixed byte bound");
+	const payload = bytes.toString("base64");
+	const chunks = [];
+	for (let start = 0; start < payload.length; start += 12000)
+		chunks.push(payload.slice(start, start + 12000));
+	return chunks.map(
+		(data, seq) =>
+			`OXY_BILLING_INVENTORY ${JSON.stringify({ nonce, seq, total: chunks.length, sha256: hash(bytes), data })}`,
+	);
+}
+// Reuses the reviewed bounded inventory packet protocol. Imports alone connect nowhere.
+// No metadata row proves a service secret, runtime caller identity or domain permission.
