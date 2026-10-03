@@ -50,6 +50,19 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
     (a[key] === undefined || typeof a[key] === 'string') && a[key] === b[key]);
 }
 
+/** Cancel this wait only; the shared mint continues for other callers. */
+function awaitRequestSignal<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return pending;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => { reject(createCancelledError()); };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+    // Both handlers remain attached even after cancellation, so a late shared
+    // failure is observed without reviving this request or becoming unhandled.
+    pending.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
+}
+
 /** A trusted platform transport, for example Expo's streaming fetch. */
 export type ResponseTransport = (input: string, init: RequestInit) => Promise<Response>;
 
@@ -1512,7 +1525,7 @@ export class HttpService {
     const request = { ...config, headers: new Headers(config.headers) };
     const contextToken = this.syncAccessTokenFromProvider();
     const beforeAuthEpoch = this.sessionEpoch;
-    const authHeader = await this.getAuthHeader();
+    const authHeader = await awaitRequestSignal(this.getAuthHeader(), config.signal);
     if (beforeAuthEpoch !== this.sessionEpoch || !sameTokenSession(contextToken, this.tokenStore.getAccessToken())) {
       throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
     }
@@ -1567,7 +1580,13 @@ export class HttpService {
       try { assertCurrent(); } catch (error) { await response.body?.cancel(); throw error; }
       const replayable = body === undefined || typeof body === 'string';
       if (response.status === 401 && !isAuthRetry && authHeader && replayable && !config.signal?.aborted) {
-        const refreshed = await this.refreshAccessToken('response-401');
+        let refreshed: string | null;
+        try {
+          refreshed = await awaitRequestSignal(this.refreshAccessToken('response-401'), config.signal);
+        } catch (error) {
+          void response.body?.cancel().catch(() => undefined);
+          throw error;
+        }
         try { assertCurrent(); } catch (error) { await response.body?.cancel(); throw error; }
         if (refreshed) {
           await response.body?.cancel();

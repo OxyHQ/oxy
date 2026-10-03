@@ -516,3 +516,41 @@ it("does not replay the original write when refresh deliberately adopts a differ
 		linked.dispose();
 	}
 });
+
+it.each(['preflight', 'response-401'] as const)(
+  'ends the caller deadline while a shared %s refresh remains pending',
+  async (phase) => {
+    const { oxy, linked } = fixture();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const ready = new Promise<void>((resolve) => { entered = resolve; });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      if (phase === 'preflight') {
+        const claims = { userId: 'fixture-user', sessionId: 'session-fixture-user', exp: Math.floor(Date.now() / 1000) + 10 };
+        oxy.http.setTokens(`e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.fixture`);
+      }
+      oxy.http.setAuthRefreshHandler(async () => { entered(); await gate; return token('new'); });
+      const before = seen.length;
+      const controller = new AbortController();
+      const pending = linked.client.requestResponse({ method: 'POST', url: '/refresh', body: '{}', signal: controller.signal });
+      const outcome = pending.then(() => ({ unexpected: 'response' }), (error: unknown) => ({ error }));
+      await ready;
+      controller.abort();
+      const bounded = await Promise.race([
+        outcome,
+        new Promise<{ pending: true }>((resolve) => { timer = setTimeout(() => resolve({ pending: true }), 100); }),
+      ]);
+      expect(bounded).toMatchObject({ error: { code: 'CANCELLED' } });
+      expect(seen).toHaveLength(before + (phase === 'preflight' ? 0 : 1));
+      release();
+      // Shared refresh may still complete for another caller, but this request
+      // cannot dispatch or replay once its own deadline has expired.
+      await oxy.http.refreshAccessToken(phase);
+      await outcome;
+      expect(seen).toHaveLength(before + (phase === 'preflight' ? 0 : 1));
+      expect(oxy.http.getAccessToken()).toBe(token('new'));
+    } finally { clearTimeout(timer); release(); linked.dispose(); }
+  },
+);
