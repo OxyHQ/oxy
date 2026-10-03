@@ -144,6 +144,37 @@ class FleetTests(unittest.TestCase):
             with patch.object(f,'aws',return_value={key:[invalid]}):
                 with self.assertRaisesRegex(RuntimeError,'dimension differs'):function()
 
+    def test_only_exact_observer_schedule_allowed(self):
+        with patch.object(f,'observer_authority',return_value={'verified':'fixture'})as authority:
+            self.assertEqual(f.classify_scheduled([f.OBSERVER_RULE]),{'verified':'fixture'})
+            for key,value in [('name','new-observer'),('state','DISABLED'),('schedule','rate(2 minutes)'),('targetsSha256','0'*64),('targetArns',['arn:foreign'])]:
+                changed={**f.OBSERVER_RULE,key:value}
+                with self.assertRaises(RuntimeError):f.classify_scheduled([changed])
+            self.assertIsNone(f.classify_scheduled([{'name':'ordinary-event','schedule':None}]))
+            self.assertEqual(authority.call_count,1)
+
+    def test_observer_code_and_complete_iam_pin_checked_fresh(self):
+        name='oxy-ecs-task-observer'
+        config={'FunctionName':name,'FunctionArn':f.OBSERVER_RULE['targetArns'][0],
+            'Role':'arn:aws:iam::237343248947:role/'+name,'Runtime':'python3.13','Handler':'handler.handler','CodeSha256':f.OBSERVER_CODE_SHA}
+        policy={'Version':'2012-10-17','Statement':[
+            {'Action':'ecs:DescribeServices','Effect':'Allow','Resource':'arn:aws:ecs:us-west-2:237343248947:service/oxy-cluster/*','Sid':'DescribeClusterServices'},
+            {'Action':'cloudwatch:PutMetricData','Condition':{'StringEquals':{'cloudwatch:namespace':'Oxy/ECS'}},'Effect':'Allow','Resource':'*','Sid':'PublishRunningCounts'},
+            {'Action':['logs:PutLogEvents','logs:CreateLogStream'],'Effect':'Allow','Resource':'arn:aws:logs:us-west-2:237343248947:log-group:/aws/lambda/oxy-ecs-task-observer:*','Sid':'WriteOwnLogs'}]}
+        responses=[config,{'PolicyNames':[name],'IsTruncated':False},{'AttachedPolicies':[],'IsTruncated':False},
+            {'RoleName':name,'PolicyName':name,'PolicyDocument':policy}]
+        with patch.object(f,'aws',side_effect=responses)as aws:
+            found=f.observer_authority();self.assertFalse(found['lambdaInvoked']);self.assertEqual(found['policyCanonicalSha256'],f.OBSERVER_POLICY_SHA)
+            self.assertIn('--query',aws.call_args_list[0].args)
+        for index in range(4):
+            changed=copy.deepcopy(responses)
+            if index==0:changed[0]['CodeSha256']='changed'
+            elif index==1:changed[1]['PolicyNames'].append('extra')
+            elif index==2:changed[2]['AttachedPolicies']=[{'PolicyArn':'foreign'}]
+            else:changed[3]['PolicyDocument']['Statement'][0]['Action']='ecs:UpdateService'
+            with patch.object(f,'aws',side_effect=changed):
+                with self.assertRaises(RuntimeError):f.observer_authority()
+
     def test_repeated_pagination_token_fails(self):
         with patch.object(f,'aws',return_value={'rows':[],'nextToken':'same'}):
             with self.assertRaisesRegex(RuntimeError,'repeated'):f.pages(['fake'],'rows')

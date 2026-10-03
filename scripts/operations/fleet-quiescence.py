@@ -38,6 +38,13 @@ SERVICE_CONFIG_FIELDS = ('networkConfiguration','deploymentConfiguration','loadB
     'placementConstraints','placementStrategy','capacityProviderStrategy','launchType','platformVersion',
     'enableExecuteCommand','enableECSManagedTags','propagateTags')
 TASK_ARN = r'arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/[a-f0-9]{32}'
+OBSERVER_RULE = {'name':'oxy-ecs-task-observer','state':'ENABLED','schedule':'rate(1 minute)',
+    'patternSha256':'74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b',
+    'targetsSha256':'6b6ceea772321762af5cd2bdae34eabf0214a524dfea88528d9f0ca234406760',
+    'targetArns':['arn:aws:lambda:us-west-2:237343248947:function:oxy-ecs-task-observer']}
+OBSERVER_CODE_SHA = 'gYDRteB/094SgsbSWTxCP0xlRt5+EHbngLIdYL/Mwrg='
+OBSERVER_POLICY_SHA = '6ed3ab07a090f32f9240a32f4b46e58f0e6522df82f885c39d87340ecdbd2d72'
+
 interrupted = False
 
 
@@ -162,6 +169,36 @@ def scalers():
     return {row['ResourceId'].rsplit('/',1)[1]:row for row in selected}
 
 
+def observer_authority():
+    # Root authenticated the ZIP and its handler before this exact allowlist.
+    # Fresh configuration/IAM pins ensure a different Lambda or expanded ECS
+    # role is not accepted. Only identity fields are projected; no invocation.
+    name='oxy-ecs-task-observer'
+    config=aws('lambda','get-function-configuration','--function-name',name,'--query',
+        '{FunctionName:FunctionName,FunctionArn:FunctionArn,Role:Role,Runtime:Runtime,Handler:Handler,CodeSha256:CodeSha256}')
+    identity={key:config.get(key)for key in ('FunctionName','FunctionArn','Role','Runtime','Handler','CodeSha256')}
+    expected={'FunctionName':name,'FunctionArn':OBSERVER_RULE['targetArns'][0],
+        'Role':'arn:aws:iam::237343248947:role/'+name,'Runtime':'python3.13','Handler':'handler.handler','CodeSha256':OBSERVER_CODE_SHA}
+    require(identity==expected,'Observer Lambda code/role/runtime changed')
+    inline=aws('iam','list-role-policies','--role-name',name)
+    attached=aws('iam','list-attached-role-policies','--role-name',name)
+    require(inline.get('PolicyNames')==[name] and inline.get('IsTruncated')is False and not inline.get('Marker'), 'Observer inline policy census differs')
+    require(attached.get('AttachedPolicies')==[] and attached.get('IsTruncated')is False and not attached.get('Marker'), 'Observer attached policy census differs')
+    policy=aws('iam','get-role-policy','--role-name',name,'--policy-name',name)
+    require(policy.get('RoleName')==name and policy.get('PolicyName')==name
+        and digest(policy.get('PolicyDocument'))==OBSERVER_POLICY_SHA, 'Observer role permissions changed')
+    return {'function':identity,'policyCanonicalSha256':OBSERVER_POLICY_SHA,'inlinePolicyNames':[name],'attachedPolicyCount':0,'lambdaInvoked':False}
+
+
+def classify_scheduled(event_rows):
+    observer=None
+    for row in event_rows:
+        if row['name']==OBSERVER_RULE['name']:
+            require(row==OBSERVER_RULE,'Observer rule/target metadata changed');observer=observer_authority()
+        elif row['schedule']:raise RuntimeError('Unreviewed scheduled startup/scaling present')
+    return observer
+
+
 def schedules():
     scaling=pages(['application-autoscaling','describe-scheduled-actions','--service-namespace','ecs'],
         'ScheduledActions','NextToken',bound=500)
@@ -175,7 +212,8 @@ def schedules():
         event_rows.append({'name':row['Name'],'state':row['State'],'schedule':row.get('ScheduleExpression'),
             'patternSha256':digest(row.get('EventPattern')),'targetsSha256':digest(targets),
             'targetArns':sorted(target['Arn']for target in targets)})
-    return {'scaling':sorted(scaling,key=lambda row:row['ResourceId']),'scheduler':sorted(scheduler,key=lambda row:row['Arn']),
+    observer=classify_scheduled(event_rows)
+    return {'observerAuthority':observer,'scaling':sorted(scaling,key=lambda row:row['ResourceId']),'scheduler':sorted(scheduler,key=lambda row:row['Arn']),
             'events':sorted(event_rows,key=lambda row:row['name'])}
 
 
@@ -222,7 +260,7 @@ def capture():
     require({row['arn']for row in active}=={task['arn']for row in current.values()for task in row['tasks']if task['lastStatus']!='STOPPED'},
         'Service/cluster task census drifted')
     schedule=schedules()
-    require(not schedule['scaling'] and not schedule['scheduler'] and not any(row['schedule']for row in schedule['events']),
+    require(not schedule['scaling'] and not schedule['scheduler'],
         'Unreviewed scheduled startup/scaling present')
     return {'kind':'fleet-snapshot-v1','capturedAt':int(time.time()),'operatorArn':actor,'services':current,
             'definitions':definitions,'schedules':schedule,'clusterActiveTasks':active}

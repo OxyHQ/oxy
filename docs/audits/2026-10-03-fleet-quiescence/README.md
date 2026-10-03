@@ -21,8 +21,19 @@ TD configuration hashes, scaling targets and scheduled actions, Scheduler and
 EventBridge metadata, service configuration, network, target groups, and target
 health. Environment values are hashed in memory, not included in snapshots.
 Parameter references are metadata; no secret is retrieved. Active standalone
-tasks, scheduled startup/scaling, missing task readbacks, mixed live TDs, changed
+tasks, unreviewed scheduled startup/scaling, missing task readbacks, mixed live TDs, changed
 configuration, or incomplete pagination block advancement.
+
+The one permitted periodic rule is the existing `oxy-ecs-task-observer`,
+ENABLED at `rate(1 minute)`, with the exact null event-pattern hash and target
+metadata hashes. Root downloaded/authenticated its ZIP and matched the handler
+bytes (`da85ea684eda15ecc2fce6460f0a0af68d71ba21fbf000d628195b2e78ef1db8`).
+Each fresh capture retains the Lambda's exact code hash/role/runtime/handler and
+rechecks its single inline IAM policy and absence of attached policies. That
+policy permits only ECS DescribeServices, metrics in Oxy/ECS and its own logs;
+changing code, target, interval, policy or role is denied. Lambda is never
+invoked by this helper. All other scheduled rules remain blocked. The separate
+unscheduled OOM event rule is retained in the total census/fresh comparison.
 
 The source and file hashes of a clean deployment checkout are bound into the
 private plan. The guard must be exactly
