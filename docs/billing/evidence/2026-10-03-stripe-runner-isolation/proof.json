@@ -1,0 +1,38 @@
+{
+  "sourceHead": "843156f609681cda9c75ac830a4b0f9884204907",
+  "sourceSha256": {
+    "scripts/billing/stripe-oxy-sandbox.py": "28353a74c901a2d48dc910884de03ad0ecb951a48162189bdefc414e9d2a9ffe",
+    "scripts/billing/test-stripe-oxy-sandbox.py": "808472a1b1a6e7e6eb3b1b3d4665874c9c18b2a9c11cb73ce27bd39e921cceb8",
+    "scripts/billing/test-stripe-runner-isolation.py": "0243f8ba2545aef13cd1898da8e94e70d596a1a91fadb31d28eb1271a4c60a14",
+    "docs/billing/stripe-sandbox-rehearsal.md": "81f53623b57eb2c8ef20af5cab24f73cf911ef3e86882e00ab7c4c5af6842891",
+    "packages/core/scripts/build-workspace-deps.mjs": "2e6a9d5a171a20027c29a82532d14a469b9813588cf1f87153dbe98e1223dafe"
+  },
+  "records": {
+    "docs/billing/evidence/2026-10-03-stripe-runner-isolation/isolation.log": {
+      "sha256": "0873e3bd8e47d449487dcfac4761b5c40c71d30ed7cb6da43ce73fa8513575ea",
+      "bytes": 943,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-runner-isolation/plan-tests.log": {
+      "sha256": "d79eee26ae81b3bd5f6fd35a68bc17fe2fed3963d9c7e01e143c03bd85fdd06d",
+      "bytes": 1062,
+      "exitCode": 0
+    }
+  },
+  "results": {
+    "runnerIsolationTests": 5,
+    "planAndDiagnosticTests": 8,
+    "bunVersion": "1.4.2",
+    "providerMutations": 0,
+    "productionDatabaseAccess": false
+  },
+  "limits": [
+    "Signal tests invoke the actual execute entrypoint and SignalCoordinator with provider/PG orchestration replaced only inside the fixture module; no runtime injection flags were introduced.",
+    "The fake child has observable pending/cleanup barriers; SIGTERM launcher PID and SIGINT launcher group both wait for child cleanup before fake PG stop.",
+    "Unresponsive-child case uses a shortened fixture deadline; production runtime is fixed to900seconds and forced termination requires manifest review.",
+    "A separate fresh initdb proves own PostgreSQL uses a different signal group and stops it; no database creation or provider call is required for this assertion.",
+    "Actual shared builder plus nested Bun commands are exercised with isolated benign dotenv sentinels. Unprotected control observes them; BUN_OPTIONS and explicit no-env flags exclude them.",
+    "Bootstrap now measures only credential/database environment presence, not independently instrumented provider/key-read counters.",
+    "No third Stripe rehearsal was run; final composite runtime binding and a new frozen plan remain required."
+  ]
+}
