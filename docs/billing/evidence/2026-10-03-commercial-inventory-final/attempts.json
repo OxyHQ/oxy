@@ -1,0 +1,217 @@
+[
+  {
+    "attempt": "inventory-clarity-0303",
+    "profile": "clarity",
+    "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/919c46a74bdb456496ddbb85cf8f5587",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-billing-inventory-clarity:1",
+    "taskStopped": true,
+    "definitionInactive": true,
+    "cleanupFailures": [],
+    "containerExitCode": null,
+    "result": "failed_before_container_sql_logging_prefix",
+    "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/clarity@sha256:3e9d5cc075c78344a3cc8998b8cb7a3e86f63114681471354064de92d8b24a5a",
+    "logStreamPrefix": "billing-inventory",
+    "planSha256": "5fd4c5ee2cda1b7898390e11a07a512149dd44399fda34cf44b974f2de1955bd",
+    "executableDefinitionSha256": "c731025931aa3ddbcdac2a14654e99714956e027bcb006c6b2ebf62ce245a190"
+  },
+  {
+    "attempt": "inventory-clarity-v3-0330",
+    "profile": "clarity",
+    "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/9d239284f1794fe4afe4506b56c1a621",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-billing-inventory-clarity:2",
+    "taskStopped": true,
+    "definitionInactive": true,
+    "cleanupFailures": [],
+    "containerExitCode": 0,
+    "result": "completed_readonly_sql",
+    "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/clarity@sha256:3e9d5cc075c78344a3cc8998b8cb7a3e86f63114681471354064de92d8b24a5a",
+    "logStreamPrefix": "clarity-api",
+    "planSha256": "a940b865f5f4a92baaec963adf5b98b4e79cc96f7f7ed6d7730deff910b6a112",
+    "executableDefinitionSha256": "e600e5cfbde9eaf4299fc07b68db3c3bd9de58254673ea37a00488eb4420ef3e",
+    "resultSha256": "60fa57f6989b778f978fe7ab468a8ba6cc2f935de11656547d50e5b208162fdc",
+    "observedAt": "2026-10-03 03:30:26.374555+00",
+    "tables": {
+      "clarity_subscriptions": {
+        "status": "complete",
+        "count": 0
+      },
+      "clarity_billing_customers": {
+        "status": "complete",
+        "count": 0
+      }
+    }
+  },
+  {
+    "attempt": "inventory-mercaria-0312",
+    "profile": "mercaria",
+    "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/faaaa06b0f154c03b12d2f116748bd30",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-billing-inventory-mercaria:1",
+    "taskStopped": true,
+    "definitionInactive": true,
+    "cleanupFailures": [],
+    "containerExitCode": 0,
+    "result": "completed_readonly_sql",
+    "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mercaria@sha256:f5a2aed5580b3b3561bdff88a9da7fed5335816ff442052f75b140d177847412",
+    "logStreamPrefix": "billing-inventory",
+    "planSha256": "5abf3f58955e71ee23358b215a0706748690936a4f4d719d029a83c5a6ca47a8",
+    "executableDefinitionSha256": "3d58d9d8861b439290f6f9771ff8cf5c561c9252255474d1bfeb728a0f56cc03",
+    "resultSha256": "1088cf818f5a0fa2b41d905854407cd69892e306bbd00c338e5ca86d198653a1",
+    "observedAt": "2026-10-03 03:10:12.57214+00",
+    "tables": {
+      "merchant_plans": {
+        "status": "complete",
+        "count": 0
+      },
+      "merchant_plan_prices": {
+        "status": "complete",
+        "count": 0
+      },
+      "plan_entitlements": {
+        "status": "complete",
+        "count": 0
+      },
+      "billing_customers": {
+        "status": "complete",
+        "count": 0
+      },
+      "merchant_subscriptions": {
+        "status": "complete",
+        "count": 0
+      },
+      "store_members": {
+        "status": "complete",
+        "count": 0
+      }
+    }
+  },
+  {
+    "attempt": "inventory-oxy-0259",
+    "profile": "oxy",
+    "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/8fc57a7582cd4286ae599bd457b9e9ba",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-billing-inventory-oxy:1",
+    "taskStopped": true,
+    "definitionInactive": true,
+    "cleanupFailures": [],
+    "containerExitCode": 0,
+    "result": "completed_readonly_sql",
+    "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:29502ab56460ed8261b5dd747d93fd36e345f28e633a17c865c34d4fae7b653a",
+    "logStreamPrefix": "billing-inventory",
+    "planSha256": "2080d0ca813be98fb5ecd8caebddf30eb7a7374f2a124cc35fff276ad7dde1dd",
+    "executableDefinitionSha256": "fb3c983d115c2dfc9109a90747717fcdd6b9cfb7a2a73d78f4e755cca2b04654",
+    "resultSha256": "823f314517321fb1a48b86870305e7ea8a2bc07e552a31324ea7a30012c76691",
+    "observedAt": "2026-10-03 03:06:27.630871+00",
+    "tables": {
+      "billing_subscriptions": {
+        "status": "complete",
+        "count": 0
+      },
+      "subscriptions": {
+        "status": "complete",
+        "count": 0
+      },
+      "user_credits": {
+        "status": "complete",
+        "count": 0
+      },
+      "billing_transactions": {
+        "status": "schema_mismatch",
+        "count": null
+      },
+      "access_products": {
+        "status": "missing",
+        "count": null
+      },
+      "access_offers": {
+        "status": "missing",
+        "count": null
+      },
+      "access_offer_benefits": {
+        "status": "missing",
+        "count": null
+      },
+      "access_subscription_sources": {
+        "status": "missing",
+        "count": null
+      },
+      "access_offer_segments": {
+        "status": "missing",
+        "count": null
+      },
+      "access_grants": {
+        "status": "missing",
+        "count": null
+      },
+      "billing_credit_grants": {
+        "status": "missing",
+        "count": null
+      }
+    }
+  },
+  {
+    "attempt": "inventory-oxy-v3-0329",
+    "profile": "oxy",
+    "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/e56de109f3bc406d9b2252620017e6e9",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-billing-inventory-oxy:2",
+    "taskStopped": true,
+    "definitionInactive": true,
+    "cleanupFailures": [],
+    "containerExitCode": 0,
+    "result": "completed_readonly_sql",
+    "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:29502ab56460ed8261b5dd747d93fd36e345f28e633a17c865c34d4fae7b653a",
+    "logStreamPrefix": "oxy-api",
+    "planSha256": "192c6e926ff1890448b3d705313e06939705ffd161c087e16e6943815fc41bb4",
+    "executableDefinitionSha256": "b28afc2a4ba072992dcda4198537bdc74c01e7b774c0f54b63a0ade2f51d59ad",
+    "resultSha256": "692eedfe1535e05cb4205a7005ac79a7536ab77f1f4b8d6c56db18f01cc34f47",
+    "observedAt": "2026-10-03 03:28:20.306602+00",
+    "tables": {
+      "billing_subscriptions": {
+        "status": "complete",
+        "count": 0
+      },
+      "subscriptions": {
+        "status": "complete",
+        "count": 0
+      },
+      "user_credits": {
+        "status": "complete",
+        "count": 0
+      },
+      "billing_transactions": {
+        "status": "complete",
+        "count": 0,
+        "schemaProfile": "oxy_pre_subscription_credit_ledger",
+        "unavailableColumns": [
+          "stripe_invoice_id"
+        ]
+      },
+      "access_products": {
+        "status": "missing",
+        "count": null
+      },
+      "access_offers": {
+        "status": "missing",
+        "count": null
+      },
+      "access_offer_benefits": {
+        "status": "missing",
+        "count": null
+      },
+      "access_subscription_sources": {
+        "status": "missing",
+        "count": null
+      },
+      "access_offer_segments": {
+        "status": "missing",
+        "count": null
+      },
+      "access_grants": {
+        "status": "missing",
+        "count": null
+      },
+      "billing_credit_grants": {
+        "status": "missing",
+        "count": null
+      }
+    }
+  }
+]

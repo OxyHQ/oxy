@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "7935f1a569b860ca19fa35c8d40285371f23e7da",
+  "sources": [
+    {
+      "path": "scripts/billing/compare-commercial-inventory.mjs",
+      "sha256": "91f055e0d25d7e2641f2ba326d16dfdfd8a06aed644c3e881bcc7972eed298dd",
+      "bytes": 5816,
+      "sourceCommit": "7935f1a569b860ca19fa35c8d40285371f23e7da"
+    },
+    {
+      "path": "scripts/billing/test-compare-commercial-inventory.mjs",
+      "sha256": "f3e2842df5e8dd00f977e7d66ab2bcf836327755a33b216c7d7f4a8aa6ca8866",
+      "bytes": 3548,
+      "sourceCommit": "7935f1a569b860ca19fa35c8d40285371f23e7da"
+    },
+    {
+      "path": "docs/billing/proposals/i06-period-rules.md",
+      "sha256": "e9e9b1f606f201b2f7f39b0431d95aea1b5ddbf7dcb12b0508b1e3c88dd34388",
+      "bytes": 17915,
+      "sourceCommit": "7935f1a569b860ca19fa35c8d40285371f23e7da"
+    },
+    {
+      "path": "docs/billing/proposals/i07-product-access.md",
+      "sha256": "2ed1cb2f11978052023c39dc6038f3a9456fa07f550ec36fb7b4d7c2324791ed",
+      "bytes": 5502,
+      "sourceCommit": "7935f1a569b860ca19fa35c8d40285371f23e7da"
+    },
+    {
+      "path": "scripts/billing/read-commercial-inventory.mjs",
+      "sha256": "4200e2712537ca8ce4fc055ed14ceb93b62a758c08d7d416a2d2ee0cc4b53d69",
+      "bytes": 9294,
+      "sourceCommit": "29cb5ee4e"
+    },
+    {
+      "path": "scripts/billing/commercial-inventory-ecs.py",
+      "sha256": "8bff2b39d443914c9ce9281c740705d544821e22b92ec3095cf5c889e1e9564b",
+      "bytes": 19431,
+      "sourceCommit": "29cb5ee4e"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-final/comparison-fixtures.log",
+      "sha256": "49a2d24038914d015ff3b3897b7c865ffec18184ec9e047ddc6455cc655f6999",
+      "bytes": 73,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-final/comparison-lint.log",
+      "sha256": "c943f80d97ee27c0306b6fa62ad39ec0e2f32d37d6e2c4c94958bb9b75b08254",
+      "bytes": 42,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-final/dry-run.json",
+      "sha256": "918398b16d6287ec02ec4570816fc1a17e085f6e7a7dd97d038f1f3599df8e86",
+      "bytes": 3723,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-final/attempts.json",
+      "sha256": "8ea4f7f4009e7bf1f14db7e6369fefc9108c4419f2438f923358b9da9845b323",
+      "bytes": 7581
+    }
+  ],
+  "privateInputs": [
+    {
+      "privateDirectory": "inventory-clarity-0303",
+      "filename": "cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058",
+      "bytes": 74
+    },
+    {
+      "privateDirectory": "inventory-clarity-0303",
+      "filename": "definition.json",
+      "sha256": "05e86e1e7f5675ce53ae15d83ef55d6aa5c8d8dd9a9b3f418d23a556e4a00f9e",
+      "bytes": 10434
+    },
+    {
+      "privateDirectory": "inventory-clarity-0303",
+      "filename": "launch.json",
+      "sha256": "8080f611d8ceedbbcb0672348df531c6c5f386e765e100935f88c26fa100d377",
+      "bytes": 297
+    },
+    {
+      "privateDirectory": "inventory-clarity-0303",
+      "filename": "registered-readback.json",
+      "sha256": "80196bc1c1be77b76d0a5db54d5357dc066544bca8e11e62459acfc396835e58",
+      "bytes": 251
+    },
+    {
+      "privateDirectory": "inventory-clarity-v3-0330",
+      "filename": "cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058",
+      "bytes": 74
+    },
+    {
+      "privateDirectory": "inventory-clarity-v3-0330",
+      "filename": "definition.json",
+      "sha256": "9a91852cee6ba125a2d04948b1cba88e9519c9322dfab6b49ad5316f8ab40c6e",
+      "bytes": 10972
+    },
+    {
+      "privateDirectory": "inventory-clarity-v3-0330",
+      "filename": "launch.json",
+      "sha256": "3dad4e6c2eabadd22651a4359941c817f44283b0026a71b9f66f582cc83cb18a",
+      "bytes": 297
+    },
+    {
+      "privateDirectory": "inventory-clarity-v3-0330",
+      "filename": "receipt.json",
+      "sha256": "f88663b6def9af19fb2f1ac092e232a3a66249138b3b63c6ad1af0613018170b",
+      "bytes": 765
+    },
+    {
+      "privateDirectory": "inventory-clarity-v3-0330",
+      "filename": "registered-readback.json",
+      "sha256": "67020da7b79524e01d538d9990f68bdb95007840f9a8dabf0e769fba90a308d8",
+      "bytes": 251
+    },
+    {
+      "privateDirectory": "inventory-clarity-v3-0330",
+      "filename": "result.private.json",
+      "sha256": "9d27e1fff58d2db00b17f812fe08dad7ccf445f08e53cd12886036b92713f765",
+      "bytes": 546
+    },
+    {
+      "privateDirectory": "inventory-mercaria-0312",
+      "filename": "cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058",
+      "bytes": 74
+    },
+    {
+      "privateDirectory": "inventory-mercaria-0312",
+      "filename": "definition.json",
+      "sha256": "6f45e1b9eb15576d46c80277dc4c51a796e66fa738305b6c731cd755e7ada2ca",
+      "bytes": 10434
+    },
+    {
+      "privateDirectory": "inventory-mercaria-0312",
+      "filename": "launch.json",
+      "sha256": "f25918b2bd69604a0162b1922d8121bf9be7a9222f080797f594348793136e10",
+      "bytes": 298
+    },
+    {
+      "privateDirectory": "inventory-mercaria-0312",
+      "filename": "receipt.json",
+      "sha256": "c2f618ec39d4254449764521ef57c7910c09c01179301be43d897ff5b20033d1",
+      "bytes": 1073
+    },
+    {
+      "privateDirectory": "inventory-mercaria-0312",
+      "filename": "registered-readback.json",
+      "sha256": "35cdf8ecdd59da61b7b6ceec1fc31d3ab47b29d2d7502ddc77669a44e85482e5",
+      "bytes": 252
+    },
+    {
+      "privateDirectory": "inventory-mercaria-0312",
+      "filename": "result.private.json",
+      "sha256": "fa352f260517bc73ebf669e3911be680267e46a3538bdd087fc0eb8be2ac5ab3",
+      "bytes": 923
+    },
+    {
+      "privateDirectory": "inventory-oxy-0259",
+      "filename": "cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058",
+      "bytes": 74
+    },
+    {
+      "privateDirectory": "inventory-oxy-0259",
+      "filename": "definition.json",
+      "sha256": "fa6dab8f2d69e19efe5d920458d95d5f855f6f8d8dfe702552e51df191d5338f",
+      "bytes": 10419
+    },
+    {
+      "privateDirectory": "inventory-oxy-0259",
+      "filename": "launch.json",
+      "sha256": "c7898c685958a6be133c9a835fe03365b936332c650cc219ff233f7c5d952eb0",
+      "bytes": 293
+    },
+    {
+      "privateDirectory": "inventory-oxy-0259",
+      "filename": "receipt.json",
+      "sha256": "a9c6dcb27b5848ae9b42a06f8a28b33ea55e2c45a1555e69d2cb8d2abbdb3ebf",
+      "bytes": 1490
+    },
+    {
+      "privateDirectory": "inventory-oxy-0259",
+      "filename": "registered-readback.json",
+      "sha256": "40ed25ab0d6d77c81cd68593f8aa98df072ec910127fedd86e7ac1b6f6568cdb",
+      "bytes": 247
+    },
+    {
+      "privateDirectory": "inventory-oxy-0259",
+      "filename": "result.private.json",
+      "sha256": "1737c7f6b90ca24afa327c657b8dc18e5afdf2de46bd6af99ccb51469da838ee",
+      "bytes": 1493
+    },
+    {
+      "privateDirectory": "inventory-oxy-v3-0329",
+      "filename": "cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058",
+      "bytes": 74
+    },
+    {
+      "privateDirectory": "inventory-oxy-v3-0329",
+      "filename": "definition.json",
+      "sha256": "29d4964d9622e179afc1f8b4ef43cba803781419380eb8c7879ac5ed85350842",
+      "bytes": 10953
+    },
+    {
+      "privateDirectory": "inventory-oxy-v3-0329",
+      "filename": "launch.json",
+      "sha256": "20fbd3aab15afb4d15bf8d127784dfb0b9d8a0b40e4980cf900adaad1cd68384",
+      "bytes": 293
+    },
+    {
+      "privateDirectory": "inventory-oxy-v3-0329",
+      "filename": "receipt.json",
+      "sha256": "f3c3c3fcf2a04547a0fedec9cb306ba67245ac27e7d532329c0a456b6f32682f",
+      "bytes": 1608
+    },
+    {
+      "privateDirectory": "inventory-oxy-v3-0329",
+      "filename": "registered-readback.json",
+      "sha256": "f7b4afa1478cfe25fdb87fa9a97fce6f91bf4cee9946304a1ff8d0db09e790e1",
+      "bytes": 247
+    },
+    {
+      "privateDirectory": "inventory-oxy-v3-0329",
+      "filename": "result.private.json",
+      "sha256": "41d396bec7af18dee1f348a92a1c6e6cb78f2deba13675b520328194ce39121b",
+      "bytes": 1555
+    },
+    {
+      "privateDirectory": "integration-billing-completion",
+      "filename": "inventory-final-authenticated-metadata.json",
+      "sha256": "ae3ba5e3d763cd8329ea07018942dfa368c744789d9bf8da583ac7e2e16b4fdf",
+      "bytes": 4897
+    }
+  ],
+  "actualReadsExecutedBy": "root; separate authenticated readback by integration",
+  "actualCommercialWrites": false,
+  "serviceRestarted": false,
+  "backfillWrites": 0,
+  "rawFinancialReferencesPublished": false,
+  "attemptCounts": {
+    "total": 5,
+    "readonlySqlCompleted": 4,
+    "failedBeforeSql": 1
+  },
+  "acceptanceScope": "Current SQL projections of pinned three services; no claim that Stripe itself is empty and no target-schema production read after deployment."
+}
