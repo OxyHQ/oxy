@@ -1,0 +1,60 @@
+--- a/package.json
++++ b/package.json
+@@ -58,19 +58,19 @@
+     "@react-native/babel-preset": "0.86.0",
+     "@react-native/metro-babel-transformer": "0.86.0",
+     "@react-native/metro-config": "0.86.0",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-contracts-4.9.0.tgz",
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/contracts": "4.9.0",
+     "lightningcss": "1.32.0",
+     "lightningcss-linux-x64-gnu": "1.32.0",
+     "lightningcss-linux-x64-musl": "1.32.0",
+-    "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-protocol-1.2.2.tgz",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-services-11.1.0.tgz",
+-    "@oxy.so/mcp": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-mcp-1.1.0.tgz",
++    "@oxy.so/protocol": "1.2.2",
++    "@oxy.so/services": "11.1.0",
++    "@oxy.so/mcp": "1.1.0",
+     "@oxy.so/bloom": "6.2.1"
+   },
+   "dependencies": {
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-contracts-4.9.0.tgz",
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/contracts": "4.9.0",
+     "@tanstack/react-query": "^5.101.2",
+     "@tanstack/react-query-persist-client": "^5.101.2",
+     "@tanstack/query-sync-storage-persister": "^5.101.2",
+--- a/packages/backend/package.json
++++ b/packages/backend/package.json
+@@ -26,7 +26,7 @@
+   "dependencies": {
+     "@clarity/shared-types": "workspace:*",
+     "@mozilla/readability": "^0.6.0",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-core-4.2.0.tgz",
++    "@oxy.so/core": "4.2.0",
+     "@oxy.so/db": "^1.0.0",
+     "@socket.io/redis-adapter": "^8.3.0",
+     "cheerio": "^1.2.0",
+--- a/packages/frontend/package.json
++++ b/packages/frontend/package.json
+@@ -17,14 +17,14 @@
+     "build:ios": "eas build --platform ios"
+   },
+   "dependencies": {
+-    "@oxy.so/telemetry": "^1.2.0",
++    "@oxy.so/telemetry": "1.2.0",
+     "@clarity/shared-types": "workspace:*",
+     "@expo/html-elements": "^57.0.0",
+     "@expo/vector-icons": "^15.1.1",
+     "@hugeicons/react-native": "^1.0.15",
+     "@oxy.so/bloom": "6.2.1",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-candidate-packs/oxy.so-services-11.1.0.tgz",
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/services": "11.1.0",
+     "@radix-ui/react-icons": "^1.3.2",
+     "@radix-ui/react-scroll-area": "^1.2.14",
+     "@react-native-async-storage/async-storage": "^2.2.0",

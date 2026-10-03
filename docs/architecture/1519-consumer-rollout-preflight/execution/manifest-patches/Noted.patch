@@ -1,0 +1,81 @@
+--- a/package.json
++++ b/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "noted-monorepo",
+   "version": "1.0.0",
+-  "description": "Noted \u2014 notes app by Oxy",
++  "description": "Noted — notes app by Oxy",
+   "private": true,
+   "workspaces": [
+     "packages/*"
+@@ -62,21 +62,21 @@
+     "@react-native/metro-babel-transformer": "0.85.3",
+     "@react-native/metro-config": "0.85.3",
+     "@oxy.so/bloom": "6.2.1",
+-    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-services-11.1.0.tgz",
++    "@oxy.so/contracts": "4.9.0",
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/services": "11.1.0",
+     "lightningcss": "1.30.1",
+     "lightningcss-linux-x64-gnu": "1.30.1",
+     "lightningcss-linux-x64-musl": "1.30.1",
+     "@oxy.so/telemetry": "1.2.0",
+-    "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-protocol-1.2.2.tgz",
+-    "@oxy.so/mcp": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-mcp-1.1.0.tgz"
++    "@oxy.so/protocol": "1.2.2",
++    "@oxy.so/mcp": "1.1.0"
+   },
+   "dependencies": {
+     "@oxy.so/bloom": "6.2.1",
+-    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-services-11.1.0.tgz"
++    "@oxy.so/contracts": "4.9.0",
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/services": "11.1.0"
+   },
+   "trustedDependencies": [
+     "llama.rn"
+--- a/packages/backend/package.json
++++ b/packages/backend/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "@noted/backend",
+   "version": "1.0.0",
+-  "description": "Noted API \u2014 notes app backend by Oxy",
++  "description": "Noted API — notes app backend by Oxy",
+   "private": true,
+   "type": "module",
+   "engines": {
+@@ -21,10 +21,10 @@
+   },
+   "dependencies": {
+     "@noted/shared-types": "workspace:*",
+-    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz",
++    "@oxy.so/contracts": "4.9.0",
++    "@oxy.so/core": "4.2.0",
+     "@oxy.so/db": "1.0.0",
+-    "@oxy.so/mcp": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-mcp-1.1.0.tgz",
++    "@oxy.so/mcp": "1.1.0",
+     "@socket.io/redis-adapter": "^8.3.0",
+     "bullmq": "^5.70.1",
+     "cors": "^2.8.5",
+--- a/packages/frontend/package.json
++++ b/packages/frontend/package.json
+@@ -27,9 +27,9 @@
+     "@noted/shared-types": "workspace:*",
+     "@oxy.so/app-preset": "3.0.0",
+     "@oxy.so/bloom": "6.2.1",
+-    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-services-11.1.0.tgz",
++    "@oxy.so/contracts": "4.9.0",
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/services": "11.1.0",
+     "@radix-ui/react-dropdown-menu": "^2.1.16",
+     "@radix-ui/react-icons": "^1.3.2",
+     "@radix-ui/react-scroll-area": "^1.2.10",

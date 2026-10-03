@@ -1,0 +1,57 @@
+--- a/package.json
++++ b/package.json
+@@ -3,7 +3,7 @@
+   "version": "0.1.0",
+   "private": true,
+   "license": "SEE LICENSE IN LICENSE",
+-  "description": "GoWay \u2014 Oxy's open map and geographic platform",
++  "description": "GoWay — Oxy's open map and geographic platform",
+   "workspaces": [
+     "packages/shared-types",
+     "packages/sdk",
+@@ -55,15 +55,15 @@
+     "typescript": "^5.9.3"
+   },
+   "overrides": {
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/contracts": "4.9.0",
+     "@oxy.so/bloom": "6.2.1",
+-    "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-protocol-1.2.2.tgz",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
++    "@oxy.so/protocol": "1.2.2",
++    "@oxy.so/services": "11.1.0"
+   },
+   "resolutions": {
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/contracts": "4.9.0",
+     "@oxy.so/bloom": "6.2.1"
+   }
+ }
+--- a/packages/backend/package.json
++++ b/packages/backend/package.json
+@@ -19,7 +19,7 @@
+   },
+   "dependencies": {
+     "@goway/shared-types": "workspace:*",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
++    "@oxy.so/core": "4.2.0",
+     "@oxy.so/db": "^1.0.0",
+     "cors": "^2.8.6",
+     "dotenv": "^16.4.7",
+--- a/packages/frontend/package.json
++++ b/packages/frontend/package.json
+@@ -34,8 +34,8 @@
+     "@maplibre/maplibre-react-native": "^11.4.0",
+     "@oxy.so/app-preset": "^3.0.0",
+     "@oxy.so/bloom": "6.2.1",
+-    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/services": "11.1.0",
+     "@react-native-async-storage/async-storage": "2.2.0",
+     "@tanstack/query-async-storage-persister": "^5.101.0",
+     "@tanstack/react-query": "^5.101.0",
