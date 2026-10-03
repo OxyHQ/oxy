@@ -1,6 +1,6 @@
 # Mercaria ephemeral credential — local acceptance candidate
 
-Source `487e6bcc058112c0e31d3ad056a9bfbb8cae9740` on base `19676aa5d6069a117e0ab5fcd8f1e925fc6106f9`. Thirteen changed sources and the reused inventory transport are pinned in [proof.json](proof.json). The [operator procedure](../../auth/1519-mercaria-ephemeral-credential/README.md) defines exact target, input/output handling, recovery, image prerequisites and cleanup.
+Runtime source `487e6bcc058112c0e31d3ad056a9bfbb8cae9740`; documentation follow-up `753ec300b3276ac60fac209ff9a48290324ff12a` on base `19676aa5d6069a117e0ab5fcd8f1e925fc6106f9`. Thirteen changed sources and the reused inventory transport are pinned in [proof.json](proof.json). The [operator procedure](../../auth/1519-mercaria-ephemeral-credential/README.md) defines exact target, input/output handling, recovery, image prerequisites and cleanup.
 
 - Five API package suites: **147 PASS, 0 FAIL**, real PostgreSQL and HTTP mint, including existing application/machine credential regressions. The one-shot input and transactions run against synthetic rows in the owned fixture database. Operator STS is synthetic in CLI tests; no real AWS call or provider effect.
 - Ten Python AWS fixtures PASS: definition authority, private material, input/source identity, lost receipt with one dispatch, and cleanup independence. This is not an AWS operational receipt.

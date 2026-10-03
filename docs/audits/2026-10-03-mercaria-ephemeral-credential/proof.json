@@ -1,10 +1,10 @@
 {
-  "sourceCommit": "487e6bcc058112c0e31d3ad056a9bfbb8cae9740",
+  "sourceCommit": "753ec300b3276ac60fac209ff9a48290324ff12a",
   "baseCommit": "19676aa5d6069a117e0ab5fcd8f1e925fc6106f9",
   "sources": [
     {
       "path": "docs/auth/1519-mercaria-ephemeral-credential/README.md",
-      "sha256": "13096b77713de7e62105dee0df315cbf1b55a4e8c7deda8c845a84ae9caa57d3"
+      "sha256": "f537719bb44588dd0199346237b1ba280d65efb9a7baf5ee25d7651621fdcd94"
     },
     {
       "path": "packages/api/scripts/mercaria-ephemeral-credential.ts",
@@ -146,5 +146,6 @@
     "No live credential/CAS/merchant/cohort write",
     "No immediate invalidation of existing JWT; current issuer TTL300 seconds",
     "No global uniqueness constraint beyond serialized helper operations"
-  ]
+  ],
+  "runtimeSourceCommit": "487e6bcc058112c0e31d3ad056a9bfbb8cae9740"
 }
