@@ -1,0 +1,6 @@
+test_atomic_cold_restore_can_spawn_old_two_stage_does_not (__main__.ConsumerTests.test_atomic_cold_restore_can_spawn_old_two_stage_does_not) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.002s
+
+OK

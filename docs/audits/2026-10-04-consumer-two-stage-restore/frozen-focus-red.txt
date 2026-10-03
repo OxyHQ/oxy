@@ -1,0 +1,28 @@
+test_atomic_cold_restore_can_spawn_old_two_stage_does_not (__main__.ConsumerTests.test_atomic_cold_restore_can_spawn_old_two_stage_does_not) ... FAIL
+
+======================================================================
+FAIL: test_atomic_cold_restore_can_spawn_old_two_stage_does_not (__main__.ConsumerTests.test_atomic_cold_restore_can_spawn_old_two_stage_does_not)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp03mps7dq/scripts/operations/tests/frozen.py", line 85, in test_atomic_cold_restore_can_spawn_old_two_stage_does_not
+    self.assertEqual(old_launches,[],'Atomic TD+positive-count cold restore launched old deployment tasks')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [{'arn': 'arn:aws:ecs:us-west-2:2373432489[340 chars]'}]}] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+{'arn': 'arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/00000000000000000000000000000003', 'group': 'service:homiio', 'definition': 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-homiio:9', 'lastStatus': 'RUNNING', 'desiredStatus': 'RUNNING', 'containers': [{'name': 'actual-backend', 'digest': 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'}]}
+
++ []
+- [{'arn': 'arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/00000000000000000000000000000003',
+-   'containers': [{'digest': 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+-                   'name': 'actual-backend'}],
+-   'definition': 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-homiio:9',
+-   'desiredStatus': 'RUNNING',
+-   'group': 'service:homiio',
+-   'lastStatus': 'RUNNING'}] : Atomic TD+positive-count cold restore launched old deployment tasks
+
+----------------------------------------------------------------------
+Ran 1 test in 0.002s
+
+FAILED (failures=1)

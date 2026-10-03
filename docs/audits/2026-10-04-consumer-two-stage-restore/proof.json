@@ -1,0 +1,103 @@
+{
+  "kind": "consumer-two-stage-retirement-offline-proof-v1",
+  "sourceCommit": "7bd57efd0077e3bd3ff1a691eb4938680c9cc7c8",
+  "baselineCommit": "73f55bcfe23e3e4c08ba6ef2ee118a69009dd9ca",
+  "inputs": [
+    {
+      "path": "scripts/operations/consumer-promotion.py",
+      "sourceCommit": "7bd57efd0077e3bd3ff1a691eb4938680c9cc7c8",
+      "sha256": "cb36c3b39ba4f34c2c1c3f6c6d1017649d932692c3ef2dea4525c22184a0bad1"
+    },
+    {
+      "path": "scripts/operations/tests/test-consumer-promotion.py",
+      "sourceCommit": "7bd57efd0077e3bd3ff1a691eb4938680c9cc7c8",
+      "sha256": "a6122aa9c37cd82ea626b4002686fb1592ee7d0599f5e3a6cdba5ca69d4e8fcb"
+    },
+    {
+      "path": "scripts/operations/fleet-quiescence.py",
+      "sourceCommit": "7bd57efd0077e3bd3ff1a691eb4938680c9cc7c8",
+      "sha256": "56fbe998fc58f2fc473f0622e5b06693f88b75942020f25001bf409d24852959"
+    },
+    {
+      "path": "scripts/operations/tests/test-fleet-quiescence.py",
+      "sourceCommit": "7bd57efd0077e3bd3ff1a691eb4938680c9cc7c8",
+      "sha256": "ba9833a1965f3b2126475fae6a6988c943cff0f0df889ba99ddb59850a78b615"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-consumer-two-stage-restore/fleet-regression.txt",
+      "sha256": "6b59a112ac32c82fe17577c1b0fca53d2e791ce5683e2b4d6a3fbfc6e4c728a9",
+      "bytes": 3542
+    },
+    {
+      "path": "docs/audits/2026-10-04-consumer-two-stage-restore/frozen-focus-green.txt",
+      "sha256": "e596244c3e71a822f47dd29c7aca39813f7632feb080c332ca5beae8322499b6",
+      "bytes": 245
+    },
+    {
+      "path": "docs/audits/2026-10-04-consumer-two-stage-restore/frozen-focus-red.txt",
+      "sha256": "92da686d56872ddbcf68342cce889893a26dcf3ac632a445d187705ade909bec",
+      "bytes": 1991
+    },
+    {
+      "path": "docs/audits/2026-10-04-consumer-two-stage-restore/green.txt",
+      "sha256": "d0469023a369b9f6a71c46b5faca8508612e9a3d01fb576ec450825d695740ff",
+      "bytes": 4925
+    },
+    {
+      "path": "docs/audits/2026-10-04-consumer-two-stage-restore/help.txt",
+      "sha256": "8662c26e3a5bc336474db95aa2cee68710ce29d9fb6e4a49be59a62f68540e01",
+      "bytes": 665
+    },
+    {
+      "path": "docs/audits/2026-10-04-consumer-two-stage-restore/intermediate-fixture-target-failure.txt",
+      "sha256": "3c5a6f1792b8c26693d0735fbca49a8324eaa5009380744aaa0e9d53b9cd460f",
+      "bytes": 5835
+    },
+    {
+      "path": "docs/audits/2026-10-04-consumer-two-stage-restore/red.txt",
+      "sha256": "8ca2847eac12bce40b50d1a0564c88023d3385651d767036cec5c2c4165605b4",
+      "bytes": 5318
+    },
+    {
+      "path": "docs/audits/2026-10-04-consumer-two-stage-restore/test-frozen-red.py",
+      "sha256": "a9e77825c3cec213d2f54144664fa1854d1f8f2fa9ef56611b77c18dd8665798",
+      "bytes": 23432
+    }
+  ],
+  "results": {
+    "consumerTests": {
+      "exitCode": 0,
+      "passed": 33
+    },
+    "fleetTests": {
+      "exitCode": 0,
+      "passed": 27
+    },
+    "help": {
+      "exitCode": 0
+    },
+    "frozenFocus": {
+      "baselineExitCode": 1,
+      "correctedExitCode": 0,
+      "baselineFailures": 1,
+      "correctedPassed": 1,
+      "byteIdenticalFixture": true
+    },
+    "historicalFullRed": {
+      "exitCode": 1,
+      "passed": 23,
+      "failed": 1
+    },
+    "intermediateFailure": "New tamper test selected its reference file rather than record file; corrected explicit filename. Failed output preserved."
+  },
+  "executedAwsWrites": false,
+  "limits": [
+    "Synthetic AWS scheduler/census only; no live restore",
+    "Prepared plans must be regenerated for helper hash",
+    "MISSING permits only exact prior hash-bound STOPPED task proof in trusted private operator directory; fresh both-status census still mandatory",
+    "Frozen main85/image/policy unchanged",
+    "Root serializes writes; preflight and AWS updates are not transactional"
+  ]
+}

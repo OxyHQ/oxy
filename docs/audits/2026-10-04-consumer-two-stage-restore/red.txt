@@ -1,0 +1,51 @@
+test_atomic_cold_restore_can_spawn_old_two_stage_does_not (__main__.ConsumerTests.test_atomic_cold_restore_can_spawn_old_two_stage_does_not) ... FAIL
+test_aws_registration_transports_json_stdin_not_argv (__main__.ConsumerTests.test_aws_registration_transports_json_stdin_not_argv) ... ok
+test_bootstrap_managed_is_explicit_and_only_two_reviewed_services (__main__.ConsumerTests.test_bootstrap_managed_is_explicit_and_only_two_reviewed_services) ... ok
+test_cli_requires_exact_reviewed_plan_bytes_before_any_operation (__main__.ConsumerTests.test_cli_requires_exact_reviewed_plan_bytes_before_any_operation) ... ok
+test_dns_build_recipe_not_promotable (__main__.ConsumerTests.test_dns_build_recipe_not_promotable) ... ok
+test_duplicate_recipe_rejected (__main__.ConsumerTests.test_duplicate_recipe_rejected) ... ok
+test_evidence_changed_bytes_fail_before_use (__main__.ConsumerTests.test_evidence_changed_bytes_fail_before_use) ... ok
+test_explicit_hold_revalidates_registered_td_without_fresh_github (__main__.ConsumerTests.test_explicit_hold_revalidates_registered_td_without_fresh_github) ... ok
+test_failed_rollout_held_zero_even_older_stopping_task (__main__.ConsumerTests.test_failed_rollout_held_zero_even_older_stopping_task) ... ok
+test_hold_missing_attempt_is_not_safe (__main__.ConsumerTests.test_hold_missing_attempt_is_not_safe) ... ok
+test_image_proof_links_actual_source_dockerfile_and_ecr_manifest (__main__.ConsumerTests.test_image_proof_links_actual_source_dockerfile_and_ecr_manifest) ... ok
+test_monitor_wrong_running_digest_denied (__main__.ConsumerTests.test_monitor_wrong_running_digest_denied) ... ok
+test_only_selected_image_changes_sidecar_roles_commands_preserved (__main__.ConsumerTests.test_only_selected_image_changes_sidecar_roles_commands_preserved) ... ok
+test_promote_updates_td_count_and_no_auto_rollback_in_one_call (__main__.ConsumerTests.test_promote_updates_td_count_and_no_auto_rollback_in_one_call) ... ok
+test_registered_env_secret_name_order_accepted_full_values_checked (__main__.ConsumerTests.test_registered_env_secret_name_order_accepted_full_values_checked) ... ok
+test_registered_sidecar_change_rejected (__main__.ConsumerTests.test_registered_sidecar_change_rejected) ... ok
+test_registration_ack_lost_no_retry (__main__.ConsumerTests.test_registration_ack_lost_no_retry) ... ok
+test_registration_intent_precedes_stdin_write_and_readback (__main__.ConsumerTests.test_registration_intent_precedes_stdin_write_and_readback) ... ok
+test_required_and_not_required_migration_are_explicit_bound_receipts (__main__.ConsumerTests.test_required_and_not_required_migration_are_explicit_bound_receipts) ... ok
+test_scaler_restore_requires_own_smoke_and_preserves_original_flags (__main__.ConsumerTests.test_scaler_restore_requires_own_smoke_and_preserves_original_flags) ... ok
+test_smoke_failure_attempts_hold_not_old_rollback (__main__.ConsumerTests.test_smoke_failure_attempts_hold_not_old_rollback) ... ok
+test_smoke_real_process_stdout_withheld_and_failure_detected (__main__.ConsumerTests.test_smoke_real_process_stdout_withheld_and_failure_detected) ... ok
+test_unexpected_td_fields_duplicate_names_and_wrong_selection_reject (__main__.ConsumerTests.test_unexpected_td_fields_duplicate_names_and_wrong_selection_reject) ... ok
+test_update_ack_unknown_blocks_advance_and_auto_retry (__main__.ConsumerTests.test_update_ack_unknown_blocks_advance_and_auto_retry) ... ok
+
+======================================================================
+FAIL: test_atomic_cold_restore_can_spawn_old_two_stage_does_not (__main__.ConsumerTests.test_atomic_cold_restore_can_spawn_old_two_stage_does_not)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-consumer-promotion-20261003/scripts/operations/tests/test-consumer-promotion.py", line 85, in test_atomic_cold_restore_can_spawn_old_two_stage_does_not
+    self.assertEqual(old_launches,[],'Atomic TD+positive-count cold restore launched old deployment tasks')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [{'arn': 'arn:aws:ecs:us-west-2:2373432489[340 chars]'}]}] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+{'arn': 'arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/00000000000000000000000000000003', 'group': 'service:homiio', 'definition': 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-homiio:9', 'lastStatus': 'RUNNING', 'desiredStatus': 'RUNNING', 'containers': [{'name': 'actual-backend', 'digest': 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'}]}
+
++ []
+- [{'arn': 'arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/00000000000000000000000000000003',
+-   'containers': [{'digest': 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+-                   'name': 'actual-backend'}],
+-   'definition': 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-homiio:9',
+-   'desiredStatus': 'RUNNING',
+-   'group': 'service:homiio',
+-   'lastStatus': 'RUNNING'}] : Atomic TD+positive-count cold restore launched old deployment tasks
+
+----------------------------------------------------------------------
+Ran 24 tests in 0.035s
+
+FAILED (failures=1)
