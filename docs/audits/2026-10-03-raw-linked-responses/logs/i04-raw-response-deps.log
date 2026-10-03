@@ -1,0 +1,20 @@
+@oxy.so/utils build: $ rm -rf dist
+@oxy.so/utils build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/utils build: $ tsc -p tsconfig.esm.json && node scripts/mark-esm.mjs
+@oxy.so/utils build: $ tsc -p tsconfig.types.json
+@oxy.so/utils build: Exited with code 0
+@oxy.so/contracts build: $ tsc -p tsconfig.cjs.json
+@oxy.so/contracts build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/contracts build: ESM imports fixed
+@oxy.so/contracts build: $ tsc -p tsconfig.types.json
+@oxy.so/contracts build: Exited with code 0
+@oxy.so/protocol build: $ tsc -p tsconfig.cjs.json
+@oxy.so/protocol build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/protocol build: ESM imports fixed
+@oxy.so/protocol build: $ tsc -p tsconfig.types.json
+@oxy.so/protocol build: Exited with code 0
+@oxy.so/telemetry build: $ rm -rf dist
+@oxy.so/telemetry build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/telemetry build: $ tsc -p tsconfig.esm.json
+@oxy.so/telemetry build: $ tsc -p tsconfig.types.json
+@oxy.so/telemetry build: Exited with code 0

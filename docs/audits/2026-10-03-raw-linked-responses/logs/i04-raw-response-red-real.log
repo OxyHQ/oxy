@@ -1,0 +1,128 @@
+$ jest --passWithNoTests --runInBand src/__tests__/rawResponse.test.ts
+FAIL src/__tests__/rawResponse.test.ts
+  ● keeps public envelopes unread without accepting a caller bearer or cookie
+
+    TypeError: linked.client.requestResponse is not a function
+
+      43 |   const { linked } = fixture(false);
+      44 |   try {
+    > 45 |     const response = await linked.client.requestResponse({ method: 'GET', url: '/public', headers: { Authorization: 'Bearer forged', Cookie: 'forged=1' } });
+         |                                          ^
+      46 |     expect(response.bodyUsed).toBe(false);
+      47 |     expect(await response.json()).toEqual(envelope);
+      48 |     expect(seen.at(-1)).toMatchObject({ path: '/public', authorization: undefined, cookie: undefined });
+
+      at Object.<anonymous> (src/__tests__/rawResponse.test.ts:45:42)
+
+  ● refuses absolute foreign origins before sending the bearer
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {}
+
+      61 |   try {
+      62 |     const before = seen.length;
+    > 63 |     await expect(linked.client.requestAuthenticatedResponse({ method: 'GET', url: `${origin.replace('127.0.0.1', 'localhost')}/foreign` })).rejects.toThrow();
+         |           ^
+      64 |     expect(seen).toHaveLength(before);
+      65 |   } finally { linked.dispose(); }
+      66 | });
+
+      at expect (../../node_modules/.bun/expect@30.5.1/node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (src/__tests__/rawResponse.test.ts:63:11)
+
+  ● refuses redirects instead of changing the write target
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {}
+
+      69 |   try {
+      70 |     const before = seen.length;
+    > 71 |     await expect(linked.client.requestAuthenticatedResponse({ method: 'POST', url: '/redirect', body: '{}' })).rejects.toThrow();
+         |           ^
+      72 |     expect(seen.slice(before).map(({ path }) => path)).toEqual(['/redirect']);
+      73 |   } finally { linked.dispose(); }
+      74 | });
+
+      at expect (../../node_modules/.bun/expect@30.5.1/node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (src/__tests__/rawResponse.test.ts:71:11)
+
+  ● replays a serialised write once after SDK refresh with the same body and owned bearer
+
+    TypeError: linked.client.requestResponse is not a function
+
+      78 |     const refresh = jest.fn(async () => token('new')); oxy.http.setAuthRefreshHandler(refresh);
+      79 |     const before = seen.length;
+    > 80 |     const response = await linked.client.requestResponse({ method: 'POST', url: '/refresh', body: '{"id":"same-intent"}', headers: { authorization: 'Bearer forged' } });
+         |                                          ^
+      81 |     expect(response.bodyUsed).toBe(false); expect(await response.json()).toEqual(envelope);
+      82 |     expect(refresh).toHaveBeenCalledTimes(1);
+      83 |     expect(seen.slice(before).map(({ body, authorization }) => ({ body, authorization }))).toEqual([
+
+      at Object.<anonymous> (src/__tests__/rawResponse.test.ts:80:42)
+
+  ● does not retry a second 401 or consume its response body
+
+    TypeError: linked.client.requestResponse is not a function
+
+      92 |     const refresh = jest.fn(async () => token('new')); oxy.http.setAuthRefreshHandler(refresh);
+      93 |     const before = seen.length;
+    > 94 |     const response = await linked.client.requestResponse({ method: 'POST', url: '/401', body: '{}' });
+         |                                          ^
+      95 |     expect(response.status).toBe(401); expect(response.bodyUsed).toBe(false);
+      96 |     expect(await response.json()).toEqual({ error: 'expired' });
+      97 |     expect(seen).toHaveLength(before + 2); expect(refresh).toHaveBeenCalledTimes(1);
+
+      at Object.<anonymous> (src/__tests__/rawResponse.test.ts:94:42)
+
+  ● uses the explicit multipart transport and leaves boundary generation to fetch
+
+    TypeError: linked.client.requestResponse is not a function
+
+      103 |     const form = new FormData(); form.append('file', new Blob(['fixture content'], { type: 'text/plain' }), 'fixture.txt');
+      104 |     const transport = jest.fn((input: Parameters<typeof fetch>[0], init?: RequestInit) => fetch(input, init));
+    > 105 |     const response = await linked.client.requestResponse({ method: 'POST', url: '/multipart', body: form, fetch: transport });
+          |                                          ^
+      106 |     expect(await response.json()).toEqual(envelope); expect(transport).toHaveBeenCalledTimes(1);
+      107 |     expect(transport.mock.calls[0]?.[1]).toMatchObject({ credentials: 'omit', redirect: 'error', body: form });
+      108 |     expect(seen.at(-1)?.contentType).toMatch(/^multipart\/form-data; boundary=/);
+
+      at Object.<anonymous> (src/__tests__/rawResponse.test.ts:105:42)
+
+  ● does not refresh or replay multipart writes on 401
+
+    TypeError: linked.client.requestResponse is not a function
+
+      115 |     const refresh = jest.fn(async () => token('new')); oxy.http.setAuthRefreshHandler(refresh);
+      116 |     const form = new FormData(); form.append('id', 'fixture'); const before = seen.length;
+    > 117 |     const response = await linked.client.requestResponse({ method: 'POST', url: '/401', body: form });
+          |                                          ^
+      118 |     expect(response.status).toBe(401); expect(response.bodyUsed).toBe(false); await response.body?.cancel();
+      119 |     expect(seen).toHaveLength(before + 1); expect(refresh).not.toHaveBeenCalled();
+      120 |   } finally { linked.dispose(); }
+
+      at Object.<anonymous> (src/__tests__/rawResponse.test.ts:117:42)
+
+  ● honours cancellation before dispatch and during response streaming
+
+    TypeError: linked.client.requestResponse is not a function
+
+      124 |   try {
+      125 |     const before = seen.length; const cancelled = new AbortController(); cancelled.abort();
+    > 126 |     await expect(linked.client.requestResponse({ method: 'GET', url: '/public', signal: cancelled.signal })).rejects.toThrow();
+          |                                ^
+      127 |     expect(seen).toHaveLength(before);
+      128 |     const controller = new AbortController();
+      129 |     const response = await linked.client.requestResponse({ method: 'GET', url: '/slow', signal: controller.signal });
+
+      at Object.<anonymous> (src/__tests__/rawResponse.test.ts:126:32)
+
+Test Suites: 1 failed, 1 total
+Tests:       8 failed, 1 passed, 9 total
+Snapshots:   0 total
+Time:        1.078 s
+Ran all test suites matching src/__tests__/rawResponse.test.ts.
+error: script "test" exited with code 1

@@ -1,0 +1,32 @@
+$ jest --passWithNoTests --runInBand src/__tests__/rawResponse.test.ts src/__tests__/linkedClient.test.ts
+FAIL src/__tests__/rawResponse.test.ts
+  ● does not dispatch again if cancelled while refresh is pending
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "CANCELLED",
+    +   "code": "TIMEOUT",
+      }
+
+      165 |     const controller = new AbortController(); const before = seen.length;
+      166 |     const pending = linked.client.requestResponse({ method: 'POST', url: '/refresh', body: '{}', signal: controller.signal });
+    > 167 |     const rejected = expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+          |                                              ^
+      168 |     await ready; controller.abort(); release(); await rejected;
+      169 |     expect(seen).toHaveLength(before + 1);
+      170 |   } finally { linked.dispose(); }
+
+      at Object.toMatchObject (../../node_modules/.bun/expect@30.5.1/node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (src/__tests__/rawResponse.test.ts:167:46)
+
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       1 failed, 24 passed, 25 total
+Snapshots:   0 total
+Time:        0.459 s, estimated 1 s
+Ran all test suites matching src/__tests__/rawResponse.test.ts|src/__tests__/linkedClient.test.ts.
+error: script "test" exited with code 1
