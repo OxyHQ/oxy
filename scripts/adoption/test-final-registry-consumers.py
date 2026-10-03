@@ -84,6 +84,12 @@ class Fixtures(unittest.TestCase):
         (package/'index.js').write_text('changed')
         with self.assertRaises(RuntimeError):m.verify_installed(self.row,registry)
 
+    def test_explicit_nested_workspace_importer_is_discovered(self):
+        (self.root/'package.json').write_text('{"workspaces":["packages/*","packages/extension/webview-ui"]}')
+        nested=self.root/'packages/extension/webview-ui';nested.mkdir(parents=True)
+        (nested/'package.json').write_text('{"name":"nested","dependencies":{"@oxy.so/core":"4.2.0"}}')
+        self.assertIn(nested/'package.json',m.importer_manifests(self.root))
+
     def test_foreign_registry_origin_refuses_before_network(self):
         with self.assertRaises(RuntimeError):m.download('https://foreign.invalid/pkg.tgz',100)
 

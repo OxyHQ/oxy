@@ -70,7 +70,7 @@ patch hashes, and `git apply --check`; it makes no registry request or consumer
 change. All 17 prepared worktrees passed this preflight.
 
 At the root's registry-ready signal, `--execute` additionally reads authenticated
-Git main ancestry through each configured origin, fetches its exact object
+Git remote main ancestry through each configured origin, fetches its exact object
 without updating FETCH_HEAD, and refuses an unpreserved main change. It checks
 all five published Oxy versions via the canonical npm registry, SHA512 and
 **every shipping file** against the reviewed comparison packs before editing
@@ -99,9 +99,26 @@ requires reviewing that state and refreshing the exact prepared manifest input
 if it already changed. Root separately captures/pauses active deploy and package
 publisher workflows before merges and applies the digest/count protocol above.
 
-Offline controls: 11 PASS, including actual temporary-Git main advancement,
+Offline controls: 12 PASS, including actual temporary-Git main advancement,
 registry missing/integrity/member differences, malicious archive paths, no
 receipt overwrite, and actual Node importer resolution/member mismatch. No
 registry-dependent execution has occurred. `registry-runner-proof.json` records
 source/log hashes and the all-17 preflight receipt. Atlas remains candidate-only
 until the same registry procedure is completed.
+
+### Fresh remote heads and nested workspaces
+
+A separate read-only run of `preflight(row, check_main=True)` passed all17
+repositories: each actual remote main is already an ancestor of its prepared
+branch. No rebase was required at this observation. Execution repeats that
+check; the receipt is not a perpetual main pin.
+
+The tracked-manifest census found64 importers using SDK/Bloom. Every Oxy SDK
+importer is covered. Discovery now follows the root workspace patterns,
+including explicit nested workspaces, instead of assuming one directory level.
+Codea's Alia webview is the sole nested Bloom-only exception: it imports the
+theme provider/CSS, uses no OxyServices or auth dialog, and currently resolves
+its own Bloom6.3.0. Its existing manifest is preserved. Its own build passed
+with that actual resolution; no claim is made that it tested621 or712. Recheck
+its resolution/build after final lock regeneration. No speculative downgrade or
+new release is introduced for this standalone theme consumer.

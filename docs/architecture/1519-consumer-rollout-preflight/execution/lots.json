@@ -471,7 +471,21 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "standaloneBloomExceptions": [
+        {
+          "manifest": "packages/alia-codea/webview-ui/package.json",
+          "declaredRange": "^6.3.0",
+          "observedVersion": "6.3.0",
+          "imports": [
+            "BloomThemeProvider",
+            "design-tokens/theme.css"
+          ],
+          "usesOxyServices": false,
+          "candidateBuildExit": 0,
+          "action": "Preserve standalone manifest; recheck resolution/build after final lock. No affected auth dialog is imported here."
+        }
+      ]
     },
     {
       "repository": "OxyHQ/Mention",

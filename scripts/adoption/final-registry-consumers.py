@@ -116,10 +116,22 @@ def preflight(row, check_main=False):
     return {'repository': row['repository'], 'head': row['preparedHead'], 'currentMain': current_main, 'patchSha256': row['manifestPatch']['sha256']}
 
 
+def importer_manifests(wt):
+    root = wt / 'package.json'
+    data = json.loads(root.read_text())
+    workspaces = data.get('workspaces', [])
+    patterns = workspaces.get('packages', []) if isinstance(workspaces, dict) else workspaces
+    manifests = {root}
+    for pattern in patterns:
+        require(isinstance(pattern, str) and not Path(pattern).is_absolute() and '..' not in Path(pattern).parts, 'Invalid workspace pattern')
+        manifests.update(p for p in wt.glob(pattern.rstrip('/') + '/package.json') if p.is_file())
+    return sorted(manifests)
+
+
 def verify_installed(row, registry):
     wt = Path(row['worktree'])
     expected = {item['name']: item for item in registry}
-    importer_files = [wt / 'package.json', *wt.glob('packages/*/package.json'), *wt.glob('apps/*/package.json')]
+    importer_files = importer_manifests(wt)
     receipts = []
     resolver = """const fs=require('node:fs'),path=require('node:path'),{createRequire}=require('node:module');
 const [manifest,name]=process.argv.slice(1);const req=createRequire(manifest);let p=path.dirname(req.resolve(name));

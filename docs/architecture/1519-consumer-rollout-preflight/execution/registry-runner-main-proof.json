@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "previousProofCommit": "ec3bac056",
+  "observedAt": "2026-10-03T20:10:30.329297+00:00",
+  "sources": [
+    {
+      "path": "scripts/adoption/final-registry-consumers.py",
+      "sha256": "798ddad760c33d1fc84969ff5fddcdb0d9532cbf2b78282917435368b51dec00"
+    },
+    {
+      "path": "scripts/adoption/test-final-registry-consumers.py",
+      "sha256": "d1c300a030bfc61cc509a8b7c7f2336b6265dd4d852d72bc4379edcf9358fd90"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/README.md",
+      "sha256": "6805c4f4f2d3370c5e21611fc384df3b40874fcfe668906baa87867ed04eb0cb"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
+      "sha256": "79cfa70af5c31f86ae4f0bb8aae7d6ffc54f2fcd3b4b36ae28ae4ede66b17960"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/main-preflight.json",
+      "sha256": "cb695e0e7e3b5ce36cc015e11e6a3bf1f638896e40d70116530d5dbe92948161"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/importer-census.json",
+      "sha256": "d87ef148db86b59c71a73a56669aebfdec40401cda0091bcc3628895c239238b"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/tests-final.log",
+      "sha256": "58e0287d6e848097208e26c9437fe547439d2dd044bfbb0737417d0712e5c41e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/alia-webview-build.log",
+      "sha256": "758272643acef34218b7fd5a1fecda85671d9cb74300cf4f97cf343712ff5581"
+    }
+  ],
+  "validation": {
+    "offlineTests": 12,
+    "remoteMainAncestorChecks": 17,
+    "trackedSdkOrBloomImporterManifests": 64,
+    "uncoveredOxySdkImporters": 0,
+    "nestedStandaloneBloomManifests": 1,
+    "registryRequests": 0,
+    "consumerMutations": 0,
+    "rebasesNeeded": 0
+  }
+}
