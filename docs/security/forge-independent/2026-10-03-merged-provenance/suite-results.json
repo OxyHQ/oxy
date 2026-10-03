@@ -1,0 +1,82 @@
+[
+  {
+    "name": "proposal150",
+    "command": [
+      "node",
+      "scripts/test-forge-remediation-proof-proposal.mjs"
+    ],
+    "exitCode": 0,
+    "seconds": 0.32588982582092285
+  },
+  {
+    "name": "policy123",
+    "command": [
+      "node",
+      "scripts/test-forge-audit-policy.mjs"
+    ],
+    "exitCode": 0,
+    "seconds": 1.222484827041626
+  },
+  {
+    "name": "topology20",
+    "command": [
+      "node",
+      "scripts/test-forge-source-topology.mjs"
+    ],
+    "exitCode": 0,
+    "seconds": 0.07020235061645508
+  },
+  {
+    "name": "binding43",
+    "command": [
+      "node",
+      "scripts/test-forge-final-image-binding.mjs"
+    ],
+    "exitCode": 0,
+    "seconds": 0.027906417846679688
+  },
+  {
+    "name": "collector61",
+    "command": [
+      "node",
+      "scripts/test-forge-final-image-collector.mjs"
+    ],
+    "exitCode": 0,
+    "seconds": 0.05623316764831543
+  },
+  {
+    "name": "dag82",
+    "command": [
+      "node",
+      "scripts/test-forge-future-dag.mjs"
+    ],
+    "exitCode": 1,
+    "seconds": 0.03361797332763672,
+    "credited": false,
+    "reason": "Node invocation invalid for Bun.YAML runner; production code unchanged"
+  },
+  {
+    "name": "dag82",
+    "command": [
+      "bun",
+      "scripts/test-forge-future-dag.mjs"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "legacy14",
+    "command": [
+      "bash",
+      ".github/scripts/test-resolve-queue-image.sh"
+    ],
+    "exitCode": 0
+  },
+  {
+    "name": "audit10",
+    "command": [
+      "bun",
+      "scripts/test-check-dependency-audit.mjs"
+    ],
+    "exitCode": 0
+  }
+]

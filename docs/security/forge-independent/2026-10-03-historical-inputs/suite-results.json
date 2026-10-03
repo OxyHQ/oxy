@@ -1,0 +1,73 @@
+{
+  "capturedAt": "2026-10-03T07:01:37.676756+00:00",
+  "node": "v24.21.0",
+  "bun": "1.4.2",
+  "results": [
+    {
+      "name": "historical43",
+      "command": [
+        "node",
+        "scripts/test-forge-independent-inputs.mjs"
+      ],
+      "exitCode": 0,
+      "terminalMarker": "43 assertions passed",
+      "markerPresent": true,
+      "seconds": 0.098
+    },
+    {
+      "name": "policy144",
+      "command": [
+        "node",
+        "scripts/test-forge-audit-policy.mjs"
+      ],
+      "exitCode": 0,
+      "terminalMarker": "144 structural and isolated policy assertions passed",
+      "markerPresent": true,
+      "seconds": 1.288
+    },
+    {
+      "name": "proposal150",
+      "command": [
+        "node",
+        "scripts/test-forge-remediation-proof-proposal.mjs"
+      ],
+      "exitCode": 0,
+      "terminalMarker": "150",
+      "markerPresent": true,
+      "seconds": 0.317
+    },
+    {
+      "name": "dag82",
+      "command": [
+        "bun",
+        "scripts/test-forge-future-dag.mjs"
+      ],
+      "exitCode": 0,
+      "terminalMarker": "82 committed",
+      "markerPresent": true,
+      "seconds": 0.353
+    },
+    {
+      "name": "legacy14",
+      "command": [
+        "bash",
+        ".github/scripts/test-resolve-queue-image.sh"
+      ],
+      "exitCode": 0,
+      "terminalMarker": "resolve-queue-image: all cases pass",
+      "markerPresent": true,
+      "seconds": 0.313
+    },
+    {
+      "name": "audit10",
+      "command": [
+        "bun",
+        "scripts/test-check-dependency-audit.mjs"
+      ],
+      "exitCode": 0,
+      "terminalMarker": "All 10 dependency-audit cases passed",
+      "markerPresent": true,
+      "seconds": 0.193
+    }
+  ]
+}

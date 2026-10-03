@@ -48,6 +48,6 @@ try {
     ]) { const x = structuredClone(facts); mutate(x); assert.equal(checkSourceTopologyStructure(x, { sourceSha: source }, base).eligible, false); count++; }
   }
   assert.equal(checkSourceTopologyStructure(undefined, undefined, base).eligible, false); count++;
-  assert.equal(FROZEN_BASE_HEAD, '4b145040afca38be93ad4096241d4c60e12e1c82'); count++;
+  assert.equal(FROZEN_BASE_HEAD, '73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12'); count++;
 } finally { rmSync(root, { recursive: true, force: true }); }
 console.log(`${count} real Git SQUASH source-binding assertions pass; metadata is explicitly synthetic, no live approval.`);

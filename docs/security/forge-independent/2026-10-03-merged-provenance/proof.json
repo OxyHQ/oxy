@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "2407e568eccc8adc03dd00383772d441172dc253",
+  "baseHead": "73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12",
+  "status": "SOURCE_FIX_TESTED_POLICY_INACTIVE_FRESH_ARM_REQUIRED",
+  "securityApprovalClaim": false,
+  "expiryUnchanged": "2026-10-09T22:00:00.000Z",
+  "sourceInputs": [
+    {
+      "file": ".github/workflows/forge-candidate-image-proof.yml",
+      "sha256": "700448b9b93499bdb162fe079a492f444106b158b5c4ef37b8241051a36fa47c"
+    },
+    {
+      "file": "docs/security/forge-candidate/provenance/audit-policy-decision.json",
+      "sha256": "1f6548d819af8f247cf599b3c6cbbab98f5fcaad3a911a28d9fa13e6562a518e"
+    },
+    {
+      "file": "scripts/forge-remediation-proof-proposal.mjs",
+      "sha256": "61fba9f254ad7c7327947242ab39bb9e1aa8df825ab7124664b6a936ef5e4172"
+    },
+    {
+      "file": "scripts/forge-source-topology.mjs",
+      "sha256": "2216c161537c04b06b49bde8d603112f9a6982bc2a301bed1ab4a2b3454fc047"
+    },
+    {
+      "file": "scripts/test-forge-remediation-proof-proposal.mjs",
+      "sha256": "e3882401244b272eb8b86fb8aa1ff14c068c391a24d4d35a0926820988b4a999"
+    },
+    {
+      "file": "scripts/test-forge-source-topology.mjs",
+      "sha256": "fa6b0e960a6e8cbb4629c8a5916e3fdfd2cae55df011b550cf8d3c6f0276fdd7"
+    }
+  ],
+  "records": [
+    {
+      "file": "proposal150.log",
+      "sha256": "b46f4bc183bf111c7ed20a81bb3596bb7676d63f53bece4dbe4c567a7f8d1a52",
+      "credited": true
+    },
+    {
+      "file": "policy123.log",
+      "sha256": "07aaefa652cfcecade63a9733b8e6d1d16d1b8145267425f8a584f739cf12545",
+      "credited": true
+    },
+    {
+      "file": "topology20.log",
+      "sha256": "b11f784808c503afd7758fb8b018d41ab2ccc5ebe574f5da8fab144875823ed0",
+      "credited": true
+    },
+    {
+      "file": "binding43.log",
+      "sha256": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4",
+      "credited": true
+    },
+    {
+      "file": "collector61.log",
+      "sha256": "9746a7f6baed84fa55c2320db1dca1acb2e69c1aac74423199a7db1394317c95",
+      "credited": true
+    },
+    {
+      "file": "dag82.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9",
+      "credited": true
+    },
+    {
+      "file": "legacy14.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3",
+      "credited": true
+    },
+    {
+      "file": "audit10.log",
+      "sha256": "7a58bf46bbdd442d52778789e68999c475f3331f64ffcd9fd526b166ab8e2bce",
+      "credited": true
+    },
+    {
+      "file": "red.log",
+      "sha256": "97d80e31f72f6a8acd2330d438c858fc42d9a261dde25c445923c4f384148d8f",
+      "credited": false
+    },
+    {
+      "file": "initial-dag-node-invocation-error.log",
+      "sha256": "8967060c6ba418afbf4ec83e6ed2fda512eed951c36a5c97c1cdebb49ee7fd1d",
+      "credited": false
+    },
+    {
+      "file": "suite-results.json",
+      "sha256": "e1d73ab1e5c1d3ff28b708883d7c2118866b7d8aad2fc826691308a2ba9e4010",
+      "credited": false
+    },
+    {
+      "file": "actual-main-evaluate.json",
+      "sha256": "ae27ebd49bc33bff7c6dcc1f3accefb7f84c3c346631b9b2ef0a66d9b9789601",
+      "credited": false
+    },
+    {
+      "file": "github-merged-association.json",
+      "sha256": "2686b8dd093817ee2d8cbe7ad21cadf9dfa4b3ea9a453da3bc8d967773ebef3f",
+      "credited": false
+    }
+  ],
+  "suiteResults": [
+    {
+      "name": "proposal150",
+      "command": [
+        "node",
+        "scripts/test-forge-remediation-proof-proposal.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 0.32588982582092285
+    },
+    {
+      "name": "policy123",
+      "command": [
+        "node",
+        "scripts/test-forge-audit-policy.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 1.222484827041626
+    },
+    {
+      "name": "topology20",
+      "command": [
+        "node",
+        "scripts/test-forge-source-topology.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 0.07020235061645508
+    },
+    {
+      "name": "binding43",
+      "command": [
+        "node",
+        "scripts/test-forge-final-image-binding.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 0.027906417846679688
+    },
+    {
+      "name": "collector61",
+      "command": [
+        "node",
+        "scripts/test-forge-final-image-collector.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 0.05623316764831543
+    },
+    {
+      "name": "dag82",
+      "command": [
+        "node",
+        "scripts/test-forge-future-dag.mjs"
+      ],
+      "exitCode": 1,
+      "seconds": 0.03361797332763672,
+      "credited": false,
+      "reason": "Node invocation invalid for Bun.YAML runner; production code unchanged"
+    },
+    {
+      "name": "dag82",
+      "command": [
+        "bun",
+        "scripts/test-forge-future-dag.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "legacy14",
+      "command": [
+        "bash",
+        ".github/scripts/test-resolve-queue-image.sh"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "audit10",
+      "command": [
+        "bun",
+        "scripts/test-check-dependency-audit.mjs"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "independentInputEquality": {
+    "packages": {
+      "previous": "0dd0ca266d583f50abb62335cff8434aea953cf2",
+      "current": "0dd0ca266d583f50abb62335cff8434aea953cf2"
+    },
+    "bun.lock": {
+      "previous": "266d2176150ca013b673908bb22bc84f20a65b5f",
+      "current": "266d2176150ca013b673908bb22bc84f20a65b5f"
+    },
+    "package.json": {
+      "previous": "19136677bba961cb17936a52f1262b4d54801a78",
+      "current": "19136677bba961cb17936a52f1262b4d54801a78"
+    },
+    "bunfig.toml": {
+      "previous": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+      "current": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8"
+    },
+    "tsconfig.json": {
+      "previous": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
+      "current": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6"
+    },
+    "turbo.json": {
+      "previous": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
+      "current": "c8107e13fea5f8c5f4909298b893f99c7ca3df53"
+    },
+    "patches/node-forge@1.4.0.patch": {
+      "previous": "b037fdf33071904943aba0a67bff16a48cae6571",
+      "current": "b037fdf33071904943aba0a67bff16a48cae6571"
+    },
+    "docs/security/forge-candidate/toolchain.bun.lock": {
+      "previous": "b9654e7dcea881ebcc83460a643377c5307e46c1",
+      "current": "b9654e7dcea881ebcc83460a643377c5307e46c1"
+    },
+    "scripts/rehearsal/test-forge-final-input-1519.py": {
+      "previous": "c61511bc703368530a680bd54bd082406e86a0e7",
+      "current": "c61511bc703368530a680bd54bd082406e86a0e7"
+    },
+    "scripts/forge-independent-expo-compat.cjs": {
+      "previous": "384e1862e54d2bda1a79b0415909ca4341ed5bbb",
+      "current": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
+    }
+  },
+  "reuse": {
+    "previousFrozenSource": "2f1f18d54ced21a89f5d8151555df238f9058b57",
+    "machineEvidencePath": "docs/security/forge-independent/2026-10-03-final-input/proof.json",
+    "machineProofSha256": "d4c9a8c9330b362ff82eb5b4e2368e3abcd73e2f885aa36525b8c0d9d2a8dbcf",
+    "reason": "All ten independent package/toolchain/patch/suite input objects unchanged; Oxy34/Expo14 and crypto/build outputs remain prior measured evidence. No fresh crypto/package rerun claimed."
+  },
+  "limits": [
+    "Source metadata and unit fixtures do not prove fresh candidate ARM image or next queue publication.",
+    "Original main73bf authenticated evaluate had one workflow-run identity error; failed publisher never reached skopeo copy.",
+    "Initial DAG Node invocation errored; corrected Bun command passes82. Errors remain retained.",
+    "No deployment, publication, IAM, auth/grant/catalogue/DDL or expiry change was executed by this fix."
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "capturedAt": "2026-10-03T07:02:01.482Z",
+  "historicalSource": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
+  "repository": "OxyHQ/oxy",
+  "method": "fixed /usr/bin/gh authenticated GET Git Data API; no local historical object required",
+  "reviewed": {
+    "packages": "0dd0ca266d583f50abb62335cff8434aea953cf2",
+    "bun.lock": "266d2176150ca013b673908bb22bc84f20a65b5f",
+    "package.json": "19136677bba961cb17936a52f1262b4d54801a78",
+    "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+    "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
+    "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
+    "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
+    "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
+    "scripts/rehearsal/test-forge-final-input-1519.py": "c61511bc703368530a680bd54bd082406e86a0e7",
+    "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
+  },
+  "target": {
+    "packages": "0dd0ca266d583f50abb62335cff8434aea953cf2",
+    "bun.lock": "266d2176150ca013b673908bb22bc84f20a65b5f",
+    "package.json": "19136677bba961cb17936a52f1262b4d54801a78",
+    "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+    "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
+    "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
+    "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
+    "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
+    "scripts/rehearsal/test-forge-final-input-1519.py": "c61511bc703368530a680bd54bd082406e86a0e7",
+    "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
+  },
+  "allTenMatch": true
+}

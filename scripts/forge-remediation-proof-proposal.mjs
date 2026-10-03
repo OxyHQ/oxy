@@ -8,6 +8,52 @@ import { execFileSync } from 'node:child_process';
 import { userInfo } from 'node:os';
 import { inflateRawSync, crc32 } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
+export const INDEPENDENT_INPUT_PATHS = Object.freeze(['packages', 'bun.lock', 'package.json', 'bunfig.toml', 'tsconfig.json', 'turbo.json', 'patches/node-forge@1.4.0.patch', 'docs/security/forge-candidate/toolchain.bun.lock', 'scripts/rehearsal/test-forge-final-input-1519.py', 'scripts/forge-independent-expo-compat.cjs']);
+/** Structural tree traversal only. Synthetic GET callbacks confer no authentication. */
+export function readPinnedIndependentInputObjects(sourceSha, getJson) {
+  const commitId = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
+  if (!commitId(sourceSha)) throw new Error('Exact historical commit SHA required');
+  const prefix = 'repos/OxyHQ/oxy/git/';
+  const url = path => `https://api.github.com/${path}`;
+  const path = `${prefix}commits/${sourceSha}`;
+  const commit = getJson(path);
+  if (commit?.sha !== sourceSha || commit.url !== url(path) || !commitId(commit.tree?.sha)
+    || commit.tree.url !== url(`${prefix}trees/${commit.tree.sha}`)) throw new Error('Historical commit/repository/tree binding differs');
+  const cache = new Map();
+  const tree = sha => {
+    if (!cache.has(sha)) {
+      if (!commitId(sha) || cache.size >= 32) throw new Error('Historical tree traversal exceeds bound');
+      const path = `${prefix}trees/${sha}`;
+      const value = getJson(path);
+      if (value?.sha !== sha || value.url !== url(path) || value.truncated !== false
+        || !Array.isArray(value.tree) || value.tree.length > 2500
+        || new Set(value.tree.map(entry => entry.path)).size !== value.tree.length) throw new Error('Historical tree is malformed, foreign, truncated or ambiguous');
+      cache.set(sha, value.tree);
+    }
+    return cache.get(sha);
+  };
+  return Object.fromEntries(INDEPENDENT_INPUT_PATHS.map(input => {
+    let at = commit.tree.sha;
+    const parts = input.split('/');
+    if (parts.length > 8) throw new Error('Historical input depth exceeds bound');
+    for (const [index, name] of parts.entries()) {
+      const entry = tree(at).find(value => value.path === name);
+      const directory = index < parts.length - 1 || input === 'packages';
+      if (!entry || !commitId(entry.sha) || (directory
+        ? entry.type !== 'tree' || entry.mode !== '040000'
+        : entry.type !== 'blob' || !['100644', '100755'].includes(entry.mode))) throw new Error(`Historical input missing or wrong type: ${input}`);
+      at = entry.sha;
+    }
+    return [input, at];
+  }));
+}
+/** Fixed authenticated GETs; no repository, program, evidence or path override. */
+export function collectIndependentInputObjects(sourceSha) {
+  return readPinnedIndependentInputObjects(sourceSha, path => JSON.parse(execFileSync('/usr/bin/gh',
+    ['api', '--hostname', 'github.com', '--method', 'GET', path],
+    { env: toolEnv(), timeout: 60000, maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })));
+}
+
 export const ADVISORY = 'GHSA-86w9-cpqp-85rv';
 export const FILES = ['lib/rsa.js', 'dist/forge.min.js', 'dist/forge.min.js.map', 'dist/forge.all.min.js', 'dist/forge.all.min.js.map'];
 export const SUITES = ['rsa-regressions', 'forge-suite', 'browser-bundles', 'expo-certificates', 'expo-update-signing', 'production-image'];
@@ -241,6 +287,25 @@ function checkGit(git, pins, fail) {
     || !same(hashes?.intentionalDanglingSharpLinks, ARM_PRUNED_LINKS) || !same(hashes?.pruningReceipt, ARM_PRUNING_RECEIPT)) fail('Committed candidate-hashes.json diverges from the reviewed baseline');
 }
 
+// Actions may erase run.pull_requests after merge. The live collector then
+// obtains BOTH the exact pinned commit's PR association and the merged PR.
+// An absent association or a caller-created object never authenticates facts.
+function candidatePullRequestBound(github, pins) {
+  const list = github?.run?.pull_requests;
+  if (!Array.isArray(list)) return false;
+  if (list.length) return list.some(pr => pr.number === pins.pullRequest);
+  const pr = github.pullRequest;
+  const repo = value => value?.full_name === TRUSTED_WORKFLOW.repository && value?.id === TRUSTED_WORKFLOW.repositoryId;
+  const matching = github.sourcePullRequests?.filter(value => value.number === pins.pullRequest);
+  const association = matching?.length === 1 ? matching[0] : null;
+  return pr?.number === pins.pullRequest && pr.state === 'closed' && pr.merged === true
+    && /^[a-f0-9]{40}$/.test(pr.merge_commit_sha ?? '') && /^[a-f0-9]{40}$/.test(pr.head?.sha ?? '')
+    && pr.head?.ref === pins.headBranch && repo(pr.head?.repo) && pr.base?.ref === 'main' && repo(pr.base?.repo)
+    && association?.head?.sha === pr.head.sha && association.head.ref === pr.head.ref && repo(association.head.repo)
+    && association.base?.ref === pr.base.ref && repo(association.base.repo)
+    && association.merge_commit_sha === pr.merge_commit_sha;
+}
+
 function checkGithub(github, git, pins, zip, now, fail) {
   if (!isObject(github)) return fail('Authenticated GitHub provenance unavailable');
   const { run, job, artifact, mergeCommit, blobsAtMerge, advisory } = github;
@@ -248,7 +313,7 @@ function checkGithub(github, git, pins, zip, now, fail) {
   if (run?.id !== pins.runId || run?.path !== W.path || run?.name !== W.name || run?.workflow_id !== W.workflowId || run?.event !== W.event
     || run?.head_sha !== pins.sourceSha || run?.head_branch !== pins.headBranch || run?.status !== 'completed' || run?.conclusion !== 'success'
     || run?.run_attempt !== pins.runAttempt || run?.repository?.full_name !== W.repository || run?.repository?.id !== W.repositoryId
-    || run?.head_repository?.full_name !== W.repository || !run?.pull_requests?.some(pr => pr.number === pins.pullRequest)) fail('Workflow run identity differs from the pinned run of the trusted workflow');
+    || run?.head_repository?.full_name !== W.repository || !candidatePullRequestBound(github, pins)) fail('Workflow run identity differs from the pinned run of the trusted workflow');
   if (job?.id !== pins.jobId || job?.run_id !== pins.runId || job?.run_attempt !== pins.runAttempt || job?.name !== W.job || job?.workflow_name !== W.name
     || job?.head_sha !== pins.sourceSha || job?.status !== 'completed' || job?.conclusion !== 'success' || !same(job?.labels, W.runnerLabels)) fail('Job identity/architecture differs from the trusted ARM job');
   if (!same(job?.steps?.map(step => step.name), W.steps) || job?.steps?.some(step => step.conclusion !== 'success')) fail('Job steps differ from the trusted workflow (mount-target check or whole-image root discovery missing, or a step did not succeed)');
@@ -515,6 +580,11 @@ export function collect(options = {}) {
     blobsAtMerge: Object.fromEntries(TRUSTED_WORKFLOW.executedPaths.map(path => [path, contents(path)])),
     advisory: api(`/advisories/${ADVISORY}`),
   };
+  if (Array.isArray(github.run.pull_requests) && github.run.pull_requests.length === 0) {
+    github.pullRequest = api(`${R}/pulls/${pins.pullRequest}`);
+    github.sourcePullRequests = api(`${R}/commits/${source}/pulls?per_page=100`);
+    if (!Array.isArray(github.sourcePullRequests) || github.sourcePullRequests.length >= 100) throw new Error('Pinned source PR associations unavailable or exceed bounded page');
+  }
   const artifactZip = api(`${R}/actions/artifacts/${pins.artifactId}/zip`, true);
   const collected = freeze({ audit, pins, git: facts, github, artifactZip, runtime, now: new Date().toISOString() });
   COLLECTED.add(collected);

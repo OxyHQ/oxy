@@ -1,0 +1,3 @@
+2026-10-03T06:40:04.6934524Z 
+2026-10-03T06:40:04.6935757Z   - Scoped Forge policy fails closed: Strict policy validation failed: Command failed: /usr/bin/git -C /home/runner/work/oxy/oxy rev-parse 9efa8d28e64f51ed32fc17dd1856e3a88d688268:packages
+2026-10-03T06:40:04.6936509Z 

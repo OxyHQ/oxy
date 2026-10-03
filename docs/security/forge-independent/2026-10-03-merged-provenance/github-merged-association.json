@@ -1,0 +1,61 @@
+{
+  "capturedAt": "2026-10-03T06:27:53.999513+00:00",
+  "sourceGetPaths": [
+    "repos/OxyHQ/oxy/actions/runs/37100967092",
+    "repos/OxyHQ/oxy/pulls/1559",
+    "repos/OxyHQ/oxy/commits/2f1f18d54ced21a89f5d8151555df238f9058b57/pulls?per_page=100"
+  ],
+  "run": {
+    "id": 37100967092,
+    "head_sha": "2f1f18d54ced21a89f5d8151555df238f9058b57",
+    "head_branch": "review/1519-service-token-issuer-20261003",
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "success",
+    "pull_requests": []
+  },
+  "pullRequest": {
+    "number": 1559,
+    "state": "closed",
+    "merged": true,
+    "merge_commit_sha": "73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12",
+    "head": {
+      "ref": "review/1519-service-token-issuer-20261003",
+      "sha": "8aae885d082c18bd115fcbbbf367d7ab188fee93",
+      "repo": {
+        "id": 973881060,
+        "full_name": "OxyHQ/oxy"
+      }
+    },
+    "base": {
+      "ref": "main",
+      "repo": {
+        "id": 973881060,
+        "full_name": "OxyHQ/oxy"
+      }
+    }
+  },
+  "sourcePullRequests": [
+    {
+      "number": 1559,
+      "state": "closed",
+      "merged": null,
+      "merge_commit_sha": "73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12",
+      "head": {
+        "ref": "review/1519-service-token-issuer-20261003",
+        "sha": "8aae885d082c18bd115fcbbbf367d7ab188fee93",
+        "repo": {
+          "id": 973881060,
+          "full_name": "OxyHQ/oxy"
+        }
+      },
+      "base": {
+        "ref": "main",
+        "repo": {
+          "id": 973881060,
+          "full_name": "OxyHQ/oxy"
+        }
+      }
+    }
+  ]
+}
