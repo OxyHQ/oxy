@@ -1,0 +1,14 @@
+{
+  "packages/api/dist/scripts/foregroundPilotConfiguration.js": {
+    "sha256": "4494a2b570f6f43b28c418842e1d2c3d1add93bc267c82de15bcdb0480f7e78e",
+    "bytes": 45479
+  },
+  "packages/api/dist/scripts/foregroundPilotExecutor.js": {
+    "sha256": "c0fcbf7d875cc5e61311ffc43f08d92fea5b1646fd65731f482df777019e686e",
+    "bytes": 8662
+  },
+  "packages/api/dist/scripts/foregroundPilotHttps.js": {
+    "sha256": "1d35c4f60130ee04585e55501ad9279b392b706d89d409faf801e88d18da4830",
+    "bytes": 5014
+  }
+}
