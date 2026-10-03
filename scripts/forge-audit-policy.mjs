@@ -13,7 +13,7 @@ import {
 
 export const DECISION_PATH = 'docs/security/forge-candidate/provenance/audit-policy-decision.json';
 export const DECLARATIVE_PATHS = Object.freeze([PINS_PATH, DECISION_PATH]);
-export const EVIDENCE_PATH = 'docs/security/forge-independent/2026-10-03-final-input/proof.json';
+export const EVIDENCE_PATH = 'docs/security/forge-independent/2026-10-03-auth-only-input/proof.json';
 export { INDEPENDENT_INPUT_PATHS } from './forge-remediation-proof-proposal.mjs';
 const RECORD_NAMES = Object.freeze(['expo-14.log', 'oxy-db-build.log', 'stock-install-pinned.log', 'candidate-install.log', 'oxy-install.log', 'stock-build.log', 'candidate-build-1.log', 'candidate-build-2.log', 'candidate-build-3.log', 'stock-upstream.log', 'candidate-upstream.log', 'expo-14-final.log', 'oxy-34.log', 'stock-controls.json', 'candidate-controls.json', 'hashes-after-build-2.json', 'candidate-build-repeat.json']);
 const EXECUTED_PATHS = Object.freeze([
