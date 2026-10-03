@@ -9,7 +9,7 @@ class ReceivingClient extends SessionClient {
 }
 const state = (revision: number, account: string | null = 'person'): DeviceSessionState => ({
   deviceId: 'shared-device', revision, updatedAt: 1720000000000, activeAccountId: account,
-  accounts: account ? [{ accountId: account, sessionId: 'session-' + account, authuser: 0 }] : [],
+  accounts: account ? [{ accountId: account, sessionId: `session-${account}`, authuser: 0 }] : [],
 });
 const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 function fixture() {
