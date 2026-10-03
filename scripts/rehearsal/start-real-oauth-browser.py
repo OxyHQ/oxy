@@ -111,7 +111,7 @@ def main():
             'AWS_SECRET_ACCESS_KEY': 'fixture-no-aws-secret', 'AWS_S3_BUCKET': 'fixture-no-bucket',
             'AUTH_WEB_ORIGIN': 'http://127.0.0.1:17961',
             'OXY_API_URL': 'http://127.0.0.1:17960', 'ASSET_CDN_URL': 'http://127.0.0.1:17960',
-            'LOG_LEVEL': 'warn'}
+            'LOG_LEVEL': 'warn', 'SMTP_RELAY_HOST': '127.0.0.1', 'SMTP_RELAY_PORT': '17964'}
         api = start(['bun', '--no-env-file', str(ROOT / 'packages/api/scripts/real-oauth-browser-api.ts'),
                      str(manifest)], 'api', fixture_env, owned)
         try:
