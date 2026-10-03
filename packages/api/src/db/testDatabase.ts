@@ -189,8 +189,7 @@ export async function dropTestDatabase(databaseUrl: string): Promise<void> {
   const name = new URL(databaseUrl).pathname.replace(/^\//, '');
   if (!TEST_DATABASE_NAME.test(name)) {
     throw new ConfigurationError(
-      `Refusing to drop "${name}": only throwaway databases created by ` +
-      'createTestDatabase (oxy_test_<16 hex>) may be dropped.'
+      `Refusing to drop "${name}": only throwaway databases created by createTestDatabase (oxy_test_<16 hex>) may be dropped.`
     );
   }
 
