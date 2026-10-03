@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/scripts/auth/test-service-token-issuer-canary-launcher-1519.py", line 23, in <module>
+    module.verify_registered(definition, definition)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/scripts/auth/run-service-token-issuer-canary-1519.py", line 119, in verify_registered
+    require(re.fullmatch(f"arn:aws:ecs:{REGION}:{ACCOUNT}:task-definition/{expected['family']}:[1-9][0-9]*", actual.get('taskDefinitionArn', '')) is not None and actual.get('status') == 'ACTIVE', 'Registered task ARN/status differs')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/scripts/auth/run-service-token-issuer-canary-1519.py", line 42, in require
+    raise RuntimeError(message)
+RuntimeError: Registered task ARN/status differs
