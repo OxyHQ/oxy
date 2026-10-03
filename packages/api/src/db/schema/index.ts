@@ -192,3 +192,4 @@ export * from './productAccess';
 export * from './productProviderEvidence';
 
 export * from './serviceActingAsAuthorityEpochs';
+export * from './billingCreditGrants';

@@ -67,7 +67,7 @@ export async function recordProductProviderPeriod(raw: ProductProviderPeriodInpu
       source: { ...input.subscription, id: sourceId },
       segment: { schemaVersion: 1, id: segmentId, subscriptionId: sourceId,
         beneficiaryAccountId: input.subscription.beneficiaryAccountId, ...input.offer, period: input.paidLine.period },
-      providerBinding: input.binding, providerObservedAt: input.providerObservedAt,
+      providerBinding: input.binding, providerObservedAt: input.providerObservedAt, advanceSourceSnapshot: true,
     }, tx);
     const inserted = await tx.insert(accessProviderPeriods).values({
       id: evidenceId, ...financialIdentity, priceId: input.paidLine.priceId,

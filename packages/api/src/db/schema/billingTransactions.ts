@@ -105,6 +105,8 @@ import { users } from './users';
 export const BILLING_TRANSACTION_TYPES = [
   'credit_purchase',
   'subscription_payment',
+  'subscription_proration',
+  'subscription_promotional_grant',
   'refund',
 ] as const;
 
@@ -193,6 +195,7 @@ export const billingTransactions = pgTable(
      */
     stripeInvoiceId: text(),
     type: text({ enum: BILLING_TRANSACTION_TYPES }).notNull(),
+    promotionId: text(),
     /** Minor units of `currency` — 2999 is $29.99. See the header. */
     amountMinorUnits: bigint({ mode: 'number' }).notNull(),
     currency: text().notNull().default(DEFAULT_BILLING_CURRENCY),
@@ -218,6 +221,10 @@ export const billingTransactions = pgTable(
     uniqueIndex('billing_transactions_subscription_invoice_key')
       .on(t.stripeInvoiceId, t.type)
       .where(subscriptionInvoiceIdempotencyPredicate(t)),
+    uniqueIndex('billing_transactions_proration_invoice_key').on(t.stripeInvoiceId, t.type)
+      .where(sql`${t.type} = 'subscription_proration' and ${t.stripeInvoiceId} is not null`),
+    uniqueIndex('billing_transactions_promotional_period_key').on(t.stripeSubscriptionId, t.stripeSubscriptionPeriodStart, t.type)
+      .where(sql`${t.type} = 'subscription_promotional_grant' and ${t.stripeSubscriptionId} is not null and ${t.stripeSubscriptionPeriodStart} is not null`),
     // The transaction list: `find({userId}).sort({createdAt: -1})`
     // (`billing.ts:248`). Mongo declared this one AND a standalone `{userId}`;
     // the standalone is redundant, since a btree serves any leading prefix.
