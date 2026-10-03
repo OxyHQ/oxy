@@ -40,6 +40,7 @@
     "expo-image": "catalog:",
     "expo-linking": "catalog:",
     "expo-router": "catalog:",
+    "expo-secure-store": "catalog:",
     "expo-splash-screen": "catalog:",
     "expo-status-bar": "catalog:",
     "expo-symbols": "catalog:",
@@ -52,6 +53,7 @@
     "react-native": "catalog:",
     "react-native-css": "^3.0.6",
     "react-native-gesture-handler": "catalog:",
+    "react-native-keyboard-controller": "catalog:",
     "react-native-reanimated": "catalog:",
     "react-native-safe-area-context": "catalog:",
     "react-native-screens": "catalog:",
@@ -77,7 +79,8 @@
     "install": {
       "exclude": [
         "react-native-safe-area-context",
-        "react-native-svg"
+        "react-native-svg",
+        "react-native-keyboard-controller"
       ]
     }
   }
