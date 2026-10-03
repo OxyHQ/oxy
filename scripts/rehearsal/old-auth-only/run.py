@@ -92,7 +92,7 @@ def main():
           'REFRESH_TOKEN_SECRET':'rollback-fixture-refresh-secret-only-64-characters-not-production',
           'DEVICE_ID_SALT':'rollback-fixture-device-salt-only-64-characters-not-production',
           'AWS_REGION':'us-west-2','AWS_ACCESS_KEY_ID':'fixture-no-aws-key','AWS_SECRET_ACCESS_KEY':'fixture-no-aws-secret','AWS_S3_BUCKET':'fixture-no-bucket',
-          'AUTH_WEB_ORIGIN':'http://127.0.0.1:18002','OXY_API_URL':'http://127.0.0.1:18002','ASSET_CDN_URL':'http://127.0.0.1:18002','LOG_LEVEL':'warn','AUTH_ONLY_SCHEMA_SOURCE':str(SCHEMA)}
+          'AUTH_WEB_ORIGIN':'http://127.0.0.1:18002','OXY_API_URL':'http://127.0.0.1:18002','ASSET_CDN_URL':'http://127.0.0.1:18002','LOG_LEVEL':'warn','AUTH_ONLY_SCHEMA_SOURCE':str(SCHEMA),'AUTH_ONLY_BOOTSTRAP_ENVIRONMENT':bootstrap_environment}
         for phase in ['fresh','repeat']:
             assert not (ROOT/'packages/api/.env').exists()
             logged(['bun','--no-env-file','run','db:migrate'],f'migrate-{phase}.log',SCHEMA/'packages/api',runtime)

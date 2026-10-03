@@ -8,6 +8,9 @@ import { randomBytes, createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 const source=process.env.AUTH_ONLY_SCHEMA_SOURCE;
 assert(source);
+const deployment=process.env.AUTH_ONLY_BOOTSTRAP_ENVIRONMENT;assert(['test','production'].includes(deployment));
+const credentialEnvironment=deployment==='production'?'production':'development';
+const keyPrefix=deployment==='production'?'oxy_pk_':'oxy_dk_';
 const require = createRequire(resolve(source,'packages/api/package.json'));
 const [mode, manifestPath] = process.argv.slice(2);
 assert(mode === 'seed' && manifestPath && process.argv.length === 4);
@@ -33,10 +36,10 @@ try {
   await getDb().insert(applicationWorkloadIdentities).values({applicationId:app.id,provider:'aws-iam',subject:'rollback-owned-workload',scopes:['user:read']});
   // Fixture only: the canonical route stores SHA-256 of a random service secret.
   const secret=randomBytes(32).toString('hex');
-  const service={publicKey:'oxy_dk_'+randomBytes(24).toString('hex'),secret,secretHash:createHash('sha256').update(secret).digest('hex')};
-  await getDb().insert(applicationCredentials).values({applicationId:app.id,name:'owned rollback service',publicKey:service.publicKey,secretHash:service.secretHash,type:'service',environment:'development',status:'active',scopes:['user:read','capability-tickets:issue','capabilities:read','catalogs:write']});
-  const clientId='oxy_dk_'+randomBytes(24).toString('hex');
-  await getDb().insert(applicationCredentials).values({applicationId:app.id,name:'owned rollback public',publicKey:clientId,type:'public',environment:'development',status:'active',scopes:['user:read']});
+  const service={publicKey:keyPrefix+randomBytes(24).toString('hex'),secret,secretHash:createHash('sha256').update(secret).digest('hex')};
+  await getDb().insert(applicationCredentials).values({applicationId:app.id,name:'owned rollback service',publicKey:service.publicKey,secretHash:service.secretHash,type:'service',environment:credentialEnvironment,status:'active',scopes:['user:read','capability-tickets:issue','capabilities:read','catalogs:write']});
+  const clientId=keyPrefix+randomBytes(24).toString('hex');
+  await getDb().insert(applicationCredentials).values({applicationId:app.id,name:'owned rollback public',publicKey:clientId,type:'public',environment:credentialEnvironment,status:'active',scopes:['user:read']});
   const privateKey=randomBytes(32).toString('hex');
   const {deriveSecp256k1PublicKey}=require('@oxy.so/protocol/secp256k1');
   const signer=require('./src/services/signature.service.ts').default;
