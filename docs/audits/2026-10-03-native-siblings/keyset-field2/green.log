@@ -1,0 +1,16 @@
+test_changes_exactly_one_byte_and_preserves_all_other_entries (test_prepare_corrupt_slot.SlotPreparation.test_changes_exactly_one_byte_and_preserves_all_other_entries) ... ok
+test_ciphertext_tag_changes_but_keyset_info_does_not (test_prepare_corrupt_slot.SlotPreparation.test_ciphertext_tag_changes_but_keyset_info_does_not) ... ok
+test_field_order_and_multibyte_lengths (test_prepare_corrupt_slot.SlotPreparation.test_field_order_and_multibyte_lengths) ... ok
+test_private_backup_receipt_and_no_overwrite (test_prepare_corrupt_slot.SlotPreparation.test_private_backup_receipt_and_no_overwrite) ... ok
+test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) ... ok
+test_refuses_wrong_file_name_symlink_and_broad_permissions (test_prepare_corrupt_slot.SlotPreparation.test_refuses_wrong_file_name_symlink_and_broad_permissions) ... ok
+test_rejects_dtd_invalid_utf8_and_oversize (test_prepare_corrupt_slot.SlotPreparation.test_rejects_dtd_invalid_utf8_and_oversize) ... ok
+test_rejects_duplicate_keyset (test_prepare_corrupt_slot.SlotPreparation.test_rejects_duplicate_keyset) ... ok
+test_rejects_malformed_or_missing_keyset (test_prepare_corrupt_slot.SlotPreparation.test_rejects_malformed_or_missing_keyset) ... ok
+test_rejects_wrong_cas_hash (test_prepare_corrupt_slot.SlotPreparation.test_rejects_wrong_cas_hash) ... ok
+test_wire_unknown_fields_are_preserved (test_prepare_corrupt_slot.SlotPreparation.test_wire_unknown_fields_are_preserved) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.001s
+
+OK

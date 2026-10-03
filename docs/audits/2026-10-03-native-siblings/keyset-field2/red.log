@@ -1,0 +1,173 @@
+test_changes_exactly_one_byte_and_preserves_all_other_entries (test_prepare_corrupt_slot.SlotPreparation.test_changes_exactly_one_byte_and_preserves_all_other_entries) ... ok
+test_ciphertext_tag_changes_but_keyset_info_does_not (test_prepare_corrupt_slot.SlotPreparation.test_ciphertext_tag_changes_but_keyset_info_does_not) ... FAIL
+test_field_order_and_multibyte_lengths (test_prepare_corrupt_slot.SlotPreparation.test_field_order_and_multibyte_lengths) ... ERROR
+test_private_backup_receipt_and_no_overwrite (test_prepare_corrupt_slot.SlotPreparation.test_private_backup_receipt_and_no_overwrite) ... ok
+test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) ... 
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1230000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f1a040801200112206161616161616161616161616161616161616161616161616161616161616161') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1a206161616161616161616161616161616161616161616161616161616161616161') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='12406161616161616161616161616161616161616161616161616161616161616161') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1280') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='128000') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1001') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1200') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='120f616161616161616161616161616161') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='00') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='13') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='0961616161616161') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1230000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f1a04080120011a80') ... ERROR
+  test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='ffffffffffffffffffffff') ... ERROR
+test_refuses_wrong_file_name_symlink_and_broad_permissions (test_prepare_corrupt_slot.SlotPreparation.test_refuses_wrong_file_name_symlink_and_broad_permissions) ... ok
+test_rejects_dtd_invalid_utf8_and_oversize (test_prepare_corrupt_slot.SlotPreparation.test_rejects_dtd_invalid_utf8_and_oversize) ... ok
+test_rejects_duplicate_keyset (test_prepare_corrupt_slot.SlotPreparation.test_rejects_duplicate_keyset) ... ok
+test_rejects_malformed_or_missing_keyset (test_prepare_corrupt_slot.SlotPreparation.test_rejects_malformed_or_missing_keyset) ... ok
+test_rejects_wrong_cas_hash (test_prepare_corrupt_slot.SlotPreparation.test_rejects_wrong_cas_hash) ... ok
+test_wire_unknown_fields_are_preserved (test_prepare_corrupt_slot.SlotPreparation.test_wire_unknown_fields_are_preserved) ... ERROR
+
+======================================================================
+ERROR: test_field_order_and_multibyte_lengths (test_prepare_corrupt_slot.SlotPreparation.test_field_order_and_multibyte_lengths)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 32, in test_field_order_and_multibyte_lengths
+    self.assertEqual(module.encrypted_keyset_span(keyset), (7, 207))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1230000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f1a040801200112206161616161616161616161616161616161616161616161616161616161616161')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1a206161616161616161616161616161616161616161616161616161616161616161')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='12406161616161616161616161616161616161616161616161616161616161616161')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1280')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='128000')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1001')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1200')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='120f616161616161616161616161616161')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='00')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='13')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='0961616161616161')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='1230000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f1a04080120011a80')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_refuses_ambiguous_truncated_or_missing_ciphertext (test_prepare_corrupt_slot.SlotPreparation.test_refuses_ambiguous_truncated_or_missing_ciphertext) (wire='ffffffffffffffffffffff')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 44, in test_refuses_ambiguous_truncated_or_missing_ciphertext
+    module.encrypted_keyset_span(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+ERROR: test_wire_unknown_fields_are_preserved (test_prepare_corrupt_slot.SlotPreparation.test_wire_unknown_fields_are_preserved)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 48, in test_wire_unknown_fields_are_preserved
+    self.assertEqual(module.encrypted_keyset_span(keyset), (13, 61))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'prepare_slot' has no attribute 'encrypted_keyset_span'
+
+======================================================================
+FAIL: test_ciphertext_tag_changes_but_keyset_info_does_not (test_prepare_corrupt_slot.SlotPreparation.test_ciphertext_tag_changes_but_keyset_info_does_not)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-native-device-proof-20261003/scripts/rehearsal/android-keyset-corruption/test_prepare_corrupt_slot.py", line 26, in test_ciphertext_tag_changes_but_keyset_info_does_not
+    self.assertNotEqual(value[49], KEYSET[49])
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 47 == 47
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.005s
+
+FAILED (failures=1, errors=15)
