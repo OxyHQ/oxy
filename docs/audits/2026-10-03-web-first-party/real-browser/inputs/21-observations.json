@@ -1,0 +1,49 @@
+{
+  "recordedAt": "2026-10-03T11:39:19.718061+00:00",
+  "result": "PARTIAL; org logout propagation failure",
+  "inputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-1117/driver.mjs",
+      "bytes": 4372,
+      "sha256": "0e147a559e19286d5d96aac6dc0fe8c2d70ba62fdec656a18ccb6f66610c2ddd"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-1117/transcript.log",
+      "bytes": 11090,
+      "sha256": "fc32e2665e7f8f4f4150d74850102778b3de3c098b29d6b2f10f11d20a85df15"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-1117/network.jsonl",
+      "bytes": 15909,
+      "sha256": "4dc4abd763eafd48308b7eb60339acafb86b8d3f71833cc66e5e5579673f42a1"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-two-holders-1125.jsonl",
+      "bytes": 12610,
+      "sha256": "d39517202b8bb58b98b3d954a96e66c658a2ae70a42d3d9bb7ddceb461a4e3f4"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-orglogout-1143.jsonl",
+      "bytes": 13134,
+      "sha256": "41c2964b5f90e38b4f5698b6336527db23708fbf28fd52b28388088ba9287e46"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-final-logout.jsonl",
+      "bytes": 12614,
+      "sha256": "ef38ee41bff8425d5627d410ffae636172962b113dd703f583b433578761ebcc"
+    }
+  ],
+  "observations": [
+    "Fresh Chromium context; real first-party dialog password sign-in on17972 then SDK join from17973 without credential entry or injection.",
+    "Both apps UI and fresh users/me person; then account dialog Switch account expanded and exact org clicked; both UI and fresh API org.",
+    "Org Sign out on B at11:35:52 produces B fallback person/API person; A token401 no_active_session, remains signedout until reload.",
+    "A reload at11:36:50 with SAME holder secret fingerprint restores person automatically.",
+    "Final person signout on B makes both apps signedout, both reload remain signedout; context.cookies empty at observed checkpoints."
+  ],
+  "limits": [
+    "Not WEB04 acceptance: fallback does not propagate reliably without reload.",
+    "SQL projection includes historical fixture sessions; new tested device01a1017f-ccc0-738b-8d2b-06a0f15a2093 has holder_count4, not asserted2.",
+    "Immediate API-button snapshot may retain previous display; later snapshot establishes fresh response.",
+    "Driver closed after final logout. API/PG/RPs retained for diagnosis."
+  ]
+}
