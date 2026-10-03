@@ -1,0 +1,48 @@
+{
+  "sourceHead": "92ae0b11a3e2980390e38cefdd50b6b9b09b0df2",
+  "sourceSha256": {
+    "packages/api/scripts/stripe-billing-sandbox-rehearsal.ts": "6f523ae41a0ace3350f5e2c8580be78ae39d65a34f1f132da83ee0b2d4e64f1b",
+    "scripts/billing/test-stripe-zero-receiver.mjs": "edab35a8dc66b42f01a9cc22e66b8539b1b3fbbf15a141da9c86cb7dabcceb90",
+    "scripts/billing/test-stripe-zero-receiver.py": "2df532e459d9faafa2ac7f6d460eb182fd5a8e74a2cac5bb94188114fddbff0e"
+  },
+  "records": {
+    "docs/billing/evidence/2026-10-03-stripe-free-receiver-final/local-receiver.log": {
+      "sha256": "0d53412be2c096990a94f9557ea7ee6fbdd7f949d1a6f26b8d20199c4a0308f9",
+      "bytes": 2272,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-free-receiver-final/scripts-ts.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-free-receiver-final/biome.log": {
+      "sha256": "69f194727da43cc6a463e6d0d05b764b64b63443a79688b0efdee53ab030c136",
+      "bytes": 42,
+      "exitCode": 0
+    }
+  },
+  "results": {
+    "actualDeliveryDiagnostic": true,
+    "failureStatus": 500,
+    "failureCode": "webhook_handler_failed",
+    "validStatus": 200,
+    "replayStatus": 200,
+    "receiptAttempts": 3,
+    "creditGrants": 0,
+    "accessGrants": 0,
+    "balance": 0,
+    "providerRequests": 0,
+    "providerMutations": 0,
+    "ownedPgPid": 3637835,
+    "ownedPgStopped": true
+  },
+  "limits": [
+    "This delta corrects the runner diagnostic wiring and local harness isolation only. Product billing/catalogue source and its positive-paid contract are unchanged.",
+    "The final local run uses the same previously captured own authenticated Stripe event and original payer/customer binding. Signatures are generated locally; no public Stripe delivery is asserted.",
+    "The original remote zero run remains failed and its status unknown. Earlier proof and private incident receipts are preserved.",
+    "Scripts TypeScript and scoped Biome ran against 8a9730 source bytes, identical to the current source except the subsequent Python environment fix. The final local PostgreSQL run used all current source bytes, now committed at sourceHead.",
+    "clean_env scrubs inherited credentials and BUN_OPTIONS, supplying only a fixed --no-env-file. Both migration environments and the receiver preserve it, plus explicit Bun flags for descendants.",
+    "No remote GET/create was repeated for this final validation. No complete I06/I07 lifecycle acceptance is inferred."
+  ]
+}
