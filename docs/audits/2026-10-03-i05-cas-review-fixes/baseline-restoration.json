@@ -1,0 +1,7 @@
+{
+  "fixtureSha256": "e89910d779f184daa95b9e19a1bdcba053d5b99d97862062f740104c3f04d5f8",
+  "baselineSourceHead": "68ba56deef769a9df9b96fb7f3ea290b5bea743d",
+  "greenSourceSha256": "42ac6c78d5cdd1fc5454cb5d2da835aa9f2d140c280021e75727ff313a1d03ba",
+  "baselineExitCode": 1,
+  "restoredSha256": "42ac6c78d5cdd1fc5454cb5d2da835aa9f2d140c280021e75727ff313a1d03ba"
+}

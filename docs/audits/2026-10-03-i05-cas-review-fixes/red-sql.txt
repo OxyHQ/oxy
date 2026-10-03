@@ -1,0 +1,70 @@
+$ jest --runInBand --runTestsByPath src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts src/scripts/__tests__/foregroundPilotHttps.test.ts src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts src/scripts/__tests__/seedOxyApplicationsPlan.test.ts
+{"level":30,"time":1791036937445,"pid":3924976,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts
+  ● rejects a new service credential in the complete census before any authority write
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"applicationId": "6a2f851751b784a86fd0e916", "backendWorkloadId": "01a1021e-d5e8-7a33-8559-c34db17a5ddc", "registrarApplicationId": "dce95bde-49ef-4f05-83b3-c4d390b322ea"}
+
+      567 | 		});
+      568 | 	const before = await snapshots(plan.expectedApplication.owner_account_id);
+    > 569 | 	await expect(applyForegroundPilotConfiguration(plan)).rejects.toThrow(
+          | 	      ^
+      570 | 		"canonical attribution identity changed",
+      571 | 	);
+      572 | 	expect(
+
+      at expect (../../node_modules/.bun/expect@30.5.1/node_modules/expect/build/index.js:2116:15)
+      at src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:569:8
+      at fulfilled (src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:5:58)
+
+  ● restores a baseline with preexisting application grants and backend scope present=false
+
+    expect(received).resolves.toEqual()
+
+    Received promise rejected instead of resolved
+    Rejected to value: [Error: I05 rollback workload changed; fresh plan required]
+
+      588 | 		const credential = await createEphemeralRegistrarCredential(plan);
+      589 | 		await retireEphemeralRegistrarCredentials(plan);
+    > 590 | 		await expect(rollbackForegroundPilotConfiguration(plan)).resolves.toEqual({
+          | 		      ^
+      591 | 			restoredMention: true,
+      592 | 			registrarRetainedSuspended: true,
+      593 | 		});
+
+      at expect (../../node_modules/.bun/expect@30.5.1/node_modules/expect/build/index.js:2116:15)
+      at src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:590:9
+      at fulfilled (src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:5:58)
+
+  ● restores a baseline with preexisting application grants and backend scope present=true
+
+    expect(received).resolves.toEqual()
+
+    Received promise rejected instead of resolved
+    Rejected to value: [Error: I05 rollback registrar changed; fresh plan required]
+
+      588 | 		const credential = await createEphemeralRegistrarCredential(plan);
+      589 | 		await retireEphemeralRegistrarCredentials(plan);
+    > 590 | 		await expect(rollbackForegroundPilotConfiguration(plan)).resolves.toEqual({
+          | 		      ^
+      591 | 			restoredMention: true,
+      592 | 			registrarRetainedSuspended: true,
+      593 | 		});
+
+      at expect (../../node_modules/.bun/expect@30.5.1/node_modules/expect/build/index.js:2116:15)
+      at src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:590:9
+      at fulfilled (src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:5:58)
+
+PASS src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts
+PASS src/scripts/__tests__/foregroundPilotHttps.test.ts
+PASS src/scripts/__tests__/seedOxyApplicationsPlan.test.ts
+
+Test Suites: 1 failed, 3 passed, 4 total
+Tests:       3 failed, 73 passed, 76 total
+Snapshots:   0 total
+Time:        0.883 s, estimated 2 s
+Ran all test suites within paths "src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts", "src/scripts/__tests__/foregroundPilotHttps.test.ts", "src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts", "src/scripts/__tests__/seedOxyApplicationsPlan.test.ts".
+error: script "test" exited with code 1

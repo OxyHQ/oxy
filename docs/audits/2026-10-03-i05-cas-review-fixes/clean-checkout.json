@@ -1,0 +1,17 @@
+{
+  "base": "c6699b5df504b2ec374b441a89635ce68ddc5c69",
+  "helperCommit": "5ba697dd5e213b5239cacd407b6aae427c1a4d51",
+  "helperEquivalentCommit": "a1343b88f",
+  "fixCommit": "76e686af0e62b14a5d2f30fa14f0c953a902bc4d",
+  "cleanCheckoutHead": "c4f9392d9c6d305a0883f35110d38e1add712801",
+  "trackedAndUntrackedStatus": "",
+  "transportSourceEquality": [
+    "scripts/agency/foreground-pilot-ecs.py",
+    "scripts/agency/tests/test_foreground_pilot_transport.py",
+    "scripts/agency/tests/foreground-pilot-compiled.mjs",
+    "scripts/agency/oxy-profile-registrar-preflight-ecs.py",
+    "scripts/agency/read-oxy-profile-registrar-preflight.mjs",
+    "scripts/agency/test-oxy-profile-registrar-preflight.py"
+  ],
+  "awsRequests": "none; protocol boundaries replaced by fixtures"
+}
