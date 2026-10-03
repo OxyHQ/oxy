@@ -24,7 +24,8 @@ def socket_fds(pid):
     return values
 
 def main():
-    assert len(os.sys.argv) == 1, 'No connection/runtime overrides'
+    assert os.sys.argv[1:] in ([], ['--production-bootstrap']), 'Only the fixed production bootstrap control is supported'
+    bootstrap_environment = 'production' if os.sys.argv[1:] else 'test'
     os.umask(0o077)
     for source in [ROOT,SCHEMA]:
         assert not (source/'.env').exists() and not (source/'packages/api/.env').exists()
@@ -37,7 +38,7 @@ def main():
     owned=Path(tempfile.mkdtemp(prefix='rollback-',dir=scratch)); owned.chmod(0o700)
     sockets=Path(tempfile.mkdtemp(prefix='i04-rb-',dir='/home/nate/Oxy/.agent-evidence')); sockets.chmod(0o700)
     data=owned/'pg'; children=[]; logs=[]; started=False; database=None; pg_pid=None
-    receipt={'schemaSource':SCHEMA_SHA,'variantSource':command(['git','rev-parse','HEAD']).strip(),'derivedFrom':'67c09e853db308d102624a2ffd40db19959344f4','directory':str(owned),'productionAccess':False}
+    receipt={'schemaSource':SCHEMA_SHA,'variantSource':command(['git','rev-parse','HEAD']).strip(),'derivedFrom':'67c09e853db308d102624a2ffd40db19959344f4','directory':str(owned),'productionAccess':False,'bootstrapNodeEnv':bootstrap_environment}
     def save(): (owned/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
     def sql(query,db='postgres'):
         return command([PG/'psql','-X','-h','127.0.0.1','-p',PORT,'-U','oxy','-d',db,'-v','ON_ERROR_STOP=1','-Atc',query]).strip()
@@ -111,7 +112,7 @@ def main():
         logged(['bun','--no-env-file','run','test','--runInBand','--runTestsByPath','src/middleware/__tests__/rollbackAuthAdmission.test.ts','src/__tests__/bootGate.test.ts'], 'admission-unit.log',ROOT/'packages/api',{k:v for k,v in runtime.items() if k != 'REDIS_URL'},timeout=240)
         ready=owned/'variant-ready.json'; log=(owned/'variant-host.log').open('w');logs.append(log)
         node=Path('/home/nate/.nvm/versions/node/v24.21.0/bin/node')
-        child=subprocess.Popen([str(node),str(ROOT/'scripts/rehearsal/old-auth-only/host.mjs'),str(ROOT),str(ready)],cwd=owned,env=env|runtime|{'OXY_RUNTIME_MODE':'rollback-auth-only','PORT':'18002'},stdout=log,stderr=subprocess.STDOUT,start_new_session=True);children.append(child)
+        child=subprocess.Popen([str(node),str(ROOT/'scripts/rehearsal/old-auth-only/host.mjs'),str(ROOT),str(ready)],cwd=owned,env=env|runtime|{'OXY_RUNTIME_MODE':'rollback-auth-only','PORT':'18002','NODE_ENV':bootstrap_environment},stdout=log,stderr=subprocess.STDOUT,start_new_session=True);children.append(child)
         deadline=time.monotonic()+90
         while not ready.exists():
             if child.poll() is not None: raise RuntimeError('Variant bootstrap exited before ready; inspect private host log')

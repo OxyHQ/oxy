@@ -7,7 +7,7 @@ import { installIoGuard } from './io-guard.mjs';
 const [source, ready] = process.argv.slice(2);
 assert(source && ready && process.argv.length===4);
 assert(process.env.OXY_RUNTIME_MODE === 'rollback-auth-only' && process.env.PORT === '18002');
-assert(process.env.NODE_ENV === 'test' && !existsSync(resolve('.env')));
+assert(['test','production'].includes(process.env.NODE_ENV) && !existsSync(resolve('.env')));
 const require = createRequire(join(source,'packages/api/package.json'));
 installIoGuard(require,ready+'.external.json');
 const intervals=[];
@@ -29,4 +29,4 @@ const allowed=['utils/sessionCache.js','utils/userCache.js','services/loginLocko
 for(const row of ownIntervals) assert(allowed.some(file=>row.stack[0]?.includes(file)) || row.stack[0]?.includes('at MemoryStore.init ('),JSON.stringify(row));
 assert(ownIntervals.some(row=>row.stack[0].includes('sessionCache.js')));
 assert(ownIntervals.some(row=>row.stack[0].includes('userCache.js')));
-writeFileSync(ready,JSON.stringify({pid:process.pid,port:18002,compiledBootstrap:true,intervals:ownIntervals}),{mode:0o600,flag:'wx'});
+writeFileSync(ready,JSON.stringify({pid:process.pid,port:18002,compiledBootstrap:true,nodeEnv:process.env.NODE_ENV,intervals:ownIntervals}),{mode:0o600,flag:'wx'});
