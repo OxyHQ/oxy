@@ -26,6 +26,7 @@ import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import sessionCache from '../utils/sessionCache';
 import sessionService from './session.service';
+import { readSessionAgentBinding } from './agentKeyAuthority.service';
 import { sha256Hex, base64UrlEncode, timingSafeStringEqual } from './oauthCode.service';
 import { effectivePermissionsForMember } from '../utils/accountRoles';
 import { formatUserNameResponse } from '../utils/displayName';
@@ -1449,8 +1450,10 @@ class DeviceSessionService {
         // call to return, and nothing breaks the cycle because only one half of
         // it is a lock Postgres can see. The binding is written after COMMIT
         // instead (issue #937, Phase 6).
+        const authMethod = await readSessionAgentBinding(principal.personalSessionId ?? undefined, principal.userId);
         const minted = await sessionService.createSession(target.accountId, req, {
           operatedByUserId: principal.userId,
+          ...(authMethod ? { authMethod } : {}),
           deviceId: locked.deviceId,
         });
         sessionId = minted.sessionId;

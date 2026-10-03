@@ -38,6 +38,7 @@
 import * as crypto from 'crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
+import { readLiveAgentKey, type AgentKeyBinding } from './agentKeyAuthority.service';
 import { authCodes } from '../db/schema/authCodes';
 import type { AgentKeyBinding } from './agentKeyAuthority.service';
 import type { SelectedRow } from '@oxy.so/db';
@@ -103,6 +104,7 @@ export interface IssueCodeOptions {
    * session bound to this operator's `account:act_as` membership.
    */
   operatedByUserId?: string;
+  authMethod?: AgentKeyBinding;
   /**
    * Pre-allocated primary key for the code row. Lets a caller RESERVE the
    * code's identity inside an atomic single-use claim (see the OAuth-bound
@@ -154,6 +156,8 @@ export async function issueAuthCode(options: IssueCodeOptions): Promise<IssueCod
       scopes: options.scopes ?? [],
       deviceId: options.deviceId ?? null,
       operatedByUserId: options.operatedByUserId ?? null,
+      authMethodId: options.authMethod?.authMethodId ?? null,
+      authMethodOwnerId: options.authMethod?.authMethodOwnerId ?? null,
       expiresAt,
     });
 
@@ -190,6 +194,8 @@ const EXCHANGE_COLUMNS = {
   scopes: authCodes.scopes,
   deviceId: authCodes.deviceId,
   operatedByUserId: authCodes.operatedByUserId,
+  authMethodId: authCodes.authMethodId,
+  authMethodOwnerId: authCodes.authMethodOwnerId,
   usedAt: authCodes.usedAt,
   expiresAt: authCodes.expiresAt,
 } as const;
@@ -221,6 +227,10 @@ export async function exchangeAuthCode(options: ExchangeCodeOptions): Promise<Ex
     .from(authCodes)
     .where(eq(authCodes.codeHash, codeHash))
     .limit(1);
+  if (stored?.authMethodId && (!stored.authMethodOwnerId || !(await readLiveAgentKey({
+    authMethodId: stored.authMethodId, authMethodOwnerId: stored.authMethodOwnerId,
+  })))) return { ok: false, reason: 'invalid_grant' };
+
 
   if (!stored) {
     return { ok: false, reason: 'invalid_grant' };

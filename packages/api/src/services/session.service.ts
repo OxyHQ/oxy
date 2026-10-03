@@ -1,6 +1,7 @@
-import { and, desc, asc, eq, gt, gte, ne } from 'drizzle-orm';
+import { and, desc, asc, eq, gt, gte, isNull, ne } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { sessions } from '../db/schema/sessions';
+import { users } from '../db/schema/users';
 /**
  * The user half of `getSessionWithUser` — the value that becomes `req.user`.
  *
@@ -33,6 +34,8 @@ import {
   type SessionTokenBindingRow,
 } from '../utils/sessionUtils';
 import deviceSessionService from './deviceSession.service';
+import { readLiveAgentKey } from './agentKeyAuthority.service';
+import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { broadcastDeviceState } from '../utils/socket';
 import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
@@ -58,6 +61,8 @@ import type {
  */
 type SessionBinding = Omit<SessionTokenBindingRow, 'sessionId' | 'userId' | 'scopes'> & {
   scopes: string[];
+  authMethodId: string | null;
+  authMethodOwnerId: string | null;
 };
 
 const SESSION_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -217,9 +222,18 @@ class SessionService {
    * mongoose wholesale, and would couple every session consumer to them).
    */
   private async ensureManagedSessionAuthorized(
-    session: Pick<CachedSession, 'sessionId' | 'userId' | 'operatedByUserId'>,
+    session: Pick<CachedSession, 'sessionId' | 'userId' | 'operatedByUserId' | 'authMethodId' | 'authMethodOwnerId'>,
     opts: { force?: boolean } = {}
   ): Promise<boolean> {
+    if (session.authMethodId) {
+      try {
+        if (!session.authMethodOwnerId || !(await readLiveAgentKey({
+          authMethodId: session.authMethodId, authMethodOwnerId: session.authMethodOwnerId,
+        }))) return false;
+      } catch {
+        return false; // no stale positive cache for autonomous credentials
+      }
+    }
     const operatorId = extractUserId(session.operatedByUserId);
     if (!operatorId) {
       return true; // ordinary session (no operator) — nothing to bind
@@ -558,7 +572,25 @@ class SessionService {
     req: Request,
     options: SessionCreateOptions = {}
   ): Promise<CachedSession> {
+    // Agent provenance is rechecked under the same lock as the write. A
+    // revoker cannot pass a key check and race a new session into existence.
+    if (options.authMethod && !options.executor) {
+      const committed = await getDb().transaction((executor) =>
+        this.createSession(userId, req, { ...options, executor }),
+      );
+      sessionCache.set(committed.sessionId, committed);
+      return committed;
+    }
+    const db = options.executor ?? getDb();
     try {
+      if (options.authMethod) {
+        const actorId = options.operatedByUserId ?? userId;
+        if (options.authMethod.authMethodOwnerId !== actorId) throw new Error('Invalid autonomous signer');
+        await db.select({ id: users.id }).from(users).where(eq(users.id, actorId)).for('share');
+        await db.select({ id: userAuthMethods.id }).from(userAuthMethods)
+          .where(eq(userAuthMethods.id, options.authMethod.authMethodId)).for('update');
+        if (!(await readLiveAgentKey(options.authMethod, db))) throw new Error('Autonomous credential revoked');
+      }
       const {
         deviceName,
         deviceFingerprint,
@@ -621,7 +653,7 @@ class SessionService {
       }
 
       // Check if this is a new device for this user (no previous sessions on this device)
-      const priorOnDevice = await getDb()
+      const priorOnDevice = await db
         .select({ id: sessions.id })
         .from(sessions)
         .where(and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceInfo.deviceId)))
@@ -634,7 +666,7 @@ class SessionService {
       // orphaning. Once migrated it's found by the primary lookup on subsequent
       // mints — the fallback can't re-sprawl.
       const reusableOn = async (candidateDeviceId: string) => {
-        const [row] = await getDb()
+        const [row] = await db
           .select(SESSION_COLUMNS)
           .from(sessions)
           .where(
@@ -642,6 +674,7 @@ class SessionService {
               eq(sessions.userId, userId),
               eq(sessions.deviceId, candidateDeviceId),
               eq(sessions.isActive, true),
+              options.authMethod ? eq(sessions.authMethodId, options.authMethod.authMethodId) : isNull(sessions.authMethodId),
               gt(sessions.expiresAt, new Date()),
               // A DELEGATED mint may only reuse a session belonging to the SAME
               // operator. One device can legitimately hold two people who both
@@ -703,6 +736,8 @@ class SessionService {
         // session the login lane bound to a device context afterwards
         // (`deviceSessionService.bindSessionToContext`).
         const reusedBinding: SessionBinding = {
+          authMethodId: options.authMethod?.authMethodId ?? existingSession.authMethodId,
+          authMethodOwnerId: options.authMethod?.authMethodOwnerId ?? existingSession.authMethodOwnerId,
           operatedByUserId: operatedByUserId ?? existingSession.operatedByUserId,
           applicationId: application ? application.applicationId : existingSession.applicationId,
           clientId: application ? application.clientId : existingSession.clientId,
@@ -738,7 +773,7 @@ class SessionService {
           ? explicitDeviceId
           : null;
 
-        const [updated] = await getDb()
+        const [updated] = await db
           .update(sessions)
           .set({
             accessToken,
@@ -770,8 +805,8 @@ class SessionService {
           .returning(SESSION_COLUMNS);
 
         if (updated) {
-          sessionCache.set(sessionId, updated);
-          if (migrateToDeviceId) {
+          if (!options.executor) sessionCache.set(sessionId, updated);
+          if (migrateToDeviceId && !options.executor) {
             logger.info('[SessionService] Migrated reused session onto caller device', {
               component: 'SessionService',
               method: 'createSession',
@@ -823,6 +858,8 @@ class SessionService {
       // states, not missing data, and the `account:act_as` re-check keys off
       // the operator being NULL.
       const newBinding: SessionBinding = {
+        authMethodId: options.authMethod?.authMethodId ?? null,
+        authMethodOwnerId: options.authMethod?.authMethodOwnerId ?? null,
         operatedByUserId: operatedByUserId || null,
         applicationId: application?.applicationId ?? null,
         clientId: application?.clientId ?? null,
@@ -836,7 +873,7 @@ class SessionService {
 
       // `deviceInfo` was a nested subdocument in Mongo; the eight fields are
       // real columns now (see the table in `db/schema/sessions.ts`).
-      const [session] = await getDb()
+      const [session] = await db
         .insert(sessions)
         .values({
           sessionId,
@@ -859,10 +896,10 @@ class SessionService {
         })
         .returning(SESSION_COLUMNS);
 
-      sessionCache.set(sessionId, session);
+      if (!options.executor) sessionCache.set(sessionId, session);
 
       // Log security event for new device (only if this is the first session on this device)
-      if (isNewDevice) {
+      if (isNewDevice && !options.executor) {
         try {
           await securityActivityService.logDeviceAdded(
             userId,

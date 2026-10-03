@@ -30,6 +30,7 @@ import { getDb } from '../config/postgres';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { users } from '../db/schema/users';
 import sessionService from '../services/session.service';
+import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import { listAccountAuditTrail } from '../services/accountAuditTrail.service';
 import { listAccountBillingAudit } from '../services/accountBillingAudit.service';
 import deviceSessionService from '../services/deviceSession.service';
@@ -286,7 +287,7 @@ async function loadAccountContext(req: AccountContextRequest): Promise<{
     throw new NotFoundError('Account not found');
   }
 
-  const access = await accountService.effectiveAccessForAccount(operatorId, account);
+  const access = await accountService.effectiveAccessForAccount(operatorId, account, req.sessionId);
   if (!access) {
     throw new ForbiddenError('You do not have access to this account');
   }
@@ -418,8 +419,10 @@ router.post(
         targetAccountId: id,
       });
     }
+    const authMethod = await readSessionAgentBinding(req.sessionId, operatorId);
     const session = await sessionService.createSession(account.id, req, {
       operatedByUserId: operatorId,
+      ...(authMethod ? { authMethod } : {}),
       ...(callerDeviceId ? { deviceId: callerDeviceId } : {}),
     });
 
@@ -527,7 +530,7 @@ router.post(
     // `children:create` is not, so implicit self-ownership would hand every
     // editor who switches a permission their role withholds. Asking the operator
     // gives each person exactly the role they already hold here.
-    const access = await accountService.resolveEffectiveAccess(operatorId, parentAccountId);
+    const access = await accountService.resolveEffectiveAccess(operatorId, parentAccountId, req.sessionId);
     if (!access) {
       throw new ForbiddenError('You do not have access to the parent account');
     }
