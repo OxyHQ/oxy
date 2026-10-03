@@ -1,0 +1,73 @@
+{
+  "sourceHead": "3f45c9ceb0a722b01bc32de9909e4e33d16fb618",
+  "composedFrom": [
+    "cf9718342",
+    "6bd315c2b",
+    "8e2618197"
+  ],
+  "sourceInputs": [
+    {
+      "path": "packages/api/drizzle/0137_public_albert_cleary.sql",
+      "sha256": "8ffd6396f7a3093f7df87fe8e65661d9d3d0b721f967d3be8a49de43e4228c57"
+    },
+    {
+      "path": "packages/api/drizzle/meta/0137_snapshot.json",
+      "sha256": "5ad8fe68cf0585fa1bcd3957876e32294e92672a8f23fe506a703e47d1725d16"
+    },
+    {
+      "path": "packages/api/drizzle/meta/_journal.json",
+      "sha256": "361a75938f5c73a7d4b421c54aa2c3392a77cf02eff7f89e0d08246d9f05d4bf"
+    },
+    {
+      "path": "packages/api/src/db/schema/__tests__/agentAuthoritySchema.test.ts",
+      "sha256": "15d3dc6b3e033bc3b2aed18edcdafb7f34d345120b37ac0e0c34abc953a10f78"
+    },
+    {
+      "path": "packages/api/src/routes/auth.ts",
+      "sha256": "18da3bdfc3ad078012a475d4cb466b88bf819c0c9a16dfb0b43d450568e085de"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/oauthConsentFinalizers.test.ts",
+      "sha256": "ed287ef750f49598dbfa16aacbd569e8156ff576a85247ac431744ea73de5ef5"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/oauthAuthorizeRedirect.test.ts",
+      "sha256": "6579f8edddb06155ae9a67ceca97c88724decee1d1410d140a26bb0166bd1b06"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/authSession.service.test.ts",
+      "sha256": "5b70ed281a1694047e5037929270cd6b8997fd2f4855d089f9d5c0d077c73f70"
+    },
+    {
+      "path": "packages/api/openapi.json",
+      "sha256": "0ceda408cc5d9ef446b577a93ac8fce495f487e7fa2e708b909ac42fa85ae8c0"
+    },
+    {
+      "path": "scripts/rehearsal/test-approved-api-1519.py",
+      "sha256": "93e128c9afc501036574f32b3a5038b11366ab574c4b36b2b7a4c920f04b5b01"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/focal.log",
+      "sha256": "3693f3ee8a37f65c423375b20ddd3c2876885571ecbc2fe3f2b77b43b4a6836f"
+    }
+  ],
+  "results": {
+    "suites": 13,
+    "tests": 307,
+    "failed": 0,
+    "skipped": 0
+  },
+  "database": {
+    "ownedPid": 3306690,
+    "port": 5576,
+    "fullJournalEntries": 137,
+    "stopped": true
+  },
+  "limits": [
+    "Same synthetic transport/data-plane boundaries as the source suites; domain SQL real",
+    "No live bot authority, production rollout or SDK publication claim",
+    "Full integrated CI pending; Forge deliberately INACTIVE"
+  ]
+}
