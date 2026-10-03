@@ -87,9 +87,14 @@ def recovery_live(definition):
     require(not result.get('failures') and len(result.get('services', [])) == 1, 'Recovery service ambiguous')
     service = result['services'][0]
     require(service['taskDefinition'] == arn and service['pendingCount'] == 0
-            and service['runningCount'] == service['desiredCount'] >= 0
-            and len(service['deployments']) == 1 and service['deployments'][0]['status'] == 'PRIMARY'
-            and service['deployments'][0].get('rolloutState') == 'COMPLETED', 'Recovery definition/service drifted')
+            and service['runningCount'] == service['desiredCount'] >= 0, 'Recovery definition/service drifted')
+    deployments = service.get('deployments', [])
+    if service['desiredCount'] == 0:
+        require(deployments and all(all(row.get(key) == 0 for key in ('desiredCount', 'runningCount', 'pendingCount'))
+                for row in deployments), 'Quiesced recovery deployment still has work')
+    else:
+        require(len(deployments) == 1 and deployments[0]['status'] == 'PRIMARY'
+                and deployments[0].get('rolloutState') == 'COMPLETED', 'Active recovery deployment ambiguous')
     td = aws('ecs', 'describe-task-definition', '--task-definition', arn, '--query', base.DEFINITION_QUERY)
     require(td.get('arn') == arn and td.get('status') == 'ACTIVE' and td.get('networkMode') == 'awsvpc'
             and 'FARGATE' in td.get('requiresCompatibilities', [])
