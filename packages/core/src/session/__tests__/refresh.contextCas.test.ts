@@ -15,8 +15,9 @@ const state = (activeAccountId: string, revision: number): DeviceSessionState =>
   deviceId: holder.deviceId, activeAccountId, revision, updatedAt: Date.now(),
   accounts: [{accountId: 'person-a', sessionId: 'session-a', authuser: 0}, {accountId: 'org-b', sessionId: 'session-b', authuser: 0}],
 });
-const prior: PersistedAuthState = {...holder, sessionId: 'session-a', userId: 'person-a', accessToken: tokenA, expiresAt: new Date(Date.now() + 3600000).toISOString()};
-const response: DeviceTokenMintResponse = {accessToken: jwt('person-a', 'session-a', 1), expiresAt: prior.expiresAt!, nextDeviceSecret: 'rotated-holder-a', state: state('person-a', 1)};
+const expiresAt = new Date(Date.now() + 3600000).toISOString();
+const prior: PersistedAuthState = {...holder, sessionId: 'session-a', userId: 'person-a', accessToken: tokenA, expiresAt};
+const response: DeviceTokenMintResponse = {accessToken: jwt('person-a', 'session-a', 1), expiresAt, nextDeviceSecret: 'rotated-holder-a', state: state('person-a', 1)};
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => {resolve = done;}); return {promise, resolve}; }
 const clients: OxyServices[] = [];
 const sessions: SessionClient[] = [];
@@ -44,7 +45,8 @@ describe('device refresh uses full native context CAS after a normal SDK switch'
       throw new Error(`Unexpected fixture route ${path}`);
     }) as typeof fetch;
     const sharedPublish = jest.fn();
-    const native = {...store, save: async (next: PersistedAuthState) => {const ok = await store.save(next); if (ok) sharedPublish(next); return ok;}, saveIfCurrent: async (next: PersistedAuthState, guard: Parameters<NonNullable<typeof store.saveIfCurrent>>[1]) => {const ok = await store.saveIfCurrent!(next, guard); if (ok) sharedPublish(next); return ok;}};
+    const guardedSave = store.saveIfCurrent; if (!guardedSave) throw new Error('Native guarded storage unavailable');
+    const native = {...store, save: async (next: PersistedAuthState) => {const ok = await store.save(next); if (ok) sharedPublish(next); return ok;}, saveIfCurrent: async (next: PersistedAuthState, guard: Parameters<NonNullable<typeof store.saveIfCurrent>>[1]) => {const ok = await guardedSave(next, guard); if (ok) sharedPublish(next); return ok;}};
     const pending = refreshDeviceSecretArm({oxy, store: native}); await entered.promise;
     const epochA = oxy.http.getSessionEpoch();
     const host = createSessionClientHost(oxy); host.setDeviceCredential(holder);
