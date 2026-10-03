@@ -172,7 +172,7 @@ def execute(path):
                          'NODE_ENV': 'test', 'BILLING_PROCESSOR_ENVIRONMENT': 'test', 'LOG_LEVEL': 'silent'}
         build = subprocess.run(['node', 'packages/core/scripts/build-workspace-deps.mjs',
                                 '@oxy.so/contracts', '@oxy.so/protocol', '@oxy.so/core',
-                                '@oxy.so/db', '@oxy.so/utils', '@oxy.so/telemetry', '@oxy.so/mcp'],
+                                '@oxy.so/db', '@oxy.so/utils', '@oxy.so/telemetry', '@oxy.so/federation', '@oxy.so/mcp'],
                                cwd=ROOT, env=scrub(), text=True, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, check=False)
         (owned / 'build.log').write_text(build.stdout)
