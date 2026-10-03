@@ -1,0 +1,54 @@
+{
+  "consumerCount": 18,
+  "runnerRowsReadyForRegistryGate": 17,
+  "pending": [
+    {
+      "repository": "OxyHQ/Move",
+      "worktree": "/home/nate/Oxy/Move/.worktrees/1519-strict-receiver-20261004",
+      "branch": "task/1519-move-strict-receiver-20261004",
+      "preparedHead": "d9afca478b25d8ff7df3f28403ab981292f5bf84",
+      "sourceCommit": "fbe081ad2209b55dc21498ad835ffa7e21589d4f",
+      "proofCommit": "4bf3967",
+      "requirement": "Exact live core4 receiver accepts strict-format internal service JWT plus user header without grant. Final core4.2 is required before restoration. No unchanged old image restoration.",
+      "patchInput": {
+        "path": "/home/nate/Oxy/Move/.worktrees/1519-strict-receiver-20261004/docs/audits/2026-10-04-move-strict/manifest-patch.json",
+        "sha256": "c035ca0d87ed02f3036fd46efb3572c1a3220bf31659c41b1ad1ca299a08aab9"
+      },
+      "imagePublisher": {
+        "repository": "OxyHQ/Move",
+        "recipes": [
+          {
+            "name": "move",
+            "services": [
+              "move"
+            ],
+            "ecrRepository": "oxy/move",
+            "dockerfile": "packages/backend/Dockerfile",
+            "dockerfileSha256": "0dd64c236688e07404fd3a2a4e5d76a7a7ca37ffd1cbdf55a120c12c62c40004",
+            "target": null,
+            "tagSuffix": "",
+            "cacheScope": "move-backend"
+          }
+        ]
+      },
+      "holdBeforeMerge": "root sets OXY_1519_ROLLOUT_HOLD=true and captures/pauses affected deployment workflows",
+      "preMigration": [
+        "bun",
+        "packages/backend/dist/src/db/migrate.js",
+        "--target-database=oxymove",
+        "--phase=pre"
+      ],
+      "postMigration": [
+        "bun",
+        "packages/backend/dist/src/db/migrate.js",
+        "--target-database=oxymove",
+        "--phase=post"
+      ],
+      "smoke": "/ready plus exact new image/count and HTTP/socket authority denial. Queue startup is not evidence of a grant; failed denied jobs retain intent but have no resume.",
+      "remaining": "Integration is validating Services11.1 + corrected Bloom line in the unapplied patch. Promote this row into lots only after that source/proof amendment; do not install historical peer-conflicting frontend patch.",
+      "registryInstalled": false,
+      "merged": false,
+      "deployed": false
+    }
+  ]
+}

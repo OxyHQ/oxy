@@ -1,6 +1,6 @@
 # Final adoption and operational batches
 
-Prepared only. Root owns live operations, merges, workflow state and image promotion. No service had been paused when this plan was prepared. `lots.json` fixes 17 worktrees/heads, exact manifest patches (all `git apply --check` passed), package scripts, workflow hashes and 21 image/service recipes. `fleet-handoff.json` preserves the 33-service classification snapshot; it is not a fresh desired-count receipt. `internal-consumers.json` identifies Console, accounts, Commons and the Expo example in the Oxy workspace. Native Metros17967/17968 remain frozen.
+Prepared only. Root owns live operations, merges, workflow state and image promotion. No service had been paused when this plan was prepared. The acceptance inventory now has 18 consumers: `additional-consumers.json` records Move’s newly required strict-receiver repair and its pending frontend peer amendment. Until that amendment is accepted, the registry runner retains the previous 17 exact rows. `lots.json` fixes those 17 worktrees/heads, exact manifest patches (all `git apply --check` passed), package scripts, workflow hashes and 21 image/service recipes. `fleet-handoff.json` preserves the 33-service classification snapshot; it is not a fresh desired-count receipt. `internal-consumers.json` identifies Console, accounts, Commons and the Expo example in the Oxy workspace. Native Metros17967/17968 remain frozen.
 
 ## Registry → source → image, prepared before maintenance
 

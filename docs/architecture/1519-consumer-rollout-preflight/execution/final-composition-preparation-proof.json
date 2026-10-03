@@ -3,7 +3,7 @@
   "sources": [
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
-      "sha256": "019da6bfb0ae0a3fb9e7f26f604f8516b9ac5b7aec82f3111bb5dce540e2b7fe"
+      "sha256": "6f77174271d7fa9000ee631438466c2fa9c612097f44353262ddb04eb6d4ceed"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/publisher-composition.json",
@@ -15,7 +15,7 @@
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-checks.json",
-      "sha256": "87af0ba2cab1c891a206622ecc06b2cfb896a0a773eb10b5416a8eaedf8f1d36"
+      "sha256": "f087b18328510d48d6b6673c7714a9c8c111d476852f74788dd3991fd8f00d7f"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-checks.md",
@@ -23,7 +23,7 @@
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/draft-pull-requests.json",
-      "sha256": "9fc85c298543680119298101ff0e71bba87083e4cd63d7ba28e96d00f4452d27"
+      "sha256": "e3c162d086a0bb4f50aee8583f358952198c21c522c929abdb44f1791b371f93"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/post-workflow-preflight.json",
@@ -32,13 +32,23 @@
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/workflow-ci-followups.json",
       "sha256": "47dd43531e09ca737dedc4bdbb6f57b0a60b0581d02a0bc4994ac9414b74d203"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/additional-consumers.json",
+      "sha256": "562c6dd529d54628457d7157deea87fb5d7c09323309b410ee981b3bd14c8419"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/README.md",
+      "sha256": "87c9bcb3fca8df9765c941cc2b367b4544fe7f532dd609888012807573f57be7"
     }
   ],
   "checks": {
     "repositories": 17,
     "publisherFiles": 51,
     "frontendFiles": 12,
-    "plannedCommands": 99
+    "plannedCommands": 99,
+    "acceptanceConsumers": 18,
+    "pendingMovePeerAmendment": 1
   },
-  "note": "17 fresh-main preflights precede the classifier, manual-checkout and concurrency followups. Updated heads/workflow hashes match Git; final registry install and required CI remain pending."
+  "note": "Historical all-17 main preflight preserved. Current source heads include reviewed inactive Crowd correction and Mercaria census fix. Move is the required eighteenth consumer, pending its corrected frontend peer patch before runner inclusion. No registry install."
 }

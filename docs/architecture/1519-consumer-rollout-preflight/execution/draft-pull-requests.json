@@ -3,7 +3,7 @@
   "pullRequests": [
     {
       "repository": "OxyHQ/Mercaria",
-      "head": "cf7de686f4b55b55299385b6a8f0175495b98137",
+      "head": "8d18f84a1a9ee5cf6e2fed4d69c905a9761fa2dd",
       "url": "https://github.com/OxyHQ/Mercaria/pull/1045",
       "registryInstalled": false,
       "deployed": false
@@ -101,7 +101,7 @@
     },
     {
       "repository": "OxyHQ/CrowdSource",
-      "head": "64d8e145014f1faee659b0173fb4c0746c155f50",
+      "head": "f100ca9b0e8e260de4eb8437bab13911850121d5",
       "url": "https://github.com/OxyHQ/CrowdSource/pull/220",
       "registryInstalled": false,
       "deployed": false

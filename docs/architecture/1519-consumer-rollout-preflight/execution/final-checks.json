@@ -272,7 +272,7 @@
     },
     {
       "repository": "OxyHQ/Mercaria",
-      "preparedHead": "cf7de686f4b55b55299385b6a8f0175495b98137",
+      "preparedHead": "8d18f84a1a9ee5cf6e2fed4d69c905a9761fa2dd",
       "worktree": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003",
       "commands": [
         {
@@ -1141,7 +1141,7 @@
     },
     {
       "repository": "OxyHQ/CrowdSource",
-      "preparedHead": "64d8e145014f1faee659b0173fb4c0746c155f50",
+      "preparedHead": "f100ca9b0e8e260de4eb8437bab13911850121d5",
       "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
       "commands": [
         {
