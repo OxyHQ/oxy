@@ -1,0 +1,352 @@
+[
+  {
+    "path": "packages/api/src/routes/capabilities.ts",
+    "kind": "baseline",
+    "sha256": "9f8220a5c47c5102ec0cc0c4171979b2eb520aad80479b184d7004c58595fcb7",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  {
+    "path": "packages/api/src/routes/capabilities.ts",
+    "kind": "current",
+    "sha256": "1a8c3643888ff032065d4455e626dbfb979e65dbec28ac80c79747dd5d828d0b",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  {
+    "path": "packages/api/src/routes/profiles.ts",
+    "kind": "baseline",
+    "sha256": "49e8322dacbd1eb0b3191cdd70645700974855d37ed300f8a63f4f1bf9194689",
+    "exitCode": 1,
+    "diagnostics": [
+      [
+        "lint/suspicious/noGlobalIsNan",
+        "isNaN is unsafe. It attempts a type coercion. Use Number.isNaN instead."
+      ],
+      [
+        "lint/suspicious/noGlobalIsNan",
+        "isNaN is unsafe. It attempts a type coercion. Use Number.isNaN instead."
+      ]
+    ]
+  },
+  {
+    "path": "packages/api/src/routes/profiles.ts",
+    "kind": "current",
+    "sha256": "32ed7c707075be79f0d655c971d4e172f9f5a0a07c9d6a32bff5331d05e4b16c",
+    "exitCode": 1,
+    "diagnostics": [
+      [
+        "lint/suspicious/noGlobalIsNan",
+        "isNaN is unsafe. It attempts a type coercion. Use Number.isNaN instead."
+      ],
+      [
+        "lint/suspicious/noGlobalIsNan",
+        "isNaN is unsafe. It attempts a type coercion. Use Number.isNaN instead."
+      ]
+    ]
+  },
+  {
+    "path": "packages/api/src/server.ts",
+    "kind": "baseline",
+    "sha256": "134f22a6df3f89879c3d3516f4514c91f9cff7500bd27649fed34bc1ff6c088c",
+    "exitCode": 1,
+    "diagnostics": [
+      [
+        "lint/style/useNodejsImportProtocol",
+        "A Node.js builtin module should be imported with the node: protocol."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ]
+    ]
+  },
+  {
+    "path": "packages/api/src/server.ts",
+    "kind": "current",
+    "sha256": "1f1601f64549228b0024fe4c3b33b300dfa6a353d19e431e4efc7f3e9e4ed66a",
+    "exitCode": 1,
+    "diagnostics": [
+      [
+        "lint/style/useNodejsImportProtocol",
+        "A Node.js builtin module should be imported with the node: protocol."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ],
+      [
+        "lint/suspicious/noExplicitAny",
+        "Unexpected any. Specify a different type."
+      ]
+    ]
+  },
+  {
+    "path": "packages/api/src/services/capabilityAuthority.service.ts",
+    "kind": "baseline",
+    "sha256": "360e164ed0e7130490fc4ff9dc5532cab9df3623d464bf42aaf303610a8a13d7",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  {
+    "path": "packages/api/src/services/capabilityAuthority.service.ts",
+    "kind": "current",
+    "sha256": "77377fd514153d278083bc3cb8bef25a37d548c8155a0918210fad17dfe7c8c4",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  {
+    "path": "packages/api/src/services/capabilityRuntimeStore.service.ts",
+    "kind": "baseline",
+    "sha256": "4e19c0f512240ad6f505d3c453ac070670d99ed537b3cd7528a93f5626968107",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  {
+    "path": "packages/api/src/services/capabilityRuntimeStore.service.ts",
+    "kind": "current",
+    "sha256": "06e891bf4a6908ab68c9552ae189545e1604d894daba3f6e024ffa635e3a5742",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  {
+    "path": "packages/api/src/db/schema/agency.ts",
+    "kind": "baseline",
+    "sha256": "b4a6ca2240e6c10919a3134f49ebe84e9ba6752347f3ce9b6eb2a81223982e5a",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  {
+    "path": "packages/api/src/db/schema/agency.ts",
+    "kind": "current",
+    "sha256": "f0ce2beb92a4cc00d5ffe66b99198784ad3b6ecc906367b36e91d3bb99a9ebde",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  {
+    "path": "packages/api/src/db/schema/deferredForeignKeys.ts",
+    "kind": "baseline",
+    "sha256": "2ada096d773842a1ea0202eef2ec55919d11d8f512b30ec6fab47be99882e0d9",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  {
+    "path": "packages/api/src/db/schema/deferredForeignKeys.ts",
+    "kind": "current",
+    "sha256": "265ccdbb43fa55ddf1de1d8825db01939369a2bd2dfdfca53d055af232a53568",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  {
+    "path": "packages/api/scripts/generate-openapi.ts",
+    "kind": "baseline",
+    "sha256": "cb4a4c87f7e0966ef35aab951aafeb3ef1296745874e02673febd6bc7d82f36f",
+    "exitCode": 1,
+    "diagnostics": [
+      [
+        "lint/complexity/useOptionalChain",
+        "Change to an optional chain."
+      ],
+      [
+        "lint/complexity/useOptionalChain",
+        "Change to an optional chain."
+      ],
+      [
+        "lint/style/useImportType",
+        "Some named imports are only used as types."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/suspicious/noAssignInExpressions",
+        "The assignment should not be in an expression."
+      ],
+      [
+        "lint/suspicious/noAssignInExpressions",
+        "The assignment should not be in an expression."
+      ],
+      [
+        "lint/suspicious/noAssignInExpressions",
+        "The assignment should not be in an expression."
+      ],
+      [
+        "lint/suspicious/noAssignInExpressions",
+        "The assignment should not be in an expression."
+      ],
+      [
+        "lint/suspicious/noAssignInExpressions",
+        "The assignment should not be in an expression."
+      ]
+    ]
+  },
+  {
+    "path": "packages/api/scripts/generate-openapi.ts",
+    "kind": "current",
+    "sha256": "1eb350bab70ead0275c2be1c680dc010da750beb2e41fb61c2ac6e8d7c5847cf",
+    "exitCode": 1,
+    "diagnostics": [
+      [
+        "lint/complexity/useOptionalChain",
+        "Change to an optional chain."
+      ],
+      [
+        "lint/complexity/useOptionalChain",
+        "Change to an optional chain."
+      ],
+      [
+        "lint/style/useImportType",
+        "Some named imports are only used as types."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/style/useTemplate",
+        "Template literals are preferred over string concatenation."
+      ],
+      [
+        "lint/suspicious/noAssignInExpressions",
+        "The assignment should not be in an expression."
+      ],
+      [
+        "lint/suspicious/noAssignInExpressions",
+        "The assignment should not be in an expression."
+      ],
+      [
+        "lint/suspicious/noAssignInExpressions",
+        "The assignment should not be in an expression."
+      ],
+      [
+        "lint/suspicious/noAssignInExpressions",
+        "The assignment should not be in an expression."
+      ],
+      [
+        "lint/suspicious/noAssignInExpressions",
+        "The assignment should not be in an expression."
+      ]
+    ]
+  }
+]

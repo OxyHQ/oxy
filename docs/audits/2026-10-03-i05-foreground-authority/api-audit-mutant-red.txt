@@ -1,0 +1,85 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/foregroundCapabilities.db.test.ts src/services/__tests__/capabilityAuthority.db.test.ts src/services/__tests__/capabilityAuthority.policy.test.ts src/services/__tests__/workloadIdentity.db.test.ts src/db/schema/__tests__/foreignKeys.test.ts src/db/schema/__tests__/schemaInvariants.test.ts src/db/schema/__tests__/agencyPayloadBounds.test.ts
+{"level":30,"time":1791019908932,"pid":3699583,"hostname":"SuperPC","binaryPath":"/usr/bin/ffmpeg","msg":"[VariantService] Using system ffmpeg"}
+{"level":30,"time":1791019908935,"pid":3699583,"hostname":"SuperPC","binaryPath":"/usr/bin/ffprobe","msg":"[VariantService] Using system ffprobe"}
+{"level":30,"time":1791019908935,"pid":3699583,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","msg":"[VariantService] Resolved FFmpeg path"}
+{"level":30,"time":1791019908935,"pid":3699583,"hostname":"SuperPC","ffprobePath":"/usr/bin/ffprobe","msg":"[VariantService] Resolved FFprobe path"}
+{"level":30,"time":1791019908935,"pid":3699583,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","ffprobePath":"/usr/bin/ffprobe","ffmpegExists":true,"ffprobeExists":true,"msg":"FFmpeg/FFprobe paths initialized"}
+{"level":30,"time":1791019909161,"pid":3699583,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791019909184,"pid":3699583,"hostname":"SuperPC","kid":"dev-ephemeral-34488319a004","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1791019909917,"pid":3699583,"hostname":"SuperPC","sessionId":"7fae64f7","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791019910520,"pid":3699583,"hostname":"SuperPC","sessionId":"a4ded626","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791019910722,"pid":3699583,"hostname":"SuperPC","sessionId":"52308fc6","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791019911273,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-0035-7f48-83bc-f1b0ca86855f","appName":"Foreground b439ddd6-3cc2-4149-baf5-5f504edafa7b","provider":"aws-iam","attestationId":"wl_1046b478e11d4160fc3f669c","attribution":"unchanged","scopes":["user:read","capability-tickets:issue","capabilities:read","catalogs:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019912001,"pid":3699583,"hostname":"SuperPC","sessionId":"f31aa991","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791019912001,"pid":3699583,"hostname":"SuperPC","sessionId":"f31aa991","operatorId":"01a1011b-0a8b-7729-98a7-5f6b0a8d3d03","accountId":"01a1011b-0a94-7280-ba33-ce8f988f4960","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+FAIL src/services/__tests__/foregroundCapabilities.db.test.ts
+  ● refuses data when the session is withdrawn while actual audit persistence is awaiting
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 200
+
+      175 |   await sessionService.deactivateSession(r.session.sessionId);
+      176 |   resume();
+    > 177 |   expect((await pending).status).toBe(403);
+          |                                  ^
+      178 | });
+      179 |
+      180 | it('offline grant revoke is separate from foreground signout; canonical session revoke preserves the shared session', async () => {
+
+      at src/services/__tests__/foregroundCapabilities.db.test.ts:177:34
+      at fulfilled (src/services/__tests__/foregroundCapabilities.db.test.ts:38:58)
+
+  ● rechecks the signed ticket expiry after the audit wait, independently of a later authorization deadline
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 200
+
+      301 |   jest.spyOn(Date, 'now').mockReturnValue(issued.claims.exp * 1000);
+      302 |   resume();
+    > 303 |   expect((await pending).status).toBe(403);
+          |                                  ^
+      304 | });
+      305 |
+
+      at src/services/__tests__/foregroundCapabilities.db.test.ts:303:34
+      at fulfilled (src/services/__tests__/foregroundCapabilities.db.test.ts:38:58)
+
+{"level":30,"time":1791019912303,"pid":3699583,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791019912720,"pid":3699583,"hostname":"SuperPC","kid":"dev-ephemeral-2b8cbf406ea5","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+PASS src/services/__tests__/capabilityAuthority.db.test.ts
+{"level":30,"time":1791019913239,"pid":3699583,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791019913258,"pid":3699583,"hostname":"SuperPC","kid":"dev-ephemeral-9c2dc8b5494c","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1791019913261,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-101d-707b-8727-b0bba0d95fdc","appName":"Workload test 79f834c0-306a-4d8b-a485-4f0b2b55b80c","provider":"aws-iam","attestationId":"wl_64f66962bc166829e9bdd3d9","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019913282,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-1033-70f1-90a7-2e981eba3d58","appName":"Workload test cd69549d-bcda-4dba-be75-746b8a86f656","provider":"aws-iam","attestationId":"wl_1312b25e041b2e6a97ab811a","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019913304,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-1047-7fc2-98d0-691256305792","appName":"Workload test 42b6c224-ae6d-431f-b968-b4f2735835ba","provider":"aws-iam","attestationId":"wl_038a122fa1b986dab3a2100d","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":50,"time":1791019913312,"pid":3699583,"hostname":"SuperPC","provider":"aws-iam","attestationId":"wl_038a122fa1b986dab3a2100d","applicationId":"01a1011b-104c-7e01-875b-299f2d219002","msg":"[WorkloadIdentity] attested identity is attributed to another application"}
+{"level":30,"time":1791019913330,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-1065-7eeb-a1fe-a680516e0240","appName":"Workload test 776d6fe8-168f-4dda-b089-b3adc7c3bfae","provider":"aws-iam","attestationId":"wl_74bb947cd74af9b9bec7e8d0","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":40,"time":1791019913331,"pid":3699583,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":43,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1791019913331,"pid":3699583,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":35,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1791019913332,"pid":3699583,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":33,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1791019913333,"pid":3699583,"hostname":"SuperPC","provider":"aws-iam","msg":"[WorkloadIdentity] attested workload has no binding"}
+{"level":40,"time":1791019913362,"pid":3699583,"hostname":"SuperPC","provider":"aws-iam","msg":"[WorkloadIdentity] attested workload has no binding"}
+{"level":30,"time":1791019913379,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-1097-7ba5-a529-bff33cb9af6c","appName":"Workload test d9e8dc3d-c949-4cb1-9e8b-f755813ed231","provider":"aws-iam","attestationId":"wl_54851d6e2450fa66ef5f5afb","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019913396,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-10a7-7e91-84dc-07478808aa54","appName":"Workload test 32941747-57d8-42c2-a2ad-95ac09ab0c94","provider":"aws-iam","attestationId":"wl_36f40e00feb9d7cca96414f7","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019913411,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-10b7-7a4b-8acc-f9a686b2becc","appName":"Workload test 44a4d1e0-9cb2-4d27-a7fa-8ba79dbbdf5b","provider":"aws-iam","attestationId":"wl_31b501e44985a53544ae8595","attribution":"created","scopes":["federation:write","signals:write","catalogs:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019913429,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-10c7-7509-a8f2-aa1b3f12a8f4","appName":"Workload test dba0d4f2-b213-4d7a-8b73-b12f82412cc4","provider":"aws-iam","attestationId":"wl_f2ed79acd0c5bba8cdcf881f","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019913446,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-10da-7691-b2e5-a402fa9f865e","appName":"Workload test 514079b7-8a32-408e-a75b-047321faf925","provider":"aws-iam","attestationId":"wl_01857f5ad5cea28083a2a48d","attribution":"created","scopes":["user:read","signals:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019913453,"pid":3699583,"hostname":"SuperPC","applicationId":"01a1011b-10da-7691-b2e5-a402fa9f865e","appName":"Workload test 514079b7-8a32-408e-a75b-047321faf925","provider":"aws-iam","attestationId":"wl_01857f5ad5cea28083a2a48d","attribution":"unchanged","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+PASS src/services/__tests__/workloadIdentity.db.test.ts
+PASS src/db/schema/__tests__/foreignKeys.test.ts
+{"level":30,"time":1791019913884,"pid":3699583,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/db/schema/__tests__/schemaInvariants.test.ts
+PASS src/db/schema/__tests__/agencyPayloadBounds.test.ts
+{"level":30,"time":1791019914086,"pid":3699583,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/services/__tests__/capabilityAuthority.policy.test.ts
+
+Test Suites: 1 failed, 6 passed, 7 total
+Tests:       2 failed, 64 passed, 66 total
+Snapshots:   0 total
+Time:        6.075 s, estimated 7 s
+Ran all test suites within paths "src/services/__tests__/foregroundCapabilities.db.test.ts", "src/services/__tests__/capabilityAuthority.db.test.ts", "src/services/__tests__/capabilityAuthority.policy.test.ts", "src/services/__tests__/workloadIdentity.db.test.ts", "src/db/schema/__tests__/foreignKeys.test.ts", "src/db/schema/__tests__/schemaInvariants.test.ts", "src/db/schema/__tests__/agencyPayloadBounds.test.ts".
+error: script "test" exited with code 1

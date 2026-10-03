@@ -1,0 +1,1 @@
+Migration journal order is sound: 141 entr(y/ies) ascend strictly by `when`, and the journal and packages/api/drizzle name the same 141 migration(s).
