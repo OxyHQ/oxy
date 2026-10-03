@@ -305,6 +305,7 @@ export async function prepareStripeProductPeriod(
 				},
 				cancelAtPeriodEnd: subscription.cancel_at_period_end,
 			}),
+    expectedConfiguration: { offer, products: catalogue.products.filter(product => offer.benefits.some(benefit => benefit.productId === product.id)) },
 		offer: {
 			offerId: offer.id,
 			offerVersion: offer.version,

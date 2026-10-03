@@ -1510,5 +1510,5 @@ export { meteredGenerationSchema, type MeteredGeneration } from "./inference/eco
 export { canonicalCapabilityJson, inputSatisfiesCapabilityLimits, isLoopbackOrigin } from './capabilityBindings';
 
 export { productSubscriptionSummarySchema, productSubscriptionsResponseSchema,
-    subscriptionCreditGrantSchema, subscriptionCreditGrantsResponseSchema, cancelProductSubscriptionSchema,
-    type ProductSubscriptionSummary, type SubscriptionCreditGrant } from './products/billing';
+    subscriptionCreditGrantSchema, subscriptionCreditGrantsResponseSchema, cancelProductSubscriptionSchema, productSubscriptionCancellationResultSchema,
+    type ProductSubscriptionSummary, type SubscriptionCreditGrant, type ProductSubscriptionCancellationResult } from './products/billing';

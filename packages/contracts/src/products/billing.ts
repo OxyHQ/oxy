@@ -24,3 +24,10 @@ export const subscriptionCreditGrantsResponseSchema = z.object({ grants: z.array
 export const cancelProductSubscriptionSchema = z.object({ sourceId: id, expectedSubjectAccountId: oxyAccountIdSchema.optional() }).strict();
 export type ProductSubscriptionSummary = z.infer<typeof productSubscriptionSummarySchema>;
 export type SubscriptionCreditGrant = z.infer<typeof subscriptionCreditGrantSchema>;
+
+/** Remote acceptance is distinct from completed local reconciliation. */
+export const productSubscriptionCancellationResultSchema = z.union([
+  z.object({ sourceId: id, cancelAtPeriodEnd: z.literal(true) }).strict(),
+  z.object({ sourceId: id, reconciliationPending: z.literal(true) }).strict(),
+]);
+export type ProductSubscriptionCancellationResult = z.infer<typeof productSubscriptionCancellationResultSchema>;

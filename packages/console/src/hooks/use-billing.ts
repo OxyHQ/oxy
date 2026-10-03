@@ -273,8 +273,8 @@ export function useCancelNamedSubscription() {
   const currentSubject = useRef(user?.id); currentSubject.current = user?.id;
   return useMutation({ mutationFn: async ({ id, kind, subject }: { id: string; kind: 'product' | 'credit'; subject: string }) => {
     if (currentSubject.current !== subject) throw new Error('The signed-in account changed; reload this subscription');
-    if (kind === 'product') await oxyServices.billing.cancelProductSubscription(id, subject);
-    else await oxyServices.request('POST', '/billing/subscriptions/cancel', { subscriptionId: id, expectedSubjectAccountId: subject });
+    if (kind === 'product') return oxyServices.billing.cancelProductSubscriptionWithStatus(id, subject);
+    await oxyServices.request('POST', '/billing/subscriptions/cancel', { subscriptionId: id, expectedSubjectAccountId: subject });
   }, onSuccess: async (_, variables) => { await Promise.all([
     queries.invalidateQueries({ queryKey: ['product-subscriptions', variables.subject] }),
     queries.invalidateQueries({ queryKey: ['credit-subscriptions', variables.subject] }),
