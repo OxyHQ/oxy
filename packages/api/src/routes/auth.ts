@@ -3596,7 +3596,7 @@ const serviceTokenAddressLimiter = rateLimit({
  *                 expiresIn:
  *                   type: integer
  *                   description: Token lifetime in seconds
- *                   example: 3600
+ *                   example: 300
  *                 appName:
  *                   type: string
  *                   description: Name of the authenticated app
