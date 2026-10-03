@@ -59,6 +59,7 @@ export type AccountPermission =
   | 'apps:update'
   | 'apps:delete'
   | 'credentials:read'
+  | 'credentials:manage'
   | 'credentials:create'
   | 'credentials:rotate'
   | 'credentials:revoke'
