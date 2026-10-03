@@ -1,0 +1,65 @@
+{
+  "sourceHead": "8e806ec43eb7323d3fb18c0a9cea09ef0f73ddac",
+  "recordedAt": "2026-10-03T12:15:56.399997+00:00",
+  "sourceInputs": [
+    {
+      "path": "scripts/inference/read-internal-pilot-readiness.mjs",
+      "sha256": "1250d3060e595c6da36906b35243eac87bbe33327da6a6f67334a18879b821d8"
+    },
+    {
+      "path": "scripts/inference/internal-pilot-readiness-ecs.py",
+      "sha256": "67f04adbb077cbdec6ce472c01153eb99a504102cd0b5a10c9755702d67b5b6c"
+    },
+    {
+      "path": "scripts/inference/test-internal-pilot-readiness.mjs",
+      "sha256": "31f20553de310bb83bab8a0ac2ff97b829ab4b0ad5a19f08a5a75020012a16ba"
+    },
+    {
+      "path": "scripts/rehearsal/test-internal-pilot-readiness.py",
+      "sha256": "29f68aac8ba65d56519de5b71ff56e2edec3daa0331bb30edcfa55da74590898"
+    },
+    {
+      "path": "scripts/auth/read-service-authority-inventory.mjs",
+      "sha256": "1f09148f1f94ca3746fa722f4a6eddd849f1bc930f83d8a60bb066c18087f8cf"
+    },
+    {
+      "path": "scripts/auth/service-authority-inventory-ecs.py",
+      "sha256": "8a2d34dd2768295758f1c1c7fe7ecafbc9ddb0a886b3d67791e5a2511dd1bd6c"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/sql-node-receiver.txt",
+      "sha256": "07e07c05c2b33ed2fed164aefc57279bd71763b856ee7866ca08d80b8960694e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/owned-launcher.txt",
+      "sha256": "26911b2ae6f8fdf410722701f94ae86b78a237c66c452555cc60207af8fecdbd"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/reader-delta.txt",
+      "sha256": "533babcc2e68ee3d9e00c41e29ca47c14c28aa5194e71235dc0aa5f47f7008a3"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/launcher-delta.txt",
+      "sha256": "456f7e90f0a66287a48a41956794408c25db612c8d989194bdc9111a98d7b61f"
+    }
+  ],
+  "results": {
+    "ownedSqlAndRealNodeReceiver": 10,
+    "biomeFiles": 2,
+    "errors": 0
+  },
+  "ownedPostgres": {
+    "pid": 3805998,
+    "port": 5594,
+    "stopped": true
+  },
+  "scope": [
+    "Fixed three deployment IDs and exact model/revision; raw facts only, no eligibility or quote verdict.",
+    "Price selection includes both deployment price_version_id and platform_fee_price_version_id by ID, even if provider/model labels differ; units included.",
+    "READ ONLY REPEATABLE READ and fixed row/output/time limits, packet nonce and actual dependency hash mechanism reused from reviewed authority reader.",
+    "Launcher has only DB secret, no task IAM role, no credentials/model effects; exact live TD692 and owned cleanup guards. No AWS prepare or execute has run from this candidate.",
+    "SQL fixture uses explicit schema fragments; it is not the full catalogue migration or production data. Missing/schema mismatch remain null counts, not zero."
+  ]
+}
