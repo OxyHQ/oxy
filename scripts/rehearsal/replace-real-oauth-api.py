@@ -125,7 +125,13 @@ def main():
     result = {'planSha256': sha(output), 'noReseed': True, 'cleanup': []}
     try:
         os.kill(supervisor_pid, signal.SIGSTOP); paused = True
-        assert process(supervisor_pid) == current['supervisor']
+        deadline = time.monotonic() + 5
+        while True:
+            assert process(supervisor_pid) == current['supervisor']
+            state = Path(f'/proc/{supervisor_pid}/stat').read_text().rsplit(')', 1)[1].split()[0]
+            if state in ('T', 't'): break
+            assert not interrupted and time.monotonic() < deadline, 'Supervisor pause not confirmed'
+            time.sleep(0.05)
         os.killpg(api_pid, signal.SIGTERM)
         deadline = time.monotonic() + 20
         while True:
