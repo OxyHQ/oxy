@@ -7,7 +7,7 @@
  * every load, save and clear passes through, so the press can read it at once.
  * The cold boot loads the store on mount, long before anyone presses sign-in.
  */
-import type { AuthStateStore } from '@oxy.so/core/session';
+import type { AuthStateStore, AuthStateWriteGuard, PersistedAuthState } from '@oxy.so/core/session';
 
 export interface HeldDeviceCredential {
   deviceId: string;
@@ -41,6 +41,11 @@ export function trackDeviceCredential(store: AuthStateStore): CredentialTracking
       held = credentialOf(state);
       return store.save(state);
     },
+    ...(store.saveIfCurrent ? {saveIfCurrent: async (state: PersistedAuthState, guard: AuthStateWriteGuard) => {
+      const committed = await store.saveIfCurrent?.(state, guard);
+      if (committed) held = credentialOf(state);
+      return committed === true;
+    }} : {}),
     clear: async () => {
       held = null;
       await store.clear();

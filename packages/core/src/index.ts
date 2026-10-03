@@ -40,7 +40,7 @@ export {
   ServiceAssetMetadataError,
 } from './OxyServices.errors';
 export type { HttpMethod } from './client/context';
-export type { RequestOptions, AuthenticatedResponseRequest, AuthRefreshReason, AuthRefreshHandler } from './HttpService';
+export type { RequestOptions, ResponseRequest, ResponseTransport, AuthenticatedResponseRequest, AuthRefreshReason, AuthRefreshHandler } from './HttpService';
 
 // The namespaces — their classes (for typing) and their input/output types.
 export type { SessionApi, DeviceCredentialProvider, SessionValidation } from './api/session';
