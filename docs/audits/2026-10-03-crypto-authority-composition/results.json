@@ -1,0 +1,39 @@
+[
+  {
+    "name": "api-build",
+    "command": [
+      "bun",
+      "run",
+      "build"
+    ],
+    "cwd": "packages/api",
+    "exitCode": 0
+  },
+  {
+    "name": "crypto-route",
+    "command": [
+      "python3",
+      "scripts/billing/test-stripe-webhook-crypto.py"
+    ],
+    "cwd": ".",
+    "exitCode": 0
+  },
+  {
+    "name": "runner-isolation",
+    "command": [
+      "python3",
+      "scripts/billing/test-stripe-runner-isolation.py"
+    ],
+    "cwd": ".",
+    "exitCode": 0
+  },
+  {
+    "name": "plan-tests",
+    "command": [
+      "python3",
+      "scripts/billing/test-stripe-oxy-sandbox.py"
+    ],
+    "cwd": ".",
+    "exitCode": 0
+  }
+]
