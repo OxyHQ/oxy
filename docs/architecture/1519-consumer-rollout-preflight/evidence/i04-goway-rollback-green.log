@@ -1,0 +1,12 @@
+$ jest --runInBand src/scripts/__tests__/gowaySeedRollback.test.ts
+PASS src/scripts/__tests__/gowaySeedRollback.test.ts
+  ✓ executes the exact SQL template atomically and retains both history rows (55 ms)
+  ✓ rejects a changed credential without suspending the application (46 ms)
+  ✓ rejects an application changed after the receipt without revoking the credential (38 ms)
+  ✓ rejects additional credentials even when the original receipt versions match (44 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        0.3 s, estimated 1 s
+Ran all test suites matching src/scripts/__tests__/gowaySeedRollback.test.ts.
