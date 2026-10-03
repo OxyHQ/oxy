@@ -8,11 +8,13 @@ import secrets
 import signal
 import subprocess
 import tempfile
+import importlib.util
+import shutil
 import time
 
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMA = ROOT.parent / '1519-i05-foreground-capability-20261003'
-SCHEMA_SHA = '38d5ce28c'
+SCHEMA_SHA = '38d5ce28c0a5ec0338775810d5681e2834416f25'
 PG = Path('/usr/lib/postgresql/17/bin')
 PORT = 5602
 
@@ -24,8 +26,15 @@ def socket_fds(pid):
     return values
 
 def main():
-    assert os.sys.argv[1:] in ([], ['--production-bootstrap']), 'Only the fixed production bootstrap control is supported'
+    global SCHEMA
+    assert os.sys.argv[1:] in ([], ['--production-bootstrap'], ['--arm-image-bootstrap']), 'Only fixed bootstrap controls are supported'
+    image_mode = os.sys.argv[1:] == ['--arm-image-bootstrap']
     bootstrap_environment = 'production' if os.sys.argv[1:] else 'test'
+    if image_mode:
+        SCHEMA = Path(os.environ['AUTH_ONLY_SCHEMA_SOURCE']).resolve()
+        assert SCHEMA != ROOT and SCHEMA.is_dir()
+        image_spec = importlib.util.spec_from_file_location('auth_only_image', ROOT/'scripts/rehearsal/old-auth-only/image-bootstrap.py')
+        image_module = importlib.util.module_from_spec(image_spec); image_spec.loader.exec_module(image_module)
     os.umask(0o077)
     for source in [ROOT,SCHEMA]:
         assert not (source/'.env').exists() and not (source/'packages/api/.env').exists()
@@ -33,12 +42,19 @@ def main():
     env['BUN_OPTIONS'] = '--no-env-file'
     def command(args, cwd=ROOT, extra=None, timeout=120):
         return subprocess.check_output([str(x) for x in args],cwd=cwd,env=env | (extra or {}),text=True,stderr=subprocess.STDOUT,timeout=timeout)
-    assert command(['git','rev-parse','--short=9','HEAD'],SCHEMA).strip() == SCHEMA_SHA
-    scratch=Path('/home/nate/Oxy/.agent-evidence/integration-old-auth-only-20261003'); scratch.mkdir(exist_ok=True)
+    assert command(['git','rev-parse','HEAD'],SCHEMA).strip() == SCHEMA_SHA
+    scratch = Path(os.environ['RUNNER_TEMP']).resolve()/'auth-only-bootstrap' if image_mode else Path('/home/nate/Oxy/.agent-evidence/integration-old-auth-only-20261003')
+    scratch.mkdir(exist_ok=True, mode=0o700)
     owned=Path(tempfile.mkdtemp(prefix='rollback-',dir=scratch)); owned.chmod(0o700)
-    sockets=Path(tempfile.mkdtemp(prefix='i04-rb-',dir='/home/nate/Oxy/.agent-evidence')); sockets.chmod(0o700)
+    sockets=Path(tempfile.mkdtemp(prefix='i04-rb-',dir='/tmp' if image_mode else '/home/nate/Oxy/.agent-evidence')); sockets.chmod(0o700)
+    proof_output=owned/'proof';proof_output.mkdir(mode=0o700)
     data=owned/'pg'; children=[]; logs=[]; started=False; database=None; pg_pid=None
-    receipt={'schemaSource':SCHEMA_SHA,'variantSource':command(['git','rev-parse','HEAD']).strip(),'derivedFrom':'67c09e853db308d102624a2ffd40db19959344f4','directory':str(owned),'productionAccess':False,'bootstrapNodeEnv':bootstrap_environment}
+    image = image_module.ImageBootstrap(os.environ['AUTH_ONLY_IMAGE_ID'], ROOT, proof_output, command) if image_mode else None
+    receipt={'schemaSource':SCHEMA_SHA,'variantSource':command(['git','rev-parse','HEAD']).strip(),'derivedFrom':'67c09e853db308d102624a2ffd40db19959344f4','directory':str(owned),'productionAccess':False,'bootstrapNodeEnv':bootstrap_environment,'imageMode':image_mode}
+    if image:
+        assert image.inspection['Config']['Labels']['org.opencontainers.image.revision']==receipt['variantSource']
+        receipt['imageConfigId']=image.image
+        receipt['fixtureInputSha256']={str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted((ROOT/'scripts/rehearsal/old-auth-only').glob('*')) if path.is_file()}
     def save(): (owned/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
     def sql(query,db='postgres'):
         return command([PG/'psql','-X','-h','127.0.0.1','-p',PORT,'-U','oxy','-d',db,'-v','ON_ERROR_STOP=1','-Atc',query]).strip()
@@ -55,6 +71,11 @@ def main():
                 raise RuntimeError(f'{name} exceeded its bound; own process group stopped')
         raw=(owned/name).read_bytes(); receipt[name]={'exitCode':task.returncode,'sha256':hashlib.sha256(raw).hexdigest()};save()
         if task.returncode: raise RuntimeError(f'{name} failed; inspect owned private log')
+    if image_mode:
+        def interrupted(signum, _frame):
+            signal.signal(signal.SIGTERM, signal.SIG_IGN);signal.signal(signal.SIGINT, signal.SIG_IGN)
+            raise InterruptedError('Owned image bootstrap interrupted; entering cleanup')
+        signal.signal(signal.SIGTERM, interrupted);signal.signal(signal.SIGINT, interrupted)
     try:
         command([PG/'initdb','-D',data,'-U','oxy','-A','trust','--no-locale','--encoding=UTF8'])
         epoch=int(time.time())
@@ -97,7 +118,7 @@ def main():
             assert not (ROOT/'packages/api/.env').exists()
             logged(['bun','--no-env-file','run','db:migrate'],f'migrate-{phase}.log',SCHEMA/'packages/api',runtime)
             assert sql('select count(*) from drizzle.__drizzle_migrations',database)=='142'
-        manifest=owned/'fixture.private.json'
+        manifest=proof_output/'fixture.private.json'
         logged(['bun','--no-env-file',ROOT/'scripts/rehearsal/old-auth-only/seed.mjs','seed',manifest],'seed.log',extra=runtime)
         preserved=json.loads(manifest.read_text())['preservedTables']
         def census():
@@ -109,17 +130,40 @@ def main():
                 records[table]={'rows':len(rows),'sha256':hashlib.sha256(data.encode()).hexdigest()}
             return records
         before=census();receipt['preservedBefore']=before;save()
-        logged(['bun','--no-env-file','run','test','--runInBand','--runTestsByPath','src/middleware/__tests__/rollbackAuthAdmission.test.ts','src/__tests__/bootGate.test.ts'], 'admission-unit.log',ROOT/'packages/api',{k:v for k,v in runtime.items() if k != 'REDIS_URL'},timeout=240)
-        ready=owned/'variant-ready.json'; log=(owned/'variant-host.log').open('w');logs.append(log)
-        node=Path('/home/nate/.nvm/versions/node/v24.21.0/bin/node')
-        child=subprocess.Popen([str(node),str(ROOT/'scripts/rehearsal/old-auth-only/host.mjs'),str(ROOT),str(ready)],cwd=owned,env=env|runtime|{'OXY_RUNTIME_MODE':'rollback-auth-only','PORT':'18002','NODE_ENV':bootstrap_environment},stdout=log,stderr=subprocess.STDOUT,start_new_session=True);children.append(child)
+        if not image_mode:
+            logged(['bun','--no-env-file','run','test','--runInBand','--runTestsByPath','src/middleware/__tests__/rollbackAuthAdmission.test.ts','src/__tests__/bootGate.test.ts'], 'admission-unit.log',ROOT/'packages/api',{k:v for k,v in runtime.items() if k != 'REDIS_URL'},timeout=240)
+        ready=proof_output/'variant-ready.json'; log=(owned/'variant-host.log').open('w');logs.append(log)
+        node=Path(shutil.which('node') or '/home/nate/.nvm/versions/node/v24.21.0/bin/node')
+        host_env=runtime|{'OXY_RUNTIME_MODE':'rollback-auth-only','PORT':'18002','NODE_ENV':bootstrap_environment,'HOME':'/tmp'}
+        if image:
+            host_env.pop('AUTH_ONLY_SCHEMA_SOURCE')
+            host_args=image.run('host.mjs',['/app','/proof/output/variant-ready.json'],host_env)
+        else:
+            host_args=[str(node),str(ROOT/'scripts/rehearsal/old-auth-only/host.mjs'),str(ROOT),str(ready)]
+        child=subprocess.Popen(host_args,cwd=owned,env=env|host_env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True);children.append(child)
         deadline=time.monotonic()+90
         while not ready.exists():
             if child.poll() is not None: raise RuntimeError('Variant bootstrap exited before ready; inspect private host log')
             if time.monotonic()>deadline: raise RuntimeError('Variant readiness timeout')
             time.sleep(.1)
-        receipt['variantHost']=json.loads(ready.read_text());assert receipt['variantHost']['pid']==child.pid;save()
-        logged([node,ROOT/'scripts/rehearsal/old-auth-only/probe.mjs',manifest],'http-sql-probe.log',ROOT,runtime,timeout=180)
+        receipt['variantHost']=json.loads(ready.read_text())
+        if image:
+            assert receipt['variantHost']['pid']==1 and receipt['variantHost']['nodeEnv']=='production'
+            receipt['hostContainer']=image.verify(image.containers[0],running=True)
+            probe_env={k:v for k,v in runtime.items() if k!='AUTH_ONLY_SCHEMA_SOURCE'}|{'HOME':'/tmp'}
+            # Probe uses the same compiled image while creating old-state fixtures in normal/test mode.
+            logged(image.run('probe.mjs',['/proof/output/fixture.private.json'],probe_env),'http-sql-probe.log',ROOT,probe_env,timeout=180)
+            receipt['probeContainer']=image.verify(image.containers[-1]);assert receipt['probeContainer']['exitCode']==0
+        else:
+            assert receipt['variantHost']['pid']==child.pid
+            logged([node,ROOT/'scripts/rehearsal/old-auth-only/probe.mjs',manifest],'http-sql-probe.log',ROOT,runtime,timeout=180)
+        probe_rows=[]
+        for line in (owned/'http-sql-probe.log').read_text().splitlines():
+            try: row=json.loads(line)
+            except json.JSONDecodeError: continue
+            if row.get('case') and row.get('passed') is True: probe_rows.append(row['case'])
+        assert len(probe_rows)==14 and len(set(probe_rows))==14
+        receipt['checkpoints']=probe_rows;save()
         receipt['preservedAfter']=census();assert receipt['preservedAfter']==before
         for path in [str(manifest)+'.seed.external.json',str(manifest)+'.probe.external.json',str(ready)+'.external.json']:
             assert json.loads(Path(path).read_text())['externalAttempts']==0
@@ -127,6 +171,14 @@ def main():
         receipt['probePassed']=True
     finally:
         outcomes=[];cleanup_errors=[]
+        containers_safe=True
+        if image:
+            # Never drop the DB beneath a still-running or unknown own Docker container.
+            try: receipt['containerCleanup']=image.stop()
+            except Exception as error:
+                containers_safe=False;cleanup_errors.append('containers:'+type(error).__name__)
+                receipt['containerCleanupRequiresReconciliation']=True
+            save()
         for child in reversed(children):
             try:
                 if child.poll() is None: os.killpg(child.pid,signal.SIGTERM)
@@ -139,7 +191,7 @@ def main():
             outcomes.append({'pid':child.pid,'exitCode':child.returncode,'stopped':not Path(f'/proc/{child.pid}').exists()})
         for log in logs:log.close()
         receipt['processCleanup']=outcomes
-        if started:
+        if started and containers_safe:
             try:
                 if database:
                     sql(f'DROP DATABASE "{database}" WITH (FORCE)')
@@ -152,9 +204,13 @@ def main():
                     receipt['postgresStopped']=not Path(f'/proc/{pg_pid}').exists()
                 except Exception as error:
                     cleanup_errors.append(f'postgres:{type(error).__name__}')
+        if started and not containers_safe:
+            receipt['databaseRetainedForUnresolvedContainer']=True
         try:sockets.rmdir()
         except OSError as error:cleanup_errors.append(f'sockets:{type(error).__name__}')
         receipt['cleanupErrors']=cleanup_errors;save()
+        if image_mode:
+            (scratch/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
         if cleanup_errors:raise RuntimeError('Owned cleanup requires reconciliation; see receipt')
         print(json.dumps({'receipt':str(owned/'receipt.json'),'probePassed':receipt.get('probePassed',False),'databaseAbsent':receipt.get('databaseAbsent'),'postgresStopped':receipt.get('postgresStopped')}))
 

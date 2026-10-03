@@ -77,6 +77,37 @@ def bind(archive, inspected, source, run):
         'requiredTaskMode': 'rollback-auth-only', 'requiredNodeEnv': 'production',
         'bootstrapImageVerified': False, 'securityApproved': False, 'productionReady': False}
 
+def bind_bootstrap(proof, path):
+    raw = Path(path).read_bytes()
+    if len(raw) > 256 * 1024: raise ValueError('Bootstrap receipt bound exceeded')
+    row = json.loads(raw)
+    if row.get('variantSource') != proof['sourceSha'] or row.get('imageConfigId') != proof['imageConfigId']:
+        raise ValueError('Bootstrap source/image differs from retained image')
+    if row.get('imageMode') is not True or row.get('bootstrapNodeEnv') != 'production' or row.get('productionAccess') is not False:
+        raise ValueError('Bootstrap must use the isolated production image mode')
+    if row.get('schemaSource') != '38d5ce28c0a5ec0338775810d5681e2834416f25':
+        raise ValueError('Bootstrap schema source differs')
+    if row.get('probePassed') is not True or row.get('externalAttempts') != 0:
+        raise ValueError('Bootstrap probe failed or attempted non-loopback IO')
+    checks = row.get('checkpoints', [])
+    if len(checks) != 14 or len(set(checks)) != 14: raise ValueError('Incomplete bootstrap checkpoints')
+    before = row.get('preservedBefore', {})
+    if len(before) != 14 or before != row.get('preservedAfter') or not all(r['rows'] > 0 for r in before.values()):
+        raise ValueError('Financial/provider/access table census changed or incomplete')
+    if row.get('cleanupErrors') != [] or row.get('databaseAbsent') is not True or row.get('postgresStopped') is not True:
+        raise ValueError('Bootstrap cleanup is not complete')
+    if len(row.get('containerCleanup', [])) != 2 or not all(r.get('absent') is True and r.get('image') == proof['imageConfigId'] for r in row['containerCleanup']):
+        raise ValueError('Exact-image containers are not confirmed absent')
+    for key, script in [('hostContainer', 'host.mjs'), ('probeContainer', 'probe.mjs')]:
+        value = row.get(key, {})
+        if value.get('image') != proof['imageConfigId'] or value.get('script') != script:
+            raise ValueError('Host/probe must run the same retained image')
+    if row['probeContainer'].get('exitCode') != 0 or row.get('variantHost', {}).get('nodeEnv') != 'production':
+        raise ValueError('Image production bootstrap/probe did not pass')
+    return proof | {'bootstrapImageVerified': True, 'bootstrapReceiptSha256': hashlib.sha256(raw).hexdigest(),
+                    'bootstrapCheckpoints': checks}
+
+
 class _PrefixStream(io.RawIOBase):
     def __init__(self, prefix, stream): self.prefix = prefix; self.stream = stream
     def readable(self): return True
@@ -87,6 +118,8 @@ class _PrefixStream(io.RawIOBase):
         return len(data)
 
 if __name__ == '__main__':
-    if len(sys.argv) != 5: raise SystemExit('archive inspection-json source-sha run-id required')
+    if len(sys.argv) not in (5, 6): raise SystemExit('archive inspection-json source-sha run-id [bootstrap-receipt] required')
     inspected = json.loads(Path(sys.argv[2]).read_text())
-    print(json.dumps(bind(sys.argv[1], inspected, sys.argv[3], sys.argv[4]), indent=2))
+    proof = bind(sys.argv[1], inspected, sys.argv[3], sys.argv[4])
+    if len(sys.argv) == 6: proof = bind_bootstrap(proof, sys.argv[5])
+    print(json.dumps(proof, indent=2))

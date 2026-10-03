@@ -50,4 +50,37 @@ class ArchiveProof(unittest.TestCase):
         result = self.check_fixture(lambda items, _: items.update({'layer.tar': gzip.compress(items['layer.tar'])}), valid=True)
         self.assertEqual(len(result['rootfsDiffIds']), 1)
 
+class BootstrapBinding(unittest.TestCase):
+    def check(self, mutate=None, valid=False):
+        with tempfile.TemporaryDirectory() as tmp:
+            row = {'variantSource': SOURCE, 'imageConfigId': 'sha256:'+'a'*64,
+                'imageMode': True, 'bootstrapNodeEnv': 'production', 'productionAccess': False,
+                'schemaSource': '38d5ce28c0a5ec0338775810d5681e2834416f25',
+                'probePassed': True, 'externalAttempts': 0, 'checkpoints': [str(i) for i in range(14)],
+                'preservedBefore': {str(i): {'rows': 1, 'sha256': 'b'*64} for i in range(14)},
+                'cleanupErrors': [], 'databaseAbsent': True, 'postgresStopped': True,
+                'containerCleanup': [{'absent': True, 'image': 'sha256:'+'a'*64}]*2,
+                'hostContainer': {'image': 'sha256:'+'a'*64, 'script': 'host.mjs'},
+                'probeContainer': {'image': 'sha256:'+'a'*64, 'script': 'probe.mjs', 'exitCode': 0},
+                'variantHost': {'nodeEnv': 'production'}}
+            row['preservedAfter'] = copy.deepcopy(row['preservedBefore'])
+            if mutate: mutate(row)
+            path = Path(tmp)/'receipt.json';path.write_text(json.dumps(row))
+            proof = {'sourceSha': SOURCE, 'imageConfigId': 'sha256:'+'a'*64, 'securityApproved': False, 'productionReady': False}
+            if valid:
+                result = module.bind_bootstrap(proof, path)
+                self.assertTrue(result['bootstrapImageVerified'])
+                self.assertFalse(result['securityApproved']);self.assertFalse(result['productionReady'])
+            else:
+                with self.assertRaises(ValueError):module.bind_bootstrap(proof, path)
+    def test_exact_receipt(self):self.check(valid=True)
+    def test_wrong_image(self):self.check(lambda row:row.update(imageConfigId='sha256:'+'c'*64))
+    def test_wrong_source(self):self.check(lambda row:row.update(variantSource='d'*40))
+    def test_development_bootstrap(self):self.check(lambda row:row.update(bootstrapNodeEnv='test'))
+    def test_changed_financial_table(self):self.check(lambda row:row['preservedAfter']['1'].update(rows=2))
+    def test_missing_checkpoint(self):self.check(lambda row:row['checkpoints'].pop())
+    def test_external_attempt(self):self.check(lambda row:row.update(externalAttempts=1))
+    def test_unresolved_cleanup(self):self.check(lambda row:row.update(databaseAbsent=False))
+    def test_different_probe_image(self):self.check(lambda row:row['probeContainer'].update(image='sha256:'+'d'*64))
+
 if __name__ == '__main__': unittest.main()

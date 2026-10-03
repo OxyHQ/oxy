@@ -51,12 +51,15 @@ jobs:
           docker buildx build --platform linux/arm64             --cache-from type=gha,scope=oxy-api-backend             --label "org.opencontainers.image.revision=$SOURCE_SHA"             --metadata-file "$RUNNER_TEMP/forge-build-metadata.json"             --load -f Dockerfile -t "oxy-forge-candidate:$SOURCE_SHA" .
           docker image inspect "oxy-forge-candidate:$SOURCE_SHA"             --format '{{json .Id}} {{json .Architecture}} {{json .Os}} {{json (index .Config.Labels "org.opencontainers.image.revision")}}'             > "$RUNNER_TEMP/forge-image-identity.txt"
           test "$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Architecture}}')" = arm64
+          IMAGE_ID="$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Id}}')"
+          [[ "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
+          printf 'AUTH_ONLY_IMAGE_ID=%s\n' "$IMAGE_ID" >> "$GITHUB_ENV"
       # Before any proof mount: the three bind-mount targets must not exist in the image, so later
       # mounts cannot hide original image content. No mounts, no network; fails if any target exists.
       - name: Verify proof mount targets are absent from the unmounted image
         run: |
           set -euo pipefail
-          IMAGE_ID="$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Id}}')"
+          IMAGE_ID="$AUTH_ONLY_IMAGE_ID"
           docker run --rm --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
             --entrypoint node "$IMAGE_ID" -e '
@@ -69,13 +72,29 @@ jobs:
               console.log(JSON.stringify({ diagnosticOnly: true, approval: false, mounts: "none", sourceSha, imageId, targets }));
               process.exitCode = targets.some(target => target.present) ? 1 : 0;
             ' "$SOURCE_SHA" "$IMAGE_ID" > "$RUNNER_TEMP/forge-image-mount-targets.json"
+      - name: Verify additional auth-only proof mounts cannot shadow the image
+        if: github.head_ref == 'review/1519-old-auth-only-20261003'
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
+            --entrypoint node "$AUTH_ONLY_IMAGE_ID" -e '
+              const { lstatSync } = require("node:fs");
+              const [sourceSha, imageId] = process.argv.slice(1);
+              const targets = ["/proof/old-auth-only", "/proof/output"].map(path => {
+                try { lstatSync(path); return { path, present: true }; }
+                catch (error) { if (error.code !== "ENOENT") throw error; return { path, present: false }; }
+              });
+              console.log(JSON.stringify({ diagnosticOnly: true, approval: false, mounts: "none", sourceSha, imageId, targets }));
+              process.exitCode = targets.some(target => target.present) ? 1 : 0;
+            ' "$SOURCE_SHA" "$AUTH_ONLY_IMAGE_ID" > "$RUNNER_TEMP/auth-only-image-mount-targets.json"
       - name: Record actual final-image dangling links without exemptions
         run: |
           set -euo pipefail
           docker run --rm --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
             --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly" \
-            --entrypoint node "oxy-forge-candidate:$SOURCE_SHA" \
+            --entrypoint node "$AUTH_ONLY_IMAGE_ID" \
             /proof/scripts/forge-candidate-dangling-links.mjs /app \
             > "$RUNNER_TEMP/forge-image-dangling-links.json"
       # Derives the complete installed-root set: any node-forge copy outside /app fails the evaluator.
@@ -85,26 +104,86 @@ jobs:
           docker run --rm --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
             --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly" \
-            --entrypoint node "oxy-forge-candidate:$SOURCE_SHA" \
+            --entrypoint node "$AUTH_ONLY_IMAGE_ID" \
             /proof/scripts/forge-candidate-image-roots.mjs / \
             > "$RUNNER_TEMP/forge-image-roots.json"
       - name: Verify all materialized copies and run own-key controls without network
         run: |
           set -euo pipefail
-          docker run --rm --network none --read-only --cap-drop ALL             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m             --tmpfs /tmp:rw,noexec,nosuid,size=32m             --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly"             --mount "type=bind,src=$PWD/docs/security/forge-candidate,dst=/proof/hashes,readonly"             --mount "type=bind,src=$PWD/patches,dst=/proof/patches,readonly"             --entrypoint node "oxy-forge-candidate:$SOURCE_SHA"             /proof/scripts/forge-candidate-image-proof.mjs /app             /proof/hashes/candidate-hashes.json /proof/scripts/forge-candidate-regression.cjs             /proof/patches/node-forge@1.4.0.patch             > "$RUNNER_TEMP/forge-image-regression-proof.json"
+          docker run --rm --network none --read-only --cap-drop ALL             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m             --tmpfs /tmp:rw,noexec,nosuid,size=32m             --mount "type=bind,src=$PWD/scripts,dst=/proof/scripts,readonly"             --mount "type=bind,src=$PWD/docs/security/forge-candidate,dst=/proof/hashes,readonly"             --mount "type=bind,src=$PWD/patches,dst=/proof/patches,readonly"             --entrypoint node "$AUTH_ONLY_IMAGE_ID"             /proof/scripts/forge-candidate-image-proof.mjs /app             /proof/hashes/candidate-hashes.json /proof/scripts/forge-candidate-regression.cjs             /proof/patches/node-forge@1.4.0.patch             > "$RUNNER_TEMP/forge-image-regression-proof.json"
       - name: Validate the auth-only archive binding fixtures
         if: github.head_ref == 'review/1519-old-auth-only-20261003'
         run: python3 -B scripts/rehearsal/old-auth-only/test-archive-proof.py
+      - name: Validate exact-image bootstrap and cleanup fixtures
+        if: github.head_ref == 'review/1519-old-auth-only-20261003'
+        run: python3 -B scripts/rehearsal/old-auth-only/test-image-bootstrap.py
+      - uses: actions/checkout@v7
+        if: github.head_ref == 'review/1519-old-auth-only-20261003'
+        with:
+          ref: 38d5ce28c0a5ec0338775810d5681e2834416f25
+          path: auth-only-schema-fixture
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        if: github.head_ref == 'review/1519-old-auth-only-20261003'
+        with:
+          bun-version: 1.4.2
+      - name: Prepare isolated schema fixture dependencies
+        if: github.head_ref == 'review/1519-old-auth-only-20261003'
+        run: |
+          set -euo pipefail
+          # The ARM runner provides PostgreSQL 16; install 17 for the reviewed owned-PG harness.
+          # This prepares local tools only. Never start or reuse the system database service.
+          policy_path=/usr/sbin/policy-rc.d
+          policy_backup="$(mktemp -d "$RUNNER_TEMP/auth-only-apt-policy.XXXXXX")"
+          policy_existed=0
+          if sudo test -e "$policy_path" || sudo test -L "$policy_path"; then
+            sudo cp -a "$policy_path" "$policy_backup/original"
+            policy_existed=1
+          fi
+          restore_policy() {
+            sudo rm -f "$policy_path"
+            if test "$policy_existed" = 1; then sudo cp -a "$policy_backup/original" "$policy_path"; fi
+            sudo rm -rf "$policy_backup"
+          }
+          trap restore_policy EXIT
+          system_pg_before="$(pgrep -x postgres || true)"
+          system_redis_before="$(pgrep -x redis-server || true)"
+          printf '#!/bin/sh\nexit 101\n' | sudo tee "$policy_path" >/dev/null
+          sudo chmod 755 "$policy_path"
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common redis-server
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get update
+          sudo apt-get install -y postgresql-17
+          test "$(pgrep -x postgres || true)" = "$system_pg_before"
+          test "$(pgrep -x redis-server || true)" = "$system_redis_before"
+          restore_policy
+          trap - EXIT
+          test -x /usr/lib/postgresql/17/bin/initdb
+          test -x /usr/bin/redis-server
+          cd auth-only-schema-fixture
+          test "$(git rev-parse HEAD)" = 38d5ce28c0a5ec0338775810d5681e2834416f25
+          bun --no-env-file install --frozen-lockfile --minimum-release-age=0
+          bun --no-env-file run --cwd packages/api build
+      - name: Run production AUTH-only bootstrap and probe in the exact ARM image
+        if: github.head_ref == 'review/1519-old-auth-only-20261003'
+        env:
+          AUTH_ONLY_SCHEMA_SOURCE: ${{ github.workspace }}/auth-only-schema-fixture
+        run: |
+          set -euo pipefail
+          [[ "$AUTH_ONLY_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
+          python3 -B scripts/rehearsal/old-auth-only/run.py --arm-image-bootstrap
       - name: Retain the exact scanned auth-only ARM image without rebuilding
         if: github.head_ref == 'review/1519-old-auth-only-20261003'
         run: |
           set -euo pipefail
-          IMAGE_ID="$(docker image inspect "oxy-forge-candidate:$SOURCE_SHA" --format '{{.Id}}')"
+          IMAGE_ID="$AUTH_ONLY_IMAGE_ID"
           docker image inspect "$IMAGE_ID" --format '{{json .}}' > "$RUNNER_TEMP/auth-only-image-inspection.private.json"
           docker image save --output "$RUNNER_TEMP/auth-only-image.tar" "$IMAGE_ID"
           python3 -B scripts/rehearsal/old-auth-only/archive-proof.py \
             "$RUNNER_TEMP/auth-only-image.tar" "$RUNNER_TEMP/auth-only-image-inspection.private.json" \
-            "$SOURCE_SHA" "$GITHUB_RUN_ID" > "$RUNNER_TEMP/auth-only-archive-proof.json"
+            "$SOURCE_SHA" "$GITHUB_RUN_ID" "$RUNNER_TEMP/auth-only-bootstrap/receipt.json" \
+            > "$RUNNER_TEMP/auth-only-archive-proof.json"
       - uses: actions/upload-artifact@v7
         if: success() && github.head_ref == 'review/1519-old-auth-only-20261003'
         with:
@@ -112,6 +191,7 @@ jobs:
           path: |
             ${{ runner.temp }}/auth-only-image.tar
             ${{ runner.temp }}/auth-only-archive-proof.json
+            ${{ runner.temp }}/auth-only-bootstrap/receipt.json
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v7
@@ -125,5 +205,14 @@ jobs:
             ${{ runner.temp }}/forge-image-regression-proof.json
             ${{ runner.temp }}/forge-image-roots.json
             ${{ runner.temp }}/forge-image-mount-targets.json
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        if: always() && github.head_ref == 'review/1519-old-auth-only-20261003'
+        with:
+          name: auth-only-bootstrap-proof-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/auth-only-image-mount-targets.json
+            ${{ runner.temp }}/auth-only-bootstrap/receipt.json
           if-no-files-found: error
           retention-days: 14
