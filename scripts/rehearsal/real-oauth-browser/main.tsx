@@ -22,6 +22,12 @@ function App() {
         .then(() => setObservation('Grant revoked'))
         .catch(() => setObservation('Revoke: failed'));
     }}>Revoke this app grant</button>
+    <button onClick={() => {
+      oxyServices.cache.clear();
+      void oxyServices.users.me()
+        .then((profile) => setObservation(`API subject: ${profile.id} (${profile.username})`))
+        .catch(() => setObservation('API subject: denied'));
+    }}>Read API subject</button>
     <p>{observation}</p>
   </> : <><p>Signed out</p><OxySignInButton oauthRedirectUri={`${location.origin}/`} /></>;
 }
