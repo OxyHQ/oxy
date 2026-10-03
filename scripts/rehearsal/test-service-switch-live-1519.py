@@ -83,7 +83,8 @@ def main():
             print(json.dumps({'stage': stage, 'exitCode': migration.returncode, 'log': str(migration_log)}))
             migration.check_returncode()
         command = ['bun', '--no-env-file', 'run', 'test', '--runInBand', '--runTestsByPath',
-                   'src/routes/__tests__/internalServiceAccountSwitch.test.ts']
+                   'src/routes/__tests__/internalServiceAccountSwitch.test.ts',
+                   'src/middleware/__tests__/authIdentity.test.ts']
         env = {k: v for k, v in clean_env().items()
                if k in ('PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR')} | {
             'DATABASE_URL': f'postgresql://oxy@127.0.0.1:{PORT}/{db}',

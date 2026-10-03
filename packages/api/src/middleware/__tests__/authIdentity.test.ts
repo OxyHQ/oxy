@@ -39,6 +39,7 @@
  */
 
 import express, { type Response } from 'express';
+import rateLimit, { MemoryStore } from 'express-rate-limit';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
@@ -64,8 +65,10 @@ import { authMiddleware, simpleAuthMiddleware, type AuthRequest, type SimpleAuth
 import { optionalAuthMiddleware } from '../optionalAuth';
 import type { AuthenticatedRequest } from '../authUtils';
 import sessionService from '../../services/session.service';
+import { hashedIpKey } from '../../utils/ipKey';
 
 let server: http.Server;
+const probeRateStore = new MemoryStore();
 
 /** What each probe route echoes back about the identity it was handed. */
 interface IdentityEcho {
@@ -156,6 +159,16 @@ beforeAll(async () => {
   process.env.DEVICE_ID_SALT = 'x'.repeat(48);
 
   const app = express();
+  app.use(rateLimit({
+    windowMs: 60_000,
+    limit: 100,
+    store: probeRateStore,
+    keyGenerator: hashedIpKey,
+    validate: { keyGeneratorIpFallback: false },
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { present: false },
+  }));
 
   // A handler shaped exactly like the ~25 route files that import `AuthRequest`.
   app.get('/probe/full', authMiddleware, (req: AuthRequest, res: Response) => {
@@ -364,4 +377,20 @@ describe('optionalAuthMiddleware — the non-blocking identity', () => {
     expect(res.status).toBe(200);
     expect(res.body.present).toBe(false);
   });
+});
+
+describe('fixture authorization probe rate limits', () => {
+  it.each(['/probe/simple', '/probe/optional'])(
+    'bounds real HTTP authorization on %s before the handler',
+    async (path) => {
+      await probeRateStore.resetAll();
+      const token = await signIn(await account());
+      for (let request = 0; request < 100; request += 1) {
+        expect((await get(path, token)).status).toBe(200);
+      }
+      const rejected = await get(path, token);
+      expect(rejected.status).toBe(429);
+      expect(rejected.body).toEqual({ present: false });
+    },
+  );
 });
