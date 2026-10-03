@@ -1,0 +1,21 @@
+{
+  "kind": "additional literal timeout fixture accepted and executed by root",
+  "providerRequests": 0,
+  "publishedVersion": "@peable.to/sdk@0.2.2",
+  "formats": [
+    "ESM",
+    "CJS"
+  ],
+  "responseDelayMs": 1500,
+  "requestTimeoutMs": 100,
+  "records": {
+    "checkout-timeout.mjs": {
+      "sha256": "4df8465562d2d17413c58b82d83877f9b84d3fb366531c75a268ba732ff2c43b",
+      "bytes": 3908
+    },
+    "result.txt": {
+      "sha256": "f69a3a3e56939b9f4cd89c5e165f2d276ccb503c9da964ab4a1748568a4ac4fa",
+      "bytes": 616
+    }
+  }
+}
