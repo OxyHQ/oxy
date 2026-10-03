@@ -1,0 +1,18 @@
+$ bun run build:cjs && bun run build:esm && bun run build:types
+$ tsc -p tsconfig.cjs.json
+src/chain/continuity.ts(15,43): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/chain/engine.ts(15,43): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/chain/recordStore.ts(25,43): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/chain/verify.ts(28,71): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/envelope/sign.ts(10,43): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/envelope/signingInput.ts(9,43): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/identity/resolver.ts(20,43): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/node/didWebResolver.ts(24,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/node/didWebResolver.ts(100,13): error TS7006: Parameter 'vm' implicitly has an 'any' type.
+src/node/didWebResolver.ts(105,31): error TS2345: Argument of type '{}' is not assignable to parameter of type 'string'.
+src/node/didWebResolver.ts(106,17): error TS2345: Argument of type '{}' is not assignable to parameter of type 'string'.
+src/node/didWebResolver.ts(111,26): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+src/node/didWebResolver.ts(112,19): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+src/node/nodeApp.ts(37,43): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/node/nodeClient.ts(15,43): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/node/verifyRecord.ts(23,71): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.

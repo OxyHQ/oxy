@@ -1,0 +1,114 @@
+{
+  "sourceHead": "27c9ed55b1d32a50660019e4bd3864e2dba9a061",
+  "baseHead": "ebb69bac0",
+  "runtimeDelta": [
+    "packages/core/src/session/refresh.ts"
+  ],
+  "inputs": {
+    "packages/core/src/session/refresh.ts": "2b4f756517a7e98c7bee50833bb2255490ca21f065ac70e50718203af0916724",
+    "packages/core/src/session/__tests__/refresh.contextCas.test.ts": "1887246553268b224cc24b6ab9edd0d8db06374f3e317f6847351a324ee68f7e",
+    "packages/core/src/HttpService.ts": "5395288173a19d024a676ebda7a073286c600ed2d1167b97646a6724a7d856d6",
+    "packages/core/src/session/SessionClient.ts": "99192d1703a896bb9766240a61dfb3b89be815aeb2ca92b7c4468dec96d62005",
+    "packages/core/src/session/sessionClientHost.ts": "84ab17a8166cd24e206bdf1115cb04f601f20791930598a5b8b1ac46663f8ad9",
+    "packages/core/src/session/authStateStore.ts": "e1e58baaaaa8c9a52e125c8bafcaeb9e3a24115ccfbd069157ec63eff6b63b03",
+    "packages/api/src/routes/__tests__/nativeHolderLogoutRecovery.test.ts": "8985a26a5f255bb0a36e4b5c990f6e190a52b3962ee90bd600301b942fb2084e",
+    "scripts/rehearsal/test-native-holder-recovery-1519.py": "2290237b4b928dc4de7a9b0514cec311c0e6a2f1b177b9df99191a586d33fb27",
+    "packages/core/package.json": "cafe284430f4bf30392b90f75e0693fe0491ae31035d8b2a870b05dd4e8bb2e6",
+    "packages/services/package.json": "da64d7c6390840ebbcbd79f37cfe3fd1a2d306b943f513e707e43da29753188e",
+    "bun.lock": "729e9f5fdd43f120ca575397c41fed0881cb09e3f0001354c437790d44f0ba8e"
+  },
+  "frozenFixture": {
+    "commit": "74a1b5f4b",
+    "sha256": "1887246553268b224cc24b6ab9edd0d8db06374f3e317f6847351a324ee68f7e",
+    "byteIdentical": true,
+    "red": {
+      "failed": 3,
+      "passed": 2,
+      "exitCode": 1
+    },
+    "green": {
+      "failed": 0,
+      "passed": 5,
+      "fullCoreIncludesExactFixture": true
+    }
+  },
+  "records": {
+    "records/focused.txt": "767838368d0329181ef33448ae7f27501ab0f4eca357391a36d3dae1706eaf4a",
+    "records/historical-refresh-cas-api-owned.log": "b6d80f3caa434dfa13c1b74d68ff6aefacd1f5a96643343e7ff95c8556832dc8",
+    "records/historical-refresh-cas-final-scoped-lint.log": "06e9c217fed501eca47be1a0d85bb960fe90fe87526e7b9eb526dcbdfa3a7a45",
+    "records/historical-refresh-cas-protocol-build.log": "f27d54e0416126c9621df77fc2f7e5b27690c7f61680c8e82814016ab5f10d99",
+    "records/historical-refresh-cas-red-final.log": "94b87e216b0fd4267bfa1de91437936a73be298ec573d5e102e5fd8a0684a74f",
+    "records/historical-refresh-cas-red.log": "0279bbf5fd428eceb5e6c22a9693a6c98cd0e45b0a0a65c1cde79f1b30ea7c52",
+    "records/historical-refresh-cas-services-full.log": "14c0ce950eb16d5658d65b90d869913ed3b581793cc4c21ae0fb135f0aed41b2",
+    "records/migrate-fresh.txt": "761c4f4c2343fd8e758c40f78b6643a088e45c84756b15c720175684ae161dc6",
+    "records/migrate-repeat.txt": "751fb7bd86cc2588678d27fd9b8d787a9ac35b8afff3cc773cbe37e36986368e",
+    "records/refresh-cas-api-build.log": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+    "records/refresh-cas-api-owned-final.log": "254c9e4e67992a777a28483ef581e5c3a2aad2de0703407af78165db230a55c0",
+    "records/refresh-cas-byte-frozen-red.log": "26a60387ebcd8328fb574334e0d709adc042d7c5e39987ca60467afa575ad7fa",
+    "records/refresh-cas-contracts-build.log": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce",
+    "records/refresh-cas-core-build.log": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc",
+    "records/refresh-cas-core-final-full.log": "9f414746d1baad284876b3f58c3f5fbed1546b9d2b4d21a13092d3c4d4caf10e",
+    "records/refresh-cas-db-build.log": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce",
+    "records/refresh-cas-final-fixture-green.log": "0f4825ed41e3582655b1a931bd3d5ccf284c7ee22c4ef3cd989b12ce3a97fda5",
+    "records/refresh-cas-install.log": "7690e9d1515d73fc5aedf8da2f2e347e09cfc21856fa8af069e8b1a790f68d12",
+    "records/refresh-cas-protocol-final-build.log": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce",
+    "records/refresh-cas-scoped-lint-final.log": "967c1eb73ff103928ef8edf73b47e89032eeb26ac7ff0f457c68f8c3928f9618",
+    "records/refresh-cas-services-build.log": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a",
+    "records/refresh-cas-services-final-full.log": "b25aa4725435d61ca84430e899aedcfc8d8fba38b843e446c391d0bab805d391"
+  },
+  "compiled": {
+    "packages/core/dist/cjs/session/refresh.js": "129054cc2aa1c80cccd133d80e09fcc7e89b83937c04aa8f93f59e607c323c2b",
+    "packages/core/dist/esm/session/refresh.js": "1209054540e2bdf67edd4db40c9091548e31e1ca27e1cfeff84bfeb6049c33ad",
+    "packages/core/dist/types/session/refresh.d.ts": "e3988efc4dcb14ec659a1b8ddc649955892e44a407df8db34fa6d4bfeae0b721",
+    "packages/core/dist/cjs/session/authStateStore.js": "c172b6397bbaba069103144f35824eefa8f803e9aeb762e28f74a0a26d40ea52",
+    "packages/core/dist/cjs/HttpService.js": "735c17322bf7f346b0f8b74d0905087221f2d11964858e94a7453a4d3746f4be",
+    "packages/core/dist/cjs/session/SessionClient.js": "70d6fcba208db1bac99814edd8f4d110214acf4b73ea49aa2f9d5ccdbc31684b",
+    "packages/core/dist/cjs/session/sessionClientHost.js": "bc0ec62807b05a9aa9d6858ff42230ee3e3d49e4a06dbe6647f805406019461c"
+  },
+  "results": {
+    "core": {
+      "suites": 184,
+      "tests": 2233,
+      "exitCode": 0
+    },
+    "services": {
+      "suites": 113,
+      "tests": 1040,
+      "exitCode": 0
+    },
+    "api": {
+      "suites": 1,
+      "tests": 4,
+      "exitCode": 0,
+      "migrationFreshRepeat": 142
+    },
+    "builds": [
+      "contracts",
+      "protocol",
+      "db",
+      "core",
+      "services",
+      "api"
+    ],
+    "scopedLintExit": 0
+  },
+  "ownedPostgres": {
+    "pid": 4083363,
+    "dataDirectory": "/home/nate/Oxy/oxy/.worktrees/native-holder-rehearsal-1519-nfburfn4/pg1519-xdoedu1e/data",
+    "pidAbsent": true,
+    "postmasterAbsent": true
+  },
+  "historicalSetupFailures": [
+    "Initial wire fixture omitted JSON content-type and left a SessionClient BroadcastChannel open; fixed fixture explicitly stops it. No runtime result credited.",
+    "Initial Services tests ran before workspace core exports were built; dependency-order builds followed.",
+    "Initial protocol build raced unbuilt contracts; dependency-order retry passed.",
+    "Initial API migrator lacked built db exports; own PG stopped, db build then new own PG passed.",
+    "First lint command looked in root bin; actual package-owned Biome reports two fixture non-null assertions, corrected without suppressions."
+  ],
+  "limitations": [
+    "Regression uses real OxyServices/HttpService/SessionClient with synthetic fetch wire responses and native store factory backed by owned Map KV. B persistence is explicit after the normal SDK switch; it does not exercise OxyProvider or Android.",
+    "Separate API gate uses actual Express device routes/PG and built SDK, with owned native KV; it validates existing full/last/partial/re-login cases, not the deferred switch wire scenario against PG.",
+    "Android9e07 three PASS remain earlier candidate acceptance; final registry replay remains pending. No new device operations, publication, live mutation or production claim.",
+    "Guarded credential-only rotation fails closed for custom stores lacking saveIfCurrent; it never replaces current account/session/bearer."
+  ]
+}
