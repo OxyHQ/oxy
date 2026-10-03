@@ -1,0 +1,1202 @@
+{
+  "schemaVersion": 1,
+  "kind": "web04-first-party-preparation",
+  "sourceCommit": "c73dc0b6c38dc704327f8196e3df2686db7f3561",
+  "registrationExecutedSourceCommit": "e4b3acdff",
+  "sources": [
+    {
+      "path": "packages/api/scripts/register-real-oauth-native-client.ts",
+      "sha256": "39a21f8f7969dee9f14cb15910396e0d80b7dc4b7b01f37019992dfa383915f4",
+      "bytes": 4253
+    },
+    {
+      "path": "scripts/rehearsal/start-first-party-browser.py",
+      "sha256": "a478ca05603e0df1f45ce04fd0e2e996abff52c289a8c0ca085f6dc0a1f0dfbe",
+      "bytes": 3982
+    },
+    {
+      "path": "scripts/rehearsal/read-first-party-browser-state.py",
+      "sha256": "19754b68f515afe866fe9a96336045377e7fd08e12fe3d280a8ec7cf8a72df74",
+      "bytes": 6355
+    },
+    {
+      "path": "scripts/rehearsal/real-oauth-browser/main.tsx",
+      "sha256": "36a045f4d7218f02d8a873dc9f203c1791095091bf6a7ed98178cf9638b8b9a4",
+      "bytes": 2339
+    },
+    {
+      "path": "scripts/rehearsal/real-oauth-browser/vite.config.ts",
+      "sha256": "3ba85868117c93d20ab43e43369bacc892dc3ab7ff3394797df688ee64bdf024",
+      "bytes": 1111
+    },
+    {
+      "path": "scripts/rehearsal/real-oauth-browser/README.md",
+      "sha256": "8f9155c5251e556ba9bbeed134cf58b1d03cd3a7e9bd13d3403ca04d24d7aeb1",
+      "bytes": 4931
+    },
+    {
+      "path": "scripts/rehearsal/real-oauth-browser/tsconfig.json",
+      "sha256": "890382f9ae79354cdc3769e8bcb7bf7a8635d6d4c74336840c5f9d3e3c61b4ca",
+      "bytes": 709
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/preparation/public-manifest.json",
+      "sha256": "f49147c0b95c6ef0206e47edd54243ba5398a19c2357efdac0571bc1cd4dd825",
+      "bytes": 631
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/preparation/registrar-biome.log",
+      "sha256": "1d410c3f2656384dc1e72e30db00816f54cff4fa4e81f6cc7b24563630d3f7e3",
+      "bytes": 41
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/preparation/web04-state-before-final-reader.jsonl",
+      "sha256": "070bc765de1d1c9797a6f6d4f585b76de2e7842851263b9bc9e24cc98e7b0aa1",
+      "bytes": 12610
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/preparation/web04-ts.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/preparation/webFirst-build.log",
+      "sha256": "f3216e8c0a1cdff2f0eeec4aeae42b2ced4c906cc58772cadb59955f2e4ef16b",
+      "bytes": 19674
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/preparation/webFirst-registration.log",
+      "sha256": "448165104175bfb5819b22d82dc2d5d822884d24bf813e3cbf3f165784cb8ad0",
+      "bytes": 359
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/preparation/webSecond-build.log",
+      "sha256": "aaec5701b251e81d0f1b41d9dd001ec5bbcdb261b392d574a8103cf7f72b99fe",
+      "bytes": 19782
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/preparation/webSecond-registration.log",
+      "sha256": "b074b9515cb013db77096f0da9a55c243de1349c6ed69b6de58221cfe8dd4a57",
+      "bytes": 360
+    }
+  ],
+  "bundles": [
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/AccountMembersScreen-C6jwHr7f.js",
+      "sha256": "d09d1938ebbf00a00562124eb5def5fc85abb5dc94b58fb6826ef6983c662586",
+      "bytes": 9360
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/AccountSecurityPanelScreen-DNI53wIc.js",
+      "sha256": "0fe5a3f8536611c5b119665e0ae79aa88d35aac2d2c8b522e456033a5465d9b2",
+      "bytes": 278
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/AccountSettingsScreen-CQcp5gXD.js",
+      "sha256": "bc62166d1590925000e8cd62e25dd0cbcb9c01006281c94d9cab42cc9d8c6745",
+      "bytes": 5395
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/AccountVerificationScreen-Bk1UPNGX.js",
+      "sha256": "0b23607af13c4cfc4adc0a40ba45413389d78d9065ccb9014fe49627929b68d5",
+      "bytes": 6528
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/AppInfoScreen-CvIkobys.js",
+      "sha256": "1358f24d948891957226343f6858ae71b88e5b23fbf93e40cc1cb0b1bb496b4a",
+      "bytes": 9853
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/AvatarCameraBadge-BlrT9Mr6.js",
+      "sha256": "2d81170e84ae9925f79b75bce6fb50ece490b58bbdde0af24d0f921a4a2187de",
+      "bytes": 1154
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/AvatarCropScreen-BZl5xhFb.js",
+      "sha256": "cb27ba03e7ed44e12feca8df640f270f0a070d10d14cd740773ddfd0d4e60bfd",
+      "bytes": 19815
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/BlomusModernus-Bold-0E_Y-ihB.woff2",
+      "sha256": "e51f23ca66ee9522efdd62afdecb5bf6e855dcbe9c84a4cb61668b5c3bd83b6b",
+      "bytes": 77612
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/BlomusModernus-Regular-kZR3rHS0.woff2",
+      "sha256": "19002cade532cff19963ff3d38413815408e97d3f276ed02d59c4f2151e5b7a7",
+      "bytes": 77644
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/Card-htt2ykyn.js",
+      "sha256": "719f5ae0fc3c42180ce75fcb0477c63fd6107ecbc816a37d4baa6754a89016ed",
+      "bytes": 3804
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ChangeAvatarScreen-DZdxlfCJ.js",
+      "sha256": "d517c0f60cd014f2952eeae7f6466497278b477390c07a50223e76024c58ea72",
+      "bytes": 4210
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/Chip-DKC-7oF4.js",
+      "sha256": "f619abb34899b68afcbc8364682bab20c5054c6527225b8c2d0235e3d4fc891f",
+      "bytes": 8004
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ConnectedAppsScreen-wNkyTOSi.js",
+      "sha256": "ddbb38b5a5e937e0c9f9280c4b9d24b3989373affb00de7832d192746376a32d",
+      "bytes": 2635
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/CreateAccountScreen-Dsiiaicg.js",
+      "sha256": "4124382e71d98b53e5d8dceb7054c67d4116e479a4d717bb403d8d52f37f56c5",
+      "bytes": 6924
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/DeleteAccountScreen-DNW6Syjg.js",
+      "sha256": "a96a9b415bef84a2d2679e01c5b88ce50044f4fd7ecbb7e86830af4c9c33e1a1",
+      "bytes": 232
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/DomainsScreen-BlSlf_39.js",
+      "sha256": "522ad5fa1c4d733ce831cede71e39f30f933bbd5e06cf0fa1c1acce8dfe477a4",
+      "bytes": 3828
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/EditProfileFieldScreen-CffVSRes.js",
+      "sha256": "30ca3c99133c1688dc06d70d0e377e2fdd0aeb9d57217a4e19931fdd2766da54",
+      "bytes": 25443
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/EditProfileScreen-GqsBDcDP.js",
+      "sha256": "c222dc312139601c97d4c9105e84e40926813e36aa06bcfdab7a1e2180ce5d98",
+      "bytes": 3071
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/FileManagementScreen-55MuTYOB.js",
+      "sha256": "f6c88bb813c707a6a4e27cb7eaf69d4d580180ecf3bc46f12d4832e5575b5d65",
+      "bytes": 82841
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/FollowersListScreen-DxJo45-D.js",
+      "sha256": "38a34d133971f77f04a362cd63fde01f7741bbbfc6440c2b7deff4320bfd8896",
+      "bytes": 207
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/FollowingListScreen-DXyQnRPD.js",
+      "sha256": "ecf06b3ecbd0c309b7f8807db5a16d42c1eb7fb6762f93375e83037084e369d5",
+      "bytes": 207
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/Haptics-CWiqUtx6.js",
+      "sha256": "08334d3b0a4dd85850f4a085aa575bf74bbafc941dc7f65981f0861d52aecf81",
+      "bytes": 2415
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/HelpSupportScreen-BxURIKwH.js",
+      "sha256": "aef571ecba613050cdd540203e334f09f22e7f518da599c60a3c15c950953a3d",
+      "bytes": 2417
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/HistoryViewScreen-CYzEoIMt.js",
+      "sha256": "c3a3a122ea69324278174acb9e3a3c2dd66aed4720f5b73f3b52c6098956e3ad",
+      "bytes": 3384
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ImagePicker-C3_axJSu.js",
+      "sha256": "4cfef6a1a44cc3e721f6f8dbca691c03518990d7a4ff531ce2d2a05cc0ac6d55",
+      "bytes": 6816
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/InterVariable-Dx4kXJAl.woff2",
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+      "bytes": 48256
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/Ionicons-CArBHZEp.js",
+      "sha256": "8579da823f4abc95e29358b5678184ce8657ad071261fb4a4d755604d4b21fb9",
+      "bytes": 159
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/JetBrainsMono-Variable-B9CIFXIH.woff2",
+      "sha256": "18be452724bfdc236c074ca94a249a7f41a86752c7d04ab258ce9ed5651f6a7e",
+      "bytes": 40404
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/LanguageSelectorScreen-BYbmHsfj.js",
+      "sha256": "ffe376f153b672c90bf627cb36ea8fc18b5d4f4da83ffcf5b67ddb62cabb0bac",
+      "bytes": 3074
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/LearnMoreUsernamesScreen-O4Pdp7qJ.js",
+      "sha256": "0d3450a49bd5544a71fbe6e4516eafaa980fee6658a6f06ed2b01c857a87c025",
+      "bytes": 3647
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/LegalDocumentsScreen-DFrKL6UB.js",
+      "sha256": "3e2a253dbfb467d5122d49cdaa81a6112f3d5a1c6643c3a18e514cc96d9f7eed",
+      "bytes": 3921
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/LinkCommonsScreen-DC3HULPY.js",
+      "sha256": "b359b2dfcf89e22649a43fafb1ecbe9b3296bf9425e6424e4b89ad9e4810b4e6",
+      "bytes": 199
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ManageAccountScreen-_iX03hCJ.js",
+      "sha256": "08bf0985962a9857691f507766ae0761e71bfbdd71dab455b1bd3dc4dd1abdb4",
+      "bytes": 18554
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/NotificationsScreen-DVOPtaEG.js",
+      "sha256": "7c932d7e120d91f556696dc2e8770cab83ec7c31e8009321023100f76dcb19f3",
+      "bytes": 2857
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/OxyAccountDialogScreen-CAVputIk.js",
+      "sha256": "76f7050e24d24cbcd07fa4ced759ffa17918acef8c25af71b63cedd842ea9b55",
+      "bytes": 35672
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/OxyServicesIonicons-B1hZ8Dc8.ttf",
+      "sha256": "367d1eb46c64097ace34b793d7fbff9257c0da191d8cab73329cfe8999e95611",
+      "bytes": 43004
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/OxyServicesMaterialCommunityIcons-DVHLYwp4.ttf",
+      "sha256": "844252d83e5510b012333218db9e16cc997164360d1ab4f24148c3ca384ab740",
+      "bytes": 28852
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/PaymentGatewayScreen-iDheLRyt.js",
+      "sha256": "e17eb925d99c0dede38c8cd63e2fb25b9db331f5de102dce934d2dac66a068fc",
+      "bytes": 24025
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/PreferencesScreen-gcgqew1R.js",
+      "sha256": "50af9164a3973a31aecdf0dcf76ea3c43162601f60341582331819695ef237b0",
+      "bytes": 3157
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/PrivacySettingsScreen-DnV7IDH6.js",
+      "sha256": "105eae63d3bc65075ab86637c059966a2929b4427ae7d4aa2207f2c2c19db936",
+      "bytes": 10519
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ProfileScreen-BSw3xtdk.js",
+      "sha256": "42f50048571f58a138bf0f7acd9f8b744b125cbf6b92de32ac57db3cf7b4ea13",
+      "bytes": 8120
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ProfileSummaryCard-GQDJ9ECY.js",
+      "sha256": "5d8e156894c9ac9b0baa6461852b3429abeaa8b6a2efecd8b76a44cb6600d892",
+      "bytes": 1017
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/RiShieldCheckLine-BMtPAoin.js",
+      "sha256": "b1799ceb586c6243d28f6e5121e2b1f21324a8581bf3cf560dc1d547820f6c3b",
+      "bytes": 1629
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/RiSparklingLine-BJatk2w-.js",
+      "sha256": "6a32de4ee6b80c861b4ccd67097b8429859f2afd3b8d2ece4c8284b13d7d4131",
+      "bytes": 1205
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/SearchSettingsScreen-CNx5Ccmq.js",
+      "sha256": "2ba61be18cb7adbf813f95e5f6475a0173f9e7550e8eabcb02ed65821f10e6b8",
+      "bytes": 2105
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/SettingsIcon-CeYkNdQp.js",
+      "sha256": "2eb25b24b6ec985bd5132cc32bfd3ef862253653cd6eaf8969a1e74bc7fc2ced",
+      "bytes": 497
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/SettingsList-CfH0wo4n.js",
+      "sha256": "55301167cc7c9258df6e113b272076b8187a8097f72a0b91234958760072cb22",
+      "bytes": 3145
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/SignInAuthenticatorScreen-DF-39dcY.js",
+      "sha256": "b13932fe84e1f9f017a8a42fd2038f3384518e5109a00b32e68ff0891c1f8372",
+      "bytes": 199
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/SignInPasswordScreen-D3VJZvVc.js",
+      "sha256": "b0611000b1411addb5ac6f6a0dec0850cef2ed3aa32f0b1eb22ff2f4844637ee",
+      "bytes": 244
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/TrustAboutScreen-DSBQtHi6.js",
+      "sha256": "81990452afa8b6ee5441d030780a1da26b3f8ff53f8c577a47b67be791d18bdc",
+      "bytes": 3654
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/TrustCenterScreen-C4NcajwV.js",
+      "sha256": "1a43edfdbd829d774331cfe3f2db5401d5baa1301cf1be8218e44e63356eb383",
+      "bytes": 3900
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/TrustFAQScreen-49w66Yvx.js",
+      "sha256": "91d0927a88c96a089be7d4fcd9d1ed3098bb1557e1d354eaf90339bf85495390",
+      "bytes": 1499
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/TrustLeaderboardScreen-BOJBoy6S.js",
+      "sha256": "d3b843c3ac5d646c943e6dc1af96e7a0b993b4a854da91ab3e0353d40b61a73f",
+      "bytes": 3957
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/TrustRewardsScreen-BGLiRRe6.js",
+      "sha256": "1da02d730473c68953029454c3223eb64542ff92f13a0c8529431ac097ae8405",
+      "bytes": 9004
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/TrustRulesScreen-BtDOGooc.js",
+      "sha256": "d048c77e8131f1e999f27a331e67bdbeb8a10270e996d17d096b7547d9b61831",
+      "bytes": 1928
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/UserLinksScreen-B1ezME2D.js",
+      "sha256": "73fdc06983a9a426544ebdfbcf6ef950846f0e2fb6fbb9886f5c40ca9c163891",
+      "bytes": 835
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/UserListScreen-C3bE7ptL.js",
+      "sha256": "988e6a1dca5e611522c2ffff49b23b61ed810ffdbc158801f8cda8e78ca1aacc",
+      "bytes": 11546
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/WebBrowser-UG3nqEX9.js",
+      "sha256": "3b5acd533299892b9b0e267fe4fbb5842ad8971445da912c619aad79f947e0e3",
+      "bytes": 8117
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/WelcomeNewUserScreen-CrxBnOF_.js",
+      "sha256": "71e16361448f11bc101583fd90c52014b79b7d90b0b23bf02bf4ad9d98186233",
+      "bytes": 7969
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/__vite-browser-external-CNv4bBCF.js",
+      "sha256": "cbeb94d4d37cb648772f90ba4d649b828395cac67f3d53af03f4a3889a189edf",
+      "bytes": 59
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ar-SA-mO8GGXQZ.js",
+      "sha256": "fa9330f97143f24a19a705c2025cb36b57a8dcbec57117661f65633a75abe4c8",
+      "bytes": 16096
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ar-wBbt30Fv.js",
+      "sha256": "b62d9baab14f6540702832e700568f1850603040694b95b43b2868ed331c102c",
+      "bytes": 84901
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/arrow_down-NdGCEnxo.png",
+      "sha256": "6deca32b56b97fa1fa87facd6996b46cc45190a553400e7febdf1d2093099b57",
+      "bytes": 9456
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/bn-D4RZ_Kph.js",
+      "sha256": "b63caaf69765e40223da1983cd27dc69b6241fa3dbb91ac6104f4275225d6087",
+      "bytes": 104257
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/build-CzhVLfiE.js",
+      "sha256": "c92f65c7bbcc5173733ba565cb53b52ee1ddc61ce266b3bb3fb9b47ee658502c",
+      "bytes": 1512
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ca-DDuTQE4M.js",
+      "sha256": "a6194213d542ce318a2d4b2db7eba9bb3fe3513f28b38a3d1bf4db71c215b439",
+      "bytes": 64251
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ca-ES-BFej1iYY.js",
+      "sha256": "f2f888f02a77c3ddbcd66a12084cef42b1e6ecf86d871568aabe3a1ff663568d",
+      "bytes": 12926
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/colorUtils-omxxE4z_.js",
+      "sha256": "1a10b387104ed03a9762039bfe4177aee0bc8060eba24bc754a1efb973bbeaaa",
+      "bytes": 778
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/de-DE-BA4b4FyP.js",
+      "sha256": "9cba6626181ca5a51d2bd85d6939a6eb7b180ad59da74a6eafbb9bf7233957cc",
+      "bytes": 13399
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/de-DcZvYCbb.js",
+      "sha256": "45187ea7ca1f20c9e8aaeefe9c4bed64fd4d267e2cdc9bd63907b25597ab2408",
+      "bytes": 64136
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/es-D2zaoMvV.js",
+      "sha256": "977e0a5c0e7c42dcc44b1287ba343bcc6183bcab4d31a8527e4a7a036057be06",
+      "bytes": 64459
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/es-ES-3ZgTfyeJ.js",
+      "sha256": "aa75417c8fa1d1c50077b31c78e78a402ae2a3fe71566ccc685be8eabce546d5",
+      "bytes": 65380
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/esm-B4GMeL93.js",
+      "sha256": "5a151297598d9340e08768c606e12966cd1d6a0c741f3fa75862a97f8ed17ed4",
+      "bytes": 42186
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/fr-DCmNXMNF.js",
+      "sha256": "f75a5db513fc1872a313238af1cf66ea5f3a2eec2b5dbf4be1f0acd1fdbba926",
+      "bytes": 66343
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/fr-FR-DKon_f8s.js",
+      "sha256": "0d4a1647654223139ca02c6302e92a66b8296b7b91d1997244406c38bec3db05",
+      "bytes": 13727
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/hi-Cw9pi7VH.js",
+      "sha256": "4310ae2ec94e71e8528e82efa0a3d7ff40c01ba960cebc73e3ecea4e002a71f9",
+      "bytes": 102105
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/id-CIBw8c42.js",
+      "sha256": "986c19ba3eede3a950623d40eb411e87fc65e081359b97204c176e9d2c90f51a",
+      "bytes": 59796
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/index-D_TnPiDO.js",
+      "sha256": "0c3d194b20b695198d5b2bcc238198515e38b5e84a2fd877780807dcc964f636",
+      "bytes": 3873029
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/internal-BZj2kY_y.js",
+      "sha256": "d7dc32ba2961e92e1cd45ed79ae343a76a2e15984efcbbce114a8d8de4d1f1b6",
+      "bytes": 39770
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/it-IT-yWhEPHf5.js",
+      "sha256": "3a43eba14d503ba50890da5913ceb94451e4f4726a969f6258c4803de1a5fa3a",
+      "bytes": 12617
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/it-UHItyJw9.js",
+      "sha256": "8671c7e220e81c0dba03322650f50b04a26cf86e54d68dee63007344cf9345d7",
+      "bytes": 63868
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ja-Cg5NlaCa.js",
+      "sha256": "825b77565c0472fda453cb91518ef9bc3dadabd0b4e8b919b17d06fbc2e59251",
+      "bytes": 68068
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ja-JP-De29lRdE.js",
+      "sha256": "5f714fd5dbf8d138d315bdc6836048733f16fdeaade7c1a62899b90f7c7fe7f3",
+      "bytes": 15924
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ko-KR-fgWiKIb-.js",
+      "sha256": "6d2618a64597a71897f445f8d23dbb31a187e110ae987028620bae875eb4d85f",
+      "bytes": 13830
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/message-helpers-6BPlsYLP.js",
+      "sha256": "b0340262c185e07aea8772973d47fbacb6cd3b169c8f5a48c7065df69dea549f",
+      "bytes": 1151
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/module-Sbz073dp.js",
+      "sha256": "b6fbb5017304a41ca4d537c4d35799c271732ca0451bd95315ddfe86b99ffbc6",
+      "bytes": 2900
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/module-UhevpPDS.js",
+      "sha256": "d2dab7b3039af2e95e197b40449b4901043d67a3f2496bffa184e0d6c9160743",
+      "bytes": 8859
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/plural-CWYe3cpk.js",
+      "sha256": "cc24ee93b727aee00d4629b9a29d8a650023a67b312da1f0c1076e5d379350a7",
+      "bytes": 861
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/pt-DWH-2enl.js",
+      "sha256": "e8d6fd01301baee87d51efe93972405f0203264f5eb2ffa7ff97c4262f2508e5",
+      "bytes": 64007
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/pt-PT-BMRB4MV8.js",
+      "sha256": "cb07ae16a00f94be3dd8879d5eff0ddfb857186b6972f5407293fce28eff5bf3",
+      "bytes": 13037
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/recoveryPhrase-BG-wAzKu.js",
+      "sha256": "26ac748363ebd04b96aa5b4be40189e28298c81bc7c07789c821cfc7d617a822",
+      "bytes": 24572
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/ru-BBYLmOBz.js",
+      "sha256": "089b532ef6255f7bc8ccc2f4d61d2131c0e071d753c4e7fc31d07266d02941a1",
+      "bytes": 91519
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/slide-1-CPYeLD4l.jpg",
+      "sha256": "22ed5e34964e5521a66b768486678e921616fd57ca6dcde5c51be9a4157e102a",
+      "bytes": 102174
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/slide-2-BAN8I4Iy.jpg",
+      "sha256": "40023aac9a1dc1bd10a4adb8289d91d8c7c040b7edcbfce862ee9f7873f59401",
+      "bytes": 87909
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/slide-3-Bp5gr1Be.jpg",
+      "sha256": "2032ca3d18f8d64ac5ee5f54da9d86dbf132d4f47759d1baaa092f444d3074b3",
+      "bytes": 59186
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/slide-4-DSNFt0xP.jpg",
+      "sha256": "4bcc6514fe8b65d0bea31ccb17c83181ae3a2025115d48644ac088a115389e21",
+      "bytes": 46637
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/src-Pe084Umx.js",
+      "sha256": "dd2811277e7a250837dbd8e413b5dbec29243e71fcfd68597f17de281db5dd96",
+      "bytes": 8150
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/tr-Dbn7xD1I.js",
+      "sha256": "34f10995be4a15979d6b4078a1726a960b0a2e931e5c8ca1bc82e6235771c685",
+      "bytes": 61714
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/trustTierLabels-zjbhaGDM.js",
+      "sha256": "cf173e7e8e421eee72ea0209f35798e5bd39f6226279101b55b28830b8a15e79",
+      "bytes": 125
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/unmatched-C2XkAHgU.png",
+      "sha256": "efc79da3c4c97dfb1571bff6202958ab0529c5aa31e8392600578b3e359d1447",
+      "bytes": 4752
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/useReduceMotion-CrFKetU-.js",
+      "sha256": "651424694b9e22f219c86ae2e9fff9f2da42fd60487f5d14898ca7144c2c07c1",
+      "bytes": 403
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/useSettingToggle-CnyvHAxR.js",
+      "sha256": "5bf607bb641e5dc27214d72a342b14940240257a801478e7ccad9b409d72f855",
+      "bytes": 681
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/validationUtils-CblVnFp7.js",
+      "sha256": "c61035244ea24ecd7ff7bde5acab45a724f20001f14485d4ae504eac287e43ce",
+      "bytes": 21149
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/version-D8-p_RBf.js",
+      "sha256": "ed4d75046bc22d98f3335e655dcdc3549ff9cc96ab04df37940ad27ad2998df4",
+      "bytes": 330
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/zh-B1hj3PfM.js",
+      "sha256": "02118773257cf802e316f89e4d43733950102cb47acf6858558c21f538fab927",
+      "bytes": 56741
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/assets/zh-CN-DZ4leBXt.js",
+      "sha256": "b14f6617a7672cc22eab46a7477c5396752d8e322a3d60ef0c580adf1eac018a",
+      "bytes": 11864
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webFirst-build/index.html",
+      "sha256": "803683310dcaad6cce874bb0855ceb1888a9b52d672672ab3b529781dcee3d2d",
+      "bytes": 228
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/AccountMembersScreen-DSguKbsF.js",
+      "sha256": "d197720023be877ed9e8ec8441b277724a4eb5e65dce2beaa66ea98086640d40",
+      "bytes": 9360
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/AccountSecurityPanelScreen-D8HDrICX.js",
+      "sha256": "d204c9c9f7a49fdb415d9c5f8aaa23c9cd408f8ddfbea02a653634df7c28ea19",
+      "bytes": 278
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/AccountSettingsScreen-DVaVNs-F.js",
+      "sha256": "c6e9bba3f7c48a9b5ccca673caccd21279b265a2c3eebc6a4057a908c63e2240",
+      "bytes": 5395
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/AccountVerificationScreen-zNCuzNiQ.js",
+      "sha256": "d730bcce0aca68214db0a37cc81997af3889debd882d0de7edf9c8b094444238",
+      "bytes": 6528
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/AppInfoScreen-sKBKDCJ1.js",
+      "sha256": "f75c232598a2150df0803af93dd0cc8c4eed503a6d7cef550e6fafdfd683c983",
+      "bytes": 9853
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/AvatarCameraBadge-XiWiobLH.js",
+      "sha256": "b3b2e7a9adefc87b83d8cd1a987d06666e4b7f183688648ef556dcf52fccad0b",
+      "bytes": 1154
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/AvatarCropScreen-DctC94RB.js",
+      "sha256": "7656af95544f3f6123fd727503082e31fbfd895ca1f488d986c24153dac6e8a4",
+      "bytes": 19815
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/BlomusModernus-Bold-0E_Y-ihB.woff2",
+      "sha256": "e51f23ca66ee9522efdd62afdecb5bf6e855dcbe9c84a4cb61668b5c3bd83b6b",
+      "bytes": 77612
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/BlomusModernus-Regular-kZR3rHS0.woff2",
+      "sha256": "19002cade532cff19963ff3d38413815408e97d3f276ed02d59c4f2151e5b7a7",
+      "bytes": 77644
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/Card-BvsozvqT.js",
+      "sha256": "34c382bd5dd71cf70aaa454e8b301593cef6bc76808781a11f3894ecf4f4b60c",
+      "bytes": 3804
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ChangeAvatarScreen-BeSSxDJn.js",
+      "sha256": "4e90e30c1e262c8e4c6a5c452b72bb1f3930bbd53032398bf1669325f3c54226",
+      "bytes": 4210
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/Chip-DnCj7xz8.js",
+      "sha256": "5493945d9f9eacb67c73cf7f1a98cb468bf4e405148dd95c6644484c3307a367",
+      "bytes": 8004
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ConnectedAppsScreen-Cxymq2nF.js",
+      "sha256": "c967bf74b2bc248e825704223edfd3c4fee3b68cb5bde746c92046a95e2a3e51",
+      "bytes": 2635
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/CreateAccountScreen-D2BfgcBI.js",
+      "sha256": "90b6187fa6afdc71d40822c092b108615717adf97312f5c7483aecdbbeae5a38",
+      "bytes": 6924
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/DeleteAccountScreen-DGpEgp02.js",
+      "sha256": "dde99b9a90bf9c98f5a3fef34bd784ca6ee2a7285e1c6dd0b02625fb5f93ec4d",
+      "bytes": 232
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/DomainsScreen-Dwt_vQPR.js",
+      "sha256": "97400f31f3deaf1e4ed54945742bfcf23aab6e74e3932e3ed97c3bf9688e0e77",
+      "bytes": 3828
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/EditProfileFieldScreen-BuMX4SfB.js",
+      "sha256": "22435767dcfc02d2d44365b5d72de403782968eac6c3b702f22cf22c022596bd",
+      "bytes": 25443
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/EditProfileScreen-Cg30xpJ6.js",
+      "sha256": "aa44010c7187b77756d3652036b388fd42e85af098563f5b66bda33ac8e9ac68",
+      "bytes": 3071
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/FileManagementScreen-CiUVYeOa.js",
+      "sha256": "b1115afd603be81a558abd1f05939013b5999ea2d8cc2ed888ada3ed0cc15ffe",
+      "bytes": 82841
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/FollowersListScreen-zseiY5aP.js",
+      "sha256": "13657c8833fa73728a52df3dcf4f150779c9ff90e152b6961b082aa2a829b4f1",
+      "bytes": 207
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/FollowingListScreen-Cx1PkTOW.js",
+      "sha256": "078dae9e671317ab682db8cf3f834d34e4d15d2aef7d25c746ac0daffbcf66c5",
+      "bytes": 207
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/Haptics-BR8UljL7.js",
+      "sha256": "f58bd0c40341945c90075f8186795feb2377aa029fc2a02aab00d36d93429ea9",
+      "bytes": 2415
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/HelpSupportScreen-BKaQtpKf.js",
+      "sha256": "003fb0adeab4f4b4a4f49a5af7df1930e6a3c5ff41d36eea6d85da4b3d95340b",
+      "bytes": 2417
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/HistoryViewScreen-C_f4O7PO.js",
+      "sha256": "55876c9aea289f105b002ff5a1d7157615efa7a5636633e7cc7d2d582dc284e3",
+      "bytes": 3384
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ImagePicker-DSexXz8x.js",
+      "sha256": "076a386d4f1eb1329b8dd93f4da942bbeea84405ef275e76aab719fe021bd9f8",
+      "bytes": 6816
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/InterVariable-Dx4kXJAl.woff2",
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+      "bytes": 48256
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/Ionicons-DMbS54GM.js",
+      "sha256": "4a4afd270e78225240d96e0e463fdbaa6c29e8ba5c825fad710e6ef4a1a57c07",
+      "bytes": 159
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/JetBrainsMono-Variable-B9CIFXIH.woff2",
+      "sha256": "18be452724bfdc236c074ca94a249a7f41a86752c7d04ab258ce9ed5651f6a7e",
+      "bytes": 40404
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/LanguageSelectorScreen-mpzaCdDX.js",
+      "sha256": "3df0a2cafb59071f67eaf85ae8ff24fd5f5f1124d84d45c5452a8a99346ad435",
+      "bytes": 3074
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/LearnMoreUsernamesScreen-BE9-cik5.js",
+      "sha256": "61a19040f174520306a4f0638d418d04c90373f5ffedfdd506c44b0db2d0f89b",
+      "bytes": 3647
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/LegalDocumentsScreen-RRscPYS3.js",
+      "sha256": "632217f175811bcfb4bc9e0e6b46d36e2add136c48a9c47f2db170ab28c591bd",
+      "bytes": 3921
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/LinkCommonsScreen-CUJuskks.js",
+      "sha256": "b4e861607598864556e70995a14a1acabd8e106230bb7d09d74144ece64538e3",
+      "bytes": 199
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ManageAccountScreen-DvmoiuMR.js",
+      "sha256": "9bddd3157b8abf29e699ed27692d39482f51797880da353a86eafaa139af1766",
+      "bytes": 18554
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/NotificationsScreen-Bx2Y8RSw.js",
+      "sha256": "4d0b822778a2bf4dac0e7d8837174127a70c39a7b55c2471a358dc9c7e678c81",
+      "bytes": 2857
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/OxyAccountDialogScreen-Ceh9ZiF3.js",
+      "sha256": "6c5aa40018a77096a5cbd9b3fb7255921488ab843f60098a252c5b6393077d84",
+      "bytes": 35672
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/OxyServicesIonicons-B1hZ8Dc8.ttf",
+      "sha256": "367d1eb46c64097ace34b793d7fbff9257c0da191d8cab73329cfe8999e95611",
+      "bytes": 43004
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/OxyServicesMaterialCommunityIcons-DVHLYwp4.ttf",
+      "sha256": "844252d83e5510b012333218db9e16cc997164360d1ab4f24148c3ca384ab740",
+      "bytes": 28852
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/PaymentGatewayScreen-BxVW9wOr.js",
+      "sha256": "692f74701bb6dafd4841cc777270815eea68f7efdc90be4f3738190b248c67a9",
+      "bytes": 24025
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/PreferencesScreen-DIVxuOl7.js",
+      "sha256": "98992b0f625378618b00cab84a477b9b344d76e72a065739b8253034ae9c2738",
+      "bytes": 3157
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/PrivacySettingsScreen-BHDSgJOj.js",
+      "sha256": "5652f465f7212b25edaab0d51ea117231a3acc342d7ffef510bc84a10b97218b",
+      "bytes": 10519
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ProfileScreen-BaQyFpZo.js",
+      "sha256": "a9333bd3508b93fc517c654b905c913edec2315eb67cded21c4074febfa705e5",
+      "bytes": 8120
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ProfileSummaryCard-BmwOIBOZ.js",
+      "sha256": "02f61191b502901e8c1b9092cf7b577c3053332ac9b93c49a6e99f386fe6b0e8",
+      "bytes": 1017
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/RiShieldCheckLine-yMEzw0iD.js",
+      "sha256": "fab57a5e14a2f68c8d2312a5fb2a337ee46b99e2a408bc7b8ae006f026fa25fc",
+      "bytes": 1629
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/RiSparklingLine-apDZg9Ja.js",
+      "sha256": "5093121d5971dd49d929f941aa02b8a46a5023239f3215784e7f33cac6c073af",
+      "bytes": 1205
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/SearchSettingsScreen-CzLAeh0o.js",
+      "sha256": "57256b5d96eeb10d7e3e130763487cadb79bc3038a72c319d351a34a57637123",
+      "bytes": 2105
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/SettingsIcon-CGKAzS1s.js",
+      "sha256": "4a03be5bfa7d5ce70f4d65774833781be34d60ee08fe1d6b01258df53bec58b4",
+      "bytes": 497
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/SettingsList-CuGy1n3v.js",
+      "sha256": "e474a01271a9a5659c861bbb16aa3153ddeb729228d1e0342b7deba18ef120ce",
+      "bytes": 3145
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/SignInAuthenticatorScreen-CIu3Qk-K.js",
+      "sha256": "5b0535404634d829c8bd06b103c054d0cd554206555a3cf4734831f15b317fd9",
+      "bytes": 199
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/SignInPasswordScreen-DfkmoAro.js",
+      "sha256": "1aa2b028a0a6295aacabde7be061fbf5cf8e7cc8a8d6f363b427e65a9efdaaa5",
+      "bytes": 244
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/TrustAboutScreen-Bz-Pgqao.js",
+      "sha256": "c9122eb2207e84e8bcba5e717f4e42805556649dc17d784a3c8a32e80ff6ceae",
+      "bytes": 3654
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/TrustCenterScreen-DgGJmS3q.js",
+      "sha256": "bf1c4b99e10355a8cd55b629c3b13c8c31d19e7f56b2d6ee43eeaf5cdfc02607",
+      "bytes": 3900
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/TrustFAQScreen-DzDHMlK0.js",
+      "sha256": "94c798e062a4f542452d21b680c7759bdf1e21454ac29e3e6e2bfe78a1d85fee",
+      "bytes": 1499
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/TrustLeaderboardScreen-CuDo4NJq.js",
+      "sha256": "4452baf071f5977df09cf8120042ef7233198620ff0f7974ca9b17eda7cb33d4",
+      "bytes": 3957
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/TrustRewardsScreen-COLC4Ex7.js",
+      "sha256": "5d14416ba8c9c1a2f989f0c6804eaa4e2596f9cb8096c9562689e2f76ef0d6bb",
+      "bytes": 9004
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/TrustRulesScreen-DWbtL2hp.js",
+      "sha256": "c032bfd9b185e711f7b93a582681d145e2dc4cc3bf5aa64b537d218dbf1be20b",
+      "bytes": 1928
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/UserLinksScreen-DnhPMAx6.js",
+      "sha256": "f7e1e9b909991041d9f8d470174c310b730a1b31d1586f9bc679c3900a63b427",
+      "bytes": 835
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/UserListScreen-BujziMaE.js",
+      "sha256": "ecb01df36c6e6f6598e95b72aee66548a4177db8f3fe41b773caa66b611202af",
+      "bytes": 11546
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/WebBrowser-CK1VcmhT.js",
+      "sha256": "9888bdf2ca9462364400008ac4f7ffe67a50f5e6be75d8a8b7b3a7d32a230100",
+      "bytes": 8117
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/WelcomeNewUserScreen-DM57ClMv.js",
+      "sha256": "bbad91ef4dfbccb2bd870a01dc5986ba73c98da14fe9fd0a8ab0d22ddab87911",
+      "bytes": 7969
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/__vite-browser-external-DqUzto80.js",
+      "sha256": "f92ccebda6a27be44b1a397e33119921cfe4905d74e2f13a07f5432028383385",
+      "bytes": 59
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ar-SA-mO8GGXQZ.js",
+      "sha256": "fa9330f97143f24a19a705c2025cb36b57a8dcbec57117661f65633a75abe4c8",
+      "bytes": 16096
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ar-wBbt30Fv.js",
+      "sha256": "b62d9baab14f6540702832e700568f1850603040694b95b43b2868ed331c102c",
+      "bytes": 84901
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/arrow_down-NdGCEnxo.png",
+      "sha256": "6deca32b56b97fa1fa87facd6996b46cc45190a553400e7febdf1d2093099b57",
+      "bytes": 9456
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/bn-D4RZ_Kph.js",
+      "sha256": "b63caaf69765e40223da1983cd27dc69b6241fa3dbb91ac6104f4275225d6087",
+      "bytes": 104257
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/build-IKRWgCbi.js",
+      "sha256": "d87c08ff5d0cd80ca95b578235d6126cb3ba23075d4d591c753331a52e5e2009",
+      "bytes": 1512
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ca-DDuTQE4M.js",
+      "sha256": "a6194213d542ce318a2d4b2db7eba9bb3fe3513f28b38a3d1bf4db71c215b439",
+      "bytes": 64251
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ca-ES-BFej1iYY.js",
+      "sha256": "f2f888f02a77c3ddbcd66a12084cef42b1e6ecf86d871568aabe3a1ff663568d",
+      "bytes": 12926
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/colorUtils-omxxE4z_.js",
+      "sha256": "1a10b387104ed03a9762039bfe4177aee0bc8060eba24bc754a1efb973bbeaaa",
+      "bytes": 778
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/de-DE-BA4b4FyP.js",
+      "sha256": "9cba6626181ca5a51d2bd85d6939a6eb7b180ad59da74a6eafbb9bf7233957cc",
+      "bytes": 13399
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/de-DcZvYCbb.js",
+      "sha256": "45187ea7ca1f20c9e8aaeefe9c4bed64fd4d267e2cdc9bd63907b25597ab2408",
+      "bytes": 64136
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/es-D2zaoMvV.js",
+      "sha256": "977e0a5c0e7c42dcc44b1287ba343bcc6183bcab4d31a8527e4a7a036057be06",
+      "bytes": 64459
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/es-ES-3ZgTfyeJ.js",
+      "sha256": "aa75417c8fa1d1c50077b31c78e78a402ae2a3fe71566ccc685be8eabce546d5",
+      "bytes": 65380
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/esm-YJj387_R.js",
+      "sha256": "41cbc14a42ccf18051ce35250f2a4fbe377170d4ebdbb93d068ab7b1daf9d7ce",
+      "bytes": 42186
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/fr-DCmNXMNF.js",
+      "sha256": "f75a5db513fc1872a313238af1cf66ea5f3a2eec2b5dbf4be1f0acd1fdbba926",
+      "bytes": 66343
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/fr-FR-DKon_f8s.js",
+      "sha256": "0d4a1647654223139ca02c6302e92a66b8296b7b91d1997244406c38bec3db05",
+      "bytes": 13727
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/hi-Cw9pi7VH.js",
+      "sha256": "4310ae2ec94e71e8528e82efa0a3d7ff40c01ba960cebc73e3ecea4e002a71f9",
+      "bytes": 102105
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/id-CIBw8c42.js",
+      "sha256": "986c19ba3eede3a950623d40eb411e87fc65e081359b97204c176e9d2c90f51a",
+      "bytes": 59796
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/index-CWdRhIjg.js",
+      "sha256": "0881107000e0b2a43dcfc4d01c882e842e2b1e0ec15baf0eecab52237f13dbe8",
+      "bytes": 3873046
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/internal-DWQjHC1I.js",
+      "sha256": "b59427ee0cfa33198585e7fdeaded88031a946f173b7f212ee33e31f5a15d6ce",
+      "bytes": 39770
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/it-IT-yWhEPHf5.js",
+      "sha256": "3a43eba14d503ba50890da5913ceb94451e4f4726a969f6258c4803de1a5fa3a",
+      "bytes": 12617
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/it-UHItyJw9.js",
+      "sha256": "8671c7e220e81c0dba03322650f50b04a26cf86e54d68dee63007344cf9345d7",
+      "bytes": 63868
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ja-Cg5NlaCa.js",
+      "sha256": "825b77565c0472fda453cb91518ef9bc3dadabd0b4e8b919b17d06fbc2e59251",
+      "bytes": 68068
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ja-JP-De29lRdE.js",
+      "sha256": "5f714fd5dbf8d138d315bdc6836048733f16fdeaade7c1a62899b90f7c7fe7f3",
+      "bytes": 15924
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ko-KR-fgWiKIb-.js",
+      "sha256": "6d2618a64597a71897f445f8d23dbb31a187e110ae987028620bae875eb4d85f",
+      "bytes": 13830
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/message-helpers-6BPlsYLP.js",
+      "sha256": "b0340262c185e07aea8772973d47fbacb6cd3b169c8f5a48c7065df69dea549f",
+      "bytes": 1151
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/module-B0U61iRf.js",
+      "sha256": "a3a4d450948a842083b0c3446f07d4a58c1ea4f6038f723d6b11c00ba9acd5cd",
+      "bytes": 8859
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/module-C4XT7R7g.js",
+      "sha256": "0bd9a15524e56ce2af2801ad49e1b36756e24348da92d9a75cbccda824c9ac28",
+      "bytes": 2900
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/plural-CWYe3cpk.js",
+      "sha256": "cc24ee93b727aee00d4629b9a29d8a650023a67b312da1f0c1076e5d379350a7",
+      "bytes": 861
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/pt-DWH-2enl.js",
+      "sha256": "e8d6fd01301baee87d51efe93972405f0203264f5eb2ffa7ff97c4262f2508e5",
+      "bytes": 64007
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/pt-PT-BMRB4MV8.js",
+      "sha256": "cb07ae16a00f94be3dd8879d5eff0ddfb857186b6972f5407293fce28eff5bf3",
+      "bytes": 13037
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/recoveryPhrase-C3Yk9LHw.js",
+      "sha256": "182bdfc1410e08c9ef592c54ee2748641d6e7a009c6bb09eed41ad371fc09faf",
+      "bytes": 24572
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/ru-BBYLmOBz.js",
+      "sha256": "089b532ef6255f7bc8ccc2f4d61d2131c0e071d753c4e7fc31d07266d02941a1",
+      "bytes": 91519
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/slide-1-CPYeLD4l.jpg",
+      "sha256": "22ed5e34964e5521a66b768486678e921616fd57ca6dcde5c51be9a4157e102a",
+      "bytes": 102174
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/slide-2-BAN8I4Iy.jpg",
+      "sha256": "40023aac9a1dc1bd10a4adb8289d91d8c7c040b7edcbfce862ee9f7873f59401",
+      "bytes": 87909
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/slide-3-Bp5gr1Be.jpg",
+      "sha256": "2032ca3d18f8d64ac5ee5f54da9d86dbf132d4f47759d1baaa092f444d3074b3",
+      "bytes": 59186
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/slide-4-DSNFt0xP.jpg",
+      "sha256": "4bcc6514fe8b65d0bea31ccb17c83181ae3a2025115d48644ac088a115389e21",
+      "bytes": 46637
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/src-9x9Obs30.js",
+      "sha256": "286b9e546fe29dc1f2996996481c91474566869873df438f6bcdee9708385449",
+      "bytes": 8150
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/tr-Dbn7xD1I.js",
+      "sha256": "34f10995be4a15979d6b4078a1726a960b0a2e931e5c8ca1bc82e6235771c685",
+      "bytes": 61714
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/trustTierLabels-D7lXD6LF.js",
+      "sha256": "57e013d00a4ce0f0752ef0b13ec6751b60d7ae50f3a57a568fc647135aefa483",
+      "bytes": 125
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/unmatched-C2XkAHgU.png",
+      "sha256": "efc79da3c4c97dfb1571bff6202958ab0529c5aa31e8392600578b3e359d1447",
+      "bytes": 4752
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/useReduceMotion-MBi2cuZ2.js",
+      "sha256": "bb633729812484d40c94cb02574510b78cd114473845db377de4d0d6e73f1938",
+      "bytes": 403
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/useSettingToggle-Up8FQJga.js",
+      "sha256": "e656a610fd7deec2758b489a07dbce2abce294408c3f00fa39b6e5760f8a583c",
+      "bytes": 681
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/validationUtils-CblVnFp7.js",
+      "sha256": "c61035244ea24ecd7ff7bde5acab45a724f20001f14485d4ae504eac287e43ce",
+      "bytes": 21149
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/version-D8-p_RBf.js",
+      "sha256": "ed4d75046bc22d98f3335e655dcdc3549ff9cc96ab04df37940ad27ad2998df4",
+      "bytes": 330
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/zh-B1hj3PfM.js",
+      "sha256": "02118773257cf802e316f89e4d43733950102cb47acf6858558c21f538fab927",
+      "bytes": 56741
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/assets/zh-CN-DZ4leBXt.js",
+      "sha256": "b14f6617a7672cc22eab46a7477c5396752d8e322a3d60ef0c580adf1eac018a",
+      "bytes": 11864
+    },
+    {
+      "path": ".integration-evidence/oauth1519-1n8d1xvu/webSecond-build/index.html",
+      "sha256": "fc8f6e06559ed45dc800965a84fb1a298acb303f845b121fa3ac225be195a2c1",
+      "bytes": 228
+    }
+  ],
+  "candidateRuntime": [
+    {
+      "path": "packages/core/dist/esm/api/auth.js",
+      "sha256": "c63826c8248402bd0c2dbce3c25e0193b243996086a8b952512d9af9c50ae370",
+      "bytes": 46658
+    },
+    {
+      "path": "packages/core/dist/cjs/api/auth.js",
+      "sha256": "c33fc420f2b210b1fab325aa6100699478849b0e8abd4daec925638467e0dd88",
+      "bytes": 48691
+    },
+    {
+      "path": "packages/services/lib/module/ui/context/OxyContext.js",
+      "sha256": "a70396734835aff174804a17aaa00b55733d9064a2af221037b17f0f2c0022b3",
+      "bytes": 63143
+    },
+    {
+      "path": "packages/services/lib/module/ui/context/OxyContext.js.map",
+      "sha256": "2b48c16185994c3d60331ce4acb9e5e7c30e646ad1b7c37bdc7dec4b1d6303e2",
+      "bytes": 43869
+    }
+  ],
+  "results": {
+    "registeredPublicClients": 2,
+    "sessionsOrGrantsCreatedByRegistration": 0,
+    "typescriptExitCode": 0,
+    "viteBuildsExitCode": [
+      0,
+      0
+    ],
+    "registrarBiomeExitCode": 0,
+    "ownedSqlReadOnlySnapshot": true,
+    "browserAcceptance": "not-yet-run"
+  },
+  "limits": [
+    "Candidate workspace graph; registry repetition pending.",
+    "API/IdP/PG and native Metros preserved. Only RPs17972/17973 spawned.",
+    "Shared session SQL rows include previous desktop fixture history; unbound official sessions do not identify an RP via application_id.",
+    "Initial SQL parser rejected PostgreSQL pretty JSON; final jsonb snapshots parse as exactly five lines. No writes in either readback.",
+    "Root operates Chromium. No bearer/device-secret injection or local restore/auth logic.",
+    "Host candidate has accepted OAuth bearer fix; native resume change separately accepted, outside this web-only preparation.",
+    "Builds ran on e4b3 main; later registrar formatting only, main/config bytes unchanged. Executed and final registrar heads separated.",
+    "Bundle inventory proves builds; root drives dev-served graph. Served main bytes retained privately.",
+    "First proof assembly referenced a nonexistent core/lib path and aborted before creating a proof; actual dist paths now inventoried, no test rerun for a corrected file pointer."
+  ]
+}
