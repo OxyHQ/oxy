@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test final composition live credential context only on a new, locally owned PostgreSQL process.
+"""Test combined authority and OAuth source only on a new, locally owned PostgreSQL process.
 
 No connection-string input is accepted. Every libpq override is scrubbed. The
 server is started from a fresh initdb inside this worktree, and its PID, data
@@ -17,13 +17,12 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 PG = Path('/usr/lib/postgresql/17/bin')
-PORT = 5594
+PORT = 5596
 
 
 def clean_env():
     return {k: v for k, v in os.environ.items()
-            if k in ('PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR')} | {
-                'BUN_OPTIONS': '--no-env-file'}
+            if k in ('PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR')} | {'BUN_OPTIONS': '--no-env-file'}
 
 
 def run(args, **kwargs):
@@ -35,12 +34,12 @@ def main():
     if len(os.sys.argv) != 1:
         raise SystemExit('No connection or runtime overrides are accepted')
     scratch = ROOT / '.integration-evidence'
-    scratch.mkdir(exist_ok=True)
-    owned = Path(tempfile.mkdtemp(prefix='pg1519-', dir=scratch))
+    scratch.mkdir(parents=True, exist_ok=True)
+    owned = Path(tempfile.mkdtemp(prefix='authority-composite-pg1519-', dir=scratch))
+    socket_dir = Path(tempfile.mkdtemp(prefix='oxy-authority-composite-pg-'))
     data = owned / 'data'
-    socket_dir = Path(tempfile.mkdtemp(prefix='oxy-billing-pg-'))
     started = int(time.time())
-    print(run([PG / 'initdb', '-D', data, '-U', 'oxy', '-A', 'trust', '--no-locale']))
+    print(run([PG / 'initdb', '-D', data, '-U', 'oxy', '-A', 'trust', '--no-locale', '--encoding=UTF8']))
     server_started = False
     try:
         print(run([PG / 'pg_ctl', '-D', data, '-l', owned / 'server.log', '-w',
@@ -74,36 +73,38 @@ def main():
         db = 'oxy_rehearsal_1519_' + secrets.token_hex(8)
         sql(f'CREATE DATABASE "{db}"')
         env = clean_env() | {'DATABASE_URL': f'postgresql://oxy@127.0.0.1:{PORT}/{db}',
-                            'NODE_ENV': 'test'}
-        for stage in ('fresh', 'repeat'):
-            migration = subprocess.run(['bun', '--no-env-file', 'run', 'db:migrate'], cwd=ROOT / 'packages/api', env=env,
-                                       text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-            migration_log = owned / f'migrate-{stage}.txt'
-            migration_log.write_text(migration.stdout)
-            print(json.dumps({'stage': stage, 'exitCode': migration.returncode, 'log': str(migration_log)}))
-            migration.check_returncode()
+                            'NODE_ENV': 'test', 'BUN_OPTIONS': '--no-env-file'}
+        def logged(command, name):
+            result = subprocess.run(command, cwd=ROOT / 'packages/api', env=env,
+                                    text=True, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, check=False)
+            (owned / name).write_text(result.stdout)
+            print(json.dumps({'command': command, 'exitCode': result.returncode,
+                              'log': str(owned / name)}))
+            result.check_returncode()
+        logged(['bun', '--no-env-file', 'run', 'db:migrate'], 'migration-fresh.txt')
+        before = sql('SELECT count(*) FROM drizzle.__drizzle_migrations', db)
+        assert int(before) == 142
+        logged(['bun', '--no-env-file', 'run', 'db:migrate'], 'migration-repeat.txt')
+        assert sql('SELECT count(*) FROM drizzle.__drizzle_migrations', db) == before
         command = ['bun', '--no-env-file', 'run', 'test', '--runInBand', '--runTestsByPath',
+                   'src/routes/__tests__/browserBridge.test.ts',
                    'src/services/__tests__/foregroundCapabilities.db.test.ts',
-                   'src/routes/__tests__/internalServiceAccountSwitch.test.ts',
-                   'src/routes/__tests__/serviceTokenCredentials.test.ts',
+                   'src/services/__tests__/capabilityAuthority.db.test.ts',
+                   'src/services/__tests__/capabilityAuthority.policy.test.ts',
                    'src/services/__tests__/workloadIdentity.db.test.ts',
-                   'src/services/__tests__/mercariaEphemeralCredential.db.test.ts',
-                   'src/services/__tests__/approvedActingAsEpochs.test.ts',
-                   'src/services/__tests__/deviceDirectory.service.test.ts',
-                   'src/routes/__tests__/agentAutonomousFlow.test.ts']
-        env = {k: v for k, v in clean_env().items()
-               if k in ('PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR')} | {
-            'DATABASE_URL': f'postgresql://oxy@127.0.0.1:{PORT}/{db}',
-            'NODE_ENV': 'test', 'BUN_OPTIONS': '--no-env-file'}
+                   'src/db/schema/__tests__/foreignKeys.test.ts',
+                   'src/db/schema/__tests__/schemaInvariants.test.ts',
+                   'src/db/schema/__tests__/agencyPayloadBounds.test.ts']
         result = subprocess.run(command, cwd=ROOT / 'packages/api', env=env,
                                 text=True, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, check=False)
-        log = owned / 'focused.txt'
+        log = owned / 'composite-api.txt'
+        log.parent.mkdir(exist_ok=True)
         log.write_text(result.stdout)
         print(json.dumps({'newLocalServerPid': pid, 'dataDirectory': str(data),
-                          'database': db, 'command': command,
-                          'exitCode': result.returncode, 'log': str(log),
-                          'productionAccess': False}), flush=True)
+                          'database': db, 'command': command, 'exitCode': result.returncode,
+                          'log': str(log), 'productionAccess': False}))
         result.check_returncode()
     finally:
         if server_started:
