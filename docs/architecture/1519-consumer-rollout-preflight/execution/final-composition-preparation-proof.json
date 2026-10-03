@@ -3,7 +3,7 @@
   "sources": [
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
-      "sha256": "6f77174271d7fa9000ee631438466c2fa9c612097f44353262ddb04eb6d4ceed"
+      "sha256": "b3b7a573e313bc34cf2be4ad391eaee6ac4d5bc647f99d260a1cb1a730245c0a"
     },
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/publisher-composition.json",
@@ -40,6 +40,10 @@
     {
       "path": "docs/architecture/1519-consumer-rollout-preflight/execution/README.md",
       "sha256": "87c9bcb3fca8df9765c941cc2b367b4544fe7f532dd609888012807573f57be7"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/baseline-patches/proof.json",
+      "sha256": "784c33254aa32c5bb70600655125028a5e58546f0766821063da08daf52261ae"
     }
   ],
   "checks": {

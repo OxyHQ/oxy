@@ -1,0 +1,8 @@
+{
+  "status": "restored tracked manifests/locks to exact prepared HEAD after preserving candidate bytes",
+  "files": 76,
+  "repositories": 15,
+  "noInstall": true,
+  "noRuntimeSourceChange": true,
+  "backupManifestSha256": "372686400b856db3648d0cde6126066734272a3df1b73982e05bbdab2afc0832"
+}

@@ -1,34 +1,35 @@
 --- a/package.json
 +++ b/package.json
-@@ -61,10 +61,10 @@
+@@ -60,12 +60,12 @@
+     "@gsap/react": "^2.1.2",
      "@mdx-js/react": "^3.1.1",
      "@mdx-js/rollup": "^3.1.1",
-     "@oxy.so/bloom": "7.1.2",
--    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-core-4.2.0.tgz",
--    "@oxy.so/mcp": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-mcp-1.1.0.tgz",
--    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-services-bloom712-pack/oxy.so-services-11.1.0.tgz",
+-    "@oxy.so/bloom": "^7.0.1",
+-    "@oxy.so/contracts": "^4.3.0",
+-    "@oxy.so/core": "^3.2.0",
+-    "@oxy.so/mcp": "^1.0.0",
+-    "@oxy.so/services": "^10.0.0",
+-    "@oxy.so/telemetry": "^1.2.0",
++    "@oxy.so/bloom": "7.1.2",
 +    "@oxy.so/contracts": "4.9.0",
 +    "@oxy.so/core": "4.2.0",
 +    "@oxy.so/mcp": "1.1.0",
 +    "@oxy.so/services": "11.1.0",
-     "@oxy.so/telemetry": "1.2.0",
++    "@oxy.so/telemetry": "1.2.0",
      "@react-native-async-storage/async-storage": "^3.1.1",
      "@scalar/api-reference-react": "^0.9.55",
-@@ -156,11 +156,11 @@
+     "@tailwindcss/typography": "^0.5.20",
+@@ -156,6 +156,12 @@
    },
    "overrides": {
      "d3-color": ">=3.1.0",
--    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
--    "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-protocol-1.2.2.tgz",
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-core-4.2.0.tgz",
--    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-services-bloom712-pack/oxy.so-services-11.1.0.tgz",
--    "@oxy.so/mcp": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-mcp-1.1.0.tgz",
+-    "@oxy.so/contracts": "^4.3.0"
 +    "@oxy.so/contracts": "4.9.0",
 +    "@oxy.so/protocol": "1.2.2",
 +    "@oxy.so/core": "4.2.0",
 +    "@oxy.so/services": "11.1.0",
 +    "@oxy.so/mcp": "1.1.0",
-     "@oxy.so/bloom": "7.1.2",
-     "@oxy.so/telemetry": "1.2.0"
++    "@oxy.so/bloom": "7.1.2",
++    "@oxy.so/telemetry": "1.2.0"
    }
+ }

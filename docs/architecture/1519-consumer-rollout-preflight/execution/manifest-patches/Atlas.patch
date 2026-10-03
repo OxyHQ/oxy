@@ -1,37 +1,38 @@
 --- a/package.json
 +++ b/package.json
-@@ -15,16 +15,16 @@
+@@ -15,13 +15,16 @@
      "test:edge": "bun test scripts/edge-activity.test.ts"
    },
    "overrides": {
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/core": "^4.0.0",
+-    "@oxy.so/bloom": "^6.3.0",
+-    "@oxy.so/telemetry": "^1.2.0"
 +    "@oxy.so/core": "4.2.0",
-     "@oxy.so/bloom": "7.1.2",
--    "@oxy.so/telemetry": "^1.2.0",
--    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-contracts-4.9.0.tgz",
--    "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-protocol-1.2.2.tgz",
--    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-services-11.1.0.tgz"
++    "@oxy.so/bloom": "7.1.2",
 +    "@oxy.so/telemetry": "1.2.0",
 +    "@oxy.so/contracts": "4.9.0",
 +    "@oxy.so/protocol": "1.2.2",
 +    "@oxy.so/services": "11.1.0"
    },
    "resolutions": {
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-core-4.2.0.tgz",
-+    "@oxy.so/core": "4.2.0",
-     "@oxy.so/bloom": "7.1.2",
+-    "@oxy.so/core": "^4.0.0",
+-    "@oxy.so/bloom": "^6.3.0",
 -    "@oxy.so/telemetry": "^1.2.0"
++    "@oxy.so/core": "4.2.0",
++    "@oxy.so/bloom": "7.1.2",
 +    "@oxy.so/telemetry": "1.2.0"
    }
  }
 --- a/packages/frontend/package.json
 +++ b/packages/frontend/package.json
-@@ -19,8 +19,8 @@
+@@ -18,9 +18,9 @@
+     "@atlas/shared-types": "workspace:*",
      "@expo/vector-icons": "^15.1.1",
      "@oxy.so/app-preset": "^3.0.0",
-     "@oxy.so/bloom": "7.1.2",
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-core-4.2.0.tgz",
--    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-final-200134-packs/oxy.so-services-11.1.0.tgz",
+-    "@oxy.so/bloom": "^6.3.0",
+-    "@oxy.so/core": "^4.0.0",
+-    "@oxy.so/services": "^11.0.0",
++    "@oxy.so/bloom": "7.1.2",
 +    "@oxy.so/core": "4.2.0",
 +    "@oxy.so/services": "11.1.0",
      "@react-native-async-storage/async-storage": "2.2.0",

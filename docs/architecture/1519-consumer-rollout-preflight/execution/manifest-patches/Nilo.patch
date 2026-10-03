@@ -1,28 +1,30 @@
 --- a/package.json
 +++ b/package.json
-@@ -59,22 +59,22 @@
+@@ -58,22 +58,23 @@
+     "@react-native/babel-preset": "0.85.3",
      "@react-native/metro-babel-transformer": "0.85.3",
      "@react-native/metro-config": "0.85.3",
-     "@oxy.so/bloom": "6.2.1",
--    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
--    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+-    "@oxy.so/bloom": "4.28.0",
+-    "@oxy.so/contracts": "^3.0.0",
+-    "@oxy.so/core": "^3.0.0",
+-    "@oxy.so/services": "8.0.0",
++    "@oxy.so/bloom": "6.2.1",
 +    "@oxy.so/contracts": "4.9.0",
 +    "@oxy.so/core": "4.2.0",
 +    "@oxy.so/services": "11.1.0",
      "lightningcss": "1.30.1",
      "lightningcss-linux-x64-gnu": "1.30.1",
      "lightningcss-linux-x64-musl": "1.30.1",
--    "@oxy.so/telemetry": "^1.2.0",
--    "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-protocol-1.2.2.tgz"
+-    "@oxy.so/telemetry": "^1.2.0"
 +    "@oxy.so/telemetry": "1.2.0",
 +    "@oxy.so/protocol": "1.2.2"
    },
    "dependencies": {
-     "@oxy.so/bloom": "6.2.1",
--    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
--    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz"
+-    "@oxy.so/bloom": "4.28.0",
+-    "@oxy.so/contracts": "^3.0.0",
+-    "@oxy.so/core": "^3.0.0",
+-    "@oxy.so/services": "8.0.0"
++    "@oxy.so/bloom": "6.2.1",
 +    "@oxy.so/contracts": "4.9.0",
 +    "@oxy.so/core": "4.2.0",
 +    "@oxy.so/services": "11.1.0"
@@ -38,20 +40,22 @@
    "dependencies": {
      "@aws-sdk/client-s3": "~3.1055",
      "@aws-sdk/s3-request-presigner": "~3.1055",
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/core": "^3.0.0",
 +    "@oxy.so/core": "4.2.0",
      "@oxy.so/db": "1.0.0",
      "@socket.io/redis-adapter": "^8.3.0",
      "cors": "^2.8.5",
 --- a/apps/app/package.json
 +++ b/apps/app/package.json
-@@ -21,9 +21,9 @@
+@@ -20,10 +20,10 @@
+     "@expo/html-elements": "^0.13.8",
      "@expo/vector-icons": "^15.0.3",
      "@hugeicons/react-native": "^1.0.11",
-     "@oxy.so/bloom": "6.2.1",
--    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
--    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+-    "@oxy.so/bloom": "4.28.0",
+-    "@oxy.so/contracts": "^3.0.0",
+-    "@oxy.so/core": "^3.0.0",
+-    "@oxy.so/services": "8.0.0",
++    "@oxy.so/bloom": "6.2.1",
 +    "@oxy.so/contracts": "4.9.0",
 +    "@oxy.so/core": "4.2.0",
 +    "@oxy.so/services": "11.1.0",

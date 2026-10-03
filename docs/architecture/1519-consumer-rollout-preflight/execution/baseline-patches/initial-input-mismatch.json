@@ -1,0 +1,91 @@
+[
+  {
+    "repository": "OxyHQ/Atlas",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Atlas/package.json"
+  },
+  {
+    "repository": "OxyHQ/Alia",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Alia/package.json"
+  },
+  {
+    "repository": "OxyHQ/Mention",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Mention/package.json"
+  },
+  {
+    "repository": "OxyHQ/Mercaria",
+    "head": "8d18f84a1a9ee5cf6e2fed4d69c905a9761fa2dd",
+    "currentMain": "9e546e66b36b8050bfe07a37f53ee436444688cf",
+    "patchSha256": "8b85d3bdc4ea78c043c98892c6175bbaf90b6e073bf01c67abe18c47d43ba393",
+    "passed": true
+  },
+  {
+    "repository": "OxyHQ/Clarity",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Clarity/package.json"
+  },
+  {
+    "repository": "OxyHQ/Allo",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Allo/package.json"
+  },
+  {
+    "repository": "OxyHQ/Noted",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Noted/package.json"
+  },
+  {
+    "repository": "OxyHQ/Homiio",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Homiio/package.json"
+  },
+  {
+    "repository": "OxyHQ/website",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/website/package.json"
+  },
+  {
+    "repository": "OxyHQ/Peable",
+    "head": "9a70ddedcf29ba4b4986f4b4c259f05f735b545b",
+    "currentMain": "6f671437b7e7c28c646c03afa9e47483ba04333a",
+    "patchSha256": "6973c193d3ab9a4abeaa000964f00d7c2de9eed451270a77cd8286eb1b51c18e",
+    "passed": true
+  },
+  {
+    "repository": "OxyHQ/tnp",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/tnp/package.json"
+  },
+  {
+    "repository": "OxyHQ/Willo",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Willo/package.json"
+  },
+  {
+    "repository": "OxyHQ/GoWay",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/GoWay/package.json"
+  },
+  {
+    "repository": "OxyHQ/Moovo",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Moovo/package.json"
+  },
+  {
+    "repository": "OxyHQ/Nilo",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Nilo/package.json"
+  },
+  {
+    "repository": "OxyHQ/CrowdSource",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/CrowdSource/package.json"
+  },
+  {
+    "repository": "OxyHQ/Syra",
+    "passed": false,
+    "error": "Manifest input changed: OxyHQ/Syra/package.json"
+  }
+]

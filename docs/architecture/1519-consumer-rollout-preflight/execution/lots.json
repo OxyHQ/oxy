@@ -21,16 +21,16 @@
       "bloom": "7.1.2",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Atlas.patch",
-        "sha256": "9e35d67ad1af0530f6b9159996f578bb2598b4facda2ce24c462231e1007a11b",
+        "sha256": "13029d4dc57c0a06a356bddac1f50243111642ff27d921387b9d56e8da957bd6",
         "changes": [
           {
             "path": "package.json",
-            "before": "444e3020f7aa2e48712afab0aac63046af633d284e03a35077a8cc3e88a918e6",
+            "before": "b425bc4f86263505e42aee74833516037ebed25b32d0a7a87d7d77d3e410f410",
             "after": "0d9f6216db39eb15aa4036572e2392af2a39667e2b1a323dbb8854b044c029f2"
           },
           {
             "path": "packages/frontend/package.json",
-            "before": "a9fb7ac8d9203160021ce3fa6a39e6b965f139bcbe7d73b453e4145caea2d0d8",
+            "before": "431bbca747250cbf5488d295b0e776fabda8f964c53abc5fa04a01bf0240af5c",
             "after": "ac90309679d777ab9209f53596d330a6479dddcb615c9e96eb2d2531a8a13f25"
           }
         ],
@@ -141,51 +141,51 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Alia.patch",
-        "sha256": "b3185c65c17956b6b38323ef680b27cb12e2dcdd6158366e144734f773b3f9f2",
+        "sha256": "a471c182ce691349e799be8f3b29df1eecc6ada9103cccfcc1a6e36b9696580d",
         "changes": [
           {
             "path": "package.json",
-            "before": "51e9451f597032d95e7c06390e2e7cbc7c998a34410cc787c77d841d4bc706ff",
+            "before": "1834b5250f35ccb1b43de162eb3d496eae3fda485c23f10735230019bc73cb8b",
             "after": "011be0c23e8eaea15b384a78e629bed11aeb5bed8df8a17dbd27f1c99641bfb0"
           },
           {
             "path": "packages/alia-canvas/package.json",
-            "before": "1c2c5113ef4b76a5ca750e50dfa74e46c46a8cee03c82a20c3859ece0e39be0a",
+            "before": "b27e80722b874028a3e8d07fe3dff5941aee4d579bb61ae300168e6008d59dea",
             "after": "8d701385a1d719a09a5613363cbea317a5c220533b25c043d90c66cae1fc9dbc"
           },
           {
             "path": "packages/alia-codea/package.json",
-            "before": "bceb51fed2cbd9722ee06dbe152629ea1c9c4de708183368d6c302a33259f9c0",
+            "before": "c658d135d3571e3b6724435d8d147ff5d65ebee4d6c046197ee82ba1e8502110",
             "after": "a2b44edd18415132ac44a17c96bcba0785762b218bb13327fb0cc3346d70c2bb"
           },
           {
             "path": "packages/alia-codea-cli/package.json",
-            "before": "de062233975211e1f876bcd41f832ef1a9d9a64a9040b4e7c086105dc4a0cb6c",
+            "before": "c14eda165ae110355af8daeb66bf46b120ce5772e2a69fdc855e37e24b8f7ed6",
             "after": "485216ce6333ae4fbea98e149e843d33f5c50742f7ceb1f20dded961b315d166"
           },
           {
             "path": "packages/alia-computer-host/package.json",
-            "before": "8e09959d3e973f0af7b03fae297d98f756cfe23769950d8b4b232beab09e06ae",
+            "before": "8357033f155845a784ab633db4e0a7ef17cd4bf143019db22c201cb6ff2956d3",
             "after": "f76f6c3dff0f274cc594975a8dc1360aed307951ffe05f829ef3dfcb931b6c27"
           },
           {
             "path": "packages/alia-cowork/package.json",
-            "before": "20e8f5da1154569c9a52b8efaac25fbbf181ce73611d344875dbbc61bb98d1d2",
+            "before": "451c8c397a415980929be559f638880721618e004575eb4b40265bcdd036c18c",
             "after": "19ac58f6ed8426694dba64d59b371ad29eab37d22bcae1a6b07a3cfecdf6693d"
           },
           {
             "path": "packages/api/package.json",
-            "before": "ab9d56c8c9e52655e8371432147fa38a8a58458ce9b05d3b0a0ea219ceb31a8a",
+            "before": "88c64743d4223485e8626171f6e5f2a454c699a94f2e5e26c25f4715c52dfc3f",
             "after": "770b0ffbc49699d0ac4939d9af6c30ed32a980fad8e194976c3935d37e1b3ef4"
           },
           {
             "path": "packages/app/package.json",
-            "before": "92bb3bd990f8f0fedecd733b70c0ea0e292b1fb4bd07540e5a0df8c0701db63f",
+            "before": "e668f74f2f9b0bdc5f4eae23d3c24bfc3a5a6ba9481f332f406c664f78ec2d4f",
             "after": "c79d52a1f3350c8bef35e9c9248bd44b73a6d4331e7757ee6a1086fc5afa26df"
           },
           {
             "path": "packages/integrations/package.json",
-            "before": "9534913273665c380d3dc4778aaeeaccf05cfb8e6e157da20e25048cca5b836e",
+            "before": "5f67c516ed128c83b1afa87c263e3fcc776f19aaff45fd149fec794b2e2ae37d",
             "after": "a1a2e34b1384ab7ea8f0985e32d90dbdd598b3ac8b27797cf374e0792607c804"
           }
         ],
@@ -503,16 +503,16 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Mention.patch",
-        "sha256": "f181a0869e3cdfcc68a718eeef114b6b1426c6926bdbabfe4932883a2e53e9a9",
+        "sha256": "f29d78afc84c084e7c30d151690518b292d6d2deffea2ac8cde2fb03e2e928be",
         "changes": [
           {
             "path": "package.json",
-            "before": "bb102754ea1a917fcce695b8bacdc597279cb4fb6e7e6559eeab28df795ad79e",
+            "before": "b89ad05efde35198223c6496e017ce7f6f7bf4c326b2836937baea200475ac87",
             "after": "eb7a07cd3e9f84c8da76b2e6566de43fbe10ac3aed686f65100f0270de876ef5"
           },
           {
             "path": "packages/backend/package.json",
-            "before": "0c5d78b2665f2046a6043c30985a4778f75d07ab38dfce93205ac0c644e18e80",
+            "before": "15b930adeeae05ba87516d836adcdfe9eeff8c2e54fa317b25efcdda5e51ea13",
             "after": "e46d3ae9b515f12f22f3f9fa30e8486e2dbed72d951ab64cfb15b106d9db3c78"
           },
           {
@@ -1060,21 +1060,21 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Clarity.patch",
-        "sha256": "e3f6ac69dfa02e12e3b2cea6b1fcb9b8a78915610c0bcd8d15ecde431cbdcf6d",
+        "sha256": "11d4c7d616dad27b9566bb1cd788be15e502db3ae40b83e4bfb83804f1e1fb33",
         "changes": [
           {
             "path": "package.json",
-            "before": "fb807fd60997e957690a5b59a58f468643c15ccf565b527fdc48d040ecdb900c",
+            "before": "9c40ffe9edb7bc4550951f677e9f450372c543d3ece36a4b5ed6a790510db614",
             "after": "d7700d7e871e9157bdd7ea95ec852a6f7f4a77d39652b7fa00f785f5006188a3"
           },
           {
             "path": "packages/backend/package.json",
-            "before": "2bab136c6c711d04552a04657ea8fedb82d0aa0fefd4327b062528259e7352cc",
+            "before": "e0f91636b7e2827f3d120bed77f82fef59fd319ae42af2423d47887fe7480ee9",
             "after": "169288d52186a8ddf42e488b190d80e725b18cbb8476bcde0bd2db684f49c331"
           },
           {
             "path": "packages/frontend/package.json",
-            "before": "c8ded388ddde880060f1d3ab1b31c6e9f2ec2064588ef1055b3ce7570169b0ed",
+            "before": "6acc727233b813a5c3eda974a5fa7a3f65437195554a15d84ba945ecf69cc4a3",
             "after": "a24074461e270ea8a95a4b55e49771e7d5a88f42c408a80239711feadb310850"
           }
         ],
@@ -1284,21 +1284,21 @@
       "bloom": "7.1.2",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Allo.patch",
-        "sha256": "92553e28689c59af21867d161d096c2d05091f6458a5c1aa22af2e72c01de513",
+        "sha256": "a3777a9c09defe575c33f09c2bbb05e838959f858456df1810e933ead0042138",
         "changes": [
           {
             "path": "package.json",
-            "before": "45218a5abd5bb7c1edafe64ad01d30bcb7c0f484c60cc3bab4bad87fbe12db9a",
+            "before": "492ceeedfc3fa62e090f0be42d0235e5dc63da29d774cc25053d67768229d002",
             "after": "e87be1546922e96df67c6bc1691ed963b7a044ff4e1c0948fa7b39d034eecbe0"
           },
           {
             "path": "packages/backend/package.json",
-            "before": "5e49fab17eb01fc0dcfbc5b80f1cf05e2657bc102c1e02f681ab5e6e6aa34c69",
+            "before": "37010749798e72771fd85d3ca96ac11cb1727ae73273c64b5d3f26872ae495d3",
             "after": "6710abb77ae199637d5fe12368d9511021d4a098eee7f46b8a07d5c51baccdfd"
           },
           {
             "path": "packages/frontend/package.json",
-            "before": "747bbd8b14b2da2f9bd00ba1d1a3ac0bf0c672625e4113368ffdee03dde1ab81",
+            "before": "44e3e2ed643934e9739b013232b73b6eded4bf1f4410a9f09ec0ad5572047d09",
             "after": "980f07936de6ecd259fffc4bf096487823fbc4eace66bf8d4ada1a471267505a"
           }
         ],
@@ -1492,21 +1492,21 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Noted.patch",
-        "sha256": "5fea5fa4338f30e9b1dd3226cc70debabd28946f56e0592c4daa74f3cbc2b831",
+        "sha256": "1facfed0b29a6be4c448872de99e1305b0e77d64b9df2adc2275c587b51bf756",
         "changes": [
           {
             "path": "package.json",
-            "before": "90f2ad71face17b2d2231f5d3ae42c8bdbebfc505f8f798348f8cacf37b92a37",
+            "before": "0460974040fdb7d0006f932544ec91e8612daf463304a856bdd75e82bd7be9f9",
             "after": "b0a61aef83949562cbbdea12456844d211a2350ced2b1d866f03cd72ba5c0487"
           },
           {
             "path": "packages/backend/package.json",
-            "before": "e7e1a35d9a307911c973e56085e606742a3f6395efd2933099d7654212887435",
+            "before": "57f3896bf12face6f307d685aff3da1c524008ce3ee325f729e0b28ecb66e4e9",
             "after": "04df1907ba44253a6d57b43ab96e1da2b61f6e2c2e18e66639da1a9c7880e701"
           },
           {
             "path": "packages/frontend/package.json",
-            "before": "2154e43b0af9ccc5f61933d248f85253cc6f404c1b21ecd228b15f0af5583a29",
+            "before": "1762bf99d510d13a5261c529f907c4c2302561fccd17fbae480549a9b2494873",
             "after": "74d25b02f6c8fc079f284f754622c4bf4e73b971694ecb30c91025c7d02c4b2e"
           }
         ],
@@ -1680,21 +1680,21 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Homiio.patch",
-        "sha256": "9df7004b37092e62be8416470585ad1ed4516d5743ef40ebc000dd0cc0214969",
+        "sha256": "3f48f43ab9802e461fe7f74d7992d67fca727d37a2ea9d859f8b7cf4e901193c",
         "changes": [
           {
             "path": "package.json",
-            "before": "76280a0f955a44b1985f7f5864c2a90303cd8e93ff38d9211922f05851722082",
+            "before": "a472f3b439ddafcf01f71be0508a0b0e83ac9c64dbcc2eba934d41d32517afe3",
             "after": "05c70c5ef08d1a0f01a88d7b3709f1847826d2ca70a304e9f238a3c64572b4a6"
           },
           {
             "path": "packages/backend/package.json",
-            "before": "ec73d90eee6697f2ca0bb53f8b99af342a38c0ba2129d6add00da899fae25e34",
+            "before": "583048d8988a539a863b0cfc2fa739e49ba72186d36ac35886c253f6779c4b2d",
             "after": "8c8cce98addacacc7564fb3f15cb1958966a90d24b6f74630a4c9b0720f03e13"
           },
           {
             "path": "packages/frontend/package.json",
-            "before": "829e0001c0a58c13d6083bfbf6c4deff52ef327c31d33e5feb938fc5ae824e08",
+            "before": "7a0f07ead18031c7d04ae45e02b78cc1a47639f01d48382468f0100d0294e5ba",
             "after": "a4367cc8ccb106e9da083d75b533e69d0ac2504e742348a57d82737113c9f364"
           }
         ],
@@ -1923,11 +1923,11 @@
       "bloom": "7.1.2",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/website.patch",
-        "sha256": "adacb3a3e04b236292bf131621fa8b33a3da59b27be67132fcc07839551444f6",
+        "sha256": "c1ab51ee2156b6f5c758eea6f1e971b9c989712c1b035b2f802575da5341a62a",
         "changes": [
           {
             "path": "package.json",
-            "before": "c72b11e49a0abd28e94f97a8f9e3e75c19497d273b0617cee3c90b48f2cb0c15",
+            "before": "c26c91a3eba72684f0a6bcd37c429ccc73c6b9363f7b5470627d7bfb4a1bdd66",
             "after": "5c762b24c46f967621180b23f71b10b7e25582e2f00853d0714434ba4a4aee38"
           }
         ],
@@ -2332,31 +2332,31 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/tnp.patch",
-        "sha256": "7888ca6de148cf5604116fa4e954c8629c2ca24ef988810f6d8d47ee36d0f707",
+        "sha256": "6b7fe0fba4136d54ddf3406cbfd5a400b1e5606683eb3ef9bf97942dc7da5d1b",
         "changes": [
           {
             "path": "package.json",
-            "before": "8560f262a99a27620b0cd4d4ab1df2d4256ba94825e5d42346f8bdf41a2122ce",
+            "before": "d6dac96e846123b8ed9f91d2a164a0ed4b5d8fdde628b290043643899e93759e",
             "after": "72b77317a1aba52ad8060703b09918bd645ab4ae789040546f258589a827c9f3"
           },
           {
             "path": "apps/api/package.json",
-            "before": "47e9336ad074feb0a319adf997ce5a77c4fcc4a7e4a4937c0afe550b13f112ea",
+            "before": "eb601dfdc394cd315e8534b9c2c97e354d2b6c3a589627972492e9e7b496ad17",
             "after": "721766d7b66f1bd51aebcf000bb6eedc5227fda190ba0d10d775ef1573f7dd93"
           },
           {
             "path": "apps/dns-server/package.json",
-            "before": "c065b776931850ce031e3657f56a755ace95fb68ef970cc5df1055481bdb9579",
+            "before": "ba718b6f3b95082a0047d4c416759aa10bb42e4db47e708f7e0de8eefdd2ab95",
             "after": "450a5259de645d9a50ca066d280279d9ce6e58f63efee11f01220961cf249362"
           },
           {
             "path": "apps/relay/package.json",
-            "before": "ad9473702176fb4b03682a8206322383f988566c40dfe9323038135009033cfd",
+            "before": "5f74966d0681773e149622c88493b7520ca2782d5d55de1788d32261a13e0782",
             "after": "da6444b7634e5133a121e81f1d4b826ef419cfc28130e2c2e0886dd5c6056966"
           },
           {
             "path": "apps/web/package.json",
-            "before": "2cacd71060803551cb6ddf74dd8d1e006f5cbd7200b632442c3374c4b27c122d",
+            "before": "f28351fd6e90c75517be632db97505aa0a2f4fdde37b8f3702da60abca3905fa",
             "after": "59f5b433785ead1fa12881e5826fa188b0f151a4701107ea94d737a130b069a8"
           }
         ],
@@ -2615,21 +2615,21 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Willo.patch",
-        "sha256": "af521d772883f08b84e0de1f00c7404ffa2521c199df64be5b71e542650238f7",
+        "sha256": "f34b0dd4504a79422a210cac9b144afa846bff80c20cc82d4682359405e3ecd3",
         "changes": [
           {
             "path": "package.json",
-            "before": "c8b8d08fbf070802d09b304cc8192fb1679fb3e30105adfd3bbdf76f62326670",
+            "before": "00ce6a72f1be97a123e73d8a77023c4ab2dd0873a33190b67b3b999352ca3e3e",
             "after": "9fb3f62ed085fec0221f698d26e2c588affc0866fb149b0cb2335731aa5d430d"
           },
           {
             "path": "packages/backend/package.json",
-            "before": "d83b008dbb2bd2e48cb746df395a45209b5c005d55d360aee5089650ff7411bc",
+            "before": "1a034eb01077e8a72553358b4ee9f66aa78759718e9e7df2c0129f66d3ee1fe5",
             "after": "c1a9509ac0d2c1afabdeefc84c41ab4f49b3b1d3ddab53763a882f8cd636c9d1"
           },
           {
             "path": "packages/frontend/package.json",
-            "before": "f8fa256e733147072b0e5326c1bfc9df943feb44d38809ea90f64489884a0b7a",
+            "before": "78ad0ca88201351986333da4f165e339f0790b9140ee8e5e5b3bf84b4d409503",
             "after": "c066eb67f1d56ac425c951e9d243d43aabb4029b73008f5158379d6599865424"
           }
         ],
@@ -2801,21 +2801,21 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/GoWay.patch",
-        "sha256": "d8e5c764eadb525701c465857f378991ccb316ada9741e0eca0ba6657f62eb8a",
+        "sha256": "bf0f1b6fd60436f1e5274a50b4f9b17581364967c1c9a028ec93ea1f54c87944",
         "changes": [
           {
             "path": "package.json",
-            "before": "63207de17206bf4eb9025e546d05dbcde90dedb7966db361e3c36c2a1e3aef1f",
+            "before": "0b3ef9fa604f9d1e45b1d96b0b05a3d8b69100c3deb2501a6d529f090ac28636",
             "after": "cb03265e6c865e03ca4c64edebfa1d860742b517b4eacc5fbb900d14d4e7068b"
           },
           {
             "path": "packages/backend/package.json",
-            "before": "f326b19a71b7cad3725ea39bb51989033be1a7d8438529833add9ea092fdbc3b",
+            "before": "52abdf6907b2a3b2b5b367d4641e7b91cd27464a646affe214167281c15ee114",
             "after": "dadef3cd2fcc2bd68e5d71e80b3499370d1d9b435db5ef7b4eb00cb136f8d235"
           },
           {
             "path": "packages/frontend/package.json",
-            "before": "5fff9da11c225b4fbc792d54777fea7bec6817c49a59fdbaf2c35a7d872eb304",
+            "before": "c72f8f309ed18f323883969b3041f6c0d043b907706aa9840453622beeafb628",
             "after": "2a9f7619f02a3ec90cbc8eebc6ccc1bb3ffdb8066f887ae00885352d850adc2e"
           }
         ],
@@ -3020,36 +3020,36 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Moovo.patch",
-        "sha256": "48a35e7636fd8b45dd9309b6084177386ae2c9ce20410dff2ddbfc0698fbf83f",
+        "sha256": "ef257fd5ad280b162359a0e331ec88e69a36b5c12b30155c2234a367c86a6848",
         "changes": [
           {
             "path": "package.json",
-            "before": "8fd03cc5f551b90e5ae5326878e9e925289c68a881771999e156bd0554fa8882",
+            "before": "c96a6622e81ecd9668b7a84f369e43678ffa4c9e8dfc55927b25854a7cd9b992",
             "after": "3cb4883888957f63b9a1057b6c5de40dd94b74ede50cf935c123bf7becb41931"
           },
           {
             "path": "packages/backend/package.json",
-            "before": "a87298c29f099e2d5da559f862559637cadb010a88648ad9d394f7fcb0ed1e99",
+            "before": "6b4ce74d0d42a78e3325613a4bccdceaeb722a887a5c8a7bb795a049db4b1d05",
             "after": "cc52f40eeb7c2ad51a77d20d731b131b893fee7551b604561236c4c903560a37"
           },
           {
             "path": "packages/courier-app/package.json",
-            "before": "6b6c3f7963f4327a2b0f06b3c4e39d20900cb5dea20ce902285e8f94537ca71e",
+            "before": "b5a5c69165b4bd0d11d967af2bb9ddfc036bd0d511380bafcb0fe3e41c5a9a3a",
             "after": "76553d0109a8a351bf94da1881e5195be64f0f20512e31882446a5c952d7ba32"
           },
           {
             "path": "packages/fleet-dashboard/package.json",
-            "before": "c90fee4d91dc4bc1f0816bdbd2f1f4e8e29e24d02b3558e38613983c44a74dba",
+            "before": "35e6527f39decfe36e5fc39a0e858f07028d36968acb5ce83c3fbf8c44a81a86",
             "after": "a47d9a4c70a5e68ae32db800902e7e234ffd5fc3e4e46f4e14d69942d2fc90b1"
           },
           {
             "path": "packages/frontend/package.json",
-            "before": "e74f8acf9566c207db04c45c55fb233a0691f9dd7da003102239bf00177687b6",
+            "before": "3fdccdf10ef462fa08ee449903de3042feebea48afb015c758990c1278b2f380",
             "after": "e49b959e7962e5b4b1b0431ed80ed425c5b2fa8cfa158481e436da40db83c5e3"
           },
           {
             "path": "packages/tracker-app/package.json",
-            "before": "57a90066f65c4acc8d42d925f984183d7d94f38cbd61fef9e6e16230662e599b",
+            "before": "e5a55bb6fe925a9fc2fb4cd75b87a0817abb6b726f4ead23455d3c2cfd1645c9",
             "after": "4c91fc9ee80b5ea403d85f2ce8a1ea7d8cabdb5b4272fc81661a6c02c8d41b37"
           }
         ],
@@ -3297,21 +3297,21 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Nilo.patch",
-        "sha256": "55249e879fb70caff6ff8dbdcf653ceff74069c091b0f8ccf82eecb4eeb1ec4c",
+        "sha256": "69162c16ac9861c0316705e5734dfecdd2b1c9306ca2a70f0ea75a093be1fc5d",
         "changes": [
           {
             "path": "package.json",
-            "before": "2170f90bbe5ba6eb81accd4756032ff7fe7ba7cac108ae1f3bbcc51ba421e2c6",
+            "before": "ba0c6d69f644ac5116225b60910f74eda407a837fd5c070e350a3280b873ed03",
             "after": "5894ead2556a66778aab69028c1e7a038b4551745f4197d6a3f6445f791770e5"
           },
           {
             "path": "apps/api/package.json",
-            "before": "a4627ce2b4c9a4597668873d988a96522ed7841c62ebd3c871629f41f45e7d8f",
+            "before": "22ea9cdfe8f7441fcba38278615929c4c07d095cf27d770164bc6fe4b5fa235a",
             "after": "5873237d234fae2ecd58366e779e2f42404187cfdf546bae1691a5b7744f8493"
           },
           {
             "path": "apps/app/package.json",
-            "before": "4f04fbcecdaac9338e240346d14b03e16c79c8bbd5ec84c08be740d6ee4ef8cd",
+            "before": "4cbefc1e14935703d9a49ebee9e5fdb793dbdac9b6958f58b83483400f91e6d5",
             "after": "abda1349dccc567a9cb83f83c6551a5f8cc11974350d9baf0eda975f8d0aabcd"
           }
         ],
@@ -3484,26 +3484,26 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/CrowdSource.patch",
-        "sha256": "b5a35fd62f9d4900fb52cc245d4e3e2eadf5be468c05acb4982dca27781cff0b",
+        "sha256": "135e59e9bcbb07d06de1be4f09de6e25152a0dc18840baa08154576a61c0bb4e",
         "changes": [
           {
             "path": "package.json",
-            "before": "ce3a1032ca3b720f5576815ca9429c70579cf335d16534e668c3a55d3420750a",
+            "before": "2e0ba0e979b57950510fd48e03ff5aa266c48915df29c0b915699f790f4d9127",
             "after": "75cbaed8a6a21618f7ccc8264320aad184af8f73b3e31da1218ae0159956252a"
           },
           {
             "path": "packages/backend/package.json",
-            "before": "910cb094c8a5684f42d131480035964281fa01bcabf5f775b88f0d12e7ade44d",
+            "before": "a86a0ae6f5f03c591ae3ae2f5d331d1c9c0fcabb4509e77614212b61b3abb00c",
             "after": "bedf96b48d3ffac87862cfa94ad612b5ab619d0fe01e41909ad60fc089955242"
           },
           {
             "path": "packages/console/package.json",
-            "before": "cd34ac694344ee2ac27a76746397ee68a4b849a3ee7a9956d8e7bebe2d27a8cb",
+            "before": "453f2a94e3cb5c8d9ea5573e7b72f104de3ebeca872487fc5492f61c266caca8",
             "after": "ac8353dce1eb36d524d8e7ab70af8fe043f97b69650a90c6eb2b00e9cd389c66"
           },
           {
             "path": "packages/reviewer/package.json",
-            "before": "a6ded1262f620128cd1763b8f1b9fca50548927faee721ac52d9ba14679d09cc",
+            "before": "5ddf70fd265c977f796f93eb1e64f43f727ed97d046836c999adfe62dd3d7c74",
             "after": "b0e4d8fcb52d9bc92b048d63583e8200c898eb08a912c0f423d4bbd1db10a5bd"
           }
         ],
@@ -3698,31 +3698,31 @@
       "bloom": "6.2.1",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/Syra.patch",
-        "sha256": "866bd0007087d4bbfaf740c868aee527a1b65dad392fd62a4d0c5c912ec07327",
+        "sha256": "b13a4f5843062c29bbf7c73876621cd8adcf5ad80c814ddacefcd1bf2bb7f95b",
         "changes": [
           {
             "path": "package.json",
-            "before": "fef519ec23d0179e721d449a284c30d6b9de6f8109d657f370778a0e87011a67",
+            "before": "eba6201f398854730610bb89ed9ec1ed07a2a900c25bb2ee1cdd9dbda1558830",
             "after": "bf19b3cca5d5bd502d83beff5ca995491adb2a0bcb5eb2533e133f715cc7d1f4"
           },
           {
             "path": "packages/backend/package.json",
-            "before": "6129e99ef7e7300c30053fe9eccb5009a338b7c621e8fd1a1a06ad1e0e9b5d67",
+            "before": "e8b3f9d45faef2d5e453188a0084f80d97c69177982960adb5d253935d5bb117",
             "after": "5a4636d3349e28e904369947ba9eb06d5a01dde179b376b0b3b90f44f0157f6c"
           },
           {
             "path": "packages/frontend/package.json",
-            "before": "735923de4207ef0978895048e1f3c907c96197198ec5d241dde149974a76b76d",
+            "before": "1c4021050b9769be457fd3db537bbe525b78ca70c9d1b00257a4d49c93d6d216",
             "after": "7612868354a226f65369f0807435916ce1faeb2b4dcb20e683bcec1ab9f8db69"
           },
           {
             "path": "packages/sdk/package.json",
-            "before": "814e7df6c59890a157d21e9175ee3750d96b079520015e2dc738fb3d1b67319a",
+            "before": "7ad822c5d97c4e0416c685fad79ba2275c6dd721f5cb90b404c2d08179564d8d",
             "after": "c7ce1556050a715a2c67fd3bd4f5fe703b04d47426cd3fe05fb41ac5c16a70da"
           },
           {
             "path": "packages/studio/package.json",
-            "before": "51253e18a4cc34b7a3a04088bdfd4b1ff3d39fbb605840a73bb6c0c1097707ff",
+            "before": "5ccd12a2a060141c9a695c8a6277a0d7509411cfce139b4eb687e2b16be004ed",
             "after": "b0484ea510e66ef3a38fc6dc9c1c49317b30eb74da4a63ee2bb2cb3f289bde25"
           }
         ],

@@ -13,17 +13,19 @@
      "yaml": "^2.9.1"
    },
    "overrides": {
--    "@oxy.so/contracts": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-contracts-4.9.0.tgz",
+-    "@oxy.so/contracts": "^4.4.0",
 +    "@oxy.so/contracts": "4.9.0",
      "@react-native-async-storage/async-storage": "2.2.0",
      "expo-secure-store": "56.0.4",
      "expo-file-system": "56.0.8",
-@@ -76,8 +76,8 @@
+@@ -75,9 +75,9 @@
+     "@react-native/babel-preset": "0.85.3",
      "@react-native/metro-babel-transformer": "0.85.3",
      "@react-native/metro-config": "0.85.3",
-     "@oxy.so/bloom": "6.2.1",
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
--    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+-    "@oxy.so/bloom": "^6.2.0",
+-    "@oxy.so/core": "^4.0.0",
+-    "@oxy.so/services": "^11.0.0",
++    "@oxy.so/bloom": "6.2.1",
 +    "@oxy.so/core": "4.2.0",
 +    "@oxy.so/services": "11.1.0",
      "brace-expansion": "2.1.7",
@@ -38,11 +40,12 @@
      "metro": "0.84.6",
      "metro-babel-transformer": "0.84.6",
      "metro-cache": "0.84.6",
-@@ -105,6 +105,6 @@
+@@ -104,6 +104,7 @@
+     "metro-source-map": "0.84.6",
      "metro-symbolicate": "0.84.6",
      "metro-transform-plugins": "0.84.6",
-     "metro-transform-worker": "0.84.6",
--    "@oxy.so/protocol": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-protocol-1.2.2.tgz"
+-    "metro-transform-worker": "0.84.6"
++    "metro-transform-worker": "0.84.6",
 +    "@oxy.so/protocol": "1.2.2"
    }
  }
@@ -52,21 +55,23 @@
      "clean": "rm -rf dist *.tsbuildinfo"
    },
    "dependencies": {
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/core": "^4.0.0",
 +    "@oxy.so/core": "4.2.0",
      "@crowdsource.you/contracts": "workspace:*",
      "@oxy.so/db": "^1.0.0",
      "compression": "^1.8.1",
 --- a/packages/console/package.json
 +++ b/packages/console/package.json
-@@ -45,9 +45,9 @@
+@@ -44,10 +44,10 @@
+   "dependencies": {
      "@babel/plugin-transform-export-namespace-from": "^7.29.7",
      "@expo/vector-icons": "^15.1.1",
-     "@oxy.so/bloom": "6.2.1",
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/bloom": "^6.2.0",
+-    "@oxy.so/core": "^4.0.0",
++    "@oxy.so/bloom": "6.2.1",
 +    "@oxy.so/core": "4.2.0",
      "@crowdsource.you/contracts": "workspace:*",
--    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+-    "@oxy.so/services": "^11.0.0",
 +    "@oxy.so/services": "11.1.0",
      "@react-native-async-storage/async-storage": "^2.2.0",
      "@react-native-community/netinfo": "^12.0.1",
@@ -82,14 +87,16 @@
      "@tailwindcss/postcss": "4.3.2",
 --- a/packages/reviewer/package.json
 +++ b/packages/reviewer/package.json
-@@ -57,9 +57,9 @@
+@@ -56,10 +56,10 @@
+   "dependencies": {
      "@babel/plugin-transform-export-namespace-from": "^7.29.7",
      "@expo/vector-icons": "^15.1.1",
-     "@oxy.so/bloom": "6.2.1",
--    "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
+-    "@oxy.so/bloom": "^6.2.0",
+-    "@oxy.so/core": "^4.0.0",
++    "@oxy.so/bloom": "6.2.1",
 +    "@oxy.so/core": "4.2.0",
      "@crowdsource.you/contracts": "workspace:*",
--    "@oxy.so/services": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-services-11.1.0.tgz",
+-    "@oxy.so/services": "^11.0.0",
 +    "@oxy.so/services": "11.1.0",
      "@react-native-async-storage/async-storage": "^2.2.0",
      "@react-native-community/netinfo": "^12.0.1",
