@@ -1,0 +1,63 @@
+{
+  "sourceHead": "768b4747d6cf35ba565a8e2f353bee6694b3584c",
+  "sourceSha256": {
+    "packages/api/scripts/bind-workload-identity.ts": "75efbdd0758313b0926ca71ce400b6138270f1b4247171f27a723a6cc77224fa",
+    "packages/api/src/services/workloadIdentityBinding.service.ts": "6ecec1524d410fa4d10217273c17a0d5d30f0ecd80fda84a09960e8b40de38bb",
+    "packages/api/src/services/workloadAttributionIdentity.service.ts": "6500f42b0a26546736c4b73e597a249ce41c11f420b9662e11019909f4f4923c",
+    "packages/api/src/services/serviceActingAs.service.ts": "968e6ac0662b093bf2a141578d816e50ec926b2d217f30434f8c8b413498c624",
+    "packages/api/src/services/__tests__/serviceAuthorityCeilingTransition.db.test.ts": "df6a08afa4a8ed079ab99345925c573b8616477c2c2a304b6a1e375e4355717f",
+    "docs/auth/1519-strict-service-authority-preflight/proof.json": "15ff484cfe7c7f309f2d52753a5f0d5ead68daf27fa0c52fc75efa586011ee49",
+    "docs/auth/1519-strict-service-authority-preflight/README.md": "be23c281a59a9b5a14a4b59a3a36bd70bf406d54ac2269d1116e0f02520040ba"
+  },
+  "records": {
+    "authority-ceiling-owned.log": "8b208cde451ebd89fe8eb80ed99ea528116dd84bce89d75a2badfe35faf911f9",
+    "authority-ceiling-test.log": "bcba3311603743dc0d590ff47c7354f77d67ea7aa56776e0d1744270dcabc772",
+    "api-ts.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "biome.log": "9db65e5b8464d24822105a525af2b621ca9d3a5e56b109b66ca01893241df743"
+  },
+  "commands": {
+    "test": [
+      "bun",
+      "run",
+      "test",
+      "--runInBand",
+      "--testSequencer",
+      "/tmp/oxy1519-i09-6dvrblsr/ordered-sequencer.cjs",
+      "--runTestsByPath",
+      "src/services/__tests__/serviceAuthorityCeilingTransition.db.test.ts"
+    ],
+    "ownedLauncher": [
+      "python3",
+      "scripts/rehearsal/test-approved-api-1519.py",
+      "src/services/__tests__/serviceAuthorityCeilingTransition.db.test.ts"
+    ],
+    "typescript": [
+      "bun",
+      "packages/api/node_modules/typescript/bin/tsc",
+      "--noEmit",
+      "-p",
+      "packages/api/tsconfig.json"
+    ],
+    "biome": [
+      "node_modules/.bun/@biomejs+cli-linux-x64@1.9.4/node_modules/@biomejs/cli-linux-x64/biome",
+      "check",
+      "--error-on-warnings",
+      "packages/api/src/services/__tests__/serviceAuthorityCeilingTransition.db.test.ts"
+    ]
+  },
+  "results": {
+    "postgresCases": 1,
+    "postgresAssertions": "namedhelper+realresolver BEFOREdeny/AFTERexactallow/otherapp+subject+ownerdeny/no staffdeny/rollbackdeny; grant+app full rows unchanged",
+    "typescriptExit": 0,
+    "biomeExit": 0,
+    "normalJournalEntries": 140,
+    "ownedPid": 3560668,
+    "port": 5576,
+    "stopped": true
+  },
+  "limits": [
+    "Locally owned SQL and internally supplied workload context; no live JWT/STS/HTTP attestation or live operator identity proved.",
+    "No live binding/scopes/grants/credentials/IAM changed; operational plan still requires root exact-source/image/row review.",
+    "Scope writer is existing approved operator CLI; adding that named workload permission does not broaden any human consent."
+  ]
+}
