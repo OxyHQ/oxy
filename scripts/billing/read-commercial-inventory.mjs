@@ -12,7 +12,7 @@ const PROJECTIONS = {
     billing_subscriptions: ['id', 'user_id', 'stripe_customer_id', 'stripe_subscription_id', 'stripe_price_id', 'status', 'current_period_start', 'current_period_end', 'cancel_at_period_end', 'plan_name', 'plan_credits_per_month', 'plan_price_minor_units', 'plan_currency'],
     subscriptions: ['id', 'user_id', 'plan', 'status', 'start_date', 'end_date', 'auto_renew', 'latest_invoice'],
     user_credits: { columns: ['user_id', 'stripe_customer_id', 'credits_paid', 'credits_free'], where: 'credits_paid > 0 OR stripe_customer_id IS NOT NULL' },
-    billing_transactions: { columns: ['id', 'user_id', 'stripe_customer_id', 'stripe_subscription_id', 'stripe_invoice_id', 'stripe_subscription_period_start', 'type', 'amount_minor_units', 'currency', 'credits', 'status'], where: "type IN ('subscription_payment','subscription_proration','subscription_promotional_grant','credit_purchase')" },
+    billing_transactions: { legacyProfile: { name: 'oxy_pre_subscription_credit_ledger', absentColumns: ['stripe_invoice_id'] }, columns: ['id', 'user_id', 'stripe_customer_id', 'stripe_subscription_id', 'stripe_invoice_id', 'stripe_subscription_period_start', 'type', 'amount_minor_units', 'currency', 'credits', 'status'], where: "type IN ('subscription_payment','subscription_proration','subscription_promotional_grant','credit_purchase')" },
     access_products: ['id', 'application_id', 'owner_account_id'],
     access_offers: ['id', 'version', 'kind', 'expected_benefit_count'],
     access_offer_benefits: ['offer_id', 'offer_version', 'benefit_index', 'product_id', 'kind', 'key', 'unit', 'included', 'combination'],
@@ -53,7 +53,10 @@ export async function readInventory(profile, databaseUrl) {
         const columns = await tx`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${table}`;
         const names = new Set(columns.map(row => row.column_name));
         const missing = [...descriptor.columns, ...(descriptor.required ?? [])].filter(column => !names.has(column));
-        if (missing.length) { tables[table] = { status: 'schema_mismatch', count: null, missing, rows: [] }; continue; }
+        const legacy = descriptor.legacyProfile && missing.length === descriptor.legacyProfile.absentColumns.length
+          && descriptor.legacyProfile.absentColumns.every(column => missing.includes(column));
+        if (missing.length && !legacy) { tables[table] = { status: 'schema_mismatch', count: null, missing, rows: [] }; continue; }
+        const selectedColumns = legacy ? descriptor.columns.filter(column => !missing.includes(column)) : descriptor.columns;
         if (descriptor.dependsOn) {
           const [dependency] = await tx`SELECT to_regclass(${`public.${descriptor.dependsOn}`})::text AS name`;
           if (!dependency.name) { tables[table] = { status: 'dependency_missing', count: null, rows: [] }; continue; }
@@ -64,10 +67,10 @@ export async function readInventory(profile, databaseUrl) {
         const count = Number(total.n);
         if (!Number.isSafeInteger(count) || count < 0) throw new Error('Invalid inventory count');
         if (count > MAX_ROWS) { tables[table] = { status: 'row_limit', count, rows: [] }; continue; }
-        const selected = [...descriptor.columns.map(column => `"${column}"`), ...(descriptor.extra ?? [])].join(', ');
-        const rows = await tx.unsafe(`SELECT ${selected} FROM public.${table}${where} ORDER BY ${descriptor.columns.map(column => `"${column}"`).join(', ')} LIMIT ${MAX_ROWS + 1}`);
+        const selected = [...selectedColumns.map(column => `"${column}"`), ...(descriptor.extra ?? [])].join(', ');
+        const rows = await tx.unsafe(`SELECT ${selected} FROM public.${table}${where} ORDER BY ${selectedColumns.map(column => `"${column}"`).join(', ')} LIMIT ${MAX_ROWS + 1}`);
         if (rows.length !== count) throw new Error('Inventory snapshot count differs');
-        tables[table] = { status: 'complete', count, rows: Array.from(rows) };
+        tables[table] = { status: 'complete', count, rows: Array.from(rows), ...(legacy ? { schemaProfile: descriptor.legacyProfile.name, unavailableColumns: missing } : {}) };
       }
       const dependency = require.resolve('postgres');
       let packageDirectory = dirname(dependency); let packageMetadata;

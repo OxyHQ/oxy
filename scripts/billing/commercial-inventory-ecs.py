@@ -68,9 +68,10 @@ def describe(profile):
     require(network['awsvpcConfiguration']['assignPublicIp'] == 'DISABLED', 'Public network prohibited')
     log = container['logConfiguration']
     require(log['logDriver'] == 'awslogs' and log['options']['awslogs-region'] == REGION and log['options']['awslogs-group'] == '/oxy/ecs', 'Unexpected logging destination')
+    require(re.fullmatch(r'[A-Za-z0-9_-]{1,100}', log['options'].get('awslogs-stream-prefix', '')) is not None, 'Invalid live log stream prefix')
     require(re.fullmatch(f'arn:aws:iam::{ACCOUNT}:role/[A-Za-z0-9_/+=,.@-]+', td['executionRoleArn']) is not None, 'Unexpected execution role')
     # Only metadata names/references are returned. Environment values are never queried.
-    return {'taskDefinition': td['arn'], 'image': container['image'], 'executionRoleArn': td['executionRoleArn'], 'cpu': td['cpu'], 'memory': td['memory'], 'runtimePlatform': td['runtimePlatform'], 'network': network, 'logGroup': '/oxy/ecs', 'databaseSecret': secret, 'stripeBindingPresent': any(row['name'] == 'STRIPE_SECRET_KEY' for row in container.get('secrets') or []) or 'STRIPE_SECRET_KEY' in container['environmentNames']}
+    return {'taskDefinition': td['arn'], 'image': container['image'], 'executionRoleArn': td['executionRoleArn'], 'cpu': td['cpu'], 'memory': td['memory'], 'runtimePlatform': td['runtimePlatform'], 'network': network, 'logGroup': '/oxy/ecs', 'logStreamPrefix': log['options']['awslogs-stream-prefix'], 'databaseSecret': secret, 'stripeBindingPresent': any(row['name'] == 'STRIPE_SECRET_KEY' for row in container.get('secrets') or []) or 'STRIPE_SECRET_KEY' in container['environmentNames']}
 
 
 def private_json(path, value):
@@ -85,7 +86,7 @@ def build_definition(plan):
     require(hashlib.sha256(source.encode()).hexdigest() == plan['readerSha256'], 'Reader source differs')
     invocation = "\ntry { const result = await readInventory(" + json.dumps(profile) + ", process.env.DATABASE_URL); for (const line of encodeInventory(result, " + json.dumps(plan['nonce']) + ")) console.log(line); } catch { console.error('OXY_BILLING_INVENTORY_FAILED'); process.exitCode = 1; }\n"
     live = plan['live']
-    return {'family': f'oxy-billing-inventory-{profile}', 'executionRoleArn': live['executionRoleArn'], 'networkMode': 'awsvpc', 'requiresCompatibilities': ['FARGATE'], 'cpu': live['cpu'], 'memory': live['memory'], 'runtimePlatform': live['runtimePlatform'], 'volumes': [], 'containerDefinitions': [{'name': 'inventory', 'image': live['image'], 'essential': True, 'entryPoint': ['/usr/local/bin/node'], 'command': ['--input-type=module', '-e', source + invocation], 'workingDirectory': selected['cwd'], 'environment': [], 'secrets': [live['databaseSecret']], 'portMappings': [], 'mountPoints': [], 'volumesFrom': [], 'logConfiguration': {'logDriver': 'awslogs', 'options': {'awslogs-group': live['logGroup'], 'awslogs-region': REGION, 'awslogs-stream-prefix': 'billing-inventory'}}}]}
+    return {'family': f'oxy-billing-inventory-{profile}', 'executionRoleArn': live['executionRoleArn'], 'networkMode': 'awsvpc', 'requiresCompatibilities': ['FARGATE'], 'cpu': live['cpu'], 'memory': live['memory'], 'runtimePlatform': live['runtimePlatform'], 'volumes': [], 'containerDefinitions': [{'name': 'inventory', 'image': live['image'], 'essential': True, 'entryPoint': ['/usr/local/bin/node'], 'command': ['--input-type=module', '-e', source + invocation], 'workingDirectory': selected['cwd'], 'environment': [], 'secrets': [live['databaseSecret']], 'portMappings': [], 'mountPoints': [], 'volumesFrom': [], 'logConfiguration': {'logDriver': 'awslogs', 'options': {'awslogs-group': live['logGroup'], 'awslogs-region': REGION, 'awslogs-stream-prefix': live['logStreamPrefix']}}}]}
 
 
 def verify_registered(actual, expected):
@@ -181,11 +182,11 @@ def execute(plan, directory):
             require(time.monotonic() < deadline, 'Inventory task exceeded timeout'); time.sleep(5)
         cleanup['taskStopped'] = True
         require(task['taskDefinitionArn'] == registered and len(task['containers']) == 1 and task['containers'][0].get('exitCode') == 0 and task['containers'][0].get('imageDigest') == plan['live']['image'].split('@')[1], 'Stopped task failed or image changed')
-        stream = 'billing-inventory/inventory/' + task_arn.rsplit('/', 1)[1]
+        stream = plan['live']['logStreamPrefix'] + '/inventory/' + task_arn.rsplit('/', 1)[1]
         result = collect_result(plan['live']['logGroup'], stream, plan['nonce'])
         require(result['profile'] == plan['profile'] and result['readOnly'] is True and result['isolation'] == 'repeatable read', 'Invalid result projection')
         private_json(directory/'result.private.json', result)
-        private_json(directory/'receipt.json', {'planSha256': digest(plan), 'resultSha256': digest(result), 'taskArn': task_arn, 'taskDefinitionArn': registered, 'runtimeImage': plan['live']['image'], 'profile': plan['profile'], 'readOnly': True, 'tables': {name: {'status': row['status'], 'count': row['count']} for name, row in result['tables'].items()}})
+        private_json(directory/'receipt.json', {'planSha256': digest(plan), 'resultSha256': digest(result), 'taskArn': task_arn, 'taskDefinitionArn': registered, 'runtimeImage': plan['live']['image'], 'profile': plan['profile'], 'readOnly': True, 'tables': {name: {'status': row['status'], 'count': row['count'], **({'schemaProfile': row['schemaProfile'], 'unavailableColumns': row['unavailableColumns']} if 'schemaProfile' in row else {})} for name, row in result['tables'].items()}})
     finally:
         failures = []
         for launched_arn in launched_arns:

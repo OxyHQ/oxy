@@ -51,3 +51,21 @@ Local verification: `python3 scripts/rehearsal/test-commercial-inventory-1519.py
 ## Comparison and backfill boundary
 
 A complete private read must identify existing sources, actual plan/price versions, provider identities and unique payer/beneficiary mapping. Unknown provider namespace, missing product mapping, incompatible duplicates or incomplete projections remain named discrepancies and retain the existing legacy adapter. No mapping is inferred from a plan name or current price. Configured unambiguous candidates must compare old and new rights with provenance before any idempotent access-only backfill; monthly historical balances are preserved, never recomputed. Actual row counts/results and that comparison remain pending until this read-only execution and review complete.
+
+### Existing image compatibility and logging pins
+
+The Oxy reader supports one explicit pre-ledger `billing_transactions` profile:
+`oxy_pre_subscription_credit_ledger`, selected only when `stripe_invoice_id` is the
+sole absent required column. It reads every other whitelisted field/count and
+reports `schemaProfile` plus `unavailableColumns`. Rows omit the unavailable
+invoice identifier; they do not invent a null provider invoice, a mapping or an
+empty table. Any other missing field still returns `schema_mismatch` with a null
+count. The modern schema keeps its complete original projection.
+
+The task's CloudWatch stream prefix is inherited from the authenticated live
+container, included in prepared/execute pins, copied into the minimal receiver
+and used for collection. No IAM policy is changed. The original Clarity attempt
+used `billing-inventory`, which its existing execution role rejected before the
+container/SQL started; its task and temporary definition were cleaned up. A new
+plan uses the live `clarity-api` prefix. This operational retry is distinct from
+an empty database result.
