@@ -1,0 +1,10 @@
+test_bun_options_disables_dotenv_in_actual_builder_and_nested_processes (__main__.RunnerIsolationTests.test_bun_options_disables_dotenv_in_actual_builder_and_nested_processes) ... ok
+test_owned_postgres_lives_outside_launcher_signal_group (__main__.RunnerIsolationTests.test_owned_postgres_lives_outside_launcher_signal_group) ... ok
+test_sigint_launcher_group_keeps_child_cleanup_before_pg_stop (__main__.RunnerIsolationTests.test_sigint_launcher_group_keeps_child_cleanup_before_pg_stop) ... ok
+test_sigterm_launcher_forwards_and_waits_for_cleanup_before_pg_stop (__main__.RunnerIsolationTests.test_sigterm_launcher_forwards_and_waits_for_cleanup_before_pg_stop) ... ok
+test_unresponsive_child_is_bounded_and_manifest_review_is_required (__main__.RunnerIsolationTests.test_unresponsive_child_is_bounded_and_manifest_review_is_required) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 1.518s
+
+OK
