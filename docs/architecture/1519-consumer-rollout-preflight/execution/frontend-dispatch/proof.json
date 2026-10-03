@@ -63,7 +63,7 @@
     },
     {
       "path": "scripts/adoption/frontend-dispatch/test-templates.cjs",
-      "sha256": "76a7d6a0226436d42e866ef404f4218f77bc1eb8eea3141124b085bfad97e2dd"
+      "sha256": "db401ac56969417c5574f6df606fed627ab5faa5cb06bb5a653ab45802f36e19"
     },
     {
       "path": "scripts/adoption/frontend-dispatch/test-verify-manual-frontend.py",

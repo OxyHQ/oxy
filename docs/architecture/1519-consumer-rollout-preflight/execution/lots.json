@@ -498,7 +498,7 @@
       "repository": "OxyHQ/Mention",
       "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
       "branch": "task/1519-mention-final-sdk-pins-20261003",
-      "preparedHead": "1eac385328912141ca6ecc37585438c641b8260d",
+      "preparedHead": "89987bdd2c09178361148e273c898bd7baba5c98",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -625,10 +625,26 @@
         },
         {
           "path": ".github/workflows/deploy-frontends.yml",
-          "sha256": "bc00ccbdd0c2d62eb520b971fc128f30df2c12d4cb89c13b3aa664c51fc6ef66",
-          "manualDispatch": false,
-          "operatorCommand": null,
-          "requiredInputNames": [],
+          "sha256": "1e9561790f4a18c63ceb7cf50e2a4e91847bd447e5171ed6ff427fa2d80bc19d",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-frontends.yml",
+            "--repo",
+            "OxyHQ/Mention",
+            "--ref",
+            "main",
+            "-f",
+            "expected_sha=<reviewed-current-main>",
+            "-f",
+            "ci_run_id=<exact-successful-push-CI-run>"
+          ],
+          "requiredInputNames": [
+            "expected_sha",
+            "ci_run_id"
+          ],
           "role": "frontend_after_matching_backend"
         },
         {
@@ -1039,7 +1055,7 @@
       "repository": "OxyHQ/Clarity",
       "worktree": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-clarity-final-sdk-20261003",
-      "preparedHead": "99ce4ba041e41c2ae66f46732b9be0305e529129",
+      "preparedHead": "1b1d5212b1fbaa3f401089e0518c18cd682c2d94",
       "lot": 2,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -1134,10 +1150,26 @@
         },
         {
           "path": ".github/workflows/deploy.yml",
-          "sha256": "f82c0dc1e232a5277ac19dddf60db800d994f33742a293fed364aca0b7ee7824",
-          "manualDispatch": false,
-          "operatorCommand": null,
-          "requiredInputNames": [],
+          "sha256": "3144eaa9dc56a8c52e35cd1b86a3cd6fa189871397d5b2e79636200274667df6",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy.yml",
+            "--repo",
+            "OxyHQ/Clarity",
+            "--ref",
+            "main",
+            "-f",
+            "expected_sha=<reviewed-current-main>",
+            "-f",
+            "ci_run_id=<exact-successful-push-CI-run>"
+          ],
+          "requiredInputNames": [
+            "expected_sha",
+            "ci_run_id"
+          ],
           "role": "frontend_after_matching_backend"
         }
       ],
@@ -1886,7 +1918,7 @@
       "repository": "OxyHQ/website",
       "worktree": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-website-final-sdk-20261003",
-      "preparedHead": "29f09be6d9a41a8b6ad234560502057b6eb5a479",
+      "preparedHead": "3f821153ceca5b542cf53a62d89ebdfae1f2d050",
       "lot": 1,
       "bloom": "7.1.2",
       "manifestPatch": {
@@ -1946,10 +1978,26 @@
         },
         {
           "path": ".github/workflows/deploy.yml",
-          "sha256": "932f5f256dee52f9ad1de5e68279e2b89c53db7d5ab1460e7d69f40ad47ae0fc",
-          "manualDispatch": false,
-          "operatorCommand": null,
-          "requiredInputNames": [],
+          "sha256": "271d3e07eadb7ca6e24befa7de7a8f7b833c27dfd37a1f8118d63ffa360f87bc",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy.yml",
+            "--repo",
+            "OxyHQ/website",
+            "--ref",
+            "main",
+            "-f",
+            "expected_sha=<reviewed-current-main>",
+            "-f",
+            "ci_run_id=<exact-successful-push-CI-run>"
+          ],
+          "requiredInputNames": [
+            "expected_sha",
+            "ci_run_id"
+          ],
           "role": "frontend_after_matching_backend"
         }
       ],
@@ -2279,7 +2327,7 @@
       "repository": "OxyHQ/tnp",
       "worktree": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "34c8f0e0387fb5d39757cd80320ce2a2daba4c81",
+      "preparedHead": "0f42e3b6d5885bbb7ec18bcfba408f095004ff83",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -2433,10 +2481,26 @@
         },
         {
           "path": ".github/workflows/deploy.yml",
-          "sha256": "6004e0742fea8415ac7015d0d21e964178b8d58454c42338617dffbb034c166c",
-          "manualDispatch": false,
-          "operatorCommand": null,
-          "requiredInputNames": [],
+          "sha256": "300a19b3fe40700b724cf3811b294adad3216c8e6f688cd6f66e4a496de0ab65",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy.yml",
+            "--repo",
+            "OxyHQ/tnp",
+            "--ref",
+            "main",
+            "-f",
+            "expected_sha=<reviewed-current-main>",
+            "-f",
+            "ci_run_id=<exact-successful-push-CI-run>"
+          ],
+          "requiredInputNames": [
+            "expected_sha",
+            "ci_run_id"
+          ],
           "role": "frontend_after_matching_backend"
         }
       ],
@@ -3228,7 +3292,7 @@
       "repository": "OxyHQ/Nilo",
       "worktree": "/home/nate/Oxy/Nilo/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "c4299aa6b985e77a02102765cd27a91188b42a7c",
+      "preparedHead": "a44bdfa19fb3dfd0d3e98bed2ecc072c512c900b",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -3315,10 +3379,26 @@
         },
         {
           "path": ".github/workflows/deploy.yml",
-          "sha256": "0f8be3952ce4c6def57abe4e41b8a0fdf47fe99f78cfb242c333139dd3388b60",
-          "manualDispatch": false,
-          "operatorCommand": null,
-          "requiredInputNames": [],
+          "sha256": "2e4f584f82742b2e1aa1fae24b0975c4b35b54289f41b1a92375861458367506",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy.yml",
+            "--repo",
+            "OxyHQ/Nilo",
+            "--ref",
+            "main",
+            "-f",
+            "expected_sha=<reviewed-current-main>",
+            "-f",
+            "ci_run_id=<exact-successful-push-CI-run>"
+          ],
+          "requiredInputNames": [
+            "expected_sha",
+            "ci_run_id"
+          ],
           "role": "frontend_after_matching_backend"
         }
       ],
@@ -3399,7 +3479,7 @@
       "repository": "OxyHQ/CrowdSource",
       "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "ccad8b38104575fd642ad0494df4da6ae8995f63",
+      "preparedHead": "42e8c720d51b5cb4d4574fe72fbe19d6b2e84059",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -3513,10 +3593,26 @@
         },
         {
           "path": ".github/workflows/deploy-frontends.yml",
-          "sha256": "19668ff6d182c53ba6917abd7d35d21ee494d49fe08d9f04482caccc0248c088",
-          "manualDispatch": false,
-          "operatorCommand": null,
-          "requiredInputNames": [],
+          "sha256": "ef9e3b33524674f0f5d5b6bec6c3e45db5576a304f3b7518de75c208d69ad362",
+          "manualDispatch": true,
+          "operatorCommand": [
+            "gh",
+            "workflow",
+            "run",
+            "deploy-frontends.yml",
+            "--repo",
+            "OxyHQ/CrowdSource",
+            "--ref",
+            "main",
+            "-f",
+            "expected_sha=<reviewed-current-main>",
+            "-f",
+            "ci_run_id=<exact-successful-push-CI-run>"
+          ],
+          "requiredInputNames": [
+            "expected_sha",
+            "ci_run_id"
+          ],
           "role": "frontend_after_matching_backend"
         }
       ],

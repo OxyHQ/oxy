@@ -2,12 +2,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const yaml = require(process.argv[2]);
+const { execFileSync } = require('node:child_process');
 const base = path.resolve(__dirname, '../../../docs/architecture/1519-consumer-rollout-preflight/execution');
 const manifest = JSON.parse(fs.readFileSync(path.join(base, 'frontend-dispatch/manifest.json')));
 const lots = JSON.parse(fs.readFileSync(path.join(base, 'lots.json'))).consumers;
 for (const row of manifest.rows) {
   const wt = lots.find(x => x.repository === row.repository).worktree;
-  const old = yaml.parse(fs.readFileSync(path.join(wt, row.workflow), 'utf8'), {uniqueKeys: true});
+  const old = yaml.parse(execFileSync('git', ['show', `${row.sourceHead}:${row.workflow}`], {cwd: wt, encoding: 'utf8'}), {uniqueKeys: true});
   const next = yaml.parse(fs.readFileSync(path.resolve(__dirname, '../../../', row.template), 'utf8'), {uniqueKeys: true});
   assert.deepEqual(Object.keys(next.jobs), Object.keys(old.jobs));
   for (const [event, value] of Object.entries(old.on)) assert.deepEqual(next.on[event], value);

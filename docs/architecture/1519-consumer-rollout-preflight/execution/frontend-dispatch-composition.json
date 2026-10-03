@@ -1,0 +1,55 @@
+{
+  "reviewedTemplateCommit": "ece51566b7b0bd18853e4e36a64d64568c2e222a",
+  "rootReviewSha256": "74c1a3f5b4ee6d8b3859d1f28fbfc81894b4d84803bbfa48398c52ba78598d90",
+  "records": [
+    {
+      "repository": "OxyHQ/Mention",
+      "before": "1eac385328912141ca6ecc37585438c641b8260d",
+      "after": "89987bdd2c09178361148e273c898bd7baba5c98",
+      "workflow": ".github/workflows/deploy-frontends.yml",
+      "workflowSha256": "1e9561790f4a18c63ceb7cf50e2a4e91847bd447e5171ed6ff427fa2d80bc19d",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "before": "99ce4ba041e41c2ae66f46732b9be0305e529129",
+      "after": "1b1d5212b1fbaa3f401089e0518c18cd682c2d94",
+      "workflow": ".github/workflows/deploy.yml",
+      "workflowSha256": "3144eaa9dc56a8c52e35cd1b86a3cd6fa189871397d5b2e79636200274667df6",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "repository": "OxyHQ/website",
+      "before": "29f09be6d9a41a8b6ad234560502057b6eb5a479",
+      "after": "3f821153ceca5b542cf53a62d89ebdfae1f2d050",
+      "workflow": ".github/workflows/deploy.yml",
+      "workflowSha256": "271d3e07eadb7ca6e24befa7de7a8f7b833c27dfd37a1f8118d63ffa360f87bc",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "before": "34c8f0e0387fb5d39757cd80320ce2a2daba4c81",
+      "after": "0f42e3b6d5885bbb7ec18bcfba408f095004ff83",
+      "workflow": ".github/workflows/deploy.yml",
+      "workflowSha256": "300a19b3fe40700b724cf3811b294adad3216c8e6f688cd6f66e4a496de0ab65",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "before": "c4299aa6b985e77a02102765cd27a91188b42a7c",
+      "after": "a44bdfa19fb3dfd0d3e98bed2ecc072c512c900b",
+      "workflow": ".github/workflows/deploy.yml",
+      "workflowSha256": "2e4f584f82742b2e1aa1fae24b0975c4b35b54289f41b1a92375861458367506",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "before": "ccad8b38104575fd642ad0494df4da6ae8995f63",
+      "after": "42e8c720d51b5cb4d4574fe72fbe19d6b2e84059",
+      "workflow": ".github/workflows/deploy-frontends.yml",
+      "workflowSha256": "ef9e3b33524674f0f5d5b6bec6c3e45db5576a304f3b7518de75c208d69ad362",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    }
+  ],
+  "status": "committed only; no dispatch"
+}

@@ -1,0 +1,1323 @@
+{
+  "schemaVersion": 1,
+  "prerequisite": "root registry-ready + final-registry-consumers.py archive/installed byte verification",
+  "execution": "bounded sequential commands per repository; independent repositories may run concurrently within resource limits; owned PG only; no shared fixture/production URLs",
+  "reuse": "Candidate evidence retained. Do not rerun provider sandbox/crypto/full SDK suites. Final importer types/build and auth/transport boundary tests are required because final core differs from historical packs.",
+  "rows": [
+    {
+      "repository": "OxyHQ/Atlas",
+      "preparedHead": "b725e9edf6c02eb1f3adebba9bca48a27d092a31",
+      "worktree": "/home/nate/Oxy/Atlas/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "test:edge"
+          ],
+          "scriptValue": "bun test scripts/edge-activity.test.ts",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run --cwd packages/frontend export:web",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Alia",
+      "preparedHead": "4bd1ee83b84226d3b7bd5e87851dfd45561b4251",
+      "worktree": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
+      "commands": [
+        {
+          "cwd": "packages/api",
+          "argv": [
+            "bun",
+            "run",
+            "test"
+          ],
+          "scriptValue": "vitest run",
+          "phase": "test",
+          "requiresOwnedPostgres": true
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:api"
+          ],
+          "scriptValue": "bun run --filter @alia/api build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:app"
+          ],
+          "scriptValue": "bun run --filter @alia/app build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:canvas"
+          ],
+          "scriptValue": "bun run --filter alia-canvas build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/alia-chat",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/alia-codea",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/alia-codea-cli",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/alia-computer-host",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/alia-cowork",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/api",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/app",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "expo customize tsconfig.json && tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [
+        "Full API after combined I05/I10/retirement fix and published SDK is required; preserve legacy adapters and Mention-only pilot. Standalone Codea webview Bloom-only exception has its own lock/build."
+      ],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Mention",
+      "preparedHead": "89987bdd2c09178361148e273c898bd7baba5c98",
+      "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
+      "commands": [
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "src/__tests__/mcp/internalCatalogMcp.db.test.ts",
+            "src/__tests__/services/oxyRankingForeground.http.test.ts"
+          ],
+          "scriptValue": "node ../../node_modules/vitest/vitest.mjs run",
+          "phase": "test",
+          "requiresOwnedPostgres": true
+        },
+        {
+          "cwd": "packages/mcp",
+          "argv": [
+            "bun",
+            "run",
+            "test"
+          ],
+          "scriptValue": "bun test",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "oxyRuntimeCompatibility.test.ts"
+          ],
+          "scriptValue": "node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build"
+          ],
+          "scriptValue": "bun run build:shared-types && bun run --cwd packages/backend build && bun run --cwd packages/mcp build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run --cwd packages/frontend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "node ./scripts/typecheck.mjs",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/mcp",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "preparedHead": "cf7de686f4b55b55299385b6a8f0175495b98137",
+      "worktree": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003",
+      "commands": [
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "src/services/billing/peable/__tests__",
+            "src/services/payments/__tests__/peable-provider.test.ts",
+            "src/routes/__tests__/peable-webhook.integration.test.ts",
+            "src/capabilities/__tests__"
+          ],
+          "scriptValue": "vitest run",
+          "phase": "test",
+          "requiresOwnedPostgres": true
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "scriptValue": "bun run build:shared-types && bun run --filter @mercaria/backend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run --filter @mercaria/frontend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:dashboard"
+          ],
+          "scriptValue": "bun run --filter @mercaria/dashboard build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:pos"
+          ],
+          "scriptValue": "bun run --filter @mercaria/pos build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/dashboard",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "bun ../../scripts/generate-router-types.mjs && tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "bun ../../scripts/generate-router-types.mjs && tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/pos",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "bun ../../scripts/generate-router-types.mjs && tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "preparedHead": "1b1d5212b1fbaa3f401089e0518c18cd682c2d94",
+      "worktree": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "src/routes/__tests__/billing-product-selection.postgres.test.ts",
+            "src/lib/__tests__/clarity-service-auth.test.ts"
+          ],
+          "scriptValue": "vitest run",
+          "phase": "test",
+          "requiresOwnedPostgres": true
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "test"
+          ],
+          "scriptValue": "vitest run",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "scriptValue": "bun run --filter @clarity/shared-types build && bun run --filter @clarity/backend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run --filter @clarity/shared-types build && bun run --filter @clarity/frontend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [
+        "Owned disposable database must be named clarity_ci. Worker liveness does not prove delegated background grant; unavailable offline authority stays held."
+      ],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Allo",
+      "preparedHead": "9cfb00426a603f936daedca182eeb4528fce1ed8",
+      "worktree": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "src/__tests__/platform/socket.realdb.test.ts",
+            "src/__tests__/config/oxyService.test.ts"
+          ],
+          "scriptValue": "vitest run",
+          "phase": "test",
+          "requiresOwnedPostgres": true
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:shared-types"
+          ],
+          "scriptValue": "bun run --filter @allo/shared-types build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "scriptValue": "bun run --filter @allo/backend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run --filter @allo/frontend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "bun run typecheck:backend && bun run typecheck:core && bun run typecheck:react && bun run typecheck:frontend",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [
+        "Historical frontend run reached 283 assertions without clean exit; do not claim full pass. Required CI remains authoritative; rerun affected auth/socket focal and build against registry."
+      ],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Noted",
+      "preparedHead": "f825219674cbd7e59b22f8f3f2aba81b65f0053e",
+      "worktree": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "lib/api/__tests__/noted-client.test.ts",
+            "lib/__tests__/oxy-client-id.test.ts"
+          ],
+          "scriptValue": "vitest run",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "src/middleware/__tests__/auth-middleware.test.ts",
+            "src/capabilities/__tests__/capability-authority.test.ts"
+          ],
+          "scriptValue": "vitest run",
+          "phase": "test",
+          "requiresOwnedPostgres": true
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "scriptValue": "bun run build:types && bun run --filter @noted/backend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run build:types && bun run --filter @noted/frontend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Homiio",
+      "preparedHead": "086c90b636c7898b9d20d3fa145ddf5c8a651d92",
+      "worktree": "/home/nate/Oxy/Homiio/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "--runInBand",
+            "sindi",
+            "linkedResponses"
+          ],
+          "scriptValue": "jest --ci",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "--runInBand",
+            "__tests__/unit/peableContract.test.ts",
+            "__tests__/unit/sindiServiceIdentity.test.ts"
+          ],
+          "scriptValue": "cd ../listing-providers && bun run build && cd ../backend && NODE_OPTIONS='--max-old-space-size=6144' jest",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:shared-types"
+          ],
+          "scriptValue": "bun run --filter @homiio/shared-types build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "scriptValue": "bun run --filter @homiio/backend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run --filter @homiio/frontend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [
+        "HousingWatchAlerts 54 own-PG and deferred-owner 127 accepted; rerun runtime seam against registry, not Stripe sandbox. Full PR CI required; historical missing-final-SDK CI preserved."
+      ],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/website",
+      "preparedHead": "3f821153ceca5b542cf53a62d89ebdfae1f2d050",
+      "worktree": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "test:theme"
+          ],
+          "scriptValue": "bun test scripts/theme-contract.test.ts",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build"
+          ],
+          "scriptValue": "tsc -b && vite build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [
+        "Canonical build includes tsc -b, prerender and browser theme/docs/Bloom gates. Requires local Chromium; do not substitute flat tsc --noEmit or remove demos."
+      ],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Peable",
+      "preparedHead": "9a70ddedcf29ba4b4986f4b4c259f05f735b545b",
+      "worktree": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003",
+      "commands": [
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "src/routes/__tests__/oxyAuthWiring.test.ts"
+          ],
+          "scriptValue": "bun test src",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "test"
+          ],
+          "scriptValue": "bun test src",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/pay",
+          "argv": [
+            "bun",
+            "run",
+            "test"
+          ],
+          "scriptValue": "bun test",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "scriptValue": "bun run --filter @peable.to/backend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run --filter @peable.to/frontend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:pay"
+          ],
+          "scriptValue": "bun run --filter @peable.to/pay build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "preparedHead": "0f42e3b6d5885bbb7ec18bcfba408f095004ff83",
+      "worktree": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "apps/api",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "--test-name-pattern",
+            "validates receiver identity and revocation in an isolated loopback process"
+          ],
+          "scriptValue": "bun test src",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "apps/web",
+          "argv": [
+            "bun",
+            "run",
+            "build"
+          ],
+          "scriptValue": "vite build && bun run build:edge",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "apps/api",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "apps/dns-server",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "apps/relay",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "apps/web",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc -b",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Willo",
+      "preparedHead": "9d5b9959723bbb78e3f55c8f2713327eef621944",
+      "worktree": "/home/nate/Oxy/Willo/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "--test-name-pattern",
+            "validates receiver identity and revocation in an isolated loopback process"
+          ],
+          "scriptValue": "bun test src",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "x",
+            "--no-install",
+            "expo",
+            "export",
+            "--platform",
+            "web"
+          ],
+          "phase": "build",
+          "requiresOwnedPostgres": false,
+          "note": "No build/export script exists; use already installed Expo binary, no resolution."
+        },
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/GoWay",
+      "preparedHead": "4745e4ab85a3981d6d26e310c2318a96265a639c",
+      "worktree": "/home/nate/Oxy/GoWay/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "--test-name-pattern",
+            "validates receiver identity and revocation in an isolated loopback process"
+          ],
+          "scriptValue": "bun test",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "scriptValue": "bun run --cwd packages/backend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run --cwd packages/frontend export:web",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc -b tsconfig.json && tsc -p tsconfig.tools.json",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [
+        "Canonical public app registration is a root operation; source build cannot prove live clientId/config."
+      ],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Moovo",
+      "preparedHead": "706ed699d0122a868df7910afd07f60017988e3a",
+      "worktree": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "-t",
+            "validates receiver identity and revocation in an isolated loopback process"
+          ],
+          "scriptValue": "vitest run",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "scriptValue": "bun run build:shared-types && bun run --filter @moovo/backend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run --filter @moovo/frontend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:courier"
+          ],
+          "scriptValue": "bun run --filter @moovo/courier-app build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:hub"
+          ],
+          "scriptValue": "bun run --filter @moovo/fleet-dashboard build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:tracker"
+          ],
+          "scriptValue": "bun run --filter @moovo/tracker-app build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "preparedHead": "a44bdfa19fb3dfd0d3e98bed2ecc072c512c900b",
+      "worktree": "/home/nate/Oxy/Nilo/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "apps/api",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "-t",
+            "validates receiver identity and revocation in an isolated loopback process"
+          ],
+          "scriptValue": "vitest run",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:api"
+          ],
+          "scriptValue": "bun run --filter @nilo/api build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:app"
+          ],
+          "scriptValue": "bun run --filter @nilo/app build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [
+        "Build requires explicit approved HTTPS EXPO_PUBLIC_API_URL and existing verified public clientId. No default URL inference."
+      ],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "preparedHead": "42e8c720d51b5cb4d4574fe72fbe19d6b2e84059",
+      "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "-t",
+            "validates receiver identity and revocation in an isolated loopback process"
+          ],
+          "scriptValue": "node ../../node_modules/vitest/vitest.mjs run",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "scriptValue": "bun run build:contracts && bun run --cwd packages/backend build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:reviewer"
+          ],
+          "scriptValue": "bun run --cwd packages/reviewer build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:console"
+          ],
+          "scriptValue": "bun run --cwd packages/console build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/console",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/reviewer",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    },
+    {
+      "repository": "OxyHQ/Syra",
+      "preparedHead": "a86ef872060dbf125ef6c29f3be342de88ea6dbf",
+      "worktree": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003",
+      "commands": [
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "test",
+            "--test-name-pattern",
+            "validates receiver identity and revocation in an isolated loopback process"
+          ],
+          "scriptValue": "rm -rf dist && bun test src",
+          "phase": "test",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:backend"
+          ],
+          "scriptValue": "bun run --filter '@syra/backend' build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:frontend"
+          ],
+          "scriptValue": "bun run --filter '@syra/frontend' build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": ".",
+          "argv": [
+            "bun",
+            "run",
+            "build:studio"
+          ],
+          "scriptValue": "bun run --filter '@syra/studio' build",
+          "phase": "build",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/backend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/frontend",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/sdk",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit -p tsconfig.build.json",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        },
+        {
+          "cwd": "packages/studio",
+          "argv": [
+            "bun",
+            "run",
+            "typecheck"
+          ],
+          "scriptValue": "tsc --noEmit",
+          "phase": "types",
+          "requiresOwnedPostgres": false
+        }
+      ],
+      "notes": [
+        "notifications:write is not granted by an empty workload scope list. Preserve baseline denial; no implicit scope expansion."
+      ],
+      "requiredRemoteCheck": "All required PR checks and exact merged-main CI; no local subset substitutes for required CI.",
+      "status": "planned, not run against final registry"
+    }
+  ]
+}

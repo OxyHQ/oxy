@@ -1,0 +1,31 @@
+{
+  "scope": "local composition and planned final checks; no registry install, image build, dispatch or deploy",
+  "sources": [
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
+      "sha256": "d54eb546d68f3bd4d7678e2715028200b4425a786e032d87a5745bd5a8bd5fe6"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/publisher-composition.json",
+      "sha256": "6a04cb4a8bdfe180e4f661d9cf503f57a8623400e138cfee7d7d43aa982bf839"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch-composition.json",
+      "sha256": "d499870717f31c895c7c11184db3a0dbd306d924b4d9ed5e1d7083498a327306"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-checks.json",
+      "sha256": "0b823e85b2fceb7c5fb24bf0ab987ffa72d33887fb1362c6797746182be5a29b"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-checks.md",
+      "sha256": "52f880fb55e5a111142cacc725892923e6c3b058f5173fbc7a7f1312b2a3c471"
+    }
+  ],
+  "checks": {
+    "repositories": 17,
+    "publisherFiles": 51,
+    "frontendFiles": 12,
+    "plannedCommands": 99
+  }
+}
