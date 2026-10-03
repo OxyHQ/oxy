@@ -1,0 +1,473 @@
+{
+  "root": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/bloom621-expo-web",
+  "files": [
+    {
+      "path": ".integration-evidence/bloom621-expo-web/(tabs)/explore.html",
+      "sha256": "2047aa28abee9760965cde1f0b01e202d3bf19e3f3d339c8ec9d6036f500842d"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/(tabs)/index.html",
+      "sha256": "cbc98a07026f9f071718e8a2f84d550b93e92cd8a5eef96029638959597c7930"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/+not-found.html",
+      "sha256": "0d6a6af8eb923257cee50595d9e490f2f27fc0b110dd0cb4c25d9a5ea1f4a532"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/.routes.json",
+      "sha256": "18234e6b8c5aee837883245f400d379f3f9686f1396b7d90d7ebcdad76c51d47"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/css/global-7825681f46b039887da649cc1092270a.css",
+      "sha256": "1b2ae07403671ee111bc7bd2b38f489df2a16083248cfb4ddeebc23937313a4a"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/AccountMembersScreen-ce4bacdf451150eb022c416123916d0a.js",
+      "sha256": "c8fb5a570af56415773f881ef1c2db05edd805f71b9cd9ba571f9c0d4e6232aa"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/AccountSettingsScreen-c864dd3b14ae81241a21d5180b807d5a.js",
+      "sha256": "1380e3625be6c874f07887ff6e3d6caeedc7c13056d8bf4b24e969366549b2f4"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/AccountVerificationScreen-6312ad83d130829b95dd1ee81130f576.js",
+      "sha256": "450f53fdcda6e6077fe1608695a9b1f988f3c645cf2b0475ec21eb7ac77d4151"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/AppInfoScreen-2768c35cd8d0c6f9bc88e3c38d783fa3.js",
+      "sha256": "4aefc13f149c86caca2abdd5993e3a81ad3e5eea7b1ecd4c7fb8a109eb737c86"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/AvatarCropScreen-c2c06b107432a936843defbe9a5dc3b9.js",
+      "sha256": "3428806bf7fdd4c4c61d55bd19d101a86467f08efc09c24a14b0c8c32708566b"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ChangeAvatarScreen-b9a7009a579488786603c385cb4605ee.js",
+      "sha256": "3c8a0a8bc70a3e84e1242f35c4ddaabea4faae2fd994e291d7359c658aeb30f5"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ConnectedAppsScreen-030234a1cbd919cc46adb0cc7a8f6a67.js",
+      "sha256": "d56add9fde0063b187218533ade520da2843325ee17399ceee910b2d94403df3"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/CreateAccountScreen-be8e7be2d50866c8ad1b82f35d95a3e5.js",
+      "sha256": "2ffcc3d1f1fd428d25012462d7eec93e8e89552295be126181222828bd9738aa"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/DeleteAccountScreen-8586a577ac5c0207873f7c24219c0d96.js",
+      "sha256": "3ef29e85c914804f13dff904035f1ee8e3c33d646eaab53986394a38c8f537a2"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/DomainsScreen-a13ca15fd6944a7c3fc03e1a65300062.js",
+      "sha256": "604d0f829e5525eb69cc6ce41390276c5a5e8ccfa9c990ceb0c0a64323b2495b"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/EditProfileFieldScreen-c1c5472b8f2a374229ed6ac1941a87dd.js",
+      "sha256": "d11cc75eb4f5575295959e94bf349f010c0a4dc925130445a07013370e066eb4"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/EditProfileScreen-e49908c13bdce71260239f71ce81fda7.js",
+      "sha256": "d2a559d89dd5cea98bb2b28fe8f23c6784851dee0462d166b55fcb7ccd7ae107"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/FileManagementScreen-0d2cc959a4a58775bb976810d4671121.js",
+      "sha256": "ef2b24094cd40deddb3f59cee29fe17b2231017273f410b1d5f2bc6e6fc755a4"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/FollowersListScreen-93a9b21ff887d544be6c0b6c8bda2368.js",
+      "sha256": "c3e30c4ea7af5a84b34ac4857b84b70b9f17e1d86361deff5ed60998ee1dc5f3"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/FollowingListScreen-2fae003ebf90e9fcfc33cbddf4c69e37.js",
+      "sha256": "3a884ee31aa672d48fea362a3f3c4e96c9ad222905b26a3d1d6fdf129a754261"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/HelpSupportScreen-2432d86b551f76d9f9c93af58b3d3b85.js",
+      "sha256": "e701fb14cfd29f3096a46822f5c2d941baa491380e9d55f664e8af2745e43f66"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/HistoryViewScreen-bbee70ed8ef9b37b40aad907e77ec2e5.js",
+      "sha256": "51332111e30531f18a3cd7565381b4d7c3f0c1070a94859ddfd0b5f465ed4d99"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ImagePicker-bda68e45d090d5fb573ab21192d50933.js",
+      "sha256": "ad69685ab2cdb37d6431e3671fcd3bd7c5cd5b00438f366cd79ff6c209304787"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/LanguageSelectorScreen-450b792258145068d00a74e6fc6b1787.js",
+      "sha256": "81d2efec2c229003dd03b059eba4a925890b225a9bd5d4bc9586cc3aac481260"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/LearnMoreUsernamesScreen-12a80af84419e6fbc72da402945d5c7c.js",
+      "sha256": "98e20c845a9da028960bcc2be785bf4b3ed8a4fa1cc400ab9aec10e227f71b3e"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/LegalDocumentsScreen-a7d1714b8ecb9d2eb9aac661a5bc3db0.js",
+      "sha256": "46447359f93fbeb45956374f12706e8cbf8b3df3056ab8da4a6cd82a936b2cd9"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/LinkCommonsScreen-6592c67238198b4536d5b217ea5cc708.js",
+      "sha256": "bfd6590ab1ecacd37697288f65949460c9ab882394d638a255b326a24b4b0ef5"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ManageAccountScreen-f85779632707b57038244a7d2f978ce2.js",
+      "sha256": "f84eb5769da6c65190d436eead00ffd21bfdaafa26ddc3e625f63e6e04d8dea5"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/NotificationsScreen-dcd396b9cebc135edc1b9a27c05fadd8.js",
+      "sha256": "589a3ad5c7e3ee0ca6e8dee83845055fb88d67eecdb453eeee83b4ea3a9fc1ec"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/OxyAccountDialogScreen-f44a5e5c80bef738bffa408393bb5caa.js",
+      "sha256": "c9d844960f68ef2bd8d41ec3c5427c70a97f7704f8824c814ddc022be5654d72"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/PaymentGatewayScreen-064349101a09c2f0da9e82f1eb811ae3.js",
+      "sha256": "62972641f181b5d091f28c2e67f3b7e0cf1221caa457d86e3709d75a9a3873d5"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/PreferencesScreen-34b478195d6b8827859826a77b203230.js",
+      "sha256": "1950cc4182c5081a65dd35b8bc1a8b13e66a6a02331b2c2b37b27c7d2fa5a9de"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/PrivacySettingsScreen-094a27835855f02cc78d179ba4331ec9.js",
+      "sha256": "c32baff0ec02f5252deabe4acca4f33a633653105cc39cd0924bb4281e99fd1b"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ProfileScreen-d6525d95512b632fb558d8d59f33da39.js",
+      "sha256": "6c7c6537da983a96f2f0ea9b68be4ac20e4306a4d1eb31a9e4db8fef5a2235d5"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/SearchSettingsScreen-c2db9b6a76258f0974ed1a57c2e1d481.js",
+      "sha256": "322bcf0a3b759c1b5e6e6fd0d342a4f23f710c948c2d0de5153327a7079dda1b"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/SecureStore-2404481031854661082a025a88820517.js",
+      "sha256": "65d958046d30b4b19725efcaaaaaa00c97ba5257220a29ebbb5b1fc3f4e3b5e1"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/SignInAuthenticatorScreen-306a122b45afa5f3149ede0f26f94040.js",
+      "sha256": "15985f2e8d3a98a9e8ddb0445fb895734a1f29e4f0c5832e75cb631992d720e9"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/SignInPasswordScreen-e47d37a803c3d5178223f87bb6c8ab6a.js",
+      "sha256": "2cdd933650dc6159f9c7c64618f377073b7a9aa4dd3a9ee90cde5fe4badfd872"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/TrustAboutScreen-b8f0feb10c8f767bb78c4de0d963592c.js",
+      "sha256": "eac163ae94d94bf5ab941ba261722a727bdaa576bb8332ea32623427ff015f09"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/TrustCenterScreen-fe79776d7fbe5948aa1142937b51d5fc.js",
+      "sha256": "44f607cf9e5125d5853625953dc22b2f8fb7d7a17d7379c127d58755231d388d"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/TrustFAQScreen-53060efbc7fae991a58e38515a329528.js",
+      "sha256": "d7f6e7e78f626b722d8c356a94a1c56e199f1a2828d4ad8f3c46996bdc986653"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/TrustLeaderboardScreen-ac0898d155134d77ea4a25d52e912adc.js",
+      "sha256": "bb03bcd28cad12dedc6a0cc8024409f3dbc862fe2d3c0b7929aca9a042276745"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/TrustRewardsScreen-a2a611cccf8af8f6d0cd494a57bb7a64.js",
+      "sha256": "fcb18d4801bc80cbc96e144d042556fe1dc8df2c6318d72da1e3b5812a8c8cde"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/TrustRulesScreen-d96bbc8b894cb64b02d33d428017a5c8.js",
+      "sha256": "7c86a436cbeaa0dc4306959859689c7a9422cd895da1c1e2c9dc2f23a2fcf5a8"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/UserLinksScreen-ceb7ea54fa41cfaf468a9938567c2ecc.js",
+      "sha256": "aff7e1d23f43fee13aa534e36efa007713d0b8f000acd012ca6bb7e887b46f51"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/WelcomeNewUserScreen-4458e86575190f99153182feebd8cf8d.js",
+      "sha256": "c9ec3b46beeccc67b64e43dda95383ed9fc6e28703a6537d17546ada210f60a4"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/__common-ee668309ad1670d9b7920db9514a41d7.js",
+      "sha256": "732837f7b9c6b60e5a1054500ae8bc27140f647a07de181432a53c8ef114cc0d"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/__expo-metro-runtime-beff96064147bde5b1983fe629d44cbe.js",
+      "sha256": "c4c25c6dae2e62acbc7e584e61183e02f87be55fea3e58408003bfec229215d2"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ar-38ab565ddf7d59ca2153fde2e7cb2bbd.js",
+      "sha256": "f9e60e9ead52edae0e661d0d8c519a0f37b2d369de2fdee7d71c636be871f7af"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ar-SA-e162b401f954aab07ed76e3adfc07d16.js",
+      "sha256": "81e52b6825f00c0500783edf5903d21f46d0322c803937ce12fb2c5ce9218f50"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/bn-a4e9fe958065a54dae84fd101e7e96c1.js",
+      "sha256": "65d407178f159573a6441da27e7b55a330d8fb008f0961093e7685dd068fa8c4"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ca-6e21ad8393c9ed1338fa98cfbdf457ef.js",
+      "sha256": "f0b71922ff67029ba79e24ad595728823f4b14d4dc3f061f569c3ca466e580f4"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ca-ES-c24df684345c76803a4587259d108b3b.js",
+      "sha256": "3a5dcee0bfab9459e52acb631fec6c57342f19e1ec5498119ec798a3c22f3cca"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/de-26f3ee5299af75c799185c177db04434.js",
+      "sha256": "74ee4ba6840d3187177e5fdd576068b96f079ab1e7398c280584078c7f301099"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/de-DE-123efbb1efb93318f09ba0f1e2456248.js",
+      "sha256": "2a9625d7e0ee7850e1ae41334171434c48d1140676801799d83eb6020649e483"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/entry-79609ee13831a5858405e9b5fc727af4.js",
+      "sha256": "af6c7050683fdaa800043799c5ce0c977089184918d81eea4d4dcc047d9f6e7f"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/es-ES-0e2befd3ab32a2662f7f5ba1caf57658.js",
+      "sha256": "e050e08a521939a4af60523d4f8cb48acb4fe5691358b0d8050a1377f3e61b90"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/es-b7248fdd831e45c82e47d37b0e7ce44b.js",
+      "sha256": "be16ee2646905b9b2a7b7da12e9511879554e1efa039d40cd6d0f761199c9095"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/fr-88fc9d515b66dc602da9f9af34883a69.js",
+      "sha256": "83018b8fe05b28c2e64d0ff970b397dcb4d725ef90d5cb0c1ca8ea51f0a9d4df"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/fr-FR-fa80f41c1a07f23c1e184dbfd9bba3ab.js",
+      "sha256": "ca61beaf97e762f45874030f550b32733295b6948ff211b476d7103ebe4a18a1"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/hi-2b20f49dae0e0ab3c961f2b2f2f931d6.js",
+      "sha256": "f7e44f6939b743a84653d738fad2343e8e47bdf494e43a72216cebeb746c078f"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/id-ef151b62f5f0e5921f95c8b151af4ab8.js",
+      "sha256": "4b4b6bca80d580cb8fa52e00bb140a19becdcbebb6dce2b76666f7ef38d10690"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/index-0226cf55f0af307453a74cccdad1b9f8.js",
+      "sha256": "050a85a561e59c44d152e4919593a6e178410dc1b096c502459b4f80a31be244"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/index-4811654ca4112d9f69cf4e2fa30e3f20.js",
+      "sha256": "b08edc2e2995e27f2d8ee7166125840eb029f57f745aace7cfc94d98cf93aa78"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/index-86f031cb295b6b33071e6c203df19d97.js",
+      "sha256": "2c29e24de9b9d6a84d739c968af94d604d363db1e2bb3551cce25d7659e59ace"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/index-e74fb57dd8e26e04f5fb3bdb7e6c2449.js",
+      "sha256": "78b0c19240200f789be40f5636c867531eec2a428a5857c9513c631cdc07851b"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/internal-8ef8186c6d4c48c0a187b084964260eb.js",
+      "sha256": "40674e72a3de52c2e4aa766de3e83a449740cb9e9fe30748796d389133e38ac9"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/it-IT-22181002d0c5678b7b4841ced578825c.js",
+      "sha256": "4f9d1dc4c2870ef23129c97c00a128fdd97b49de3b2180e9eeae2246ffb36bcb"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/it-e3247a501fc92cb33cdb8a410bf946bb.js",
+      "sha256": "8205121a660047838318e7838521c80b352527d7c9b07c0766263feb3d3f3696"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ja-JP-0b43aa6d1b5d2eb098e4e3fdedef88bc.js",
+      "sha256": "caa3afbabff4d0cca7e6e90d9eb1359c7cbcafbb3408809175bffa843e6db64b"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ja-f19da5dfd16ce4f5486e18da6f078320.js",
+      "sha256": "85ebfed8ad65e275d97b4b8e1241fcbcde5866a02c4a4ef30c4cdb4d1a4bf140"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ko-KR-681663f1f9765ba46644bd2a4d909ba2.js",
+      "sha256": "d57c8d84492706cfb0d332a41513d1f0734a32000a7abc2d1dadcf714944f336"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/pt-33570af584a43f5143b1d97e4c80c756.js",
+      "sha256": "0a130557a55268f191e2b48f016fc52b59b7ef7f63c5b0af803c90c1e112a953"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/pt-PT-4c97d9038357d9063638009f87722a85.js",
+      "sha256": "36ac15bfed544e6c0f1a38b80c2dad7a95d564fa1baa33087252181ee10b42bc"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/ru-f413bbae010f286cdbfbef8258200f37.js",
+      "sha256": "4fcd8c4d83d88933090eb4b4024ca8ad5e712e65e6985ee9a5790763ef5b1887"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/tr-3425eccd415d6e099281bdde2bc96ea4.js",
+      "sha256": "dc85b8f338e9c2b49bb9236be53fa80dcd568e890d720809a6073f963c0688d8"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/zh-507c127c6844554db25b456404073632.js",
+      "sha256": "aa6b010500756f7d5387adfee8efb407f40a21e29b03560b7131de25a8148e9c"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_expo/static/js/web/zh-CN-1b115ac22db7a2123cdf7ba5a17b99a2.js",
+      "sha256": "adddae9c8ae23a79e7f93e50fdbcf02feedbd6424fdee0f65591cccae228ed71"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/_sitemap.html",
+      "sha256": "0d6a6af8eb923257cee50595d9e490f2f27fc0b110dd0cb4c25d9a5ea1f4a532"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/@expo+vector-icons@15.1.1/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf",
+      "sha256": "fa2ab7d2557819b2bfe5009e46844efa7170cf177be7735d43aa2ac1295f1d54"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/@expo+vector-icons@15.1.1/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.6e435534bd35da5fef04168860a9b8fa.ttf",
+      "sha256": "61e8aba5a4e981fe22cf7c8e8bcdbea00476e75c62c37f01bf7ee33361d68428"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom/lib/module/fonts/assets/BlomusModernus-Bold.c8e4c906b137ccc90f9aa1fbccbe85b2.woff2",
+      "sha256": "e51f23ca66ee9522efdd62afdecb5bf6e855dcbe9c84a4cb61668b5c3bd83b6b"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom/lib/module/fonts/assets/BlomusModernus-Regular.6a898c26aeb50e6f31189d06dd2bf3e9.woff2",
+      "sha256": "19002cade532cff19963ff3d38413815408e97d3f276ed02d59c4f2151e5b7a7"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom/lib/module/fonts/assets/InterVariable.260c81a4759baf163c025001c4f27872.woff2",
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom/lib/module/fonts/assets/JetBrainsMono-Variable.b058178d7f309414f8f856b99fd80d9b.woff2",
+      "sha256": "18be452724bfdc236c074ca94a249a7f41a86752c7d04ab258ce9ed5651f6a7e"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/arrow_down.017bc6ba3fc25503e5eb5e53826d48a8.png",
+      "sha256": "6deca32b56b97fa1fa87facd6996b46cc45190a553400e7febdf1d2093099b57"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/error.d1ea1496f9057eb392d5bbf3732a61b7.png",
+      "sha256": "c15ec72a74d13957211808313d5c35deb7f7606c6d22dbddceb0000d4e0547ad"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/file.19eeb73b9593a38f8e9f418337fc7d10.png",
+      "sha256": "a69a2edb5b6c60b8433d5b6d23c69f520ccd8a602f3f60e7996e489718bc175c"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/forward.d8b800c443b8972542883e0b9de2bdc6.png",
+      "sha256": "708a79cf561b8a2a4850ce0254584d3a5231046be08fb7fadf4b6edfdb31178b"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/pkg.ab19f4cbc543357183a20571f68380a3.png",
+      "sha256": "27f4d229d440925bf7212d5dfffa45d596b2c7b3bb2905c96b839b2081a1dbeb"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/back-icon-mask.0a328cd9c1afd0afe8e3b1ec5165b1b4.png",
+      "sha256": "9adb8c5efca932e2b732b293da813bd2e31952263056bce9e2517fec0f0b6a76"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/back-icon.35ba0eaec5a4f5ed12ca16fabeae451d.png",
+      "sha256": "84cf5eb3b20250f69e0e4733beb4da5f417f0682892a5ad1b5e62570753c21b1"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55.png",
+      "sha256": "d03a5cd7a66ef10c5147916f9d5878b2d0a0a5ad46f405a31cd9967efaa55afd"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@2x.png",
+      "sha256": "ab5613d2ce70fa67c5926e831353664945199fc195fa6fe76c5fe3cec452e31a"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@3x.png",
+      "sha256": "c4e54e6a0a7de636aa153378fbc62ea4a41695bfedf807f90df7b18ffd733f67"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55@4x.png",
+      "sha256": "c86bb485eee687e06c500fc4234f51a6784b4530c2ae11d0c76481110bce3105"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/close-icon.808e1b1b9b53114ec2838071a7e6daa7.png",
+      "sha256": "b1bc1810ca23e2c38cd76971c43591d726161061240d8b792b05757196ddb528"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/close-icon.808e1b1b9b53114ec2838071a7e6daa7@2x.png",
+      "sha256": "cbdf9213e55f65c48d076acd8423b7c9aee4f1b81101ff6c95a38c4cd8a86461"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/close-icon.808e1b1b9b53114ec2838071a7e6daa7@3x.png",
+      "sha256": "d05c9d30d79f45a78e5585a2e7ec67c6a06a883dd9137e1d5059e8c87b33ce76"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/close-icon.808e1b1b9b53114ec2838071a7e6daa7@4x.png",
+      "sha256": "2325c53a73e54c438cbbc60dffdd8b513d471ba42e2f56713ef404b95e0ca1fc"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/react-navigation/elements/search-icon.286d67d3f74808a60a78d3ebf1a5fb57.png",
+      "sha256": "5d075e0c287c4f4441b5b5c8fc7ea5cd27c11bb617ecea09755955bcb1889083"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/sitemap.412dd9275b6b48ad28f5e3d81bb1f626.png",
+      "sha256": "acf691957a3bcce7d195856dce98a5cf14dce10bea28aa5c10b3550c078e23b5"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/__node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/assets/unmatched.20e71bdf79e3a97bf55fd9e164041578.png",
+      "sha256": "efc79da3c4c97dfb1571bff6202958ab0529c5aa31e8392600578b3e359d1447"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/_services/src/assets/fonts/icons/OxyServicesIonicons.48b1d8ee549a265d0c1aa67fed7fbca2.ttf",
+      "sha256": "367d1eb46c64097ace34b793d7fbff9257c0da191d8cab73329cfe8999e95611"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/_services/src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.88d575089a17d9d10e08c411fd7105ba.ttf",
+      "sha256": "844252d83e5510b012333218db9e16cc997164360d1ab4f24148c3ca384ab740"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/_services/src/assets/signIn/slide-1.b29a38b76e9e9e426cc152c3a1a56a73.jpg",
+      "sha256": "22ed5e34964e5521a66b768486678e921616fd57ca6dcde5c51be9a4157e102a"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/_services/src/assets/signIn/slide-2.045f767e731a6b2801ce1ea8dbda92f5.jpg",
+      "sha256": "40023aac9a1dc1bd10a4adb8289d91d8c7c040b7edcbfce862ee9f7873f59401"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/_services/src/assets/signIn/slide-3.32a001447e68adf690be104bddcce0ef.jpg",
+      "sha256": "2032ca3d18f8d64ac5ee5f54da9d86dbf132d4f47759d1baaa092f444d3074b3"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/_services/src/assets/signIn/slide-4.1de81f0781c3c99c5615d0ec8eb5dee6.jpg",
+      "sha256": "4bcc6514fe8b65d0bea31ccb17c83181ae3a2025115d48644ac088a115389e21"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/assets/images/react-logo.d883906de993aa65bf0ef0d1bc2ff6ad.png",
+      "sha256": "224b7636b15e672801579b5b418077cbc2ca42f0146389062364356b0ecb5c5c"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/assets/images/react-logo.d883906de993aa65bf0ef0d1bc2ff6ad@2x.png",
+      "sha256": "fa600be9ad2f869c7a8dbaffc78bb15af741123e1319c948f0be51753a153cde"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/assets/assets/images/react-logo.d883906de993aa65bf0ef0d1bc2ff6ad@3x.png",
+      "sha256": "cd84e02a5d542a3e71b7fa10a685c1b9fb51db4aff92aca6c0da6461ce17be16"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/explore.html",
+      "sha256": "2047aa28abee9760965cde1f0b01e202d3bf19e3f3d339c8ec9d6036f500842d"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/favicon.ico",
+      "sha256": "8184b2ca6c201c87bade03c6d01497e4cd1a416046ca8a48db0ae3c3c758fc8c"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/index.html",
+      "sha256": "cbc98a07026f9f071718e8a2f84d550b93e92cd8a5eef96029638959597c7930"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/modal.html",
+      "sha256": "c604e8406ad336509bc9514c2db2507385ec51fbe0a29dfb38100280dd363eb5"
+    },
+    {
+      "path": ".integration-evidence/bloom621-expo-web/profile-cards.html",
+      "sha256": "5f2d70ef40c03546cab4d38586151c18d16b08b7d847b82ba10404864d0e810e"
+    }
+  ]
+}

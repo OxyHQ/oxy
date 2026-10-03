@@ -1,0 +1,93 @@
+{
+  "sourceHead": "f160d468f621ecf66c37e45a99f64d7aa378849a",
+  "recordedAt": "2026-10-03T12:21:44.853873+00:00",
+  "sourceInputs": [
+    {
+      "path": "package.json",
+      "sha256": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "234dde423f0d4c6ebe71dc5c8a7dbed01bc63cd8482548e4a70bbbc4dfac7a58"
+    },
+    {
+      "path": "packages/services/package.json",
+      "sha256": "0eb688398de503ac5a6e9e1aa27b19d6109eb34e47dc7b00b9fa444b97280dfe"
+    },
+    {
+      "path": "packages/services/__tests__/packaging/bloomTypographyTokens.test.ts",
+      "sha256": "3abab9c30eb4d12d9dc0ebab63bbbce350cf72fe60d28f4219ec1982fa4e591b"
+    },
+    {
+      "path": "packages/create-oxy-app/src/versions.ts",
+      "sha256": "0b978299a5d3c7e09bad171500b8ca6926e0ad6b5cae9c4ef278ce205f81216c"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-bloom621-sdk-adoption/bloom621-install.txt",
+      "sha256": "239ff9751fbbfb662b0043614f8050aaf2006fe79667aa6a0a7d19df0af3592d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-bloom621-sdk-adoption/bloom621-services-test.txt",
+      "sha256": "ddb48da8b04a23880ccf0226be8a5fadef022da03bc3f39d0eebdaaf1a40e6c0"
+    },
+    {
+      "path": "docs/audits/2026-10-03-bloom621-sdk-adoption/bloom621-services-test-final.txt",
+      "sha256": "aba8f810433d44ff2a95db6336e8067089acde52d685d0e56374623be88b1e9c"
+    },
+    {
+      "path": "docs/audits/2026-10-03-bloom621-sdk-adoption/bloom621-services-green.txt",
+      "sha256": "dda88c2a918c85353383ee4bb9661bea674d66e237e4fe990b135fb027e11415"
+    },
+    {
+      "path": "docs/audits/2026-10-03-bloom621-sdk-adoption/bloom621-services-build.txt",
+      "sha256": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-bloom621-sdk-adoption/bloom621-scaffolder-build-final.txt",
+      "sha256": "29c5ee0f6b0b20dbb259b99d01276198c3d28190090706394608d4deda6d2c0b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-bloom621-sdk-adoption/bloom621-scaffolder-test-final.txt",
+      "sha256": "713f79809b3c6966bdc7e2b2e890f08d79d2066d66aac8b51e45b230073fb29f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-bloom621-sdk-adoption/bloom621-expo-web.txt",
+      "sha256": "e9fac8083d92f8c2597453a3958e0864a3dfa4212840a2f110e01e4b0101b3eb"
+    },
+    {
+      "path": "docs/audits/2026-10-03-bloom621-sdk-adoption/expo-web-artifacts.json",
+      "sha256": "3b3aa457362a1d805c064ce52b8a527e8fb17b90c25447e6933112a7fb227840"
+    }
+  ],
+  "installedInputs": [
+    {
+      "path": "packages/services/node_modules/@oxy.so/bloom/package.json",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom/package.json",
+      "sha256": "de7928d116bee53aae6d6e1b79d71c3ce2527e9173efe2f895be1e410d4f81b1"
+    },
+    {
+      "path": "packages/services/node_modules/@oxy.so/bloom/src/design-tokens/theme.css",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom/src/design-tokens/theme.css",
+      "sha256": "46b931590134be5d7241efbabc46f544eaeb92029caf95aa3397fcf8029acf4e"
+    }
+  ],
+  "results": {
+    "services": {
+      "suites": 113,
+      "tests": 1036
+    },
+    "servicesBuild": 0,
+    "scaffolderCliTests": 50,
+    "scaffolderBuild": 0,
+    "expoWebExport": 0,
+    "expoArtifactFiles": 117
+  },
+  "limits": [
+    "Oxy SDK remains candidate, not registry publication. Bloom6.2.1 registry proof is separately accepted and composed.",
+    "Initial typography peer-floor parser only supported caret; comparator produced NaN. Minimal parser update retains floor and actual ratio-token assertions.",
+    "An attempted parser edit used the wrong cwd and failed before modifying source; subsequent test-final log still RED. It is retained and is not the GREEN result. Only services-green.txt claims 113/1036.",
+    "CLI tests/build and workspace Expo export are local; full packed generated-app scaffold smoke and consumer/native registry repetition remain pending."
+  ]
+}
