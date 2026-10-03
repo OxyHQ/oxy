@@ -24,14 +24,14 @@ import { userCredits } from '../db/schema/userCredits';
 import { type AuthRequest, authMiddleware } from "../middleware/auth";
 import { validate } from '../middleware/validate';
 import {
-  cancelCreditSubscriptionSchema, namedProductCancellationResponseSchema, creditSubscriptionsResponseSchema, namedCreditCancellationResponseSchema,
+  cancelCreditSubscriptionSchema, namedProductCancellationResponseSchema, pendingProductCancellationResponseSchema, creditSubscriptionsResponseSchema, namedCreditCancellationResponseSchema,
   checkoutCreditsSchema,
   checkoutSubscriptionSchema,
   portalSchema,
   transactionsQuerySchema,
 } from '../schemas/billing.schemas';
 import { applyReconciledPeriodInvoice } from "../services/applySubscriptionPeriodCredits.service";
-import { updateProductAccessSourceState } from "../services/productAccessPersistence.service";
+import { reconcileProductAccessFinancialState } from "../services/productAccessPersistence.service";
 import {
 	loadProductBillingCatalogue,
 	prepareStripeProductPeriod,
@@ -312,6 +312,7 @@ router.get(
 
 /** A cancellation addresses one commercial source and never changes privacy choices.
  * @response 200 namedProductCancellationResponseSchema Named source will cancel at its period end.
+ * @response 202 pendingProductCancellationResponseSchema Provider accepted cancellation; local reconciliation is pending.
  */
 router.post(
 	"/product-subscriptions/cancel",
@@ -324,6 +325,7 @@ router.post(
 		if (!parsed.success)
 			return res.status(400).json({ error: "Invalid named source" });
 		if (parsed.success && parsed.data.expectedSubjectAccountId && parsed.data.expectedSubjectAccountId !== userId) return res.status(403).json({ error: 'Signed-in subject changed' });
+    let providerConfirmed = false;
 	try {
 			const [source] = await getDb()
 				.select()
@@ -367,7 +369,7 @@ router.post(
 						source.mode,
 						source.environment,
 					]) ||
-				current.id !== source.providerSubscriptionId ||
+				current.id !== source.providerSubscriptionId || current.items.has_more || current.items.data.length !== 1 ||
 				stripeIdOf(current.customer) !==
 					(
 						await getDb()
@@ -385,15 +387,16 @@ router.post(
 				updated.id !== current.id ||
 				updated.livemode !== current.livemode ||
 				stripeIdOf(updated.customer) !== stripeIdOf(current.customer) ||
-				updated.cancel_at_period_end !== true ||
-				updated.items.has_more ||
-				updated.items.data.length !== 1
+				updated.cancel_at_period_end !== true
 			)
 				throw new Error("Provider did not confirm named cancellation");
+			providerConfirmed = true;
+      if (updated.items.has_more || updated.items.data.length !== 1) throw new Error('Confirmed cancellation snapshot cannot be projected');
 			const item = updated.items.data[0];
-			await updateProductAccessSourceState({
+			await reconcileProductAccessFinancialState({
 				sourceId: source.id,
-				productId: grant.productId,
+				beneficiaryAccountId: source.beneficiaryAccountId, payerAccountId: source.payerAccountId,
+        provider: source.provider, providerSubscriptionId: source.providerSubscriptionId,
 				providerBinding: {
 					providerAccountRef: source.providerAccountRef,
 					mode: "live",
@@ -407,9 +410,12 @@ router.post(
 				},
 				cancelAtPeriodEnd: true,
 			});
+      const [reconciled] = await getDb().select({ cancelAtPeriodEnd: accessSubscriptionSources.cancelAtPeriodEnd }).from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, source.id));
+      if (!reconciled?.cancelAtPeriodEnd) throw new Error('Local cancellation is not reconciled');
 			return res.json({ sourceId: source.id, cancelAtPeriodEnd: true });
 		} catch (error) {
 			logger.error("Named product cancellation failed", error);
+      if (providerConfirmed) return res.status(202).json({ sourceId: parsed.data.sourceId, reconciliationPending: true });
 			return res
 				.status(500)
 				.json({ error: "Named product cancellation failed" });
@@ -1064,7 +1070,9 @@ async function syncSubscriptionFromProvider(
     const [grant] = await getDb().select({ productId: accessGrants.productId }).from(accessGrants).innerJoin(accessOfferSegments,
       eq(accessGrants.sourceSegmentId, accessOfferSegments.id)).where(eq(accessOfferSegments.subscriptionId, source.id)).limit(1);
     if (!grant) throw new Error('Product lifecycle source has no registered grant');
-    productState = await updateProductAccessSourceState({ sourceId: source.id, productId: grant.productId,
+    productState = await reconcileProductAccessFinancialState({ sourceId: source.id,
+      beneficiaryAccountId: source.beneficiaryAccountId, payerAccountId: source.payerAccountId,
+      provider: source.provider, providerSubscriptionId: source.providerSubscriptionId,
       providerBinding: { providerAccountRef, mode: 'live', environment: 'production' }, providerObservedAt: readStartedAt,
       status: subscription.status, period: { start: new Date(subscriptionItem.current_period_start * 1000).toISOString(), end: new Date(subscriptionItem.current_period_end * 1000).toISOString() },
       cancelAtPeriodEnd: subscription.cancel_at_period_end });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { productSubscriptionCancellationResultSchema } from '@oxy.so/contracts';
 
 // POST /billing/checkout/credits
 export const checkoutCreditsSchema = z.object({
@@ -27,7 +28,8 @@ export const transactionsQuerySchema = z.object({
 
 /** These selectors name the mirror row, never an arbitrary provider subscription. */
 export const cancelCreditSubscriptionSchema = z.object({ subscriptionId: z.string().uuid(), expectedSubjectAccountId: z.string().min(1).max(160).optional() }).strict();
-export const namedProductCancellationResponseSchema = z.object({ sourceId: z.string().min(1).max(160), cancelAtPeriodEnd: z.literal(true) }).strict();
+export const namedProductCancellationResponseSchema = productSubscriptionCancellationResultSchema.options[0];
+export const pendingProductCancellationResponseSchema = productSubscriptionCancellationResultSchema.options[1];
 const creditSubscriptionSchema = z.object({ _id: z.string().uuid(), userId: z.string().min(1), stripeCustomerId: z.string().min(1),
   stripeSubscriptionId: z.string().min(1), stripePriceId: z.string().min(1), status: z.enum(['active','trialing','past_due','unpaid','canceled','paused','incomplete','incomplete_expired']),
   currentPeriodStart: z.string().datetime(), currentPeriodEnd: z.string().datetime(), cancelAtPeriodEnd: z.boolean(),

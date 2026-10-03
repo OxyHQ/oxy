@@ -29,6 +29,8 @@ import { composeSubjectProductAccess } from './productAccess';
 export const productProviderBindingSchema = z.object({
   providerAccountRef: z.string().min(1).max(160), mode: z.literal('live'), environment: z.literal('production'),
 }).strict();
+export const productAccessConfigurationExpectationSchema = z.object({ products: z.array(productDefinitionSchema), offer: productOfferSchema }).strict();
+export type ProductAccessConfigurationExpectation = z.infer<typeof productAccessConfigurationExpectationSchema>;
 export type ProductProviderBinding = z.infer<typeof productProviderBindingSchema>;
 
 export function productAccessNotConfigured(): ApiError {
@@ -142,6 +144,7 @@ export async function recordProductAccessPeriod(input: {
   source: ProductSubscriptionSource; segment: ProductOfferSegment; providerObservedAt: Date; providerBinding: ProductProviderBinding;
   /** Internal provider adapter only; account/app union is locked before source transition. */
   advanceSourceSnapshot?: boolean;
+  expectedConfiguration?: ProductAccessConfigurationExpectation;
 /** Only the internal verified paid-evidence adapter may retain a past segment. */
 		allowHistoricalPaidSegment?: boolean;
 	}, transaction?: Transaction,
@@ -159,6 +162,12 @@ export async function recordProductAccessPeriod(input: {
     const definitions = await Promise.all([...new Set(offer.benefits.map(benefit => benefit.productId))].map(id => readRegisteredProduct(tx, id)));
     await lockOpenAccounts(tx, [source.beneficiaryAccountId, source.payerAccountId, ...definitions.map(product => product.ownerAccountId)]);
     await lockProductApplications(tx, definitions);
+    if (input.expectedConfiguration) {
+      const expected = productAccessConfigurationExpectationSchema.parse(input.expectedConfiguration);
+      same(offer, expected.offer);
+      const byId = (a: ProductDefinition, b: ProductDefinition) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      same([...definitions].sort(byId), [...expected.products].sort(byId));
+    }
     if (offer.kind !== segment.origin) throw new ConflictError('Offer origin differs from frozen configuration');
     await tx.insert(accessSubscriptionSources).values({ id: source.id,
       beneficiaryAccountId: source.beneficiaryAccountId, payerAccountId: source.payerAccountId,
@@ -245,6 +254,41 @@ export async function updateProductAccessSourceState(input: {
     if (!Number.isFinite(input.providerObservedAt.getTime())) throw new ConflictError('Provider observation is required');
     if (input.providerObservedAt.getTime() < source.providerObservedAt.getTime()) return 'stale';
     if (input.providerObservedAt.getTime() === source.providerObservedAt.getTime()) { same(sourceDto(source), parsed); return 'replayed'; }
+    await tx.update(accessSubscriptionSources).set({ status: parsed.status, periodStart: new Date(parsed.period.start),
+      periodEnd: new Date(parsed.period.end), cancelAtPeriodEnd: parsed.cancelAtPeriodEnd, providerObservedAt: input.providerObservedAt,
+    }).where(eq(accessSubscriptionSources.id, input.sourceId));
+    return 'updated';
+  });
+}
+
+/** Internal provider-authenticated maintenance of an EXISTING financial source.
+ * Caller proves fresh provider snapshot/payer externally. Product owner/app authority
+ * remains mandatory for grants and access. No source/segment/grant is created here.
+ * Account closure preserves financial reconciliation, as with historical refunds.
+ */
+export async function reconcileProductAccessFinancialState(input: {
+  sourceId: string; beneficiaryAccountId: string; payerAccountId: string;
+  provider: ProductSubscriptionSource['provider']; providerSubscriptionId: string;
+  providerObservedAt: Date; providerBinding: ProductProviderBinding;
+  status: ProductSubscriptionSource['status']; period: ProductSubscriptionSource['period']; cancelAtPeriodEnd: boolean;
+}): Promise<'updated' | 'stale' | 'replayed'> {
+  const binding = productProviderBindingSchema.parse(input.providerBinding);
+  if (!Number.isFinite(input.providerObservedAt.getTime())) throw new ConflictError('Provider observation is required');
+  return getDb().transaction(async tx => {
+    const ids = [...new Set([input.beneficiaryAccountId, input.payerAccountId])].sort();
+    const accounts = await tx.select({ id: users.id }).from(users).where(inArray(users.id, ids)).orderBy(users.id).for('update');
+    if (accounts.length !== ids.length) throw new ConflictError('Financial source account is unavailable');
+    const [source] = await tx.select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, input.sourceId)).for('update');
+    if (!source) throw new ConflictError('Unknown financial source');
+    same({ beneficiaryAccountId: source.beneficiaryAccountId, payerAccountId: source.payerAccountId,
+      provider: source.provider, providerSubscriptionId: source.providerSubscriptionId,
+      providerAccountRef: source.providerAccountRef, mode: source.mode, environment: source.environment },
+      { beneficiaryAccountId: input.beneficiaryAccountId, payerAccountId: input.payerAccountId,
+        provider: input.provider, providerSubscriptionId: input.providerSubscriptionId, ...binding });
+    const parsed = productSubscriptionSourceSchema.parse({ ...sourceDto(source), status: input.status, period: input.period, cancelAtPeriodEnd: input.cancelAtPeriodEnd });
+    if (input.providerObservedAt.getTime() < source.providerObservedAt.getTime()) return 'stale';
+    if (input.providerObservedAt.getTime() === source.providerObservedAt.getTime()) { same(sourceDto(source), parsed); return 'replayed'; }
+    if (Date.parse(parsed.period.start) < source.periodStart.getTime() || Date.parse(parsed.period.end) < source.periodEnd.getTime()) throw new ConflictError('Financial source period cannot rewind');
     await tx.update(accessSubscriptionSources).set({ status: parsed.status, periodStart: new Date(parsed.period.start),
       periodEnd: new Date(parsed.period.end), cancelAtPeriodEnd: parsed.cancelAtPeriodEnd, providerObservedAt: input.providerObservedAt,
     }).where(eq(accessSubscriptionSources.id, input.sourceId));

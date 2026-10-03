@@ -13,7 +13,8 @@ import { type SubjectProductAccess,
 	type SubjectProductAccessQuery,
 	subjectProductAccessQuerySchema, subjectProductAccessSchema, } from '@oxy.so/contracts';
 import {
-	type ProductSubscriptionSummary, type SubscriptionCreditGrant,
+	type ProductSubscriptionSummary, type SubscriptionCreditGrant, type ProductSubscriptionCancellationResult,
+  productSubscriptionCancellationResultSchema,
 	cancelProductSubscriptionSchema,
 	productSubscriptionsResponseSchema,
 	subscriptionCreditGrantsResponseSchema,
@@ -147,7 +148,7 @@ export class BillingApi {
 		).grants;
 	}
 
-	/** Payer-only named-source cancellation. Provider acceptance preserves the paid period. */
+	/** Payer-only named-source cancellation. Resolves on provider acceptance, including pending local reconciliation. Use cancelProductSubscriptionWithStatus for detailed completion state. */
 	async cancelProductSubscription(sourceId: string, expectedSubjectAccountId?: string): Promise<void> {
 		await this.ctx.request(
 			"POST",
@@ -156,6 +157,15 @@ export class BillingApi {
 			{ cache: false },
 		);
 	}
+
+  /** Provider acceptance versus completed local cancellation, for user-facing flows. */
+  async cancelProductSubscriptionWithStatus(sourceId: string, expectedSubjectAccountId?: string): Promise<ProductSubscriptionCancellationResult> {
+    return productSubscriptionCancellationResultSchema.parse(await this.ctx.request<unknown>(
+      'POST', '/billing/product-subscriptions/cancel',
+      cancelProductSubscriptionSchema.parse({ sourceId, ...(expectedSubjectAccountId ? { expectedSubjectAccountId } : {}) }),
+      { cache: false },
+    ));
+  }
 
 	/** The signed-in user's payment history. Never cached. */
 	async payments(): Promise<Payment[]> {
