@@ -1,0 +1,2 @@
+$ bun scripts/theme-prepaint.browser.test.ts
+[theme-prepaint] cobalt prepaint matches React; the isolated demo route restores light mode
