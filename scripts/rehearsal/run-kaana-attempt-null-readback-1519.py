@@ -104,9 +104,23 @@ def main():
     try:
         registered_definition = aws(['ecs', 'register-task-definition'], minimized)['taskDefinition']
         registered = registered_definition['taskDefinitionArn']
+        proof['taskDefinition'] = registered
         registered_readback = aws(['ecs', 'describe-task-definition', '--task-definition', registered])['taskDefinition']
-        for key, value in minimized.items():
-            assert registered_readback[key] == value
+        def canonical_fields(definition):
+            canonical = copy.deepcopy(definition)
+            for item in canonical['containerDefinitions']:
+                # ECS does not preserve order of these name/value maps.
+                # Cardinality, names and every value still compare exactly.
+                for field in ('environment', 'secrets'):
+                    entries = item.get(field, [])
+                    assert len({entry['name'] for entry in entries}) == len(entries)
+                    if field in item:
+                        item[field] = sorted(entries, key=lambda entry: entry['name'])
+            return canonical
+        expected_fields = canonical_fields(minimized)
+        actual_fields = canonical_fields(registered_readback)
+        for key, value in expected_fields.items():
+            assert actual_fields[key] == value
         proof['registeredTaskDefinitionVerified'] = True
         result = aws(['ecs', 'run-task'], {'cluster': CLUSTER, 'taskDefinition': registered,
                      'launchType': 'FARGATE', 'networkConfiguration': service['networkConfiguration'],
