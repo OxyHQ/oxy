@@ -1,0 +1,7 @@
+Issuer refreeze source/evidence
+
+Source9efa8d28e fixes exact GHSA braces acknowledgement/whole-audit baseline, scratch patch-copy inventory, shared Redis capacity verification and manual image-only deployment. It leaves issuance300/verifiers/limits/dependency graph intact. proof.json binds18 source inputs,23 records,10 input trees and15 retained stock/candidate/installed hashes. Oxy34 and Expo14 were rerun against these inputs; old cryptographic tests are explicitly reused on identical bytes. Current PG3517840/port5578 ran normal130+repeat and stopped; Redis final process also stopped.
+
+Errors in fixture/runner invocations are preserved and classified in proof.json. Empty bunx output is never credited as Biome validation. The actual installed Biome binary and installed TypeScript executable were used for final checks. The current braces acknowledgement names exactly GHSA-vfj7-8cjw-p6xm; a new high advisory in braces is a tested failure. Source remains INACTIVE pending new exact ARM/artifact/collector and root review; expiry remains2026-10-09T22:00:00Z.
+
+Reproduce capacity via python3 scripts/rehearsal/test-service-token-capacity-1519.py; exact source guard/wrapper fixture via node scripts/rehearsal/test-issuer-image-only-1519.mjs; Oxy tests via python3 scripts/rehearsal/test-forge-final-input-1519.py. No services or databases outside the owned namespaces are accepted. This is technical preparation and conditional capacity evidence, not production acceptance.

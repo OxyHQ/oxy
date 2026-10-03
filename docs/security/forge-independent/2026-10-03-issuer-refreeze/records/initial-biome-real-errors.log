@@ -1,0 +1,230 @@
+scripts/rehearsal/test-service-token-capacity-1519.ts:45:22 lint/style/noNonNullAssertion  FIXABLE  ━━━━━━━━━━
+
+  × Forbidden non-null assertion.
+  
+    43 │ const servers: http.Server[] = [];
+    44 │ async function ownedRedis() {
+  > 45 │   const info = await redis!.info('server');
+       │                      ^^^^^^
+    46 │   check(new RegExp(`^process_id:${expectedPid}\\r?$`, 'm').test(info), 'Owned Redis PID mismatch');
+    47 │ }
+  
+  i Unsafe fix: Replace with optional chain operator ?. This operator includes runtime checks, so it is safer than the compile-only non-null assertion operator
+  
+     43  43 │   const servers: http.Server[] = [];
+     44  44 │   async function ownedRedis() {
+     45     │ - ··const·info·=·await·redis!.info('server');
+         45 │ + ··const·info·=·await·redis?.info('server');
+     46  46 │     check(new RegExp(`^process_id:${expectedPid}\\r?$`, 'm').test(info), 'Owned Redis PID mismatch');
+     47  47 │   }
+  
+
+scripts/rehearsal/test-service-token-capacity-1519.ts:50:9 lint/style/noNonNullAssertion  FIXABLE  ━━━━━━━━━━
+
+  × Forbidden non-null assertion.
+  
+    48 │ async function reset() {
+    49 │   await ownedRedis();
+  > 50 │   await redis!.flushdb(); // Only the fresh launcher-owned Redis, never a configured/shared store.
+       │         ^^^^^^
+    51 │ }
+    52 │ async function request(server: http.Server, path: string, apiKey = 'capacity-public-key'): Promise<number> {
+  
+  i Unsafe fix: Replace with optional chain operator ?. This operator includes runtime checks, so it is safer than the compile-only non-null assertion operator
+  
+     48  48 │   async function reset() {
+     49  49 │     await ownedRedis();
+     50     │ - ··await·redis!.flushdb();·//·Only·the·fresh·launcher-owned·Redis,·never·a·configured/shared·store.
+         50 │ + ··await·redis?.flushdb();·//·Only·the·fresh·launcher-owned·Redis,·never·a·configured/shared·store.
+     51  51 │   }
+     52  52 │   async function request(server: http.Server, path: string, apiKey = 'capacity-public-key'): Promise<number> {
+  
+
+scripts/rehearsal/test-service-token-capacity-1519.ts organizeImports ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+      1   1 │   /** Owned Redis + actual HTTP/RedisStore limiter rehearsal, not a provider/mint test. */
+      2   2 │   import { readFileSync } from 'node:fs';
+      3     │ - import·{·createRequire·}·from·'node:module';
+      4     │ - import·http·from·'node:http';
+          3 │ + import·http·from·'node:http';
+          4 │ + import·{·createRequire·}·from·'node:module';
+      5   5 │   import type { AddressInfo } from 'node:net';
+      6   6 │   import ts from 'typescript';
+      7     │ - import·{·rateLimit·}·from·'../../packages/api/src/middleware/rateLimiter';
+      8     │ - import·{·closeRedis,·getRedisClient·}·from·'../../packages/api/src/config/redis';
+          7 │ + import·{·closeRedis,·getRedisClient·}·from·'../../packages/api/src/config/redis';
+          8 │ + import·{·rateLimit·}·from·'../../packages/api/src/middleware/rateLimiter';
+      9   9 │   import { serviceTokenMintRateLimitKey } from '../../packages/api/src/utils/serviceRateLimitKey';
+     10  10 │   
+  
+
+scripts/rehearsal/test-service-token-capacity-1519.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      1   1 │   /** Owned Redis + actual HTTP/RedisStore limiter rehearsal, not a provider/mint test. */
+      2     │ - import·{·readFileSync·}·from·'node:fs';
+      3     │ - import·{·createRequire·}·from·'node:module';
+      4     │ - import·http·from·'node:http';
+      5     │ - import·type·{·AddressInfo·}·from·'node:net';
+      6     │ - import·ts·from·'typescript';
+      7     │ - import·{·rateLimit·}·from·'../../packages/api/src/middleware/rateLimiter';
+      8     │ - import·{·closeRedis,·getRedisClient·}·from·'../../packages/api/src/config/redis';
+      9     │ - import·{·serviceTokenMintRateLimitKey·}·from·'../../packages/api/src/utils/serviceRateLimitKey';
+          2 │ + import·{·readFileSync·}·from·"node:fs";
+          3 │ + import·{·createRequire·}·from·"node:module";
+          4 │ + import·http·from·"node:http";
+          5 │ + import·type·{·AddressInfo·}·from·"node:net";
+          6 │ + import·ts·from·"typescript";
+          7 │ + import·{·rateLimit·}·from·"../../packages/api/src/middleware/rateLimiter";
+          8 │ + import·{
+          9 │ + → closeRedis,
+         10 │ + → getRedisClient,
+         11 │ + }·from·"../../packages/api/src/config/redis";
+         12 │ + import·{·serviceTokenMintRateLimitKey·}·from·"../../packages/api/src/utils/serviceRateLimitKey";
+     10  13 │   
+     11     │ - const·requireApi·=·createRequire(new·URL('../../packages/api/package.json',·import.meta.url));
+     12     │ - const·express·=·requireApi('express')·as·typeof·import('express');
+         14 │ + const·requireApi·=·createRequire(
+         15 │ + → new·URL("../../packages/api/package.json",·import.meta.url),
+         16 │ + );
+         17 │ + const·express·=·requireApi("express")·as·typeof·import("express");
+     13  18 │   const expectedPid = Number(process.env.OXY_CAPACITY_OWNED_REDIS_PID);
+     14     │ - if·(!Number.isSafeInteger(expectedPid)·||·expectedPid·<=·0
+     15     │ - ··||·process.env.REDIS_URL·!==·'redis://127.0.0.1:6389/0')·throw·new·Error('Owned·launcher·required');
+         19 │ + if·(
+         20 │ + → !Number.isSafeInteger(expectedPid)·||
+         21 │ + → expectedPid·<=·0·||
+         22 │ + → process.env.REDIS_URL·!==·"redis://127.0.0.1:6389/0"
+         23 │ + )
+         24 │ + → throw·new·Error("Owned·launcher·required");
+     16  25 │   const redis = getRedisClient();
+     17     │ - if·(!redis)·throw·new·Error('Redis·required:·no·MemoryStore·capacity·claim');
+     18     │ - const·original·=·readFileSync(new·URL('../../packages/api/src/routes/auth.ts',·import.meta.url),·'utf8');
+     19     │ - const·source·=·ts.createSourceFile('auth.ts',·original,·ts.ScriptTarget.Latest,·true);
+     20     │ - const·names·=·['serviceTokenLimiter',·'serviceTokenAddressLimiter',·'workloadTokenLimiter'];
+         26 │ + if·(!redis)·throw·new·Error("Redis·required:·no·MemoryStore·capacity·claim");
+         27 │ + const·original·=·readFileSync(
+         28 │ + → new·URL("../../packages/api/src/routes/auth.ts",·import.meta.url),
+         29 │ + → "utf8",
+         30 │ + );
+         31 │ + const·source·=·ts.createSourceFile(
+         32 │ + → "auth.ts",
+         33 │ + → original,
+         34 │ + → ts.ScriptTarget.Latest,
+         35 │ + → true,
+         36 │ + );
+         37 │ + const·names·=·[
+         38 │ + → "serviceTokenLimiter",
+         39 │ + → "serviceTokenAddressLimiter",
+         40 │ + → "workloadTokenLimiter",
+         41 │ + ];
+     21  42 │   type Options = Parameters<typeof rateLimit>[0];
+     22  43 │   const configurations = new Map<string, Options>();
+    ······· │ 
+     24  45 │   // Only the reviewed local source is evaluated. No supplied file/path/code is accepted.
+     25  46 │   for (const name of names) {
+     26     │ - ··const·matches·=·source.statements.filter(statement·=>·ts.isVariableStatement(statement)
+     27     │ - ····&&·statement.declarationList.declarations.some(declaration·=>·declaration.name.getText(source)·===·name));
+     28     │ - ··if·(matches.length·!==·1)·throw·new·Error(`Expected·one·source·declaration:·${name}`);
+     29     │ - ··const·javascript·=·ts.transpileModule(matches[0].getText(source),·{
+     30     │ - ····compilerOptions:·{·target:·ts.ScriptTarget.ES2022,·module:·ts.ModuleKind.None·},
+     31     │ - ··}).outputText;
+     32     │ - ··const·capture·=·(options:·Options)·=>·{·configurations.set(name,·options);·return·null;·};
+     33     │ - ··new·Function('rateLimit',·'serviceTokenMintRateLimitKey',·`${javascript}\nreturn·${name};`)(capture,·serviceTokenMintRateLimitKey);
+         47 │ + → const·matches·=·source.statements.filter(
+         48 │ + → → (statement)·=>
+         49 │ + → → → ts.isVariableStatement(statement)·&&
+         50 │ + → → → statement.declarationList.declarations.some(
+         51 │ + → → → → (declaration)·=>·declaration.name.getText(source)·===·name,
+         52 │ + → → → ),
+         53 │ + → );
+         54 │ + → if·(matches.length·!==·1)
+         55 │ + → → throw·new·Error(`Expected·one·source·declaration:·${name}`);
+         56 │ + → const·javascript·=·ts.transpileModule(matches[0].getText(source),·{
+         57 │ + → → compilerOptions:·{
+         58 │ + → → → target:·ts.ScriptTarget.ES2022,
+         59 │ + → → → module:·ts.ModuleKind.None,
+         60 │ + → → },
+         61 │ + → }).outputText;
+         62 │ + → const·capture·=·(options:·Options)·=>·{
+         63 │ + → → configurations.set(name,·options);
+         64 │ + → → return·null;
+         65 │ + → };
+         66 │ + → new·Function(
+         67 │ + → → "rateLimit",
+         68 │ + → → "serviceTokenMintRateLimitKey",
+         69 │ + → → `${javascript}\nreturn·${name};`,
+         70 │ + → )(capture,·serviceTokenMintRateLimitKey);
+     34  71 │   }
+     35  72 │   function configuration(name: string): Options {
+     36     │ - ··const·value·=·configurations.get(name);
+     37     │ - ··if·(!value)·throw·new·Error(`Missing·declaration·${name}`);
+     38     │ - ··return·value;
+         73 │ + → const·value·=·configurations.get(name);
+         74 │ + → if·(!value)·throw·new·Error(`Missing·declaration·${name}`);
+         75 │ + → return·value;
+     39  76 │   }
+     40  77 │   function check(condition: boolean, message: string) {
+     41     │ - ··if·(!condition)·throw·new·Error(message);
+         78 │ + → if·(!condition)·throw·new·Error(message);
+     42  79 │   }
+     43  80 │   const servers: http.Server[] = [];
+     44  81 │   async function ownedRedis() {
+     45     │ - ··const·info·=·await·redis!.info('server');
+     46     │ - ··check(new·RegExp(`^process_id:${expectedPid}\\r?$`,·'m').test(info),·'Owned·Redis·PID·mismatch');
+         82 │ + → const·info·=·await·redis!.info("server");
+         83 │ + → check(
+         84 │ + → → new·RegExp(`^process_id:${expectedPid}\\r?$`,·"m").test(info),
+         85 │ + → → "Owned·Redis·PID·mismatch",
+         86 │ + → );
+     47  87 │   }
+     48  88 │   async function reset() {
+     49     │ - ··await·ownedRedis();
+     50     │ - ··await·redis!.flushdb();·//·Only·the·fresh·launcher-owned·Redis,·never·a·configured/shared·store.
+         89 │ + → await·ownedRedis();
+         90 │ + → await·redis!.flushdb();·//·Only·the·fresh·launcher-owned·Redis,·never·a·configured/shared·store.
+     51  91 │   }
+     52     │ - async·function·request(server:·http.Server,·path:·string,·apiKey·=·'capacity-public-key'):·Promise<number>·{
+     53     │ - ··const·{·port·}·=·server.address()·as·AddressInfo;
+     54     │ - ··return·new·Promise((resolve,·reject)·=>·{
+     55     │ - ····const·req·=·http.request({·hostname:·'127.0.0.1',·port,·path,·method:·'POST',
+     56     │ - ······headers:·{·'Content-Type':·'application/json'·}·},·res·=>·{
+     57     │ - ······res.resume();·res.on('end',·()·=>·resolve(res.statusCode·??·0));
+     58     │ - ····});
+     59     │ - ····req.setTimeout(5000,·()·=>·req.destroy(new·Error('HTTP·probe·timeout')));
+     60     │ - ····req.on('error',·reject);
+     61     │ - ····req.end(JSON.stringify({·apiKey·}));·//·Public·fixture·handle;·no·secret/token·or·financial·operation.
+     62     │ - ··});
+         92 │ + async·function·request(
+         93 │ + → server:·http.Server,
+         94 │ + → path:·string,
+         95 │ + → apiKey·=·"capacity-public-key",
+         96 │ + ):·Promise<number>·{
+         97 │ + → const·{·port·}·=·server.address()·as·AddressInfo;
+         98 │ + → return·new·Promise((resolve,·reject)·=>·{
+         99 │ + → → const·req·=·http.request(
+        100 │ + → → → {
+        101 │ + → → → → hostname:·"127.0.0.1",
+        102 │ + → → → → port,
+        103 │ + → → → → path,
+        104 │ + → → → → method:·"POST",
+        105 │ + → → → → headers:·{·"Content-Type":·"application/json"·},
+        106 │ + → → → },
+        107 │ + → → → (res)·=>·{
+        108 │ + → → → → res.resume();
+  215 more lines truncated
+  
+
+Skipped 1 suggested fixes.
+If you wish to apply the suggested (unsafe) fixes, use the command biome check --fix --unsafe
+
+Checked 1 file in 4ms. No fixes applied.
+Found 4 errors.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

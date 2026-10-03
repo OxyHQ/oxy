@@ -1,0 +1,144 @@
+{
+  "recordedAtUTC": "2026-10-03T05:17:57.591124+00:00",
+  "sourceHead": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
+  "policyStatus": "INACTIVE",
+  "expiryNotExtended": "2026-10-09T22:00:00Z",
+  "sourceInputs": {
+    ".github/scripts/deploy-issuer-image-only.sh": "a26c9b44e3ac71a1f580918cbaf4185c5fa3cad0b5939e3ce00e7f89ce3a3dc8",
+    ".github/scripts/guard-issuer-image-only.mjs": "6267e71261f15d9de612e230f11f028a7501fd31ef18a0ab66acf702e9db6b66",
+    ".github/workflows/deploy-aws.yml": "b3feba81dddbf7633e0281ea89b0c161aa38ee4908b4e59b2ead43cee7884092",
+    "docs/audits/2026-10-03-service-token-issuer-stage/capacity-and-promotion.md": "c822b1cb3906ed11e2c9839bb5fd89c7be4d086f0066753d7fdbe086c1827cb7",
+    "docs/audits/2026-10-03-service-token-issuer-stage/runtime-inputs.json": "4249fefcef243649949e0382e9ce8c627d9efb42b939d4316c44e16b828c0a56",
+    "docs/security/forge-candidate/current-raw-bun-audit.json": "f4f9219f147ebdee9825dcf526fc4821b624d7e9b745fbc566085e11612262f4",
+    "docs/security/issuer-braces-review-2026-10-03.md": "8ae48217e7f55a6e9033a0b68b171aa12fc02b22e3a10263fd4eeb7eccd06ea2",
+    "packages/api/openapi.json": "c1dda19cd76dec3c5bb282de9449fedcda0d52681068b6f4a328987df6934de9",
+    "packages/api/src/routes/auth.ts": "b6efaf6af04bfde19233444da25b55056e8014d6ae7414e9f5cc7979babd8528",
+    "scripts/check-dependency-audit.mjs": "590879b520f27690fbb7b32602814f4261a973deeecd43658ef7d1f18a693d95",
+    "scripts/forge-remediation-proof-proposal.mjs": "49573c1bee9221366cf59e873be3fae0d7385961f39fe81d257799d574aec333",
+    "scripts/rehearsal/test-issuer-image-only-1519.mjs": "4c4b2252eb15c3ca110d26fd90c7215c13adcc2df07dde65b32ba2607d5351b8",
+    "scripts/rehearsal/test-service-token-capacity-1519.py": "028c2135db9fdde01fb3d4257102183689ecd169e1ba67add989ba1f8ae2c046",
+    "scripts/rehearsal/test-service-token-capacity-1519.ts": "9274968995cbf0b557378756bc235abd329c58eb0c199fc49087bf5d5fd7fc84",
+    "scripts/test-api-runtime-dependencies.mjs": "ca9681ecc0f3eb88ead336342e68561df1a04b9b03a711703e1c047174c5cc3f",
+    "scripts/test-check-dependency-audit.mjs": "62a1e189fc3c9eff7adfe311fe9ac95f3292c9bcb75cf45982b152299576ef3e",
+    "scripts/test-forge-audit-policy.mjs": "2f4031c8c1a40268e2a9d333affd5d13ca93de60415ea6c87ee0d8fbbb180aa8",
+    "scripts/test-forge-remediation-proof-proposal.mjs": "6a8aec7026e06accbd915195d395526b627ea8bbf5a60b4d9fe0eaffa64cca9b"
+  },
+  "records": {
+    "audit10.log": "7a58bf46bbdd442d52778789e68999c475f3331f64ffcd9fd526b166ab8e2bce",
+    "binding43.log": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4",
+    "capacity-biome.log": "0fae482231a5ab58dcd6facb790e958fb2a72d45f8316f55d9441bd85fc4d0fc",
+    "capacity-real-redis.log": "00f7a751e14a6715d79accebcf31707f0c3fd3856820eb85d2565f4541e7888f",
+    "capacity-types.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "collector61.log": "9746a7f6baed84fa55c2320db1dca1acb2e69c1aac74423199a7db1394317c95",
+    "dag82.log": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9",
+    "expo14.log": "f1fe1f3cd6e34950f5f4ca57d77d22b17143e11077ab31e278171735d79e8c20",
+    "image-only-guard.log": "8edb1ecf6dfce27063ea13c84b51a3f2325562caad13e2dc30939a592aa43c65",
+    "image-only-secrets-gate.log": "179835484c196232ccebace1402711bec3b70bffaad737b632329db6431d082a",
+    "initial-biome-invalid-empty.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "initial-biome-real-errors.log": "ae40f4a198f1a9cc54584e7120559b6343a1a5579bf6b3b8e6774f0248f687fe",
+    "initial-dag-node-error.log": "8d0553e8c89990c456ee3b00274fb0d961bb4969845f20b400ec2656526ebd9f",
+    "initial-redis-launcher-error.log": "c25b21d4d45297e8cb7fd08fdbda466c58f08eb004b759af995d984712916389",
+    "initial-ts-types-error.log": "22d754e33e5e414d820e237c9e477c81ec8db495c45ab51f7665351a89a3c783",
+    "migrate-fresh.txt": "e8a9e2b605f8d81a9b17ef4b5fcf819521c6b50e5eafba2f2ea171cc667c6c6b",
+    "migrate-repeat.txt": "b3a8918777c87fa23ea35591d9778ef23d9264abecbb83bd47e22c7d4929028d",
+    "oxy-34.log": "f5a543db3b41e8d8a6762ce1516f0bed83888f11a23248f470ffc8c842e2c3db",
+    "oxy-launcher.log": "07117c816cf897a8e11c2c9283498d1e6ca6b8f5f312001d2feae3d572cc487e",
+    "policy123.log": "2dcb9f8fdd01bb26a0035e6b4e9d9a2ef3b272831fb9859d0d91962b0d3c1181",
+    "proposal131.log": "d029c2e020cf6fafc5acce840c0a5e116ec25d18cae4e0520dd713f07dacbe77",
+    "runtime-closure.log": "2ad51ffaf8dd1476289e584fc89a83031b8774e3f9c912ce09dff2e6e26cd187",
+    "workflow-yaml.log": "f4df55248bd79e6b78842ef1631ebfe2115645d9ffc8154d3abbbbdf98d750e4"
+  },
+  "inputTrees": {
+    "packages": "0dd0ca266d583f50abb62335cff8434aea953cf2",
+    "bun.lock": "266d2176150ca013b673908bb22bc84f20a65b5f",
+    "package.json": "19136677bba961cb17936a52f1262b4d54801a78",
+    "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+    "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
+    "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
+    "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
+    "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
+    "scripts/rehearsal/test-forge-final-input-1519.py": "c61511bc703368530a680bd54bd082406e86a0e7",
+    "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
+  },
+  "wholeAuditCanonicalSHA256": "8c6c938a06ddc218daed240793a26d4a0ed55f504b3edbc54cb415468bb0b6b8",
+  "files": {
+    "stock": {
+      "lib/rsa.js": "fd4740238145ec26470eb3f06a627c72039538ce1307dbdce40521f94dfd0a50",
+      "dist/forge.min.js": "d9b9074e6861200d676e25dcfe97889db5e8f4150bb766d29c491ad709a51b58",
+      "dist/forge.min.js.map": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3",
+      "dist/forge.all.min.js": "cb9ba4045a81825f8edb646c38d53a1ac30ce07665bf26042c8dea86d7208642",
+      "dist/forge.all.min.js.map": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+    },
+    "candidate": {
+      "lib/rsa.js": "425543a09d94457a66d098c490540b2759806dc61236ad3d38610c18d88f1b81",
+      "dist/forge.min.js": "811a6061b91b04955ea1457a7d987f21a496f43304c4a89f870d2d175191a19f",
+      "dist/forge.min.js.map": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3",
+      "dist/forge.all.min.js": "fc2c8c484e3da7608ad5a966a8b747d7fe7c8ea7086b1f76ea8ead544dd7d232",
+      "dist/forge.all.min.js.map": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+    },
+    "installed": {
+      "lib/rsa.js": "425543a09d94457a66d098c490540b2759806dc61236ad3d38610c18d88f1b81",
+      "dist/forge.min.js": "811a6061b91b04955ea1457a7d987f21a496f43304c4a89f870d2d175191a19f",
+      "dist/forge.min.js.map": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3",
+      "dist/forge.all.min.js": "fc2c8c484e3da7608ad5a966a8b747d7fe7c8ea7086b1f76ea8ead544dd7d232",
+      "dist/forge.all.min.js.map": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+    }
+  },
+  "retainedPaths": {
+    "evidenceRoot": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002",
+    "stockClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock",
+    "candidateClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate",
+    "exactOxyWorktree": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003",
+    "installedForge": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge"
+  },
+  "currentOwnedPostgres": {
+    "pid": 3517840,
+    "major": 17,
+    "port": 5578,
+    "dataDirectory": "/tmp/oxy-forge-final-pg-nhuo2o26/data",
+    "database": "oxy_rehearsal_1519_18c5853f8d2772c8",
+    "normalMigratorCount": 130,
+    "normalMigratorRepeat": true,
+    "stopped": true
+  },
+  "currentResults": {
+    "oxySuites": 3,
+    "oxyTests": 34,
+    "expoOwnPublicApiChecks": 14,
+    "policy": 123,
+    "proposal": 131,
+    "binding": 43,
+    "collector": 61,
+    "dag": 82,
+    "auditMutationCases": 10,
+    "runtimeClosurePackages": 1080,
+    "redisInstances": 1,
+    "httpInstances": 2,
+    "redisStores": 6,
+    "capacityCreditBoundary": "30 allowed, 2 denied for 16\u00d72 requests; separate key accepted",
+    "workloadNATBoundary": "486+114 allowed; 601 denied",
+    "addressBoundary": "600 allowed; 601 denied",
+    "redisStopped": true,
+    "typesExit": 0,
+    "biomeActualBinaryExit": 0
+  },
+  "reuse": {
+    "earlierProof": "docs/security/forge-independent/2026-10-03-final-input/proof.json",
+    "sha256": "e95d5f7515f1662904af32f984ccc58bb616e2847a674fbff19f80c19c38461a",
+    "scope": "Historical stock/candidate builds, upstream828+4pending, and known-key321 controls reused: source/patch/toolchain and15 output hashes unchanged; dependency input trees unchanged except API comments/OpenAPI. Fresh Oxy34+Expo14 and current runtime closure rerun here. Earlier ARM8a is historical only; no new ARM or activation yet."
+  },
+  "errorsPreserved": {
+    "redisLauncher": "invoked resolved redis-check-rdb symlink name; fixed invocation redis-server with resolved executable guard",
+    "types": "initial missing Node types; direct installed tsc with API typeRoots passed",
+    "dag": "initial Node runner failed Bun global; corrected Bun runner passed82",
+    "biome": "bunx --no-install emitted no check output, not credited; actual installed binary found errors, corrected and rerun passed"
+  },
+  "limits": [
+    "No no-private-key forgery demonstrated",
+    "Capacity uses actual shared Redis counters plus conditional cohort arithmetic; not whole-fleet caches/mints or natural elapsed240s measurement",
+    "Image-only wrapper AWS/deployer mocked; runtime/source negatives tested",
+    "ARM target remains to be built from new frozen source and independently authenticated/reviewed",
+    "No production mutation/publish/merge/deploy in this checkpoint"
+  ],
+  "securityApproved": false
+}

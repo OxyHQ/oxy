@@ -1,0 +1,11 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [1]
+
++ @expo/metro-runtime@57.0.15
++ is-arrayish@0.3.4
++ react-native-worklets@0.10.0
+
+1080 packages installed [315.00ms]
+Required database peers load from the frozen production graph without connecting.
+Complete production fixture inventory matches pinned Forge library/bundle/map bytes.
