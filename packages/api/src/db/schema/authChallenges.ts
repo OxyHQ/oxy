@@ -17,13 +17,14 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
+import { users } from './users';
 
 /**
  * What a challenge may be spent on. A challenge minted for one flow can never be
  * redeemed by another, so an unrecognised value must fail loudly at insert
  * rather than quietly produce a challenge nothing can spend.
  */
-export const AUTH_CHALLENGE_PURPOSES = ['signin', 'rotate_key'] as const;
+export const AUTH_CHALLENGE_PURPOSES = ['signin', 'rotate_key', 'agent_signin', 'agent_enroll', 'agent_rotate', 'agent_recover', 'agent_governance'] as const;
 
 export const authChallenges = pgTable(
   'auth_challenges',
@@ -44,12 +45,21 @@ export const authChallenges = pgTable(
      * equality — the legacy null branch does not travel.
      */
     purpose: text({ enum: AUTH_CHALLENGE_PURPOSES }).notNull().default('signin'),
+    /** Explicit target and actor for the payload-bound agent proof. Account deletion retires it. */
+    accountId: text().references(() => users.id, { onDelete: 'cascade' }),
+    actorId: text().references(() => users.id, { onDelete: 'cascade' }),
+    /** SHA-256 of the canonical operation payload; no secret or arbitrary request fields. */
+    bindingDigest: text(),
     expiresAt: timestamptz().notNull(),
     used: boolean().notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    check('auth_challenges_agent_binding_check', sql`${t.purpose} in ('signin', 'rotate_key') or (${t.accountId} is not null and ${t.actorId} is not null and ${t.bindingDigest} is not null)`),
+    check('auth_challenges_binding_digest_check', sql`${t.bindingDigest} is null or ${t.bindingDigest} ~ '^[0-9a-f]{64}$'`),
+    // Invalidate pending proofs when the governed account is archived/recovered.
+    index('auth_challenges_account_id_idx').on(t.accountId).where(sql`${t.accountId} is not null`),
     unique('auth_challenges_challenge_key').on(t.challenge),
     // Supports the expiry sweep in `db/expiry.ts` — the replacement for Mongo's
     // TTL index on this column.
@@ -59,7 +69,7 @@ export const authChallenges = pgTable(
     // high-entropy `challenge`, which the unique index above answers directly.
     check(
       'auth_challenges_purpose_check',
-      sql`${t.purpose} in ('signin', 'rotate_key')`
+      sql`${t.purpose} in (${sql.raw(AUTH_CHALLENGE_PURPOSES.map((value) => `'${value}'`).join(', '))})`
     ),
   ]
 );

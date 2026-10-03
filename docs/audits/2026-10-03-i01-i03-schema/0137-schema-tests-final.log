@@ -1,0 +1,9 @@
+$ jest --runInBand src/db/schema/__tests__/agentAuthoritySchema.test.ts src/db/schema/__tests__/schemaInvariants.test.ts src/db/schema/__tests__/foreignKeys.test.ts
+{"level":30,"time":1790988609936,"pid":3288666,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790988610635,"pid":3288666,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 3 passed, 3 total
+Tests:       14 passed, 14 total
+Snapshots:   0 total
+Time:        3.569 s
+Ran all test suites matching src/db/schema/__tests__/agentAuthoritySchema.test.ts|src/db/schema/__tests__/schemaInvariants.test.ts|src/db/schema/__tests__/foreignKeys.test.ts.

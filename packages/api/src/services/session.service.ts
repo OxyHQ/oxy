@@ -125,6 +125,8 @@ const SESSION_COLUMNS = {
   previousRefreshToken: sessions.previousRefreshToken,
   tokenRotatedAt: sessions.tokenRotatedAt,
   operatedByUserId: sessions.operatedByUserId,
+  authMethodId: sessions.authMethodId,
+  authMethodOwnerId: sessions.authMethodOwnerId,
   // The access-token v2 binding. Selected on every read because it is what
   // `validateSession` checks the presented token's claims against and what
   // every re-mint reproduces — a session read that omitted it would mint a
