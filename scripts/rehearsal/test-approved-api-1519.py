@@ -72,7 +72,20 @@ def main():
         sql(f'CREATE DATABASE "{db}"')
         env = clean_env() | {'DATABASE_URL': f'postgresql://oxy@127.0.0.1:{PORT}/{db}',
                             'NODE_ENV': 'test'}
-        command = ['bun', 'run', 'test', '--runInBand', '--runTestsByPath', *files]
+        # Jest normally sorts by duration/cache, hiding order-sensitive fixed-ID
+        # collisions. Execute exactly the caller's source order in this rehearsal.
+        sequencer = scratch / 'ordered-sequencer.cjs'
+        ordered_paths = [str(ROOT / 'packages/api' / file) for file in files]
+        sequencer_module = run(['bun', '-e',
+                                'console.log(require.resolve("@jest/test-sequencer",{paths:[require.resolve("jest")]}))'],
+                               cwd=ROOT / 'packages/api').strip()
+        sequencer.write_text(
+            "const Sequencer = require(" + json.dumps(sequencer_module) + ").default;\n"
+            "const order = " + json.dumps(ordered_paths) + ";\n"
+            "module.exports = class extends Sequencer { sort(tests) { return tests.sort((a,b) => order.indexOf(a.path)-order.indexOf(b.path)); } };\n"
+        )
+        command = ['bun', 'run', 'test', '--runInBand', '--testSequencer', str(sequencer),
+                   '--runTestsByPath', *files]
         result = subprocess.run(command, cwd=ROOT / 'packages/api', env=env,
                                 text=True, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, check=False)
