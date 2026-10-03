@@ -96,7 +96,7 @@ import { resolveOperatorId } from '../middleware/operator';
 const VALID_EXCLUDE_TYPES = ['federated', 'agent', 'automated'] as const;
 type ExcludableUserType = (typeof VALID_EXCLUDE_TYPES)[number];
 
-const isExcludableUserType = (value: unknown): value is ExcludableUserType =>
+export const isExcludableUserType = (value: unknown): value is ExcludableUserType =>
   typeof value === 'string' && (VALID_EXCLUDE_TYPES as readonly string[]).includes(value);
 const MIN_USERNAME_LENGTH = 3;
 const MAX_USERNAME_LENGTH = 30;
@@ -1298,7 +1298,7 @@ async function buildRecommendationsScored(
  * authenticated response are never shared. Cache is a best-effort optimization —
  * a null Redis client (REDIS_URL unset) transparently falls back to no cache.
  */
-async function buildRecommendations(
+export async function buildRecommendations(
   viewerId: string | undefined,
   opts: RecommendationOptions
 ): Promise<ReturnType<typeof formatProfileResult>[]> {

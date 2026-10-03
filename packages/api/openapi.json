@@ -330,6 +330,241 @@
         "operationId": "getWellKnownDidJson"
       }
     },
+    "/_oxy/capabilities/profiles/recommendations": {
+      "post": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "Rank profiles for the signed present subject and verified presenting application",
+        "security": [
+          {
+            "capabilityTicketAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Must equal the signed presenting Application.id if supplied."
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "offset": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "excludeTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "federated",
+                        "agent",
+                        "automated"
+                      ]
+                    }
+                  },
+                  "excludeIds": {
+                    "type": "array",
+                    "maxItems": 500,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "boosts": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "userIds",
+                        "weight"
+                      ],
+                      "properties": {
+                        "userIds": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 200,
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "weight": {
+                          "type": "number",
+                          "minimum": -5,
+                          "maximum": 5
+                        },
+                        "reason": {
+                          "type": "string",
+                          "maxLength": 120
+                        }
+                      }
+                    }
+                  },
+                  "signalWeights": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "graph": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "verified": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "repCandidate": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "interest": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "completeness": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "curation": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "appBoost": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "affinity": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing recommendation domain result for the signed subject and application.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "recommendations"
+                  ],
+                  "properties": {
+                    "recommendations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Capability authorization required."
+          },
+          "403": {
+            "description": "Signed catalogue",
+            "tool or current authority refused.": null
+          }
+        },
+        "operationId": "postOxyCapabilitiesProfilesRecommendations"
+      }
+    },
+    "/_oxy/capabilities/users/me/graph": {
+      "get": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "Read the graph of the signed present subject with no free account selector",
+        "security": [
+          {
+            "capabilityTicketAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Existing viewer graph domain result; no other account selector is accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "followingIds",
+                    "mutualIds",
+                    "blockedIds",
+                    "restrictedIds"
+                  ],
+                  "properties": {
+                    "followingIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mutualIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "blockedIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "restrictedIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Capability authorization required."
+          },
+          "403": {
+            "description": "Signed catalogue",
+            "tool or current authority refused.": null
+          }
+        },
+        "operationId": "getOxyCapabilitiesUsersMeGraph"
+      }
+    },
     "/accounts": {
       "get": {
         "tags": [
@@ -10889,6 +11124,206 @@
           {}
         ],
         "operationId": "postBillingWebhook"
+      }
+    },
+    "/capabilities/foreground-execution-authorizations": {
+      "post": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "Authorize one present requester read for a verified presenting service",
+        "description": "Separate service bearer and requester subjectToken; neither free actor nor subject IDs are accepted. No standing or automation authority is created.",
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "subjectToken",
+                  "tool",
+                  "expectedCatalog",
+                  "runId",
+                  "expiresAt"
+                ],
+                "properties": {
+                  "subjectToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16384,
+                    "pattern": "^\\\\S+$",
+                    "writeOnly": true
+                  },
+                  "tool": {
+                    "type": "string",
+                    "enum": [
+                      "recommendProfiles",
+                      "readViewerGraph"
+                    ]
+                  },
+                  "expectedCatalog": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "registrationId",
+                      "version",
+                      "digest"
+                    ],
+                    "properties": {
+                      "registrationId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "version": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    }
+                  },
+                  "runId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "stepId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "At most 15 minutes and never beyond the requester session or bearer."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Read-only direct authorization with actor and subject derived from live requester authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "authorization"
+                  ],
+                  "properties": {
+                    "authorization": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "kind",
+                        "requesterAccountId",
+                        "ownerAccountId",
+                        "coordinatorApplicationId",
+                        "coordinatorCredentialId",
+                        "actorType",
+                        "actorAccountId",
+                        "requesterSessionId",
+                        "requesterSessionBindingDigest",
+                        "resourceApp",
+                        "effectiveAccountId",
+                        "resourceType",
+                        "resourceKey",
+                        "tool",
+                        "maximumAutonomy",
+                        "expiresAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "direct_request"
+                        },
+                        "requesterAccountId": {
+                          "type": "string"
+                        },
+                        "ownerAccountId": {
+                          "type": "string"
+                        },
+                        "coordinatorApplicationId": {
+                          "type": "string"
+                        },
+                        "coordinatorCredentialId": {
+                          "type": "string"
+                        },
+                        "actorType": {
+                          "type": "string",
+                          "const": "requester"
+                        },
+                        "actorAccountId": {
+                          "type": "string"
+                        },
+                        "requesterSessionId": {
+                          "type": "string"
+                        },
+                        "requesterSessionBindingDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "resourceApp": {
+                          "type": "string",
+                          "const": "oxy"
+                        },
+                        "effectiveAccountId": {
+                          "type": "string"
+                        },
+                        "resourceType": {
+                          "type": "string",
+                          "const": "account"
+                        },
+                        "resourceKey": {
+                          "type": "string"
+                        },
+                        "tool": {
+                          "type": "string",
+                          "enum": [
+                            "recommendProfiles",
+                            "readViewerGraph"
+                          ]
+                        },
+                        "maximumAutonomy": {
+                          "type": "string",
+                          "const": "read_only"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or expiry."
+          },
+          "401": {
+            "description": "Service or requester proof missing or no longer current."
+          },
+          "403": {
+            "description": "Live presenter or requester authority refused."
+          },
+          "409": {
+            "description": "Catalogue pin is not current."
+          }
+        },
+        "operationId": "postCapabilitiesForegroundExecutionAuthorizations"
       }
     },
     "/cdn/{id}": {

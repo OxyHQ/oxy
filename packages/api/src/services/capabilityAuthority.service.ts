@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import type {
   AppCapabilityCatalog,
-  ActorRef,
+  ExecutionActorRef,
   AutonomyLevel,
   CapabilityCatalogBinding,
   CapabilityTicketClaims,
@@ -25,6 +25,7 @@ import {
 } from '../db/schema/agency';
 import { users } from '../db/schema/users';
 import accountService from './account.service';
+import { revalidateForegroundRequester } from './foregroundCapabilityRequester.service';
 import { readLiveAgentKey } from './agentKeyAuthority.service';
 import { activeCapabilityCatalog } from './capabilityCatalog.service';
 import { resolveLiveAgencyCoordinator } from './agencyServicePrincipal.service';
@@ -116,12 +117,12 @@ async function loadExecutionAuthorization(
   return authorization ?? null;
 }
 
-function actorOf(authorization: ExecutionAuthorizationRow): ActorRef {
+function actorOf(authorization: ExecutionAuthorizationRow): ExecutionActorRef {
   if (authorization.actorType === 'alia') {
     return { type: 'alia', ownerAccountId: authorization.ownerAccountId };
   }
   if (!authorization.actorAccountId) throw new Error('Agent execution authorization has no actor account');
-  return { type: 'agent', accountId: authorization.actorAccountId };
+  return { type: authorization.actorType, accountId: authorization.actorAccountId };
 }
 
 function resourceOf(authorization: ExecutionAuthorizationRow): ResourceRef {
@@ -201,6 +202,21 @@ export async function evaluateCapabilityAuthority(
   if (authorization.requesterAuthMethodId && !await readLiveAgentKey({
     authMethodId: authorization.requesterAuthMethodId, authMethodOwnerId: authorization.requesterAccountId,
   })) return denied('requester_autonomous_credential_not_active');
+  if (authorization.actorType === 'requester') {
+    if (!authorization.requesterSessionId || !authorization.requesterSessionBindingDigest
+      || authorization.kind !== 'direct_request' || authorization.maximumAutonomy !== 'read_only'
+      || authorization.actorAccountId !== authorization.requesterAccountId
+      || authorization.ownerAccountId !== authorization.effectiveAccountId
+      || authorization.resourceApp !== 'oxy' || authorization.resourceType !== 'account'
+      || authorization.resourceKey !== authorization.effectiveAccountId
+      || !['recommendProfiles', 'readViewerGraph'].includes(authorization.tool)
+      || !await revalidateForegroundRequester({
+        sessionId: authorization.requesterSessionId,
+        principalAccountId: authorization.requesterAccountId,
+        subjectAccountId: authorization.effectiveAccountId,
+        digest: authorization.requesterSessionBindingDigest,
+      }, coordinator)) return denied('foreground_requester_no_longer_authorized');
+  }
   const autonomousSelf = !!authorization.requesterAuthMethodId
     && authorization.actorType === 'agent'
     && authorization.actorAccountId === authorization.requesterAccountId
@@ -221,10 +237,10 @@ export async function evaluateCapabilityAuthority(
     runId = authorization.runId;
     stepId = authorization.stepId ?? undefined;
   }
-  if (!autonomousSelf && !await requesterCanOperate(authorization.requesterAccountId, authorization.effectiveAccountId)) {
+  if (authorization.actorType !== 'requester' && !autonomousSelf && !await requesterCanOperate(authorization.requesterAccountId, authorization.effectiveAccountId)) {
     return denied('requester_lacks_current_account_authority');
   }
-  if (!autonomousSelf && !await requesterCanOperate(authorization.requesterAccountId, authorization.ownerAccountId)) {
+  if (authorization.actorType !== 'requester' && !autonomousSelf && !await requesterCanOperate(authorization.requesterAccountId, authorization.ownerAccountId)) {
     return denied('requester_lacks_grant_owner_authority');
   }
 
@@ -237,6 +253,7 @@ export async function evaluateCapabilityAuthority(
   )) return denied('ticket_catalog_no_longer_current');
   const tool = registration.catalog.tools.find((entry) => entry.name === authorization.tool);
   if (!tool || !tool.exposure.includes('internal')) return denied('tool_not_exposed_internally');
+  if (authorization.actorType === 'requester' && tool.effect !== 'read') return denied('foreground_effect_not_allowed');
   if (!tool.resourceTypes.includes(authorization.resourceType)) return denied('resource_type_mismatch');
 
   const [policy] = await getDb().select().from(accountCapabilityPolicies).where(and(
@@ -339,7 +356,7 @@ export async function evaluateCapabilityAuthority(
   const jti = randomUUID();
   const unsignedClaims: Omit<CapabilityTicketClaims, 'iss' | 'iat' | 'exp' | 'jti'> = {
     aud: registration.catalog.audience,
-    sub: actor.type === 'agent' ? actor.accountId : `alia:${authorization.ownerAccountId}`,
+    sub: actor.type !== 'alia' ? actor.accountId : `alia:${authorization.ownerAccountId}`,
     runId,
     ...(stepId ? { stepId } : {}),
     ...(automationId ? { automationId } : {}),
@@ -420,7 +437,7 @@ function claimsMatchAuthorization(claims: CapabilityTicketClaims, authorization:
     && claims.actor.type === actor.type
     && (actor.type === 'alia'
       ? claims.actor.type === 'alia' && claims.actor.ownerAccountId === actor.ownerAccountId
-      : claims.actor.type === 'agent' && claims.actor.accountId === actor.accountId)
+      : claims.actor.type === actor.type && claims.actor.accountId === actor.accountId)
     && claims.resource.appId === authorization.resourceApp
     && claims.resource.effectiveAccountId === authorization.effectiveAccountId
     && claims.resource.resourceType === authorization.resourceType

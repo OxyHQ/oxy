@@ -47,6 +47,8 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0032](0032-autonomous-account-agent-keys.md) | #1520 | Autonomous accounts use transferable governed agent keys, live session provenance and explicit bot OAuth approval; self authority is distinct from governance. |
 | [0033](0033-subscription-credit-and-product-billing.md) | #1524, #1525 | Approved P1/P2/P3, FIFO tracked credits with opaque legacy preservation, explicit product catalogue and atomic verified awards; no inferred commercial offers or historical balance reconstruction. |
 
+| [0034](0034-present-requester-profile-capabilities.md) | #1523, Alia#659 | Present requester read-only profile tools reuse the common signed capability contract, with live session authority, verified application ranking and shared HTTP/MCP handlers. |
+
 ## Related
 
 - [`../architecture/inference-responsibility-matrix.md`](../architecture/inference-responsibility-matrix.md)

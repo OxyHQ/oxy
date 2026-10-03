@@ -13,7 +13,7 @@ export async function persistCapabilityAuditEvent(event: AuditEvent): Promise<vo
   await getDb().insert(capabilityAuditEvents).values({
     eventKey: boundedEvent.eventId,
     effectiveAccountKey: boundedEvent.effectiveAccountId,
-    executorAccountKey: boundedEvent.executor.type === 'agent' ? boundedEvent.executor.accountId : null,
+    executorAccountKey: boundedEvent.executor.type !== 'alia' ? boundedEvent.executor.accountId : null,
     runKey: boundedEvent.correlation.runId,
     event: boundedEvent,
   }).onConflictDoNothing({ target: capabilityAuditEvents.eventKey });

@@ -60,3 +60,22 @@ it('refuses pre-aborted or malformed requests before any authority call and prop
   await expect(oxy.agency.introspectCapabilityTicket('fixture-ticket')).rejects.toThrow('authority unavailable');
   expect(request).toHaveBeenCalledTimes(1);
 });
+
+
+it('sends foreground requester proof only to the configured Oxy authority alongside independent service proof', async () => {
+  const { oxy, token, request } = fixture();
+  request.mockResolvedValue({ authorization: { id: 'foreground-authorization' } } as never);
+  const input = { tool: 'recommendProfiles' as const, expectedCatalog: pin, runId: 'foreground-run', expiresAt: '2026-10-03T11:00:00.000Z' };
+  await expect(oxy.agency.createForegroundExecutionAuthorization(input, { requesterToken: 'current-requester-token' })).resolves.toEqual({ id: 'foreground-authorization' });
+  expect(token).toHaveBeenCalledTimes(1);
+  expect(request).toHaveBeenCalledWith('POST', '/capabilities/foreground-execution-authorizations', { ...input, subjectToken: 'current-requester-token' }, {
+    cache: false, deduplicate: false, retry: false, skipAuth: true, timeout: 5000,
+    headers: { Authorization: 'Bearer fixture-service-token' },
+  });
+  request.mockClear(); token.mockClear();
+  for (const bearer of ['', 'token with-space', 'x'.repeat(16_385)]) {
+    await expect(oxy.agency.createForegroundExecutionAuthorization(input, { requesterToken: bearer })).rejects.toThrow('requester bearer');
+  }
+  await expect(oxy.agency.createForegroundExecutionAuthorization({ ...input, expectedCatalog: { ...pin, digest: 'invalid' } }, { requesterToken: 'requester-token' })).rejects.toThrow();
+  expect(request).not.toHaveBeenCalled(); expect(token).not.toHaveBeenCalled();
+});
