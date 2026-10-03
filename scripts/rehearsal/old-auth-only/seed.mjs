@@ -28,7 +28,7 @@ try {
   await getDb().insert(accountMembers).values({accountId:org.id,memberUserId:person.id,role:'admin',status:'active'});
   const password='Rollback-Fixture-Password-1519!';
   await require('./src/services/password.service.ts').storePassword(person.id,password);
-  const [app] = await getDb().insert(applications).values({name:`Rollback${suffix}`,ownerAccountId:person.id,createdByUserId:person.id,type:'internal',isOfficial:true,isInternal:true,status:'active',scopes:['user:read','capability-tickets:issue','capabilities:read','catalogs:write'],capabilities:['agency:coordinate','catalog:oxy'],redirectUris:['http://127.0.0.1:17974/callback']}).returning({id:applications.id});
+  const [app] = await getDb().insert(applications).values({name:`Rollback${suffix}`,ownerAccountId:person.id,createdByUserId:person.id,type:'internal',isOfficial:true,isInternal:true,status:'active',scopes:['user:read','capability-tickets:issue','capabilities:read','catalogs:write'],capabilities:['agency:coordinate','catalog:oxy'],redirectUris:['http://127.0.0.1:18002/callback']}).returning({id:applications.id});
   const {applicationWorkloadIdentities}=require('./src/db/schema/applicationWorkloadIdentities.ts');
   await getDb().insert(applicationWorkloadIdentities).values({applicationId:app.id,provider:'aws-iam',subject:'rollback-owned-workload',scopes:['user:read']});
   // Fixture only: the canonical route stores SHA-256 of a random service secret.

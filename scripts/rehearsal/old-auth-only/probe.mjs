@@ -40,6 +40,16 @@ try {
  const me=await ok('/users/me',undefined,session.accessToken);assert.equal((me.data??me).id??(me.data??me)._id,f.person.id);
  await ok('/session/validate/'+session.sessionId);record('real scrypt password ordinary bearer and session validation');
  const deviceId=login.deviceId??session.deviceId,deviceSecret=login.deviceSecret??session.deviceSecret;assert(deviceId&&deviceSecret);
+ const {randomBytes:bridgeRandomBytes,createHash}=require('node:crypto');
+ const codeVerifier=bridgeRandomBytes(32).toString('base64url');
+ const redirectUri='http://127.0.0.1:18002/callback';
+ const issuedJoin=await ok('/session/device/join-code',{deviceId,deviceSecret,clientId:f.clientId,redirectUri,codeChallenge:createHash('sha256').update(codeVerifier).digest('base64url'),codeChallengeMethod:'S256'});
+ const joinBody={code:issuedJoin.data.code,codeVerifier,clientId:f.clientId,redirectUri};
+ const joined=await ok('/session/device/join',joinBody);assert.equal(joined.data.deviceId,deviceId);assert(joined.data.deviceSecret!==deviceSecret);
+ const holders=[deviceSecret,joined.data.deviceSecret];
+ assert.equal((await http('/session/device/join',joinBody)).status,400);
+ for(const secret of holders) assert.equal((await ok('/session/device/token',{deviceId,deviceSecret:secret})).data.state.activeAccountId,f.person.id);
+ record('real PKCE bridge joins two distinct holders and rejects replay');
  assert.equal((await http('/accounts/'+f.unrelatedOrg.id+'/switch',{},session.accessToken)).status,403);
  const beforeBot=(await getDb().select({id:sessions.id}).from(sessions).where(eq(sessions.userId,f.bot.id))).length;
  assert.equal((await http('/accounts/'+f.bot.id+'/switch',{},session.accessToken)).status,403);
@@ -47,8 +57,18 @@ try {
  await ok('/accounts/'+f.org.id+'/switch',{},session.accessToken);
  const orgMint=await ok('/session/device/token',{deviceId,deviceSecret});assert.equal(orgMint.data.state.activeAccountId,f.org.id);
  const orgProfile=await ok('/users/me',undefined,orgMint.data.accessToken);assert.equal((orgProfile.data??orgProfile).id??(orgProfile.data??orgProfile)._id,f.org.id);record('canonical person to organization switch and no act_as rejection');
+ for(const secret of holders) assert.equal((await ok('/session/device/token',{deviceId,deviceSecret:secret})).data.state.activeAccountId,f.org.id);
+ await ok('/session/device/switch',{accountId:f.person.id},session.accessToken);
+ for(const secret of holders) assert.equal((await ok('/session/device/token',{deviceId,deviceSecret:secret})).data.state.activeAccountId,f.person.id);
+ await ok('/session/device/switch',{accountId:f.org.id},session.accessToken);
+ for(const secret of holders) assert.equal((await ok('/session/device/token',{deviceId,deviceSecret:secret})).data.state.activeAccountId,f.org.id);
+ await ok('/session/device/signout',{accountId:f.org.id},session.accessToken);
+ for(const secret of holders) assert.equal((await ok('/session/device/token',{deviceId,deviceSecret:secret})).data.state.activeAccountId,f.person.id);
+ record('two holders converge through switch and organization signout fallback');
+ await ok('/accounts/'+f.org.id+'/switch',{},session.accessToken);
+ const renewedOrg=await ok('/session/device/token',{deviceId,deviceSecret});
  await getDb().update(accountMembers).set({permissionRevokes:['account:act_as']}).where(eq(accountMembers.memberUserId,f.person.id));
- assert.equal((await http('/users/me',undefined,orgMint.data.accessToken)).status,401);record('managed membership removal observed in warm process');
+ assert.equal((await http('/users/me',undefined,renewedOrg.data.accessToken)).status,401);record('managed membership removal observed in warm process');
  const minted=await ok('/auth/service-token',{apiKey:f.service.publicKey,apiSecret:f.service.secret});
  const claims=JSON.parse(Buffer.from(minted.data.token.split('.')[1],'base64url'));assert.equal(claims.exp-claims.iat,300);
  for(const path of ['/users/me','/auth/validate','/session/validate/'+session.sessionId]) {
@@ -85,7 +105,12 @@ try {
  await getDb().update(users).set({publicKey:pub}).where(eq(users.id,f.person.id));
  const keyChallenge=await ok('/auth/challenge',{publicKey:pub});const timestamp=Date.now();const signature=signer.signMessage(`auth:${pub}:${keyChallenge.challenge}:${timestamp}`,key);
  const verified=await ok('/auth/verify',{publicKey:pub,challenge:keyChallenge.challenge,timestamp,signature});assert(verified.accessToken??verified.session?.accessToken);record('ordinary key challenge and signed verification');
- assert.equal(await service.deactivateSession(session.sessionId),true);
- assert.equal((await http('/users/me',undefined,session.accessToken)).status,401);record('canonical SQL deactivation observed without restart');
+ await ok('/session/device/signout',{all:true},session.accessToken);
+ for(const secret of holders) assert.equal((await http('/session/device/token',{deviceId,deviceSecret:secret})).status,401);
+ record('full device signout withdraws both holder credentials');
+ const coldLogin=await ok('/auth/signin/password',{identifier:f.person.username,password:f.password});const coldSession=coldLogin.session??coldLogin;
+ await ok('/users/me',undefined,coldSession.accessToken);
+ assert.equal(await service.deactivateSession(coldSession.sessionId),true);
+ assert.equal((await http('/users/me',undefined,coldSession.accessToken)).status,401);record('canonical SQL deactivation observed without restart');
  console.log(JSON.stringify({checks:checks.length,compiledRuntime:true,providerAttestationVerified:false}));
 } catch(error) {console.error(JSON.stringify({failed:true,errorName:error.name,assertion:error.code??null,observedStatus:typeof error.actual==='number'?error.actual:null,expectedStatus:typeof error.expected==='number'?error.expected:null,location:String(error.stack).split('\n').find(line=>line.includes('old-auth-only/probe.mjs'))}));process.exitCode=1;} finally {await require('./dist/config/redis.js').closeRedis();await closePostgres();process.exit(process.exitCode??0);}
