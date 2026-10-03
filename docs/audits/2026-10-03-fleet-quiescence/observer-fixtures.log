@@ -1,0 +1,32 @@
+test_33_service_capture_rejects_missing_or_extra (__main__.FleetTests.test_33_service_capture_rejects_missing_or_extra) ... ok
+test_both_desired_censuses_paginated_and_stoppping_retained (__main__.FleetTests.test_both_desired_censuses_paginated_and_stoppping_retained) ... ok
+test_cluster_census_blocks_standalone_or_affected_active (__main__.FleetTests.test_cluster_census_blocks_standalone_or_affected_active) ... ok
+test_count_drift_blocks_pause_before_write (__main__.FleetTests.test_count_drift_blocks_pause_before_write) ... ok
+test_drained_full_readback_passes_failed_zero_deployments (__main__.FleetTests.test_drained_full_readback_passes_failed_zero_deployments) ... ok
+test_empty_scaler_map_does_not_reread (__main__.FleetTests.test_empty_scaler_map_does_not_reread) ... ok
+test_export_uses_exact_final_guard_and_js_shape (__main__.FleetTests.test_export_uses_exact_final_guard_and_js_shape) ... ok
+test_failed_consumer_write_never_advances_or_restores (__main__.FleetTests.test_failed_consumer_write_never_advances_or_restores) ... ok
+test_hold_accepts_only_exact_canonical_deployment_delta (__main__.FleetTests.test_hold_accepts_only_exact_canonical_deployment_delta) ... ok
+test_hold_completed_with_failed_zero_deployments_is_bounded (__main__.FleetTests.test_hold_completed_with_failed_zero_deployments_is_bounded) ... ok
+test_hold_missing_attempt_is_not_stopped (__main__.FleetTests.test_hold_missing_attempt_is_not_stopped) ... ok
+test_hold_stopping_attempt_rejects_deadline_no_recovery (__main__.FleetTests.test_hold_stopping_attempt_rejects_deadline_no_recovery) ... ok
+test_interrupted_does_not_emit_new_write_intent (__main__.FleetTests.test_interrupted_does_not_emit_new_write_intent) ... ok
+test_missing_task_readback_is_not_absence (__main__.FleetTests.test_missing_task_readback_is_not_absence) ... ok
+test_namespace_wide_scaler_and_schedule_commands_are_validated (__main__.FleetTests.test_namespace_wide_scaler_and_schedule_commands_are_validated) ... ok
+test_no_scaler_does_not_create_one (__main__.FleetTests.test_no_scaler_does_not_create_one) ... ok
+test_observer_code_and_complete_iam_pin_checked_fresh (__main__.FleetTests.test_observer_code_and_complete_iam_pin_checked_fresh) ... ok
+test_only_exact_observer_schedule_allowed (__main__.FleetTests.test_only_exact_observer_schedule_allowed) ... ok
+test_phases_consumers_then_api_then_worker (__main__.FleetTests.test_phases_consumers_then_api_then_worker) ... ok
+test_repeated_pagination_token_fails (__main__.FleetTests.test_repeated_pagination_token_fails) ... ok
+test_scaler_and_targets_must_be_exact (__main__.FleetTests.test_scaler_and_targets_must_be_exact) ... ok
+test_strict_plan_and_age_fail_before_writes (__main__.FleetTests.test_strict_plan_and_age_fail_before_writes) ... ok
+test_suspension_preserves_limits_role_and_all_flags (__main__.FleetTests.test_suspension_preserves_limits_role_and_all_flags) ... ok
+test_task_namespace_and_duplicates_rejected_before_aws (__main__.FleetTests.test_task_namespace_and_duplicates_rejected_before_aws) ... ok
+test_unknown_stopping_census_is_not_ignored (__main__.FleetTests.test_unknown_stopping_census_is_not_ignored) ... ok
+test_write_intent_durable_before_one_ambiguous_attempt (__main__.FleetTests.test_write_intent_durable_before_one_ambiguous_attempt) ... ok
+test_zero_counts_do_not_hide_old_stopping_desired_stopped (__main__.FleetTests.test_zero_counts_do_not_hide_old_stopping_desired_stopped) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.103s
+
+OK
