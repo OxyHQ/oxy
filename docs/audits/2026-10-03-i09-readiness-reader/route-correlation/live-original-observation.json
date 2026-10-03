@@ -1,0 +1,50 @@
+{
+  "rootReviewSha256": "1b6c2e51692bd468789278b29a237d8666b61fa1cd7fbb73db0c737360968709",
+  "inputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-readiness-plan-1225.json",
+      "sha256": "929f0ae30b60430a8a17d04c13dd87cd4dae7ddb1013f4932be2c4af2edcb46f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-readiness-execution-1226/cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-readiness-execution-1226/definition.json",
+      "sha256": "80bdea3b176a70f638ad09b123031d8d836c99a05c080712820335db07dd10c8"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-readiness-execution-1226/launch.json",
+      "sha256": "3b762bed7042a6d1c6ad8303406e99706fb2e6c69e521961f45d2056db15fd13"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-readiness-execution-1226/receipt.json",
+      "sha256": "b7ab21c75423e1340675171b0c395dfcf2d701a370df9c9b179136ad30e9ee0f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-readiness-execution-1226/registered-readback.json",
+      "sha256": "208684e50587cf38ded508149f03ccb267dde23c3e49ed85b51fd633d00bc7ea"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-readiness-execution-1226/result.private.json",
+      "sha256": "603d489536e8d1f3cbb70f201fbf78b08796c7e4d5e7903d96927a3ebe893e24"
+    }
+  ],
+  "independentReadback": {
+    "task": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/c4836ac35d194f358fb15d74480129b3",
+    "status": "STOPPED",
+    "exit": 0,
+    "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-inference-pilot-readiness-oxy:1",
+    "definitionStatus": "INACTIVE"
+  },
+  "findings": {
+    "exactDeploymentIds": 0,
+    "model": 1,
+    "revision": 1,
+    "existingPrices": 3,
+    "priceUnits": 15,
+    "feedCursorTable": "missing",
+    "eligibilityVerdict": null
+  },
+  "interpretation": "Original deployment count zero filtered DB primary key with Kaana route identities. It is not evidence of absence or eligibility. Cursor missing remains unknown, not zero. Prices selected by labels did not attest a deployment binding."
+}

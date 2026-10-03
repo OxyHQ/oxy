@@ -1,0 +1,3 @@
+The original live preflight used the Oxy deployment primary key with Kaana route IDs, so its zero count is not an absence or eligibility result. The corrected reader correlates generated row IDs through the exact model/revision FK and reports route hashes with exact-pilot-match booleans. Both referenced price IDs and unit rows are selected without inferring commercial permission.
+
+The owned SQL regression reproduced the incorrect selection, then passed 12 checks with the relational profile and real inline Node receiver. An intermediate schema-dependency error is retained. Missing/unavailable facts have null counts. Root will review a fresh DB-only ECS prepare plan before another read; no inference or financial write ran.

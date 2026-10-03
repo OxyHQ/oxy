@@ -1,0 +1,77 @@
+{
+  "sourceHead": "cd95c34130e89a6624118b8a27d637f5a6acaf1e",
+  "recordedAt": "2026-10-03T12:40:48.944858+00:00",
+  "sourceInputs": [
+    {
+      "path": "scripts/inference/read-internal-pilot-readiness.mjs",
+      "sha256": "3e6eece065a620169199baf56dce9a3e8594785df6683f9f8ca3febe759285a1"
+    },
+    {
+      "path": "scripts/inference/internal-pilot-readiness-ecs.py",
+      "sha256": "f157df1856dd30be2efa0441dc48ac49fb32ec680c981f0557596935cd83ba83"
+    },
+    {
+      "path": "scripts/inference/test-internal-pilot-readiness.mjs",
+      "sha256": "240c0058fb65d150517a91d464017270a7c7e9d138e5a009e8f6bc6e66c7381c"
+    },
+    {
+      "path": "scripts/rehearsal/test-internal-pilot-readiness.py",
+      "sha256": "29f68aac8ba65d56519de5b71ff56e2edec3daa0331bb30edcfa55da74590898"
+    },
+    {
+      "path": "packages/api/src/db/schema/inferenceDeployments.ts",
+      "sha256": "d757d5dfedb754af9d277a320fab3e42be2b7dd6f9f189709fb5a61ec1f27ff9"
+    },
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sha256": "56232051579f3cf491728803e5b4fd3d1d5c9ae5fe5b1b5914b4abc6d08f349f"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/route-correlation/owned-red.txt",
+      "sha256": "6ee6e37d99cbe8fce83fa88e319d0be10eddb155b845cba5524fe08de336b02e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/route-correlation/schema-dependency-failure.txt",
+      "sha256": "efc7b5778233a4c5ddc9813e5ad57a7df17d36eac68a706c19f58c9b9902c27b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/route-correlation/owned-green.txt",
+      "sha256": "ab8763b74dceade73c2d9f98c4103bfc5e936d47e5746b6d92a8398ce1597bb9"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/route-correlation/biome.txt",
+      "sha256": "967c1eb73ff103928ef8edf73b47e89032eeb26ac7ff0f457c68f8c3928f9618"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/route-correlation/receiver-green.txt",
+      "sha256": "b31e7a682e92ef86fe3ce4ab83e2d9c153d62f27e22db8240db831e318912bea"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/route-correlation/red-harness.mjs",
+      "sha256": "b7ee071c3701b28d32c21085d8decb425674642e254d9294d70088a24b85c615"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-readiness-reader/route-correlation/live-original-observation.json",
+      "sha256": "7fcae1c8e4cee82a862f434e82162a65cab8fb753bd4088e4c5b48d2fd08eac4"
+    }
+  ],
+  "results": {
+    "ownedSqlAndRealNodeReceiver": 12,
+    "biomeFiles": 2,
+    "errorsFinal": 0
+  },
+  "ownedPostgres": {
+    "pid": 3834574,
+    "port": 5594,
+    "stopped": true
+  },
+  "scope": [
+    "Initial exact-route fixture with unrelated DB primary key reproduced 0 != 1; its frozen harness is retained. Expanded final harness adds two relational diagnostics cases, so RED and final GREEN harnesses are not claimed identical.",
+    "oxy now selects internal_route_id by three fixed exact Kaana identities. oxy_related selects actual DB rows via exact model/revision FK, returns only route SHA256 and exact-pilot-match boolean; no raw internal route.",
+    "Related price selection is strictly both referenced price IDs and their units, not provider/model label inference. Foreign-model rows excluded, same-revision unknown route retained with false match.",
+    "Dependent missing/schema-unavailable facts return null counts; intermediate missing-route SQL failure is retained. No eligibility, quote, signing, inference, consent, key, price or ledger mutation.",
+    "SQL fixture uses explicit schema fragments and real PostgreSQL/Node receiver, not production migration proof. Reviewed DB-only ECS transport has only an additional fixed profile alias; no AWS execution yet for this source."
+  ]
+}
