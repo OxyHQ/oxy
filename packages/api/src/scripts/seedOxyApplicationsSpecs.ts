@@ -566,6 +566,9 @@ export const SEED_APPS: SeedAppSpec[] = [
       'catalogs:write',
       'capabilities:read',
       'capability-audit:write',
+      // Peable BillingProvider: merchant lookup/retrieve + the four mutations.
+      'payments:read',
+      'payments:write',
     ],
     capabilities: [catalogApplicationCapability('mercaria')],
   },
