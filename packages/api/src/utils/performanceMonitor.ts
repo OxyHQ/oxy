@@ -1,3 +1,4 @@
+import { isRollbackAuthOnly } from '../config/runtimeMode';
 import { logger } from './logger';
 
 export interface PerformanceMetric {
@@ -222,6 +223,7 @@ export class PerformanceMonitor {
    * Start cleanup timer
    */
   private startCleanupTimer(): void {
+    if (isRollbackAuthOnly) return;
     this.cleanupInterval = setInterval(() => {
       this.cleanup();
     }, 30 * 60 * 1000); // Clean up every 30 minutes

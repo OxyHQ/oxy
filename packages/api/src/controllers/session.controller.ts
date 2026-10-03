@@ -1,3 +1,5 @@
+import { isRollbackAuthOnly } from '../config/runtimeMode';
+import { rollbackAuthAccountAllowed } from '../services/rollbackAuthBoundary';
 import crypto from 'crypto';
 import type { Request, Response } from 'express';
 import { and, asc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
@@ -348,6 +350,10 @@ export class SessionController {
         return res.status(404).json({ message: 'User not found. Please register first.' });
       }
 
+      if (isRollbackAuthOnly && !(await rollbackAuthAccountAllowed(user.id))) {
+        return res.status(503).json({ error: 'ROLLBACK_AUTH_ONLY', message: 'This identity requires the repaired issuer' });
+      }
+
       // Generate challenge
       const challenge = SignatureService.generateChallenge();
       const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS);
@@ -423,6 +429,14 @@ export class SessionController {
 
       if (!isValid) {
         return res.status(401).json({ message: 'Invalid signature' });
+      }
+
+      if (isRollbackAuthOnly) {
+        const [account] = await db.select({ id: users.id }).from(users)
+          .where(sql`lower(btrim(${users.publicKey})) = lower(btrim(${publicKey}))`).limit(1);
+        if (!account || !(await rollbackAuthAccountAllowed(account.id))) {
+          return res.status(503).json({ error: 'ROLLBACK_AUTH_ONLY', message: 'This identity requires the repaired issuer' });
+        }
       }
 
       // Atomically burn the challenge. `used = false` is part of the FILTER, so

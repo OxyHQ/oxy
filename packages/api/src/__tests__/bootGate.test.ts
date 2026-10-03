@@ -54,6 +54,18 @@ import { stopNodeIngestJobs } from '../queue/nodeIngest.queue';
 import { stopSubscriptionExpiryJobs } from '../queue/subscriptionExpiry.queue';
 import { stopFederatedAvatarRetryJobs } from '../queue/federatedAvatarRetry.queue';
 import { stopTransparencyCheckpointJobs } from '../queue/transparencyCheckpoint.queue';
+import { stopFollowOutboxWorker } from '../services/followOutbox.worker';
+import { stopNormalizedEventOutboxWorker } from '../services/normalizedAppEventOutbox.worker';
+import { stopAccountEventWebhookWorker } from '../services/accountEventWebhook.worker';
+import { stopStorageDeletionWorker } from '../services/accountStorageDeletion.worker';
+import { stopAssetVariantProducer } from '../queue/assetVariants.queue';
+import { stopSmtpInbound } from '../services/smtp.inbound';
+import { smtpOutbound } from '../services/smtp.outbound';
+import { stopPlatformActivity } from '../services/platformActivity.service';
+import { stopPlatformInfrastructure } from '../services/platformInfrastructure.service';
+import { stopOriginRegistry } from '../config/dynamicOriginRegistry';
+import { closeIO } from '../utils/socket';
+import { closeRedis } from '../config/redis';
 import { BASELINE_OXY_CONDUCT_POLICY_VERSION } from '../utils/moderation.constants';
 
 /** Creating + migrating a database, then booting the whole API, outlast the default. */
@@ -117,12 +129,24 @@ afterAll(async () => {
   // has to stop it — the same six calls `gracefulShutdown` makes. Their
   // no-Redis fallback is a plain `setInterval`, so leaving them running holds
   // the jest worker open after the run finishes.
+  stopFollowOutboxWorker();
+  stopNormalizedEventOutboxWorker();
+  stopAccountEventWebhookWorker();
+  stopStorageDeletionWorker();
+  stopPlatformActivity();
+  await stopPlatformInfrastructure();
+  stopOriginRegistry();
+  closeIO();
+  await stopAssetVariantProducer();
+  await stopSmtpInbound();
+  smtpOutbound.shutdown();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
   await stopTransparencyCheckpointJobs();
   await stopConductRiskExpiryJobs();
   await stopSubscriptionExpiryJobs();
   await stopFederatedAvatarRetryJobs();
+  await closeRedis();
   await closePostgres();
   if (ownDatabaseUrl !== '') {
     await dropTestDatabase(ownDatabaseUrl);

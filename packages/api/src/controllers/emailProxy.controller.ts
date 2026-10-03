@@ -1,3 +1,4 @@
+import { isRollbackAuthOnly } from '../config/runtimeMode';
 /**
  * Email Proxy Controller
  *
@@ -151,7 +152,7 @@ function addToCache(key: string, buffer: Buffer, contentType: string): void {
 }
 
 // Periodic cache cleanup
-setInterval(() => {
+if (!isRollbackAuthOnly) setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of cache.entries()) {
     if (now - entry.timestamp > CACHE_TTL) {

@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'packages/api/src/**'
+      - 'scripts/rehearsal/old-auth-only/**'
+      - 'docs/architecture/rollback/**'
       - 'patches/**'
       - 'package.json'
       - 'bun.lock'
@@ -24,7 +27,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   candidate-image:
-    if: github.repository == 'OxyHQ/oxy' && github.event.pull_request.head.repo.full_name == github.repository && (github.head_ref == 'candidate/forge-remediation-review-20261002' || github.head_ref == 'candidate/forge-provenance-claude-20261002' || github.head_ref == 'review/1519-forge-gate-20261002' || github.head_ref == 'review/1519-forge-final-20261003' || github.head_ref == 'review/1519-service-token-issuer-20261003' || github.head_ref == 'fix/1519-forge-merged-provenance-20261003')
+    if: github.repository == 'OxyHQ/oxy' && github.event.pull_request.head.repo.full_name == github.repository && (github.head_ref == 'candidate/forge-remediation-review-20261002' || github.head_ref == 'candidate/forge-provenance-claude-20261002' || github.head_ref == 'review/1519-forge-gate-20261002' || github.head_ref == 'review/1519-forge-final-20261003' || github.head_ref == 'review/1519-service-token-issuer-20261003' || github.head_ref == 'fix/1519-forge-merged-provenance-20261003' || github.head_ref == 'review/1519-old-auth-only-20261003')
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 40
     env:

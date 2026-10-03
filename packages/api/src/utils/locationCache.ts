@@ -1,3 +1,4 @@
+import { isRollbackAuthOnly } from '../config/runtimeMode';
 import { logger } from './logger';
 
 interface CachedLocation {
@@ -123,6 +124,7 @@ class LocationCache {
    * Start the cleanup timer
    */
   private startCleanupTimer(): void {
+    if (isRollbackAuthOnly) return;
     this.cleanupTimer = setInterval(() => {
       this.cleanup();
     }, this.config.cleanupInterval);

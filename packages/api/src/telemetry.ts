@@ -1,10 +1,11 @@
+import { isRollbackAuthOnly } from './config/runtimeMode';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 
-const enabled = process.env.OTEL_SDK_DISABLED !== 'true'
+const enabled = !isRollbackAuthOnly && process.env.OTEL_SDK_DISABLED !== 'true'
   && Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
 
 const sdk = enabled
