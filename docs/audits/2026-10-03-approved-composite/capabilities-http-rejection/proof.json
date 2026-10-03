@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "2e7224adf8fa8be5dfffef431cfc73a6b6079039",
+  "redHead": "8f25754619b2b3d54741f7cc49af3b5376d4d218",
+  "capturedAt": "2026-10-03T03:41:06.966522+00:00",
+  "sources": [
+    {
+      "path": "packages/api/src/routes/__tests__/capabilitiesSettings.routes.test.ts",
+      "sha256": "6f5e88673366aa5b5657f76131fb2749b1db9d3e3e1486cac94b110342c6bccf"
+    },
+    {
+      "path": "packages/api/src/routes/capabilities.ts",
+      "sha256": "9f8220a5c47c5102ec0cc0c4171979b2eb520aad80479b184d7004c58595fcb7"
+    },
+    {
+      "path": "packages/api/src/services/agentKeyAuthority.service.ts",
+      "sha256": "903c04220b9a13218007a7d72c8910ddadf6f6158c1532c35b93f1c49345f790"
+    },
+    {
+      "path": "packages/api/src/utils/asyncHandler.ts",
+      "sha256": "9b433a49be632312480c4d4db895040130e1a2f04a95ca2b209c26068dc26277"
+    },
+    {
+      "path": "scripts/rehearsal/test-approved-api-1519.py",
+      "sha256": "465c4b574dae6e517cdf9e284eb0098b89189f5edf3fa37c18d0d5a32a1ffce4"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/capabilities-http-rejection/capabilities-http-red-exact.log",
+      "sha256": "01fcadcac7cd9d539ca13ee35a5dce92c55eaccb9850e5790550d0c99f460e56"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/capabilities-http-rejection/capabilities-http-green-exact.log",
+      "sha256": "e38bd2e1a8afd495a3fcddf35769323bd35fcba075bfe2bd27ea57902b59de74"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/capabilities-http-rejection/capabilities-http-lint.log",
+      "sha256": "541a62079728a4e7fe901adf2a45b2dfd4eb2687f3ee2c0940ff33d8e563390e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/capabilities-http-rejection/capabilities-http-api-ts.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/capabilities-http-rejection/ci-job-111115494787.log",
+      "sha256": "e9d679994a81f3bc9c0486a35d4ca91f4860a4e23876a67c0fc8e3b157e4e07f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/capabilities-http-rejection/capabilities-http-red-stdout.log",
+      "sha256": "87a4ebbc7e3d7e89d3e0c91a11ee6a848887c4b8ebb26273360352f06e926a96"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/capabilities-http-rejection/capabilities-http-green-stdout.log",
+      "sha256": "07540d30636301c190d2c4b2558b6e987da797c748d9b1416aced5bc3f4c5e6f"
+    }
+  ],
+  "redGreenFixtureIdentical": true,
+  "results": {
+    "greenSuites": 1,
+    "greenTests": 7,
+    "greenExitCode": 0,
+    "redExitCode": 1,
+    "redTimedOutResponses": 3,
+    "apiEslint": 0,
+    "apiTypes": 0,
+    "redLauncher": {
+      "newLocalServerPid": 3465146,
+      "dataDirectory": "/tmp/oxy1519-i09-ax0o8mv_/pg1519-lm3jv_id/data",
+      "database": "oxy_rehearsal_1519_552a3626252e1516",
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--testSequencer",
+        "/tmp/oxy1519-i09-ax0o8mv_/ordered-sequencer.cjs",
+        "--runTestsByPath",
+        "src/routes/__tests__/capabilitiesSettings.routes.test.ts"
+      ],
+      "exitCode": 1,
+      "log": "/tmp/oxy1519-i09-ax0o8mv_/api/focused.txt",
+      "productionAccess": false
+    },
+    "greenLauncher": {
+      "newLocalServerPid": 3465674,
+      "dataDirectory": "/tmp/oxy1519-i09-zopq4hlr/pg1519-ag6xzqgb/data",
+      "database": "oxy_rehearsal_1519_7ddcbf93bec16f5d",
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--testSequencer",
+        "/tmp/oxy1519-i09-zopq4hlr/ordered-sequencer.cjs",
+        "--runTestsByPath",
+        "src/routes/__tests__/capabilitiesSettings.routes.test.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/oxy1519-i09-zopq4hlr/api/focused.txt",
+      "productionAccess": false
+    }
+  },
+  "limits": [
+    "Auth/operator, coordinator and account-access boundaries are synthetic in this Settings route fixture; approving-session lookup and authorization INSERT/absence are real PostgreSQL. No new trust or permission granted.",
+    "Missing session ID, expired persisted session and inactive/revoked persisted session all return401 INVALID_SESSION and create no execution authorization; managed human operator positive returns201 with requester origin and managed owner preserved.",
+    "RED original async route returns no response on rejected promise: three timeout responses generate global unhandled-rejection failures, so Jest reports7 failed rather than3 independent failures. Exact frozen fixture8f257 equals GREEN fixture.",
+    "An earlier intermediate fixture reused access-token literals and hit sessions unique constraint; it was corrected before frozen RED8f257. It is not claimed as a runtime regression.",
+    "Explicit fixture HTTP server closes all connections in teardown; no Jest forceExit or increased timeout. Both owned PG139 processes stop normally; no external/provider/financial requests.",
+    "Fix wraps only POST execution-authorizations with existing asyncHandler. Other capability routes unchanged. Final functional CI must be checked separately; Forge INACTIVE audit is still expected."
+  ]
+}

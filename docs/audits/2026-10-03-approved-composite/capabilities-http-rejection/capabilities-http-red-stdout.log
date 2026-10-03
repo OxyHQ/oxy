@@ -1,0 +1,373 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-ax0o8mv_/ordered-sequencer.cjs" --runTestsByPath src/routes/__tests__/capabilitiesSettings.routes.test.ts
+{"level":30,"time":1790998697769,"pid":3465161,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/routes/__tests__/capabilitiesSettings.routes.test.ts
+  ● serves safe catalogs and manages account policies for Settings
+
+    ApiError: Live approving session required
+
+      28 | export async function readSessionAgentBinding(sessionId: string | undefined, actorId: string,
+      29 |   db: DatabaseOrTransaction = getDb()): Promise<AgentKeyBinding | undefined> {
+    > 30 |   if (!sessionId) throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |                         ^
+      31 |   const [session] = await db.select({ userId: sessions.userId, operatorId: sessions.operatedByUserId,
+      32 |     methodId: sessions.authMethodId, ownerId: sessions.authMethodOwnerId,
+      33 |   }).from(sessions).where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true),
+
+      at src/services/agentKeyAuthority.service.ts:30:25
+      at src/services/agentKeyAuthority.service.ts:8:71
+      at __awaiter (src/services/agentKeyAuthority.service.ts:4:12)
+      at readSessionAgentBinding (src/services/agentKeyAuthority.service.ts:40:12)
+      at src/routes/capabilities.ts:615:60
+      at fulfilled (src/routes/capabilities.ts:5:58)
+
+  ● serves safe catalogs and manages account policies for Settings
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● serves safe catalogs and manages account policies for Settings
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● rejects future tools and edits a catalog-bound grant atomically
+
+    ApiError: Live approving session required
+
+      28 | export async function readSessionAgentBinding(sessionId: string | undefined, actorId: string,
+      29 |   db: DatabaseOrTransaction = getDb()): Promise<AgentKeyBinding | undefined> {
+    > 30 |   if (!sessionId) throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |                         ^
+      31 |   const [session] = await db.select({ userId: sessions.userId, operatorId: sessions.operatedByUserId,
+      32 |     methodId: sessions.authMethodId, ownerId: sessions.authMethodOwnerId,
+      33 |   }).from(sessions).where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true),
+
+      at src/services/agentKeyAuthority.service.ts:30:25
+      at src/services/agentKeyAuthority.service.ts:8:71
+      at __awaiter (src/services/agentKeyAuthority.service.ts:4:12)
+      at readSessionAgentBinding (src/services/agentKeyAuthority.service.ts:40:12)
+      at src/routes/capabilities.ts:615:60
+      at fulfilled (src/routes/capabilities.ts:5:58)
+
+  ● rejects future tools and edits a catalog-bound grant atomically
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● rejects future tools and edits a catalog-bound grant atomically
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● lists and revokes execution authorizations for Settings
+
+    ApiError: Live approving session required
+
+      28 | export async function readSessionAgentBinding(sessionId: string | undefined, actorId: string,
+      29 |   db: DatabaseOrTransaction = getDb()): Promise<AgentKeyBinding | undefined> {
+    > 30 |   if (!sessionId) throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |                         ^
+      31 |   const [session] = await db.select({ userId: sessions.userId, operatorId: sessions.operatedByUserId,
+      32 |     methodId: sessions.authMethodId, ownerId: sessions.authMethodOwnerId,
+      33 |   }).from(sessions).where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true),
+
+      at src/services/agentKeyAuthority.service.ts:30:25
+      at src/services/agentKeyAuthority.service.ts:8:71
+      at __awaiter (src/services/agentKeyAuthority.service.ts:4:12)
+      at readSessionAgentBinding (src/services/agentKeyAuthority.service.ts:40:12)
+      at src/routes/capabilities.ts:615:60
+      at fulfilled (src/routes/capabilities.ts:5:58)
+
+  ● lists and revokes execution authorizations for Settings
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● lists and revokes execution authorizations for Settings
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● asks authority of the person operating a managed account, not of the account
+
+    ApiError: Live approving session required
+
+      28 | export async function readSessionAgentBinding(sessionId: string | undefined, actorId: string,
+      29 |   db: DatabaseOrTransaction = getDb()): Promise<AgentKeyBinding | undefined> {
+    > 30 |   if (!sessionId) throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |                         ^
+      31 |   const [session] = await db.select({ userId: sessions.userId, operatorId: sessions.operatedByUserId,
+      32 |     methodId: sessions.authMethodId, ownerId: sessions.authMethodOwnerId,
+      33 |   }).from(sessions).where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true),
+
+      at src/services/agentKeyAuthority.service.ts:30:25
+      at src/services/agentKeyAuthority.service.ts:8:71
+      at __awaiter (src/services/agentKeyAuthority.service.ts:4:12)
+      at readSessionAgentBinding (src/services/agentKeyAuthority.service.ts:40:12)
+      at src/routes/capabilities.ts:615:60
+      at fulfilled (src/routes/capabilities.ts:5:58)
+
+  ● asks authority of the person operating a managed account, not of the account
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● asks authority of the person operating a managed account, not of the account
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● returns401 without insertion when the approving session is missing after bearer verification
+
+    Response timeout of 1000ms exceeded
+
+      at Test.RequestBase._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:748:17)
+      at Timeout._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:771:12)
+
+  ● returns401 without insertion when the approving session is missing after bearer verification
+
+    ApiError: Live approving session required
+
+      28 | export async function readSessionAgentBinding(sessionId: string | undefined, actorId: string,
+      29 |   db: DatabaseOrTransaction = getDb()): Promise<AgentKeyBinding | undefined> {
+    > 30 |   if (!sessionId) throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |                         ^
+      31 |   const [session] = await db.select({ userId: sessions.userId, operatorId: sessions.operatedByUserId,
+      32 |     methodId: sessions.authMethodId, ownerId: sessions.authMethodOwnerId,
+      33 |   }).from(sessions).where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true),
+
+      at src/services/agentKeyAuthority.service.ts:30:25
+      at src/services/agentKeyAuthority.service.ts:8:71
+      at __awaiter (src/services/agentKeyAuthority.service.ts:4:12)
+      at readSessionAgentBinding (src/services/agentKeyAuthority.service.ts:40:12)
+      at src/routes/capabilities.ts:615:60
+      at fulfilled (src/routes/capabilities.ts:5:58)
+
+  ● returns401 without insertion when the approving session is missing after bearer verification
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● returns401 without insertion when the approving session is missing after bearer verification
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● returns401 without insertion when the approving session is expired after bearer verification
+
+    Response timeout of 1000ms exceeded
+
+      at Test.RequestBase._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:748:17)
+      at Timeout._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:771:12)
+
+  ● returns401 without insertion when the approving session is expired after bearer verification
+
+    ApiError: Live approving session required
+
+      28 | export async function readSessionAgentBinding(sessionId: string | undefined, actorId: string,
+      29 |   db: DatabaseOrTransaction = getDb()): Promise<AgentKeyBinding | undefined> {
+    > 30 |   if (!sessionId) throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |                         ^
+      31 |   const [session] = await db.select({ userId: sessions.userId, operatorId: sessions.operatedByUserId,
+      32 |     methodId: sessions.authMethodId, ownerId: sessions.authMethodOwnerId,
+      33 |   }).from(sessions).where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true),
+
+      at src/services/agentKeyAuthority.service.ts:30:25
+      at src/services/agentKeyAuthority.service.ts:8:71
+      at __awaiter (src/services/agentKeyAuthority.service.ts:4:12)
+      at readSessionAgentBinding (src/services/agentKeyAuthority.service.ts:40:12)
+      at src/routes/capabilities.ts:615:60
+      at fulfilled (src/routes/capabilities.ts:5:58)
+
+  ● returns401 without insertion when the approving session is expired after bearer verification
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● returns401 without insertion when the approving session is expired after bearer verification
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● returns401 without insertion when the approving session is revoked after bearer verification
+
+    Response timeout of 1000ms exceeded
+
+      at Test.RequestBase._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:748:17)
+      at Timeout._timeoutError (../../node_modules/.bun/superagent@10.3.0/node_modules/superagent/src/request-base.js:771:12)
+
+  ● returns401 without insertion when the approving session is revoked after bearer verification
+
+    ApiError: Live approving session required
+
+      28 | export async function readSessionAgentBinding(sessionId: string | undefined, actorId: string,
+      29 |   db: DatabaseOrTransaction = getDb()): Promise<AgentKeyBinding | undefined> {
+    > 30 |   if (!sessionId) throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |                         ^
+      31 |   const [session] = await db.select({ userId: sessions.userId, operatorId: sessions.operatedByUserId,
+      32 |     methodId: sessions.authMethodId, ownerId: sessions.authMethodOwnerId,
+      33 |   }).from(sessions).where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true),
+
+      at src/services/agentKeyAuthority.service.ts:30:25
+      at src/services/agentKeyAuthority.service.ts:8:71
+      at __awaiter (src/services/agentKeyAuthority.service.ts:4:12)
+      at readSessionAgentBinding (src/services/agentKeyAuthority.service.ts:40:12)
+      at src/routes/capabilities.ts:615:60
+      at fulfilled (src/routes/capabilities.ts:5:58)
+
+  ● returns401 without insertion when the approving session is revoked after bearer verification
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+  ● returns401 without insertion when the approving session is revoked after bearer verification
+
+    ApiError: Live approving session required
+
+      34 |     gt(sessions.expiresAt, new Date()))).limit(1);
+      35 |   if (!session || (session.operatorId ?? session.userId) !== actorId) {
+    > 36 |     throw new ApiError(401, 'Live approving session required', 'INVALID_SESSION');
+         |           ^
+      37 |   }
+      38 |   if (session.methodId && session.ownerId === actorId) {
+      39 |     const binding = { authMethodId: session.methodId, authMethodOwnerId: actorId };
+
+      at src/services/agentKeyAuthority.service.ts:36:11
+      at fulfilled (src/services/agentKeyAuthority.service.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       7 failed, 7 total
+Snapshots:   0 total
+Time:        3.654 s
+Ran all test suites within paths "src/routes/__tests__/capabilitiesSettings.routes.test.ts".
+error: script "test" exited with code 1
