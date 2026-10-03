@@ -1,0 +1,11 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/aliaRevocationCanary.db.test.ts src/routes/__tests__/machineCredentials.test.ts src/routes/__tests__/credentialAuditTrail.test.ts
+PASS src/routes/__tests__/machineCredentials.test.ts
+PASS src/routes/__tests__/credentialAuditTrail.test.ts
+{"level":30,"time":1791052741156,"pid":4161893,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/services/__tests__/aliaRevocationCanary.db.test.ts
+
+Test Suites: 3 passed, 3 total
+Tests:       58 passed, 58 total
+Snapshots:   0 total
+Time:        4.313 s, estimated 5 s
+Ran all test suites within paths "src/services/__tests__/aliaRevocationCanary.db.test.ts", "src/routes/__tests__/machineCredentials.test.ts", "src/routes/__tests__/credentialAuditTrail.test.ts".
