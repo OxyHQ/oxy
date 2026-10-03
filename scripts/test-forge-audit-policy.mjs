@@ -17,7 +17,7 @@ const proof = JSON.parse(proofBytes);
 const records = Object.fromEntries(proof.records.map(row => [row.file, readFileSync(join(root, dirname(EVIDENCE_PATH), row.file))]));
 const audit = JSON.parse(readFileSync(join(root, 'docs/security/forge-candidate/current-raw-bun-audit.json')));
 const source = 'a'.repeat(40), head = 'b'.repeat(40);
-const paths = ['.github/workflows/ci.yml', 'scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs', 'scripts/test-forge-audit-policy.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs', 'scripts/forge-source-topology.mjs', 'scripts/test-forge-source-topology.mjs', 'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs', 'scripts/forge-final-image-collector.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/forge-final-image-test-fixture.mjs', 'scripts/test-forge-final-image-live-clock.mjs', 'scripts/forge-policy-record.mjs', 'scripts/test-forge-future-dag.mjs', 'scripts/check-published-forge-image.mjs', 'scripts/verify-forge-oci-artifact.py', 'scripts/test-verify-forge-oci-artifact.py', ...TRUSTED_WORKFLOW.executedPaths];
+const paths = ['.github/workflows/ci.yml', 'scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs', 'scripts/test-forge-audit-policy.mjs', 'scripts/test-forge-independent-inputs.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs', 'scripts/forge-source-topology.mjs', 'scripts/test-forge-source-topology.mjs', 'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs', 'scripts/forge-final-image-collector.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/forge-final-image-test-fixture.mjs', 'scripts/test-forge-final-image-live-clock.mjs', 'scripts/forge-policy-record.mjs', 'scripts/test-forge-future-dag.mjs', 'scripts/check-published-forge-image.mjs', 'scripts/verify-forge-oci-artifact.py', 'scripts/test-verify-forge-oci-artifact.py', ...TRUSTED_WORKFLOW.executedPaths];
 let assertions = 0;
 // Every ACTIVE value below is SYNTHETIC. It does not name or claim a real Nate decision.
 function fixture() {
@@ -81,6 +81,7 @@ const cases = [
   ['evidence source mismatch', x => { x.decision.independentEvidence.sourceHead = 'f'.repeat(40); }],
   ['changed source packages since independent suites', x => { x.independentInputs.target.packages = '2'.repeat(40); }],
   ['missing independent input', x => { delete x.independentInputs.reviewed['bun.lock']; }],
+  ...INDEPENDENT_INPUT_PATHS.map(path => [`historical authenticated input mismatch ${path}`, x => { x.independentInputs.reviewed[path] = '2'.repeat(40); }]),
   ['raw log modified', x => { x.recordBytes['candidate-upstream.log'] = Buffer.from('fake pass'); }],
   ['raw log absent', x => { delete x.recordBytes['expo-14-final.log']; }],
 ];
@@ -158,7 +159,7 @@ try {
   assert.equal(group.status, 0, group.stderr); assertions++;
   assert.match(group.stdout, /All 10 dependency-audit cases passed/); assertions++;
 } finally { activeCheckout.remove(); }
-for (const path of ['scripts/test-forge-source-topology.mjs', 'scripts/test-forge-final-image-binding.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/test-forge-future-dag.mjs']) {
+for (const path of ['scripts/test-forge-independent-inputs.mjs', 'scripts/test-forge-source-topology.mjs', 'scripts/test-forge-final-image-binding.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/test-forge-future-dag.mjs']) {
   const result = spawnSync('bun', [join(root, path)], { cwd: root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr); assertions++;
   process.stdout.write(result.stdout);

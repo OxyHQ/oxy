@@ -8,6 +8,52 @@ import { execFileSync } from 'node:child_process';
 import { userInfo } from 'node:os';
 import { inflateRawSync, crc32 } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
+export const INDEPENDENT_INPUT_PATHS = Object.freeze(['packages', 'bun.lock', 'package.json', 'bunfig.toml', 'tsconfig.json', 'turbo.json', 'patches/node-forge@1.4.0.patch', 'docs/security/forge-candidate/toolchain.bun.lock', 'scripts/rehearsal/test-forge-final-input-1519.py', 'scripts/forge-independent-expo-compat.cjs']);
+/** Structural tree traversal only. Synthetic GET callbacks confer no authentication. */
+export function readPinnedIndependentInputObjects(sourceSha, getJson) {
+  const commitId = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
+  if (!commitId(sourceSha)) throw new Error('Exact historical commit SHA required');
+  const prefix = 'repos/OxyHQ/oxy/git/';
+  const url = path => `https://api.github.com/${path}`;
+  const path = `${prefix}commits/${sourceSha}`;
+  const commit = getJson(path);
+  if (commit?.sha !== sourceSha || commit.url !== url(path) || !commitId(commit.tree?.sha)
+    || commit.tree.url !== url(`${prefix}trees/${commit.tree.sha}`)) throw new Error('Historical commit/repository/tree binding differs');
+  const cache = new Map();
+  const tree = sha => {
+    if (!cache.has(sha)) {
+      if (!commitId(sha) || cache.size >= 32) throw new Error('Historical tree traversal exceeds bound');
+      const path = `${prefix}trees/${sha}`;
+      const value = getJson(path);
+      if (value?.sha !== sha || value.url !== url(path) || value.truncated !== false
+        || !Array.isArray(value.tree) || value.tree.length > 2500
+        || new Set(value.tree.map(entry => entry.path)).size !== value.tree.length) throw new Error('Historical tree is malformed, foreign, truncated or ambiguous');
+      cache.set(sha, value.tree);
+    }
+    return cache.get(sha);
+  };
+  return Object.fromEntries(INDEPENDENT_INPUT_PATHS.map(input => {
+    let at = commit.tree.sha;
+    const parts = input.split('/');
+    if (parts.length > 8) throw new Error('Historical input depth exceeds bound');
+    for (const [index, name] of parts.entries()) {
+      const entry = tree(at).find(value => value.path === name);
+      const directory = index < parts.length - 1 || input === 'packages';
+      if (!entry || !commitId(entry.sha) || (directory
+        ? entry.type !== 'tree' || entry.mode !== '040000'
+        : entry.type !== 'blob' || !['100644', '100755'].includes(entry.mode))) throw new Error(`Historical input missing or wrong type: ${input}`);
+      at = entry.sha;
+    }
+    return [input, at];
+  }));
+}
+/** Fixed authenticated GETs; no repository, program, evidence or path override. */
+export function collectIndependentInputObjects(sourceSha) {
+  return readPinnedIndependentInputObjects(sourceSha, path => JSON.parse(execFileSync('/usr/bin/gh',
+    ['api', '--hostname', 'github.com', '--method', 'GET', path],
+    { env: toolEnv(), timeout: 60000, maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })));
+}
+
 export const ADVISORY = 'GHSA-86w9-cpqp-85rv';
 export const FILES = ['lib/rsa.js', 'dist/forge.min.js', 'dist/forge.min.js.map', 'dist/forge.all.min.js', 'dist/forge.all.min.js.map'];
 export const SUITES = ['rsa-regressions', 'forge-suite', 'browser-bundles', 'expo-certificates', 'expo-update-signing', 'production-image'];

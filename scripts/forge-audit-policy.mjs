@@ -8,17 +8,17 @@ import { fileURLToPath } from 'node:url';
 import { userInfo } from 'node:os';
 import {
   ADVISORY, TRUSTED_BASELINE, TRUSTED_WORKFLOW, PINS_PATH,
-  canonicalAudit, collect, evaluate, inventory, sha256,
+  canonicalAudit, collect, evaluate, inventory, sha256, collectIndependentInputObjects, INDEPENDENT_INPUT_PATHS,
 } from './forge-remediation-proof-proposal.mjs';
 
 export const DECISION_PATH = 'docs/security/forge-candidate/provenance/audit-policy-decision.json';
 export const DECLARATIVE_PATHS = Object.freeze([PINS_PATH, DECISION_PATH]);
 export const EVIDENCE_PATH = 'docs/security/forge-independent/2026-10-03-final-input/proof.json';
-export const INDEPENDENT_INPUT_PATHS = Object.freeze(['packages', 'bun.lock', 'package.json', 'bunfig.toml', 'tsconfig.json', 'turbo.json', 'patches/node-forge@1.4.0.patch', 'docs/security/forge-candidate/toolchain.bun.lock', 'scripts/rehearsal/test-forge-final-input-1519.py', 'scripts/forge-independent-expo-compat.cjs']);
+export { INDEPENDENT_INPUT_PATHS } from './forge-remediation-proof-proposal.mjs';
 const RECORD_NAMES = Object.freeze(['expo-14.log', 'oxy-db-build.log', 'stock-install-pinned.log', 'candidate-install.log', 'oxy-install.log', 'stock-build.log', 'candidate-build-1.log', 'candidate-build-2.log', 'candidate-build-3.log', 'stock-upstream.log', 'candidate-upstream.log', 'expo-14-final.log', 'oxy-34.log', 'stock-controls.json', 'candidate-controls.json', 'hashes-after-build-2.json', 'candidate-build-repeat.json']);
 const EXECUTED_PATHS = Object.freeze([
   '.github/workflows/ci.yml', 'scripts/check-dependency-audit.mjs', 'scripts/forge-audit-policy.mjs',
-  'scripts/test-forge-audit-policy.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs',
+  'scripts/test-forge-audit-policy.mjs', 'scripts/test-forge-independent-inputs.mjs', 'scripts/test-check-dependency-audit.mjs', 'scripts/forge-policy-test-fixtures.mjs',
   'scripts/forge-source-topology.mjs', 'scripts/test-forge-source-topology.mjs',
   'scripts/forge-final-image-binding.mjs', 'scripts/test-forge-final-image-binding.mjs',
   'scripts/forge-final-image-collector.mjs', 'scripts/test-forge-final-image-collector.mjs', 'scripts/forge-final-image-test-fixture.mjs', 'scripts/test-forge-final-image-live-clock.mjs', 'scripts/forge-policy-record.mjs', 'scripts/test-forge-future-dag.mjs',
@@ -158,9 +158,8 @@ export function inspectForgeAuditPolicy(audit, options = {}) {
       if (typeof record.file !== 'string' || !RECORD_NAMES.includes(record.file)) throw new Error('Unsafe evidence record path');
       return [record.file, git('show', `${target}:${join(dirname(EVIDENCE_PATH), record.file)}`)];
     }));
-    const independentInputs = { reviewed: {}, target: {} };
+    const independentInputs = { reviewed: collectIndependentInputObjects(proof.candidateCommit), target: {} };
     for (const path of INDEPENDENT_INPUT_PATHS) {
-      independentInputs.reviewed[path] = git('rev-parse', `${proof.candidateCommit}:${path}`).toString().trim();
       independentInputs.target[path] = git('rev-parse', `${target}:${path}`).toString().trim();
     }
     const execution = facts.git.currentGithub?.run;
