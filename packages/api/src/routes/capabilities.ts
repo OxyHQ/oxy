@@ -570,7 +570,7 @@ router.get('/execution-authorizations', authMiddleware, async (request: AuthRequ
  *             additionalProperties: false
  *             required: [subjectToken, tool, expectedCatalog, runId, expiresAt]
  *             properties:
- *               subjectToken: { type: string, minLength: 1, maxLength: 16384, pattern: '^\\S+$', writeOnly: true }
+ *               subjectToken: { type: string, minLength: 1, maxLength: 16384, pattern: '^\S+$', writeOnly: true }
  *               tool: { type: string, enum: [recommendProfiles, readViewerGraph] }
  *               expectedCatalog:
  *                 type: object

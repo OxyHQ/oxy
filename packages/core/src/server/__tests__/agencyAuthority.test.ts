@@ -79,3 +79,29 @@ it('sends foreground requester proof only to the configured Oxy authority alongs
   await expect(oxy.agency.createForegroundExecutionAuthorization({ ...input, expectedCatalog: { ...pin, digest: 'invalid' } }, { requesterToken: 'requester-token' })).rejects.toThrow();
   expect(request).not.toHaveBeenCalled(); expect(token).not.toHaveBeenCalled();
 });
+
+
+it('revokes a direct execution through the requester lane without service minting, cache or retry', async () => {
+  const { oxy, token, request } = fixture();
+  request.mockResolvedValue(undefined);
+  await oxy.agency.revokeExecutionAuthorization('approval/1', { requesterToken: 'current-requester' });
+  expect(token).not.toHaveBeenCalled();
+  expect(request).toHaveBeenCalledWith('DELETE', '/capabilities/execution-authorizations/approval%2F1', undefined, {
+    cache: false, deduplicate: false, retry: false, skipAuth: true, timeout: 5000,
+    headers: { Authorization: 'Bearer current-requester' },
+  });
+  request.mockClear();
+  for (const requesterToken of ['', 'space token', 'x'.repeat(16_385)]) {
+    await expect(oxy.agency.revokeExecutionAuthorization('approval', { requesterToken })).rejects.toThrow('requester bearer');
+  }
+  for (const id of ['', 'space id', 'x'.repeat(256)]) {
+    await expect(oxy.agency.revokeExecutionAuthorization(id, { requesterToken: 'current-requester' })).rejects.toThrow('authorization id');
+  }
+  await expect(oxy.agency.revokeExecutionAuthorization('approval', {
+    requesterToken: 'current-requester', signal: AbortSignal.abort(new Error('fixture aborted')),
+  })).rejects.toThrow('fixture aborted');
+  expect(request).not.toHaveBeenCalled(); expect(token).not.toHaveBeenCalled();
+  request.mockRejectedValueOnce(new Error('authority unavailable'));
+  await expect(oxy.agency.revokeExecutionAuthorization('approval', { requesterToken: 'current-requester' })).rejects.toThrow('authority unavailable');
+  expect(request).toHaveBeenCalledTimes(1);
+});
