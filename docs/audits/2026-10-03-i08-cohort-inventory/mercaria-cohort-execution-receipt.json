@@ -1,0 +1,19 @@
+{
+  "planSha256": "23522c7c9d4e967bf8c444765388480ca3ca2f33cb3dc7dc2deea78687b7fc50",
+  "resultSha256": "31cb40b209ac1afcc8ee47d74e80905be7889c57990229f89a5d3dce0c3b075b",
+  "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/ba631d0b34774c6793ffa853906fa3a4",
+  "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-billing-inventory-mercaria-cohort:1",
+  "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mercaria@sha256:f5a2aed5580b3b3561bdff88a9da7fed5335816ff442052f75b140d177847412",
+  "profile": "mercaria-cohort",
+  "readOnly": true,
+  "tables": {
+    "stores": {
+      "status": "complete",
+      "count": 2
+    },
+    "store_members": {
+      "status": "complete",
+      "count": 2
+    }
+  }
+}

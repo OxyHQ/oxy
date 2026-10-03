@@ -1,0 +1,97 @@
+{
+  "sourceCommit": "014e5a97c",
+  "sources": [
+    {
+      "path": "scripts/billing/commercial-inventory-ecs.py",
+      "sha256": "3f8b239ef77b59d4458a2685b2b4e7d8e082e951c3bac0fa9e77ffdc5be85041"
+    },
+    {
+      "path": "scripts/billing/read-commercial-inventory.mjs",
+      "sha256": "30d9e39826abe00f73f549732cf68c54784b38f06c65c64f46c3aaf0cd922e49"
+    },
+    {
+      "path": "scripts/billing/test-commercial-inventory-ecs.py",
+      "sha256": "5f68a0559048df14b1ca2f08b1d1bd339903782b964441d13aea55a9b79965dc"
+    },
+    {
+      "path": "scripts/billing/test-commercial-inventory.mjs",
+      "sha256": "f5791f43544cecad3f697fc3c83279d080206005fb726854d886b48d34c9fd03"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/README.md",
+      "sha256": "89bb19b2ccc1857ca7a3c91b7a361e8027d8e0a9150ab53d38b7b05e9a786da4"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/cohort-launcher-noenv-final.log",
+      "sha256": "83166b089fbcb82fac63f22522fa6ae99bb5e46368cd35d756277fd463dd6346"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/cohort-launcher-tests.log",
+      "sha256": "83166b089fbcb82fac63f22522fa6ae99bb5e46368cd35d756277fd463dd6346"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/cohort-reader-bun-diagnostic2.log",
+      "sha256": "12cb3d77e0635d2fbae70d733b645699e671b0329a2f372b74a4e0d5cbe5475b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/cohort-reader-bun-tests.log",
+      "sha256": "8d61e6d96d2bf4479b8d5bbb672da446674ea07e4b31279d3d53b97b7cbbe570"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/cohort-reader-noenv-final.log",
+      "sha256": "603fc751aedb48eb68acf11e3f11516198c286c97dc8b94f8f1fcaa1e458b1e2"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/cohort-reader-root-cwd-failed.log",
+      "sha256": "a1f3220d2fccd9f658d944cded10a6f8c0a5bc24b2a176d657b52dd12b242690"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/cohort-reader-tests.log",
+      "sha256": "ba9d2b1b301c73385ff24871cbd13cc48b92f2bd10203f72d86408a5e856687f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/mercaria-cohort-execution-cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/mercaria-cohort-execution-receipt.json",
+      "sha256": "c6a4c9a9349c1b15208a2fe3ec6b3aae1d50bc29b1c8276b67a4b8c85d80d225"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/peable-cohort-execution-cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/peable-cohort-noenv-execution-cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i08-cohort-inventory/peable-cohort-noenv-execution-receipt.json",
+      "sha256": "235a2d0a90845084f7b29b30c407be402611c2cb2179c70871fbd4662403ae46"
+    }
+  ],
+  "privateEvidence": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-handoff-i08-20261003/mercaria-authority/mercaria-cohort-execution/result.private.json",
+      "sha256": "c997dead03c5eb4b30c9dee5af093d0167c8ec6df18929db6fd66348f81bf143"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-handoff-i08-20261003/mercaria-authority/peable-cohort-noenv-execution/result.private.json",
+      "sha256": "3217038d8f03960113946339f963f9eb26b3a20b175edf5950d08fbd9abbef09"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-handoff-i08-20261003/mercaria-authority/mercaria-cohort-plan.json",
+      "sha256": "525283c773fc8c7a03bd42f1930165eabdc10f27c0153ecaffda7848d2d97df1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-handoff-i08-20261003/mercaria-authority/peable-cohort-plan.json",
+      "sha256": "0257e3b5aa0e9eaaa58a645239e7ad74e3968ae6b0010bbcf8ea2d4fb45a5d19"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-handoff-i08-20261003/mercaria-authority/peable-cohort-noenv-plan.json",
+      "sha256": "1cbb9c06cebcfc3fa7c8ca52640fba1f3f4af5f055799463ad3dd6d8628a1b3e"
+    }
+  ]
+}
