@@ -289,10 +289,11 @@ export async function refreshDeviceSecretArm(deps: {
  * when no arm could produce one.
  *
  * Arm 1 (`POST /session/device/token`, via {@link refreshDeviceSecretArm}): mint
- * from the persisted `deviceId` + `deviceSecret`. On a 401 the secret is diverged
- * or the device has no live session: drop the secret so the mint lane stops (or
- * clear the store on web, where there is no fallback), then fall to arm 2 on
- * native. A transient error — or a durable-persist failure — leaves the store and
+ * from the persisted `deviceId` + `deviceSecret`. An invalid-secret 401 may
+ * enter native key recovery. A recognised holder's `no_active_session` verdict
+ * retains that holder and ends ACCOUNT recovery without a new key challenge.
+ * Classification still uses the existing 401 message markers, not a new parser.
+ * A transient error — or a durable-persist failure — leaves the store and
  * returns `null` WITHOUT falling to arm 2 (those are not bad-secret signals).
  *
  * Arm 2 (native Commons identity): when the secret is absent or was just
