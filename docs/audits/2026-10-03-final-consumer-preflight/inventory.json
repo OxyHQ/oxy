@@ -1,0 +1,1008 @@
+{
+  "createdAt": "2026-10-03T13:48:45.814924+00:00",
+  "targets": {
+    "@oxy.so/contracts": "4.9.0",
+    "@oxy.so/core": "4.2.0",
+    "@oxy.so/services": "11.1.0",
+    "@oxy.so/mcp": "1.1.0",
+    "@oxy.so/protocol": "1.2.2",
+    "@oxy.so/bloom": "6.2.1"
+  },
+  "status": "read-only Git source inventory; no installation or rollout claim",
+  "consumers": [
+    {
+      "repository": "Noted",
+      "gitDirectory": "/home/nate/Oxy/Noted",
+      "base": "0569162d338c278c55bf1c8b239efa78581dddb6",
+      "scopeStatus": "accepted OAuth effective-account source; final dependency adoption pending",
+      "manifests": [
+        {
+          "path": "package.json",
+          "name": "noted-monorepo",
+          "sha256": "0460974040fdb7d0006f932544ec91e8612daf463304a856bdd75e82bd7be9f9",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "6.3.0",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "^4.4.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^4.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "11.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/bloom",
+              "current": "6.3.0",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/contracts",
+              "current": "^4.4.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/core",
+              "current": "^4.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/services",
+              "current": "11.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        },
+        {
+          "path": "packages/backend/package.json",
+          "name": "@noted/backend",
+          "sha256": "57f3896bf12face6f307d685aff3da1c524008ce3ee325f729e0b28ecb66e4e9",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "^4.4.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^4.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/mcp",
+              "current": "1.0.0",
+              "target": "1.1.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        },
+        {
+          "path": "packages/frontend/package.json",
+          "name": "@noted/frontend",
+          "sha256": "1762bf99d510d13a5261c529f907c4c2302561fccd17fbae480549a9b2494873",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "6.3.0",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "^4.4.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^4.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "11.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        }
+      ],
+      "locks": [
+        {
+          "path": "bun.lock",
+          "sha256": "59cb821e73e171a9e0b8ce83e9973e506dcf838e8219fb502ad35f80ae72d6f1"
+        }
+      ],
+      "pending": [
+        "Confirm source composition and owner before edits",
+        "Apply appropriate exact pins while preserving source APIs",
+        "Install final registry packages and regenerate locks with --minimum-release-age=0",
+        "Verify published files/integrity and peer graph",
+        "Run consumer-specific typechecks/tests/build and auth behavior",
+        "Review CI and root-coordinated rollout"
+      ],
+      "retiredNamespaceDeclarations": []
+    },
+    {
+      "repository": "Clarity",
+      "gitDirectory": "/home/nate/Oxy/Clarity",
+      "base": "10d880c6bcad03ea608c4c079f2827ed7f0247f1",
+      "scopeStatus": "accepted billing product-selection source; final dependency adoption pending",
+      "manifests": [
+        {
+          "path": "package.json",
+          "name": "clarity-monorepo",
+          "sha256": "9c40ffe9edb7bc4550951f677e9f450372c543d3ece36a4b5ed6a790510db614",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^3.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "^3.0.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/core",
+              "current": "^3.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/contracts",
+              "current": "^3.0.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        },
+        {
+          "path": "packages/backend/package.json",
+          "name": "@clarity/backend",
+          "sha256": "e0f91636b7e2827f3d120bed77f82fef59fd319ae42af2423d47887fe7480ee9",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^3.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        },
+        {
+          "path": "packages/frontend/package.json",
+          "name": "@clarity/frontend",
+          "sha256": "6acc727233b813a5c3eda974a5fa7a3f65437195554a15d84ba945ecf69cc4a3",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "^4.28.0",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^3.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "^8.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        }
+      ],
+      "locks": [
+        {
+          "path": "bun.lock",
+          "sha256": "b5ba8b5a93a4c48971433756e9faec08c698fd20bb5a6537743514ce1c7e2795"
+        }
+      ],
+      "pending": [
+        "Confirm source composition and owner before edits",
+        "Apply appropriate exact pins while preserving source APIs",
+        "Install final registry packages and regenerate locks with --minimum-release-age=0",
+        "Verify published files/integrity and peer graph",
+        "Run consumer-specific typechecks/tests/build and auth behavior",
+        "Review CI and root-coordinated rollout"
+      ],
+      "retiredNamespaceDeclarations": []
+    },
+    {
+      "repository": "Homiio",
+      "gitDirectory": "/home/nate/Oxy/Homiio",
+      "base": "c73042291f25de400d33022f0c59f398c1c89d55",
+      "scopeStatus": "accepted published Peable verifier seam and docs; seam unmounted",
+      "manifests": [
+        {
+          "path": "package.json",
+          "name": "homiio-monorepo",
+          "sha256": "a472f3b439ddafcf01f71be0508a0b0e83ac9c64dbcc2eba934d41d32517afe3",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^4.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "^6.3.0",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/core",
+              "current": "^4.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/bloom",
+              "current": "^6.3.0",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/contracts",
+              "current": "^4.4.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "resolutions",
+              "name": "@oxy.so/core",
+              "current": "^4.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        },
+        {
+          "path": "packages/backend/package.json",
+          "name": "@homiio/backend",
+          "sha256": "583048d8988a539a863b0cfc2fa739e49ba72186d36ac35886c253f6779c4b2d",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "^4.4.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^4.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        },
+        {
+          "path": "packages/frontend/package.json",
+          "name": "@homiio/frontend",
+          "sha256": "7a0f07ead18031c7d04ae45e02b78cc1a47639f01d48382468f0100d0294e5ba",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "^6.3.0",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^4.0.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "^11.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        }
+      ],
+      "locks": [
+        {
+          "path": "bun.lock",
+          "sha256": "5cfc96b8c5ab6b061d78dac9f975022438d1698e2df857413e7fd82a7b5e58b8"
+        }
+      ],
+      "pending": [
+        "Confirm source composition and owner before edits",
+        "Apply appropriate exact pins while preserving source APIs",
+        "Install final registry packages and regenerate locks with --minimum-release-age=0",
+        "Verify published files/integrity and peer graph",
+        "Run consumer-specific typechecks/tests/build and auth behavior",
+        "Review CI and root-coordinated rollout"
+      ],
+      "retiredNamespaceDeclarations": []
+    },
+    {
+      "repository": "website",
+      "gitDirectory": "/home/nate/Oxy/website",
+      "base": "718a6c404b6b790972d74df602f107ec94d3e805",
+      "scopeStatus": "PR129 open; Checks37038954879 and review37038954850 success; root acceptance recheck pending",
+      "manifests": [
+        {
+          "path": "package.json",
+          "name": "oxy-website",
+          "sha256": "c26c91a3eba72684f0a6bcd37c429ccc73c6b9363f7b5470627d7bfb4a1bdd66",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "^7.0.1",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "^4.3.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^3.2.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/mcp",
+              "current": "^1.0.0",
+              "target": "1.1.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "^10.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/contracts",
+              "current": "^4.3.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        }
+      ],
+      "locks": [
+        {
+          "path": "bun.lock",
+          "sha256": "6809e357837cad3a8d3b5fbb2f3882a52be4c149af449c85eff3fe949bae95ae"
+        }
+      ],
+      "pending": [
+        "Bloom7\u21926.2.1 needs actual named API/props compatibility before any range downgrade.",
+        "Confirm source composition and owner before edits",
+        "Apply appropriate exact pins while preserving source APIs",
+        "Install final registry packages and regenerate locks with --minimum-release-age=0",
+        "Verify published files/integrity and peer graph",
+        "Run consumer-specific typechecks/tests/build and auth behavior",
+        "Review CI and root-coordinated rollout"
+      ],
+      "retiredNamespaceDeclarations": []
+    },
+    {
+      "repository": "Allo",
+      "gitDirectory": "/home/nate/Oxy/Allo",
+      "base": "795ba4e0c612d41d69f46ed7b332423be5b9d16c",
+      "scopeStatus": "source pin supplied by coverage; no accepted1519 product adoption; sibling harness is separate",
+      "manifests": [
+        {
+          "path": "package.json",
+          "name": "allo",
+          "sha256": "a6a5f4ce5b2cfcbcd96433406e1a6961485e768e610ecea0ab5ebf21109d5450",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "^2.12.4",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "^1.2.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^1.3.1",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "^2.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/bloom",
+              "current": "^2.12.4",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/core",
+              "current": "^1.3.1",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/contracts",
+              "current": "^1.2.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/services",
+              "current": "^2.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "resolutions",
+              "name": "@oxy.so/bloom",
+              "current": "^2.12.4",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "resolutions",
+              "name": "@oxy.so/core",
+              "current": "^1.3.1",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "resolutions",
+              "name": "@oxy.so/contracts",
+              "current": "^1.2.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "resolutions",
+              "name": "@oxy.so/services",
+              "current": "^2.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        },
+        {
+          "path": "packages/backend/package.json",
+          "name": "@allo/backend",
+          "sha256": "00a13aa2ed571a614fc6192ece9c2db9691d7b42ec916cb7279152440f636314",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "^1.2.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^1.3.1",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        },
+        {
+          "path": "packages/frontend/package.json",
+          "name": "@allo/frontend",
+          "sha256": "fef805db6eb2d642942b66583088504966abb822a58a408d12b09a2e48ca69f3",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "^2.12.4",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "^1.3.1",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "^2.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            }
+          ]
+        }
+      ],
+      "locks": [
+        {
+          "path": "bun.lock",
+          "sha256": "4b902f726226c67ea02bcd65497e7421815b717b7f548ed82a18dc609a6d2f0a"
+        }
+      ],
+      "pending": [
+        "Confirm source composition and owner before edits",
+        "Apply appropriate exact pins while preserving source APIs",
+        "Install final registry packages and regenerate locks with --minimum-release-age=0",
+        "Verify published files/integrity and peer graph",
+        "Run consumer-specific typechecks/tests/build and auth behavior",
+        "Review CI and root-coordinated rollout"
+      ],
+      "retiredNamespaceDeclarations": []
+    },
+    {
+      "repository": "examples",
+      "gitDirectory": "/home/nate/Oxy/examples",
+      "base": "7a5bba6f88ca7bd9ce95c1dafaa9fafb58049633",
+      "scopeStatus": "PR4 open; three independent starter locks; Socket checks only in current PR status",
+      "manifests": [
+        {
+          "path": "nextjs-sign-in-with-oxy/package.json",
+          "name": "nextjs-sign-in-with-oxy",
+          "sha256": "b5d0e9135943bb2fa7c2b72f9aac92f4e2988bbd7a165d0d3385c6ca85ae7427",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "11.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "4.1.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "4.8.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "6.4.0",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            }
+          ]
+        },
+        {
+          "path": "vite-react-oxy/package.json",
+          "name": "vite-react-oxy",
+          "sha256": "3d1fbbd8b8f9e866820ee0e9ce7cb3200e2947e2c13c59fd0e56022ee6b7a4a2",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "11.0.0",
+              "target": "11.1.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "4.1.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "4.8.0",
+              "target": "4.9.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "6.4.0",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            }
+          ]
+        }
+      ],
+      "locks": [
+        {
+          "path": "expo-sign-in-with-oxy/bun.lock",
+          "sha256": "2d5014581b6f196629dd961946907ca8f16b167e0113d3a886cb375001b479de"
+        },
+        {
+          "path": "nextjs-sign-in-with-oxy/bun.lock",
+          "sha256": "3b18fb7d67efd882232b037814715aad10f8b46e9c598495931b8b0c8394061b"
+        },
+        {
+          "path": "vite-react-oxy/bun.lock",
+          "sha256": "8cf3f5206e63571d2dfa25057b5ff18e67135b36381df41ce47aebaed5440fea"
+        }
+      ],
+      "pending": [
+        "Expo starter still uses retired @oxyhq packages; PR4 updated only Next/Vite. Migrate source and public-provider contract before claiming all starters adopted.",
+        "Confirm source composition and owner before edits",
+        "Apply appropriate exact pins while preserving source APIs",
+        "Install final registry packages and regenerate locks with --minimum-release-age=0",
+        "Verify published files/integrity and peer graph",
+        "Run consumer-specific typechecks/tests/build and auth behavior",
+        "Review CI and root-coordinated rollout"
+      ],
+      "retiredNamespaceDeclarations": [
+        {
+          "path": "expo-sign-in-with-oxy/package.json",
+          "section": "dependencies",
+          "name": "@oxyhq/bloom",
+          "current": "^0.8.1",
+          "manifestSha256": "f15cf19a0b7149526e09225fe88ccedef8c0ba24a0cb91a817020226836be6e6",
+          "requires": "source namespace/API audit, not a range-only update"
+        },
+        {
+          "path": "expo-sign-in-with-oxy/package.json",
+          "section": "dependencies",
+          "name": "@oxyhq/core",
+          "current": "^3.4.1",
+          "manifestSha256": "f15cf19a0b7149526e09225fe88ccedef8c0ba24a0cb91a817020226836be6e6",
+          "requires": "source namespace/API audit, not a range-only update"
+        },
+        {
+          "path": "expo-sign-in-with-oxy/package.json",
+          "section": "dependencies",
+          "name": "@oxyhq/services",
+          "current": "^10.2.0",
+          "manifestSha256": "f15cf19a0b7149526e09225fe88ccedef8c0ba24a0cb91a817020226836be6e6",
+          "requires": "source namespace/API audit, not a range-only update"
+        }
+      ]
+    },
+    {
+      "repository": "oxy",
+      "gitDirectory": "/home/nate/Oxy/oxy",
+      "base": "dca175d22497b0c51e124f4a517b1b7f055f7908",
+      "scopeStatus": "accepted composition snapshot for Console/accounts/Commons and in-repo examples; workspace builds are not registry adoption",
+      "manifests": [
+        {
+          "path": "package.json",
+          "name": "@oxy.so/sdk",
+          "sha256": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1",
+          "declarations": [
+            {
+              "section": "workspaces.catalog",
+              "name": "@oxy.so/bloom",
+              "current": "6.2.1",
+              "target": "6.2.1",
+              "state": "exact target already"
+            },
+            {
+              "section": "workspaces.catalog",
+              "name": "@oxy.so/core",
+              "current": "^4.2.0",
+              "target": "4.2.0",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "catalog:",
+              "target": "6.2.1",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "overrides",
+              "name": "@oxy.so/bloom",
+              "current": "catalog:",
+              "target": "6.2.1",
+              "state": "workspace/catalog resolution; inspect final lock"
+            }
+          ]
+        },
+        {
+          "path": "packages/accounts/package.json",
+          "name": "accounts",
+          "sha256": "773a0fc0cad2dbe7fc06ff52815bbb4b9914445a2e86ed0e2ffb90edd95e4a22",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "catalog:",
+              "target": "6.2.1",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "workspace:*",
+              "target": "4.9.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "*",
+              "target": "4.2.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "*",
+              "target": "11.1.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            }
+          ]
+        },
+        {
+          "path": "packages/commons/package.json",
+          "name": "commons",
+          "sha256": "f08faf32d15dd5999c6b384d4389d768513722453ca72352f0759c373120fc43",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "catalog:",
+              "target": "6.2.1",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "workspace:*",
+              "target": "4.9.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "*",
+              "target": "4.2.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "*",
+              "target": "11.1.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            }
+          ]
+        },
+        {
+          "path": "packages/console/package.json",
+          "name": "oxy-console",
+          "sha256": "ebf8800040e2c00ca7605acdf16aa990575317c09b7ece9cfb3b9f50ae876e78",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "catalog:",
+              "target": "6.2.1",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "*",
+              "target": "4.9.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "*",
+              "target": "4.2.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "*",
+              "target": "11.1.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            }
+          ]
+        },
+        {
+          "path": "packages/services/package.json",
+          "name": "@oxy.so/services",
+          "sha256": "0eb688398de503ac5a6e9e1aa27b19d6109eb34e47dc7b00b9fa444b97280dfe",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/contracts",
+              "current": "workspace:^",
+              "target": "4.9.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "devDependencies",
+              "name": "@oxy.so/core",
+              "current": "workspace:*",
+              "target": "4.2.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "devDependencies",
+              "name": "@oxy.so/bloom",
+              "current": "catalog:",
+              "target": "6.2.1",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "peerDependencies",
+              "name": "@oxy.so/bloom",
+              "current": ">=6.2.1 <6.3.0",
+              "target": "6.2.1",
+              "state": "requires review and target resolution"
+            },
+            {
+              "section": "peerDependencies",
+              "name": "@oxy.so/core",
+              "current": "catalog:",
+              "target": "4.2.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            }
+          ]
+        },
+        {
+          "path": "packages/test-app-expo/package.json",
+          "name": "test-app",
+          "sha256": "b9b3771b13924d95cf83c92688c2bab7a17ecb17188f2c62f595023b4833ff9c",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "catalog:",
+              "target": "6.2.1",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "workspace:*",
+              "target": "4.2.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "*",
+              "target": "11.1.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            }
+          ]
+        },
+        {
+          "path": "packages/test-app-vite/package.json",
+          "name": "test-app-vite",
+          "sha256": "6178953362e7cba26555bc2eec730434e227925a9e2e0baecaa0226254313591",
+          "declarations": [
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/bloom",
+              "current": "catalog:",
+              "target": "6.2.1",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/core",
+              "current": "*",
+              "target": "4.2.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            },
+            {
+              "section": "dependencies",
+              "name": "@oxy.so/services",
+              "current": "*",
+              "target": "11.1.0",
+              "state": "workspace/catalog resolution; inspect final lock"
+            }
+          ]
+        }
+      ],
+      "locks": [
+        {
+          "path": "bun.lock",
+          "sha256": "234dde423f0d4c6ebe71dc5c8a7dbed01bc63cd8482548e4a70bbbc4dfac7a58"
+        }
+      ],
+      "pending": [
+        "Confirm source composition and owner before edits",
+        "Apply appropriate exact pins while preserving source APIs",
+        "Install final registry packages and regenerate locks with --minimum-release-age=0",
+        "Verify published files/integrity and peer graph",
+        "Run consumer-specific typechecks/tests/build and auth behavior",
+        "Review CI and root-coordinated rollout"
+      ],
+      "retiredNamespaceDeclarations": []
+    }
+  ]
+}
