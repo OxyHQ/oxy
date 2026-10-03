@@ -1,0 +1,101 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed current main SHA
+        required: true
+        type: string
+      ci_run_id:
+        description: Successful push CI run for this exact main SHA
+        required: true
+        type: string
+  push:
+    branches: [main]
+
+jobs:
+  deploy-frontend:
+    permissions:
+      contents: read
+      actions: read
+    if: github.ref == 'refs/heads/main' && vars.OXY_1519_ROLLOUT_HOLD != 'true'
+    name: Deploy the web app to Cloudflare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify manual release source and CI
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          EXPECTED_CI_WORKFLOW: .github/workflows/ci.yml
+          OXY_1519_ROLLOUT_HOLD: ${{ vars.OXY_1519_ROLLOUT_HOLD }}
+        run: python3 .github/scripts/verify-manual-frontend.py
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build web
+        run: bun run build:frontend
+
+      # A WORKER, not a Pages project. A Pages project always serves
+      # `<project>.pages.dev` with no way to turn it off, which put a second,
+      # CORS-less copy of Clarity on the internet — `PRODUCTION_ORIGINS` in
+      # packages/backend/src/index.ts admits `https://clarity.surf` and nothing
+      # else. `workers_dev = false` in packages/frontend/wrangler.toml leaves
+      # `clarity.surf` as the only way in.
+      #
+      # The Pages production-branch PATCH that used to sit here is gone with the
+      # project: Pages stored the production branch on the project and published
+      # anything else as a preview, which a Worker has no equivalent of.
+      # Everything the deploy needs — the assets directory, the SPA fallback,
+      # the custom domain — is declared in wrangler.toml rather than passed
+      # here, so a deploy cannot disagree with the config.
+      #
+      # DEPLOYED WITH `bunx wrangler@4`, NOT `cloudflare/wrangler-action@v3`.
+      # Do not "modernise" this back to the action. The action installs its own
+      # wrangler into the working tree mid-deploy, and that install is the only
+      # thing that has ever failed this step — once in 78 runs, which is rare
+      # and total rather than recurring. Run 34063685022 (2026-09-06):
+      #
+      #   [command] /home/runner/.bun/bin/bun i wrangler@3.90.0
+      #   error: Fail extracting tarball for "wrangler"
+      #   ##[error] 🚨 Action failed
+      #
+      # Homiio took a production outage from the identical error on 2026-08-09
+      # — run 31292337344 published nothing and left a stale bundle running
+      # against a changed API — and moved off the action in #291; Mercaria's
+      # AGENTS.md forbids it outright. The action also picks its package manager
+      # by looking for a lockfile beside its `workingDirectory`, and in this
+      # monorepo the lockfile is at the ROOT: aiming it at `packages/frontend`
+      # would make it fall back to npm, which cannot resolve `workspace:*` at
+      # all. Alia's canvas deploy hit exactly that.
+      #
+      # PINNED TO A MAJOR on purpose. Unpinned, `bunx wrangler` re-resolves the
+      # latest major on every deploy, changing the deploy path with no diff to
+      # show for it. wrangler.toml was validated against 4.130.0.
+      #
+      # wrangler reads its credentials from the environment, which is why these
+      # are `env:` rather than arguments.
+      - name: Verify manual release source and CI
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          EXPECTED_CI_WORKFLOW: .github/workflows/ci.yml
+          OXY_1519_ROLLOUT_HOLD: ${{ vars.OXY_1519_ROLLOUT_HOLD }}
+        run: python3 .github/scripts/verify-manual-frontend.py
+
+      - name: Deploy the Worker
+        run: cd packages/frontend && bunx wrangler@4 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

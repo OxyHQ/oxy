@@ -136,7 +136,7 @@
       "repository": "OxyHQ/Alia",
       "worktree": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
       "branch": "task/1519-alia-final-sdk-pins-20261003",
-      "preparedHead": "ce1baf5c0536bf3b975cc42556d746a60a41c7d8",
+      "preparedHead": "4bd1ee83b84226d3b7bd5e87851dfd45561b4251",
       "lot": 2,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -485,13 +485,20 @@
           "candidateBuildExit": 0,
           "action": "Preserve standalone manifest; recheck resolution/build after final lock. No affected auth dialog is imported here."
         }
-      ]
+      ],
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Mention",
       "worktree": "/home/nate/Oxy/Mention/.worktrees/1519-final-sdk-pins-20261003",
       "branch": "task/1519-mention-final-sdk-pins-20261003",
-      "preparedHead": "2765e797f13b0287e8441f6c943116e6dcd6cab5",
+      "preparedHead": "1eac385328912141ca6ecc37585438c641b8260d",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -726,13 +733,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Mercaria",
       "worktree": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003",
       "branch": "task/1519-mercaria-final-sdk-pins-20261003",
-      "preparedHead": "813755a7333f02ff169b6ceba5bab72d4dd27f81",
+      "preparedHead": "cf7de686f4b55b55299385b6a8f0175495b98137",
       "lot": 2,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -1012,13 +1026,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Clarity",
       "worktree": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-clarity-final-sdk-20261003",
-      "preparedHead": "250f035b2d45e7513b03c72e320bb86585f7837d",
+      "preparedHead": "99ce4ba041e41c2ae66f46732b9be0305e529129",
       "lot": 2,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -1213,13 +1234,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Allo",
       "worktree": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-allo-final-sdk-20261003",
-      "preparedHead": "5a76eed3270433b883ff6b5a6325ce0a47815a43",
+      "preparedHead": "9cfb00426a603f936daedca182eeb4528fce1ed8",
       "lot": 1,
       "bloom": "7.1.2",
       "manifestPatch": {
@@ -1414,13 +1442,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Noted",
       "worktree": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-noted-final-sdk-20261003",
-      "preparedHead": "dedc9eeeb7f024498c353a3459b10842831112e4",
+      "preparedHead": "f825219674cbd7e59b22f8f3f2aba81b65f0053e",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -1595,13 +1630,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Homiio",
       "worktree": "/home/nate/Oxy/Homiio/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-homiio-final-sdk-20261003",
-      "preparedHead": "7b753949bc17c5787430c0ac3c8411529c5b1c67",
+      "preparedHead": "086c90b636c7898b9d20d3fa145ddf5c8a651d92",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -1831,13 +1873,20 @@
         "frontend": "12 suites / 127 PASS; TypeScript PASS; scoped lint baseline-equivalent 1 error / 7 warnings",
         "backend": "housingWatchAlerts: 54 PASS, owned PostgreSQL17 loopback5611 stopped; zero own test databases remain",
         "scope": "candidate installation; registry/CI/deploy pending"
+      },
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
       }
     },
     {
       "repository": "OxyHQ/website",
       "worktree": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-website-final-sdk-20261003",
-      "preparedHead": "2dc4a9013a3bc532697b31e0093c175b52b297b4",
+      "preparedHead": "29f09be6d9a41a8b6ad234560502057b6eb5a479",
       "lot": 1,
       "bloom": "7.1.2",
       "manifestPatch": {
@@ -1968,13 +2017,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Peable",
       "worktree": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003",
       "branch": "task/1519-pay-bloom621-compat-20261003",
-      "preparedHead": "11b9f19730ed64863ee1fac5bc3c3b4b7d691386",
+      "preparedHead": "9a70ddedcf29ba4b4986f4b4c259f05f735b545b",
       "lot": 2,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -2210,13 +2266,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/tnp",
       "worktree": "/home/nate/Oxy/tnp/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "e5f62c750837f9e6a0b2d73655628a4c53df2bc7",
+      "preparedHead": "34c8f0e0387fb5d39757cd80320ce2a2daba4c81",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -2470,13 +2533,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Willo",
       "worktree": "/home/nate/Oxy/Willo/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "1daf3501191ffb82bc4c4b3de3199eebe2bcedd9",
+      "preparedHead": "9d5b9959723bbb78e3f55c8f2713327eef621944",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -2649,13 +2719,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/GoWay",
       "worktree": "/home/nate/Oxy/GoWay/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "2f0cd7a4acbe4d37d76c219a20700bef4f41d8f8",
+      "preparedHead": "4745e4ab85a3981d6d26e310c2318a96265a639c",
       "lot": 3,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -2861,13 +2938,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Moovo",
       "worktree": "/home/nate/Oxy/Moovo/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "37c16ebbce76eba12ff2c00e37d2b633536961a1",
+      "preparedHead": "706ed699d0122a868df7910afd07f60017988e3a",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -3131,13 +3215,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Nilo",
       "worktree": "/home/nate/Oxy/Nilo/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "195400b8cd4681684d4bbce4fae8a3dd8003b2e7",
+      "preparedHead": "c4299aa6b985e77a02102765cd27a91188b42a7c",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -3295,13 +3386,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/CrowdSource",
       "worktree": "/home/nate/Oxy/CrowdSource/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "988ad19a3ad363c2cdfee47789cc8daaada1902b",
+      "preparedHead": "ccad8b38104575fd642ad0494df4da6ae8995f63",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -3486,13 +3584,20 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     },
     {
       "repository": "OxyHQ/Syra",
       "worktree": "/home/nate/Oxy/Syra/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-final-sdk-adoption-20261003",
-      "preparedHead": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "preparedHead": "a86ef872060dbf125ef6c29f3be342de88ea6dbf",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -3717,7 +3822,14 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "imagePublisher": {
+        "workflow": ".github/workflows/publish-reviewed-images.yml",
+        "expectedSourceInput": "expected_source_sha",
+        "rootReview": "consumer-publishers-root-source-review.json",
+        "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+        "noRollout": true
+      }
     }
   ],
   "imageBuildLimit": "Recipes are prepared, never executed. Root chooses existing reviewed publisher or equivalent image-only operator build; no combined workflow is assumed safe while paused. Never move latest. Exact CI/source/registry/runtime descriptor checks precede activation."

@@ -1,0 +1,97 @@
+{
+  "scope": "six unapplied frontend workflow dispatch templates; offline validation only",
+  "sources": [
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Clarity/.github/scripts/verify-manual-frontend.py",
+      "sha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Clarity/.github/workflows/deploy.yml",
+      "sha256": "3144eaa9dc56a8c52e35cd1b86a3cd6fa189871397d5b2e79636200274667df6"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/CrowdSource/.github/scripts/verify-manual-frontend.py",
+      "sha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/CrowdSource/.github/workflows/deploy-frontends.yml",
+      "sha256": "ef9e3b33524674f0f5d5b6bec6c3e45db5576a304f3b7518de75c208d69ad362"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Mention/.github/scripts/verify-manual-frontend.py",
+      "sha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Mention/.github/workflows/deploy-frontends.yml",
+      "sha256": "1e9561790f4a18c63ceb7cf50e2a4e91847bd447e5171ed6ff427fa2d80bc19d"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Nilo/.github/scripts/verify-manual-frontend.py",
+      "sha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Nilo/.github/workflows/deploy.yml",
+      "sha256": "2e4f584f82742b2e1aa1fae24b0975c4b35b54289f41b1a92375861458367506"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/README.md",
+      "sha256": "0b167a4a41c4b8a6db4c6d184618fa53da91d487a8603688225adee6f6962d76"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/manifest.json",
+      "sha256": "ab70872487e7e530e2da7533a557ef2ec1fc2d6cf8521499465d9d0bf59682ba"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/tnp/.github/scripts/verify-manual-frontend.py",
+      "sha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/tnp/.github/workflows/deploy.yml",
+      "sha256": "300a19b3fe40700b724cf3811b294adad3216c8e6f688cd6f66e4a496de0ab65"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/website/.github/scripts/verify-manual-frontend.py",
+      "sha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/website/.github/workflows/deploy.yml",
+      "sha256": "271d3e07eadb7ca6e24befa7de7a8f7b833c27dfd37a1f8118d63ffa360f87bc"
+    },
+    {
+      "path": "scripts/adoption/frontend-dispatch/prepare-templates.py",
+      "sha256": "d4487d4f5ba6aab003092403c196dba54679542f9ffee4d8181283516e711000"
+    },
+    {
+      "path": "scripts/adoption/frontend-dispatch/test-templates.cjs",
+      "sha256": "76a7d6a0226436d42e866ef404f4218f77bc1eb8eea3141124b085bfad97e2dd"
+    },
+    {
+      "path": "scripts/adoption/frontend-dispatch/test-verify-manual-frontend.py",
+      "sha256": "e46acb40aff05e5fd6b2e3d7f735b9e37e8d46385299537a58c54f4fddb8ebb8"
+    },
+    {
+      "path": "scripts/adoption/frontend-dispatch/verify-manual-frontend.py",
+      "sha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/logs/guard.log",
+      "sha256": "888a0c0ed615e57d32cf72be501b0c355f33b8613c81dfdaa99db33d7959487e"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/logs/templates.log",
+      "sha256": "d40d707afd1344327ddb50e7552805ba46e57531b3e35e7b6c543c43cb3b62d2"
+    }
+  ],
+  "validation": {
+    "pythonTests": 5,
+    "parsedWorkflowComparisons": 6,
+    "registryInstalled": false,
+    "dispatched": false
+  },
+  "publisherComposition": {
+    "path": "docs/architecture/1519-consumer-rollout-preflight/execution/publisher-composition.json",
+    "sha256": "6a04cb4a8bdfe180e4f661d9cf503f57a8623400e138cfee7d7d43aa982bf839"
+  }
+}

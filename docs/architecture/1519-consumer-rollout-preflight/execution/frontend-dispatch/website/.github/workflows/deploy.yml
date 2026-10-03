@@ -1,0 +1,117 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed current main SHA
+        required: true
+        type: string
+      ci_run_id:
+        description: Successful push CI run for this exact main SHA
+        required: true
+        type: string
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main' && vars.OXY_1519_ROLLOUT_HOLD != 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      deployments: write
+      actions: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Verify manual release source and CI
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          EXPECTED_CI_WORKFLOW: .github/workflows/checks.yml
+          OXY_1519_ROLLOUT_HOLD: ${{ vars.OXY_1519_ROLLOUT_HOLD }}
+        run: python3 .github/scripts/verify-manual-frontend.py
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          # Must match the Dockerfile's `oven/bun:<ver>` — a bun mismatch across
+          # lockfile consumers fails `--frozen-lockfile`.
+          bun-version: 1.3.14
+
+      - run: bun install --frozen-lockfile
+
+      # `bun run build` ends with the real-browser theme prepaint/SPA gate.
+      # Playwright ships the driver as a package, but its Chromium binary is a
+      # separate runner dependency and is not present on ubuntu-latest. Avoid
+      # `--with-deps` here: GitHub's runner already carries Chromium's system
+      # libraries, while refreshing third-party APT indexes can fail the whole
+      # deploy on an unrelated mirror hash mismatch.
+      - name: Install Chromium for the postbuild browser gate
+        run: bunx playwright install chromium
+
+      - run: bun run build
+        env:
+          VITE_API_URL: https://website-api.oxy.so
+          # The website's PRODUCTION Oxy client id. `App.tsx` falls back to a
+          # committed id when this is unset, so a local build works with no
+          # configuration — which is exactly why it has to be injected here:
+          # without it the deployed bundle silently authenticates against the
+          # wrong Oxy application, with nothing empty and nothing erroring.
+          # A repo VARIABLE, not a secret: the id travels inside the bundle, so
+          # it is public by construction, and a secret would only make it
+          # unreadable — costing the ability to verify what production uses.
+          VITE_OXY_CLIENT_ID: ${{ vars.VITE_OXY_CLIENT_ID }}
+          VITE_INTERCOM_APP_ID: ${{ vars.VITE_INTERCOM_APP_ID }}
+
+      # DEPLOYED WITH `bunx wrangler@4`, NOT `cloudflare/wrangler-action`, which
+      # is forbidden fleet-wide (~/Oxy/docs/infra-and-deploys.md). The action
+      # installs its own wrangler mid-deploy (`bun i wrangler@...`), which fails
+      # intermittently with `error: Fail extracting tarball for "wrangler"` and
+      # publishes nothing. Pinned to a major so the deploy path cannot change with
+      # no diff to show for it; wrangler reads its credentials from the
+      # environment, hence `env:`.
+      - name: Verify manual release source and CI
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          EXPECTED_CI_WORKFLOW: .github/workflows/checks.yml
+          OXY_1519_ROLLOUT_HOLD: ${{ vars.OXY_1519_ROLLOUT_HOLD }}
+        run: python3 .github/scripts/verify-manual-frontend.py
+
+      - run: bunx wrangler@4 pages deploy dist --project-name=oxy-website --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Purge the oxy.so edge cache after every deploy. Cloudflare caches static
+      # assets (a dashboard Cache Rule forces a multi-hour TTL that _headers
+      # can't override), so a stale HTML response served for an asset URL during
+      # deploy propagation can be frozen at the edge and blank the app until the
+      # cache is purged. Purging on each deploy clears any such entry.
+      # Tolerant of failure: if CLOUDFLARE_API_TOKEN lacks the Zone Cache Purge
+      # permission this is a no-op and the deploy still succeeds.
+      - name: Purge Cloudflare cache for oxy.so
+        continue-on-error: true
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -e
+          zone_id=$(curl -s -H "Authorization: Bearer $CF_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones?name=oxy.so" \
+            | python3 -c "import json,sys; r=json.load(sys.stdin).get('result') or []; print(r[0]['id'] if r else '')")
+          if [ -z "$zone_id" ]; then
+            echo "::warning::could not resolve zone id for oxy.so (token may lack Zone:Read/Cache Purge); skipping purge"
+            exit 0
+          fi
+          resp=$(curl -s -X POST -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/zones/$zone_id/purge_cache" \
+            --data '{"purge_everything":true}')
+          echo "$resp"
+          echo "$resp" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('success') else 1)"

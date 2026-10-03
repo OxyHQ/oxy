@@ -1,0 +1,104 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed current main SHA
+        required: true
+        type: string
+      ci_run_id:
+        description: Successful push CI run for this exact main SHA
+        required: true
+        type: string
+  push:
+    branches: [main]
+
+# Deploys run one at a time and are never cancelled: a rollout interrupted
+# half-way is worse than a late one. A newer pending run may replace an older
+# pending one, which is safe because main's newer head contains it.
+concurrency:
+  group: deploy-tnp-pages
+  cancel-in-progress: false
+
+jobs:
+  # Deploys used to run unconditionally on every push to main with nothing
+  # verifying the code first. The gates run here so a red main cannot ship.
+  verify:
+    if: github.ref == 'refs/heads/main' && vars.OXY_1519_ROLLOUT_HOLD != 'true'
+    name: Typecheck and test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify manual release source and CI
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          EXPECTED_CI_WORKFLOW: .github/workflows/ci.yml
+          OXY_1519_ROLLOUT_HOLD: ${{ vars.OXY_1519_ROLLOUT_HOLD }}
+        run: python3 .github/scripts/verify-manual-frontend.py
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --cpu='*' --os='*'
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && vars.OXY_1519_ROLLOUT_HOLD != 'true'
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --filter '@tnp/web'
+
+      - name: Build
+        run: cd apps/web && bun run build
+        env:
+          VITE_API_URL: https://api.tnp.network
+
+      # DEPLOYED WITH `bunx wrangler@4`, NOT `cloudflare/wrangler-action`, which
+      # is forbidden fleet-wide (~/Oxy/docs/infra-and-deploys.md). The action
+      # installs its own wrangler mid-deploy (`bun i wrangler@...`), which fails
+      # intermittently with `error: Fail extracting tarball for "wrangler"` and
+      # publishes nothing. Pinned to a major so the deploy path cannot change with
+      # no diff to show for it; wrangler reads its credentials from the
+      # environment, hence `env:`.
+      - name: Verify manual release source and CI
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          EXPECTED_CI_WORKFLOW: .github/workflows/ci.yml
+          OXY_1519_ROLLOUT_HOLD: ${{ vars.OXY_1519_ROLLOUT_HOLD }}
+        run: python3 .github/scripts/verify-manual-frontend.py
+
+      - name: Deploy to Cloudflare Pages
+        run: bunx wrangler@4 pages deploy apps/web/dist --project-name=tnp --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -1,0 +1,375 @@
+{
+  "sourceCommit": "a05d731e1f5e99c54b4ec37a65f9c1883b68e759",
+  "proofCommit": "58d9dced561595a4c4f39dacf73e3bfd86d038c0",
+  "sourceManifestSha256": "bf788a21997dd605b590be94e2bddc1f385707c8ce97379652e78c9efe540dc3",
+  "status": "committed locally; no dispatch, no registry install",
+  "repositories": [
+    {
+      "repository": "OxyHQ/Alia",
+      "before": "ce1baf5c0536bf3b975cc42556d746a60a41c7d8",
+      "after": "4bd1ee83b84226d3b7bd5e87851dfd45561b4251",
+      "files": [
+        {
+          "source": "Alia/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Alia/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "6ea02def3752ffd85a6c50d848b3c5d3bbc35a4566b957f412cebd9fa7e83ab0"
+        },
+        {
+          "source": "Alia/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "86059ac9ce64a4a58b6fe00bd4d567da3df844e67381929987f3a46fead97e71"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Mention",
+      "before": "2765e797f13b0287e8441f6c943116e6dcd6cab5",
+      "after": "1eac385328912141ca6ecc37585438c641b8260d",
+      "files": [
+        {
+          "source": "Mention/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Mention/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "2999dad8b1921ad29ad3b30dc2878f009682dbeea16dfe2b75d8b8aee878565a"
+        },
+        {
+          "source": "Mention/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "40e32f4bac2d5f4e7aace2a9a5221a411bddf1828ab9621967df77c9a774eb51"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "before": "813755a7333f02ff169b6ceba5bab72d4dd27f81",
+      "after": "cf7de686f4b55b55299385b6a8f0175495b98137",
+      "files": [
+        {
+          "source": "Mercaria/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Mercaria/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "f9b2b60d5023ad4fee044f8e130bdafc4e504e5d281d69f0d1d31a4bbea4c5c8"
+        },
+        {
+          "source": "Mercaria/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "e1003b675db831ab65722a59e3c8fc09c2fed3c9202f451ba03dbf90bcba065c"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "before": "250f035b2d45e7513b03c72e320bb86585f7837d",
+      "after": "99ce4ba041e41c2ae66f46732b9be0305e529129",
+      "files": [
+        {
+          "source": "Clarity/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Clarity/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "0057b85538185e305d84db6cd85874e43899fe5647668df293ff039ea33ec69c"
+        },
+        {
+          "source": "Clarity/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "20b6d29637054252dc359e45b3ac0936f10b70370f62f1599c81e7bcd547878e"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Allo",
+      "before": "5a76eed3270433b883ff6b5a6325ce0a47815a43",
+      "after": "9cfb00426a603f936daedca182eeb4528fce1ed8",
+      "files": [
+        {
+          "source": "Allo/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Allo/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "d3348b386f6d6a321a544f31caa672a6d5b9d86e0d6a304b7d3096b2271ce70f"
+        },
+        {
+          "source": "Allo/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "83f2f557915bb9e81f9a39b5fdbb15ef665c8b7e16aa7948f5bad37aa03ca36e"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Noted",
+      "before": "dedc9eeeb7f024498c353a3459b10842831112e4",
+      "after": "f825219674cbd7e59b22f8f3f2aba81b65f0053e",
+      "files": [
+        {
+          "source": "Noted/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Noted/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "39bdb1d1c2e6fc76b721dbf87175664d0b0f2c15f3d30ac209317216ee615d25"
+        },
+        {
+          "source": "Noted/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "4c79ba19ae44d86a1f139907b98dce0a5daf0adbea9bdb4b4af900c88345f83c"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Homiio",
+      "before": "7b753949bc17c5787430c0ac3c8411529c5b1c67",
+      "after": "086c90b636c7898b9d20d3fa145ddf5c8a651d92",
+      "files": [
+        {
+          "source": "Homiio/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Homiio/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "2cb1f2e1644ace9e994ef9621e88c9b9b02e6636d1d959421b8416cc729272a2"
+        },
+        {
+          "source": "Homiio/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "8eade832ea322303388a93176e7b78ca6e168060f37f509c30bb37aab3a5da98"
+        },
+        {
+          "source": "Homiio/.github/workflows/ci.yml",
+          "destination": ".github/workflows/ci.yml",
+          "sha256": "3074fc39cc2d3c9dc1c0c4a68b7808600b0f67b3099caefdacef7c060b03ee3d"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/website",
+      "before": "2dc4a9013a3bc532697b31e0093c175b52b297b4",
+      "after": "29f09be6d9a41a8b6ad234560502057b6eb5a479",
+      "files": [
+        {
+          "source": "website/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "website/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "3e0ff5faf9903a4993aad6b182cd78988fe59145387fc011dc177797b2f22194"
+        },
+        {
+          "source": "website/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "8fc45ed25338fc2b8b98aac1d647235f14205eb8097fb4660cb72a430cfb2660"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Peable",
+      "before": "11b9f19730ed64863ee1fac5bc3c3b4b7d691386",
+      "after": "9a70ddedcf29ba4b4986f4b4c259f05f735b545b",
+      "files": [
+        {
+          "source": "Peable/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Peable/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "9a722df9715e5e717ec262bfe90d13415daf461395c4a81e143abc8f6708aac4"
+        },
+        {
+          "source": "Peable/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "4cb9365a3b39a9a186082f70100a5e92352414ca7c78862ae040ab548ed3a9af"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "before": "e5f62c750837f9e6a0b2d73655628a4c53df2bc7",
+      "after": "34c8f0e0387fb5d39757cd80320ce2a2daba4c81",
+      "files": [
+        {
+          "source": "tnp/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "tnp/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "ac7135f35c9b219e39a5e5a4e842802f552c7e0cdf4822d26fa9609967a90796"
+        },
+        {
+          "source": "tnp/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "3ff20d56458185eaefb39e353743d2943d8dbada4a8fcc5d8a534441debf2fa3"
+        },
+        {
+          "source": "tnp/.github/workflows/ci.yml",
+          "destination": ".github/workflows/ci.yml",
+          "sha256": "a971410fc9e2bb87357e21f138789406b0db45e26ea5e64429fca78727374fc3"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Willo",
+      "before": "1daf3501191ffb82bc4c4b3de3199eebe2bcedd9",
+      "after": "9d5b9959723bbb78e3f55c8f2713327eef621944",
+      "files": [
+        {
+          "source": "Willo/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Willo/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "2252e59a437293a2ef3ae246eccdbe0c811631a808e76777056dddf089d4ec77"
+        },
+        {
+          "source": "Willo/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "1150a1078138d76bde4a9c8ff27e28ecdb001a3cbfbfbc48e1621a1452b2b2ef"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/GoWay",
+      "before": "2f0cd7a4acbe4d37d76c219a20700bef4f41d8f8",
+      "after": "4745e4ab85a3981d6d26e310c2318a96265a639c",
+      "files": [
+        {
+          "source": "GoWay/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "GoWay/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "22edce262c6365ff8384ee572d7311c990c7e4bd15bfded63e9cd3d34288dfca"
+        },
+        {
+          "source": "GoWay/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "47bf0d989cffc14880f6e6cae8c69325a4d7629cdd54e41ac174d67d6544153c"
+        },
+        {
+          "source": "GoWay/.github/workflows/ci.yml",
+          "destination": ".github/workflows/ci.yml",
+          "sha256": "3a611324872689885bea01b8db45ad2f09a5da2b26835da6ba5a5dd84bd9e4dd"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Moovo",
+      "before": "37c16ebbce76eba12ff2c00e37d2b633536961a1",
+      "after": "706ed699d0122a868df7910afd07f60017988e3a",
+      "files": [
+        {
+          "source": "Moovo/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Moovo/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "e5a99d4eb945719b6e63c70da153e4d8295356448d57b2ec6bb595cdcb493063"
+        },
+        {
+          "source": "Moovo/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "72842f4f16fb34235651fd3f8503a2452b8dfc6e88118b4da05a03d1f74162f5"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "before": "195400b8cd4681684d4bbce4fae8a3dd8003b2e7",
+      "after": "c4299aa6b985e77a02102765cd27a91188b42a7c",
+      "files": [
+        {
+          "source": "Nilo/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Nilo/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "f5dd2277b943a130dc8f1306a3ea724fd7a6c5db8c55bacafa6dc3e576a723b1"
+        },
+        {
+          "source": "Nilo/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "9b81858b4803865c464ec342bcc4511f537e39a4ac956b0c295c351ef2543cc4"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "before": "988ad19a3ad363c2cdfee47789cc8daaada1902b",
+      "after": "ccad8b38104575fd642ad0494df4da6ae8995f63",
+      "files": [
+        {
+          "source": "CrowdSource/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "CrowdSource/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "6d47a74e2beae224819a01478ba2489cce481aca9d12e6370eb382ad62fba4a1"
+        },
+        {
+          "source": "CrowdSource/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "aa25f35b348aa2476c0b1f2ad3a8dbb4f1fed13ee05ecd95c8b2952b780263c3"
+        }
+      ]
+    },
+    {
+      "repository": "OxyHQ/Syra",
+      "before": "564060a884d2a8202c4d9ec24d4a4823b464fbca",
+      "after": "a86ef872060dbf125ef6c29f3be342de88ea6dbf",
+      "files": [
+        {
+          "source": "Syra/.github/scripts/publish-reviewed-image.py",
+          "destination": ".github/scripts/publish-reviewed-image.py",
+          "sha256": "4c20fa31ef8bcd5f18e8e894d6fd35157e7bcce1ef9392f70c21cdd6aa86f17e"
+        },
+        {
+          "source": "Syra/.github/scripts/reviewed-images.json",
+          "destination": ".github/scripts/reviewed-images.json",
+          "sha256": "f14569c76fbc528b2c90c20ec8ee21a6ecaefa17a6d2086c17b3742505a3e3d5"
+        },
+        {
+          "source": "Syra/.github/workflows/publish-reviewed-images.yml",
+          "destination": ".github/workflows/publish-reviewed-images.yml",
+          "sha256": "906d0302d0b4c1b104a3a896f5238ffcf890dee0a953ae018d870c812a63fc4f"
+        }
+      ]
+    }
+  ]
+}

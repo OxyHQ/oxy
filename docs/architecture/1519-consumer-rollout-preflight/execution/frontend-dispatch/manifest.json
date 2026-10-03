@@ -1,0 +1,71 @@
+{
+  "status": "prepared; not applied or dispatched",
+  "rows": [
+    {
+      "repository": "OxyHQ/Mention",
+      "sourceHead": "1eac385328912141ca6ecc37585438c641b8260d",
+      "workflow": ".github/workflows/deploy-frontends.yml",
+      "beforeSha256": "bc00ccbdd0c2d62eb520b971fc128f30df2c12d4cb89c13b3aa664c51fc6ef66",
+      "afterSha256": "1e9561790f4a18c63ceb7cf50e2a4e91847bd447e5171ed6ff427fa2d80bc19d",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317",
+      "template": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Mention/.github/workflows/deploy-frontends.yml",
+      "helper": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Mention/.github/scripts/verify-manual-frontend.py",
+      "ciWorkflow": ".github/workflows/ci.yml"
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "sourceHead": "99ce4ba041e41c2ae66f46732b9be0305e529129",
+      "workflow": ".github/workflows/deploy.yml",
+      "beforeSha256": "f82c0dc1e232a5277ac19dddf60db800d994f33742a293fed364aca0b7ee7824",
+      "afterSha256": "3144eaa9dc56a8c52e35cd1b86a3cd6fa189871397d5b2e79636200274667df6",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317",
+      "template": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Clarity/.github/workflows/deploy.yml",
+      "helper": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Clarity/.github/scripts/verify-manual-frontend.py",
+      "ciWorkflow": ".github/workflows/ci.yml"
+    },
+    {
+      "repository": "OxyHQ/website",
+      "sourceHead": "29f09be6d9a41a8b6ad234560502057b6eb5a479",
+      "workflow": ".github/workflows/deploy.yml",
+      "beforeSha256": "932f5f256dee52f9ad1de5e68279e2b89c53db7d5ab1460e7d69f40ad47ae0fc",
+      "afterSha256": "271d3e07eadb7ca6e24befa7de7a8f7b833c27dfd37a1f8118d63ffa360f87bc",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317",
+      "template": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/website/.github/workflows/deploy.yml",
+      "helper": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/website/.github/scripts/verify-manual-frontend.py",
+      "ciWorkflow": ".github/workflows/checks.yml"
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "sourceHead": "34c8f0e0387fb5d39757cd80320ce2a2daba4c81",
+      "workflow": ".github/workflows/deploy.yml",
+      "beforeSha256": "6004e0742fea8415ac7015d0d21e964178b8d58454c42338617dffbb034c166c",
+      "afterSha256": "300a19b3fe40700b724cf3811b294adad3216c8e6f688cd6f66e4a496de0ab65",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317",
+      "template": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/tnp/.github/workflows/deploy.yml",
+      "helper": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/tnp/.github/scripts/verify-manual-frontend.py",
+      "ciWorkflow": ".github/workflows/ci.yml"
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "sourceHead": "c4299aa6b985e77a02102765cd27a91188b42a7c",
+      "workflow": ".github/workflows/deploy.yml",
+      "beforeSha256": "0f8be3952ce4c6def57abe4e41b8a0fdf47fe99f78cfb242c333139dd3388b60",
+      "afterSha256": "2e4f584f82742b2e1aa1fae24b0975c4b35b54289f41b1a92375861458367506",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317",
+      "template": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Nilo/.github/workflows/deploy.yml",
+      "helper": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/Nilo/.github/scripts/verify-manual-frontend.py",
+      "ciWorkflow": ".github/workflows/ci.yml"
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "sourceHead": "ccad8b38104575fd642ad0494df4da6ae8995f63",
+      "workflow": ".github/workflows/deploy-frontends.yml",
+      "beforeSha256": "19668ff6d182c53ba6917abd7d35d21ee494d49fe08d9f04482caccc0248c088",
+      "afterSha256": "ef9e3b33524674f0f5d5b6bec6c3e45db5576a304f3b7518de75c208d69ad362",
+      "helperSha256": "76ddd8121702f4b20b5c4da817da2ea3c211974566e14e9cffb5ee27b6964317",
+      "template": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/CrowdSource/.github/workflows/deploy-frontends.yml",
+      "helper": "docs/architecture/1519-consumer-rollout-preflight/execution/frontend-dispatch/CrowdSource/.github/scripts/verify-manual-frontend.py",
+      "ciWorkflow": ".github/workflows/ci.yml"
+    }
+  ]
+}

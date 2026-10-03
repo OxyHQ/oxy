@@ -1,0 +1,351 @@
+name: Deploy Frontends
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed current main SHA
+        required: true
+        type: string
+      ci_run_id:
+        description: Successful push CI run for this exact main SHA
+        required: true
+        type: string
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-crowdsource-frontend
+  cancel-in-progress: false
+
+env:
+  BUN_VERSION: '1.4.2'
+  DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  scope:
+    permissions:
+      contents: read
+      actions: read
+    if: >-
+      vars.OXY_1519_ROLLOUT_HOLD != 'true' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main'))
+    runs-on: ubuntu-latest
+    outputs:
+      # One output per Worker. They are separate targets with separate markers,
+      # so a console-only change must not redeploy the reviewer and vice versa.
+      reviewer: ${{ steps.reviewer.outputs.deploy }}
+      console: ${{ steps.console.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          # Each scope diff runs from its own `deployed/<target>` marker to the
+          # candidate, so this job needs the marker tags and the history that
+          # connects them to the candidate.
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Verify manual release source and CI
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          EXPECTED_CI_WORKFLOW: .github/workflows/ci.yml
+          OXY_1519_ROLLOUT_HOLD: ${{ vars.OXY_1519_ROLLOUT_HOLD }}
+        run: python3 .github/scripts/verify-manual-frontend.py
+
+      - name: Detect reviewer deployment scope
+        id: reviewer
+        run: bash .github/scripts/deployment-scope.sh frontend
+
+      - name: Detect console deployment scope
+        id: console
+        run: bash .github/scripts/deployment-scope.sh console
+
+  deploy-frontend:
+    needs: scope
+    if: vars.OXY_1519_ROLLOUT_HOLD != 'true' && needs.scope.outputs.reviewer == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+
+      - name: Verify current main before building
+        run: bash .github/scripts/require-current-main.sh
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install exact dependency graph
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Build shared contracts package
+        run: bun run build:contracts
+
+      - name: Build reviewer
+        run: bun run build:reviewer
+        env:
+          NODE_ENV: production
+          EXPO_PUBLIC_ENV: production
+          EXPO_PUBLIC_API_URL: https://api.crowdsource.oxy.so
+          # CrowdSource's registered Oxy application. A public routing
+          # identifier, not a credential — it is baked into a static bundle and
+          # is meaningless without the account holder completing sign-in — so it
+          # belongs here rather than in a secret.
+          EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.EXPO_PUBLIC_OXY_CLIENT_ID }}
+
+      - name: Validate static hosting contract
+        run: bun .github/scripts/validate-frontend-static-output.mjs packages/reviewer/dist
+
+      - name: Verify current main before production changes
+        run: bash .github/scripts/require-current-main.sh
+
+      # MUST run BEFORE the deploy. Afterwards the Worker exists whatever the
+      # answer was, so a capture placed after it reports `true` on the very
+      # first release and arms a rollback with nothing to roll back to. Reads
+      # only; an API fault is a hard failure rather than a guess.
+      - name: Determine whether this Worker has ever been deployed
+        id: previous
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WORKER_NAME: crowdsource-frontend
+        run: bash .github/scripts/cloudflare-worker.sh capture-worker
+
+      # A WORKER, not a Pages project. A Pages project always serves
+      # `<project>.pages.dev` with no way to turn it off, which put a second copy
+      # of the reviewer app on a hostname that is in no CORS allowlist and is not
+      # a registered redirect URI. `workers_dev = false` in
+      # `packages/reviewer/wrangler.toml` leaves `crowdsource.oxy.so` as the only
+      # way in, and `[[routes]] custom_domain = true` there is what claims the
+      # hostname — which is why this job no longer attaches a domain or writes a
+      # DNS record: Cloudflare writes the record for a custom domain itself, and
+      # REFUSES the hostname if one already exists (`code: 100117`).
+      #
+      # wrangler is invoked DIRECTLY, not through `cloudflare/wrangler-action`,
+      # and `scripts/validate-workflows.mjs` fails the build if the action comes
+      # back. The action installs its own wrangler and chooses the package
+      # manager by looking for a lockfile beside its `workingDirectory`; in a
+      # monorepo the lockfile is at the ROOT, so it falls back to npm and npm
+      # chokes on `workspace:*`. Homiio took a production outage from exactly
+      # this on 2026-08-09 (run 31292337344: `Fail extracting tarball for
+      # "wrangler"`) — it published nothing and left a stale bundle running
+      # against a changed API — and moved off the action in its #291.
+      #
+      # `wrangler@4` is pinned to the major on purpose: unpinned, `bunx wrangler`
+      # re-resolves the newest major on every run, which changes the deploy path
+      # with no diff to show for it.
+      - name: Deploy the Worker
+        id: production
+        run: cd packages/reviewer && bunx wrangler@4 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # A custom domain that has never served has no certificate yet, so the
+      # first deployment can fail the TLS handshake for a few minutes. The gate
+      # is a FACT, not an error shape: `has_previous` is false only until the
+      # Worker has ever been deployed, so once it has, this step never runs
+      # again and the same handshake failure stays immediately fatal in the
+      # smoke below — where it means a broken certificate rather than an
+      # unissued one.
+      - name: Wait for the first certificate on a domain that has never served
+        if: steps.previous.outputs.has_previous == 'false'
+        env:
+          WEB_ORIGIN: https://crowdsource.oxy.so
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 20); do
+            # Any HTTP response means the handshake completed, which is all this
+            # step is waiting for; the smoke that follows judges the content.
+            if curl --silent --output /dev/null --max-time 15 "$WEB_ORIGIN/"; then
+              echo "TLS is serving after ${attempt} attempt(s)."
+              exit 0
+            fi
+            echo "::notice::No certificate yet for the new custom domain; retrying in 15s (${attempt}/20)."
+            sleep 15
+          done
+          echo "::error::TLS did not come up within 5 minutes on a newly claimed custom domain."
+          exit 1
+
+      # The public hostname, which is now the same surface the deploy published
+      # to. Under Pages this smoked an immutable per-deployment URL first and the
+      # public name never; a Worker with `workers_dev = false` has no second
+      # surface to rehearse on, so the check moved onto the real one and the
+      # rollback below is what bounds the exposure.
+      - name: Smoke test the public hostname
+        id: production_smoke
+        env:
+          WEB_ORIGIN: https://crowdsource.oxy.so
+        run: bash .github/scripts/smoke-frontend.sh
+
+      - name: Roll back the Worker after a failed production smoke
+        if: >-
+          failure() &&
+          steps.production.outcome == 'success' &&
+          steps.production_smoke.outcome == 'failure' &&
+          steps.previous.outputs.has_previous == 'true'
+        # `--yes` because there is no terminal here. wrangler resolves the
+        # previous version itself, which is why nothing had to be captured for
+        # this step beyond whether one exists at all.
+        run: cd packages/reviewer && bunx wrangler@4 rollback --yes --message "Production smoke failed for $DEPLOY_SHA"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # The developer + Trust & Safety console (PLAN §4.2, §4.3). A separate Cloudflare
+  # Worker because it is a separate Expo web export with its own entry bundle, and a
+  # separate hostname because the console and the reviewer app are different
+  # audiences — one of them staff.
+  deploy-console:
+    needs: scope
+    if: vars.OXY_1519_ROLLOUT_HOLD != 'true' && needs.scope.outputs.console == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+
+      - name: Verify current main before building
+        run: bash .github/scripts/require-current-main.sh
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install exact dependency graph
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Build shared contracts package
+        run: bun run build:contracts
+
+      - name: Build console
+        run: bun run build:console
+        env:
+          NODE_ENV: production
+          EXPO_PUBLIC_ENV: production
+          EXPO_PUBLIC_API_URL: https://api.crowdsource.oxy.so
+          # The SAME registered Oxy application as the reviewer app: one product, one
+          # client id. The redirect surface differs per origin, so this host has to be
+          # registered as an additional redirect URI on that application before
+          # interactive sign-in works here.
+          EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.EXPO_PUBLIC_OXY_CLIENT_ID }}
+          EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI: https://console.crowdsource.oxy.so
+          EXPO_PUBLIC_WEB_BASE_URL: https://console.crowdsource.oxy.so
+
+      - name: Validate static hosting contract
+        run: bun .github/scripts/validate-frontend-static-output.mjs packages/console/dist
+
+      - name: Verify current main before production changes
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Determine whether this Worker has ever been deployed
+        id: previous
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WORKER_NAME: crowdsource-console
+        run: bash .github/scripts/cloudflare-worker.sh capture-worker
+
+      # Direct wrangler, never `cloudflare/wrangler-action` — see the reviewer
+      # job above for the monorepo-lockfile failure that rule exists for.
+      - name: Deploy the Worker
+        id: production
+        run: cd packages/console && bunx wrangler@4 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Wait for the first certificate on a domain that has never served
+        if: steps.previous.outputs.has_previous == 'false'
+        env:
+          WEB_ORIGIN: https://console.crowdsource.oxy.so
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 20); do
+            if curl --silent --output /dev/null --max-time 15 "$WEB_ORIGIN/"; then
+              echo "TLS is serving after ${attempt} attempt(s)."
+              exit 0
+            fi
+            echo "::notice::No certificate yet for the new custom domain; retrying in 15s (${attempt}/20)."
+            sleep 15
+          done
+          echo "::error::TLS did not come up within 5 minutes on a newly claimed custom domain."
+          exit 1
+
+      - name: Smoke test the public hostname
+        id: production_smoke
+        env:
+          WEB_ORIGIN: https://console.crowdsource.oxy.so
+        run: bash .github/scripts/smoke-frontend.sh
+
+      - name: Roll back the Worker after a failed production smoke
+        if: >-
+          failure() &&
+          steps.production.outcome == 'success' &&
+          steps.production_smoke.outcome == 'failure' &&
+          steps.previous.outputs.has_previous == 'true'
+        run: cd packages/console && bunx wrangler@4 rollback --yes --message "Production smoke failed for $DEPLOY_SHA"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  record-deployment:
+    # Runs only after a green production rollout, so a failed or rolled back
+    # release stays inside the next candidate's scope diff.
+    #
+    # ONE marker per target, and the console has its own below rather than sharing this
+    # one. Sharing looks tidier and is wrong twice: GitHub Actions skips a job whose
+    # dependency was skipped, so a `needs` on the gated console job would stop this
+    # marker moving at all — and if it did move, a console rollout that failed while the
+    # reviewer succeeded would have its change dropped from the next scope diff and
+    # orphaned permanently.
+    needs: deploy-frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The only job in this workflow that may move the marker; the build job
+    # keeps a read-only token.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 1
+
+      - name: Record the deployed frontend revision
+        run: bash .github/scripts/record-deployment.sh frontend
+
+  record-console-deployment:
+    needs: deploy-console
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only this job may move the console marker; the build job keeps a read-only token.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 1
+
+      - name: Record the deployed console revision
+        run: bash .github/scripts/record-deployment.sh console
