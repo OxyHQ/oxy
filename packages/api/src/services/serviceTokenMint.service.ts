@@ -18,8 +18,8 @@ import type { ServiceTier } from '../middleware/serviceToken';
  * two paths and belong to them.
  */
 
-/** One hour. Matches what `/auth/service-token` has always issued. */
-export const SERVICE_TOKEN_EXPIRY = 3600;
+/** Five minutes. Issuer-only rollout stage; verification remains unchanged here. */
+export const SERVICE_TOKEN_EXPIRY = 300;
 
 export interface ServiceTokenClaims {
   appId: string;

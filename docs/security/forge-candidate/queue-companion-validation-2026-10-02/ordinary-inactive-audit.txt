@@ -1,0 +1,11 @@
+Dependency audit FAILED:
+
+  - node-forge carries a high advisory nobody has acknowledged: GHSA-86w9-cpqp-85rv — node-forge RSA PKCS#1 v1.5 signature verification accepts extra nested DigestAlgorithm elements.
+
+  Audit reported 6 advisories at high or above (6 high, 3 low, 15 moderate in total).
+
+  If a dependency you added or widened is named above: raise it past the advisory, or
+  drop it. If it cannot be raised from here, add an ACKNOWLEDGED_PACKAGES entry stating
+  the `bun why` path and why the advisory does not reach a served request — in the same
+  commit as the dependency change.
+

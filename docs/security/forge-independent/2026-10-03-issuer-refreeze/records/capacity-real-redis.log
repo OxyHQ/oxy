@@ -1,0 +1,53 @@
+{"ownedRedisPid": 3517397, "executable": "/usr/bin/redis-server", "scratch": "/tmp/oxy1519-capacity-24otnk19", "port": 6389}
+{"level":30,"time":1791004407794,"pid":3517414,"hostname":"SuperPC","msg":"Redis connected"}
+{"level":30,"time":1791004407796,"pid":3517414,"hostname":"SuperPC","msg":"Redis ready"}
+{
+  "redisPid": 3517397,
+  "actualRedisStores": 6,
+  "apiInstances": 2,
+  "actualRouteDeclarations": [
+    "serviceTokenLimiter",
+    "serviceTokenAddressLimiter",
+    "workloadTokenLimiter"
+  ],
+  "results": {
+    "credentialMeasuredCohortModel": {
+      "success": 18,
+      "throttled": 0,
+      "unexpected": []
+    },
+    "credentialBoundary15Caches": {
+      "success": 30,
+      "throttled": 0,
+      "unexpected": []
+    },
+    "credentialRedisTtlMs": 299988,
+    "credentialNegative16Caches": {
+      "success": 30,
+      "throttled": 2,
+      "unexpected": []
+    },
+    "workload81SlotsThreeMints": {
+      "success": 486,
+      "throttled": 0,
+      "unexpected": []
+    },
+    "workloadRemaining": {
+      "success": 114,
+      "throttled": 0,
+      "unexpected": []
+    },
+    "address600": {
+      "success": 600,
+      "throttled": 0,
+      "unexpected": []
+    }
+  },
+  "limits": [
+    "HTTP probes simulate successful mint traffic only",
+    "Burst/window arithmetic; no elapsed-240-second or production mint observation",
+    "81 rolling slots are not an attestation of 81 client caches",
+    "No issuer, provider, credentials or effects invoked"
+  ]
+}
+{"ownedRedisStopped": true, "exitCode": 0}

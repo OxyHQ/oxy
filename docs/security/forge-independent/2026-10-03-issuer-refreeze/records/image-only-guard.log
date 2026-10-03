@@ -1,0 +1,1 @@
+Issuer guard: exact source positive + eight negatives; wrapper clears inherited mutation hooks/overrides and guard failure prevents deploy (AWS/helper mocked).

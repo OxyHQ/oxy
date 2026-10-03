@@ -7505,7 +7505,7 @@
           "Authentication"
         ],
         "summary": "Exchange credentials for a service token",
-        "description": "Internal service-to-service authentication endpoint. Exchange ApplicationCredential credentials (apiKey = publicKey, apiSecret = plaintext secret) for a short-lived service JWT (1 hour). Requires a usable credential of type `service` on an active application: either `active`, or `deprecated` but still within its rotation grace window (a credential rotated within the last 7 days keeps minting tokens until its grace `expiresAt`). `revoked` and grace-expired credentials are rejected. The minted JWT carries `appId` (Application `_id`), `credentialId` (the minting ApplicationCredential `_id`), `ownerAccountId` (the account financially responsible for the application), `environment` and the effective scopes (credential ∩ application).\n",
+        "description": "Internal service-to-service authentication endpoint. Exchange ApplicationCredential credentials (apiKey = publicKey, apiSecret = plaintext secret) for a short-lived service JWT (5 minutes). Requires a usable credential of type `service` on an active application: either `active`, or `deprecated` but still within its rotation grace window (a credential rotated within the last 7 days keeps minting tokens until its grace `expiresAt`). `revoked` and grace-expired credentials are rejected. The minted JWT carries `appId` (Application `_id`), `credentialId` (the minting ApplicationCredential `_id`), `ownerAccountId` (the account financially responsible for the application), `environment` and the effective scopes (credential ∩ application).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -7546,7 +7546,7 @@
                     "expiresIn": {
                       "type": "integer",
                       "description": "Token lifetime in seconds",
-                      "example": 3600
+                      "example": 300
                     },
                     "appName": {
                       "type": "string",

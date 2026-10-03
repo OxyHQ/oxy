@@ -1,0 +1,383 @@
+{
+  "braces": [
+    {
+      "id": 1240992,
+      "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+      "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+      "severity": "high",
+      "vulnerable_versions": "<=3.0.3",
+      "cwe": [
+        "CWE-674"
+      ],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      }
+    }
+  ],
+  "decode-uri-component": [
+    {
+      "id": 1147955,
+      "url": "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr",
+      "title": "decode-uri-component: Denial of service via exponential decoding of malformed percent-encoded input",
+      "severity": "moderate",
+      "vulnerable_versions": "<=0.4.2",
+      "cwe": [
+        "CWE-400",
+        "CWE-405",
+        "CWE-407",
+        "CWE-1176"
+      ],
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      }
+    }
+  ],
+  "esbuild": [
+    {
+      "id": 1102341,
+      "url": "https://github.com/advisories/GHSA-67mh-4wv8-2f99",
+      "title": "esbuild enables any website to send any requests to the development server and read the response",
+      "severity": "moderate",
+      "vulnerable_versions": "<=0.24.2",
+      "cwe": [
+        "CWE-346"
+      ],
+      "cvss": {
+        "score": 5.3,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:N/A:N"
+      }
+    }
+  ],
+  "fast-uri": [
+    {
+      "id": 1240091,
+      "url": "https://github.com/advisories/GHSA-hrr3-gc8f-f4qj",
+      "title": "fast-uri vulnerable to inconsistent host case normalization via percent-encoded octets",
+      "severity": "moderate",
+      "vulnerable_versions": ">=3.0.0 <3.1.8",
+      "cwe": [
+        "CWE-178"
+      ],
+      "cvss": {
+        "score": 4.8,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N"
+      }
+    }
+  ],
+  "ip-address": [
+    {
+      "id": 1240097,
+      "url": "https://github.com/advisories/GHSA-j6r3-76f7-8jcv",
+      "title": "ip-address: isInSubnet() and isHostInSubnet() compare addresses of different families as if they shared an address space, allowing an allowlist check to admit an address outside its range",
+      "severity": "moderate",
+      "vulnerable_versions": "<=10.7.0",
+      "cwe": [
+        "CWE-697",
+        "CWE-843"
+      ],
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      }
+    },
+    {
+      "id": 1240098,
+      "url": "https://github.com/advisories/GHSA-h3mg-xc3c-68pw",
+      "title": "ip-address: Address6 builds a parse diagnostic proportional to the input with no length bound, allowing a single long string to stall or crash the process",
+      "severity": "moderate",
+      "vulnerable_versions": "<=10.7.0",
+      "cwe": [
+        "CWE-400",
+        "CWE-770"
+      ],
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      }
+    }
+  ],
+  "multer": [
+    {
+      "id": 1239935,
+      "url": "https://github.com/advisories/GHSA-3pph-fpjx-jg34",
+      "title": "multer vulnerable to Denial of Service via orphaned disk writes on aborted uploads",
+      "severity": "moderate",
+      "vulnerable_versions": ">=2.2.0 <2.4.0",
+      "cwe": [
+        "CWE-400",
+        "CWE-459"
+      ],
+      "cvss": {
+        "score": 5.3,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+      }
+    }
+  ],
+  "node-forge": [
+    {
+      "id": 1240912,
+      "url": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
+      "title": "node-forge RSA PKCS#1 v1.5 signature verification accepts extra nested DigestAlgorithm elements",
+      "severity": "high",
+      "vulnerable_versions": "<=1.4.0",
+      "cwe": [
+        "CWE-347"
+      ],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
+      }
+    }
+  ],
+  "qs": [
+    {
+      "id": 1158506,
+      "url": "https://github.com/advisories/GHSA-x5fp-wj9c-mxmx",
+      "title": "qs array-limit bypass via bracket-key comma parsing",
+      "severity": "moderate",
+      "vulnerable_versions": ">=6.14.2 <=6.15.3",
+      "cwe": [
+        "CWE-770"
+      ],
+      "cvss": {
+        "score": 3.7,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"
+      }
+    },
+    {
+      "id": 1158507,
+      "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g",
+      "title": "qs: Denial of Service via Attacker Controlled isBuffer",
+      "severity": "moderate",
+      "vulnerable_versions": ">=2.2.5 <6.16.0",
+      "cwe": [
+        "CWE-248",
+        "CWE-703"
+      ],
+      "cvss": {
+        "score": 5.3,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+      }
+    }
+  ],
+  "undici": [
+    {
+      "id": 1114592,
+      "url": "https://github.com/advisories/GHSA-f269-vfmq-vjvj",
+      "title": "Undici: Malicious WebSocket 64-bit length overflows parser and crashes the client",
+      "severity": "high",
+      "vulnerable_versions": ">=6.0.0 <6.24.0",
+      "cwe": [
+        "CWE-248",
+        "CWE-1284"
+      ],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      }
+    },
+    {
+      "id": 1114594,
+      "url": "https://github.com/advisories/GHSA-2mjp-6q6p-2qxm",
+      "title": "Undici has an HTTP Request/Response Smuggling issue",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.24.0",
+      "cwe": [
+        "CWE-444"
+      ],
+      "cvss": {
+        "score": 6.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L"
+      }
+    },
+    {
+      "id": 1114638,
+      "url": "https://github.com/advisories/GHSA-vrm6-8vpv-qv8q",
+      "title": "Undici has Unbounded Memory Consumption in WebSocket permessage-deflate Decompression",
+      "severity": "high",
+      "vulnerable_versions": "<6.24.0",
+      "cwe": [
+        "CWE-409"
+      ],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      }
+    },
+    {
+      "id": 1114640,
+      "url": "https://github.com/advisories/GHSA-v9p9-hfj2-hcw8",
+      "title": "Undici has Unhandled Exception in WebSocket Client Due to Invalid server_max_window_bits Validation",
+      "severity": "high",
+      "vulnerable_versions": "<6.24.0",
+      "cwe": [
+        "CWE-248"
+      ],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      }
+    },
+    {
+      "id": 1114642,
+      "url": "https://github.com/advisories/GHSA-4992-7rv2-5pvq",
+      "title": "Undici has CRLF Injection in undici via `upgrade` option",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.24.0",
+      "cwe": [
+        "CWE-93"
+      ],
+      "cvss": {
+        "score": 4.6,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:L/I:L/A:N"
+      }
+    },
+    {
+      "id": 1130716,
+      "url": "https://github.com/advisories/GHSA-8xcm-r25x-g524",
+      "title": "undici vulnerable to downstream response desynchronization via retry interceptor",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.28.0",
+      "cwe": [
+        "CWE-444"
+      ],
+      "cvss": {
+        "score": 4.8,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N"
+      }
+    },
+    {
+      "id": 1130727,
+      "url": "https://github.com/advisories/GHSA-m8rv-5g2x-5cg5",
+      "title": "undici vulnerable to CRLF Injection via blob-like body 'type' property",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.28.0",
+      "cwe": [
+        "CWE-93"
+      ],
+      "cvss": {
+        "score": 4.2,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N"
+      }
+    },
+    {
+      "id": 1130732,
+      "url": "https://github.com/advisories/GHSA-v3r7-h72x-cjcm",
+      "title": "undici vulnerable to cookie attribute injection via unsanitized domain and unparsed setCookie fields",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.28.0",
+      "cwe": [
+        "CWE-74"
+      ],
+      "cvss": {
+        "score": 4.8,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N"
+      }
+    },
+    {
+      "id": 1121242,
+      "url": "https://github.com/advisories/GHSA-p88m-4jfj-68fv",
+      "title": "undici vulnerable to HTTP header injection via Set-Cookie percent-decoding",
+      "severity": "moderate",
+      "vulnerable_versions": "<6.27.0",
+      "cwe": [
+        "CWE-93"
+      ],
+      "cvss": {
+        "score": 5.9,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:H/A:N"
+      }
+    },
+    {
+      "id": 1121245,
+      "url": "https://github.com/advisories/GHSA-vxpw-j846-p89q",
+      "title": "undici WebSocket client vulnerable to denial of service via fragment count bypass",
+      "severity": "high",
+      "vulnerable_versions": "<6.27.0",
+      "cwe": [
+        "CWE-400",
+        "CWE-770"
+      ],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      }
+    },
+    {
+      "id": 1121255,
+      "url": "https://github.com/advisories/GHSA-g8m3-5g58-fq7m",
+      "title": "undici vulnerable to Set-Cookie SameSite attribute downgrade via permissive substring matching",
+      "severity": "low",
+      "vulnerable_versions": "<6.27.0",
+      "cwe": [
+        "CWE-183"
+      ],
+      "cvss": {
+        "score": 3.7,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N"
+      }
+    },
+    {
+      "id": 1137243,
+      "url": "https://github.com/advisories/GHSA-35p6-xmwp-9g52",
+      "title": "undici vulnerable to HTTP response queue poisoning via keep-alive socket reuse",
+      "severity": "low",
+      "vulnerable_versions": "<6.27.0",
+      "cwe": [
+        "CWE-367"
+      ],
+      "cvss": {
+        "score": 3.7,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N"
+      }
+    },
+    {
+      "id": 1240039,
+      "url": "https://github.com/advisories/GHSA-r53p-7pc4-xj5r",
+      "title": "undici vulnerable to downstream response splitting via retry interceptor",
+      "severity": "low",
+      "vulnerable_versions": "<6.28.1",
+      "cwe": [
+        "CWE-444"
+      ],
+      "cvss": {
+        "score": 3.7,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N"
+      }
+    },
+    {
+      "id": 1240042,
+      "url": "https://github.com/advisories/GHSA-rfgv-xxqx-mfg5",
+      "title": "undici vulnerable to Denial of Service via unrequested WebSocket subprotocol",
+      "severity": "high",
+      "vulnerable_versions": ">=6.7.0 <6.28.1",
+      "cwe": [
+        "CWE-248",
+        "CWE-252"
+      ],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      }
+    }
+  ],
+  "uuid": [
+    {
+      "id": 1119441,
+      "url": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+      "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+      "severity": "moderate",
+      "vulnerable_versions": "<11.1.1",
+      "cwe": [
+        "CWE-787",
+        "CWE-1285"
+      ],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
+      }
+    }
+  ]
+}

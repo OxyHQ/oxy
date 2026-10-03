@@ -1,0 +1,80 @@
+{
+  "rows": [
+    {
+      "mode": "stock",
+      "path": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock/lib/rsa.js",
+      "sha256": "fd4740238145ec26470eb3f06a627c72039538ce1307dbdce40521f94dfd0a50"
+    },
+    {
+      "mode": "stock",
+      "path": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock/dist/forge.min.js",
+      "sha256": "d9b9074e6861200d676e25dcfe97889db5e8f4150bb766d29c491ad709a51b58"
+    },
+    {
+      "mode": "stock",
+      "path": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock/dist/forge.min.js.map",
+      "sha256": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3"
+    },
+    {
+      "mode": "stock",
+      "path": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock/dist/forge.all.min.js",
+      "sha256": "cb9ba4045a81825f8edb646c38d53a1ac30ce07665bf26042c8dea86d7208642"
+    },
+    {
+      "mode": "stock",
+      "path": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock/dist/forge.all.min.js.map",
+      "sha256": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+    },
+    {
+      "mode": "candidate",
+      "path": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate/lib/rsa.js",
+      "sha256": "425543a09d94457a66d098c490540b2759806dc61236ad3d38610c18d88f1b81"
+    },
+    {
+      "mode": "candidate",
+      "path": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate/dist/forge.min.js",
+      "sha256": "811a6061b91b04955ea1457a7d987f21a496f43304c4a89f870d2d175191a19f"
+    },
+    {
+      "mode": "candidate",
+      "path": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate/dist/forge.min.js.map",
+      "sha256": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3"
+    },
+    {
+      "mode": "candidate",
+      "path": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate/dist/forge.all.min.js",
+      "sha256": "fc2c8c484e3da7608ad5a966a8b747d7fe7c8ea7086b1f76ea8ead544dd7d232"
+    },
+    {
+      "mode": "candidate",
+      "path": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate/dist/forge.all.min.js.map",
+      "sha256": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+    },
+    {
+      "mode": "installed",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge/lib/rsa.js",
+      "sha256": "425543a09d94457a66d098c490540b2759806dc61236ad3d38610c18d88f1b81"
+    },
+    {
+      "mode": "installed",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge/dist/forge.min.js",
+      "sha256": "811a6061b91b04955ea1457a7d987f21a496f43304c4a89f870d2d175191a19f"
+    },
+    {
+      "mode": "installed",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge/dist/forge.min.js.map",
+      "sha256": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3"
+    },
+    {
+      "mode": "installed",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge/dist/forge.all.min.js",
+      "sha256": "fc2c8c484e3da7608ad5a966a8b747d7fe7c8ea7086b1f76ea8ead544dd7d232"
+    },
+    {
+      "mode": "installed",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge/dist/forge.all.min.js.map",
+      "sha256": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+    }
+  ],
+  "all15MatchReviewed": true
+}

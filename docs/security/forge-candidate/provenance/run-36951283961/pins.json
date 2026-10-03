@@ -1,0 +1,21 @@
+{
+  "sourceSha": "da4121cea3040f42d471456a703a1c32da0dba37",
+  "pullRequest": 1517,
+  "headBranch": "candidate/forge-remediation-review-20261002",
+  "runId": 36951283961,
+  "runAttempt": 1,
+  "jobId": 110664570688,
+  "workflowMergeSha": "8f346598a71a592ab7c6a111b8dbe37287cddd70",
+  "artifactId": 11204327594,
+  "artifactDigest": "sha256:79cec99e4f65b0dda8ac0627d3c8274935971bd4eec9b0bffc79d542faf28245",
+  "artifactFiles": {
+    "forge-build-metadata.json": "3b6e796ebf89dfe7ad27e82c44b5076ad2516f73a8c29b9aecdf32d30c096d6f",
+    "forge-image-dangling-links.json": "4b3c6d088ea21592c6ee683cba3adc348c437591b515bf783e0f39d9ce4525dd",
+    "forge-image-identity.txt": "bd6b6a28ba4573cc5b7225bf6593e78a294e0b0ad835bd64963b8c56ca6e4f92",
+    "forge-image-regression-proof.json": "3481b534f2d2c72d57b1fcb4fed4fd3aa93c0d5db545d2aaf71e96a2841c1782"
+  },
+  "image": {
+    "configId": "sha256:a0b41f5fb84990cd0c3d341a44d81cd86414ed7c0b3284f61b1c3612a9a23532",
+    "manifestDigest": "sha256:3c4bdb6bee266f7ce022639d4109f8ef10d06d8005d0ae95d7e7113c7221031e"
+  }
+}

@@ -23,7 +23,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+import { policyTestRepository } from './forge-policy-test-fixtures.mjs';
+
+const syntheticRepository = policyTestRepository();
+const repositoryRoot = syntheticRepository.root;
+process.on('exit', () => syntheticRepository.remove());
 const gate = resolve(repositoryRoot, 'scripts/check-dependency-audit.mjs');
 
 function acknowledgements() {
@@ -40,7 +44,7 @@ function acknowledgements() {
   return JSON.parse(emitted.stdout.toString());
 }
 
-const { packages, criticals } = acknowledgements();
+const { packages, criticals, advisoryConstraints = {} } = acknowledgements();
 
 if (packages.length === 0) {
   console.error(
@@ -68,7 +72,7 @@ const advisory = (severity, id, title) => ({
 function cleanPayload() {
   const payload = {};
   for (const name of packages) {
-    payload[name] = [advisory('high', `GHSA-synthetic-${packages.indexOf(name)}`, `${name}: a high advisory`)];
+    payload[name] = [advisory('high', advisoryConstraints[name]?.[0] ?? `GHSA-synthetic-${packages.indexOf(name)}`, `${name}: a high advisory`)];
   }
   for (const entry of criticals) {
     payload[entry.package] = [
@@ -104,6 +108,15 @@ const firstPackage = packages[0];
 const firstCritical = criticals[0];
 
 const cases = [
+  {
+    name: 'a new high advisory in exactly constrained braces fails',
+    payload: { ...cleanPayload(), braces: [
+      ...cleanPayload().braces,
+      advisory('high', 'GHSA-new-braces-advisory', 'unreviewed high in an acknowledged package'),
+    ] },
+    expectFailure: true,
+    expectOutput: 'GHSA-new-braces-advisory',
+  },
   {
     name: 'a payload holding exactly the acknowledged advisories passes',
     payload: cleanPayload(),

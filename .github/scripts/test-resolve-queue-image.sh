@@ -14,6 +14,22 @@ failures=0
 sha=0123456789abcdef0123456789abcdef01234567
 digest=sha256:1111111111111111111111111111111111111111111111111111111111111111
 
+# These are the legacy INACTIVE cases. Read committed fixture policy, never the
+# real checkout's policy. ACTIVE fail-closed cases remain in test-forge-future-dag.
+fixture_repo="$work/checkout"
+mkdir -p "$fixture_repo/docs/security/forge-candidate/provenance"
+fixture_git() {
+  env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES \
+    /usr/bin/git -C "$fixture_repo" -c user.name='Synthetic Fixture' -c user.email=fixture@example.invalid \
+    -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
+}
+fixture_git init -q
+cat >"$fixture_repo/docs/security/forge-candidate/provenance/audit-policy-decision.json" <<'POLICY'
+{"schemaVersion":1,"status":"INACTIVE","targetSourceHead":null,"expiresAt":null,"authorizationRecord":null,"independentEvidence":null}
+POLICY
+fixture_git add -- docs/security/forge-candidate/provenance/audit-policy-decision.json
+fixture_git commit -qm 'Synthetic inactive policy for legacy resolver cases'
+
 mkdir -p "$work/bin"
 cat >"$work/bin/gh" <<'STUB'
 #!/usr/bin/env bash
@@ -53,7 +69,7 @@ case_() {
     i=$((i + 1))
   done
   local out
-  if ! out="$(PATH="$work/bin:$PATH" FIXTURES="$dir" EXPECT_SHA="$sha" REPOSITORY=oxy/oxy-api SHA="$sha" \
+  if ! out="$(cd "$fixture_repo"; env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES PATH="$work/bin:$PATH" FIXTURES="$dir" EXPECT_SHA="$sha" REPOSITORY=oxy/oxy-api SHA="$sha" \
     GITHUB_REPOSITORY=OxyHQ/oxy GITHUB_OUTPUT="$dir/out" POLL_SECS=0 WAIT_SECS="${WAIT:-5}" \
     bash "$script" 2>"$dir/stderr")"; then
     echo "FAIL $name: exited non-zero: $(cat "$dir/stderr")"

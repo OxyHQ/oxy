@@ -1,0 +1,370 @@
+{
+  "status": "INDEPENDENT_REPRODUCTION_COMPLETED_CANDIDATE_UNAPPROVED",
+  "recordedAtUTC": "2026-10-03T05:29:17.501160+00:00",
+  "candidateCommit": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
+  "upstreamTag": "v1.4.0",
+  "upstreamCommit": "fa385f92440879601240020f158bed68e444e83a",
+  "toolchain": {
+    "bun": "1.4.2",
+    "node": "24.21.0",
+    "openssl": "3.5.8",
+    "platform": "linux",
+    "arch": "x64",
+    "webpack": "4.47.0",
+    "webpackCli": "3.3.12",
+    "mocha": "5.2.0"
+  },
+  "inputs": {
+    "bun.lock": "864b175c3684fa10fb62769363a2128faeede5fb8f766ec34e232d853f9e206d",
+    "package.json": "bc2aac184dd2f80e25ce69ab52843ce9a29da7a11a04b5677bf0a6bc3a9ae889",
+    "patches/node-forge@1.4.0.patch": "6c8b35a750038ddae3b2973dd81cad4826fa31744053c878cd8959338edcd776",
+    "docs/security/forge-candidate/toolchain.bun.lock": "4d79aaf8585817aa08681a2c14728b1f30612b4d146543f50691f3382b4f8a49",
+    "scripts/rehearsal/test-forge-final-input-1519.py": "790e0899a1cf65eae8cca07f4908f5dab6a289d8e9866f56574387be8ce8bd31",
+    "scripts/forge-independent-expo-compat.cjs": "97bb588e63d8c47a21157c48ca39dfc203a481fb4405fd1b19b28f9599a6b8df"
+  },
+  "webpackConfigSha256": "5e70f8af959af5edf27b5a42985da607ad4047ba014a0a3da39d83973449f1dd",
+  "files": {
+    "stock": {
+      "lib/rsa.js": "fd4740238145ec26470eb3f06a627c72039538ce1307dbdce40521f94dfd0a50",
+      "dist/forge.min.js": "d9b9074e6861200d676e25dcfe97889db5e8f4150bb766d29c491ad709a51b58",
+      "dist/forge.min.js.map": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3",
+      "dist/forge.all.min.js": "cb9ba4045a81825f8edb646c38d53a1ac30ce07665bf26042c8dea86d7208642",
+      "dist/forge.all.min.js.map": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+    },
+    "candidate": {
+      "lib/rsa.js": "425543a09d94457a66d098c490540b2759806dc61236ad3d38610c18d88f1b81",
+      "dist/forge.min.js": "811a6061b91b04955ea1457a7d987f21a496f43304c4a89f870d2d175191a19f",
+      "dist/forge.min.js.map": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3",
+      "dist/forge.all.min.js": "fc2c8c484e3da7608ad5a966a8b747d7fe7c8ea7086b1f76ea8ead544dd7d232",
+      "dist/forge.all.min.js.map": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+    },
+    "installed": {
+      "lib/rsa.js": "425543a09d94457a66d098c490540b2759806dc61236ad3d38610c18d88f1b81",
+      "dist/forge.min.js": "811a6061b91b04955ea1457a7d987f21a496f43304c4a89f870d2d175191a19f",
+      "dist/forge.min.js.map": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3",
+      "dist/forge.all.min.js": "fc2c8c484e3da7608ad5a966a8b747d7fe7c8ea7086b1f76ea8ead544dd7d232",
+      "dist/forge.all.min.js.map": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+    }
+  },
+  "candidateBuilds2And3ByteIdentical": true,
+  "upstreamTests": {
+    "stock": {
+      "passing": 828,
+      "pending": 4
+    },
+    "candidate": {
+      "passing": 828,
+      "pending": 4
+    },
+    "testOnlyChange": "tests/unit/jsbn.js: describe.only -> describe; one occurrence per isolated clone"
+  },
+  "expoTests": {
+    "packageVersion": "0.0.6",
+    "ownPublicApiChecksPassing": 14,
+    "upstreamExpoSuiteExecuted": false,
+    "historicalInitialHarness": {
+      "sourceHead": "b09309b62e0eb60ad9d2e43726d8fd11749180c7",
+      "passing": 12,
+      "failing": 2,
+      "meaning": "historical b093 harness correction; not the current issuer-stage command"
+    },
+    "stageInitialInvocation": {
+      "command": "node --test scripts/forge-independent-expo-compat.cjs packages/api",
+      "ownChecksPassing": 14,
+      "extraneousPackageEntryFailing": 1,
+      "correctedCommand": "node scripts/forge-independent-expo-compat.cjs packages/api",
+      "correctedChecksPassing": 14
+    }
+  },
+  "oxyTests": {
+    "suitesPassing": 3,
+    "testsPassing": 34,
+    "ownedPostgresPid": 3517840,
+    "ownedPostgresMajor": 17,
+    "ownedPostgresPort": 5578,
+    "ownedPostgresDataDirectory": "/tmp/oxy-forge-final-pg-nhuo2o26/data",
+    "databaseLifecycle": "fresh initdb owned PID/UID/data/executable/listening socket verified; normal migrator130+repeat; Jest random databases migrated/dropped; server stopped finally"
+  },
+  "knownKeyControls": {
+    "stock": {
+      "count": 321,
+      "knownKeyControlsOnly": true
+    },
+    "candidate": {
+      "count": 321,
+      "knownKeyControlsOnly": true
+    }
+  },
+  "noPrivateKeyForgeryDemonstrated": false,
+  "securityApproved": false,
+  "auditExceptionApproved": false,
+  "publishedMergedOrDeployed": false,
+  "records": [
+    {
+      "file": "stock-build.log",
+      "sha256": "9c3d6cabbe2769db584aa7ca0efa70d415ba226360e8038a5c65e28922a1fe44",
+      "completedFileMtimeUTC": "2026-10-02T15:10:54.326086+00:00",
+      "command": "bun run build (stock)",
+      "exitCode": 0,
+      "reusedHistorical": true
+    },
+    {
+      "file": "candidate-build-1.log",
+      "sha256": "ff09c19619400c1f483ff044151cb799c67ae028f672868c3dee0f9d19de7062",
+      "completedFileMtimeUTC": "2026-10-02T15:14:21.150452+00:00",
+      "command": "bun run build (candidate)",
+      "exitCode": 0,
+      "reusedHistorical": true
+    },
+    {
+      "file": "candidate-build-2.log",
+      "sha256": "0c3e817235c3be23a1893cbad017852e1c46216de1634de80db1b1570c042670",
+      "completedFileMtimeUTC": "2026-10-02T15:14:49.962502+00:00",
+      "command": "bun run build (candidate)",
+      "exitCode": 0,
+      "reusedHistorical": true
+    },
+    {
+      "file": "candidate-build-3.log",
+      "sha256": "db7310435539f294d369f73a1a00debe9b46ea0f0a3e8460b108d5942ad85148",
+      "completedFileMtimeUTC": "2026-10-02T15:15:11.810541+00:00",
+      "command": "bun run build (candidate)",
+      "exitCode": 0,
+      "reusedHistorical": true
+    },
+    {
+      "file": "stock-upstream.log",
+      "sha256": "a19582d5fa6b1ca6f143d95b852eb8d0fd08c3eaea6460c9935dbce473688048",
+      "completedFileMtimeUTC": "2026-10-02T15:14:52.862507+00:00",
+      "command": "NODE_ENV=test node node_modules/mocha/bin/mocha -t 30000 -R dot tests/unit/index.js (stock)",
+      "exitCode": 0,
+      "reusedHistorical": true
+    },
+    {
+      "file": "candidate-upstream.log",
+      "sha256": "122020d68a08e839776afbd4477a8ece99549cd1e4c8057973a1dd75b19dd9df",
+      "completedFileMtimeUTC": "2026-10-02T15:14:52.890507+00:00",
+      "command": "NODE_ENV=test node node_modules/mocha/bin/mocha -t 30000 -R dot tests/unit/index.js (candidate)",
+      "exitCode": 0,
+      "reusedHistorical": true
+    },
+    {
+      "file": "expo-14.log",
+      "sha256": "9dd46f919c67d52d996aae1c604086d766b4b1d19599e77b40d70dc3db5f5e70",
+      "completedFileMtimeUTC": "2026-10-02T15:16:42.814702+00:00",
+      "command": "node scripts/forge-independent-expo-compat.cjs (initial harness: exit 1)",
+      "exitCode": 1,
+      "reusedHistorical": true
+    },
+    {
+      "file": "expo-14-final.log",
+      "sha256": "f1fe1f3cd6e34950f5f4ca57d77d22b17143e11077ab31e278171735d79e8c20",
+      "completedFileMtimeUTC": "2026-10-03T05:29:17.501160+00:00",
+      "command": "node scripts/forge-independent-expo-compat.cjs packages/api",
+      "exitCode": 0,
+      "reusedHistorical": false
+    },
+    {
+      "file": "oxy-34.log",
+      "sha256": "f5a543db3b41e8d8a6762ce1516f0bed83888f11a23248f470ffc8c842e2c3db",
+      "completedFileMtimeUTC": "2026-10-03T05:29:17.501160+00:00",
+      "command": "python3 scripts/rehearsal/test-forge-final-input-1519.py (owned server, normal API test/migrator)",
+      "exitCode": 0,
+      "reusedHistorical": false
+    },
+    {
+      "file": "oxy-db-build.log",
+      "sha256": "d0b583f8cca2af94fd55a1f0198cf9cd6f00925ae2b8a239dd323b58b709e95d",
+      "completedFileMtimeUTC": "2026-10-03T04:09:46.059281+00:00",
+      "command": "bunx turbo run build --filter=@oxy.so/api^... (eight dependencies built)",
+      "exitCode": 0,
+      "reusedHistorical": true,
+      "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece"
+    },
+    {
+      "file": "stock-install-pinned.log",
+      "sha256": "d3986824969caab696d2378cb07ea3f29ac03c506b5c7c5383cd303c25f6c842",
+      "completedFileMtimeUTC": "2026-10-02T15:10:23.434031+00:00",
+      "command": "bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts (stock, copied pinned lock)",
+      "exitCode": 0,
+      "reusedHistorical": true
+    },
+    {
+      "file": "candidate-install.log",
+      "sha256": "d8d5f3edddecc67ba680c9e9faacf537977d1c198ac87ff3cbae937185af82ed",
+      "completedFileMtimeUTC": "2026-10-02T15:14:19.378449+00:00",
+      "command": "bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts (candidate, copied pinned lock)",
+      "exitCode": 0,
+      "reusedHistorical": true
+    },
+    {
+      "file": "oxy-install.log",
+      "sha256": "974dd273bbe6e12a0e94b05649e21a5a9e9ed5afad792773d510508b1a92376b",
+      "completedFileMtimeUTC": "2026-10-03T04:09:46.059325+00:00",
+      "command": "bun install --frozen-lockfile --minimum-release-age=0 (issuer-only staging input)",
+      "exitCode": 0,
+      "reusedHistorical": true,
+      "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece"
+    },
+    {
+      "file": "stock-controls.json",
+      "sha256": "6601b78646f19ae140740a073e7bb53f402b091331cce97e5b81d68040e2c28b",
+      "completedFileMtimeUTC": "2026-10-02T15:15:10.830539+00:00",
+      "command": "node scripts/forge-candidate-regression.cjs .forge-independent/stock stock",
+      "exitCode": 0,
+      "reusedHistorical": true
+    },
+    {
+      "file": "candidate-controls.json",
+      "sha256": "ee62bcfa872ce593ee1c4dba709d04fe1b9c52c1ce1ddc12dec7cdfa03d79033",
+      "completedFileMtimeUTC": "2026-10-03T04:09:46.059394+00:00",
+      "command": "node scripts/forge-candidate-regression.cjs <final installed Forge root> candidate",
+      "exitCode": 0,
+      "reusedHistorical": true,
+      "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece"
+    },
+    {
+      "file": "hashes-after-build-2.json",
+      "sha256": "cfa84fd5651fe22dd404a19c00891c90cae9266b72367f41e2ed8c0cd23092cc",
+      "completedFileMtimeUTC": "2026-10-02T15:15:08.493294+00:00",
+      "command": "Python hashlib SHA-256 snapshot after candidate build 2, before build 3",
+      "exitCode": 0,
+      "reusedHistorical": true
+    },
+    {
+      "file": "candidate-build-repeat.json",
+      "sha256": "5b4b22dbb33db144dde5a94cd6fb67269f981705b9a55b519b6a2d6f00934143",
+      "completedFileMtimeUTC": "2026-10-02T15:17:04.442002+00:00",
+      "command": "Python hashlib SHA-256 snapshot after candidate build 3; asserted equality with build 2 snapshot",
+      "exitCode": 0,
+      "reusedHistorical": true
+    }
+  ],
+  "retainedPaths": {
+    "evidenceRoot": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002",
+    "stockClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock",
+    "candidateClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate",
+    "exactOxyWorktree": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003",
+    "installedForge": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge"
+  },
+  "historicalCryptoEvidence": {
+    "sourceHead": "b09309b62e0eb60ad9d2e43726d8fd11749180c7",
+    "proofSha256": "bed652f5f3167dfb388272fb56b88636027a118bf18beadb8d6e047ef953daa4",
+    "reusedRecords": [
+      "stock-build.log",
+      "candidate-build-1.log",
+      "candidate-build-2.log",
+      "candidate-build-3.log",
+      "stock-upstream.log",
+      "candidate-upstream.log",
+      "expo-14.log",
+      "stock-install-pinned.log",
+      "candidate-install.log",
+      "stock-controls.json",
+      "hashes-after-build-2.json",
+      "candidate-build-repeat.json"
+    ],
+    "scope": "Historical stock/candidate Forge builds, upstream828+4pending, and known-key321 controls are reused on unchanged source/patch/toolchain and15 verified output hashes. Current Oxy34 and Expo14 rerun on source9efa8d28e. Dependency build/install and installed321 from15cf explicitly reused because dependency input trees and allfive installedForge outputs unchanged; only API comments/OpenAPI changed between15cf and9efa. New ARM target still required."
+  },
+  "supplementalRecords": [
+    {
+      "file": "consumer-runner-final.log",
+      "sha256": "07117c816cf897a8e11c2c9283498d1e6ca6b8f5f312001d2feae3d572cc487e"
+    },
+    {
+      "file": "migrate-fresh.txt",
+      "sha256": "e8a9e2b605f8d81a9b17ef4b5fcf819521c6b50e5eafba2f2ea171cc667c6c6b"
+    },
+    {
+      "file": "migrate-repeat.txt",
+      "sha256": "b3a8918777c87fa23ea35591d9778ef23d9264abecbb83bd47e22c7d4929028d"
+    },
+    {
+      "file": "inventory.json",
+      "sha256": "47c6b1f8bcde4f332eb6cdc3b1913f6fc55015aab3261f48d6300b43308f6314"
+    },
+    {
+      "file": "policy-final.log",
+      "sha256": "b5301cec2da2ba4115792c31924802f4d94bb8d65be57b6bd7ac0cdfaad22b33"
+    },
+    {
+      "file": "framework-inputs.json",
+      "sha256": "cfa7d1e82fd58c72ecc890e270dada8f05a6c75890ea0a84a37cdc2ea174a8da"
+    },
+    {
+      "file": "dag82.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9"
+    },
+    {
+      "file": "resolver14.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3"
+    },
+    {
+      "file": "topology20.log",
+      "sha256": "b11f784808c503afd7758fb8b018d41ab2ccc5ebe574f5da8fab144875823ed0"
+    },
+    {
+      "file": "binding43.log",
+      "sha256": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4"
+    },
+    {
+      "file": "collector61.log",
+      "sha256": "9746a7f6baed84fa55c2320db1dca1acb2e69c1aac74423199a7db1394317c95"
+    },
+    {
+      "file": "clock13.log",
+      "sha256": "095db5ea3c1425fcc0c6c5486c36f7dd9b19d6993b3291969c165a0939d44441"
+    },
+    {
+      "file": "stream13.log",
+      "sha256": "d034ab39354c2f034fa02526bcbb2b25197c79369aa9fb04ff68ee72fc6a232f"
+    },
+    {
+      "file": "audit-fixtures.log",
+      "sha256": "7a58bf46bbdd442d52778789e68999c475f3331f64ffcd9fd526b166ab8e2bce"
+    },
+    {
+      "file": "proposal131.log",
+      "sha256": "d029c2e020cf6fafc5acce840c0a5e116ec25d18cae4e0520dd713f07dacbe77"
+    },
+    {
+      "file": "expo-invocation-error.log",
+      "sha256": "f63682204c89951d63fe9a0f1bd156242cc5f3636b396549c73eaa5be1a70c87"
+    },
+    {
+      "file": "openapi-fresh.log",
+      "sha256": "9e6fb144dfee1c9fbe5a4db3f7165209f2bb9bf4c5c4a806416563e35130cd0b"
+    }
+  ],
+  "inputTrees": {
+    "packages": "0dd0ca266d583f50abb62335cff8434aea953cf2",
+    "bun.lock": "266d2176150ca013b673908bb22bc84f20a65b5f",
+    "package.json": "19136677bba961cb17936a52f1262b4d54801a78",
+    "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+    "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
+    "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
+    "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
+    "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
+    "scripts/rehearsal/test-forge-final-input-1519.py": "c61511bc703368530a680bd54bd082406e86a0e7",
+    "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
+  },
+  "stage": {
+    "base": "4b145040afca38be93ad4096241d4c60e12e1c82",
+    "runtimeChange": "issuer300 only; verifier unchanged",
+    "normalMigrationCount": 130,
+    "ownPGStopped": true,
+    "policyStatus": "INACTIVE",
+    "armProofCollected": false,
+    "expiryNotExtended": "2026-10-09T22:00:00Z",
+    "firstExpoInvocation": "node --test also treated packages/api as a test; 14 own checks passed but invocation failed; corrected direct runner passed14",
+    "machineInputBindingCorrection": "Policy EVIDENCE_PATH requires this17-record proof. It now names9efa and refreshed Oxy/Expo/PG+Gitinputs. Separate refreeze23-record proof is supplemental, not a bypass/substitute for the policy machine format.",
+    "correctedPolicySuite": {
+      "sourceHead": "afd7cbf24f346dec255dd6e88167c370fa2cc1f9",
+      "command": "bun scripts/test-forge-audit-policy.mjs",
+      "exitCode": 0,
+      "assertions": 123,
+      "auditFixtureCases": 10,
+      "scope": "Only test expected total9\u219210 changed. All runtime policy, package inputs and crypto evidence unchanged; prior refreeze policy log failed and is preserved, never credited."
+    }
+  }
+}

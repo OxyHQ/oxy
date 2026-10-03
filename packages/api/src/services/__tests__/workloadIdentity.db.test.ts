@@ -182,10 +182,11 @@ describe('workload-identity mint', () => {
     const grant = await exchange(subject);
 
     expect(grant.appName).toBe(application.name);
-    expect(grant.expiresIn).toBe(3600);
+    expect(grant.expiresIn).toBe(300);
     const verified = verifyServiceToken(grant.token);
     expect(verified.ok).toBe(true);
     if (!verified.ok) return;
+    expect((verified.payload.exp ?? 0) - (verified.payload.iat ?? 0)).toBe(300);
     expect(verified.payload).toMatchObject({
       type: 'service',
       appId: application.id,

@@ -1,0 +1,10 @@
+20 real Git SQUASH source-binding assertions pass; metadata is explicitly synthetic, no live approval.
+43 synthetic final-image binding assertions pass; no real image, publication or approval claimed.
+48 final-image collector/real-scan-content assertions pass on DERIVED SYNTHETIC queue context; no authenticated queue or publication claimed.
+51 unapplied DAG/resolver assertions pass in synthetic owned Git only; authorized:false.
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 0.017s
+
+OK
+Forge audit policy: 118 structural and isolated policy assertions passed; no live or human authorization claimed.

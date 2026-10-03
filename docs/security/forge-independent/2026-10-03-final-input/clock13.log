@@ -1,0 +1,1 @@
+13 isolated real-collector clock/layout assertions pass; stale-clock mutation accepts expired facts and corrected collector rejects. No live API, authority or publication.

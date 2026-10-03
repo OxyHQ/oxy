@@ -1,0 +1,2 @@
+$ bun scripts/generate-openapi.ts
+[generate-openapi] wrote /home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/packages/api/openapi.json with 353 paths, 408 operations.

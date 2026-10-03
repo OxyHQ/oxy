@@ -173,6 +173,8 @@ interface ServiceClaims {
   environment?: string;
   iss?: string;
   aud?: string | string[];
+  iat: number;
+  exp: number;
 }
 
 /**
@@ -225,7 +227,9 @@ describe('POST /auth/service-token — credential usability', () => {
     const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ expiresIn: 3600, appName: client.appName });
+    expect(res.body.data).toMatchObject({ expiresIn: 300, appName: client.appName });
+    const claims = decodeServiceJwt((res.body.data as { token: string }).token);
+    expect(claims.exp - claims.iat).toBe(300);
   });
 
   it('accepts a DEPRECATED credential still inside its rotation grace', async () => {

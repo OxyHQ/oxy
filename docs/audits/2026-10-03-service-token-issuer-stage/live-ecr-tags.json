@@ -1,0 +1,12 @@
+[
+    {
+        "digest": "sha256:29502ab56460ed8261b5dd747d93fd36e345f28e633a17c865c34d4fae7b653a",
+        "tags": [
+            "deployed-c807c2b5e48cb1ee108cc9c9b45d13e639eeacaa",
+            "mq-c807c2b5e48cb1ee108cc9c9b45d13e639eeacaa",
+            "latest",
+            "c807c2b5e48cb1ee108cc9c9b45d13e639eeacaa"
+        ],
+        "pushedAt": "2026-10-02T01:54:26.049000+03:00"
+    }
+]

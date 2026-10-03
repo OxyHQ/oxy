@@ -82,6 +82,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inspectForgeAuditPolicy } from './forge-audit-policy.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -105,6 +106,19 @@ const GATED_SEVERITIES = new Set(['high', 'critical']);
  * list.
  */
 const ACKNOWLEDGED_PACKAGES = [
+  {
+    package: 'braces',
+    advisories: ['GHSA-vfj7-8cjw-p6xm'],
+    reachedBy: '@oxy.so/api -> @oxy.so/protocol -> expo-modules-core -> react-native -> Metro -> micromatch; also development tooling',
+    reason:
+      'GHSA-vfj7-8cjw-p6xm has no patched release. Native peers materialize Metro/micromatch '
+      + 'in the production closure, so this is not a dev-only dependency. The inspected protocol '
+      + 'Node export selects platform/crypto.ts (node:crypto), not its native entry; no inspected '
+      + 'API/core/contracts/protocol runtime source imports Metro/micromatch/braces. Tooling '
+      + 'patterns come from repository inputs. This is reachability evidence, not a complete '
+      + 'transitive request-path proof; reject untrusted nested tooling patterns and revisit '
+      + 'on any graph/entrypoint change or upstream fix. See docs/security/issuer-braces-review-2026-10-03.md.',
+  },
   {
     package: 'undici',
     reachedBy: 'release-it (dev)',
@@ -131,6 +145,7 @@ if (process.env.DEPENDENCY_AUDIT_EMIT_ACKNOWLEDGEMENTS === '1') {
   console.log(
     JSON.stringify({
       packages: ACKNOWLEDGED_PACKAGES.map((entry) => entry.package),
+      advisoryConstraints: Object.fromEntries(ACKNOWLEDGED_PACKAGES.filter(entry => entry.advisories).map(entry => [entry.package, entry.advisories])),
       criticals: ACKNOWLEDGED_CRITICAL.map((entry) => ({
         package: entry.package,
         advisory: entry.advisory,
@@ -219,8 +234,18 @@ for (const [packageName, advisories] of Object.entries(payload)) {
 }
 
 // ── 1. Every gated advisory sits in an acknowledged package ────────────────
-const acknowledgedNames = new Set(ACKNOWLEDGED_PACKAGES.map((entry) => entry.package));
-const unacknowledged = gated.filter((entry) => !acknowledgedNames.has(entry.package));
+const acknowledgedEntries = new Map(ACKNOWLEDGED_PACKAGES.map((entry) => [entry.package, entry]));
+// A reviewed source policy can target only one advisory. The committed record
+// is INACTIVE; no environment variable, actor name or prototype approval changes it.
+const scopedPolicy = inspectForgeAuditPolicy(payload);
+if (scopedPolicy.configurationInvalid || (scopedPolicy.policyActive && !scopedPolicy.remediated)) {
+  problems.push(`Scoped Forge policy fails closed: ${scopedPolicy.reason}`);
+}
+const unacknowledged = gated.filter((entry) => (!acknowledgedEntries.has(entry.package)
+  || (acknowledgedEntries.get(entry.package).advisories
+    && !acknowledgedEntries.get(entry.package).advisories.includes(entry.advisory)))
+  && !(scopedPolicy.remediated && entry.package === 'node-forge'
+    && entry.advisory === 'GHSA-86w9-cpqp-85rv' && entry.severity === 'high'));
 
 for (const entry of unacknowledged) {
   problems.push(

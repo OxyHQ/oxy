@@ -28,6 +28,12 @@ on:
       - ".github/scripts/resolve-queue-image.sh"
       - ".github/scripts/tag-ecr-image.sh"
   workflow_dispatch:
+    inputs:
+      issuer_image_only:
+        description: Exact reviewed TTL300 issuer stage; preserve live config, no sync/DDL/worker/catalog
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   id-token: write
@@ -58,6 +64,27 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Read committed source policy status
+        id: forge_policy
+        run: |
+          set -euo pipefail
+          status="$(git show HEAD:docs/security/forge-candidate/provenance/audit-policy-decision.json | python3 -c 'import json,sys; x=json.load(sys.stdin); assert set(x)==set(["schemaVersion","status","targetSourceHead","expiresAt","authorizationRecord","independentEvidence"]); assert x["schemaVersion"]==1 and x["status"] in ["INACTIVE","ACTIVE"]; print(x["status"])')"
+          echo "active=$([[ "$status" == ACTIVE ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: oven-sh/setup-bun@v2
+        if: steps.forge_policy.outputs.active == 'true'
+        with:
+          bun-version-file: package.json
+      - name: Validate policy before byte inventory or provenance login
+        if: steps.forge_policy.outputs.active == 'true'
+        run: |
+          bun -e 'import { readCommittedPolicyStatus } from "./scripts/forge-audit-policy.mjs"; if (readCommittedPolicyStatus() !== "ACTIVE") process.exit(1);'
+          bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
+
+      - name: Guard exact issuer image-only inputs before AWS login
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.issuer_image_only }}
+        run: node .github/scripts/guard-issuer-image-only.mjs
 
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v6
@@ -66,6 +93,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Sync API deployment secrets -> SSM (GitHub is the source of truth)
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.issuer_image_only) }}
         # Synced secrets use a SYNC_ prefix so they never collide with the AWS
         # CLI's reserved credential env vars (AWS_ACCESS_KEY_ID /
         # AWS_SECRET_ACCESS_KEY / AWS_ENDPOINT_URL). secrets.AWS_ACCESS_KEY_ID is
@@ -168,6 +196,7 @@ jobs:
           done
 
       - name: Verify Inbox service credential bindings
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.issuer_image_only) }}
         run: |
           set -euo pipefail
           for parameter in OXY_APPLICATION_KEY OXY_APPLICATION_SECRET; do
@@ -193,7 +222,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: oxy/${{ env.APP }}
           SHA: ${{ github.sha }}
-        run: bash .github/scripts/resolve-queue-image.sh
+        run: |
+          set -euo pipefail
+          if [[ '${{ steps.forge_policy.outputs.active }}' == true ]]; then
+            forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
+            test -n "$forge_runner_home"
+            trap 'env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth logout --hostname github.com >/dev/null 2>&1 || true' EXIT
+            printf '%s' "$GH_TOKEN" | env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth login --hostname github.com --with-token
+          fi
+          bash .github/scripts/resolve-queue-image.sh
 
       - name: Set up Docker Buildx
         if: steps.queue_image.outputs.digest == ''
@@ -290,6 +327,7 @@ jobs:
       # typo'd marker would read as "no post migration in this release" and the
       # drop would never be applied by anything.
       - name: Plan post-rollout reconciliation tasks
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.issuer_image_only) }}
         id: post_deploy_tasks
         run: |
           set -euo pipefail
@@ -316,6 +354,7 @@ jobs:
 
       - name: Register immutable task definition and deploy
         env:
+          ISSUER_IMAGE_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.issuer_image_only && 'true' || 'false' }}
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.image.outputs.digest }}
           # Applies pending additive migrations on the NEW image, inside the VPC,
           # BEFORE the service update — so the schema a rollout needs is never
@@ -410,7 +449,11 @@ jobs:
             exit 0
           fi
 
-          bash .github/scripts/deploy-ecs-image.sh
+          if [[ "$ISSUER_IMAGE_ONLY" == true ]]; then
+            bash .github/scripts/deploy-issuer-image-only.sh
+          else
+            bash .github/scripts/deploy-ecs-image.sh
+          fi
 
       # The worker's rollout started inside the step above (PRE_ROLLOUT_SCRIPT).
       # This requires its exact steady state on this build's image: one
@@ -429,6 +472,7 @@ jobs:
       # every producer and consumer of `asset-variants` connects through
       # getAssetVariantQueueConnectionOptions (QUEUE_REDIS_URL).
       - name: Confirm the asset-variant worker rollout
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.issuer_image_only) }}
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.image.outputs.digest }}
         run: bash .github/scripts/deploy-asset-variant-worker.sh wait
