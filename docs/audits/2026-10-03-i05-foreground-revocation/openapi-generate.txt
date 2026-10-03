@@ -1,0 +1,2 @@
+$ bun scripts/generate-openapi.ts
+[generate-openapi] wrote /home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/packages/api/openapi.json with 367 paths, 422 operations.

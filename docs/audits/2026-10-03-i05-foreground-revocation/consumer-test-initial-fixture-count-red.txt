@@ -1,0 +1,23 @@
+$ node transport.mjs
+ESM: installed foreground method/schema; independent service header/requester body and requester-only DELETE; malformed authority rejected before transport
+CJS: installed foreground method/schema; independent service header/requester body and requester-only DELETE; malformed authority rejected before transport
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+6 !== 4
+
+    at file:///home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packed-consumer-revoke/transport.mjs:47:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 6,
+  expected: 4,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
+error: script "test" exited with code 1
