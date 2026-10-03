@@ -52,8 +52,7 @@ import { users } from '../db/schema/users';
 import SignatureService from './signature.service';
 import sessionService from './session.service';
 import { AUTH_CODE_TTL_MS } from './oauthCode.service';
-import { decideOAuthConsent, persistOAuthAuthorization } from './oauthConsent.service';
-import { intersectScopes } from '../utils/applicationScopes';
+import { decideOAuthConsent, persistOAuthAuthorization, resolveOAuthScopes } from './oauthConsent.service';
 import { isAllowedRedirectUri } from '../utils/oauthRedirect';
 import type { AccountRole } from '../utils/accountRoles';
 import { logger } from '../utils/logger';
@@ -731,6 +730,7 @@ export type FinalizeOAuthRejection =
   | 'application_unavailable'
   | 'redirect_uri_unregistered'
   | 'delegation_denied'
+  | 'invalid_scope'
   | 'issue_failed';
 
 export type FinalizeOAuthOutcome =
@@ -825,6 +825,9 @@ export async function finalizeOAuthAuthorization(
     }
   }
 
+  const effectiveScopes = resolveOAuthScopes(app, oauth.scopes, app.scopes);
+  if (effectiveScopes === null) return { ok: false, reason: 'invalid_scope' };
+
   // ATOMIC single-use claim: reserve the code id AND spend the request in one
   // update. The loser of a concurrent race matches nothing and mints nothing.
   const codeId = uuidv7();
@@ -846,10 +849,6 @@ export async function finalizeOAuthAuthorization(
   }
 
   const grantUserId = subjectAccountId || identityUserId;
-
-  const appScopes = [...app.scopes];
-  const effectiveScopes =
-    oauth.scopes.length > 0 ? intersectScopes(oauth.scopes, appScopes) : appScopes;
 
   try {
     // Consent and code commit TOGETHER, through the same decision and the same

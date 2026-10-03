@@ -1,0 +1,637 @@
+packages/api/src/routes/__tests__/sessionApproveInfo.test.ts:19:18 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    18 │ import express from 'express';
+  > 19 │ import http from 'http';
+       │                  ^^^^^^
+    20 │ import type { AddressInfo } from 'net';
+    21 │ import { randomUUID } from 'node:crypto';
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     17  17 │   
+     18  18 │   import express from 'express';
+     19     │ - import·http·from·'http';
+         19 │ + import·http·from·'node:http';
+     20  20 │   import type { AddressInfo } from 'net';
+     21  21 │   import { randomUUID } from 'node:crypto';
+  
+
+packages/api/src/routes/__tests__/sessionApproveInfo.test.ts:20:34 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    18 │ import express from 'express';
+    19 │ import http from 'http';
+  > 20 │ import type { AddressInfo } from 'net';
+       │                                  ^^^^^
+    21 │ import { randomUUID } from 'node:crypto';
+    22 │ 
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     18  18 │   import express from 'express';
+     19  19 │   import http from 'http';
+     20     │ - import·type·{·AddressInfo·}·from·'net';
+         20 │ + import·type·{·AddressInfo·}·from·'node:net';
+     21  21 │   import { randomUUID } from 'node:crypto';
+     22  22 │   
+  
+
+packages/api/src/routes/__tests__/authSessionOAuthRequest.test.ts:21:18 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    20 │ import express from 'express';
+  > 21 │ import http from 'http';
+       │                  ^^^^^^
+    22 │ import type { AddressInfo } from 'net';
+    23 │ import { randomUUID } from 'node:crypto';
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     19  19 │   
+     20  20 │   import express from 'express';
+     21     │ - import·http·from·'http';
+         21 │ + import·http·from·'node:http';
+     22  22 │   import type { AddressInfo } from 'net';
+     23  23 │   import { randomUUID } from 'node:crypto';
+  
+
+packages/api/src/routes/__tests__/authSessionOAuthRequest.test.ts:22:34 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    20 │ import express from 'express';
+    21 │ import http from 'http';
+  > 22 │ import type { AddressInfo } from 'net';
+       │                                  ^^^^^
+    23 │ import { randomUUID } from 'node:crypto';
+    24 │ 
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     20  20 │   import express from 'express';
+     21  21 │   import http from 'http';
+     22     │ - import·type·{·AddressInfo·}·from·'net';
+         22 │ + import·type·{·AddressInfo·}·from·'node:net';
+     23  23 │   import { randomUUID } from 'node:crypto';
+     24  24 │   
+  
+
+packages/api/src/services/authSession.service.ts:498:22 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    496 │   if (!delegation.ok) {
+    497 │     logger.warn('[AuthSession] Delegated subject refused on signed approval', {
+  > 498 │       authorizeCode: authorizeCode.substring(0, 8) + '...',
+        │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    499 │       identityUserId: userId,
+    500 │       reason: delegation.reason,
+  
+  i Unsafe fix: Use a template literal.
+  
+    496 496 │     if (!delegation.ok) {
+    497 497 │       logger.warn('[AuthSession] Delegated subject refused on signed approval', {
+    498     │ - ······authorizeCode:·authorizeCode.substring(0,·8)·+·'...',
+        498 │ + ······authorizeCode:·`${authorizeCode.substring(0,·8)}...`,
+    499 499 │         identityUserId: userId,
+    500 500 │         reason: delegation.reason,
+  
+
+packages/api/src/services/authSession.service.ts:675:22 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    673 │   if (!claimed.originVerified) {
+    674 │     logger.warn('Auth session authorized (bearer, by code) with an unverified origin', {
+  > 675 │       authorizeCode: authorizeCode.substring(0, 8) + '...',
+        │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    676 │       userId: authenticatedUserId,
+    677 │       applicationId: claimed.applicationId,
+  
+  i Unsafe fix: Use a template literal.
+  
+    673 673 │     if (!claimed.originVerified) {
+    674 674 │       logger.warn('Auth session authorized (bearer, by code) with an unverified origin', {
+    675     │ - ······authorizeCode:·authorizeCode.substring(0,·8)·+·'...',
+        675 │ + ······authorizeCode:·`${authorizeCode.substring(0,·8)}...`,
+    676 676 │         userId: authenticatedUserId,
+    677 677 │         applicationId: claimed.applicationId,
+  
+
+packages/api/src/services/authSession.service.ts:888:21 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    887 │     logger.info('[AuthSession] OAuth authorization finalized', {
+  > 888 │       sessionToken: sessionToken.substring(0, 8) + '...',
+        │                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    889 │       applicationId: app.id,
+    890 │       identityUserId,
+  
+  i Unsafe fix: Use a template literal.
+  
+    886 886 │   
+    887 887 │       logger.info('[AuthSession] OAuth authorization finalized', {
+    888     │ - ······sessionToken:·sessionToken.substring(0,·8)·+·'...',
+        888 │ + ······sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    889 889 │         applicationId: app.id,
+    890 890 │         identityUserId,
+  
+
+packages/api/src/services/authSession.service.ts:906:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    904 │       '[AuthSession] Authorization code mint failed after the request was spent',
+    905 │       error instanceof Error ? error : new Error(String(error)),
+  > 906 │       { sessionToken: sessionToken.substring(0, 8) + '...', applicationId: app.id }
+        │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    907 │     );
+    908 │     return { ok: false, reason: 'issue_failed' };
+  
+  i Unsafe fix: Use a template literal.
+  
+    904 904 │         '[AuthSession] Authorization code mint failed after the request was spent',
+    905 905 │         error instanceof Error ? error : new Error(String(error)),
+    906     │ - ······{·sessionToken:·sessionToken.substring(0,·8)·+·'...',·applicationId:·app.id·}
+        906 │ + ······{·sessionToken:·`${sessionToken.substring(0,·8)}...`,·applicationId:·app.id·}
+    907 907 │       );
+    908 908 │       return { ok: false, reason: 'issue_failed' };
+  
+
+packages/api/src/routes/__tests__/oauthConsentFinalizers.test.ts:25:18 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    24 │ import express from 'express';
+  > 25 │ import http from 'http';
+       │                  ^^^^^^
+    26 │ import type { AddressInfo } from 'net';
+    27 │ import { createHash, randomBytes, randomUUID } from 'node:crypto';
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     23  23 │   
+     24  24 │   import express from 'express';
+     25     │ - import·http·from·'http';
+         25 │ + import·http·from·'node:http';
+     26  26 │   import type { AddressInfo } from 'net';
+     27  27 │   import { createHash, randomBytes, randomUUID } from 'node:crypto';
+  
+
+packages/api/src/routes/__tests__/oauthConsentFinalizers.test.ts:26:34 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    24 │ import express from 'express';
+    25 │ import http from 'http';
+  > 26 │ import type { AddressInfo } from 'net';
+       │                                  ^^^^^
+    27 │ import { createHash, randomBytes, randomUUID } from 'node:crypto';
+    28 │ 
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     24  24 │   import express from 'express';
+     25  25 │   import http from 'http';
+     26     │ - import·type·{·AddressInfo·}·from·'net';
+         26 │ + import·type·{·AddressInfo·}·from·'node:net';
+     27  27 │   import { createHash, randomBytes, randomUUID } from 'node:crypto';
+     28  28 │   
+  
+
+packages/api/src/routes/auth.ts:21:20 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    19 │ import express from 'express';
+    20 │ import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+  > 21 │ import crypto from 'crypto';
+       │                    ^^^^^^^^
+    22 │ import { z } from 'zod';
+    23 │ import { SessionController } from '../controllers/session.controller';
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+      19   19 │   import express from 'express';
+      20   20 │   import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+      21      │ - import·crypto·from·'crypto';
+           21 │ + import·crypto·from·'node:crypto';
+      22   22 │   import { z } from 'zod';
+      23   23 │   import { SessionController } from '../controllers/session.controller';
+  
+
+packages/api/src/routes/auth.ts:863:19 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    862 │   logger.debug('Auth session created', {
+  > 863 │     sessionToken: sessionToken.substring(0, 8) + '...',
+        │                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    864 │     authorizeCode: authorizeCode.substring(0, 8) + '...',
+    865 │     applicationId: resolvedApp.id,
+  
+  i Unsafe fix: Use a template literal.
+  
+     861  861 │   
+     862  862 │     logger.debug('Auth session created', {
+     863      │ - ····sessionToken:·sessionToken.substring(0,·8)·+·'...',
+          863 │ + ····sessionToken:·`${sessionToken.substring(0,·8)}...`,
+     864  864 │       authorizeCode: authorizeCode.substring(0, 8) + '...',
+     865  865 │       applicationId: resolvedApp.id,
+  
+
+packages/api/src/routes/auth.ts:864:20 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    862 │   logger.debug('Auth session created', {
+    863 │     sessionToken: sessionToken.substring(0, 8) + '...',
+  > 864 │     authorizeCode: authorizeCode.substring(0, 8) + '...',
+        │                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    865 │     applicationId: resolvedApp.id,
+    866 │   });
+  
+  i Unsafe fix: Use a template literal.
+  
+     862  862 │     logger.debug('Auth session created', {
+     863  863 │       sessionToken: sessionToken.substring(0, 8) + '...',
+     864      │ - ····authorizeCode:·authorizeCode.substring(0,·8)·+·'...',
+          864 │ + ····authorizeCode:·`${authorizeCode.substring(0,·8)}...`,
+     865  865 │       applicationId: resolvedApp.id,
+     866  866 │     });
+  
+
+packages/api/src/routes/auth.ts:1205:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1203 │     if (!delegation.ok) {
+    1204 │       logger.warn('Delegated subject refused on session authorize', {
+  > 1205 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1206 │         userId: authenticatedUserId,
+    1207 │         reason: delegation.reason,
+  
+  i Unsafe fix: Use a template literal.
+  
+    1203 1203 │       if (!delegation.ok) {
+    1204 1204 │         logger.warn('Delegated subject refused on session authorize', {
+    1205      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1205 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1206 1206 │           userId: authenticatedUserId,
+    1207 1207 │           reason: delegation.reason,
+  
+
+packages/api/src/routes/auth.ts:1226:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1224 │     if (!operator.ok) {
+    1225 │       logger.warn('Session authorize refused: operated seat', {
+  > 1226 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1227 │         userId: authenticatedUserId,
+    1228 │         reason: operator.reason,
+  
+  i Unsafe fix: Use a template literal.
+  
+    1224 1224 │       if (!operator.ok) {
+    1225 1225 │         logger.warn('Session authorize refused: operated seat', {
+    1226      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1226 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1227 1227 │           userId: authenticatedUserId,
+    1228 1228 │           reason: operator.reason,
+  
+
+packages/api/src/routes/auth.ts:1273:19 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1272 │   logger.info('Auth session authorized', {
+  > 1273 │     sessionToken: sessionToken.substring(0, 8) + '...',
+         │                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1274 │     userId: authenticatedUserId,
+    1275 │     applicationId: authSession.applicationId,
+  
+  i Unsafe fix: Use a template literal.
+  
+    1271 1271 │   
+    1272 1272 │     logger.info('Auth session authorized', {
+    1273      │ - ····sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1273 │ + ····sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1274 1274 │       userId: authenticatedUserId,
+    1275 1275 │       applicationId: authSession.applicationId,
+  
+
+packages/api/src/routes/auth.ts:1402:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1400 │       logger.warn('[AuthSession] Claim rejected', {
+    1401 │         reason: outcome.reason,
+  > 1402 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1403 │       });
+    1404 │       throw new UnauthorizedError('invalid_grant');
+  
+  i Unsafe fix: Use a template literal.
+  
+    1400 1400 │         logger.warn('[AuthSession] Claim rejected', {
+    1401 1401 │           reason: outcome.reason,
+    1402      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1402 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1403 1403 │         });
+    1404 1404 │         throw new UnauthorizedError('invalid_grant');
+  
+
+packages/api/src/routes/auth.ts:1413:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1411 │       // never want to return a successful response without these.
+    1412 │       logger.error('[AuthSession] Claimed authSession is missing bindings', new Error('missing bindings'), {
+  > 1413 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1414 │       });
+    1415 │       throw new UnauthorizedError('invalid_grant');
+  
+  i Unsafe fix: Use a template literal.
+  
+    1411 1411 │         // never want to return a successful response without these.
+    1412 1412 │         logger.error('[AuthSession] Claimed authSession is missing bindings', new Error('missing bindings'), {
+    1413      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1413 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1414 1414 │         });
+    1415 1415 │         throw new UnauthorizedError('invalid_grant');
+  
+
+packages/api/src/routes/auth.ts:1428:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1426 │     if (!user) {
+    1427 │       logger.error('[AuthSession] User not found for claimed session', new Error('user not found'), {
+  > 1428 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1429 │         userId: authSession.authorizedUserId,
+    1430 │       });
+  
+  i Unsafe fix: Use a template literal.
+  
+    1426 1426 │       if (!user) {
+    1427 1427 │         logger.error('[AuthSession] User not found for claimed session', new Error('user not found'), {
+    1428      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1428 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1429 1429 │           userId: authSession.authorizedUserId,
+    1430 1430 │         });
+  
+
+packages/api/src/routes/auth.ts:1447:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1445 │     if (!approvedSession) {
+    1446 │       logger.error('[AuthSession] Underlying session disappeared between authorize and claim', new Error('session missing'), {
+  > 1447 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1448 │       });
+    1449 │       throw new UnauthorizedError('invalid_grant');
+  
+  i Unsafe fix: Use a template literal.
+  
+    1445 1445 │       if (!approvedSession) {
+    1446 1446 │         logger.error('[AuthSession] Underlying session disappeared between authorize and claim', new Error('session missing'), {
+    1447      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1447 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1448 1448 │         });
+    1449 1449 │         throw new UnauthorizedError('invalid_grant');
+  
+
+packages/api/src/routes/auth.ts:1498:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1496 │     if (!tokenResult) {
+    1497 │       logger.error('[AuthSession] Could not resolve access token for claimed session', new Error('no access token'), {
+  > 1498 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1499 │         sessionId: session.sessionId,
+    1500 │       });
+  
+  i Unsafe fix: Use a template literal.
+  
+    1496 1496 │       if (!tokenResult) {
+    1497 1497 │         logger.error('[AuthSession] Could not resolve access token for claimed session', new Error('no access token'), {
+    1498      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1498 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1499 1499 │           sessionId: session.sessionId,
+    1500 1500 │         });
+  
+
+packages/api/src/routes/auth.ts:1505:21 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1504 │     logger.info('[AuthSession] Claim succeeded', {
+  > 1505 │       sessionToken: sessionToken.substring(0, 8) + '...',
+         │                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1506 │       sessionId: session.sessionId,
+    1507 │       userId: authSession.authorizedUserId,
+  
+  i Unsafe fix: Use a template literal.
+  
+    1503 1503 │   
+    1504 1504 │       logger.info('[AuthSession] Claim succeeded', {
+    1505      │ - ······sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         1505 │ + ······sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    1506 1506 │         sessionId: session.sessionId,
+    1507 1507 │         userId: authSession.authorizedUserId,
+  
+
+packages/api/src/routes/auth.ts:1757:22 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1756 │     logger.info('Auth session authorized (key-signed)', {
+  > 1757 │       authorizeCode: authorizeCode.substring(0, 8) + '...',
+         │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1758 │       userId: outcome.userId,
+    1759 │     });
+  
+  i Unsafe fix: Use a template literal.
+  
+    1755 1755 │   
+    1756 1756 │       logger.info('Auth session authorized (key-signed)', {
+    1757      │ - ······authorizeCode:·authorizeCode.substring(0,·8)·+·'...',
+         1757 │ + ······authorizeCode:·`${authorizeCode.substring(0,·8)}...`,
+    1758 1758 │         userId: outcome.userId,
+    1759 1759 │       });
+  
+
+packages/api/src/routes/auth.ts:1847:22 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    1846 │     logger.info('Auth session authorized (bearer, by code)', {
+  > 1847 │       authorizeCode: authorizeCode.substring(0, 8) + '...',
+         │                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1848 │       userId: authenticatedUserId,
+    1849 │     });
+  
+  i Unsafe fix: Use a template literal.
+  
+    1845 1845 │   
+    1846 1846 │       logger.info('Auth session authorized (bearer, by code)', {
+    1847      │ - ······authorizeCode:·authorizeCode.substring(0,·8)·+·'...',
+         1847 │ + ······authorizeCode:·`${authorizeCode.substring(0,·8)}...`,
+    1848 1848 │         userId: authenticatedUserId,
+    1849 1849 │       });
+  
+
+packages/api/src/routes/auth.ts:2157:23 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    2155 │       logger.warn('[AuthSession] Finalize rejected', {
+    2156 │         reason: outcome.reason,
+  > 2157 │         sessionToken: sessionToken.substring(0, 8) + '...',
+         │                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    2158 │       });
+    2159 │       throw new UnauthorizedError('invalid_grant');
+  
+  i Unsafe fix: Use a template literal.
+  
+    2155 2155 │         logger.warn('[AuthSession] Finalize rejected', {
+    2156 2156 │           reason: outcome.reason,
+    2157      │ - ········sessionToken:·sessionToken.substring(0,·8)·+·'...',
+         2157 │ + ········sessionToken:·`${sessionToken.substring(0,·8)}...`,
+    2158 2158 │         });
+    2159 2159 │         throw new UnauthorizedError('invalid_grant');
+  
+
+packages/api/src/routes/auth.ts:2527:19 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    2525 │       // not registered. Surface the error to the auth UI instead.
+    2526 │       logger.warn('[OAuth] Rejected unregistered redirect_uri', {
+  > 2527 │         clientId: clientId.substring(0, 12) + '...',
+         │                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    2528 │         redirectUri,
+    2529 │       });
+  
+  i Unsafe fix: Use a template literal.
+  
+    2525 2525 │         // not registered. Surface the error to the auth UI instead.
+    2526 2526 │         logger.warn('[OAuth] Rejected unregistered redirect_uri', {
+    2527      │ - ········clientId:·clientId.substring(0,·12)·+·'...',
+         2527 │ + ········clientId:·`${clientId.substring(0,·12)}...`,
+    2528 2528 │           redirectUri,
+    2529 2529 │         });
+  
+
+packages/api/src/routes/auth.ts:2585:17 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    2584 │     logger.info('[OAuth] Authorization code issued', {
+  > 2585 │       clientId: clientId.substring(0, 12) + '...',
+         │                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    2586 │       userId: user._id.toString(),
+    2587 │       hasPkce: Boolean(codeChallenge),
+  
+  i Unsafe fix: Use a template literal.
+  
+    2583 2583 │   
+    2584 2584 │       logger.info('[OAuth] Authorization code issued', {
+    2585      │ - ······clientId:·clientId.substring(0,·12)·+·'...',
+         2585 │ + ······clientId:·`${clientId.substring(0,·12)}...`,
+    2586 2586 │         userId: user._id.toString(),
+    2587 2587 │         hasPkce: Boolean(codeChallenge),
+  
+
+packages/api/src/routes/auth.ts:3146:19 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    3144 │       logger.warn('[OAuth] Token exchange rejected', {
+    3145 │         reason: exchange.reason,
+  > 3146 │         clientId: clientId.substring(0, 12) + '...',
+         │                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    3147 │       });
+    3148 │       if (exchange.reason === 'invalid_client') {
+  
+  i Unsafe fix: Use a template literal.
+  
+    3144 3144 │         logger.warn('[OAuth] Token exchange rejected', {
+    3145 3145 │           reason: exchange.reason,
+    3146      │ - ········clientId:·clientId.substring(0,·12)·+·'...',
+         3146 │ + ········clientId:·`${clientId.substring(0,·12)}...`,
+    3147 3147 │         });
+    3148 3148 │         if (exchange.reason === 'invalid_client') {
+  
+
+packages/api/src/routes/auth.ts:3649:68 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    3648 │   if (!credential) {
+  > 3649 │     logger.warn('[ServiceToken] Invalid apiKey attempt', { apiKey: apiKey.substring(0, 12) + '...' });
+         │                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    3650 │     throw new UnauthorizedError('Invalid credentials');
+    3651 │   }
+  
+  i Unsafe fix: Use a template literal.
+  
+    3647 3647 │   
+    3648 3648 │     if (!credential) {
+    3649      │ - ····logger.warn('[ServiceToken]·Invalid·apiKey·attempt',·{·apiKey:·apiKey.substring(0,·12)·+·'...'·});
+         3649 │ + ····logger.warn('[ServiceToken]·Invalid·apiKey·attempt',·{·apiKey:·`${apiKey.substring(0,·12)}...`·});
+    3650 3650 │       throw new UnauthorizedError('Invalid credentials');
+    3651 3651 │     }
+  
+
+packages/api/src/routes/auth.ts:22:8 lint/style/useImportType  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × All these imports are only used as types.
+  
+    20 │ import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+    21 │ import crypto from 'crypto';
+  > 22 │ import { z } from 'zod';
+       │        ^^^^^^^^^^^^^^^^
+    23 │ import { SessionController } from '../controllers/session.controller';
+    24 │ import { publicColumns } from '@oxy.so/db/assert';
+  
+  i Importing the types with import type ensures that they are removed by the compilers and avoids loading unnecessary modules.
+  
+  i Safe fix: Use import type.
+  
+    22 │ import·type·{·z·}·from·'zod';
+       │        +++++                 
+
+Checked 6 files in 30ms. No fixes applied.
+Found 30 errors.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

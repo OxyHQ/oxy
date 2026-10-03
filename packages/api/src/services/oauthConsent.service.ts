@@ -35,23 +35,13 @@
  * sign-in — that path is authorized natively by trust, and a redundant grant
  * would only clutter the revocable surface.
  *
- * Only an explicit, carried `acting-as:offline` clears a revocation of it. A
- * scope that reaches the code by FALLBACK (an `AuthSession` that named no scopes
- * is issued the application's registered set) never undoes a refusal, for any
- * application. That is what keeps "revoke, then sign in again" revoked.
+ * Only explicit, carried `acting-as:offline` clears its revocation. Empty
+ * requests from third parties fail with `invalid_scope`. Trusted applications
+ * may fall back to their registered ordinary scopes, excluding every
+ * consent-required scope. Trust never supplies explicit user consent.
  *
- * For a TRUSTED application a fallback scope also never records a
- * consent-required grant. For a THIRD-PARTY application it does: every
- * third-party authorization records a grant of the scopes the code carries, and
- * the fallback set includes any consent-required scope the application is
- * registered for. Whether such scopes may arrive by fallback at all is an open
- * decision (#1521, decision 2); until it is taken this path behaves as it did
- * before the two finalizers were unified.
- *
- * Both finalizers hand {@link decideOAuthConsent} scopes already narrowed to the
- * application's registered set (`intersectScopes`), so a third party can never
- * be granted — in the code or in its consent row — a scope the platform did not
- * give it, whatever its request named.
+ * All entries use {@link resolveOAuthScopes} before making this decision, so
+ * the consent screen, finalizers and code share the same registered ceiling.
  *
  * ## The transition
  *
@@ -72,7 +62,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
-import { userConsentRequiredScopes } from '../utils/applicationScopes';
+import { intersectScopes, isUserConsentRequiredScope, userConsentRequiredScopes } from '../utils/applicationScopes';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import {
   issueAuthCode,
@@ -88,6 +78,19 @@ import {
 /** What decides trust — the same fields `isTrustedApplication` reads. */
 export type ConsentApplication = Parameters<typeof isTrustedApplication>[0];
 
+/** Null means invalid_scope: a third party must name its requested scopes. */
+export function resolveOAuthScopes(
+  application: ConsentApplication,
+  requestedScopes: readonly string[],
+  registeredScopes: readonly string[],
+): string[] | null {
+  if (requestedScopes.length > 0) return intersectScopes(requestedScopes, registeredScopes);
+  if (!isTrustedApplication(application)) return null;
+  return intersectScopes(registeredScopes, registeredScopes).filter(
+    (scope) => !isUserConsentRequiredScope(scope),
+  );
+}
+
 export interface OAuthConsentInput {
   application: ConsentApplication;
   /** The scopes the REQUEST named, as the client sent them. May be empty. */
@@ -95,7 +98,7 @@ export interface OAuthConsentInput {
   /**
    * The scopes the CODE will carry — what the authorization actually grants:
    * the request narrowed to the application's registered scopes
-   * (`intersectScopes`), or that registered set when the request named none.
+   * (`intersectScopes`), or the trusted ordinary fallback when none were named.
    */
   grantedScopes: readonly string[];
 }

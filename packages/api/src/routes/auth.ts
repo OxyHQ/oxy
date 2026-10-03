@@ -31,7 +31,7 @@ import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { sessions as sessionsTable } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import { revokeServiceActingAs } from '../services/serviceActingAs.service';
-import { decideOAuthConsent, persistOAuthAuthorization } from '../services/oauthConsent.service';
+import { decideOAuthConsent, persistOAuthAuthorization, resolveOAuthScopes } from '../services/oauthConsent.service';
 import {
   intersectScopes,
   isPaymentsScope,
@@ -730,6 +730,9 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
       scopes: oauth.scope ? oauth.scope.split(/\s+/).filter(Boolean) : [],
       ...(oauth.subjectAccountId ? { subjectAccountId: oauth.subjectAccountId } : {}),
     };
+    if (resolveOAuthScopes(resolvedApp, oauthContext.scopes, resolvedApp.scopes) === null) {
+      throw new ApiError(400, 'Scopes must be explicit', 'invalid_scope');
+    }
   }
 
   // The browser Origin the session was created from (null for native callers).
@@ -1647,10 +1650,11 @@ router.get(
       // request that is the requested set narrowed to the app's registered
       // scopes (an app can never receive more than it is registered for); a
       // device sign-in has no per-request scope set, so it is the app's own.
-      scopes =
-        oauthContext && oauthContext.scopes.length > 0
-          ? intersectScopes(oauthContext.scopes, appScopes)
-          : appScopes;
+      const resolvedScopes = oauthContext
+        ? resolveOAuthScopes(app, oauthContext.scopes, appScopes)
+        : appScopes;
+      if (resolvedScopes === null) throw new ApiError(400, 'Scopes must be explicit', 'invalid_scope');
+      scopes = resolvedScopes;
     }
 
     // Delegated subject: "who will the app act as". Resolved SERVER-side from
@@ -2143,6 +2147,9 @@ router.post(
     const outcome = await finalizeOAuthAuthorization({ sessionToken });
 
     if (!outcome.ok) {
+      if (outcome.reason === 'invalid_scope') {
+        throw new ApiError(400, 'Scopes must be explicit', 'invalid_scope');
+      }
       // One generic error for every rejection — the precise reason stays in the
       // server log so a caller cannot probe the request's state.
       logger.warn('[AuthSession] Finalize rejected', {
@@ -2553,7 +2560,8 @@ router.post(
     // the same ceiling `finalizeOAuthAuthorization` applies. A scope the
     // platform never granted the app is dropped here, so neither the code nor
     // the consent row can hold it, whatever the client asked for.
-    const grantedScopes = intersectScopes(requestedScopes, app.scopes);
+    const grantedScopes = resolveOAuthScopes(app, requestedScopes, app.scopes);
+    if (grantedScopes === null) throw new ApiError(400, 'Scopes must be explicit', 'invalid_scope');
     const decision = decideOAuthConsent({
       application: app,
       requestedScopes,
@@ -2670,7 +2678,8 @@ router.get(
     // Decided over what `POST /oauth/authorize` will actually grant — the request
     // narrowed to the application's registered scopes — so the screen never
     // offers a permission the platform did not give this application.
-    const grantableScopes = intersectScopes(requestedScopes, app.scopes);
+    const grantableScopes = resolveOAuthScopes(app, requestedScopes, app.scopes);
+    if (grantableScopes === null) throw new ApiError(400, 'Scopes must be explicit', 'invalid_scope');
     // Scopes over the USER's own data — the follow graph — are never decided on
     // the user's behalf. They are the one thing platform trust does not answer
     // for: the relationships belong to the user, the people on the other end can
