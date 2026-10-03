@@ -78,6 +78,18 @@ try {
     'schemaVersion: z.literal(1)',
   );
   verdict(oldRequest, 1);
+  for (const [from, to] of [
+    ['schemaVersion: admitted.scopedExecution === undefined ? 2 : 3', 'schemaVersion: 2'],
+    ['schemaVersion: admitted.scopedExecution === undefined ? 2 : 3', 'schemaVersion: admitted.scopedExecution === undefined ? 3 : 3'],
+    ['schemaVersion: admitted.scopedExecution === undefined ? 2 : 3', 'schemaVersion: admitted.scopedExecution !== undefined ? 2 : 3'],
+    ['? inferenceRequestSchema : scopedInferenceRequestSchema', '? inferenceRequestSchema : inferenceRequestSchema'],
+    ['{ scopedExecution: admitted.scopedExecution }', '{ scopedExecution: undefined }'],
+  ]) {
+    const unsafeScopedBranch = fixture();
+    roots.push(unsafeScopedBranch);
+    mutate(unsafeScopedBranch, 'packages/api/src/services/inferenceEdge.service.ts', from, to);
+    verdict(unsafeScopedBranch, 1);
+  }
 } finally {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 }

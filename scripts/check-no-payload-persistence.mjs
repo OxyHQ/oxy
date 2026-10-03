@@ -158,6 +158,7 @@ const BANNED_NAME_PATTERNS = [
  * completions Oxy would be storing on its own initiative.
  */
 const DECLARED_FREE_SHAPED_COLUMNS = [
+  { table: 'inference_deployments', column: 'scopedExecution', holds: 'closed scopedExecutionAudienceSchema authority metadata: permit and idempotency identifiers, fixture SHA-256, principal and exact route/policy bindings, expiry and grant-only cost limits; no fixture state, question, prompt, completion, tool arguments, provider credential or bearer token' },
   // ---- external account identity evidence ------------------------------------
   { table: 'external_identities', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings, each at most 2048 characters; no actor document, biography, inference request or response' },
   {
