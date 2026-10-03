@@ -29,8 +29,7 @@ Keep the existing standing/delegation actor union limited to Alia and bot agents
 Add the requester discriminator only to execution requests and signed ticket
 claims, with strict refinements: direct_request, read_only, no grantId,
 no automationId, actor.accountId=requesterAccountId. Persist two nullable fields
-on capability_execution_authorizations: requesterSessionId (CASCADE FK to the
-session's public unique sessionId) and requesterSessionBindingDigest (64 hex).
+on capability_execution_authorizations: requesterSessionId (historical session handle, with no FK or delete cascade) and requesterSessionBindingDigest (64 hex).
 A CHECK requires both only for requester actors; the actor CHECK accepts their
 non-null actorAccountId and exact requester equality. Other actors retain their
 existing NULL fields and behavior. No new ledger/table is needed.
@@ -53,6 +52,59 @@ existing live coordinator resolver checks current app, owner, closure fence,
 credential/workload and scope ceilings. Require the normal capability issuance
 scope and coordination capability, plus the exact read capability. No offline
 scope or user grant is synthesized. Snapshot or API errors deny.
+
+## Concrete HTTP and SDK transport
+
+Add `agency.createForegroundExecutionAuthorization(input, { requesterToken })`
+to the existing service SDK namespace. Its one Oxy authority request is
+`POST /capabilities/foreground-execution-authorizations`:
+
+```http
+Authorization: Bearer <coordinator service token>
+Content-Type: application/json
+
+{
+  "subjectToken": "<requester's current access bearer>",
+  "tool": "recommendProfiles",
+  "expectedCatalog": { "registrationId": "...", "version": "...", "digest": "..." },
+  "runId": "...",
+  "stepId": "...",
+  "expiresAt": "..."
+}
+```
+
+This follows the already shipped `agency.mintRequesterAssertion` transport in
+`packages/core/src/server/namespaces.ts`: the service bearer authenticates the
+presenter; `subjectToken` goes only in the body to Oxy's configured authority.
+The request has no free coordinator, actor, owner, subject or app ID. The API
+uses `serviceAuthMiddleware` and the live service principal resolver, then
+verifies the independent requester bearer. The tool selects only the closed
+foreground read catalogue; the resource is constructed from the live session's
+subject. No new token family or delegated-user header is added. The request is
+not retried automatically; errors never fall back to app-only execution.
+
+After signature/expiry validation, the API reloads the session with
+`validateSessionById(sessionId, true, { useCache:false })` and compares the
+original bearer claims to that fresh row using the existing session binding
+checker. The original principal and current effective subject stay separate.
+App-bound sessions must match the authenticated presenter and retain the exact
+read scope under current app/credential/consent ceilings; shared sessions need a
+currently registered trusted first-party presenter. Consent checks use the
+existing OAuth rules; this lane neither creates a standing grant nor invents
+`acting-as:offline`. Ticket issuance and every live introspection repeat the
+session binding, membership/key, presenter and scope checks.
+
+`requesterSessionId` is an opaque historical reference, not a foreign key.
+`SessionService.deactivateSession` updates `isActive`, while the normal expiry
+sweep may delete the row. A missing/inactive/expired row denies new tickets and
+introspection. Deleting a session therefore does not cascade away the
+execution approval. `capability_audit_events` stores its authorization reference
+inside the bounded event JSON; `capability_idempotency_keys` stores ticketJti and
+resource keys. Neither table has an FK to the execution authorization or the
+session. Keeping the historical handle avoids changing logout or sweep order,
+and prevents this extension from deleting receipt/audit provenance. The schema
+census will classify the handle explicitly with this lifecycle rationale; it
+will not create a blanket exemption for new session references.
 
 ## One Oxy catalogue and existing domain handlers
 
