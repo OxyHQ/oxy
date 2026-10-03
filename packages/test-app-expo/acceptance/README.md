@@ -36,3 +36,7 @@ session or fake deviceID may be inserted to make adoption pass.
 
 AND03 is a separate reviewed corruption/recovery experiment, not a capability
 of these UI controls. This preparation does not establish identity survival.
+
+Sibling variants declare no OAuth callback scheme or authRedirectUri. They use
+only the first-party SDK dialog, preserving the isolated app as the sole astro
+callback handler. A misclassified third-party client fails without a redirect.

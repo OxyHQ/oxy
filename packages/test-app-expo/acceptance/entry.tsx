@@ -8,7 +8,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 const clientId = process.env.EXPO_PUBLIC_OXY_CLIENT_ID;
-const redirectUri = 'astro://oauth/callback';
 const sibling = process.env.EXPO_PUBLIC_OXY_NATIVE_SIBLING;
 if (sibling !== 'mention' && sibling !== 'allo') throw new Error('Missing owned sibling variant');
 const apiUrl = 'http://127.0.0.1:17960';
@@ -69,7 +68,7 @@ function NativeAcceptance() {
       <SafeAreaProvider>
         <BloomThemeProvider mode="light">
           <OxyProvider clientId={clientId} baseURL={apiUrl} authorizeBaseUrl={authorizeUrl}
-            authWebUrl="http://127.0.0.1:17961" authRedirectUri={redirectUri}
+            authWebUrl="http://127.0.0.1:17961"
             storageKeyPrefix={`oxy1519-native-${sibling}`}>
             <View style={{ flex: 1 }}><AcceptanceScreen /></View>
           </OxyProvider>
