@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand src/api/__tests__/authAgent.test.ts src/server/__tests__/agentAccount.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        0.418 s, estimated 1 s
+Ran all test suites matching src/api/__tests__/authAgent.test.ts|src/server/__tests__/agentAccount.test.ts.

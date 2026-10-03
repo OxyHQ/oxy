@@ -1,0 +1,9 @@
+$ jest --runInBand "--testSequencer=/tmp/inference-1519/i04-handoff-i01-i03/ledger-first.cjs" src/db/schema/__tests__/workloadAttributionCredential.test.ts src/services/__tests__/inferenceLedger.service.test.ts
+{"level":30,"time":1790995261391,"pid":3417011,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790995265149,"pid":3417011,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 2 passed, 2 total
+Tests:       64 passed, 64 total
+Snapshots:   0 total
+Time:        4.362 s
+Ran all test suites matching src/db/schema/__tests__/workloadAttributionCredential.test.ts|src/services/__tests__/inferenceLedger.service.test.ts.

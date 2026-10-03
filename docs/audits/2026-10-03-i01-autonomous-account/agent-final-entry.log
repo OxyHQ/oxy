@@ -1,0 +1,7 @@
+$ jest --runInBand src/routes/__tests__/agentAutonomousFlow.test.ts src/services/__tests__/agentKeyAuth.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        5.064 s
+Ran all test suites matching src/routes/__tests__/agentAutonomousFlow.test.ts|src/services/__tests__/agentKeyAuth.test.ts.

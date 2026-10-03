@@ -1,0 +1,27 @@
+$ jest --runInBand src/db/schema/__tests__/workloadAttributionCredential.test.ts src/services/__tests__/inferenceLedger.service.test.ts
+{"level":30,"time":1790995086243,"pid":3413864,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/db/schema/__tests__/workloadAttributionCredential.test.ts
+
+
+  ● Test suite failed to run
+
+    Failed query: delete from "billing_ledger_entries" where "billing_ledger_entries"."account_id" in ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    params: 01a0ffa0-3ba5-7a3a-98ce-ae8e0a74bac8,01a0ffa0-3bd1-7432-ba93-76ebc1cc80f0,01a0ffa0-3bdf-72bc-be0a-51237eca62d6,01a0ffa0-3bef-7c49-b524-5bb97813f039,01a0ffa0-3c0f-7007-b85e-dbfbe333b9c8,01a0ffa0-3c2c-7d3b-8ea7-c19b47e62857,01a0ffa0-3c39-795c-9617-75c9030a2c1d,01a0ffa0-3c42-74f8-ae5c-963291815614,01a0ffa0-3c4a-78cd-8923-39d48a2596ca,01a0ffa0-3c53-713f-914c-28ac21ae5247,01a0ffa0-3c5c-7264-800a-35ca2c66e454,01a0ffa0-3c65-7fbc-949f-0f27a872085a,01a0ffa0-3c6d-7653-ac7a-fb3405099884,01a0ffa0-3c75-7e87-be5b-21a5f846d314
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+
+    Cause:
+     PostgresError: billing_ledger_entries is append-only: a settled financial record is corrected by a compensating entry, never by delete
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+{"level":30,"time":1790995086619,"pid":3413864,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       64 passed, 64 total
+Snapshots:   0 total
+Time:        3.256 s, estimated 4 s
+Ran all test suites matching src/db/schema/__tests__/workloadAttributionCredential.test.ts|src/services/__tests__/inferenceLedger.service.test.ts.
+error: script "test" exited with code 1
