@@ -1,0 +1,9 @@
+# Oxy canonical profile registrar preflight
+
+The source forks the reviewed Mention protocol-v2 reader/launcher. It changes only the fixed selector, task family, packet-result kind and nonce prefix. The image/TD692, execution role, network, sole DATABASE_URL reference, read-only repeatable snapshot, bounds, registration verification, stable RunTask token, durable intent and uncertain-ACK cleanup remain unchanged. Twelve offline protocol/launcher fixtures pass with the actual reader encoder. No database connection or AWS mutation runs in these fixtures.
+
+The selector finds any application already bound to the exact live Oxy API IAM role `arn:aws:iam::237343248947:role/oxy-ecs-task`, any holder of `catalog:oxy`, and the proposed fixed future machine ID `dce95bde-49ef-4f05-83b3-c4d390b322ea`. That last ID is not authority or an assertion that the machine exists. Root `oxy` is selected by the same fixed username the canonical seed uses, but its username is not returned: only id, kind, status, revision and derived is_platform_root are projected. Workload/credential links, owner fences and current Oxy catalogue registration remain explicit.
+
+No existing application is selected by a display name or branded trust assumption. An existing role binding to another application or reuse of this generic task role must be investigated; it cannot be reassigned automatically. A new machine-only registrar would use the canonical seed pattern, fixed identity, root owner already present, empty redirects and only catalogs:write/catalog:oxy. Source definition and operator CAS still require review and readback before any provisioning.
+
+Prepare-only metadata uses `PYTHONDONTWRITEBYTECODE=1 python3 -B scripts/agency/oxy-profile-registrar-preflight-ecs.py oxy --plan /private/new-plan.json`. Root reviews the exact plan before execute. Raw authority rows stay private; no new identity or permission has been written.

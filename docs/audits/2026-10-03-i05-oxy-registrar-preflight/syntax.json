@@ -1,0 +1,23 @@
+[
+  {
+    "command": [
+      "node",
+      "--check",
+      "scripts/agency/read-oxy-profile-registrar-preflight.mjs"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "python3",
+      "-B",
+      "-c",
+      "from pathlib import Path; [compile(p.read_text(),str(p),'exec') for p in Path('scripts/agency').glob('*.py')]; print('Python syntax passed without bytecode')"
+    ],
+    "exitCode": 0,
+    "stdout": "Python syntax passed without bytecode\n",
+    "stderr": ""
+  }
+]

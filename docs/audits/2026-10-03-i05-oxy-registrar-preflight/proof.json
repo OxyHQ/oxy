@@ -1,0 +1,24 @@
+{
+  "sourceHead": "5ba697dd5e213b5239cacd407b6aae427c1a4d51",
+  "sourceSha256": {
+    "scripts/agency/read-oxy-profile-registrar-preflight.mjs": "b80d861e1e4be8ceca099c5c6337d3255a1766f1e837f831791f8546b543c8a9",
+    "scripts/agency/oxy-profile-registrar-preflight-ecs.py": "881cdf42e575e6bf3b0164ea4765ffadfb2277fc647e365293f89e10495375d0",
+    "scripts/agency/test-oxy-profile-registrar-preflight.py": "6e8769f69ffd4cada9502fbe738b4b1a09c7a6b51e1f52058fb387cb33caa673"
+  },
+  "records": {
+    "protocol-12.txt": {
+      "sha256": "88329e5ba94c14814a810008d95a828e0024c93c4ca2b5c2d8eb5272aecfa95e",
+      "bytes": 1489
+    },
+    "syntax.json": {
+      "sha256": "be472af74ab39427b54e48acf45bbe90be60c8fc76b3fab59c0703e647440453",
+      "bytes": 518
+    }
+  },
+  "limits": [
+    "Offline 12 fixtures, actual reader encoder/launcher with synthetic AWS boundary",
+    "No SQL connection or AWS mutation executed",
+    "Future fixed registrar application ID is proposed, not an existing registry claim",
+    "Shared IAM-role usage and existing subject binding must be checked before provisioning"
+  ]
+}
