@@ -83,6 +83,7 @@ def main():
             print(json.dumps({'stage': stage, 'exitCode': migration.returncode, 'log': str(migration_log)}))
             migration.check_returncode()
         command = ['bun', '--no-env-file', 'run', 'test', '--runInBand', '--runTestsByPath',
+                   'src/services/__tests__/foregroundCapabilities.db.test.ts',
                    'src/routes/__tests__/internalServiceAccountSwitch.test.ts',
                    'src/routes/__tests__/serviceTokenCredentials.test.ts',
                    'src/services/__tests__/workloadIdentity.db.test.ts',
