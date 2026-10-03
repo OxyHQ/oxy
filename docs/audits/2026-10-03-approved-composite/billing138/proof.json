@@ -1,0 +1,218 @@
+{
+  "sourceCommit": "268182c213bb5a45a80dc1a48c2565e3cd4c82fd",
+  "billingCheckpoint": "b2b3ae7baaae39fd619f7593708124f9c6192c75",
+  "billingComposedSource": "ad0681f83",
+  "auth137": "cf9718342",
+  "migrations": 138,
+  "focal": {
+    "suites": 3,
+    "tests": 44,
+    "exitCode": 0,
+    "pid": 3362173,
+    "stopped": true,
+    "command": [
+      "bun",
+      "run",
+      "test",
+      "--runInBand",
+      "--testSequencer",
+      "/tmp/oxy1519-i09-eghhemt6/ordered-sequencer.cjs",
+      "--runTestsByPath",
+      "src/services/__tests__/subscriptionCreditLedger.test.ts",
+      "src/services/__tests__/productProviderEvidence.test.ts",
+      "src/db/schema/__tests__/agentAuthoritySchema.test.ts"
+    ]
+  },
+  "sourceComparison": [
+    {
+      "path": "bun.lock",
+      "sha256": "d778e714a4a49a0f814a49513eb7a5ff8c164a217c0ac9989f6a6eb5785c1b06",
+      "upstreamSha256": "d778e714a4a49a0f814a49513eb7a5ff8c164a217c0ac9989f6a6eb5785c1b06",
+      "equal": true
+    },
+    {
+      "path": "packages/api/drizzle/0138_eminent_hulk.sql",
+      "sha256": "47246c7051c04fe72d5e4f0d5949d7ddd67d1b2d9ed9c01b04dfe8af06ee080f",
+      "upstreamSha256": "47246c7051c04fe72d5e4f0d5949d7ddd67d1b2d9ed9c01b04dfe8af06ee080f",
+      "equal": true
+    },
+    {
+      "path": "packages/api/drizzle/meta/0138_snapshot.json",
+      "sha256": "b0e0cf8ed24242a01fca31104ba6aee0986e80b318da19c84634e5e42b1f3b86",
+      "upstreamSha256": "b0e0cf8ed24242a01fca31104ba6aee0986e80b318da19c84634e5e42b1f3b86",
+      "equal": true
+    },
+    {
+      "path": "packages/api/drizzle/meta/_journal.json",
+      "sha256": "786e98e6b3349c2e41ef75aa0dbdfac0316bf492fbd85da2d65f231af5e3ed25",
+      "upstreamSha256": "786e98e6b3349c2e41ef75aa0dbdfac0316bf492fbd85da2d65f231af5e3ed25",
+      "equal": true
+    },
+    {
+      "path": "packages/api/jest.config.js",
+      "sha256": "1d0fa372be940ad8d2abba641e9cdd4c219674658537306fa43ad992e3730ec7",
+      "upstreamSha256": "1d0fa372be940ad8d2abba641e9cdd4c219674658537306fa43ad992e3730ec7",
+      "equal": true
+    },
+    {
+      "path": "packages/api/package.json",
+      "sha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510",
+      "upstreamSha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/db/__tests__/credits.test.ts",
+      "sha256": "ac9dc88d6f7b87c9dc9e64d64c29e7537a12417be5ede88f0227d4740408eb95",
+      "upstreamSha256": "ac9dc88d6f7b87c9dc9e64d64c29e7537a12417be5ede88f0227d4740408eb95",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/db/credits.ts",
+      "sha256": "5258cb918e1d40b0e11bf86fcffaaf9b68acb80bc13ebf9842b1b8ce7176610a",
+      "upstreamSha256": "5258cb918e1d40b0e11bf86fcffaaf9b68acb80bc13ebf9842b1b8ce7176610a",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/db/schema/__tests__/foreignKeys.test.ts",
+      "sha256": "738e181ebaa1c5613766f5279c23e1b3d5209961740784dd4adb76533b38007c",
+      "upstreamSha256": "738e181ebaa1c5613766f5279c23e1b3d5209961740784dd4adb76533b38007c",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/db/schema/billingCreditGrants.ts",
+      "sha256": "3596f22f907618c77ecc0985d9b6d4ac8f73a7dd6f5acda4a19da5abf9f33548",
+      "upstreamSha256": "3596f22f907618c77ecc0985d9b6d4ac8f73a7dd6f5acda4a19da5abf9f33548",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/db/schema/billingCreditImmutability.ts",
+      "sha256": "9992ebe477833d62c8fdba9754adb5d1562dfe9d3ca048325d0afddc3ea6254c",
+      "upstreamSha256": "9992ebe477833d62c8fdba9754adb5d1562dfe9d3ca048325d0afddc3ea6254c",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/db/schema/billingTransactions.ts",
+      "sha256": "b351acc7a00578fe2457aac1a4d9e55687474a40add602956d7a141096a222a8",
+      "upstreamSha256": "b351acc7a00578fe2457aac1a4d9e55687474a40add602956d7a141096a222a8",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/db/schema/deferredForeignKeys.ts",
+      "sha256": "2ada096d773842a1ea0202eef2ec55919d11d8f512b30ec6fab47be99882e0d9",
+      "upstreamSha256": "2ada096d773842a1ea0202eef2ec55919d11d8f512b30ec6fab47be99882e0d9",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/db/schema/index.ts",
+      "sha256": "f86b4f6c0de4bac7a348004ce2b63a43fbd36050a719b7366da9647e5bb34935",
+      "upstreamSha256": "2e1c1044a28499e9873012223aee0bfd7d043d27cee4803cde1f60a7cb733b88",
+      "equal": false
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts",
+      "sha256": "707d55c72df801536d99fa858fb3c21355a70efd17b6e93fb8f805ddd0ae2766",
+      "upstreamSha256": "707d55c72df801536d99fa858fb3c21355a70efd17b6e93fb8f805ddd0ae2766",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/routes/billing.ts",
+      "sha256": "b71d52c8196c7221f003e5f950810e091d6d0434906a59a8721255cd973a4ee5",
+      "upstreamSha256": "b71d52c8196c7221f003e5f950810e091d6d0434906a59a8721255cd973a4ee5",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/__tests__/productAccessPersistence.test.ts",
+      "sha256": "36f5cfea626cafd2726fea48b84e2d0e11b73d1ab65db2f73dc0fc111614e95e",
+      "upstreamSha256": "36f5cfea626cafd2726fea48b84e2d0e11b73d1ab65db2f73dc0fc111614e95e",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/__tests__/productProviderEvidence.test.ts",
+      "sha256": "e6edf1553acbeaa755eb38edab7afc7f6868c41b674c424a455247844a1063b1",
+      "upstreamSha256": "e6edf1553acbeaa755eb38edab7afc7f6868c41b674c424a455247844a1063b1",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/__tests__/subscriptionCreditLedger.test.ts",
+      "sha256": "729f695018eefcddcc468cc17895b9d5a48b7a003aa8969ab728a878c787eaec",
+      "upstreamSha256": "729f695018eefcddcc468cc17895b9d5a48b7a003aa8969ab728a878c787eaec",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/__tests__/subscriptionPeriodPolicy.test.ts",
+      "sha256": "d4ee44cbb406302c48fce5ca31c59ef558793735c86fb1a8ef292cfcb53d9231",
+      "upstreamSha256": "d4ee44cbb406302c48fce5ca31c59ef558793735c86fb1a8ef292cfcb53d9231",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/__tests__/subscriptionPromotionPolicy.test.ts",
+      "sha256": "64cf684beab2d9b7b4f980d2e460232a1c0aa9bb8ce5ffb65c862dbb88358227",
+      "upstreamSha256": "64cf684beab2d9b7b4f980d2e460232a1c0aa9bb8ce5ffb65c862dbb88358227",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/applySubscriptionPeriodCredits.service.ts",
+      "sha256": "6e8ffd9d15b551f676c6bf05288764f0b1d29a9b79c86ef6fbe56f5ab710dda5",
+      "upstreamSha256": "6e8ffd9d15b551f676c6bf05288764f0b1d29a9b79c86ef6fbe56f5ab710dda5",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/productAccessPersistence.service.ts",
+      "sha256": "1d178aecbc587d7d5093157e652b4bf6a1746f635703690f96d69871351ab28b",
+      "upstreamSha256": "1d178aecbc587d7d5093157e652b4bf6a1746f635703690f96d69871351ab28b",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/productProviderEvidence.service.ts",
+      "sha256": "e624c10508c68d5ea8ce644119b14557aeaca7513ac86d1ed97e056589551525",
+      "upstreamSha256": "e624c10508c68d5ea8ce644119b14557aeaca7513ac86d1ed97e056589551525",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/stripeSubscriptionEvidence.service.ts",
+      "sha256": "699c7d318e31e54bda794f9c4aad0a210f76e249ff74f010542b1f05b2a7cb7d",
+      "upstreamSha256": "699c7d318e31e54bda794f9c4aad0a210f76e249ff74f010542b1f05b2a7cb7d",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/subscriptionCreditLedger.service.ts",
+      "sha256": "c9fa89cc428f67afa2580d1899f4ae7c5bbead0ab08c8a92021c9653a0fcdd14",
+      "upstreamSha256": "c9fa89cc428f67afa2580d1899f4ae7c5bbead0ab08c8a92021c9653a0fcdd14",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/subscriptionPeriodPolicy.ts",
+      "sha256": "046f46447eac516d6fba6e27ebeb3587bc2a0760cb21fe6b0beb8b0d18cd691c",
+      "upstreamSha256": "046f46447eac516d6fba6e27ebeb3587bc2a0760cb21fe6b0beb8b0d18cd691c",
+      "equal": true
+    },
+    {
+      "path": "packages/api/src/services/subscriptionPromotionPolicy.ts",
+      "sha256": "43352263306b98db4d7825b9858e013c70d7fb3f3779c63c043159ca47c4f5e3",
+      "upstreamSha256": "43352263306b98db4d7825b9858e013c70d7fb3f3779c63c043159ca47c4f5e3",
+      "equal": true
+    },
+    {
+      "path": "scripts/rehearsal/test-billing-renewal-1519.py",
+      "sha256": "74285fd2ef0b8258331973cf8d9b2ecfc69e510b02d12e3e2dae43cfe518e75b",
+      "upstreamSha256": "74285fd2ef0b8258331973cf8d9b2ecfc69e510b02d12e3e2dae43cfe518e75b",
+      "equal": true
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/billing138/focal.log",
+      "sha256": "01bb748fdd2f65eb455e23eba4d4477a58a7c0a9004fd6a1b699711dbdea3c48"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/billing138/runner.log",
+      "sha256": "32307c2d4b281f74ecaaa637bfbc8e1ccc40eeec60786fb9b055ad35ae4819ed"
+    }
+  ],
+  "limits": [
+    "Prior attempted invocation used a nonexistent epoch-specific test filename; two billing suites passed37, but that invocation failed overall. Final invocation uses real agentAuthoritySchema suite.",
+    "Normal fresh 138 migrator and 44 combined tests; upstream billing checkpoint8/143 remains separate, not repeated here.",
+    "Schema barrel conflict kept both serviceActingAsAuthorityEpochs and billingCreditGrants exports. No other conflict/schema edits.",
+    "No production writes or provider calls; Forge remains INACTIVE."
+  ]
+}
