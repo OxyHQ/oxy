@@ -1,0 +1,189 @@
+$ bun test lib/__tests__ components/__tests__
+bun test v1.4.2 (744846f84)
+
+components/__tests__/email-signin-page.test.tsx:
+(pass) readLinkToken > reads `#t=` and nothing else [0.10ms]
+(pass) takeLinkToken > strips the fragment in the same call that reads it [6.47ms]
+(pass) EmailSignInPage > approves with this browser's device, strips the token, and sends the person back to the app [21.54ms]
+(pass) EmailSignInPage > waits for the provider's boot before it reads the device [3.83ms]
+(pass) EmailSignInPage > with no Oxy device in this browser: never calls the API, says to open it where the sign-in started [4.41ms]
+(pass) EmailSignInPage > in another browser's device: the same answer [4.40ms]
+(pass) EmailSignInPage > a spent or expired link says to ask for a new email or type the code [4.68ms]
+(pass) EmailSignInPage > no token at all: nothing is sent [3.56ms]
+(pass) LoginPage > renders the SDK's sign-in, and creates an account in place [5.74ms]
+(pass) LoginPage > a known `?error=` code is told as fixed copy [2.43ms]
+(pass) LoginPage > any other `?error=` text is ignored, never shown [2.44ms]
+(pass) LoginPage > `?screen=signup` starts at account creation [1.31ms]
+
+components/__tests__/authorize-prompt-none.test.tsx:
+(pass) AuthorizePage — resource-bound MCP OAuth > keeps the resource, PKCE and active account bound to the central MCP endpoints [8.51ms]
+(pass) AuthorizePage — resource-bound MCP OAuth > shows the canonical MCP app, account, capabilities and write actions before approval [6.44ms]
+(pass) AuthorizePage — a request that asks for prompt=none > the refusal copy is a real string, not a missing key [0.14ms]
+(pass) AuthorizePage — a request that asks for prompt=none > refuses on the page and does nothing else, with no session here [2.90ms]
+(pass) AuthorizePage — a request that asks for prompt=none > refuses identically when stale device rows have no usable bearer [1.82ms]
+(pass) AuthorizePage — a request that asks for prompt=none > refuses a signed-in visitor too — never silently mints a code [1.45ms]
+(pass) AuthorizePage — a request that asks for prompt=none > answers the same whether or not someone is signed in here [2.13ms]
+(pass) AuthorizePage — a request that asks for prompt=none > never relays the refusal to an opener that asked for popup mode [1.39ms]
+(pass) AuthorizePage — a request that asks for prompt=none > reflects nothing the caller supplied [1.78ms]
+(pass) AuthorizePage — a request that asks for prompt=none > leaves every other request alone — prompt=login still consents [2.59ms]
+
+components/__tests__/authorize-commons-lane.test.tsx:
+(pass) AuthorizePage — Commons lane for a visitor with no session here > creates the request with the OAuth context already bound [4.98ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > renders the server-resolved application, never anything read out of the payload [3.01ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > keeps the alternatives out of the always-visible band [3.11ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > delivers the minted code through the shared funnel — redirect with no opener [3.30ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > relays the minted code to the opener when the request asked for popup mode [2.82ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > a finalize failure fails closed: nothing delivered, nothing retried [5.06ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > a redirect mismatch offers no retry — a fresh request would fail identically [3.78ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > cancelling withdraws the request and reports access_denied through the same funnel [4.30ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > an expired request ends the lane without delivering anything [2.96ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > a request without PKCE keeps the unchanged redirect to sign in on this origin [2.26ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > an unresolved application never starts a Commons request [1.56ms]
+(pass) AuthorizePage — Commons lane for a visitor with no session here > stale device accounts without a bearer still open the Commons lane [2.18ms]
+(pass) AuthorizePage — a visitor who already has a session here > still takes the original bearer-authenticated path [1.85ms]
+
+components/__tests__/device-page.test.tsx:
+(pass) DevicePage > a malformed code sends no request at all [10.15ms]
+(pass) DevicePage > an expired or used request is reported and offers nothing to approve [2.62ms]
+(pass) DevicePage > a lookup that fails shows readable copy, never a raw translation key [2.19ms]
+(pass) DevicePage > with no session it sends the person to sign in, carrying the code back [2.86ms]
+(pass) DevicePage > Allow is inert until the un-defaulted acknowledgement is checked, then posts exactly once with the bearer [13.10ms]
+(pass) DevicePage > a failed approval surfaces the error and can be retried [10.61ms]
+(pass) DevicePage > Deny declines the request and never posts an approval [4.55ms]
+
+lib/__tests__/oauth-web-message.test.ts:
+(pass) webMessageTargetOrigin > is the exact origin of the validated redirect URI [0.02ms]
+(pass) webMessageTargetOrigin > keeps the port as part of the origin [0.01ms]
+(pass) webMessageTargetOrigin > never widens to a wildcard or a parent domain [0.01ms]
+(pass) webMessageTargetOrigin > rejects redirect targets with no web origin [0.02ms]
+(pass) resolveWebMessageTarget > requires BOTH response_mode=web_message and a real opener [0.07ms]
+(pass) resolveWebMessageTarget > rejects an opener that is this window itself
+(pass) resolveWebMessageTarget > rejects an opener that cannot receive messages
+(pass) resolveWebMessageTarget > resolves the target origin from the redirect URI, not the opener [0.01ms]
+(pass) buildRelayMessage > code messages carry only type + code + state [0.02ms]
+(pass) buildRelayMessage > a missing state still produces the contract's string field
+(pass) buildRelayMessage > error messages carry only type + error (+ optional state/description) [0.02ms]
+(pass) deliverOAuthResult — web message transport > posts the code to the opener at the redirect URI's exact origin [0.04ms]
+(pass) deliverOAuthResult — web message transport > closes the window AFTER posting [0.02ms]
+(pass) deliverOAuthResult — web message transport > a refused close still reports a completed delivery [0.03ms]
+(pass) deliverOAuthResult — web message transport > the payload leaks nothing but the code, the state and the type [0.09ms]
+(pass) deliverOAuthResult — web message transport > deny relays access_denied instead of redirecting [0.03ms]
+(pass) deliverOAuthResult — redirect fallback > no opener falls back to the redirect [0.03ms]
+(pass) deliverOAuthResult — redirect fallback > no response_mode falls back to the redirect even with an opener [0.02ms]
+(pass) deliverOAuthResult — redirect fallback > a redirect target with no web origin falls back to the redirect [0.02ms]
+(pass) deliverOAuthResult — redirect fallback > deny falls back to ?error=access_denied [0.01ms]
+(pass) deliverOAuthResult — redirect fallback > preserves query params already on the redirect URI [0.01ms]
+(pass) deliverOAuthResult — redirect fallback > omits state when the request carried none
+
+lib/__tests__/bloom-css.test.ts:
+(pass) bloom-css > getBloomThemeCSS returns a :root + .dark block for the preset [40.00ms]
+
+lib/__tests__/edgeActivity.test.ts:
+(pass) edge middleware preserves headers, streams, and errors while telemetry is disabled [0.27ms]
+(pass) enabled edge activity observes requests without publishing cookies or payloads [0.96ms]
+
+lib/__tests__/core-mock-surface.test.ts:
+(pass) @oxy.so/core test mock surface > scanned a plausible amount of app source [0.02ms]
+(pass) @oxy.so/core test mock surface > provides every value the app imports from @oxy.so/core [0.07ms]
+(pass) @oxy.so/core test mock surface > stubs nothing the app no longer imports [0.04ms]
+
+lib/__tests__/session-status-schema.test.ts:
+(pass) sessionStatusSchema > parses a status response with a full application object (application preserved) [0.24ms]
+(pass) sessionStatusSchema > accepts application: null (no application could be resolved) [0.04ms]
+(pass) sessionStatusSchema > accepts a status response with no application field at all [0.02ms]
+(pass) sessionStatusSchema > parses the REAL pending device-flow payload (sessionId/userId/publicKey all null) [0.07ms]
+(pass) sessionStatusSchema > parses the authorized device-flow payload (sessionId/userId become strings) [0.04ms]
+(pass) sessionStatusSchema > rejects an application with an invalid type enum value [0.05ms]
+(pass) sessionStatusSchema > the @/lib/schemas re-export IS the @oxy.so/contracts schema (no local copy)
+
+lib/__tests__/authorize-surface-bundle.test.ts:
+(pass) the production bundle renders OxySignInRequestSurface, not undefined > preparing: every element in the tree is a real component [0.10ms]
+(pass) the production bundle renders OxySignInRequestSurface, not undefined > qr: every element in the tree is a real component [0.03ms]
+(pass) the production bundle renders OxySignInRequestSurface, not undefined > route-glyph: every element in the tree is a real component
+(pass) the production bundle renders OxySignInRequestSurface, not undefined > failed: every element in the tree is a real component
+(pass) the production bundle renders OxySignInRequestSurface, not undefined > the preparing branch draws its leading visual [0.02ms]
+(pass) the production bundle renders OxySignInRequestSurface, not undefined > the failed branch reveals the alternatives plainly
+
+lib/__tests__/sensitive-origin.test.ts:
+(pass) auth.oxy.so is a sensitive origin > depends on no analytics or session-replay package [0.14ms]
+(pass) auth.oxy.so is a sensitive origin > no shipped source wires product analytics [0.61ms]
+(pass) auth.oxy.so is a sensitive origin > its headers are built in sensitive mode, with no third-party connect sources [0.08ms]
+
+lib/__tests__/oauth-redirect.test.ts:
+(pass) safeRedirectUrl > accepts https origins without trailing slash noise [0.04ms]
+(pass) safeRedirectUrl > preserves path and query on https redirects [0.01ms]
+(pass) safeRedirectUrl > accepts registered loopback shapes in every environment [0.08ms]
+(pass) safeRedirectUrl > rejects remote IPv4 hosts [0.01ms]
+(pass) safeRedirectUrl > rejects unknown schemes [0.01ms]
+(pass) safeRedirectUrl > allows registered native schemes
+(pass) safeMcpRedirectUrl > accepts HTTPS and HTTP loopback redirects [0.02ms]
+(pass) safeMcpRedirectUrl > rejects insecure remote, credentialed and fragment redirects [0.01ms]
+
+lib/__tests__/bridge.test.ts:
+(pass) parseBridgeRequest > accepts a complete S256 request and targets the redirect URI's origin [0.01ms]
+(pass) parseBridgeRequest > refuses anything incomplete, plain, or without a web origin [0.04ms]
+(pass) runBridge > proves auth.oxy.so's stored device [0.22ms]
+(pass) runBridge > registers and saves a device when auth.oxy.so holds none [0.09ms]
+(pass) runBridge > replaces a credential the API no longer knows, once [0.13ms]
+(pass) runBridge > answers an error code on any other failure [0.10ms]
+(pass) deliverBridgeMessage > posts only to the named origin, never to * [0.03ms]
+(pass) createBridgeApi > posts JSON without credentials and unwraps { data } [0.18ms]
+(pass) createBridgeApi > surfaces the API's error code [0.06ms]
+
+lib/__tests__/consent-decision-schema.test.ts:
+(pass) oauthConsentDecisionSchema > parses every valid reason [0.11ms]
+(pass) oauthConsentDecisionSchema > rejects an unknown reason enum value [0.05ms]
+(pass) oauthConsentDecisionSchema > rejects a missing consentRequired field [0.02ms]
+(pass) oauthConsentDecisionSchema > rejects a non-boolean consentRequired [0.01ms]
+(pass) oauthConsentDecisionSchema > rejects a reason that contradicts its own flag [0.14ms]
+(pass) oauthConsentDecisionSchema > carries the scopes that forced the screen [0.07ms]
+(pass) consentRequiredFromBody > unwraps the API `{ data: { ... } }` envelope (trusted → auto-approve) [0.04ms]
+(pass) consentRequiredFromBody > unwraps a covering grant (granted → auto-approve) [0.02ms]
+(pass) consentRequiredFromBody > requires consent for a new app
+(pass) consentRequiredFromBody > requires consent when scopes changed
+(pass) consentRequiredFromBody > accepts a bare (unwrapped) decision object [0.01ms]
+(pass) consentRequiredFromBody > fails safe to true for null [0.02ms]
+(pass) consentRequiredFromBody > fails safe to true for undefined [0.02ms]
+(pass) consentRequiredFromBody > fails safe to true for an empty object [0.02ms]
+(pass) consentRequiredFromBody > fails safe to true for an empty data envelope
+(pass) consentRequiredFromBody > fails safe to true for an unknown reason [0.02ms]
+(pass) consentRequiredFromBody > fails safe to true for a non-object body [0.03ms]
+(pass) mcpConsentRequiredFromBody > accepts only an explicit MCP consent decision [0.41ms]
+(pass) mcpConsentRequiredFromBody > fails safe for malformed or widened responses [0.20ms]
+
+lib/__tests__/post-login-redirect.test.ts:
+(pass) buildPostLoginRedirect > a device approval code returns to /device with the code, never to /authorize [0.08ms]
+(pass) buildPostLoginRedirect > the device hop carries no OAuth parameters, even if some were present [0.02ms]
+(pass) buildPostLoginRedirect > without a device code the OAuth hop is unchanged [0.04ms]
+(pass) buildPostLoginRedirect > an MCP link intent still takes precedence
+(pass) the request a sign-in continues to, read off the page query > continues to /authorize with the same request [0.05ms]
+(pass) the request a sign-in continues to, read off the page query > a device code on the page still wins [0.01ms]
+
+lib/__tests__/commons-oauth-request.test.ts:
+(pass) buildCommonsOAuthBinding > binds the OAuth request context from the validated authorize parameters [0.03ms]
+(pass) buildCommonsOAuthBinding > omits the scope entirely when the request asked for none [0.02ms]
+(pass) buildCommonsOAuthBinding > rejects a request that cannot use the lane [0.12ms]
+(pass) CommonsOAuthRequest — the no-session lane > creates the request with the OAuth context already bound [0.20ms]
+(pass) CommonsOAuthRequest — the no-session lane > exposes only the PUBLIC handle — the secret session token never reaches the snapshot [0.09ms]
+(pass) CommonsOAuthRequest — the no-session lane > resolves the QR route from the shared decision, without attempting a push [0.06ms]
+(pass) CommonsOAuthRequest — the no-session lane > reports 'opened in Commons' only from the approver's own signal [0.12ms]
+(pass) CommonsOAuthRequest — the no-session lane > finalizes exactly once on authorization and emits the code [0.15ms]
+(pass) CommonsOAuthRequest — the no-session lane > a finalize failure fails closed: no retry, no outcome, no partial delivery [0.13ms]
+(pass) CommonsOAuthRequest — the no-session lane > 'try again' after a failure starts a BRAND-NEW request, never a second finalize [0.15ms]
+(pass) CommonsOAuthRequest — the no-session lane > a denial ends the lane with access-denied and never finalizes [0.06ms]
+(pass) CommonsOAuthRequest — the no-session lane > a server-reported expiry ends the lane without delivering anything [0.06ms]
+(pass) CommonsOAuthRequest — the no-session lane > a request that outlives its own expiry stops before asking the server again [0.18ms]
+(pass) CommonsOAuthRequest — the no-session lane > cancelling withdraws with the PUBLIC code and reports the denial once [0.06ms]
+(pass) CommonsOAuthRequest — the no-session lane > a failed withdrawal still reports the denial [0.06ms]
+(pass) CommonsOAuthRequest — the no-session lane > disposing stops the lane without delivering anything [0.04ms]
+(pass) CommonsOAuthRequest — the no-session lane > bounded poll failures end in a visible failure, not a retry storm [0.16ms]
+(pass) CommonsOAuthRequest — the no-session lane > a transient poll failure does not end the lane [0.12ms]
+(pass) CommonsOAuthRequest — the no-session lane > a cancel pressed while the code is being minted still delivers exactly one outcome [0.14ms]
+(pass) CommonsOAuthRequest — the no-session lane > a mismatched redirect binding fails closed instead of delivering the code [0.10ms]
+(pass) CommonsOAuthRequest — the no-session lane > a request that cannot be created reports a failure and delivers nothing [0.11ms]
+(pass) CommonsOAuthRequest — the no-session lane > start is idempotent while a request is already live [0.05ms]
+
+ 150 pass
+ 0 fail
+ 503 expect() calls
+Ran 150 tests across 16 files. [2.61s]
