@@ -1,0 +1,26 @@
+{
+  "base": "cb3cbe654ee2af37fafc62771290a039b59119b9",
+  "changedConsumerRows": [
+    "OxyHQ/Homiio"
+  ],
+  "unchangedRuntime": [
+    "scripts/adoption/final-registry-consumers.py",
+    "scripts/adoption/test-final-registry-consumers.py"
+  ],
+  "records": [
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/lots.json",
+      "sha256": "0d91e5e5222dd8e7f927f3b0e6dfe95c948dca0fe84e22007ef83bc3ef6b9fc0"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/final-registry-canaries.md",
+      "sha256": "36f824934a82377eabd6f4025fcf1643f9ffa55aa875b0332ef8cddd84c4dece"
+    },
+    {
+      "path": "docs/architecture/1519-consumer-rollout-preflight/execution/registry-runner-logs/homiio-deferred-owner-preflight.json",
+      "sha256": "fc8153f39770f9485ae417be3b5b7f9bf35e810934f821216c0d221bbc8940b8"
+    }
+  ],
+  "execution": "read-only Homiio remote main ancestry/manifest hash/patch check only; no registry lookup, install or deployment",
+  "canaries": "prepared only; root operation and final registry receipts pending"
+}

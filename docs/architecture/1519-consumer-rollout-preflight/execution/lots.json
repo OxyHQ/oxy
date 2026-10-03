@@ -1601,7 +1601,7 @@
       "repository": "OxyHQ/Homiio",
       "worktree": "/home/nate/Oxy/Homiio/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-homiio-final-sdk-20261003",
-      "preparedHead": "a7860c11e681f75697dac4705986bad471f88217",
+      "preparedHead": "7b753949bc17c5787430c0ac3c8411529c5b1c67",
       "lot": 1,
       "bloom": "6.2.1",
       "manifestPatch": {
@@ -1823,7 +1823,15 @@
           ".sha"
         ]
       ],
-      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges"
+      "mergeOperator": "root; capture/pause deploy and package-publisher workflows before merge, restore captured states deliberately after exact main CI; no autonomous merges",
+      "followupAcceptance": {
+        "source": "adcec825",
+        "proof": "03564a75",
+        "backendFixture": "7b753949",
+        "frontend": "12 suites / 127 PASS; TypeScript PASS; scoped lint baseline-equivalent 1 error / 7 warnings",
+        "backend": "housingWatchAlerts: 54 PASS, owned PostgreSQL17 loopback5611 stopped; zero own test databases remain",
+        "scope": "candidate installation; registry/CI/deploy pending"
+      }
     },
     {
       "repository": "OxyHQ/website",
