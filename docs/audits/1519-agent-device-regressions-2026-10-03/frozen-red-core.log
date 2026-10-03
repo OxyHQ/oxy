@@ -1,0 +1,42 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/server/__tests__/agentAccount.test.ts
+FAIL src/server/__tests__/agentAccount.test.ts
+  ● uses an injected signer and the ordinary user session endpoint, without passing a private key
+
+    Agent challenge does not match this account and signer
+
+      21 |   if (claims.action !== 'agent_signin' || claims.accountId !== accountId || claims.actorId !== accountId
+      22 |     || claims.publicKey !== publicKey || !claims.authMethodId || claims.expiresAt <= timestamp) {
+    > 23 |     throw new Error('Agent challenge does not match this account and signer');
+         |           ^
+      24 |   }
+      25 |   const signature = await signer.signMessage(buildAgentProofMessage(claims, timestamp));
+      26 |   return client.auth.agent.verify(publicKey, { challenge: claims.challenge, timestamp, signature });
+
+      at signInAgentAccount (src/server/agentAccount.ts:23:11)
+      at Object.<anonymous> (src/server/__tests__/agentAccount.test.ts:15:10)
+
+  ● rejects an invalid signer point before requesting a challenge or signature
+
+    expect(jest.fn()).not.toHaveBeenCalled()
+
+    Expected number of calls: 0
+    Received number of calls: 1
+
+    1: "POST", "/auth/agent/challenge", {"publicKey": "invalid"}, {"cache": false, "skipAuth": true}
+
+      29 |   const request = jest.spyOn(client, 'request').mockRejectedValue(new Error('Unexpected fixture request')); const signMessage = jest.fn(async () => 'unused');
+      30 |   await expect(signInAgentAccount({ client, accountId: 'bot', signer: { publicKey: 'invalid', signMessage } })).rejects.toThrow();
+    > 31 |   expect(request).not.toHaveBeenCalled(); expect(signMessage).not.toHaveBeenCalled();
+         |                       ^
+      32 | });
+      33 | it('does not sign a challenge with missing method provenance', async () => {
+      34 |   const client = new OxyServices({ baseURL: 'https://fixture.invalid' });
+
+      at Object.<anonymous> (src/server/__tests__/agentAccount.test.ts:31:23)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 6 passed, 8 total
+Snapshots:   0 total
+Time:        0.291 s, estimated 1 s
+Ran all test suites within paths "src/server/__tests__/agentAccount.test.ts".
+error: script "test" exited with code 1

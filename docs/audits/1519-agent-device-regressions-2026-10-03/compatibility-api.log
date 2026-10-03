@@ -1,0 +1,9 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/deviceSession.service.test.ts src/routes/__tests__/sessionDeviceDirectory.test.ts src/routes/__tests__/sessionDevice.test.ts
+{"level":30,"time":1791003325349,"pid":3507495,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791003327249,"pid":3507495,"hostname":"SuperPC","deviceId":"dev-0744a2a1-7abe-4f79-8aa2-d0f9cac9ac8d","accountId":"01a1001d-faa4-7d89-afd5-62b704a6b934","msg":"deviceSession.getState: dropping revoked managed active account"}
+
+Test Suites: 3 passed, 3 total
+Tests:       109 passed, 109 total
+Snapshots:   0 total
+Time:        14.401 s
+Ran all test suites within paths "src/services/__tests__/deviceSession.service.test.ts", "src/routes/__tests__/sessionDeviceDirectory.test.ts", "src/routes/__tests__/sessionDevice.test.ts".
