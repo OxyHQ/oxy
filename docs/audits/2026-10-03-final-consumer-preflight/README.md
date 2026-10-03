@@ -21,7 +21,20 @@ no unresolved package/lock commit. All imported Bloom paths and their targets
 exist in 6.2.1 (46 Mercaria, 202 Mention, 192 Alia), which does not establish named
 export, prop or rendered compatibility. Those checks follow actual installation.
 
-## Remaining source inventory
+## Accepted candidate compatibility follow-up
+
+The original `inventory.json` below remains a manifest snapshot of its recorded
+Git bases. [progress.json](progress.json) records the later commits and exact
+proof hashes. Clarity now passes 25 tests, types and web export; Expo passes
+types and web export; Allo passes its source migration checks plus 10 HTTP /
+Socket.IO / SQL tests (Oxy authority remains an explicit double). Root accepted
+the first three compatibility checkpoints; Allo socket follow-up is submitted
+for review. Candidate `file:` installs are local evidence, not final manifests.
+
+Alia I05 remains integration-owned uncommitted WIP with no accepted test/source
+commit. Its I10 base and prepared pin patch are preserved; no WIP was copied.
+
+## Original source inventory
 
 | Consumer/source | Current relevant gap | Next work |
 | --- | --- | --- |
@@ -44,10 +57,12 @@ Peable main `6f671437` frontend declares Bloom6.3 and pay's optional peer starts
 CJS/ESM/declaration builds and 130 existing tests with published Bloom6.2.1.
 Proof is Peable commit `2cb021b`, own worktree
 `/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003`.
-All 20,940 installed Bloom files match the registry tarball. This supports a
-reviewed lower-bound expansion for pay; no package peer/release changed here.
-A Services host still needs the tighter `<6.3.0` intersection. Native rendering
-and full Peable frontend compatibility were not tested by pay's pure test suite.
+All 20,940 installed Bloom files match the registry tarball. The subsequent reviewed change `cfc220a` sets pay’s optional peer to
+`>=6.2.1 <7.0.0` and pins frontend/dev Bloom 6.2.1 with its generated lock.
+Proof `11b9f19` records frontend 388 tests, pay 130 tests and types/builds.
+[Draft PR99](https://github.com/OxyHQ/Peable/pull/99) preserves this source for
+final Oxy adoption and a coordinated promotion; no pay publication is needed.
+A Services host still needs the tighter `<6.3.0` intersection. Native rendering remains untested by these source/type/build suites.
 
 ## Final gates
 

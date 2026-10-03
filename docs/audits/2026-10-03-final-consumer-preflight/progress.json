@@ -1,0 +1,46 @@
+{
+  "kind": "follow-up to preserved Git manifest inventory; not registry adoption",
+  "candidateOxySource": "f364fe58a41aab6913cf92ec01a9a9c1ea489120",
+  "candidatePackageSourceUsedForStaticChecks": "dca175d22497b0c51e124f4a517b1b7f055f7908",
+  "sources": [
+    {
+      "repository": "Peable",
+      "worktree": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003",
+      "head": "11b9f19730ed64863ee1fac5bc3c3b4b7d691386",
+      "proof": "docs/audits/2026-10-03-pay-bloom621-compat/workspace-adoption/proof.json",
+      "proofSha256": "07073c6fbbf55adff914af6e3a5ae8ccc76f755a5b74e113627195242e33f1b8",
+      "status": "Root accepted; draft PR99; published Bloom 6.2.1, final Oxy adoption pending"
+    },
+    {
+      "repository": "Clarity",
+      "worktree": "/home/nate/Oxy/Clarity/.worktrees/1519-final-sdk-adoption-20261003",
+      "head": "250f035b2d45e7513b03c72e320bb86585f7837d",
+      "proof": "docs/audits/2026-10-03-final-sdk-source-compat/proof.json",
+      "proofSha256": "5cb8fe6478574767840d46fc13bb6c99cbbf3a762a2a3ef6b6c20d12950ac5e8",
+      "status": "Root accepted candidate source/types/build and 25 tests; registry pending"
+    },
+    {
+      "repository": "examples",
+      "worktree": "/home/nate/Oxy/examples/.worktrees/1519-final-sdk-adoption-20261003",
+      "head": "b3e98a8a20e350a0a627b0aced7bc44ed483a75d",
+      "proof": "docs/audits/2026-10-03-expo-candidate-adoption/proof.json",
+      "proofSha256": "27086b63671a0475f73906d02c39dd6f3e5a4917ad16eee056a66947524d2c63",
+      "status": "Root accepted Expo candidate types/export; Next/Vite final graph pending"
+    },
+    {
+      "repository": "Allo",
+      "worktree": "/home/nate/Oxy/Allo/.worktrees/1519-final-sdk-adoption-20261003",
+      "head": "f36071e55c22d1802d00b03a96820c83eb48968b",
+      "proof": "docs/audits/2026-10-03-final-sdk-source-compat/proof.json",
+      "proofSha256": "f0d501280f77114eae4068908200d3c4ac502944427bcebad460f27e3aabc502",
+      "status": "Root accepted initial compatibility; socket follow-up submitted for review, 2 suites / 10 PASS SQL with explicit Oxy auth double"
+    }
+  ],
+  "AliaI05": "Integration confirms uncommitted WIP on d9847676849a74b1956934f2033f2421caf0b62b; no accepted source/test commit. Await exact handoff before composing with d5d02f274.",
+  "finalGates": [
+    "Registry publication and integrity readback",
+    "Replace local file candidates with exact registry dependencies and generate locks",
+    "Repeat appropriate installed-package checks and CI",
+    "Root-coordinated rollout and runtime acceptance"
+  ]
+}
