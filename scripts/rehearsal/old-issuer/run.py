@@ -18,6 +18,9 @@ PORT = 5599
 
 def main():
     assert len(os.sys.argv) == 1, 'No connection/runtime overrides'
+    os.umask(0o077)
+    for source in [ROOT,OLD]:
+        assert not (source/'.env').exists() and not (source/'packages/api/.env').exists()
     env = {k:v for k,v in os.environ.items() if k in ('PATH','HOME','LANG','LC_ALL')}
     env['BUN_OPTIONS'] = '--no-env-file'
     def command(args, cwd=ROOT, extra=None, timeout=120):
@@ -110,28 +113,44 @@ def main():
         host('old-cold',OLD,17974)
         logged(['bun','--no-env-file',ROOT/'scripts/rehearsal/old-issuer/probe.mjs','cold',manifest],'cold-stop-control.log',extra=runtime)
         receipt['preservedAfter']=census();assert receipt['preservedAfter']==before
+        for phase in ['seed','probe','cold']:
+            assert json.loads(Path(str(manifest)+'.'+phase+'.external.json').read_text())['externalAttempts']==0
         for label in ['old','final','old-cold']:
             assert json.loads((owned/f'{label}-ready.json.external.json').read_text())['externalAttempts']==0
         receipt['externalAttempts']=0
 
         receipt['probePassed']=True
     finally:
-        outcomes=[]
+        outcomes=[];cleanup_errors=[]
         for child in reversed(children):
-            if child.poll() is None: os.killpg(child.pid,signal.SIGTERM)
-            try: child.wait(timeout=15)
-            except subprocess.TimeoutExpired:
-                os.killpg(child.pid,signal.SIGKILL);child.wait(timeout=10)
+            try:
+                if child.poll() is None: os.killpg(child.pid,signal.SIGTERM)
+                try: child.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    os.killpg(child.pid,signal.SIGKILL);child.wait(timeout=10)
+                    cleanup_errors.append(f'forced-stop:{child.pid}')
+            except (OSError, subprocess.TimeoutExpired) as error:
+                cleanup_errors.append(f'child:{child.pid}:{type(error).__name__}')
             outcomes.append({'pid':child.pid,'exitCode':child.returncode,'stopped':not Path(f'/proc/{child.pid}').exists()})
         for log in logs:log.close()
         receipt['processCleanup']=outcomes
         if started:
-            if database:
-                sql(f'DROP DATABASE "{database}" WITH (FORCE)')
-                receipt['databaseAbsent']=sql(f"select count(*) from pg_database where datname='{database}'")=='0'
-            command([PG/'pg_ctl','-D',data,'-m','fast','-w','stop'])
-            receipt['postgresStopped']=not Path(f'/proc/{pg_pid}').exists()
-        sockets.rmdir();save()
+            try:
+                if database:
+                    sql(f'DROP DATABASE "{database}" WITH (FORCE)')
+                    receipt['databaseAbsent']=sql(f"select count(*) from pg_database where datname='{database}'")=='0'
+            except Exception as error:
+                cleanup_errors.append(f'database:{type(error).__name__}')
+            finally:
+                try:
+                    command([PG/'pg_ctl','-D',data,'-m','fast','-w','stop'])
+                    receipt['postgresStopped']=not Path(f'/proc/{pg_pid}').exists()
+                except Exception as error:
+                    cleanup_errors.append(f'postgres:{type(error).__name__}')
+        try:sockets.rmdir()
+        except OSError as error:cleanup_errors.append(f'sockets:{type(error).__name__}')
+        receipt['cleanupErrors']=cleanup_errors;save()
+        if cleanup_errors:raise RuntimeError('Owned cleanup requires reconciliation; see receipt')
         print(json.dumps({'receipt':str(owned/'receipt.json'),'probePassed':receipt.get('probePassed',False),'databaseAbsent':receipt.get('databaseAbsent'),'postgresStopped':receipt.get('postgresStopped')}))
 
 if __name__=='__main__': main()
