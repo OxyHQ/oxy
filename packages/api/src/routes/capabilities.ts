@@ -1,4 +1,5 @@
 import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
+import { asyncHandler } from '../utils/asyncHandler';
 import { Router, type Response } from 'express';
 import { and, asc, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
@@ -550,7 +551,7 @@ router.get('/execution-authorizations', authMiddleware, async (request: AuthRequ
   response.json({ authorizations });
 });
 
-router.post('/execution-authorizations', authMiddleware, async (request: AuthRequest, response: Response) => {
+router.post('/execution-authorizations', authMiddleware, asyncHandler(async (request: AuthRequest, response: Response) => {
   const parsed = executionAuthorizationSchema.safeParse(request.body);
   if (!parsed.success) {
     response.status(400).json({ error: 'invalid_execution_authorization', details: parsed.error.flatten() });
@@ -635,7 +636,7 @@ router.post('/execution-authorizations', authMiddleware, async (request: AuthReq
     expiresAt,
   }).returning();
   response.status(201).json({ authorization });
-});
+}));
 
 router.delete('/execution-authorizations/:authorizationId', authMiddleware, async (request: AuthRequest, response: Response) => {
   const [authorization] = await getDb().select().from(capabilityExecutionAuthorizations)
