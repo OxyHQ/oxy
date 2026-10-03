@@ -1,0 +1,24 @@
+{
+  "status": "prepared-only-not-applied",
+  "records": [
+    {
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "base": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "sourcePath": "packages/test-app-expo/acceptance/entry.tsx",
+      "beforeSha256": "a490512b3e4804386041eb47a79b2a1faf7ea0dd8e85ab326991a702d8cc816a",
+      "afterSha256": "6bf98eb9ebbee1381839f72380e2c9bd819bda647fb39d8a03a45e1bf0480544",
+      "patch": "docs/audits/2026-10-03-native-siblings/profile-sequence/siblings.patch",
+      "patchSha256": "c74b8d4307b8d03c4c9ae26897a2057a0661dc6e4c2ad9bc6c82bc66043ccbb4"
+    },
+    {
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "base": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "sourcePath": "packages/test-app-expo/acceptance/entry.tsx",
+      "beforeSha256": "a490512b3e4804386041eb47a79b2a1faf7ea0dd8e85ab326991a702d8cc816a",
+      "afterSha256": "6bf98eb9ebbee1381839f72380e2c9bd819bda647fb39d8a03a45e1bf0480544",
+      "patch": "docs/audits/2026-10-03-native-siblings/profile-sequence/allo.patch",
+      "patchSha256": "c74b8d4307b8d03c4c9ae26897a2057a0661dc6e4c2ad9bc6c82bc66043ccbb4"
+    }
+  ],
+  "invariant": "Initial zero; functional increment only after successful awaited users.me. Failure and logout never increment. No API/product/store/key changes."
+}
