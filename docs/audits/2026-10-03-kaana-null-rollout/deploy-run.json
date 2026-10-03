@@ -1,0 +1,97 @@
+{
+  "conclusion": "success",
+  "databaseId": 37085474521,
+  "headSha": "62c205f7aefdb4ce13e8365ddca03b70f5eedef2",
+  "jobs": [
+    {
+      "completedAt": "2026-10-03T01:25:25Z",
+      "conclusion": "success",
+      "databaseId": 111094744289,
+      "name": "deploy",
+      "startedAt": "2026-10-03T01:16:50Z",
+      "status": "completed",
+      "steps": [
+        {
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Configure AWS credentials (OIDC, no stored keys)",
+          "number": 3,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Login to ECR",
+          "number": 4,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@v3",
+          "number": 5,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Build and push (linux/arm64)",
+          "number": 6,
+          "status": "completed"
+        },
+        {
+          "conclusion": "skipped",
+          "name": "Prepare credential schema 0013 without changing serving traffic",
+          "number": 7,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Deploy to ECS (skipped until a service exists)",
+          "number": 8,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@v3",
+          "number": 13,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Login to ECR",
+          "number": 14,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Configure AWS credentials (OIDC, no stored keys)",
+          "number": 15,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 16,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 17,
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/OxyHQ/Kaana/actions/runs/37085474521/job/111094744289"
+    }
+  ],
+  "status": "completed"
+}

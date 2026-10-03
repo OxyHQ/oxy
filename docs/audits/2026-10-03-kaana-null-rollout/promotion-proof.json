@@ -1,0 +1,68 @@
+{
+  "recordedAt": "2026-10-03T01:49:34.455818+00:00",
+  "status": "producer promotion complete; NULL wire readback still pending",
+  "candidate": "c2d047ab444054c90b812167a27c5d2a94a0e29b",
+  "merged": "62c205f7aefdb4ce13e8365ddca03b70f5eedef2",
+  "deploymentRun": 37085474521,
+  "imageDigest": "sha256:2ab33cfeba7c760dddc24761c7e60e1425b326153ce6c4d130465e316b0fa59b",
+  "services": {
+    "kaana": {
+      "before": 83,
+      "after": 84
+    },
+    "kaana-publisher": {
+      "before": 87,
+      "after": 88
+    }
+  },
+  "rollback": {
+    "kaanaTaskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:83",
+    "publisherTaskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:87",
+    "imageDigest": "sha256:95dce6863cf662678236608f982dc05e8a4a3aca70ede9789f6c59c2a82b2d92",
+    "instruction": "Stop new provider-feed ingestion before producer rollback; retain schema/history."
+  },
+  "inferenceCanaryRequests": 0,
+  "oxyLedgerWrites": 0,
+  "limits": [
+    "Source PR150 feed NULL projection is now in the serving image; that alone does not prove a NULL row was read over the live feed.",
+    "Main CI and merged candidate tree equality verified before manually deploying exact main. No vars, IAM, roles, provider credentials or schema changed.",
+    "Transient deploy workflow disable then enable was read back; original ACTIVE state restored.",
+    "Same full task shapes apart from exact image, six discovery IDs unchanged; two optional control services/families remain absent.",
+    "First ECS readback mistakenly used missing cluster oxy and failed read-only; corrected literal workflow cluster oxy-cluster.",
+    "NULL probe first registration aborted before run-task due to ECS reordering named environment; definition deregistered INACTIVE with cleanupErrors empty. Canonical name-map comparison preserves exact values and duplicate rejection."
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/deploy-run.json",
+      "sha256": "13dee9c18ab09f343d7f4066fc8d8c5ff61667019921ba36932bcc67408ccbf9"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/kaana-dispatch-proof.json",
+      "sha256": "591c8d0382a68ff7d8a75746ec35fbb02cfef17296b7e831aed4cc69691f7d8f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/kaana-merged-proof.json",
+      "sha256": "b24751ddb4e264826cb54ff66ea243d1e3e77f68a02212687e11302199210d9e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/kaana-postdeploy-services.json",
+      "sha256": "dd792ce4d21c81347a61ccb9c0e663c760eae04b14cb3d3bd1b2e94019e45015"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/kaana-postdeploy-shapes.json",
+      "sha256": "e6d432e4eb75752da1ad23ffbf7837c85980297a8a632233af03bc2a02bd9595"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/kaana-services-initial.json",
+      "sha256": "1ab022390c3a1dcf747b14d8cb5cbd6dbe3eb90a4213b1956be80f432a278455"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/kaana-shapes-initial.json",
+      "sha256": "7ccb76a2d3189e807253c633e6f873e65d9ff4e443121dc93c1e8292532ef79a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-kaana-null-rollout/workflow-state.json",
+      "sha256": "9a408ec51be6bfaf6882d6fbf5a76875d61afff9760614dd334ba4c22097c7f2"
+    }
+  ]
+}

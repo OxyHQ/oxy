@@ -1,0 +1,10 @@
+{
+  "recordedAt": "2026-10-03T01:16:43.931620+00:00",
+  "mainCI": 37085204379,
+  "mainCIConclusion": "success",
+  "exactMain": "62c205f7aefdb4ce13e8365ddca03b70f5eedef2",
+  "shapeRecheckEqual": true,
+  "fourGatesUnchangedTrue": true,
+  "originalWorkflowStateRestored": "active",
+  "manualDispatchMode": "deploy"
+}

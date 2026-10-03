@@ -1,0 +1,6 @@
+{
+  "id": 337283145,
+  "name": "Deploy to AWS",
+  "path": ".github/workflows/deploy-aws.yml",
+  "state": "active"
+}
