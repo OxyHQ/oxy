@@ -178,6 +178,7 @@ export async function runSessionColdBoot(
   // Boot-local (not module-level) so it cannot leak across boots or break under
   // bundler re-evaluation.
   let signedOutReason: SignedOutReason = 'no_session';
+  let accountRecoverySuperseded = false;
 
   // Boot-local memo for the identity pin. Resolved lazily INSIDE a step so the
   // (local, but storage-backed) read is covered by `overallDeadlineMs`, and
@@ -330,7 +331,9 @@ export async function runSessionColdBoot(
           );
           return { kind: 'skip' };
         case 'session-ended':
-          // Signed out while the boot was minting; the arm planted nothing.
+          // The prior holder/epoch was superseded. This boot must not turn a
+          // late rejection into a fresh Commons sign-in; a new boot can reconcile.
+          if (identityBinding === null) accountRecoverySuperseded = true;
           return { kind: 'skip' };
         case 'no-secret':
           return { kind: 'skip' };
@@ -395,7 +398,7 @@ export async function runSessionColdBoot(
       // The adoption itself is local, but it is only worth committing alongside
       // a mint that proves the credential — so the whole lane is online-gated
       // like every other network step.
-      enabled: () => isNative && !isOffline(),
+      enabled: () => isNative && !isOffline() && !accountRecoverySuperseded,
       run: async () => {
         const before = await store.load();
         const decision = decideSharedDeviceJoin(before, await sharedSlot.read());
@@ -489,7 +492,7 @@ export async function runSessionColdBoot(
       id: 'commons-proof-signin',
       enabled: () => isNative && !isOffline(),
       run: async () => {
-        if (await store.isAutomaticIdentitySignInSuppressed?.()) return { kind: 'skip' };
+        if (accountRecoverySuperseded || await store.isAutomaticIdentitySignInSuppressed?.()) return { kind: 'skip' };
         const epoch = oxy.http.getSessionEpoch();
         const session = await oxy.auth.signInWithCommonsIdentity({ plantTokens: false, requestOptions: { retry: false } });
         if (!session?.accessToken || oxy.http.getSessionEpoch() !== epoch || await store.isAutomaticIdentitySignInSuppressed?.()) {

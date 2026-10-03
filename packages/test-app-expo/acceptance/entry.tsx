@@ -19,6 +19,7 @@ function AcceptanceScreen() {
   const { openAccountDialog, oxyServices, accounts, switchToAccount, refreshAccounts } = useOxy();
   const [operation, setOperation] = useState('idle');
   const [profileId, setProfileId] = useState('none');
+  const [profileSequence, setProfileSequence] = useState(0);
   function signIn() {
     setOperation('dialog-requested');
     openAccountDialog('signin');
@@ -36,7 +37,7 @@ function AcceptanceScreen() {
     catch { setOperation('sign-out-failed'); }
   }
   async function readProfile() {
-    try { const user = await oxyServices.users.me(); setProfileId(user.id); setOperation('profile-read'); }
+    try { const user = await oxyServices.users.me(); setProfileId(user.id); setProfileSequence((previous) => previous + 1); setOperation('profile-read'); }
     catch { setProfileId('none'); setOperation('profile-denied'); }
   }
   return (
@@ -48,6 +49,7 @@ function AcceptanceScreen() {
         <Text testID="acceptance-private-ready">private-ready:{String(auth.canUsePrivateApi)}</Text>
         <Text testID="acceptance-user">user:{auth.user?.id ?? 'none'}</Text>
         <Text testID="acceptance-profile">profile:{profileId}</Text>
+        <Text testID="acceptance-profile-sequence">profile-sequence:{profileSequence}</Text>
         <Text testID="acceptance-operation">operation:{operation}</Text>
         <Text testID="acceptance-error">provider-error:{String(Boolean(auth.error))}</Text>
         <OxySignInButton />

@@ -87,7 +87,11 @@ export interface AuthStateStore {
   clear(): Promise<void>;
   /** Durable local intent only: never authority or a mutation of an identity key. */
   isAutomaticIdentitySignInSuppressed?(): Promise<boolean>;
-  setAutomaticIdentitySignInSuppressed?(suppressed: boolean): Promise<boolean>;
+  setAutomaticIdentitySignInSuppressed?(suppressed: boolean, guard?: {
+    /** Checked inside the native store queue, before mutating logout intent. */
+    expectedState: PersistedAuthState;
+    isCurrent: () => boolean;
+  }): Promise<boolean>;
 }
 
 /**
@@ -448,7 +452,23 @@ export function createNativeAuthStateStore(storage: NativeKeyValueStorage): Auth
         return true; // Unknown storage must not start a new key sign-in.
       }
     }),
-    setAutomaticIdentitySignInSuppressed: (suppressed) => serialize(async () => {
+    setAutomaticIdentitySignInSuppressed: (suppressed, guard) => serialize(async () => {
+      if (guard) {
+        let current = sessionMirror;
+        if (current === undefined) {
+          try {
+            const [durable, warm] = await Promise.all([
+              storage.getItem(AUTH_STATE_STORAGE_KEY), storage.getItem(AUTH_STATE_TOKEN_STORAGE_KEY),
+            ]);
+            current = composeState(durable, warm);
+          } catch { suppressedMirror = true; return false; }
+        }
+        const expected = guard.expectedState;
+        if (!guard.isCurrent() || !current ||
+          current.deviceId !== expected.deviceId || current.deviceSecret !== expected.deviceSecret ||
+          current.sessionId !== expected.sessionId || current.userId !== expected.userId ||
+          current.accessToken !== expected.accessToken || current.expiresAt !== expected.expiresAt) return false;
+      }
       suppressedMirror = suppressed;
       try {
         if (suppressed) await storage.setItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY, '1');
