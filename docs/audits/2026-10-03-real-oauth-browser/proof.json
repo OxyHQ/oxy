@@ -1,0 +1,163 @@
+{
+  "sourceCommit": "8a20b7b03abd0812670e5ded15511423688540c8",
+  "capturedAt": "2026-10-03T08:38:16.539985+00:00",
+  "sourceInputs": [
+    {
+      "path": "packages/api/scripts/real-oauth-browser-api.ts",
+      "sha256": "cde12a24d3b0ee00d544a026f9aab55e6e76ea33f2c4509b0e69f56df0257e19"
+    },
+    {
+      "path": "scripts/rehearsal/real-oauth-browser/README.md",
+      "sha256": "be4a53caa972e9a6dfd779fc63e6841343bec9a8a9ea7ce52974ec1d4a9a62b8"
+    },
+    {
+      "path": "scripts/rehearsal/real-oauth-browser/index.html",
+      "sha256": "715278825eaf5bd04bbda2e7ca04ced67fd7ebe6b18a5fffda11f9a92d874a1f"
+    },
+    {
+      "path": "scripts/rehearsal/real-oauth-browser/main.tsx",
+      "sha256": "c569b6fdeddfbb9781b4b30237d05a3c57f4ce29b4c4f09e598bc3b94318fe28"
+    },
+    {
+      "path": "scripts/rehearsal/real-oauth-browser/vite.config.ts",
+      "sha256": "bbdcd056807faa30caf7cb25c9b49b2035b0ab16bd33fcb6e0816379781d9390"
+    },
+    {
+      "path": "scripts/rehearsal/start-real-oauth-browser.py",
+      "sha256": "c922fc606ba62ed0c7242f68675d0e4cd9efad2e6731fcc9fc67ae282a994aa0"
+    },
+    {
+      "path": "packages/auth/vite.config.ts",
+      "sha256": "f065460071d9610a65085afdf8f8791dc3e99009dab0a9751395cd089f3b48cc"
+    },
+    {
+      "path": "packages/auth/src/main.tsx",
+      "sha256": "51194a0a693dfade43ef855985eff9b27f7213d4a79bafeb3a345c8740b06735"
+    },
+    {
+      "path": "packages/auth/lib/oxy-client.ts",
+      "sha256": "7dbf39ec81001364e3b71048171ca06fdc1156e90eb589a9e5f49a7a75d0f4d5"
+    },
+    {
+      "path": "packages/api/src/server.ts",
+      "sha256": "134f22a6df3f89879c3d3516f4514c91f9cff7500bd27649fed34bc1ff6c088c"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "d778e714a4a49a0f814a49513eb7a5ff8c164a217c0ac9989f6a6eb5785c1b06"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-install.log",
+      "sha256": "9987eacb06556c66c558b8db427f75d35098d3ef05d2c1f52b5e0a041b4b1ca5"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-api-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-services-build.log",
+      "sha256": "bcc1b87dc90f5d1807abdaa9d686bfb06016eb713dda1beada7e7789fd4a98ba"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-script-types-final.log",
+      "sha256": "66cf2c9477c2f6628bf13c32b3963385530f696f94ba9c67fce18984581b0056"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-script-types-corrected.log",
+      "sha256": "ea9fffea0843b2257b768fb59faadccd63a3946a5e5fba317309e052e5bb23aa"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-script-types-frozen.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-api-lint-frozen.log",
+      "sha256": "6f89c052a328f58372b2c7891e06fcf20fb55ef7e6be68c08cc47c8282046a1a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-rp-build.log",
+      "sha256": "3038b763b48113539a2b2d061fcc9cc30f331888a4a7d3e9d7c7bdbe17c8bd3e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-rp-build-corrected.log",
+      "sha256": "7b8acc11aa8bb08a7b9f85f3b98903362750c641f93ec0e07c3e1c6fd3925a5f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-idp-build.log",
+      "sha256": "5d135502dbeb568ab21ba9249e8da6cd28be1bf56c17f262f0f0f92d06878def"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-host-readiness.log",
+      "sha256": "f6e412e9a8adeda2722cef43457a752ed7d8f1df68b1f076958e16e6973b928c"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-host-final-readiness.log",
+      "sha256": "1488167f2a0cdbeda7e5ee34f4ace9e702e8240182ad252ba5b3b3cb415ef16a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-real-oauth-browser/full-oauth-host-frozen-readiness.log",
+      "sha256": "aadcf4910c88a67e2a91e522b6ef4e63404a2ecfb76cb94d8b11d9f4145fe2f5"
+    }
+  ],
+  "loadedCandidateModules": [
+    {
+      "path": "packages/core/dist/esm/session/SessionClient.js",
+      "sha256": "b15bdd16bf70a36caf5ebc501e1acfa19eea29bce73b73823af18c06fc9c33ae"
+    },
+    {
+      "path": "packages/services/lib/module/ui/context/OxyContext.js",
+      "sha256": "a70396734835aff174804a17aaa00b55733d9064a2af221037b17f0f2c0022b3"
+    },
+    {
+      "path": "packages/services/lib/module/ui/components/OxySignInButton.js",
+      "sha256": "7cae5fa918a5915803f9f82bec1e172dcddf121751e4d73680811c37be933e45"
+    },
+    {
+      "path": "packages/services/lib/module/ui/context/hooks/useAuthOperations.js",
+      "sha256": "a7462e358f160b178d9b91f8d8657ec9e8b8a8f09372ae631f9dc597bcc6e279"
+    },
+    {
+      "path": "packages/services/lib/module/ui/oauth/applicationSessionLane.js",
+      "sha256": "9712ca5409be6216769fba2cbbc707f50039ffffb5544307ab71453d391f88b6"
+    }
+  ],
+  "preparationResults": {
+    "apiBuild": 0,
+    "servicesBuild": 0,
+    "scriptTypesFrozen": 0,
+    "eslintFrozen": 0,
+    "idpBuild": 0,
+    "rpBuildCorrected": 0,
+    "freshMigrations": 140,
+    "repeatMigrationsExitCode": 0
+  },
+  "failedPreparation": [
+    "top-level await scripts CommonJS rejected",
+    "initial dynamic default import type rejected",
+    "shared Vite optimizer cache collision",
+    "initial minimal RP bundler missed maintained Expo web resolution"
+  ],
+  "ownedCurrentHost": {
+    "manifest": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-3taovb9g/manifest.json",
+    "postgresPid": 3659010,
+    "port": 5589,
+    "dataDirectory": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-3taovb9g/data",
+    "browserNotExecuted": true
+  },
+  "previousHostCleanup": {
+    "postgresPidsAbsent": [
+      3651793,
+      3653890
+    ],
+    "orderedParentSIGTERM": true
+  },
+  "acceptance": {
+    "realOAuthFlow": false,
+    "firstPartySharedDeviceWEB04": false,
+    "registryConsumer": false,
+    "production": false,
+    "nativeOAuthSSO": false
+  }
+}

@@ -1,0 +1,54 @@
+You or a plugin you are using have set `optimizeDeps.esbuildOptions` but this option is now deprecated. Vite now uses Rolldown to optimize the dependencies. Please use `optimizeDeps.rolldownOptions` instead.
+rolldown-vite v7.3.1 building client environment for production...
+[2Ktransforming...`transformWithEsbuild` is deprecated and will be removed in the future. Please migrate to `transformWithOxc`.
+[plugin rolldown:vite-resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/protocol/dist/esm/platform/crypto.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin rolldown:vite-resolve] Module "node:async_hooks" has been externalized for browser compatibility, imported by "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/node_modules/.bun/expo-font@57.0.3/node_modules/expo-font/build/serverContext.web.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+✓ 2456 modules transformed.
+
+(!) outDir /home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/browser-build is not inside project root and will not be emptied.
+Use --emptyOutDir to override.
+
+rendering chunks...
+[plugin builtin:vite-reporter] 
+(!) __vite-browser-external is dynamically imported by /home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/protocol/dist/esm/platform/crypto.js but also statically imported by /home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/node_modules/.bun/expo-font@57.0.3/node_modules/expo-font/build/serverContext.web.js, dynamic import will not move module into another chunk.
+
+✗ Build failed in 860ms
+error during build:
+Build failed with 4 errors:
+
+[31m[MISSING_EXPORT] Error:[0m "EventEmitter" is not exported by "node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/ts-declarations/EventEmitter.ts".
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/ts-declarations/global.ts:1:10 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m1 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m{[0m[38;5;249m [0mEventEmitter[38;5;249m [0m[38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m[38;5;249m"[0m[38;5;249m.[0m[38;5;249m/[0m[38;5;249mE[0m[38;5;249mv[0m[38;5;249me[0m[38;5;249mn[0m[38;5;249mt[0m[38;5;249mE[0m[38;5;249mm[0m[38;5;249mi[0m[38;5;249mt[0m[38;5;249mt[0m[38;5;249me[0m[38;5;249mr[0m[38;5;249m"[0m[38;5;249m;[0m
+ [38;5;240m  │[0m          ──────┬─────  
+ [38;5;240m  │[0m                ╰─────── Missing export
+[38;5;246m───╯[0m
+
+[31m[MISSING_EXPORT] Error:[0m "NativeModule" is not exported by "node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/ts-declarations/NativeModule.ts".
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/ts-declarations/global.ts:2:10 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m2 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m{[0m[38;5;249m [0mNativeModule[38;5;249m [0m[38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m[38;5;249m"[0m[38;5;249m.[0m[38;5;249m/[0m[38;5;249mN[0m[38;5;249ma[0m[38;5;249mt[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249me[0m[38;5;249mM[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249mu[0m[38;5;249ml[0m[38;5;249me[0m[38;5;249m"[0m[38;5;249m;[0m
+ [38;5;240m  │[0m          ──────┬─────  
+ [38;5;240m  │[0m                ╰─────── Missing export
+[38;5;246m───╯[0m
+
+[31m[MISSING_EXPORT] Error:[0m "SharedObject" is not exported by "node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/ts-declarations/SharedObject.ts".
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/ts-declarations/global.ts:3:10 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m3 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m{[0m[38;5;249m [0mSharedObject[38;5;249m [0m[38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m[38;5;249m"[0m[38;5;249m.[0m[38;5;249m/[0m[38;5;249mS[0m[38;5;249mh[0m[38;5;249ma[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249md[0m[38;5;249mO[0m[38;5;249mb[0m[38;5;249mj[0m[38;5;249me[0m[38;5;249mc[0m[38;5;249mt[0m[38;5;249m"[0m[38;5;249m;[0m
+ [38;5;240m  │[0m          ──────┬─────  
+ [38;5;240m  │[0m                ╰─────── Missing export
+[38;5;246m───╯[0m
+
+[31m[MISSING_EXPORT] Error:[0m "SharedRef" is not exported by "node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/ts-declarations/SharedRef.ts".
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/.bun/expo-modules-core@57.0.17/node_modules/expo-modules-core/src/ts-declarations/global.ts:4:10 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m4 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m{[0m[38;5;249m [0mSharedRef[38;5;249m [0m[38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m[38;5;249m"[0m[38;5;249m.[0m[38;5;249m/[0m[38;5;249mS[0m[38;5;249mh[0m[38;5;249ma[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249md[0m[38;5;249mR[0m[38;5;249me[0m[38;5;249mf[0m[38;5;249m"[0m[38;5;249m;[0m
+ [38;5;240m  │[0m          ────┬────  
+ [38;5;240m  │[0m              ╰────── Missing export
+[38;5;246m───╯[0m
+
+    at aggregateBindingErrorsIntoJsError (/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/node_modules/.bun/rolldown@1.0.0-beta.53/node_modules/rolldown/dist/shared/bindingify-input-options-Bk0BBr2s.mjs:56:22)
+    at unwrapBindingResult (/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/node_modules/.bun/rolldown@1.0.0-beta.53/node_modules/rolldown/dist/shared/bindingify-input-options-Bk0BBr2s.mjs:31:128)
+    at #build (/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/node_modules/.bun/rolldown@1.0.0-beta.53/node_modules/rolldown/dist/shared/rolldown-build-BEU8N80I.mjs:2260:34)
+    at processTicksAndRejections (native:7:39)
