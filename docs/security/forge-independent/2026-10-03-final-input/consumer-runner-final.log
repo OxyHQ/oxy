@@ -7,7 +7,7 @@ The default text search configuration will be set to "english".
 
 Data page checksums are disabled.
 
-creating directory /tmp/oxy-forge-final-pg-nhuo2o26/data ... ok
+creating directory /tmp/oxy-forge-final-pg-l4dqvf6t/data ... ok
 creating subdirectories ... ok
 selecting dynamic shared memory implementation ... posix
 selecting default "max_connections" ... 100
@@ -20,13 +20,13 @@ syncing data to disk ... ok
 
 Success. You can now start the database server using:
 
-    /usr/lib/postgresql/17/bin/pg_ctl -D /tmp/oxy-forge-final-pg-nhuo2o26/data -l logfile start
+    /usr/lib/postgresql/17/bin/pg_ctl -D /tmp/oxy-forge-final-pg-l4dqvf6t/data -l logfile start
 
 
 waiting for server to start.... done
 server started
 
-{"newLocalServerPid": 3517840, "dataDirectory": "/tmp/oxy-forge-final-pg-nhuo2o26/data", "database": "oxy_rehearsal_1519_18c5853f8d2772c8", "command": ["bun", "run", "test", "--runInBand", "--runTestsByPath", "src/services/updates/__tests__/signing.service.test.ts", "src/services/updates/__tests__/manifest.service.test.ts", "src/routes/__tests__/updatesManifest.test.ts"], "exitCode": 0, "log": "/tmp/oxy-forge-final-evidence-b5h0ogu1/consumer-input/oxy-34.log", "productionAccess": false}
+{"newLocalServerPid": 3939008, "dataDirectory": "/tmp/oxy-forge-final-pg-l4dqvf6t/data", "database": "oxy_rehearsal_1519_983dbd895e8a9f42", "command": ["bun", "--no-env-file", "run", "test", "--runInBand", "--runTestsByPath", "src/services/updates/__tests__/signing.service.test.ts", "src/services/updates/__tests__/manifest.service.test.ts", "src/routes/__tests__/updatesManifest.test.ts"], "exitCode": 0, "log": "/tmp/oxy-forge-final-evidence-2cmueul0/consumer-input/oxy-34.log", "productionAccess": false}
 waiting for server to shut down.... done
 server stopped
 

@@ -8,7 +8,7 @@
     "dist/forge.min.js": "811a6061b91b04955ea1457a7d987f21a496f43304c4a89f870d2d175191a19f",
     "dist/forge.all.min.js": "fc2c8c484e3da7608ad5a966a8b747d7fe7c8ea7086b1f76ea8ead544dd7d232"
   },
-  "publicKeySha256": "4616970c97593113fd7b5ce73d78d7b1ad6a91835cd7288249d518e12009a840",
+  "publicKeySha256": "87f05aed22835545e4764261d28083b66cbb555b5831964e6de508fa1061f672",
   "knownKeyControlsOnly": true,
   "count": 321,
   "rows": [

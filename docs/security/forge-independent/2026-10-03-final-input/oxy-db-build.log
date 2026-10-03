@@ -1,3 +1,4 @@
+$ node ../core/scripts/build-workspace-deps.mjs @oxy.so/utils @oxy.so/telemetry @oxy.so/contracts @oxy.so/protocol @oxy.so/core @oxy.so/federation @oxy.so/db @oxy.so/mcp && tsc
 @oxy.so/utils build: $ rm -rf dist
 @oxy.so/utils build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
 @oxy.so/utils build: $ tsc -p tsconfig.esm.json && node scripts/mark-esm.mjs
