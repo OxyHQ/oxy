@@ -1,0 +1,65 @@
+2026-10-03T14:55:22.4543850Z FAIL src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts
+2026-10-03T14:55:22.4545400Z   ● preparation is read-only, bounded and excludes secrets and ordinary/lost rows unless explicitly inventoried
+2026-10-03T14:55:22.4545960Z 
+2026-10-03T14:55:22.4546180Z     expect(received).toEqual(expected) // deep equality
+2026-10-03T14:55:22.4546468Z 
+2026-10-03T14:55:22.4546594Z     - Expected  -  0
+2026-10-03T14:55:22.4546875Z     + Received  + 18
+2026-10-03T14:55:22.4547035Z 
+2026-10-03T14:55:22.4547145Z       Array [
+2026-10-03T14:55:22.4547468Z     +   "16b1fecc-0542-4e90-b72b-00a52f4c6e54",
+2026-10-03T14:55:22.4547884Z     +   "4925098b-ae6c-4067-bb9a-cc39d68a8dca",
+2026-10-03T14:55:22.4548259Z     +   "e4f00636-78fb-4bba-b5c4-68624b87a05f",
+2026-10-03T14:55:22.4548597Z     +   "e62c04bc-51f9-4a49-baae-ac76dbaa809b",
+2026-10-03T14:55:22.4548949Z     +   "c6e9ad40-886f-498f-9797-5511a09340a7",
+2026-10-03T14:55:22.4549280Z     +   "f21bc330-5d46-4566-a6e9-75d20d887b2c",
+2026-10-03T14:55:22.4549613Z     +   "eb932eba-fd7c-47b1-9359-e4e5088cd6d7",
+2026-10-03T14:55:22.4549938Z     +   "7a093839-7184-4058-94c1-e54c83771e1b",
+2026-10-03T14:55:22.4550264Z     +   "d58f0530-fb09-4a62-a40a-c5ba82d6fe67",
+2026-10-03T14:55:22.4550770Z     +   "538cc044-cb43-4560-9bcc-aa1b55df3da2",
+2026-10-03T14:55:22.4551108Z     +   "1b8189a9-344b-4fcf-82b9-9ce347af9721",
+2026-10-03T14:55:22.4551436Z     +   "c3f5ab5b-c881-4a08-aa42-8ada5aedefdf",
+2026-10-03T14:55:22.4551760Z     +   "22668d32-c220-4911-9661-9479241c83cc",
+2026-10-03T14:55:22.4552086Z     +   "e0461d47-bc92-408d-acd4-6b292b74912b",
+2026-10-03T14:55:22.4552423Z     +   "e967ca7c-8b46-4e4b-a517-59c56bf629c9",
+2026-10-03T14:55:22.4552752Z     +   "56a87ff1-cac8-4745-b271-30f13cf7934b",
+2026-10-03T14:55:22.4553083Z     +   "4e8cc3fa-b041-47cd-bab0-f8110d5d06e3",
+2026-10-03T14:55:22.4553419Z     +   "083e2f4b-cec7-42c4-9c44-f735c05554e3",
+2026-10-03T14:55:22.4553754Z         "b2cb4bf9-8ea9-4beb-ac57-6e9f00a07635",
+2026-10-03T14:55:22.4554036Z       ]
+2026-10-03T14:55:22.4554150Z 
+2026-10-03T14:55:22.4554570Z     [0m [90m 249 |[39m 	[36mconst[39m plan [33m=[39m [36mawait[39m prepare()[33m;[39m
+2026-10-03T14:55:22.4555257Z      [90m 250 |[39m 	expect([36mawait[39m rowState())[33m.[39mtoEqual(before)[33m;[39m
+2026-10-03T14:55:22.4556222Z     [31m[1m>[22m[39m[90m 251 |[39m 	expect(plan[33m.[39msnapshot[33m.[39msessions[33m.[39mmap((r) [33m=>[39m r[33m.[39msession_id))[33m.[39mtoEqual([
+2026-10-03T14:55:22.4557049Z      [90m     |[39m 	                                                        [31m[1m^[22m[39m
+2026-10-03T14:55:22.4557528Z      [90m 252 |[39m 		agentSessionId[33m,[39m
+2026-10-03T14:55:22.4557902Z      [90m 253 |[39m 	])[33m;[39m
+2026-10-03T14:55:22.4558688Z      [90m 254 |[39m 	expect(plan[33m.[39msnapshot[33m.[39mcodes[33m.[39mmap((r) [33m=>[39m r[33m.[39mid))[33m.[39mtoEqual([agentCodeId])[33m;[39m[0m
+2026-10-03T14:55:22.4559412Z 
+2026-10-03T14:55:22.4559667Z       at src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts:251:58
+2026-10-03T14:55:22.4560246Z       at fulfilled (src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts:5:58)
+2026-10-03T14:55:22.4560724Z 
+2026-10-03T14:55:22.4561258Z   ● expires exact pending authority, retires agent and cache canonically, retains history and unrelated human authority
+2026-10-03T14:55:22.4561713Z 
+2026-10-03T14:55:22.4561909Z     expect(received).toBe(expected) // Object.is equality
+2026-10-03T14:55:22.4562154Z 
+2026-10-03T14:55:22.4562321Z     Expected: "01a10242-e916-7399-bfcc-fbf9f415d670"
+2026-10-03T14:55:22.4562701Z     Received: "01a10243-3299-7fd3-9d46-6f97f7dcc285"
+2026-10-03T14:55:22.4562916Z 
+2026-10-03T14:55:22.4563274Z     [0m [90m 268 |[39m 	[36mconst[39m after [33m=[39m [36mawait[39m rowState()[33m;[39m
+2026-10-03T14:55:22.4564030Z      [90m 269 |[39m 	expect(after[33m.[39magent[33m.[39misActive)[33m.[39mtoBe([36mfalse[39m)[33m;[39m
+2026-10-03T14:55:22.4564814Z     [31m[1m>[22m[39m[90m 270 |[39m 	expect(after[33m.[39magent[33m.[39mauthMethodId)[33m.[39mtoBe(
+2026-10-03T14:55:22.4565675Z      [90m     |[39m 	                                 [31m[1m^[22m[39m
+2026-10-03T14:55:22.4566356Z      [90m 271 |[39m 		plan[33m.[39msnapshot[33m.[39msessions[[35m0[39m][33m.[39mauth_method_id[33m,[39m
+2026-10-03T14:55:22.4566891Z      [90m 272 |[39m 	)[33m;[39m
+2026-10-03T14:55:22.4567576Z      [90m 273 |[39m 	expect(after[33m.[39mapproval[33m.[39mapprovedBySessionId)[33m.[39mtoBe(agentSessionId)[33m;[39m[0m
+2026-10-03T14:55:22.4568043Z 
+2026-10-03T14:55:22.4568290Z       at src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts:270:35
+2026-10-03T14:55:22.4568857Z       at fulfilled (src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts:5:58)
+2026-10-03T14:55:22.4569175Z 
+2026-10-03T14:55:22.8044711Z PASS src/services/__tests__/did.service.test.ts
+2026-10-03T14:55:23.8401326Z PASS src/routes/__tests__/federationActorDelete.test.ts
+2026-10-03T14:56:20.7199786Z Test Suites: 1 failed, 88 passed, 89 total
+2026-10-03T14:56:20.7201070Z Tests:       2 failed, 1591 passed, 1593 total
+2026-10-03T14:56:20.7201917Z Snapshots:   0 total
+2026-10-03T14:56:20.7202588Z Time:        121.396 s

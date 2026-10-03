@@ -1,0 +1,55 @@
+packages/api/src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts:35:43 lint/performance/noDelete  FIXABLE  ━━━━━━━━━━
+
+  × Avoid the delete operator which can impact performance.
+  
+    33 │ 			if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl);
+    34 │ 		} finally {
+  > 35 │ 			if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+       │ 			                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    36 │ 			else process.env.DATABASE_URL = originalDatabaseUrl;
+    37 │ 		}
+  
+  i Unsafe fix: Use an undefined assignment instead.
+  
+     33  33 │   			if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl);
+     34  34 │   		} finally {
+     35     │ - → → → if·(originalDatabaseUrl·===·undefined)·delete·process.env.DATABASE_URL;
+         35 │ + → → → if·(originalDatabaseUrl·===·undefined)·process.env.DATABASE_URL·=·undefined;
+     36  36 │   			else process.env.DATABASE_URL = originalDatabaseUrl;
+     37  37 │   		}
+  
+
+packages/api/src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts organizeImports ━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+      2   2 │   import { eq, inArray, sql } from "drizzle-orm";
+      3   3 │   import { closePostgres, connectPostgres, getDb } from "../../config/postgres";
+      4     │ - import·{·createTestDatabase,·dropTestDatabase·}·from·"../../db/testDatabase";
+      5     │ - import·{·applications·}·from·"../../db/schema/applications";
+      6     │ - import·{·authCodes·}·from·"../../db/schema/authCodes";
+      7     │ - import·{·authSessions·}·from·"../../db/schema/authSessions";
+      8     │ - import·{·sessions·}·from·"../../db/schema/sessions";
+      9     │ - import·{·userAuthMethods·}·from·"../../db/schema/userAuthMethods";
+     10     │ - import·{·users·}·from·"../../db/schema/users";
+          4 │ + import·{·applications·}·from·"../../db/schema/applications";
+          5 │ + import·{·authCodes·}·from·"../../db/schema/authCodes";
+          6 │ + import·{·authSessions·}·from·"../../db/schema/authSessions";
+          7 │ + import·{·sessions·}·from·"../../db/schema/sessions";
+          8 │ + import·{·userAuthMethods·}·from·"../../db/schema/userAuthMethods";
+          9 │ + import·{·users·}·from·"../../db/schema/users";
+         10 │ + import·{·createTestDatabase,·dropTestDatabase·}·from·"../../db/testDatabase";
+     11  11 │   import sessionService from "../../services/session.service";
+     12  12 │   import {
+  
+
+Skipped 1 suggested fixes.
+If you wish to apply the suggested (unsafe) fixes, use the command biome check --fix --unsafe
+
+Checked 1 file in 10ms. No fixes applied.
+Found 2 errors.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

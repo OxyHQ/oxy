@@ -1,0 +1,83 @@
+{
+  "sourceHead": "455143331a18de93d94b167ab7335e53f64ba81c",
+  "sources": [
+    {
+      "file": "packages/api/src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts",
+      "sha256": "de6fedcad0e9873aea3b6b0f4c9f1d3f7be69188066aa0eed2a741ca52356c21"
+    },
+    {
+      "file": "packages/api/src/db/testDatabase.ts",
+      "sha256": "bbf0dc820ed53d601e26b05f5c9e2f458e69ff75f1363c7d044d0c0edcad35d1"
+    },
+    {
+      "file": "scripts/rehearsal/test-old-issuer-auth-retirement.py",
+      "sha256": "bfc5e42b2f2d86a592184b82d654bf3533ab9c92f5b28fd3ce5276a670d89b45"
+    },
+    {
+      "file": "packages/api/src/scripts/oldIssuerAuthRetirement.ts",
+      "sha256": "2e3d0e7b991d44ec8403d0a499fa9f81d2c5376b3839a997170d0aa771c0214a"
+    },
+    {
+      "file": "packages/api/src/services/session.service.ts",
+      "sha256": "20d542fa74f1b69e41b530fd9140db4c5709c6f097955a26582b433ea1781dac"
+    }
+  ],
+  "records": [
+    {
+      "file": "green-harness.log",
+      "sha256": "edd123134801c9de1e2b7240176965d90e1209a14153f1c67f3a2bc607a84867"
+    },
+    {
+      "file": "green-api.txt",
+      "sha256": "78ed61ab93992816fe4b674da51e20c91b5f09513c9d0772b5e0e333aabc7e96"
+    },
+    {
+      "file": "green-node.txt",
+      "sha256": "becd941062928e758e78e838a33db47283f309be0113664c49763469848ce19e"
+    },
+    {
+      "file": "migrate-fresh.txt",
+      "sha256": "87d50574a068b53baaf5dfe5b7c1539241ebfb65473c2c6448dfd1c89baf6943"
+    },
+    {
+      "file": "migrate-repeat.txt",
+      "sha256": "37e756afd15ca12d7904cd6610c63f54d785ce6e8db38267c0d4946e30ce83a4"
+    },
+    {
+      "file": "lint-initial.log",
+      "sha256": "6dcb04b0543477043be322966f51d44735dc348cfa57607852552a5cdc1390d1"
+    },
+    {
+      "file": "lint-final.log",
+      "sha256": "e42135aaf0acc250bc2b51a6654628fd5e07d63e0055ab79b83671d3661abb22"
+    },
+    {
+      "file": "ci-red-excerpt.txt",
+      "sha256": "0552b920672f1fc4d690f1f4619f853cb716136d139550eb20ef41ee072f7327"
+    }
+  ],
+  "ciRed": {
+    "head": "f364fe58a41aab6913cf92ec01a9a9c1ea489120",
+    "runId": 37131151788,
+    "jobId": 111226402888,
+    "privateFullLogSha256": "0ee29aad1c7869d7f6a15d47723f7a90316f97f999bf80ee6a2d3fb26b41bbe2",
+    "failures": 2,
+    "passing": 1591,
+    "reason": "Other suites created18 additional live agent sessions; the test expected only its one and used snapshot.sessions[0] as its own. Global production inventory/executor are correct and unchanged."
+  },
+  "results": {
+    "retirementTestsPassing": 17,
+    "compiledNodeExitCode": 0,
+    "migrations": 142,
+    "repeat": "unchanged",
+    "ownedPid": 3967884,
+    "ownedPidStopped": true,
+    "lintExitCode": 0
+  },
+  "scope": "Only fixture setup/teardown changes; retains all17 assertions and global inventory semantics, fully migrated unique test DB, close/drop and original DATABASE_URL restoration even on errors. Reflect.deleteProperty restores absence rather than assigning string undefined. Imports sorted after green without behavioral change.",
+  "limits": [
+    "Final CI and native correction still pending",
+    "No production retirement or policy activation",
+    "Initial lint failure preserved; unsafe suggested env assignment was not applied"
+  ]
+}
