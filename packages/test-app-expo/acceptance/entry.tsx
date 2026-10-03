@@ -37,7 +37,7 @@ function AcceptanceScreen() {
     catch { setOperation('sign-out-failed'); }
   }
   async function readProfile() {
-    try { const user = await oxyServices.users.me(); setProfileId(user.id); setProfileSequence((previous) => previous + 1); setOperation('profile-read'); }
+    try { oxyServices.cache.delete('GET:/users/me'); const user = await oxyServices.users.me(); setProfileId(user.id); setProfileSequence((previous) => previous + 1); setOperation('profile-read'); }
     catch { setProfileId('none'); setOperation('profile-denied'); }
   }
   return (
