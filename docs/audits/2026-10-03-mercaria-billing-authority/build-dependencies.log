@@ -1,0 +1,58 @@
+• turbo 2.10.12
+
+   • Packages in scope: @oxy.so/contracts, @oxy.so/core, @oxy.so/db, @oxy.so/federation, @oxy.so/mcp, @oxy.so/protocol, @oxy.so/telemetry, @oxy.so/utils
+   • Running build in 8 packages
+   • Remote caching disabled, using shared worktree cache
+
+@oxy.so/utils:build: cache hit, replaying logs c61009e09866bae1
+@oxy.so/utils:build: $ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/utils:build: $ rm -rf dist
+@oxy.so/utils:build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/utils:build: $ tsc -p tsconfig.esm.json && node scripts/mark-esm.mjs
+@oxy.so/utils:build: $ tsc -p tsconfig.types.json
+@oxy.so/telemetry:build: cache hit, replaying logs 06fcb736969983f1
+@oxy.so/telemetry:build: $ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/telemetry:build: $ rm -rf dist
+@oxy.so/telemetry:build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/telemetry:build: $ tsc -p tsconfig.esm.json
+@oxy.so/telemetry:build: $ tsc -p tsconfig.types.json
+@oxy.so/db:build: cache hit, replaying logs 2741ecedaf2d04b6
+@oxy.so/db:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/db:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/db:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/db:build: ESM imports fixed
+@oxy.so/db:build: $ tsc -p tsconfig.types.json
+@oxy.so/contracts:build: cache hit, replaying logs 3642bf6845146929
+@oxy.so/contracts:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/contracts:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/contracts:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/contracts:build: ESM imports fixed
+@oxy.so/contracts:build: $ tsc -p tsconfig.types.json
+@oxy.so/mcp:build: cache hit, replaying logs 2e9ad76dcfb1ea95
+@oxy.so/mcp:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/mcp:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/mcp:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/mcp:build: $ tsc -p tsconfig.types.json
+@oxy.so/protocol:build: cache hit, replaying logs d7c0b7f48be1c6dd
+@oxy.so/protocol:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/protocol:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/protocol:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/protocol:build: ESM imports fixed
+@oxy.so/protocol:build: $ tsc -p tsconfig.types.json
+@oxy.so/core:build: cache hit, replaying logs 35f55dea054432b2
+@oxy.so/core:build: $ node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs
+@oxy.so/core:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/core:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/core:build: ESM imports fixed
+@oxy.so/core:build: $ tsc -p tsconfig.types.json
+@oxy.so/federation:build: cache hit, replaying logs 6a808ee7771baa89
+@oxy.so/federation:build: $ node ../core/scripts/build-workspace-deps.mjs @oxy.so/contracts @oxy.so/protocol @oxy.so/core && bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/federation:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/federation:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/federation:build: ESM imports fixed
+@oxy.so/federation:build: $ tsc -p tsconfig.types.json
+
+ Tasks:    8 successful, 8 total
+Cached:    8 cached, 8 total
+  Time:    97ms >>> FULL TURBO
+

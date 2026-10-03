@@ -1,0 +1,107 @@
+packages/api/src/capabilities/inbox-mcp-http.ts(1,45): error TS2307: Cannot find module '@oxy.so/mcp' or its corresponding type declarations.
+packages/api/src/capabilities/inbox-mcp-http.ts(44,29): error TS7006: Parameter 'token' implicitly has an 'any' type.
+packages/api/src/capabilities/inbox-mcp-http.ts(51,23): error TS7006: Parameter '_input' implicitly has an 'any' type.
+packages/api/src/capabilities/inbox-mcp-http.ts(51,31): error TS7006: Parameter 'context' implicitly has an 'any' type.
+packages/api/src/capabilities/inbox-mcp-http.ts(56,13): error TS7006: Parameter 'message' implicitly has an 'any' type.
+packages/api/src/capabilities/inbox-mcp-http.ts(56,22): error TS7006: Parameter 'error' implicitly has an 'any' type.
+packages/api/src/capabilities/inbox-service-client.ts(1,27): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/capabilities/inbox.handlers.ts(7,8): error TS2307: Cannot find module '@oxy.so/mcp' or its corresponding type declarations.
+packages/api/src/capabilities/inbox.handlers.ts(106,19): error TS7006: Parameter 'input' implicitly has an 'any' type.
+packages/api/src/capabilities/inbox.handlers.ts(106,26): error TS7006: Parameter 'context' implicitly has an 'any' type.
+packages/api/src/capabilities/inbox.handlers.ts(110,17): error TS7006: Parameter 'rawInput' implicitly has an 'any' type.
+packages/api/src/capabilities/inbox.handlers.ts(110,27): error TS7006: Parameter 'context' implicitly has an 'any' type.
+packages/api/src/capabilities/inbox.mcp.ts(5,8): error TS2307: Cannot find module '@oxy.so/mcp' or its corresponding type declarations.
+packages/api/src/config/federationBridgePolicy.ts(8,8): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/config/federationBridgePolicy.ts(149,14): error TS7006: Parameter 'candidate' implicitly has an 'any' type.
+packages/api/src/config/federationBridgePolicy.ts(150,49): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/api/src/config/federationBridgeTrust.ts(1,41): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/controllers/emailProxy.controller.ts(10,42): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/controllers/session.controller.ts(33,8): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/middleware/emailCapabilityAuth.ts(17,8): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/middleware/emailCapabilityAuth.ts(195,26): error TS7006: Parameter 'keyId' implicitly has an 'any' type.
+packages/api/src/middleware/emailCapabilityAuth.ts(198,59): error TS18046: 'error' is of type 'unknown'.
+packages/api/src/middleware/machineCredential.ts(65,30): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/middleware/serviceToken.ts(2,102): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/queue/assetVariants.queue.ts(39,47): error TS2307: Cannot find module '@oxy.so/telemetry/collector' or its corresponding type declarations.
+packages/api/src/routes/capabilities.ts(17,40): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/routes/capabilities.ts(836,30): error TS7006: Parameter 'keyId' implicitly has an 'any' type.
+packages/api/src/routes/capabilities.ts(889,28): error TS7006: Parameter 'keyId' implicitly has an 'any' type.
+packages/api/src/routes/federation.ts(3,41): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/routes/identity.ts(70,27): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/routes/internal.ts(1,42): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/routes/internal.ts(225,43): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+packages/api/src/routes/webfinger.ts(1,84): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/server.ts(908,65): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/services/account.service.ts(77,66): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/services/accountEventWebhook.worker.ts(19,42): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/assetService.ts(5,37): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/services/assetService.ts(6,64): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/assetService.ts(336,19): error TS18046: 'error' is of type 'unknown'.
+packages/api/src/services/assetService.ts(1341,97): error TS18046: 'err' is of type 'unknown'.
+packages/api/src/services/capabilityAuthority.service.ts(13,39): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/civic/attestation.service.ts(26,42): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/civic/credential.service.ts(42,89): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/civic/personhood.service.ts(25,63): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/civic/publicCard.service.ts(21,41): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/services/civic/publicCard.service.ts(22,30): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/civic/realLife.service.ts(30,63): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/civic/validator.service.ts(42,55): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/did.service.ts(22,41): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/services/email.service.ts(33,42): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/email.service.ts(4211,66): error TS18046: 'err' is of type 'unknown'.
+packages/api/src/services/federation.service.ts(13,154): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/services/federation.service.ts(14,64): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/federation/__fixtures__/bridgedActors.ts(27,47): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/services/federation/blockedDomainPurge.service.ts(67,63): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/services/federation/externalIdentityPolicy.ts(1,64): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/services/federation/instagramGraph.ts(16,42): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/federation/instagramGraph.ts(17,50): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/services/federation/instanceFetchSignature.ts(32,37): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/federation/instanceFetchSignature.ts(33,29): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/services/federation/instanceFetchSignature.ts(74,12): error TS7006: Parameter 'signingKeyId' implicitly has an 'any' type.
+packages/api/src/services/federation/instanceFetchSignature.ts(74,26): error TS7006: Parameter 'signingString' implicitly has an 'any' type.
+packages/api/src/services/federation/metaFirstPartyProof.service.ts(3,27): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/identityExport.service.ts(61,30): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/inboxRealtime.ts(18,37): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/services/linkedAccounts/http.ts(17,48): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/locationQueryService.ts(53,30): error TS2307: Cannot find module '@oxy.so/utils/sql' or its corresponding type declarations.
+packages/api/src/services/locationService.ts(2,37): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/services/mcpOAuth.service.ts(13,8): error TS2307: Cannot find module '@oxy.so/mcp' or its corresponding type declarations.
+packages/api/src/services/mcpOAuth.service.ts(635,26): error TS7006: Parameter 'keyId' implicitly has an 'any' type.
+packages/api/src/services/mcpOAuth.service.ts(684,26): error TS7006: Parameter 'keyId' implicitly has an 'any' type.
+packages/api/src/services/nativeRequesterAssertion.service.ts(45,8): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/nativeRequesterAssertion.service.ts(365,61): error TS18046: 'error' is of type 'unknown'.
+packages/api/src/services/nodeRegistry.service.ts(47,42): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/nodeRegistry.service.ts(48,27): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/nodeSync.service.ts(71,47): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/nodeSync.service.ts(72,44): error TS2307: Cannot find module '@oxy.so/protocol/node' or its corresponding type declarations.
+packages/api/src/services/nodeSync.service.ts(73,27): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/nodeSync.service.ts(113,37): error TS7006: Parameter 'url' implicitly has an 'any' type.
+packages/api/src/services/nodeSync.service.ts(113,42): error TS7006: Parameter 'init' implicitly has an 'any' type.
+packages/api/src/services/oxyRecordStore.ts(43,60): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/oxyVerificationResolver.ts(21,78): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/platformActivity.service.ts(3,61): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/platformActivity.service.ts(4,38): error TS2307: Cannot find module '@oxy.so/telemetry/socket' or its corresponding type declarations.
+packages/api/src/services/platformActivity.service.ts(9,8): error TS2307: Cannot find module '@oxy.so/telemetry/server' or its corresponding type declarations.
+packages/api/src/services/platformActivity.service.ts(11,133): error TS2307: Cannot find module '@oxy.so/telemetry/collector' or its corresponding type declarations.
+packages/api/src/services/platformActivity.service.ts(69,46): error TS7006: Parameter 'events' implicitly has an 'any' type.
+packages/api/src/services/platformActivity.service.ts(123,44): error TS7006: Parameter 'events' implicitly has an 'any' type.
+packages/api/src/services/platformInfrastructure.service.ts(1,40): error TS2307: Cannot find module '@oxy.so/telemetry/collector' or its corresponding type declarations.
+packages/api/src/services/repoLog.service.ts(21,32): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/serviceActingAs.service.ts(67,44): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/serviceTokenMint.service.ts(1,84): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/signature.service.ts(13,8): error TS2307: Cannot find module '@oxy.so/protocol/secp256k1' or its corresponding type declarations.
+packages/api/src/services/signedRecord.service.ts(25,42): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/signedRecord.service.ts(26,117): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/transparency.service.ts(58,8): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+packages/api/src/services/user.service.ts(72,83): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/services/workerActivity.service.ts(1,70): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/services/workerActivity.service.ts(2,47): error TS2307: Cannot find module '@oxy.so/telemetry/collector' or its corresponding type declarations.
+packages/api/src/utils/displayNameSanitize.ts(76,8): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/utils/multikey.ts(19,45): error TS2307: Cannot find module '@oxy.so/protocol/secp256k1' or its corresponding type declarations.
+packages/api/src/utils/profileQuery.ts(27,50): error TS2307: Cannot find module '@oxy.so/federation' or its corresponding type declarations.
+packages/api/src/utils/profileTextNormalization.ts(57,37): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/utils/sanitize.ts(23,40): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/utils/userCache.ts(20,44): error TS2307: Cannot find module '@oxy.so/core/server' or its corresponding type declarations.
+packages/api/src/utils/userTransform.ts(7,34): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.
+packages/api/src/utils/username.ts(18,37): error TS2307: Cannot find module '@oxy.so/core' or its corresponding type declarations.

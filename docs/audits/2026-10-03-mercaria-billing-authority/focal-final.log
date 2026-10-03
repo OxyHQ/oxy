@@ -1,0 +1,7 @@
+$ jest --runInBand src/services/__tests__/mercariaBillingAuthority.db.test.ts
+{"level":30,"time":1791009482026,"pid":3581591,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+Test Suites: 1 passed, 1 total
+Tests:       12 passed, 12 total
+Snapshots:   0 total
+Time:        0.776 s, estimated 1 s
+Ran all test suites matching src/services/__tests__/mercariaBillingAuthority.db.test.ts.
