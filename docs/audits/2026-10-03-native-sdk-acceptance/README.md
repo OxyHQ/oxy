@@ -23,3 +23,19 @@ request has been executed by this agent. Metro with the registered native fixtur
 client, actual device behavior, and final published SDK repeat remain pending.
 This package is outside the existing trusted sibling allowlist and therefore
 cannot establish shared-device SSO; it exercises third-party isolated OAuth.
+
+## Registered client and bundle
+
+Coverage registered a dedicated development third-party public credential with
+exact callback `astro://oauth/callback`, without prefabricating sessions/grants.
+Metro17966 compiled3555 Android modules and servedHTTP200; the bundle contains
+the registered client and acceptance persistence namespace. A pre-existing
+`@noble/hashes/crypto.js` export warning used Metro file resolution; device runtime
+remains the authority for whether the loaded SDK works.
+
+Root preflight identified a signature-permission conflict with the existing
+owned fixture host. A separate APK was signed with that fixture's disposable
+`allowed.jks` certificate (`0114ce…`), without changing package identity,
+allowlists or original APK. Both artifacts are hashed. The signer is a public
+local test fixture, not a production key. Root alone installs/operates the AVD.
+The debug APK loads JS from Metro; successful compilation is not a device run.

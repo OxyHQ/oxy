@@ -83,6 +83,11 @@
       "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/config.log",
       "sha256": "ce3dafb973cd7d6e81b82ca73e429b768d1f1d05e64b1115d47a7a3534bc5f11",
       "bytes": 99
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-sdk-acceptance/logs/metro-bundle.log",
+      "sha256": "bffa6e0bb7a7ddd71f3015792240fa80ca2af5ed74ca0ade7eae2e2f982b2415",
+      "bytes": 3893
     }
   ],
   "inputs": [
@@ -132,6 +137,16 @@
       "path": "packages/test-app-expo/android/app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml",
       "sha256": "8f85d0a2573c010a880c9269704d275a3ec174e968fa4a03812ca0462a904db6",
       "bytes": 8126
+    },
+    {
+      "path": "packages/test-app-expo/android/app/build/outputs/apk/debug/app-debug-owned-fixture.apk",
+      "sha256": "26b38441e206103abb21ffb0c59d6d292b98a5ebc3d2abb443e05190c676dfc1",
+      "bytes": 86596435
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-android-bundle-20261003.js",
+      "sha256": "4d7ea04384b052032b896f1a0c292e4aaf8d1cb279c9b97e2539f65b46921f34",
+      "bytes": 21500896
     }
   ],
   "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
@@ -142,8 +157,6 @@
   "deviceValidated": false,
   "registrySdkInstalled": false,
   "pending": [
-    "registered fixture client ID",
-    "Metro bundle verification",
     "root-operated isolated AVD checks",
     "final registry SDK installation and repeat"
   ],
@@ -163,5 +176,24 @@
       "sha256": "f509ee105d5d8ed4ae4f7075a262e1dee7929cc22769068fa53de79c460f32bf",
       "bytes": 77
     }
-  ]
+  ],
+  "installedFixtureCertificateSha256": "0114ce567a3be9b87dcbb0ef1083bba5f6e38ebf6733b29df93be1acfd7fbb55",
+  "nativeFixture": {
+    "clientId": "oxy_dk_c1ca55466d183138e5f470d64e0100c44c0c1d565b13e9b3",
+    "appId": "01a10115-a36a-7093-ada3-f869375e17b6",
+    "type": "third_party",
+    "environment": "development",
+    "registrationOwner": "coverage owned local fixture",
+    "sessionsOrGrantsPrefabricated": false,
+    "apiPort": 17960,
+    "idpPort": 17961,
+    "metroPort": 17966
+  },
+  "bundle": {
+    "modules": 3555,
+    "httpStatus": 200,
+    "registeredClientPresent": true,
+    "runtimeExecuted": false,
+    "warning": "Metro fell back to file-based resolution for existing @noble/hashes/crypto.js export"
+  }
 }
