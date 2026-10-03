@@ -594,7 +594,7 @@ router.get('/execution-authorizations', authMiddleware, async (request: AuthRequ
  *               properties:
  *                 authorization:
  *                   type: object
- *                   required: [id, kind, requesterAccountId, ownerAccountId, coordinatorApplicationId, coordinatorCredentialId, actorType, actorAccountId, requesterSessionId, requesterSessionBindingDigest, resourceApp, effectiveAccountId, resourceType, resourceKey, tool, maximumAutonomy, expiresAt]
+ *                   required: [id, kind, requesterAccountId, ownerAccountId, coordinatorApplicationId, coordinatorCredentialId, actorType, actorAccountId, requesterSessionId, requesterSessionBindingDigest, requesterCatalogRegistrationId, requesterCatalogVersion, requesterCatalogDigest, resourceApp, effectiveAccountId, resourceType, resourceKey, tool, maximumAutonomy, expiresAt]
  *                   properties:
  *                     id: { type: string }
  *                     kind: { type: string, const: direct_request }
@@ -606,6 +606,9 @@ router.get('/execution-authorizations', authMiddleware, async (request: AuthRequ
  *                     actorAccountId: { type: string }
  *                     requesterSessionId: { type: string }
  *                     requesterSessionBindingDigest: { type: string, pattern: '^[a-f0-9]{64}$' }
+ *                     requesterCatalogRegistrationId: { type: string }
+ *                     requesterCatalogVersion: { type: string }
+ *                     requesterCatalogDigest: { type: string, pattern: '^[a-f0-9]{64}$' }
  *                     resourceApp: { type: string, const: oxy }
  *                     effectiveAccountId: { type: string }
  *                     resourceType: { type: string, const: account }
@@ -659,6 +662,8 @@ router.post('/foreground-execution-authorizations', serviceAuthMiddleware, async
     kind: 'direct_request', requesterAccountId: requester.principalAccountId,
     requesterAuthMethodId: agentBinding?.authMethodId ?? null,
     requesterSessionId: requester.sessionId, requesterSessionBindingDigest: requester.digest,
+    requesterCatalogRegistrationId: registration.id,
+    requesterCatalogVersion: registration.version, requesterCatalogDigest: registration.digest,
     ownerAccountId: requester.subjectAccountId,
     coordinatorApplicationId: presenter.applicationId, coordinatorCredentialId: presenter.credentialId,
     actorType: 'requester', actorAccountId: requester.principalAccountId,
@@ -912,7 +917,7 @@ router.post('/capability-map', serviceAuthMiddleware, async (request: ServiceAut
   response.json({ assignments: assignments.filter((assignment) => assignment !== null) });
 });
 
-router.post('/tickets', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
+router.post('/tickets', serviceAuthMiddleware, asyncHandler(async (request: ServiceAuthRequest, response: Response) => {
   const principal = await livePrincipal(request, response, 'capability-tickets:issue', AGENCY_COORDINATE_CAPABILITY);
   if (!principal) return;
   const parsed = capabilityTicketRequestSchema.safeParse(request.body);
@@ -931,7 +936,7 @@ router.post('/tickets', serviceAuthMiddleware, async (request: ServiceAuthReques
     ...(parsed.data.expectedCatalog ? { expectedCatalog: parsed.data.expectedCatalog } : {}),
   }, { issueTicket: true });
   response.status(result.decision.allowed ? 201 : 403).json(result);
-});
+}));
 
 router.post('/tickets/introspect', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
   const principal = await livePrincipal(request, response, 'capabilities:read');

@@ -1,5 +1,6 @@
 /** Present-requester approval within the existing capability ticket family. */
 import { createHash } from 'node:crypto';
+import { ApiError } from '../utils/error';
 import { and, eq, inArray } from 'drizzle-orm';
 import { canonicalCapabilityJson } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
@@ -57,7 +58,13 @@ async function liveSession(sessionId: string, presenter: LiveAgencyServicePrinci
   if (accounts.length !== accountIds.length
     || accounts.some((account) => account.status !== 'active' || account.fence !== null)) return null;
   // A bot must name its actual live autonomous signer even when acting as an org.
-  await readSessionAgentBinding(session.sessionId, principalAccountId);
+  try {
+    await readSessionAgentBinding(session.sessionId, principalAccountId);
+  } catch (error) {
+    // Concurrent withdrawal is a known refusal; SQL/programming errors stay 500.
+    if (error instanceof ApiError && error.statusCode === 401 && error.code === 'INVALID_SESSION') return null;
+    throw error;
+  }
   if (session.applicationId !== null) {
     if (session.applicationId !== presenter.applicationId
       || !session.clientId || !session.scopes.includes('user:read')) return null;

@@ -126,6 +126,10 @@ export const capabilityExecutionAuthorizations = pgTable(
     /** Historical approval handle: live session checks deny absent/expired rows. */
     requesterSessionId: text(),
     requesterSessionBindingDigest: text(),
+    /** Frozen foreground approval: a new catalogue requires new approval. */
+    requesterCatalogRegistrationId: text().references(() => appCapabilityCatalogRegistrations.id, { onDelete: 'restrict' }),
+    requesterCatalogVersion: text(),
+    requesterCatalogDigest: text(),
     actorAccountId: text().references(() => users.id, { onDelete: 'cascade' }),
     resourceApp: text().notNull(),
     effectiveAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -157,6 +161,15 @@ export const capabilityExecutionAuthorizations = pgTable(
        and ${t.kind} = 'direct_request' and ${t.maximumAutonomy} = 'read_only'
        and ${t.actorAccountId} = ${t.requesterAccountId})
       or (${t.actorType} <> 'requester' and ${t.requesterSessionId} is null and ${t.requesterSessionBindingDigest} is null)`),
+    check('capability_execution_requester_catalog_check', sql`
+      (${t.actorType} = 'requester' and (
+        (${t.requesterCatalogRegistrationId} is not null and length(${t.requesterCatalogRegistrationId}) > 0
+         and ${t.requesterCatalogVersion} is not null and length(${t.requesterCatalogVersion}) > 0
+         and ${t.requesterCatalogDigest} is not null and ${t.requesterCatalogDigest} ~ '^[a-f0-9]{64}$')
+        or (${t.revokedAt} is not null and ${t.requesterCatalogRegistrationId} is null
+         and ${t.requesterCatalogVersion} is null and ${t.requesterCatalogDigest} is null)))
+      or (${t.actorType} <> 'requester' and ${t.requesterCatalogRegistrationId} is null
+       and ${t.requesterCatalogVersion} is null and ${t.requesterCatalogDigest} is null)`),
     check('capability_execution_authorizations_automation_check', sql`(${t.kind} = 'automation') = (${t.automationId} is not null)`),
     check(
       'capability_execution_authorizations_run_scope_check',

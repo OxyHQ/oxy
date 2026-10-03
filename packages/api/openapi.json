@@ -11232,6 +11232,9 @@
                         "actorAccountId",
                         "requesterSessionId",
                         "requesterSessionBindingDigest",
+                        "requesterCatalogRegistrationId",
+                        "requesterCatalogVersion",
+                        "requesterCatalogDigest",
                         "resourceApp",
                         "effectiveAccountId",
                         "resourceType",
@@ -11271,6 +11274,16 @@
                           "type": "string"
                         },
                         "requesterSessionBindingDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "requesterCatalogRegistrationId": {
+                          "type": "string"
+                        },
+                        "requesterCatalogVersion": {
+                          "type": "string"
+                        },
+                        "requesterCatalogDigest": {
                           "type": "string",
                           "pattern": "^[a-f0-9]{64}$"
                         },
